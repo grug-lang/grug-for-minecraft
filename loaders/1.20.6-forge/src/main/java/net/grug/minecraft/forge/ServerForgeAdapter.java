@@ -160,17 +160,41 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
-     * Nothing to close: the screen belongs to a client, and a dedicated server has none. The
-     * inherited answer reaches for {@code Minecraft.getInstance()}, a client class the server
-     * refuses to load, and the runner calls this before the run's first test. See #167.
+     * Closes the menu the test player has open, which is this server's half of closing the joined
+     * client's screen: {@code ServerPlayer.closeContainer} sends the packet that client closes it
+     * with. One client serves the whole run, so a screen a test opened outlives it, and a capture
+     * test that follows a GUI test would otherwise take a frame of the panel rather than of the
+     * world (#418). The inherited answer reaches for {@code Minecraft.getInstance()}, a client
+     * class the server refuses to load, and the runner calls this before the run's first test. See
+     * #167.
      */
     @Override
-    public void closeOpenScreenForTest() {}
+    public void closeOpenScreenForTest() {
+        Object playerObj = testPlayer();
+        if (!(playerObj instanceof ServerPlayer)) return;
+        ServerPlayer player = (ServerPlayer) playerObj;
+        if (player.containerMenu != player.inventoryMenu) player.closeContainer();
+    }
 
-    /** No screen can be open on a server. */
+    /**
+     * Whether the test player has a container open on this server, which is the menu the joined
+     * client's screen is built from.
+     *
+     * <p>A test that clicks a block whose use export opens a GUI reaches {@code
+     * ServerPlayer.openMenu}, which sends the open-screen packet before it stores the menu here,
+     * and a right-click on a container opens the game's own menu the same way. So a test that asks
+     * this after such a click learns whether the window it opened exists for the player it runs as,
+     * and a regression that opens the GUI on a client instead, or does not open it at all, leaves
+     * it closed. What this does not answer is the client's own screen, which is a client-side
+     * object: asking it is what #1094 forwards, and until then a test on a server asks this server
+     * half.
+     */
     @Override
     public boolean isScreenOpenForTest() {
-        return false;
+        Object playerObj = testPlayer();
+        if (!(playerObj instanceof ServerPlayer)) return false;
+        ServerPlayer player = (ServerPlayer) playerObj;
+        return player.containerMenu != player.inventoryMenu;
     }
 
     /**

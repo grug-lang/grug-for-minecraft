@@ -32,3 +32,8 @@ coverage/tests/block_shape-Test.grug
 # Unexplained, tracked in #1051: the dropped item's hop y is not 0.2 on the server although the
 # a0.2.1 ItemEntity constructor sets 0.2F like the client's.
 buildcraft/tests/wooden_pipe_break-Test.grug
+#
+# The GUI a server opens for its player. Test.screen_open answers for the client's own screen here,
+# and a server has none to ask, so a server-run test cannot see the menu it opened. #1094 forwards
+# the question to the joined client.
+coverage/tests/remote_gui-Test.grug

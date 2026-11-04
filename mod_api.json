@@ -1271,7 +1271,7 @@
 					]
 				},
 				"close_screen": {
-					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
+					"description": "Closes whatever screen is open: the client's own screen on a client, and on a dedicated server the container the player the test runs as has open, which sends the client the packet that closes its screen. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
 				"display_tick": {
 					"description": "Test only: runs the display tick of the block at that position as the game does for a block it samples around the player, with a random generator seeded by `seed`, and answers how many particles it spawned. It goes through the block's own random display tick rather than a grug call, so it answers for any block the loader knows. The particles spawned are kept for Test.particle_position until the next call. Whether they are drawn depends on the player's particle setting, which the screenshot runs set to minimal, and on Alpha and Beta, which have no such setting, the CI runs drop them.",
@@ -1594,7 +1594,7 @@
 					]
 				},
 				"screen_open": {
-					"description": "Whether the client has a screen open. A block's GUI is not necessarily open when `use_block` returns: on 1.20.6 the server opens it with a packet, and a settled world does not say the packet has arrived, so a test that captures the panel waits for this first. A screen that `close_screen` leaves in place on a loader that needs one does not count. See #418.",
+					"description": "Whether a screen is open: the client's own screen on a client, and on a dedicated server whether the player the test runs as has a container open, which is the menu the joined client's screen is built from. A block's GUI is not necessarily open when `use_block` returns: on 1.20.6 the server opens it with a packet, and a settled world does not say the packet has arrived, so a test that captures the panel waits for this first. A screen that `close_screen` leaves in place on a loader that needs one does not count. See #418 and #168.",
 					"return_type": {
 						"name": "bool"
 					}

@@ -10,3 +10,8 @@
 # dedicated server.
 buildcraft/tests/wooden_pipe_boxes-Test.grug
 coverage/tests/block_shape-Test.grug
+#
+# The GUI a server opens for its player. Test.screen_open answers for the client's own screen
+# here, and a server has none to ask, so a server-run test cannot see the menu it opened. #1094
+# forwards the question to the joined client.
+coverage/tests/remote_gui-Test.grug
