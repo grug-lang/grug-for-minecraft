@@ -11,6 +11,7 @@ import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.function.BiConsumer;
@@ -1890,8 +1891,7 @@ public class HostFunctions {
         // A capture reads a drawn frame, so the test wants one even if it reached this call without
         // Test.screenshot. See GrugFrameRequest.
         GrugFrameRequest.request();
-        // The rectangle is checked here, before an adapter that has no frame buffer of its own
-        // (a dedicated server, which refuses the comparison) is asked, so a typo is reported as a
+        // The rectangle is checked here, before the adapter is asked, so a typo is reported as a
         // typo on every side (#1040).
         String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
         if (bad != null) {
@@ -1902,15 +1902,26 @@ public class HostFunctions {
                 "Screenshot.equals",
                 "screenshot",
                 screenshotId,
-                screenshot ->
-                        GrugCore.getAdapter()
-                                .assertScreenshotEquals(
-                                        referencePath,
-                                        x1,
-                                        y1,
-                                        x2,
-                                        y2,
-                                        ((GrugScreenshot) screenshot).tolerancePercent()));
+                screenshot -> {
+                    // captureScreenshot reads this client's frame, or forwards the read to the
+                    // joined client on a dedicated server, so both sides compare the same way.
+                    BufferedImage capture = GrugCore.getAdapter().captureScreenshot(x1, y1, x2, y2);
+                    if (capture == null) {
+                        // The adapter has already reported a capture it could not take.
+                        return;
+                    }
+                    // grug resolves a resource to "<mod name>/<path relative to the mod>", so
+                    // joining it onto the mods root gives the reference directory on disk. That
+                    // directory holds PNGs named after the loaders that produced them, and the
+                    // assertion passes if the capture matches any of them; see GrugScreenshots.
+                    File referenceDirectory =
+                            new File(GrugCore.getAdapter().getGrugModsDirectory(), referencePath);
+                    GrugScreenshots.verify(
+                            capture,
+                            referenceDirectory,
+                            referencePath,
+                            ((GrugScreenshot) screenshot).tolerancePercent());
+                });
     }
 
     /**

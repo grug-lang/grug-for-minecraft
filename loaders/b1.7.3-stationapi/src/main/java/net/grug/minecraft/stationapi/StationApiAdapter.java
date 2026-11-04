@@ -1635,29 +1635,6 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void assertScreenshotEquals(
-            String referencePath,
-            double x1,
-            double y1,
-            double x2,
-            double y2,
-            double tolerancePercent) {
-        if (refuseWithoutAClient("Screenshot.equals")) return;
-        BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
-        if (capture == null) {
-            return; // captureChecked already reported why
-        }
-
-        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
-        // the mods root gives the reference directory on disk. That directory holds PNGs named
-        // after the loaders that produced them, and the assertion passes if the capture matches
-        // any of them; see GrugScreenshots.
-        File referenceDirectory = new File(InitListener.getActiveGrugModsDir(), referencePath);
-        GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
-    }
-
-    @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
         return captureChecked("Screenshot.capture", x1, y1, x2, y2);
     }
