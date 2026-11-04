@@ -309,6 +309,16 @@ while :; do
         fi
       done
     fi
+    # A server leg that skips a use_block test (it is not tick_any_side, or the loader lists it as
+    # unsupported) still passes its run, so every leg must show that these ran (#1090). The coverage
+    # test is the call itself, and the other three are its first proof: a block entity change and a
+    # placement.
+    for use_block in coverage/tests/use_block_effects buildcraft/tests/redstone_engine_wrench buildcraft/tests/wooden_pipe_wrench coverage/tests/decline_use_places; do
+      if ! grep -qF "[GRUG CI] PASS ${use_block}-Test.grug" "$SERVER_LOG"; then
+        echo "==> The run passed, but ${use_block}-Test.grug did not run on the dedicated server." >&2
+        exit 1
+      fi
+    done
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0
   fi

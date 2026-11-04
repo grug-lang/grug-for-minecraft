@@ -1,0 +1,2 @@
+# A quiet block entity. coverage_use_saves only needs one for its use export to mark, so a test can
+# tell that a click's use ran against the world it reads.

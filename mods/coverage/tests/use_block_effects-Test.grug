@@ -1,0 +1,49 @@
+# Covers Test.use_block itself, on a client and on a dedicated server: a click runs the block's use
+# export against the world the test reads, and a block that declines leaves the click to the held
+# item, which places it against the face that was clicked. The face is the top one on both sides,
+# which is the face the client path passes, so the held block lands above the clicked block on a
+# dedicated server too. Both fixtures stand inside the room, whose shell is four blocks out: a block
+# in the shell has no air above it to place into. On 1.20.6 a client reaches the block by a packet,
+# so each step waits for the effect it asked for rather than counting ticks: a tick is not a unit of
+# time there (#688), and the runner's budget ends a click that never arrives.
+step: number = 0
+
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    if step == 0 {
+        level.place_block(x, y, z, "grug:coverage_use_saves")
+        level.place_block(x + 2, y, z, "grug:coverage_decline_use")
+        Test.set_held_item(Test.get_player(), item(resource_location("minecraft:cobblestone")))
+        Test.use_block(level, x, y, z)
+        step = 1
+        ctx.not_done()
+    } else if step == 1 {
+        if _used(ctx, level, x, y, z) != 1 {
+            ctx.not_done()
+            return
+        }
+        Test.use_block(level, x + 2, y, z)
+        step = 2
+        ctx.not_done()
+    } else if not _is_cobblestone(level, x + 2, y + 1, z) {
+        ctx.not_done()
+    } else {
+        ctx.assert(not _is_cobblestone(level, x, y + 1, z), "A click the block handled should not place the held block.")
+        Test.clear_held_item(Test.get_player())
+    }
+}
+
+local _used(ctx: TestTickContext, level: Level, x: number, y: number, z: number) number {
+    block_entity_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity_opt.has(), "The handling block should have a block entity.")
+    return block_entity_opt.unwrap().get_saved_number("used")
+}
+
+local _is_cobblestone(level: Level, x: number, y: number, z: number) bool {
+    return level.get_block(x, y, z) == "minecraft:cobblestone"
+}

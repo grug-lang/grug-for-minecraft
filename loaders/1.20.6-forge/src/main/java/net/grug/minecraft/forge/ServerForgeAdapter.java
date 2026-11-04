@@ -5,7 +5,13 @@ import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.awt.image.BufferedImage;
@@ -29,7 +35,9 @@ import java.util.UUID;
  * <p>The client-only functions are inherited too, and are not overridden here: each one refuses
  * itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot
  * test on a server into an err naming the function, rather than an exception from inside {@code
- * net.minecraft.client}.
+ * net.minecraft.client}. {@code useBlockForTest} is not one of them and is overridden: a click is
+ * not a client-only function, so the server right-clicks in its own world, the world the test reads
+ * (#1090).
  *
  * <p>Whole class is excluded from coverage until CI launches a server: see #167.
  */
@@ -64,6 +72,38 @@ public class ServerForgeAdapter extends ForgeAdapter {
         }
         var players = server.getPlayerList().getPlayers();
         return players.isEmpty() ? null : (ServerPlayer) players.get(0);
+    }
+
+    /**
+     * Right-clicks a block on this server's own world, so a server-run test's click lands in the
+     * world the test reads (#1090).
+     *
+     * <p>A forwarded click would deadlock: the client's {@code MultiPlayerGameMode} sends a use
+     * packet the server thread is blocked inside this call and so cannot process. So the click is
+     * made here instead, through the server player's own {@code ServerPlayerGameMode.useItemOn},
+     * which is what {@code ServerGamePacketListenerImpl.handleUseItemOn} reaches for a client's use
+     * packet: the block's use first, and the held item's use against it when the block declines.
+     *
+     * <p>The face is the top one, which is the face the client path puts in its {@code
+     * BlockHitResult}: a test has no camera to aim, and the test room's blocks sit above the
+     * player's level view, so a ray trace could not reach them. Both sides therefore click the same
+     * face.
+     */
+    @Override
+    public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        Object playerObj = testPlayer();
+        if (!(playerObj instanceof ServerPlayer)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.use_block: There is no player to right-click with.");
+            return;
+        }
+        ServerPlayer player = (ServerPlayer) playerObj;
+        ServerLevel level = (ServerLevel) levelObj;
+        BlockPos pos = new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        BlockHitResult hit =
+                new BlockHitResult(new Vec3(x + 0.5, y + 0.5, z + 0.5), Direction.UP, pos, false);
+        player.gameMode.useItemOn(
+                player, level, player.getMainHandItem(), InteractionHand.MAIN_HAND, hit);
     }
 
     /**

@@ -7,7 +7,7 @@
 # the cobblestone is waited for, with no count of ticks of its own: a tick is not a unit of time there (#688),
 # and the runner's budget ends a click that never arrives.
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

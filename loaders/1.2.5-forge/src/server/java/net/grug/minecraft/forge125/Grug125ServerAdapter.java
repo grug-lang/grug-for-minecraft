@@ -11,6 +11,7 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerMP;
+import net.minecraft.src.World;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -23,7 +24,9 @@ import java.util.Set;
  * The adapter for a 1.2.5 dedicated server: everything that is not about which process this is
  * lives in {@link Grug125Adapter}, and what a server answers differently (the level and the player
  * handles, no screens, no frames, no sound, no capture) is here. The server has no client, so the
- * client-only functions refuse themselves through {@code ModLoaderAdapter.refuseWithoutAClient}.
+ * client-only functions refuse themselves through {@code ModLoaderAdapter.refuseWithoutAClient};
+ * {@code useBlockForTest} is not one of them and is overridden, so the server right-clicks in its
+ * own world, the world the test reads (#1090).
  *
  * <p>Excluded from coverage because only the dispatch-only multiplayer job launches a server
  * (#166).
@@ -244,9 +247,50 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         return false;
     }
 
+    /**
+     * Right-clicks a block on this server's own world, so a server-run test's click lands in the
+     * world the test reads (#1090).
+     *
+     * <p>A forwarded click would deadlock: the client's {@code PlayerControllerMP} sends a use
+     * packet the server thread is blocked inside this call and so cannot process. So the click is
+     * made here instead, through the server's own interaction manager, {@code ItemInWorldManager},
+     * which is what {@code NetServerHandler.handlePlace} reaches for a client's use packet: the
+     * block's activation first, and the held item's use against it when the block declines.
+     *
+     * <p>The face is the top one, which is the face the client path passes to {@code
+     * onPlayerRightClick}: a test has no camera to aim, and the test room's blocks sit above the
+     * player's level view, so a ray trace could not reach them. Both sides therefore click the same
+     * face.
+     */
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        refuseWithoutAClient("Test.use_block");
+        World world = (World) levelObj;
+        EntityPlayerMP player = (EntityPlayerMP) testPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.use_block: There is no player to right-click with.");
+            return;
+        }
+
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+
+        if (blockAt(world, blockX, blockY, blockZ) == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.use_block: There is no block at "
+                            + blockX
+                            + ", "
+                            + blockY
+                            + ", "
+                            + blockZ
+                            + ".");
+            return;
+        }
+
+        player.itemInWorldManager.activeBlockOrUseItem(
+                player, world, player.inventory.getCurrentItem(), blockX, blockY, blockZ, 1);
     }
 
     /**

@@ -1,0 +1,12 @@
+# Fixture block for coverage: its use export marks its block entity and keeps the click, as the
+# redstone engine's use does. A test can then tell that a click's use ran against the world it reads,
+# which is the client's copy on a client and the server's world on a dedicated server.
+export init(ctx: BlockInitContext) {
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_use_saves_entity")
+}
+
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
+    block_entity: BlockEntity = world.get_block_entity(x, y, z).unwrap()
+    block_entity.set_saved_number("used", 1)
+}
