@@ -1,0 +1,53 @@
+# The flake of #1078 repeated inside one test so it shows in one run: forwarded_capture placed a
+# wall, captured, and the frame once showed no wall. Here the wall is removed and the empty room
+# captured first, then the wall is placed and removed 15 times, and every capture is compared with
+# the one before, so a capture taken before the client's world held the blocks the server had just
+# changed (or before it had drawn them) shows as a frame that did not change by the share the wall
+# covers.
+
+# The removal before the first capture is what makes round 0's frame the empty room. The room build
+# that precedes every test clears the area on the server, and until the server sends that clearing
+# before a request the client's frame is still the previous test's, which at this spot is a wall:
+# forwarded_capture then compares two frames of the same wall and fails. That is the flake of #1078,
+# and the clearing and the removal here are what a server that queues block changes must flush
+# before it asks for a capture. A server-run test, like forwarded_capture: only a multiplayer run
+# that forwards client calls runs a forwarded_ test.
+frame: Option[Screenshot] = Option.new()
+walled: bool = false
+round: number = 0
+
+export tick(ctx: TestTickContext) {
+    if round < 30 {
+        if round == 0 {
+            _wall_in_front_of(Test.get_origin(), "minecraft:air")
+        }
+        now: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
+        if frame.has() {
+            now.differs_from(frame.unwrap(), 50)
+        }
+        frame.set(now)
+        if walled {
+            _wall_in_front_of(Test.get_origin(), "minecraft:air")
+        } else {
+            _wall_in_front_of(Test.get_origin(), "grug:coverage_block")
+        }
+        walled = not walled
+        round = round + 1
+        ctx.not_done()
+    }
+}
+
+local _wall_in_front_of(origin: Vec3, block: string) {
+    level: Level = Test.get_client_level()
+    z: number = origin.z() + 1
+    across: number = -2
+    while across <= 2 {
+        x: number = origin.x() + across
+        up: number = -4
+        while up <= 0 {
+            level.place_block(x, origin.y() + up, z, block)
+            up = up + 1
+        }
+        across = across + 1
+    }
+}
