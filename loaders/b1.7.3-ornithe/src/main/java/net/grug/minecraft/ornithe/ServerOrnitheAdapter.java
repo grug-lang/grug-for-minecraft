@@ -288,6 +288,26 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * Keeps the block at the player's feet when it is a collision shape, because that shape's top
+     * is the surface the hold puts the player on: a slab at 70 stops the feet at 70.5, so clearing
+     * it would drop them onto the room's stand block at 70 by the missing half block (#1102). A
+     * block with no collision shape, such as a plant, water or a wall torch, is cleared as on every
+     * other loader.
+     */
+    @Override
+    protected boolean keepsFeetBlock(PlayerEntity player) {
+        double feet = feetY(player);
+        GrugPlayerFloor.BlockSource blocks = solidBlocks(getLevel());
+        return blocks.collisionTop(
+                        (int) Math.floor(player.x),
+                        (int) Math.floor(feet),
+                        (int) Math.floor(player.z),
+                        player.x,
+                        player.z)
+                != GrugPlayerFloor.BlockSource.NO_COLLISION;
+    }
+
+    /**
      * Asks the client of the player who started the run whether it has drawn the server's world,
      * with the world frozen, and answers the same to the test (#1086). A server on its own is
      * settled as soon as a test asks, because no client frame or block packet is owed to anyone;

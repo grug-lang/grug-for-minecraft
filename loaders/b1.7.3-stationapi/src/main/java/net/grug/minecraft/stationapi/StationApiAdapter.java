@@ -418,7 +418,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // is anchored to the feet: built around the eye, the block the player stands on lands
         // inside
         // their legs, they fall through it, and every test drops them a little further.
-        GrugTestBox.build(this, getLevel(), player.x, player.boundingBox.minY, player.z, radius);
+        GrugTestBox.build(
+                this, getLevel(), player.x, player.boundingBox.minY, player.z, radius, false);
     }
 
     @Override

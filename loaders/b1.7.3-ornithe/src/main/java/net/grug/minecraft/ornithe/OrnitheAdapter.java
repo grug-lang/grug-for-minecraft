@@ -886,7 +886,23 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         renderSettle.reset();
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
-        GrugTestBox.build(this, getLevel(), player.x, feetY(player), player.z, radius);
+        GrugTestBox.build(
+                this,
+                getLevel(),
+                player.x,
+                feetY(player),
+                player.z,
+                radius,
+                keepsFeetBlock(player));
+    }
+
+    /**
+     * Whether the room build keeps the block the player's feet are in. A client clears it, as every
+     * loader did before #1102; only the b1.7.3-ornithe server keeps a collision shape it holds the
+     * player on.
+     */
+    protected boolean keepsFeetBlock(PlayerEntity player) {
+        return false;
     }
 
     @Override

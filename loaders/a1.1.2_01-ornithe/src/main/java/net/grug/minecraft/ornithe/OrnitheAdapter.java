@@ -883,7 +883,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         renderSettle.reset();
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
-        GrugTestBox.build(this, getLevel(), player.x, player.y - 1.62, player.z, radius);
+        GrugTestBox.build(this, getLevel(), player.x, player.y - 1.62, player.z, radius, false);
     }
 
     @Override
