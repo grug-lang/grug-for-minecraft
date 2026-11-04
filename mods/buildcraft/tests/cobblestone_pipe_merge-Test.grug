@@ -12,28 +12,55 @@ target: Option[BlockEntity] = Option.new()
 wooden_a: Option[BlockEntity] = Option.new()
 wooden_b: Option[BlockEntity] = Option.new()
 cobblestone: Option[BlockEntity] = Option.new()
+# The level to advance, fetched once: every Test.get_client_level adds a level entity, and the
+# advance is asked for on more than one runner tick.
+test_level: Option[Level] = Option.new()
+
+# The game ticks this test has asked the level to run so far, which bounds the advance as a whole
+# rather than one call of it.
+advanced: number = 0
+
+# #1014: the pick is the level's own random, as PipeTransportItems.resolveDestination draws it in
+# singleplayer (worldObj.r.nextInt(size)), and nothing in the API seeds that random, so the route
+# cannot be pinned without changing the reference's behaviour, and the test asserts what does not
+# depend on it. The client OrnitheAdapters and both stationapi adapters leave tickLevel at its
+# default, so the clients of a1.1.2, b1.7.3-ornithe and b1.7.3-stationapi and the stationapi server
+# wait on the runner's tick budget while every other leg advances its level inside one runner tick.
+# A temporary repeat of the whole fixture, each round draining every item into the output chest,
+# finished 35 rounds, 10 of them on the stationapi client, the only ordinary-budget samples: those
+# took 663 to 2397 runner ticks, which are game ticks there, and the longest round anywhere took
+# 4640 game ticks (1.2.5 4640, 1.20.6 3255, the rest between 560 and 3030). The budget has to cover
+# the first delivery of each kind, not a whole round: init asks for 4000 ticks of real time, which is
+# 40000 runner ticks at the 10x game speed CI runs at and 4000 at 1x, and the first delivery took
+# about 366 game ticks on the stationapi client in the merged run.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(4000)
+}
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
-        _advance(ctx)
-        ctx.not_done()
-    } else if not _done() {
-        _sample(ctx)
-        ctx.not_done()
-    } else {
-        _sample(ctx)
     }
+    _advance(ctx)
+    _sample(ctx)
+    if _done() {
+        return
+    }
+    ctx.not_done()
 }
 
 # #780: the pipes need the world's own ticks, so the test asks the level to run them inside this
-# tick, and a loader that cannot advance its level is carried by the wait in tick() instead.
+# tick, and a loader that cannot advance its level answers 0 and is carried by the wait in tick()
+# instead. A grug call may not run past the engine's 100 ms limit: the temporary repeat's whole-round
+# drain reached it on 1.2.5, while this test stops at the first delivery and has not. The 200-tick
+# chunk keeps a detour-heavy first delivery inside the limit as well, the 6000 cap bounds the test as
+# a whole, and a route that needs more is carried by the tick budget.
 local _advance(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    advanced: number = 0
+    chunk: number = 0
     ran: number = 5
-    while not _done() and ran > 0 and advanced < 6000 {
-        ran = Test.tick_level(level, 5)
+    while not _done() and ran > 0 and chunk < 200 and advanced < 6000 {
+        ran = Test.tick_level(test_level.unwrap(), 5)
+        chunk = chunk + ran
         advanced = advanced + ran
         _sample(ctx)
     }
@@ -41,6 +68,7 @@ local _advance(ctx: TestTickContext) {
 
 local _setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
+    test_level.set(level)
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
     # Band 12, clear of the bands the other pipe tests use.
