@@ -187,7 +187,9 @@ public final class GrugServerRun {
                 advance(server.getWorld(0), 1);
             }
             PlayerEntity player = (PlayerEntity) GrugCore.getAdapter().testPlayer();
-            holdPlayer(player);
+            if (player != null) {
+                holdPlayer(player);
+            }
             runner.tick(player);
             if (runner.isFinished()) {
                 stop(runner.isPassed() ? 0 : 1);
@@ -204,12 +206,13 @@ public final class GrugServerRun {
      * collision check tests is contracted by 0.0625. The client's own collision then never reports
      * support, so the wait for {@code onGround} never ends (#1095). The ground is in the server's
      * world, so the server teleports the player to the top of the solid column under them whenever
-     * they are below it, and zeroes the fall they arrived with. Once the feet are exactly on the
-     * floor the client lands on it and reports support again.
+     * they are below it, and zeroes {@code velocityY} so the fall does not continue. Once the feet
+     * are exactly on the floor the client lands on it and reports support again.
      *
-     * <p>The same hold runs during the run, so a rebuild that clears the floor under the player for
-     * a tick cannot leave them inside the new one. No host function moves the player down, so
-     * holding the feet at the floor cannot hide a test's own movement.
+     * <p>The same hold runs during the run, so a player who ends a tick below the room's floor is
+     * put back on it before the runner ticks. It does nothing while a rebuild has cleared the floor
+     * and the player is falling, because there is no floor to put them on yet. No host function
+     * moves the player down, so holding the feet at the floor cannot hide a test's own movement.
      */
     private static void holdPlayer(PlayerEntity player) {
         World world = world();
