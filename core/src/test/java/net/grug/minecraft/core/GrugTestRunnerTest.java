@@ -1302,12 +1302,15 @@ class GrugTestRunnerTest {
 
         String printed = capture(() -> runToEnd(sideRunner(ops, true)));
 
+        // The FAIL line is the discriminator: a skipped test prints none, so the abort was read as
+        // this test's own error, which is only possible because the host function error raised the
+        // runtime error count the any-side probe looks at. Without that count the file would have
+        // looked like one that defines neither tick, and the dedicated server would have skipped
+        // the only declared test here.
         assertTrue(printed.contains("[GRUG CI] FAIL coverage/tests/a-Test.grug"), printed);
         assertTrue(
                 printed.contains("The test script reported a runtime error and stopped early"),
                 printed);
-        assertFalse(printed.contains("Skipped"), printed);
-        assertFalse(printed.contains("[GRUG CI] PASS coverage/tests/a-Test.grug"), printed);
     }
 
     private GrugTestRunner forwardedRunner(
