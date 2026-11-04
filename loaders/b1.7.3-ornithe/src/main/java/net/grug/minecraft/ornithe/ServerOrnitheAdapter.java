@@ -15,6 +15,7 @@ import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance;
 
@@ -23,6 +24,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -49,6 +51,12 @@ import java.util.Set;
  */
 @GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class ServerOrnitheAdapter extends OrnitheAdapter {
+
+    /**
+     * How thin the column is that asks which collision boxes cover the player's own point. It only
+     * has to be non-zero so a box whose edge is exactly on the point still intersects it.
+     */
+    private static final double POINT_EDGE = 1e-9;
 
     @Override
     public GrugSide getSide() {
@@ -223,7 +231,9 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * never reports support, and every later packet takes the handler's teleport-back path, which
      * returns before {@code onGround} is copied, so the wait timed out with the client in the world
      * and the run already started (#1095). The server's own world has the ground, so the player
-     * counts as ready when they stand on it, and a player inside a block is never accepted.
+     * counts as ready when they stand on it, and a player inside a block's collision shape is never
+     * accepted. The ground is the shape's top, not the block's top, so a player standing on a slab
+     * at 70.5 is ready rather than read as half a block inside it (#1102).
      */
     @Override
     public boolean isWorldReady(Object playerObj) {
@@ -238,15 +248,42 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
-     * The solid blocks of a level, as {@link GrugPlayerFloor} reads them. A block counts when it
-     * stops movement, which is the test the level's own surface height uses, so a torch or a plant
-     * under the player is not a floor.
+     * The collision shapes of a level's blocks, as {@link GrugPlayerFloor} reads them: the top of
+     * the highest box that covers the player's own point, which is what the game's own collision
+     * meets there. A slab's floor is half a block below its block top, a stair's lower step is not
+     * its upper one, and a block with no collision box at all, such as a torch or a plant, is not a
+     * floor (#1102).
      */
+    @SuppressWarnings("rawtypes")
     public static GrugPlayerFloor.BlockSource solidBlocks(Object levelObj) {
         World world = (World) levelObj;
-        return (x, y, z) -> {
+        return (x, y, z, pointX, pointZ) -> {
             int id = world.getBlock(x, y, z);
-            return id != 0 && Block.BY_ID[id].material.blocksMovement();
+            if (id <= 0 || id >= Block.BY_ID.length) {
+                return GrugPlayerFloor.BlockSource.NO_COLLISION;
+            }
+            Block block = Block.BY_ID[id];
+            if (block == null) {
+                return GrugPlayerFloor.BlockSource.NO_COLLISION;
+            }
+            // The game's own query, which adds every box at the position that meets the given box,
+            // so a shaped block answers the box the player's own column is in rather than its full
+            // cube. The box is a thin column through the block at the player's point.
+            Box point =
+                    Box.of(
+                            pointX - POINT_EDGE,
+                            y,
+                            pointZ - POINT_EDGE,
+                            pointX + POINT_EDGE,
+                            y + 1.0,
+                            pointZ + POINT_EDGE);
+            ArrayList boxes = new ArrayList();
+            block.addCollisions(world, x, y, z, point, boxes);
+            double top = GrugPlayerFloor.BlockSource.NO_COLLISION;
+            for (Object boxObj : boxes) {
+                top = Math.max(top, ((Box) boxObj).maxY - y);
+            }
+            return top;
         };
     }
 
