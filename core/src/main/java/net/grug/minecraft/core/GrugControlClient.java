@@ -43,6 +43,12 @@ public final class GrugControlClient {
         boolean hasSound(String path);
 
         void playUiSound(String path, double volume, double pitch);
+
+        /** Whether this client has drawn the world it has, as {@code Test.world_settled} asks. */
+        boolean isWorldSettled();
+
+        /** Forgets the frames the settle answer counts, so it waits for frames drawn from now. */
+        void forgetSettledFrames();
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -57,6 +63,16 @@ public final class GrugControlClient {
             public void playUiSound(String path, double volume, double pitch) {
                 adapter.get().playUiSound(path, volume, pitch);
             }
+
+            @Override
+            public boolean isWorldSettled() {
+                return adapter.get().isWorldSettled();
+            }
+
+            @Override
+            public void forgetSettledFrames() {
+                adapter.get().forgetSettledFrames();
+            }
         };
     }
 
@@ -67,6 +83,13 @@ public final class GrugControlClient {
     private final int lateWidth;
     private final AtomicReference<Runnable> held = new AtomicReference<>();
     private volatile boolean runActive = false;
+
+    /**
+     * The world revision this client last answered a settle ask for (#1086). A revision it has not
+     * answered is never settled, so a test that changed the world since the last answer is told the
+     * client has not drawn the change yet.
+     */
+    private long seenRevision = Long.MIN_VALUE;
 
     /**
      * @param dropWidth fault injection for CI: a request whose rectangle is this wide is never
@@ -92,6 +115,7 @@ public final class GrugControlClient {
     /** The player started a run: the flag first, then the message that tells the server. */
     public void beginRun() {
         runActive = true;
+        seenRevision = Long.MIN_VALUE;
         System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
         link.send(GrugControlWire.runStart());
     }
@@ -102,6 +126,7 @@ public final class GrugControlClient {
      */
     public void endRun() {
         runActive = false;
+        seenRevision = Long.MIN_VALUE;
         held.set(null);
     }
 
@@ -173,6 +198,10 @@ public final class GrugControlClient {
      */
     private void perform(GrugControlWire.Message message) {
         System.out.println("[GRUG CONTROL] request " + message.id + ": call " + message.call);
+        if (message.call == GrugControlWire.CALL_WORLD_SETTLED) {
+            worldSettled(message);
+            return;
+        }
         String problem =
                 GrugControlServer.callProblem(
                         message.call, message.text, message.volume, message.pitch);
@@ -198,6 +227,30 @@ public final class GrugControlClient {
                                                     0,
                                                     Math.min(String.valueOf(e).length(), 1000))));
         }
+    }
+
+    /**
+     * Answers whether this client has drawn the world the server's revision describes (#1086).
+     *
+     * <p>The ask is what makes the client draw, as a settle wait on a singleplayer client does, so
+     * a test that never captures still gets the frames its wait is about. A revision this client
+     * has not answered is never settled: the ask is ordered after the block changes the server
+     * flushed before it, and forgetting the frames counted so far makes the answer wait for frames
+     * drawn after those changes arrived. A revision it has already answered is asked of the
+     * adapter, so the wait ends once its light and its frames are idle.
+     */
+    private void worldSettled(GrugControlWire.Message message) {
+        GrugFrameRequest.request();
+        // The revision travels in the volume slot; see GrugControlWire.worldSettledRequest.
+        long revision = (long) message.volume;
+        if (revision != seenRevision) {
+            seenRevision = revision;
+            caller.forgetSettledFrames();
+            link.send(GrugControlWire.answerValue(message.id, (byte) 0));
+            return;
+        }
+        boolean settled = caller.isWorldSettled();
+        link.send(GrugControlWire.answerValue(message.id, (byte) (settled ? 1 : 0)));
     }
 
     private void answer(long id, BufferedImage image) {

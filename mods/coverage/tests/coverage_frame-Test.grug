@@ -5,6 +5,8 @@
 # The crop is a world-space rectangle at 1280x720, like coverage_render's: nothing here is a GUI
 # panel, so there is no virtual-space scaling to undo. The fixture sits where that test's run sits,
 # so the two crops line up and the same settled-light rules apply.
+# It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
+# joined client, and the capture it takes is the client's (#1086).
 # The block declares set_frame_render(), so none of its own geometry is in the chunk's mesh and
 # everything it shows is drawn here every frame. The remesh below is for the wall behind it.
 frame_block: Option[BlockEntity] = Option.new()
@@ -15,7 +17,7 @@ remeshed: bool = false
 # How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()

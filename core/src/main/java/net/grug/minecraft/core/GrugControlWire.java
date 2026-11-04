@@ -20,7 +20,9 @@ import java.util.List;
  * goes the other way and names a screenshot rectangle. The client answers with either {@link
  * #ANSWER_ERROR} or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound
  * custom payload is limited to 32767 bytes on 1.20.6 and the other old games are no more generous,
- * so a capture is cut into {@link #MAX_CHUNK}-byte pieces.
+ * so a capture is cut into {@link #MAX_CHUNK}-byte pieces. {@link #CALL_REQUEST} carries one of the
+ * client-only host functions a server may forward, which the client answers with a {@link
+ * #ANSWER_VALUE}.
  */
 public final class GrugControlWire {
     public static final byte RUN_START = 1;
@@ -46,6 +48,14 @@ public final class GrugControlWire {
 
     /** The call: play the sound under the name at the volume and pitch. The answer is 1. */
     public static final byte CALL_PLAY_UI_SOUND = 2;
+
+    /**
+     * The call: whether the client has drawn the world the server has, for a server-run settle wait
+     * (#1086). The answer is 1 or 0. Its name is empty and its volume slot carries the world
+     * revision the ask is about, so a revision the client has already answered is asked of the
+     * client again rather than of the server's own empty client.
+     */
+    public static final byte CALL_WORLD_SETTLED = 3;
 
     /** The longest name a call may carry, in bytes. */
     public static final int MAX_NAME = 256;
@@ -107,7 +117,10 @@ public final class GrugControlWire {
         /** The {@code CALL_} code of a call request. */
         public final byte call;
 
-        /** The volume and pitch of a {@link #CALL_PLAY_UI_SOUND}; the name is in {@link #text}. */
+        /**
+         * The volume and pitch of a {@link #CALL_PLAY_UI_SOUND}, or the revision of a {@link
+         * #CALL_WORLD_SETTLED} in the volume slot; the name is in {@link #text}.
+         */
         public final double volume;
 
         public final double pitch;
@@ -170,6 +183,15 @@ public final class GrugControlWire {
 
     public static byte[] answerValue(long id, byte value) {
         return ByteBuffer.allocate(1 + 8 + 1).put(ANSWER_VALUE).putLong(id).put(value).array();
+    }
+
+    /**
+     * The ask for {@link #CALL_WORLD_SETTLED} at {@code revision}, the counter of the test's own
+     * edits {@link GrugWorldRevision} keeps. A revision is far below the 2^53 up to which a double
+     * holds a whole number exactly, so the call's volume slot carries it without loss.
+     */
+    public static byte[] worldSettledRequest(long id, long revision) {
+        return callRequest(id, CALL_WORLD_SETTLED, "", (double) revision, 0);
     }
 
     public static byte[] runStart() {
@@ -276,7 +298,9 @@ public final class GrugControlWire {
                 case CALL_REQUEST:
                     long callId = in.getLong();
                     byte call = in.get();
-                    if (call != CALL_HAS_SOUND && call != CALL_PLAY_UI_SOUND) {
+                    if (call != CALL_HAS_SOUND
+                            && call != CALL_PLAY_UI_SOUND
+                            && call != CALL_WORLD_SETTLED) {
                         throw new IllegalArgumentException("unknown call " + call);
                     }
                     byte[] name = new byte[checkedLength(in, MAX_NAME, "name")];

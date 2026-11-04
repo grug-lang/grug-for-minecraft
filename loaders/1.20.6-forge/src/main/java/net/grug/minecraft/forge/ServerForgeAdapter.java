@@ -120,13 +120,24 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
-     * Settled as soon as a test asks: the server's world is the one a test reads, and no client
-     * frame, light copy or block packet is owed to anyone. The inherited answer compares the
-     * client's copy of the room with the server's, and there is no client here. See #167.
+     * Asks the client of the player who started the run whether it has drawn the server's world,
+     * with the world frozen, and answers the same to the test (#1086). A server on its own is
+     * settled as soon as a test asks, because no client frame, light copy or block packet is owed
+     * to anyone; that is also the answer when no client has started a run. The inherited answer
+     * compares the client's copy of the room with the server's, and there is no client here. See
+     * #167.
      */
     @Override
     public boolean isWorldSettled() {
-        return true;
+        if (!GrugControlForge.server().hasStarter()) {
+            return true;
+        }
+        try {
+            return GrugControlForge.server().worldSettled();
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.world_settled: " + e.getMessage());
+            return true;
+        }
     }
 
     /**

@@ -158,10 +158,23 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         return super.isWorldReady(playerObj) && ((PlayerEntity) playerObj).onGround;
     }
 
-    /** Settled as soon as a test asks: no client frame or block packet is owed to anyone. */
+    /**
+     * Asks the client of the player who started the run whether it has drawn the server's world,
+     * with the world frozen, and answers the same to the test (#1086). A server on its own is
+     * settled as soon as a test asks, because no client frame or block packet is owed to anyone;
+     * that is also the answer when no client has started a run.
+     */
     @Override
     public boolean isWorldSettled() {
-        return true;
+        if (!GrugControlBeta.server().hasStarter()) {
+            return true;
+        }
+        try {
+            return GrugControlBeta.server().worldSettled();
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.world_settled: " + e.getMessage());
+            return true;
+        }
     }
 
     /** The server has no frames, so there is nothing to forget. */
