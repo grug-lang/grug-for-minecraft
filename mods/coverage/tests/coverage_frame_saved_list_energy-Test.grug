@@ -8,9 +8,11 @@
 # transitions on one block, each compared with the capture before it: an empty frame, then the list
 # record with its item, then the record removed, then the energy store alone. The row that comes
 # back in the last step is the energy's, because the list is gone by then. The crop is taller than
-# coverage_frame's golden: a dedicated server builds the room from its own copy of the player, which
-# can stand a block above the joined client's, and the block then sits a block higher in that
-# client's frame, above the golden's crop, with the rows still inside this one.
+# coverage_frame's golden and keeps a margin on every side of the block: a dedicated server builds
+# the room from its own copy of the player, which can sit a block off the joined client's, and the
+# block then sits a block off where the golden has it in that client's frame. The wall covers the
+# whole crop, margin included, because sky in the margin would let a cloud drift between captures
+# and read as the row's change.
 frame_block: Option[BlockEntity] = Option.new()
 before: Option[Screenshot] = Option.new()
 
@@ -33,7 +35,7 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else if step == 0 {
         # The row is off before anything is saved, which is what the list's capture is compared to.
-        before.set(Test.screenshot().capture(500, 80, 780, 340))
+        before.set(Test.screenshot().capture(500, 60, 780, 440))
         frame_block.unwrap().append_saved_list_record("things")
         frame_block.unwrap().set_saved_list_item("things", 0, item(resource_location("minecraft:stick")))
         _next_step(ctx, 1)
@@ -44,7 +46,7 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else if step == 1 {
         # The list's item alone brought the row in.
-        listed: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
+        listed: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
         if listed.change_from(before.unwrap()) < 1 {
             _wait_for_change(ctx, "The list's item never reached the client's frame.")
         } else {
@@ -55,7 +57,7 @@ export tick_any_side(ctx: TestTickContext) {
     } else if step == 2 {
         # Nothing draws the row any more, so the frame has to be the empty one again. Without this
         # the energy's row could be the list's row that never left.
-        emptied: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
+        emptied: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
         if emptied.change_from(before.unwrap()) < 1 {
             _wait_for_change(ctx, "The removed list never left the client's frame.")
         } else {
@@ -65,7 +67,7 @@ export tick_any_side(ctx: TestTickContext) {
         }
     } else if step == 3 {
         # The energy store alone draws the row back.
-        energised: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
+        energised: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
         if energised.change_from(before.unwrap()) < 1 {
             _wait_for_change(ctx, "The energy store never reached the client's frame.")
         } else {
@@ -106,12 +108,15 @@ local _setup(ctx: TestTickContext) {
     # block.
     level.place_block(x, y - 1.88, z + 4, "grug:coverage_frame")
 
-    # A wall behind it, nine across and seven high, which covers the crop at its distance. Without
-    # one the crop could hold sky, and clouds drift between two captures.
-    wy: number = y - 6
-    while wy < y + 1 {
-        wx: number = x - 4
-        while wx < x + 5 {
+    # A wall behind it, thirteen across and thirteen high, the size coverage_frame's golden uses,
+    # which covers the whole crop. Without one the crop could hold sky, and clouds drift between two
+    # captures; it is larger than the block because the crop keeps a margin around the block for a
+    # dedicated server, whose room is built from its own copy of the player and can sit a block off
+    # the joined client's.
+    wy: number = y - 9
+    while wy < y + 4 {
+        wx: number = x - 6
+        while wx < x + 7 {
             level.place_block(wx, wy, z + 6, "minecraft:stone")
             wx = wx + 1
         }
