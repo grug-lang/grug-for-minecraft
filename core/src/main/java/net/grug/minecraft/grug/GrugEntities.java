@@ -35,6 +35,25 @@ public final class GrugEntities {
 
     public static final Map<String, Long> entityFileIdsByName = new HashMap<>();
 
+    /**
+     * The base every host-created entity id carries, which keeps those ids out of the range the VM
+     * hands out.
+     *
+     * <p>The VM numbers its own entities from one counter starting at 0, and the id it gives a
+     * block entity is what that entity's {@code me} holds. A host id used to be the type's ordinal
+     * shifted up 32 bits with the type's own index below it, so the first type's ids were the index
+     * alone: the 513th {@code add_item} response took the id of a live wooden pipe's block entity
+     * and shadowed it in {@link #entityData}, and the pipe's {@code me} then resolved to the
+     * response, so every saved-number call on it reported that the block entity was not one. Both
+     * counters are process-wide, so whether a test meets that id depends only on how far apart they
+     * are when it starts and how many {@code add_item} calls it makes. See #1120.
+     *
+     * <p>The base is above any id the VM's counter reaches in a session and above the type bits, so
+     * the two spaces cannot overlap. A VM-created entity's id is still registered under the id the
+     * VM reports, which is now always below every host id.
+     */
+    private static final long HOST_ENTITY_ID_BASE = 1L << 48;
+
     static {
         for (GrugEntityType type : GrugEntityType.values()) {
             nextEntityIndices.put(type, 0);
@@ -45,7 +64,7 @@ public final class GrugEntities {
         GrugObject grugObject = new GrugObject(type, object);
         int index = nextEntityIndices.get(type);
         nextEntityIndices.put(type, index + 1);
-        long id = ((long) type.ordinal() << 32) | (index & 0xFFFFFFFFL);
+        long id = HOST_ENTITY_ID_BASE | ((long) type.ordinal() << 32) | (index & 0xFFFFFFFFL);
 
         entityData.put(id, grugObject);
         root(fnEntities, grugObject);

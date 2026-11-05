@@ -58,15 +58,34 @@ class GrugEntitiesTest {
 
     @Test
     void replacesAnEntryAnotherEntityLeftUnderTheSameId() {
-        // A host-created entity's id can fall in the range a VM entity's id uses, since the first
-        // type's ids are its index alone, so an entry from one of those must not shadow this block
-        // entity.
+        // An id this block entity was already registered under is replaced when it holds another
+        // entity, which keeps a registration from being shadowed whatever left the entry there.
         GrugEntities.addEntityWithId(ENTITY_ID, GrugEntityType.AddResponse, new Object());
         Object blockEntity = new Object();
 
         GrugEntities.registerBlockEntity(ENTITY_ID, blockEntity);
 
         assertSame(blockEntity, GrugEntities.entityData.get(ENTITY_ID).object);
+    }
+
+    @Test
+    void creatingAHostEntityLeavesALiveVmEntityUnderItsIdAlone() {
+        // add_item creates an AddResponse on every call, and a host id used to be the type's index
+        // alone for the first type, so those ids walked through the VM's own ids: the 513th
+        // response took the id of a live wooden pipe's block entity, whose me then resolved to the
+        // response and stopped saving numbers. See #1120. The low 32 bits are the type's index in
+        // either scheme, so this names the id the next response gets.
+        long responseId = GrugEntities.addEntity(GrugEntityType.AddResponse, new Object());
+        long nextResponseIndex = (responseId & 0xFFFFFFFFL) + 1;
+        Object blockEntity = new Object();
+        GrugEntities.addEntityWithId(nextResponseIndex, GrugEntityType.BlockEntity, blockEntity);
+
+        GrugEntities.addEntity(GrugEntityType.AddResponse, new Object());
+
+        assertSame(
+                blockEntity,
+                HostFunctionHelpers.resolveBlockEntity(nextResponseIndex),
+                "a host entity must not take the id of a live VM entity");
     }
 
     @Test
