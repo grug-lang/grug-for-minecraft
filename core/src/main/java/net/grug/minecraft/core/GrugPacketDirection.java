@@ -5,10 +5,11 @@ package net.grug.minecraft.core;
  * it.
  *
  * <p>Every loader this repository supports registers a packet with a method that takes one flag per
- * direction, but they disagree on the parameter order: 1.2.5's {@code addIdClassMapping} takes the
- * server-to-client flag first, Ornithe's {@code register} and StationAPI's event take the
- * client-to-server flag first. Spelling the direction once, here, is what keeps a loader from
- * registering a packet the receiver it was sent from refuses, which closes the connection.
+ * direction, and they all put the server-to-client flag first, but under names that do not say so:
+ * 1.2.5's private {@code addIdClassMapping} calls it {@code par1}, Ornithe's {@code register} names
+ * it {@code s2c}, and StationAPI's event calls it client-receivable. Spelling the direction once,
+ * here, is what keeps a loader from registering a packet the receiver it was sent from refuses,
+ * which closes the connection.
  *
  * <p>The two constants name the directions a caller needs. {@link #BOTH_WAYS} is the control
  * channel, which both ends send on. {@link #SERVER_TO_CLIENT} is a block entity's saved data, which

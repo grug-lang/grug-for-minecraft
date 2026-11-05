@@ -103,6 +103,19 @@ dependencies {
     // screenshot test pins the installed rendering (mods/jei/tests/item_list_forced_normalization-Test.grug).
 }
 
+// The saved-data packet's direction is a rule of the game's own packet table, which exists only with
+// the game loaded, so a unit test in the game's package pins it (#1097). The game's classes come
+// from the main source set's own dependency on the mapped jar.
+dependencies {
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.10.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
 configurations.all {
     exclude("babric")
 }

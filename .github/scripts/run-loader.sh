@@ -188,20 +188,30 @@ fi
 # which CI hands to universal_jar.py. layerJar depends on the remapped or reobfuscated jar itself
 # (remapJar on the Loom loaders, reobfJar on 1.2.5-forge), so asking for it alone cannot upload a
 # stale layer; `build` would only add the sources jar and the lifecycle's own aggregation.
+#
+# `test` is the loader's own unit tests, which pin rules of the game's classes that only exist with
+# the game loaded, such as a packet the server would otherwise read from a client (#1097). They run
+# here and in the game jobs below: a loader without a test source set answers NO-SOURCE, and the
+# tests of one that has them need no display and no game loop.
 if [ "$PHASE" = build ]; then
   echo "==> Building $LOADER and its layer of the universal jar (no game launch)"
   gradle_with_retry "${REPO_ROOT}/${LOADER_DIR}/run/ci-build.log" \
-    ./gradlew "${task_prefix}layerJar" -x test "${gradle_args[@]}"
+    ./gradlew "${task_prefix}layerJar" "${task_prefix}test" "${gradle_args[@]}"
   exit
 fi
 
 # One invocation for both: the build tasks come first, so a Gradle failure in them stops the run
 # before runClient starts, and runClient follows. `classes` is the coverage gate's input (the
 # compiled classes of the loader) and is in the graph through runClient anyway; naming it says so.
-# -x test is the same exclusion the build phase uses.
+# `test` runs the loader's own unit tests, as the build phase does.
 run_tasks=("${task_prefix}runClient")
 if [ "$PHASE" = build-run ]; then
-  run_tasks=("${task_prefix}classes" "${task_prefix}layerJar" "${task_prefix}runClient" -x test)
+  run_tasks=(
+    "${task_prefix}classes"
+    "${task_prefix}layerJar"
+    "${task_prefix}test"
+    "${task_prefix}runClient"
+  )
 fi
 
 # The tests the run is about to load. A reference run points GRUG_MODS_DIR at a harness-only
@@ -705,7 +715,13 @@ case "$status" in
   buildfailed)
     wait "$gradle_pid"
     exit_code=$?
-    echo "==> Gradle failed to build $LOADER (exit code $exit_code), so the game was never launched." >&2
+    # A loader's own unit tests run in the same invocation as the build, so their failure reaches
+    # this state too, and it is not a build failure.
+    if grep -q -E "> Task .*:test FAILED" "$LOG_FILE"; then
+      echo "==> $LOADER's unit tests failed (exit code $exit_code), so the game was never launched." >&2
+    else
+      echo "==> Gradle failed to build $LOADER (exit code $exit_code), so the game was never launched." >&2
+    fi
     # The compiler's complaints, then Gradle's own account of what went wrong.
     grep -n -m20 "error:" "$LOG_FILE" >&2 || true
     grep -n -m1 -A12 "^\* What went wrong:" "$LOG_FILE" >&2 || true

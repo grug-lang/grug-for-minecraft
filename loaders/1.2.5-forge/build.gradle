@@ -132,6 +132,14 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.14.0'
     implementation 'org.jetbrains:annotations:26.1.0'
 
+    // The saved-data packet's direction is a rule of the game's own packet table, which exists only
+    // with the game classes loaded, so a unit test against the MCP dev classes pins it (#1097).
+    // JUnit 5 is the line that still runs on Java 8, which is what this loader compiles to.
+    testImplementation files(mcpBin)
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
+
     genTool files(mcpBin, mcpMinecraftJar)
     genTool 'org.lwjgl.lwjgl:lwjgl:2.9.3'
     genTool 'org.lwjgl.lwjgl:lwjgl_util:2.9.3'
@@ -272,6 +280,18 @@ tasks.named('compileJava', JavaCompile) {
     dependsOn 'fetchMcpSnapshot', 'generateGrugVersion'
     options.release = 8
     options.encoding = 'UTF-8'
+}
+
+// The test source set runs the game's packet table against the MCP dev classes, so it needs the
+// snapshot and compiles to the same Java 8 bytecode as the loader.
+tasks.named('compileTestJava', JavaCompile) {
+    dependsOn 'fetchMcpSnapshot'
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }
 
 // CI compiles from a fresh checkout, so incremental compilation has no previous output to be

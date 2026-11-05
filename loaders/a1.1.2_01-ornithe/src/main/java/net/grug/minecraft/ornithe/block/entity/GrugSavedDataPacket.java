@@ -109,11 +109,13 @@ public class GrugSavedDataPacket extends Packet {
      * the frame pass reads from the next frame on, and is what {@link #handle} used to do on
      * whatever thread the network used.
      *
-     * <p>A client that has not loaded the block's chunk yet has no copy to update and reads the
-     * data the chunk carries when it does, so the packet waits a few ticks for it rather than
-     * dropping the value. The block at the position has to be the one the packet was sent for, or a
-     * packet that arrives after the block changed, which the next test's fixture does, would write
-     * one block's data into another's.
+     * <p>A client that has not loaded the block's chunk yet has no copy to update, and the retry
+     * does not cover it: an unloaded chunk reads block 0, so {@link #apply} answers 0 and drops the
+     * packet, and the chunk the client loads instead is written from the server's copy, which
+     * already carries the data. The retry covers a loaded chunk whose block entity has not reached
+     * the client yet, which is what the next few ticks settle. The block at the position has to be
+     * the one the packet was sent for, or a packet that arrives after the block changed, which the
+     * next test's fixture does, would write one block's data into another's.
      */
     public static void applyPending(Object level) {
         List<GrugSavedDataPacket> ready;
