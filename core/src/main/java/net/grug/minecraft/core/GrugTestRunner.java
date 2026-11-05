@@ -173,6 +173,12 @@ public class GrugTestRunner {
         default boolean setGameSpeed(double speed) {
             return false;
         }
+
+        /**
+         * Saves the world once, the way the game's own autosave does, for the test the runner
+         * forces a save for. See {@link GrugForcedAutosave}.
+         */
+        default void requestAutosaveForTest() {}
     }
 
     /**
@@ -444,6 +450,11 @@ public class GrugTestRunner {
                     @Override
                     public boolean setGameSpeed(double speed) {
                         return GrugCore.getAdapter().setGameSpeed(speed);
+                    }
+
+                    @Override
+                    public void requestAutosaveForTest() {
+                        GrugCore.getAdapter().requestAutosaveForTest();
                     }
                 },
                 repeatsFromEnv(),
@@ -1156,6 +1167,12 @@ public class GrugTestRunner {
         // it. See holdForStaleBlockEntities.
         if ((justStarted || staleWaitStartNanos >= 0) && holdForStaleBlockEntities(path)) {
             return;
+        }
+
+        // Before the test's tick runs, so a marked test's save lands on the tick it names rather
+        // than after that tick. See GrugForcedAutosave.
+        if (GrugForcedAutosave.isDue(path, currentTick)) {
+            boxBuilder.requestAutosaveForTest();
         }
 
         GrugTestState.currentTestTick = currentTick;

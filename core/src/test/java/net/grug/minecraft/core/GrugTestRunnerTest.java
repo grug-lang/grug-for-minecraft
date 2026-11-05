@@ -2452,6 +2452,80 @@ class GrugTestRunnerTest {
         assertEquals(before, Files.readString(file));
     }
 
+    @Test
+    void forcesOneSaveAtTheNamedTickOnlyForATestWhoseNameAsksForIt() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("mymod/tests/autosave_x-Test.grug", 1L);
+        ops.pathsAre(files);
+        List<String> saves = new ArrayList<>();
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    calls[0]++;
+                    GrugTestState.testNotDone = calls[0] < 140;
+                };
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public void requestAutosaveForTest() {
+                                saves.add("save at " + calls[0]);
+                            }
+                        },
+                        1);
+        capture(() -> runFor(runner, 200));
+
+        // The runner asks before the test's tick exports run, so the save's tick count is the tick
+        // the test is about to see, and it is asked for once and only once.
+        assertEquals(List.of("save at " + GrugForcedAutosave.TICK), saves);
+    }
+
+    @Test
+    void doesNotForceASaveForATestWhoseNameOnlyContainsTheMark() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("mymod/tests/xautosave_x-Test.grug", 1L);
+        ops.pathsAre(files);
+        List<String> saves = new ArrayList<>();
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    calls[0]++;
+                    GrugTestState.testNotDone = calls[0] < 140;
+                };
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public void requestAutosaveForTest() {
+                                saves.add("save");
+                            }
+                        },
+                        1);
+        capture(() -> runFor(runner, 200));
+
+        assertTrue(saves.isEmpty(), saves.toString());
+    }
+
     /** A room builder that logs what the runner asks of it, in order. */
     private static final class SweepLog implements GrugTestRunner.TestBoxBuilder {
         final List<String> log;

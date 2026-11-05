@@ -590,6 +590,14 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Test only: saves the world once now, the way the game's own autosave does, so the save
+     * indicator can be put at a tick a test knows. The runner calls this for a test whose file name
+     * starts with {@link GrugForcedAutosave#PREFIX}, at {@link GrugForcedAutosave#TICK}, and a
+     * loader whose game never draws the text during play keeps the no-op default.
+     */
+    default void requestAutosaveForTest() {}
+
+    /**
      * Has the game build a block's geometry again, so a render function that reads state the world
      * does not know changed, such as a saved number, draws the new state. On a version whose client
      * keeps its own copy of the block entity this also sends that copy the block entity's saved
