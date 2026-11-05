@@ -173,13 +173,16 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   commit, so `release.yml` requires that dispatch and refuses a jar without the Windows native. A
   docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what
   keeps a full run of `main` from going missing.
-- **The four-hourly `main` check.** `.github/workflows/main-dispatch.yml` runs every four hours and
+- **The four-hourly `main` check.** `.github/workflows/main-dispatch.yml` checks every 15 minutes and
   dispatches `build.yml --ref main` when main's newest dispatch is at least four hours old and no
-  build run is queued or in progress, so the check needs no live session (#1089). Its decision is
-  `.github/scripts/main-dispatch.py`, whose test pins the four cases. The supervisor below still
-  reports when the newest **dispatch** of `build.yml` on `main` is older than four hours and no
-  other run is in flight, as the fallback when the workflow is not running: the orchestrator then
-  runs `gh workflow run build.yml --ref main` and watches it with
+  build run is live (requested, waiting, pending, queued or in progress) on any branch, so the check
+  needs no live session and a due tick that was busy retries a quarter of an hour later rather than
+  four hours later (#1089). Its decision is `.github/scripts/main-dispatch.py`, whose test pins the
+  four cases. The supervisor below still reports when the newest **dispatch** of `build.yml` on
+  `main` is older than four hours, as the fallback when the workflow is not running. Both paths
+  re-read the newest dispatch's age and every build run in flight on any branch immediately before
+  dispatching, because the supervisor sees only main's runs: a message is a hint, not a decision.
+  The orchestrator then runs `gh workflow run build.yml --ref main` and watches it with
   `.github/scripts/watch-run.sh <run-id>`. If the timer is not installed or its log shows it has not
   run, check the age at a task boundary instead. Only a dispatch runs every job: a push to `main`
   skips some of them, and which ones can change with the workflow, so a green push is not this
@@ -187,7 +190,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   as usual. A release dispatch satisfies it for the next four hours.
 - **The supervisor.** `.github/orchestrator/grug-supervisor.py` runs from a systemd user timer every
   ten minutes and posts a message into the orchestrator's session when fewer than five subagents
-  are working, when the dispatch above is due, or when `main`'s newest run is red. A message starts
+  are working, when the dispatch above is due, or when `main`'s newest run is red. It reads every
+  branch's build runs for the in-flight state, so a pull request's run keeps its dispatch hint
+  quiet, and its message says to re-read the age and that state before dispatching. A message starts
   `[automatic supervisor, not the maintainer]` and is acted on as the rule it names, at the next
   turn. It never dispatches, merges or edits anything. Install it with
   `cp .github/orchestrator/grug-supervisor.{service,timer} ~/.config/systemd/user/`, check a fresh

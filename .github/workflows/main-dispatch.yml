@@ -10,19 +10,25 @@ name: Main dispatch
 #
 # The decision is .github/scripts/main-dispatch.py's should_dispatch, which pins the four cases:
 # due and idle dispatches, due and busy does not, recent and idle does not, recent and busy does not.
-# Busy means any build.yml run queued or in progress, on any branch, because every run shares the 20
-# job slots and a dispatch must not compete with one. The newest workflow_dispatch of build.yml on
-# main is the age that matters, so the Sunday release's dispatch, which is one of those, holds the
-# check off for four hours like any other. A run list that cannot be read fails this job instead of
-# dispatching blindly.
+# Busy means any build.yml run that is live (requested, waiting, pending, queued or in progress), on
+# any branch, because every run shares the 20 job slots and a dispatch must not compete with one. The
+# newest workflow_dispatch of build.yml on main is the age that matters, so the Sunday release's
+# dispatch, which is one of those, holds the check off for four hours like any other. A run list that
+# cannot be read fails this job instead of dispatching blindly.
+#
+# The schedule is every 15 minutes, not every four hours: the check itself is a few API reads and
+# one short job, and it dispatches only when the newest dispatch is at least four hours old. A tick
+# that is due but busy therefore retries a quarter of an hour later rather than four hours later,
+# which keeps the newest dispatch under about five hours even when one build run is in flight at the
+# four-hour mark.
 #
 # The manual trigger exists to exercise the check on a throwaway branch: dry_run defaults to true,
 # and interval_minutes can shorten the four hours so the due path runs without waiting. A scheduled
 # run sends neither input and so dispatches only when the real rule says so.
 on:
   schedule:
-    # Every four hours, at a minute the other schedules do not use.
-    - cron: '41 */4 * * *'
+    # Every 15 minutes, offset from the other schedules; the four-hour age decides the dispatch.
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
