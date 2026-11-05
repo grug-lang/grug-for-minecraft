@@ -1,6 +1,6 @@
-# The runner turns GL_NORMALIZE on at tick 100 of a test whose file name starts with
-# forced_normalization_ (GrugForcedNormalization). The capture that says the overlay's item draw
-# pins that state off is jei/tests/forced_normalization_item_list-Test.grug, but another mod's test
+# The runner turns GL_NORMALIZE on at tick 100 of a test whose file name ends with
+# _forced_normalization (GrugForcedNormalization). The capture that says the overlay's item draw
+# pins that state off is jei/tests/item_list_forced_normalization-Test.grug, but another mod's test
 # run is not counted by the coverage gate, so this test reaches the same loader hook on a test the
 # gate does count. It opens the inventory first, so the hook lands with the overlay's own drawing
 # live, the way the capture test has it. See #1137.
@@ -21,7 +21,7 @@ export tick_any_side(ctx: TestTickContext) {
     }
 
     # A world frame has to be drawn before a screen that shows the player opens, as in
-    # forced_normalization_item_list-Test.grug.
+    # item_list_forced_normalization-Test.grug.
     if not opened {
         if not Test.world_settled() {
             ctx.not_done()

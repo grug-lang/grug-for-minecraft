@@ -2542,7 +2542,7 @@ class GrugTestRunnerTest {
     @Test
     void forcesNormalizationAtTheNamedTickOnlyForATestWhoseNameAsksForIt() {
         FakeOps ops = new FakeOps();
-        Map<String, Long> files = Map.of("jei/tests/forced_normalization_x-Test.grug", 1L);
+        Map<String, Long> files = Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
         ops.pathsAre(files);
         List<String> forced = new ArrayList<>();
         int[] calls = {0};
@@ -2598,9 +2598,10 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void doesNotForceNormalizationForATestWhoseNameOnlyContainsTheMark() {
+    void doesNotForceNormalizationForATestWhoseNameOnlyMentionsTheMark() {
         FakeOps ops = new FakeOps();
-        Map<String, Long> files = Map.of("jei/tests/xforced_normalization_x-Test.grug", 1L);
+        Map<String, Long> files =
+                Map.of("jei/tests/item_list_forced_normalization_extra-Test.grug", 1L);
         ops.pathsAre(files);
         List<String> forced = new ArrayList<>();
         int[] calls = {0};
@@ -2643,7 +2644,8 @@ class GrugTestRunnerTest {
         System.setProperty(GrugReference.PROPERTY, "1");
         try {
             FakeOps ops = new FakeOps();
-            Map<String, Long> files = Map.of("jei/tests/forced_normalization_x-Test.grug", 1L);
+            Map<String, Long> files =
+                    Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
             ops.pathsAre(files);
             List<String> forced = new ArrayList<>();
             int[] calls = {0};
