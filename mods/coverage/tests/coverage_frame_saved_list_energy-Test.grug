@@ -2,15 +2,21 @@
 # pass reads the client's copy, while the test's calls write the copy the game simulates, so on a
 # dedicated server they only arrive if the loader sends them, which the same packet carries. The
 # coverage_frame block draws its extra row once its list has an item or its energy store is above 0,
-# and the assertion is that the frame changed. It defines tick_any_side, so a dedicated server runs
+# and each assertion is that the frame changed. It defines tick_any_side, so a dedicated server runs
 # it too: the settle wait is forwarded to the joined client, and the captures are the client's
-# (#1086). The row is the proof: nothing here re-meshes the section or changes the frame otherwise.
+# (#1086). The row alone cannot say which of the two paths arrived, so the test walks three transitions on
+# one block, each compared with the capture before it: an empty frame, then the list record with its
+# item, then the record removed, then the energy store alone. The row that comes back in the last
+# step is the energy's, because the list is gone by then. The crop is taller than coverage_frame's
+# golden: a dedicated server builds the room from its own copy of the player, which can stand a
+# block above the joined client's, and the block then sits a block higher in that client's frame,
+# above the golden's crop, with the rows still inside this one.
 frame_block: Option[BlockEntity] = Option.new()
 before: Option[Screenshot] = Option.new()
-saved: bool = false
 
-# The runner tick the list and energy were saved on.
-saved_tick: number = 0
+# Which transition the test is waiting on, and the tick it made it on.
+step: number = 0
+step_tick: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
@@ -18,25 +24,50 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else if not Test.world_settled() {
         ctx.not_done()
-    } else if not saved {
+    } else if step == 0 {
+        # The row is off before anything is saved, which is what the list's capture is compared to.
         before.set(Test.screenshot().capture(500, 80, 780, 340))
         frame_block.unwrap().append_saved_list_record("things")
         frame_block.unwrap().set_saved_list_item("things", 0, item(resource_location("minecraft:stick")))
-        frame_block.unwrap().receive_energy(5)
-        saved = true
-        saved_tick = ctx.current_tick()
+        step = 1
+        step_tick = ctx.current_tick()
         ctx.not_done()
-    } else if not Test.world_settled() or ctx.current_tick() < saved_tick + 30 {
+    } else if ctx.current_tick() < step_tick + 30 {
         # The change is a packet and a frame away, and nothing marks the world unsettled for it: a
         # script saves data as it runs and a world that settled only between those would never
         # settle. The runner runs up to 10 ticks for a frame, so 30 ticks hold three frames.
         ctx.not_done()
-    } else {
-        after: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
-        after.differs_from(before.unwrap(), 1)
+    } else if step == 1 {
+        # The list's item alone brought the row in.
+        listed: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
+        listed.differs_from(before.unwrap(), 1)
+        before.set(listed)
+        frame_block.unwrap().remove_saved_list_record("things", 0)
+        step = 2
+        step_tick = ctx.current_tick()
+        ctx.not_done()
+    } else if ctx.current_tick() < step_tick + 30 {
+        ctx.not_done()
+    } else if step == 2 {
+        # Nothing draws the row any more, so the frame has to be the empty one again. Without this
+        # the energy's row could be the list's row that never left.
+        emptied: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
+        emptied.differs_from(before.unwrap(), 1)
+        before.set(emptied)
+        frame_block.unwrap().receive_energy(5)
+        step = 3
+        step_tick = ctx.current_tick()
+        ctx.not_done()
+    } else if ctx.current_tick() < step_tick + 30 {
+        ctx.not_done()
+    } else if step == 3 {
+        # The energy store alone draws the row back.
+        energised: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
+        energised.differs_from(before.unwrap(), 1)
 
-        ctx.assert(frame_block.unwrap().get_saved_list_size("things") == 1, "The list should hold the record.")
+        ctx.assert(frame_block.unwrap().get_saved_list_size("things") == 0, "The record should be gone.")
         ctx.assert(frame_block.unwrap().get_energy_stored() == 5, "The energy should still be stored.")
+        step = 4
     }
 }
 
@@ -48,10 +79,8 @@ local _setup(ctx: TestTickContext) {
     y: number = origin.y()
     z: number = origin.z()
 
-    # The same place coverage_frame's run sits. This crop is taller than that test's golden's: a
-    # dedicated server builds the room from its own copy of the player, which can stand a block
-    # above the joined client's, and the block then sits a block higher in that client's frame,
-    # above the golden's crop, with the rows still inside this one.
+    # The same place coverage_frame's run sits, so the rows land where that test's golden has its
+    # block.
     level.place_block(x, y - 1.88, z + 4, "grug:coverage_frame")
 
     # A wall behind it, nine across and seven high, which covers the crop at its distance. Without
