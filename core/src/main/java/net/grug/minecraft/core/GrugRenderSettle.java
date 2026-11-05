@@ -1,6 +1,9 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+
+import java.util.function.BooleanSupplier;
 
 /**
  * Whether the frame a capture would read is one the client had no work left in.
@@ -21,6 +24,10 @@ import net.grug.minecraft.grug.GrugScreenshots;
  * <p>The two calls can arrive on different threads: a capture's wait runs on the render thread
  * while a test's own wait can run on the game-tick thread. Both methods are synchronized because a
  * torn read of the two counters could let a capture through one frame early.
+ *
+ * <p>The class also decides what a frame may contain rather than what work it had left: the
+ * integrated server's world-save indicator is drawn into the frames after a save ended, and {@link
+ * #awaitNoSavingIndicator} is what keeps a capture from reading it (#1132).
  */
 public final class GrugRenderSettle {
     /** Frames drawn so far. */
@@ -153,6 +160,98 @@ public final class GrugRenderSettle {
     public static boolean serverLightSettled(
             boolean engineHasLightWork, boolean tasksQueued, boolean updateScheduled) {
         return !engineHasLightWork && !tasksQueued && !updateScheduled;
+    }
+
+    /**
+     * The alpha at or below which 1.20.6's {@code Gui.renderSavingIndicator} stops drawing the save
+     * text: it draws only while the alpha it computes, a whole number from 0 to 255, is above 8.
+     */
+    private static final int SAVING_INDICATOR_ALPHA_FLOOR = 8;
+
+    /**
+     * Whether a frame drawn now would have the integrated server's "Saving world" text in it, from
+     * the two values 1.20.6 fades that text with and whether the player has the option on.
+     *
+     * <p>{@code Gui.tickAutosaveIndicator} walks {@code autosaveIndicatorValue} a fifth of the way
+     * toward 1 while {@code MinecraftServer.isCurrentlySaving()} is true and a fifth of the way
+     * back afterward, and {@code renderSavingIndicator} draws the text in the bottom right of the
+     * frame at that value's alpha. A save is over in a moment, but the value it raised is not: the
+     * text stays in the frames for about ten client ticks after the save ended, which is long after
+     * the server thread a test captures on has moved on. A capture of a still scene can therefore
+     * read the text while the same scene without it is the golden, which is how {@code
+     * coverage_flat_hand} flaked on 1.20.6-forge (#1132).
+     *
+     * <p>The alpha the renderer uses is interpolated between the two values with the frame's
+     * partial time, so the strongest it can be is the larger of them. The answer is deliberately
+     * conservative: it can be true for the tick before the text stops being drawn, which costs a
+     * wait, and is never false while the text could still be drawn.
+     *
+     * <p>Pure, so its unit test covers every combination instead of the loader carrying a
+     * comparison whose true arm a run only meets when an autosave happens to fall in a capture. The
+     * same shape as {@link #lightSettled} and {@link #clientSettled}. See #424, #804 and #1132.
+     *
+     * @param indicatorEnabled whether the player's "show autosave indicator" option is on
+     * @param value the indicator value the client last ticked to, 0 to 1
+     * @param lastValue the value the tick before it left, 0 to 1
+     */
+    public static boolean savingIndicatorShown(
+            boolean indicatorEnabled, float value, float lastValue) {
+        if (!indicatorEnabled) {
+            return false;
+        }
+        float strongest = Math.min(Math.max(value, lastValue), 1.0F);
+        return (int) (255.0F * strongest) > SAVING_INDICATOR_ALPHA_FLOOR;
+    }
+
+    /**
+     * Waits until a frame the client draws has no save indicator in it, and until the frames that
+     * still had one are off the buffer a capture reads.
+     *
+     * <p>Clearing the indicator is not enough on its own: the frame a capture reads is one behind
+     * the last one drawn, so the frames drawn while the text was up are still reachable by it.
+     * Marking the frames busy after the text cleared and waiting for {@code framesSettled} is what
+     * makes the read cover two frames drawn from the cleared value.
+     *
+     * <p>The parts the game owns come in as arguments rather than being read here, so a unit test
+     * covers the wait and its order without a client: the whole loop, not only the answer it waits
+     * on, is the thing a flaky capture depends on.
+     *
+     * <p>The answer can be false for the frames drawn before the client ticked the value back and
+     * the renderer drew it, so the loop polls rather than sampling once.
+     *
+     * @param indicatorShown whether the client would draw the indicator into the frame now
+     * @param markFramesBusy notes that the frames counted so far describe the scene before the
+     *     change, so the frames that can be read are the two drawn after it
+     * @param framesSettled whether the frame a capture would read was drawn with the change in it
+     */
+    public static void awaitNoSavingIndicator(
+            BooleanSupplier indicatorShown,
+            Runnable markFramesBusy,
+            BooleanSupplier framesSettled) {
+        if (!indicatorShown.getAsBoolean()) {
+            return;
+        }
+        while (indicatorShown.getAsBoolean()) {
+            pauseForSavingIndicator();
+        }
+        markFramesBusy.run();
+        while (!framesSettled.getAsBoolean()) {
+            pauseForSavingIndicator();
+        }
+    }
+
+    /**
+     * One millisecond of the save indicator wait. Both values it waits on change between frames or
+     * client ticks, so a millisecond is short enough that the wait ends within a frame of them
+     * changing, and long enough that it is not a spin.
+     */
+    @GrugGenerated("saving indicator wait: an interrupted wait cannot occur in a CI run")
+    private static void pauseForSavingIndicator() {
+        try {
+            Thread.sleep(1L);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
