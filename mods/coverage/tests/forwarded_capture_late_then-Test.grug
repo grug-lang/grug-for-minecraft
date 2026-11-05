@@ -3,13 +3,23 @@
 # waits, and must neither complete this request nor fail it. This is
 # forwarded_capture again: a stale 9 by 9 image taken for the 80 by 56 one would not differ from
 # the first frame by the shape of the wall, and the run would fail.
+# The wall's capture waits for the forwarded Test.world_settled(), as forwarded_capture does, so
+# the client has drawn the wall before the second request asks; a fixed tick was not enough on
+# Alpha. See #1119.
 before: Option[Screenshot] = Option.new()
 
+# The step the next tick runs: 0 takes the first capture and places the wall, 1 waits for the
+# client to draw it and captures the second frame.
+step: number = 0
+
 export tick(ctx: TestTickContext) {
-    if ctx.current_tick() == 0 {
+    if step == 0 {
         before.set(Test.screenshot().capture(620, 62, 700, 118))
         origin: Vec3 = Test.get_origin()
         _wall_in_front_of(origin)
+        step = 1
+        ctx.not_done()
+    } else if not Test.world_settled() {
         ctx.not_done()
     } else {
         after: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
