@@ -164,6 +164,23 @@ class PushTest(SelectionCase):
         self.assertEqual(outputs["reference"], "false")
         self.assertIn("the tests of coverage, examplemod run", self.reason)
 
+    def test_a_golden_merge_runs_the_changed_mod_on_every_loader(self):
+        # A golden is a capture per loader, so the loaders its pull request skipped are exactly the
+        # ones that fail the push on it (#1088, #1044). Every loader runs the merged mod's tests, so
+        # the coverage gate still sees every loader's data as well.
+        outputs = self.answer(
+            self.select("push", {"mods/examplemod/screenshots/capture/1.2.5-forge.png": "png\n"})
+        )
+        self.assertEqual(outputs["build"], {loader: "coverage,examplemod" for loader in ALL})
+        self.assertEqual(outputs["installed"], {loader: "coverage,examplemod" for loader in ALL})
+        self.assertIn("every loader runs", self.reason)
+
+    def test_an_asset_merge_runs_the_changed_mod_on_every_loader(self):
+        outputs = self.answer(
+            self.select("push", {"mods/examplemod/assets/grug/lang/en_us.json": "{}\n"})
+        )
+        self.assertEqual(outputs["build"], {loader: "coverage,examplemod" for loader in ALL})
+
     def test_a_port_that_declares_a_loader_runs_it_with_the_selection(self):
         outputs = self.answer(self.select("push", PORT))
         self.assertEqual(outputs["mods"], "betaonly,coverage")
@@ -361,6 +378,17 @@ class PullRequestTest(SelectionCase):
         )
         self.assertEqual(outputs["smoke"], "false")
         self.assertEqual(outputs["reference"], "false")
+
+    def test_a_golden_pull_request_runs_every_loader(self):
+        # All five fit the 20-job cap, and a golden differs per loader, so a pull request cannot
+        # narrow one to the loaders its source files name (#1088).
+        outputs = self.answer(
+            self.select(
+                "pull_request",
+                {"mods/examplemod/screenshots/capture/1.2.5-forge.png": "png\n"},
+            )
+        )
+        self.assertEqual(outputs["build"], {loader: "coverage,examplemod" for loader in ALL})
 
     def test_a_core_pull_request_runs_the_representatives_with_every_mod(self):
         outputs = self.answer(
