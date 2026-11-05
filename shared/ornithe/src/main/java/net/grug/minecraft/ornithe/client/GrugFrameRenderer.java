@@ -64,6 +64,18 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
         GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
         if (grugBlockEntity.world == null) return;
 
+        // The dispatcher hands over the tile its render chunk collected when the section was last
+        // meshed, which is not always the world's tile at that position: a block update replaces
+        // the tile, and a saved-data packet that only writes the tile does not remesh the section.
+        // The frame pass reads the world's tile, so a client still drawing the replaced one never
+        // sees a value saved after the update. See #1093.
+        BlockEntity current =
+                grugBlockEntity.world.getBlockEntity(
+                        grugBlockEntity.x, grugBlockEntity.y, grugBlockEntity.z);
+        if (current instanceof GrugBlockEntity) {
+            grugBlockEntity = (GrugBlockEntity) current;
+        }
+
         Block block =
                 Block.BY_ID[
                         grugBlockEntity.world.getBlock(
