@@ -17,8 +17,9 @@ package net.grug.minecraft.core;
  * item list capture runs between the tests it ran between before, and a suite order that changed
  * here would be a second change in a pull request about one flake.
  *
- * <p>A reference run never forces it: the reference mod's own icons are not the port's to change.
- * The decision is a pure function of the path, the tick and the run, like {@link
+ * <p>A reference run never forces it, because the reference mod's own icons are not the port's to
+ * change, and neither does a dedicated server, which has no GL context: the decision is a pure
+ * function of the path, the tick, whether this is a dedicated server and the run, like {@link
  * GrugForcedAutosave}, so it is tested without a runner or a client.
  */
 public final class GrugForcedNormalization {
@@ -35,10 +36,12 @@ public final class GrugForcedNormalization {
      *
      * @param testPath the path of the test, as the runner lists it
      * @param tick the tick of the test that is about to run
+     * @param dedicatedServer whether this process is a dedicated server, which has no GL context
      * @param referenceRun whether this run drives the reference mod rather than a grug port
      */
-    public static boolean isDue(String testPath, long tick, boolean referenceRun) {
-        if (referenceRun || tick != TICK) {
+    public static boolean isDue(
+            String testPath, long tick, boolean dedicatedServer, boolean referenceRun) {
+        if (dedicatedServer || referenceRun || tick != TICK) {
             return false;
         }
         String name = testPath.substring(testPath.lastIndexOf('/') + 1);

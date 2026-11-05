@@ -2595,6 +2595,7 @@ class GrugTestRunnerTest {
                     public void sweepItems() {}
                 };
         box.forceNormalizationForTest();
+        box.restoreNormalizationAfterTest();
     }
 
     @Test
