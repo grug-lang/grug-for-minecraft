@@ -8,9 +8,6 @@ import net.grug.minecraft.grug.GrugScreenshots;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /** Covers the frame rule in {@link GrugRenderSettle}. */
 class GrugRenderSettleTest {
 
@@ -285,55 +282,71 @@ class GrugRenderSettleTest {
     }
 
     @Test
-    void aCaptureWaitsOutTheIndicatorAndThenTheFramesThatStillHadIt() {
-        // The order is the rule: the frames that still had the text are marked busy only after it
-        // cleared, so the frames a capture may read are the two drawn from the cleared value.
-        List<String> order = new ArrayList<>();
-        int[] shown = {3};
-        int[] settled = {3};
+    void theIndicatorClearsTwoFramesAfterTheLastOneThatHadIt() {
+        GrugRenderSettle settle = new GrugRenderSettle();
 
-        GrugRenderSettle.awaitNoSavingIndicator(
-                () -> {
-                    order.add("indicator");
-                    return shown[0]-- > 0;
-                },
-                () -> order.add("busy"),
-                () -> {
-                    order.add("frames");
-                    return settled[0]-- <= 0;
-                });
+        // Nothing has saved, so a capture waits for nothing.
+        assertTrue(settle.savingIndicatorCleared());
 
-        // Polled once before the loop, then until the value clears, then the frames until they are
-        // the ones the capture may read.
-        assertEquals(
-                List.of(
-                        "indicator",
-                        "indicator",
-                        "indicator",
-                        "indicator",
-                        "busy",
-                        "frames",
-                        "frames",
-                        "frames",
-                        "frames"),
-                order);
+        settle.onFrame(false, false);
+        settle.onSavingIndicatorFrame(false);
+        assertTrue(settle.savingIndicatorCleared());
+
+        settle.onFrame(false, false);
+        settle.onSavingIndicatorFrame(true);
+        assertFalse(settle.savingIndicatorCleared(), "The frame just drawn has the text.");
+
+        // The capture reads the frame before the last one drawn, and that is the one with the text,
+        // so one frame drawn without it is not enough.
+        settle.onFrame(false, false);
+        settle.onSavingIndicatorFrame(false);
+        assertFalse(settle.savingIndicatorCleared());
+
+        settle.onFrame(false, false);
+        settle.onSavingIndicatorFrame(false);
+        assertTrue(settle.savingIndicatorCleared());
     }
 
     @Test
-    void aCaptureWithoutTheIndicatorWaitsForNothing() {
-        List<String> order = new ArrayList<>();
+    void aResetForgetsAnIndicatorAnotherTestSaved() {
+        GrugRenderSettle settle = new GrugRenderSettle();
+        settle.onFrame(false, false);
+        settle.onSavingIndicatorFrame(true);
+        assertFalse(settle.savingIndicatorCleared());
 
-        GrugRenderSettle.awaitNoSavingIndicator(
+        settle.reset();
+
+        assertTrue(
+                settle.savingIndicatorCleared(),
+                "A test's first capture must not wait for the save of the test before it.");
+    }
+
+    @Test
+    void theWaitPollsUntilTheFrameTheCaptureWouldReadIsCleared() {
+        // The rule is false until the client has ticked the fade down and drawn the frames after
+        // it, so the wait samples again after each false answer.
+        int[] remainingFalseAnswers = {2};
+        int[] polls = {0};
+
+        GrugRenderSettle.awaitSavingIndicatorCleared(
                 () -> {
-                    order.add("indicator");
-                    return false;
-                },
-                () -> order.add("busy"),
+                    polls[0]++;
+                    return remainingFalseAnswers[0]-- <= 0;
+                });
+
+        assertEquals(3, polls[0]);
+    }
+
+    @Test
+    void aCaptureWithNothingToWaitForPollsOnce() {
+        int[] polls = {0};
+
+        GrugRenderSettle.awaitSavingIndicatorCleared(
                 () -> {
-                    order.add("frames");
+                    polls[0]++;
                     return true;
                 });
 
-        assertEquals(List.of("indicator"), order);
+        assertEquals(1, polls[0]);
     }
 }
