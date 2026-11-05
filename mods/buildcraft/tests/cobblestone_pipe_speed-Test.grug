@@ -5,9 +5,9 @@
 # speeds a gold pipe would leave them. All three enter one cobblestone pipe in the same tick: 0.03
 # loses 0.01 and enters at 0.02, 0.015 loses 0.01 and its 0.005 is raised back to 0.01, and 0.01
 # loses nothing because the floor puts it back.
-# Each record is written at the 50th move from the source pipe's centre and at the position its own
-# speed carries 0.01 past the east face, so the one move the test runs is the hand-over for all
-# three, as the reference's endReached would see it.
+# Each record is written 0.01 short of the east face at its own speed, so the one move the test runs
+# is the hand-over for all three, as the reference's endReached would see it: 0.03 at the 16th move
+# from the source pipe's centre, 0.015 at the 33rd, and 0.01 at the 50th.
 export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
@@ -39,7 +39,8 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(_number(target, 0, "direction") == 5, "Every entered record should still travel east.")
 }
 
-# Adds one record at the pipe floor, already past the centre and 50 moves into its journey east.
+# Adds one record at the pipe floor, already past the centre, 0.01 short of the east face at its own
+# speed.
 local _record(pipe: BlockEntity, px: number, py: number, pz: number, speed: number) {
     index: number = pipe.append_saved_list_record("traveling")
     pipe.set_saved_list_number("traveling", index, "x", px)

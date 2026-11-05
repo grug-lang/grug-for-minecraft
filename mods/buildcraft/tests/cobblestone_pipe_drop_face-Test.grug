@@ -1,12 +1,14 @@
 # Covers PipeTransportItems.endReached's drop when the destination cannot take the item: the item
-# reaches the face of the block it was sent to and is dropped there, moving at 0.1 + speed * 2 along
-# its travel direction with the reference's scatter, and waiting 20 ticks before it can be picked up.
-# The destination is a chest that the test removes after the pick at the source pipe's centre, so the
-# item is already on its way east when the destination disappears. The reference reaches the same
-# drop through endReached's else branch, which handles a tile that is neither an item pipe nor an
-# inventory; the port's _enter_pipe has a branch for a pipe block whose block entity is missing,
-# which no test can build because every placed pipe has one, so this covers the same _drop_moving
-# call through the route a test can reach. See #1013.
+# reaches the face of the block it was sent to and lands there, holding the record's stack, and waits
+# 20 ticks before it can be picked up. The drop's velocity is not asserted:
+# EntityPassiveItem.toEntityItem sets it to the travel direction times 0.1 + speed * 2 plus a draw
+# from nextGaussian, which is unbounded, so no window around that motion holds for every draw. The
+# destination is a chest that the test removes after the pick at the source pipe's centre, so the
+# item is already on its way east when the destination disappears. The reference reaches the same drop
+# through endReached's else branch, which handles a tile that is neither an item pipe nor an
+# inventory; the port's _enter_pipe has a branch for a pipe block whose block entity is missing, which
+# no test can build because every placed pipe has one, so this covers the same _drop_moving call
+# through the route a test can reach. See #1013.
 export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()

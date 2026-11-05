@@ -5,6 +5,14 @@
 # two pipes because the drop is what is under test, not the pull that would put them there; each pipe
 # is then replaced with air, which is what fires the block's on_break. The second pipe carries a
 # stack of more than one, which is the record whose whole stack has to reach one entity.
+# The drop is measured from the block's own corner and not from the record: dropContents passes this
+# pipe's xCoord, yCoord and zCoord to Utils.dropItems, which draws each axis 0.15 to 0.85 into the
+# block from there, whatever the record's position was. So the first record is written three blocks
+# east of the pipe that holds it, which no travelling item ever is, because a record inside its pipe
+# cannot tell a drop from the block apart from one at the record: on 1.20.6 an item's quarter-block
+# box reaches most of the block from wherever it lands. A draw landing exactly on the block's centre
+# is a legal outcome of that random, so what is pinned here is where the drop is measured from, not
+# where one draw put it.
 break_damage: number = 7
 break_stack_count: number = 5
 
@@ -22,8 +30,9 @@ export tick_any_side(ctx: TestTickContext) {
     pipe: BlockEntity = _entity(ctx, level, x, y, z)
     stack_pipe: BlockEntity = _entity(ctx, level, x + 4, y, z)
 
-    _hold(pipe, item(resource_location("minecraft:diamond_sword")), break_damage, 1)
-    _hold(stack_pipe, item(resource_location("minecraft:diamond")), 0, break_stack_count)
+    _hold(pipe, Vec3.new(x + 3, y + 0.25, z), item(resource_location("minecraft:diamond_sword")), break_damage, 1)
+    stack_center: Vec3 = stack_pipe.block_pos().center()
+    _hold(stack_pipe, Vec3.new(stack_center.x(), stack_center.y() - 0.25, stack_center.z()), item(resource_location("minecraft:diamond")), 0, break_stack_count)
 
     # Placing air is how a test breaks a block; every loader calls the old block's removal there.
     level.place_block(x, y, z, "minecraft:air")
@@ -36,6 +45,11 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(dropped == 1, "The broken pipe should have dropped its one travelling item.")
     stack_dropped: number = level.count_item_entities(x + 4, y, z, 2)
     ctx.assert(stack_dropped == 1, "The broken pipe should have dropped its whole stack as one item entity.")
+
+    # The first record was three blocks east, so a drop measured from the record rather than from the
+    # block would leave nothing at the pipe and one item where the record was.
+    at_record: number = level.count_item_entities(x + 3, y + 0.25, z, 0.3)
+    ctx.assert(at_record == 0, "The broken pipe should not drop its item where the record was.")
 
     found_opt: Option[ItemEntity] = level.find_item_entity(x, y, z, 2)
     ctx.assert(found_opt.has(), "The dropped item should be on the ground.")
@@ -63,13 +77,12 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(motion.y() > 0.199999 and motion.y() < 0.200001, "The hop's y should be the constructor's 0.2, within a float's expansion.")
 }
 
-# One travelling record at the pipe floor, carrying the item, its damage and its count.
-local _hold(pipe: BlockEntity, held: Item, damage: number, count: number) {
-    center: Vec3 = pipe.block_pos().center()
+# One travelling record at the given position, carrying the item, its damage and its count.
+local _hold(pipe: BlockEntity, where: Vec3, held: Item, damage: number, count: number) {
     index: number = pipe.append_saved_list_record("traveling")
-    pipe.set_saved_list_number("traveling", index, "x", center.x())
-    pipe.set_saved_list_number("traveling", index, "y", center.y() - 0.25)
-    pipe.set_saved_list_number("traveling", index, "z", center.z())
+    pipe.set_saved_list_number("traveling", index, "x", where.x())
+    pipe.set_saved_list_number("traveling", index, "y", where.y())
+    pipe.set_saved_list_number("traveling", index, "z", where.z())
     pipe.set_saved_list_number("traveling", index, "speed", 0.01)
     pipe.set_saved_list_number("traveling", index, "direction", 5)
     pipe.set_saved_list_number("traveling", index, "steps", 0)
