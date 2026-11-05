@@ -2,7 +2,7 @@
 # draws and every loader pins what the port draws, with the GL capability that normalizes normals
 # turned on the way Beta's slime renderer leaves it. See #874 and #1137.
 
-# The file name's forced_normalization_ prefix makes the runner turn GL_NORMALIZE on at this test's
+# The file name's _forced_normalization mark makes the runner turn GL_NORMALIZE on at this test's
 # tick 100 (GrugForcedNormalization), and the test opens the screen after that tick, so every frame
 # it captures is drawn with the state a slime rendered earlier in a run would leave behind. Without
 # the overlay's item draw pinning the capability off, that state shades each icon's left face about

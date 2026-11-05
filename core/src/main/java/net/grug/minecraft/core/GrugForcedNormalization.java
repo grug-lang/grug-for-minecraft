@@ -8,18 +8,22 @@ package net.grug.minecraft.core;
  * a session that rendered a slime anywhere before the JEI item list opened shades the overlay's
  * item icons with unit normals: the item draw scales its model by ten, and the left face of every
  * cube then renders about 1.9 times brighter. Whether a slime is rendered at all is the world's mob
- * spawning, which is why that capture flaked (#1137). A test whose file name starts with {@link
- * #PREFIX} gets the capability turned on at {@link #TICK}, the way the slime renderer leaves it,
+ * spawning, which is why that capture flaked (#1137). A test whose file name ends with {@link
+ * #MARKER} gets the capability turned on at {@link #TICK}, the way the slime renderer leaves it,
  * and opens its screen after that tick, so its capture fails unless the overlay's item draw pins
  * the capability off instead of inheriting it.
+ *
+ * <p>The mark is a suffix, not a prefix, so the marked test keeps its place in the suite: the JEI
+ * item list capture runs between the tests it ran between before, and a suite order that changed
+ * here would be a second change in a pull request about one flake.
  *
  * <p>A reference run never forces it: the reference mod's own icons are not the port's to change.
  * The decision is a pure function of the path, the tick and the run, like {@link
  * GrugForcedAutosave}, so it is tested without a runner or a client.
  */
 public final class GrugForcedNormalization {
-    /** The prefix of a test file name that asks for the forced capability. */
-    public static final String PREFIX = "forced_normalization_";
+    /** The mark the file name of a test that asks for the forced capability ends with. */
+    public static final String MARKER = "_forced_normalization";
 
     /** The tick of a marked test before which the runner turns the capability on. */
     public static final long TICK = 100;
@@ -38,6 +42,6 @@ public final class GrugForcedNormalization {
             return false;
         }
         String name = testPath.substring(testPath.lastIndexOf('/') + 1);
-        return name.startsWith(PREFIX);
+        return name.endsWith(MARKER + "-Test.grug");
     }
 }
