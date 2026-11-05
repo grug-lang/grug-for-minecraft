@@ -181,7 +181,7 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   four cases. The supervisor below still reports when the newest **dispatch** of `build.yml` on
   `main` is older than four hours, as the fallback when the workflow is not running. Both paths
   re-read the newest dispatch's age and every build run in flight on any branch immediately before
-  dispatching, because the supervisor sees only main's runs: a message is a hint, not a decision.
+  dispatching, because a message is a hint and both facts can change before the dispatch.
   The orchestrator then runs `gh workflow run build.yml --ref main` and watches it with
   `.github/scripts/watch-run.sh <run-id>`. If the timer is not installed or its log shows it has not
   run, check the age at a task boundary instead. Only a dispatch runs every job: a push to `main`
