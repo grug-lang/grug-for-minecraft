@@ -285,12 +285,16 @@ class GrugRenderSettleTest {
     void theIndicatorClearsTwoFramesAfterTheLastOneThatHadIt() {
         GrugRenderSettle settle = new GrugRenderSettle();
 
-        // Nothing has saved, so a capture waits for nothing.
-        assertTrue(settle.savingIndicatorCleared());
+        // Nothing is readable before two frames have been drawn, so a capture waits for them.
+        assertFalse(settle.savingIndicatorCleared());
 
         settle.onFrame(false, false);
         settle.onSavingIndicatorFrame(false);
-        assertTrue(settle.savingIndicatorCleared());
+        assertFalse(settle.savingIndicatorCleared());
+
+        settle.onFrame(false, false);
+        settle.onSavingIndicatorFrame(false);
+        assertTrue(settle.savingIndicatorCleared(), "Two frames were drawn without the text.");
 
         settle.onFrame(false, false);
         settle.onSavingIndicatorFrame(true);
@@ -316,9 +320,17 @@ class GrugRenderSettleTest {
 
         settle.reset();
 
+        // The buffer can still hold a frame from before the reset, which may have that test's text
+        // in it, so the new test's first capture waits for two frames of its own.
+        assertFalse(settle.savingIndicatorCleared());
+        settle.onFrame(false, false);
+        settle.onSavingIndicatorFrame(false);
+        assertFalse(settle.savingIndicatorCleared());
+        settle.onFrame(false, false);
+        settle.onSavingIndicatorFrame(false);
         assertTrue(
                 settle.savingIndicatorCleared(),
-                "A test's first capture must not wait for the save of the test before it.");
+                "Two frames of the new test are enough; the earlier save no longer delays it.");
     }
 
     @Test
@@ -348,5 +360,29 @@ class GrugRenderSettleTest {
                 });
 
         assertEquals(1, polls[0]);
+    }
+
+    @Test
+    void anInterruptedWaitKeepsTheInterruptForTheCaller() {
+        // The interrupt path only runs when the game shuts down mid-wait, but it is reachable:
+        // sleep throws at once on an interrupted thread, and the catch has to put the flag back.
+        // The second sample ends the loop so the flag can be checked and cleared here.
+        boolean[] firstSample = {true};
+        Thread.currentThread().interrupt();
+        try {
+            GrugRenderSettle.awaitSavingIndicatorCleared(
+                    () -> {
+                        if (firstSample[0]) {
+                            firstSample[0] = false;
+                            return false;
+                        }
+                        return true;
+                    });
+            assertTrue(
+                    Thread.currentThread().isInterrupted(),
+                    "The wait must keep the interrupt for the caller.");
+        } finally {
+            Thread.interrupted();
+        }
     }
 }

@@ -1985,13 +1985,42 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * GrugRenderSettle#awaitSavingIndicatorCleared} and #1132.
      *
      * <p>Runs on the thread the test captured from, releasing the grug state lock while it waits,
-     * since the client has to keep drawing for the frames to count.
+     * since the client has to keep drawing for the frames to count. Only the client thread is
+     * admitted into the state for the duration: it is the thread that draws those frames, and a
+     * chunk worker that entered meanwhile and drew a block entity would fold its err into the
+     * suspended call (#583, #836). See {@link #releaseStateForSavingIndicator}.
      */
     private static void awaitSavingIndicatorCleared() {
-        Grug.runWithStateLockReleased(
+        Runnable wait =
                 () ->
                         GrugRenderSettle.awaitSavingIndicatorCleared(
-                                RENDER_SETTLE::savingIndicatorCleared));
+                                RENDER_SETTLE::savingIndicatorCleared);
+        releaseStateForSavingIndicator(wait);
+    }
+
+    /**
+     * Runs the save indicator wait with the state lock released, admitting the client thread.
+     *
+     * <p>The two call forms are the ones {@link #onClientThread} uses: the admitted form when the
+     * client thread is known, since only it may enter the state while the wait runs, and the plain
+     * form when it is not, because the wait would then have nothing to admit and the render thread
+     * would be kept out.
+     *
+     * <p>The null fallback cannot occur in a run: {@code clientThread} is set by the client's first
+     * tick, and a capture runs from a test, which the client has been ticking for. It is the
+     * fallback line this annotation excludes, not the wait, which runs on every capture.
+     */
+    @GrugGenerated(
+            "saving indicator wait: a capture runs after the client's first tick, so"
+                    + " clientThread is set and only the admitted arm runs; the fallback for a"
+                    + " capture before the client has ticked once is the excluded line")
+    private static void releaseStateForSavingIndicator(Runnable wait) {
+        Thread admitted = clientThread;
+        if (admitted == null) {
+            Grug.runWithStateLockReleased(wait);
+            return;
+        }
+        Grug.runWithStateLockReleased(wait, admitted);
     }
 
     /**
