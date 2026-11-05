@@ -1,0 +1,12 @@
+# A screenshot that never captured anything has no share to report, and saying so beats a
+# NullPointerException from inside the comparison. Here it is the ARGUMENT that was never read, with
+# the one asking for the share captured: the other half of the same check is the receiver being the
+# unread one.
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.expect_error("have to be captured first")
+        never_read: Screenshot = Test.screenshot()
+        captured: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        captured.change_from(never_read)
+    }
+}

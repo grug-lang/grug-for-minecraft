@@ -84,6 +84,16 @@ dependencies {
     // layer off a Babric b1.7.3 game, which reports the same Minecraft version but names its classes
     // by another intermediary: OSL is built against Ornithe's, so no Babric instance has it.
     ploceus.dependOsl(project.osl_version)
+
+    // The loader's own unit tests, which run in CI beside the game jobs. They cover what a grug test
+    // cannot reach: the packet queue's world scoping, which needs no game to exercise.
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }
 
 tasks.withType(ProcessResources) {

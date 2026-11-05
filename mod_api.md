@@ -265,6 +265,7 @@ Option.new() Option[$Value]
 
 ## Screenshot
 .capture(x1: number, y1: number, x2: number, y2: number) Screenshot
+.change_from(other: Screenshot) number
 .differs_from(other: Screenshot, percent: number)
 .equals(reference: resource, x1: number, y1: number, x2: number, y2: number)
 .tolerance(percent: number) Screenshot
