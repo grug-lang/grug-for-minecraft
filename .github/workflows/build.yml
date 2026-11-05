@@ -59,8 +59,8 @@ on:
 
 permissions:
   contents: read
-  # The pull request's coverage job reads the base commit's coverage-map artifact off the run of
-  # the base commit's push to main, which is an artifact of another run (#786).
+  # The pull request's coverage job reads the base commit's coverage-map-<attempt> artifact off the
+  # run of the base commit's push to main, which is an artifact of another run (#786).
   actions: read
 
 concurrency:
@@ -183,8 +183,8 @@ jobs:
       # The coverage tests the gate may carry over instead of rerunning (#786). A pull request
       # carries over only the tests select-coverage-tests.py proves its diff cannot affect, from
       # the base commit's recorded coverage: a successful run of the base commit on main built the
-      # map from its own per-test exec data and uploaded it as the coverage-map artifact that
-      # base_coverage_map_run.py looks up here. Every way to not have both runs every coverage
+      # map from its own per-test exec data and uploaded it as the coverage-map-<attempt> artifact
+      # that base_coverage_map_run.py looks up here. Every way to not have both runs every coverage
       # test, before any game starts: a push to main and a dispatch, an unfetchable or unreadable
       # base, a base without a successful run on main that uploaded a map, and any error, which
       # the scripts answer with the same fallback themselves. The list goes to the development
@@ -1968,10 +1968,12 @@ jobs:
           # The discover lookup already skipped an expired map: GitHub prunes an artifact whose
           # retention ended, and a listing caught mid-prune carries expired: true. This read
           # applies the same rule, and names the minutes-wide race when the map expires between
-          # the two instead of dying on a bare StopIteration traceback.
+          # the two instead of dying on a bare StopIteration traceback. The map's name carries the
+          # run attempt, so the newest one is read; every attempt of that run is the base commit,
+          # so any of them is that commit's map and the newest is the deterministic choice.
           url=$(curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/$REPO/actions/runs/$BASE_RUN/artifacts?per_page=100" \
-            | python3 -c "import json, sys; print(next((a['archive_download_url'] for a in json.load(sys.stdin)['artifacts'] if a['name'] == 'coverage-map' and not a.get('expired', False)), ''))")
+            | python3 -c "import json, re, sys; maps = sorted((int(m.group(1)), a['archive_download_url']) for a in json.load(sys.stdin)['artifacts'] if not a.get('expired', False) and (m := re.match(r'coverage-map-(\d+)$', a['name']))); print(maps[-1][1] if maps else '')")
           if [ -z "$url" ]; then
             echo "::error::the coverage-map artifact of base run $BASE_RUN expired between the discover lookup and this step, so the carry-over fell back to nothing: the loader jobs already skipped the tests it names, and this step cannot rerun them, so the run fails instead of counting less coverage."
             exit 1
@@ -2085,12 +2087,14 @@ jobs:
 
       # Refreshed on every merge, which the pull requests that base on the merge read back. The
       # retention is the same as the coverage data it is built from, so a base commit older than
-      # that has no map, and the pull request that bases on it runs every coverage test.
+      # that has no map, and the pull request that bases on it runs every coverage test. The name
+      # carries the run attempt, as the multiplayer job's lists do, so a re-run of this job uploads
+      # beside the earlier attempt instead of sharing its name (#1145).
       - name: Upload the coverage map
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-map
+          name: coverage-map-${{ github.run_attempt }}
           path: coverage/coverage-map.json
           if-no-files-found: error
           retention-days: 7
@@ -2129,11 +2133,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Download the coverage map
+      # Every attempt's map, for the same reason the test lists are downloaded that way: a re-run
+      # runs only the jobs that failed, so a re-run of the coverage job leaves a newer map beside
+      # the earlier one. The script reads the newest attempt, which is the map the run built last
+      # and the same commit as the lists either way. The pattern also matches `coverage-map-tool`,
+      # which the script ignores because the downloaded directory holds no map file.
+      - name: Download the coverage maps
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: coverage-map
-          path: coverage
+          pattern: coverage-map-*
+          path: coverage/maps
 
       # Every attempt's lists, not this attempt's alone: a re-run runs only the jobs that failed, so
       # its leg writes a newer list for its loader while the other legs keep the earlier artifact.
@@ -2153,7 +2162,7 @@ jobs:
             exit 1
           fi
           python3 .github/scripts/server-reachable.py \
-            --map coverage/coverage-map.json \
+            --map coverage/maps \
             --server-tests coverage/artifacts \
             --baseline .github/scripts/server-reachable.json
 

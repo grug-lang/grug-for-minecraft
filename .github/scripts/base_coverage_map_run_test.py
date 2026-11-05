@@ -96,7 +96,7 @@ class BaseCoverageMapRunTest(unittest.TestCase):
             ]
         }
         self.server.routes["artifacts"] = {
-            "1": {"artifacts": [{"name": "coverage-exec-core"}, {"name": "coverage-map"}]}
+            "1": {"artifacts": [{"name": "coverage-exec-core"}, {"name": "coverage-map-1"}]}
         }
         out, err = self.run_lookup(self.base)
         self.assertEqual(out.strip(), "1", err)
@@ -105,10 +105,13 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         # A listed artifact always carries `expired`, so a live map is `expired: false`. The
         # absent case is read as live only defensively, as the lookup did before it read the
         # flag; `expired: true` is listed only in the minutes before GitHub prunes the artifact,
-        # which is the race this rule guards.
-        self.assertTrue(lookup.carries_a_map({"name": "coverage-map", "expired": False}))
-        self.assertTrue(lookup.carries_a_map({"name": "coverage-map"}))
-        self.assertFalse(lookup.carries_a_map({"name": "coverage-map", "expired": True}))
+        # which is the race this rule guards. The map's name carries the run attempt, so a bare
+        # `coverage-map` and `coverage-map-tool` are not maps even though they start with it.
+        self.assertTrue(lookup.carries_a_map({"name": "coverage-map-1", "expired": False}))
+        self.assertTrue(lookup.carries_a_map({"name": "coverage-map-12"}))
+        self.assertFalse(lookup.carries_a_map({"name": "coverage-map-1", "expired": True}))
+        self.assertFalse(lookup.carries_a_map({"name": "coverage-map", "expired": False}))
+        self.assertFalse(lookup.carries_a_map({"name": "coverage-map-tool", "expired": False}))
         self.assertFalse(lookup.carries_a_map({"name": "coverage-exec-core", "expired": False}))
 
     def test_a_map_expiring_mid_prune_is_skipped_and_the_next_run_is_used(self):
@@ -122,8 +125,8 @@ class BaseCoverageMapRunTest(unittest.TestCase):
             ]
         }
         self.server.routes["artifacts"] = {
-            "2": {"artifacts": [{"name": "coverage-map", "expired": True}]},
-            "1": {"artifacts": [{"name": "coverage-map", "expired": False}]},
+            "2": {"artifacts": [{"name": "coverage-map-1", "expired": True}]},
+            "1": {"artifacts": [{"name": "coverage-map-1", "expired": False}]},
         }
         out, err = self.run_lookup(self.base)
         self.assertEqual(out.strip(), "1", err)
@@ -136,7 +139,7 @@ class BaseCoverageMapRunTest(unittest.TestCase):
             "workflow_runs": [{"id": 1, "head_sha": self.base, "conclusion": "success"}]
         }
         self.server.routes["artifacts"] = {
-            "1": {"artifacts": [{"name": "coverage-map", "expired": True}]}
+            "1": {"artifacts": [{"name": "coverage-map-1", "expired": True}]}
         }
         out, err = self.run_lookup(self.base)
         self.assertEqual(out, "")
@@ -168,7 +171,7 @@ class BaseCoverageMapRunTest(unittest.TestCase):
                 {"id": 1, "head_sha": self.base, "conclusion": "success"},
             ]
         }
-        self.server.routes["artifacts"] = {"1": {"artifacts": [{"name": "coverage-map"}]}}
+        self.server.routes["artifacts"] = {"1": {"artifacts": [{"name": "coverage-map-1"}]}}
         out, err = self.run_lookup(self.base)
         self.assertEqual(out.strip(), "1", err)
 
@@ -184,7 +187,7 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         self.server.routes["runs"] = {
             "workflow_runs": [{"id": 1, "head_sha": self.base, "conclusion": "success"}]
         }
-        self.server.routes["artifacts"] = {"1": {"artifacts": [{"name": "coverage-map"}]}}
+        self.server.routes["artifacts"] = {"1": {"artifacts": [{"name": "coverage-map-1"}]}}
         out, err = self.run_lookup(self.base)
         self.assertEqual(out.strip(), "1", err)
         runs_query = self.server.requests[0]
