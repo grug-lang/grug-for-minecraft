@@ -21,16 +21,18 @@ SERVER_ONLY_ON_ONE = "coverage/tests/one-loader-Test.grug"
 UNRELATED_TEST = "coverage/tests/unrelated-Test.grug"
 
 
-def map_of(loaders):
-    """A coverage map from {loader: {test: {class: [method, ...]}}}."""
+def map_of(loaders, own=None):
+    """A coverage map from {loader: {test: {class: [method, ...]}}}, and the classes a loader owns."""
+    own = own or {}
     return {
         "version": "2",
         "loaders": {
             loader: {
+                "classes": {name: {"crc64": "0", "probes": 1} for name in own.get(loader, [])},
                 "tests": {
                     test: {name: {"methods": methods} for name, methods in classes.items()}
                     for test, classes in tests.items()
-                }
+                },
             }
             for loader, tests in loaders.items()
         },
@@ -63,8 +65,8 @@ class ServerReachableTest(unittest.TestCase):
             )
         return code, out.getvalue(), err.getvalue()
 
-    def write_map(self, loaders):
-        self.map.write_text(json.dumps(map_of(loaders)))
+    def write_map(self, loaders, own=None):
+        self.map.write_text(json.dumps(map_of(loaders, own)))
 
     def write_tests(self, loader, tests):
         directory = self.artifacts / f"coverage-server-tests-{loader}"
@@ -94,7 +96,8 @@ class ServerReachableTest(unittest.TestCase):
         self.assertIn("0 class method(s)", out)
 
     # A method one loader's server reaches is server-reachable even where another loader's server
-    # skipped the test, because a loader's own skip list is not a second copy of this file.
+    # skipped the test, because a loader's own skip list is not a second copy of this file. This is
+    # core code, which the map lists under no loader, so every loader runs the same class.
     def testAMethodOneServerReachesIsServerReachable(self):
         self.write_map(
             {
@@ -107,6 +110,27 @@ class ServerReachableTest(unittest.TestCase):
         code, out, err = self.run_script()
         self.assertEqual(code, 0, err)
         self.assertIn("0 class method(s)", out)
+
+    # Two loaders can compile different classes of the same name, so a method of one loader's own
+    # class is only rescued by that loader's server: the Alpha and Beta OrnitheAdapter are separate
+    # files, and Beta reaching a name says nothing about Alpha's code.
+    def testOneLoadersOwnClassIsNotRescuedByAnotherLoader(self):
+        self.write_map(
+            {
+                "a1.1.2_01-ornithe": {SERVER_TEST: {"pkg/OrnitheAdapter": ["alphaOnly:()V"]}},
+                "b1.7.3-ornithe": {SERVER_TEST: {"pkg/OrnitheAdapter": ["alphaOnly:()V"]}},
+            },
+            own={
+                "a1.1.2_01-ornithe": ["pkg/OrnitheAdapter"],
+                "b1.7.3-ornithe": ["pkg/OrnitheAdapter"],
+            },
+        )
+        self.write_tests("a1.1.2_01-ornithe", [UNRELATED_TEST])
+        self.write_tests("b1.7.3-ornithe", [SERVER_TEST])
+        code, out, err = self.run_script()
+        self.assertEqual(code, 1)
+        self.assertIn("pkg/OrnitheAdapter alphaOnly:()V", out)
+        self.assertIn("on a1.1.2_01-ornithe", out)
 
     # The gate does not count an excluded class, so the guard does not ask for a reason for one.
     def testAnExcludedClassIsIgnored(self):
@@ -166,6 +190,70 @@ class ServerReachableTest(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("0 class method(s)", out)
 
+    # javac numbers a class's lambdas in source order, so a lambda added anywhere in the class
+    # renames the ones after it. That is not client-only code losing its reason.
+    def testALambdaRenumberedByAnotherInItsClassIsAccepted(self):
+        self.write_map(
+            {
+                "1.20.6-forge": {
+                    CLIENT_TEST: {"pkg/HostFunctions": ["lambda$draw$40:(DD)Ljava/lang/Object;"]}
+                }
+            }
+        )
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST])
+        self.write_baseline(
+            {"pkg/HostFunctions": ["lambda$draw$39:(DD)Ljava/lang/Object;"]},
+            {"pkg/HostFunctions": "draws a frame a server has none of."},
+        )
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertIn("renumbered", out)
+        self.assertNotIn("can be removed", out)
+
+    # Only the same lambda moved by the counter; a lambda of another method is new code.
+    def testADifferentLambdaIsNotARename(self):
+        self.write_map(
+            {
+                "1.20.6-forge": {
+                    CLIENT_TEST: {"pkg/HostFunctions": ["lambda$play$40:(DD)Ljava/lang/Object;"]}
+                }
+            }
+        )
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST])
+        self.write_baseline(
+            {"pkg/HostFunctions": ["lambda$draw$39:(DD)Ljava/lang/Object;"]},
+            {"pkg/HostFunctions": "draws a frame a server has none of."},
+        )
+        code, out, err = self.run_script()
+        self.assertEqual(code, 1)
+        self.assertIn("lambda$play$40", out)
+
+    # A record says which run it came from, so it cannot claim provenance it was not told.
+    def testARecordNeedsTheRunItCameFrom(self):
+        self.write_map({"1.20.6-forge": {CLIENT_TEST: {"pkg/Client": ["render:()V"]}}})
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST])
+        code, out, err = self.run_script("--record")
+        self.assertEqual(code, 1)
+        self.assertIn("--recorded-from", err)
+
+    # A JSON object with a method it still records is a record that would shrink: a dispatch
+    # narrowed with -f mods= runs only some tests, and the rest would vanish without a word.
+    def testRecordRefusesToDropWithoutPrune(self):
+        self.write_map({"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        self.write_baseline({"pkg/Server": ["tick:()V"]}, {"pkg/Server": "used to need a client."})
+        code, out, err = self.run_script("--record", "--recorded-from", "run 1")
+        self.assertEqual(code, 1)
+        self.assertIn("would drop", err)
+        code, out, err = self.run_script(
+            "--record", "--recorded-from", "run 1", "--prune", "--out", str(self.baseline)
+        )
+        self.assertEqual(code, 0, err)
+        self.assertIn("the record drops", out)
+        data = json.loads(self.baseline.read_text())
+        self.assertEqual(data["methods"], {})
+        self.assertEqual(data["recorded_from"], "run 1")
+
     # A pull request and a push run no multiplayer job, so there is nothing to compare and the
     # script says so rather than failing a run it cannot judge.
     def testNoServerTestListsPasses(self):
@@ -224,12 +312,19 @@ class ServerReachableTest(unittest.TestCase):
         self.write_baseline(
             {"pkg/Other": ["draw:()V"]}, {"pkg/Other": "draws a frame a server has none of."}
         )
-        code, out, err = self.run_script("--record", "--out", str(self.baseline))
+        code, out, err = self.run_script(
+            "--record",
+            "--recorded-from",
+            "run 1, the dispatch of abc1234",
+            "--out",
+            str(self.baseline),
+        )
         self.assertEqual(code, 0, err)
         self.assertIn("needs a reason: pkg/Client", err)
         data = json.loads(self.baseline.read_text())
         self.assertEqual(data["methods"]["pkg/Client"], ["render:()V"])
         self.assertEqual(data["methods"]["pkg/Other"], ["draw:()V"])
+        self.assertEqual(data["recorded_from"], "run 1, the dispatch of abc1234")
         self.assertIn("pkg/Other", data["why"])
         code, out, err = self.run_script()
         self.assertEqual(code, 1)
@@ -261,6 +356,12 @@ class RepositoryBaselineTest(unittest.TestCase):
         data = json.loads((HERE / "server-reachable.json").read_text())
         for name, methods in data.get("methods", {}).items():
             self.assertEqual(methods, sorted(set(methods)), f"{name} lists a method twice")
+
+    # The record is only evidence if it says which run it came from, so a rewrite of it has to state
+    # that rather than inherit a line that may no longer be true.
+    def testTheRecordSaysWhereItCameFrom(self):
+        data = json.loads((HERE / "server-reachable.json").read_text())
+        self.assertIn("run ", data.get("recorded_from", ""))
 
 
 if __name__ == "__main__":

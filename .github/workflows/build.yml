@@ -2108,8 +2108,11 @@ jobs:
   # .github/scripts/server-reachable.json records the reason it needs a client. That is the drift
   # the multiplayer job exists to catch: a test that has a plain tick although it could run on a
   # server stops covering its code there, and a host function added for a client-only test is never
-  # reached on a server at all. It needs only the coverage job's map and the multiplayer job's
-  # record of what each server ran, so it is pure Python: no game, no Gradle and no JaCoCo.
+  # reached on a server at all. A loader's own class counts only when that loader's server reaches
+  # it, since two loaders can compile different classes of the same name (the Ornithe loaders'
+  # OrnitheAdapter); core code counts from any server, so a test one loader's server skips is still
+  # covered by the loader that ran it. It needs only the coverage job's map and the multiplayer
+  # job's record of what each server ran, so it is pure Python: no game, no Gradle and no JaCoCo.
   #
   # It needs the two jobs that produce those, so it runs only when both did: a pull request and a
   # push run no multiplayer job, and a dispatch whose gate or server leg failed has no complete data

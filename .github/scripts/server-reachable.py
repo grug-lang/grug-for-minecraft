@@ -2,7 +2,8 @@
 """Fail when code only a client test reaches has no recorded reason (#1033).
 
     server-reachable.py [--map <coverage-map.json>] [--server-tests <dir>]
-                        [--baseline <file>] [--record] [--out <file>]
+                        [--baseline <file>] [--record --recorded-from <text> [--prune]]
+                        [--out <file>]
 
 The multiplayer job runs only the tests that define ``tick_any_side``, plus the ``forwarded_``
 tests on a loader whose server forwards client calls, and its server log says which tests it
@@ -16,10 +17,14 @@ Server-reachable is therefore defined without a hand-kept class list: a method i
 when a test that a dedicated server ran reaches it, and nothing here needs to know which classes a
 server can load or which lines reference a client. The list of tests each server ran is the
 server's own log, so this keeps working when #1040 gives every test a server run: the set of tests
-the servers ran grows, the recorded set shrinks, and this script does not change. A method reached
-on any one loader's server counts, because the property this guards is that a dedicated server can
-reach the code at all, and a loader whose server skips a test for a reason of its own (the lists in
-the loaders' server-unsupported-tests.txt) is not a second, loader-shaped copy of this file.
+the servers ran grows, the recorded set shrinks, and this script does not change.
+
+Where one loader's server skips a test for a reason of its own (the loader's
+server-unsupported-tests.txt), a server of another loader that ran it still counts, because the
+property this guards is that some dedicated server reaches the code. That union is only sound for
+code the loaders share: the map lists the classes each loader compiles itself, and two loaders can
+hold different classes of the same name (a1.1.2_01-ornithe's and b1.7.3-ornithe's OrnitheAdapter are
+separate files), so a method of a loader's own class is judged by that loader's server alone.
 
 The map is the ``coverage-map`` artifact of the run, built from this run's own per-test exec data
 against this run's own classes, so a key never survives a rename or a body edit that changes the
@@ -30,10 +35,18 @@ flow. Two kinds of key are left out:
 - ``<clinit>``, because a class initializer runs once per JVM and the map attributes it to whichever
   test first used the class, which says nothing about whether a dedicated server can reach it.
 
+The map also leaves the boot segment out: ``CoverageMapTool`` skips ``000-boot.exec``, so code only
+the boot reaches is in no test's data. It cannot be checked here and needs no reason, which is why
+the game directory shows up through the client's captures rather than through the boot.
+
 Only a dispatch runs the multiplayer job, so a pull request and a push hold no server test lists,
 and the comparison says so and passes. A run that holds the lists holds one per loader the map
 names, and a missing one is a failure: an absent list would silently shrink what counts as
 server-reachable and let the drift this guard exists for through.
+
+``--record`` writes the file, and it needs ``--recorded-from`` so the record says which run it came
+from. It refuses to drop a recorded method unless ``--prune`` says so, because a dispatch narrowed
+with ``-f mods=`` runs a subset of the tests and would otherwise shrink the record silently.
 """
 
 from __future__ import annotations
@@ -41,6 +54,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -58,6 +72,10 @@ CLASS_INITIALIZER = "<clinit>"
 # keys a test by its path alone, so the note has to come off before the two are compared: kept, it
 # would make every test of an expected error look like one no server ran.
 EXPECTED_ERROR = " (expected error)"
+# javac numbers the lambdas of a class in source order, so adding a lambda anywhere in the class
+# renames every later one. The record is keyed by method name, so without this a host function added
+# elsewhere would look like client-only code that lost its reason.
+LAMBDA_COUNTER = re.compile(r"^(lambda\$[^$]+\$)\d+(:.*)$")
 
 
 def counted(name: str) -> bool:
@@ -93,14 +111,21 @@ def server_tests(directory: Path) -> dict[str, set[str]]:
 
 def compare(
     map_data: dict, ran: dict[str, set[str]]
-) -> tuple[dict[tuple[str, str], set[str]], list[str]]:
+) -> tuple[dict[tuple[str, str], set[tuple[str, str]]], list[str]]:
     """The counted methods no dedicated server reached, and the loaders that ran no coverage test.
 
-    A method's value is the set of tests that reached it on a client, which is what the failure
-    message shows: the test to give ``tick_any_side``.
+    A method's value is the set of (loader, test) pairs that reached it on a client, which is what
+    the failure message shows: the test to give ``tick_any_side`` and the loader whose client runs
+    it. A class a loader compiles itself is only judged by that loader's server, because two
+    loaders' classes can share a name without being the same code; a class no loader lists is core
+    code every loader runs, so any loader's server that reached it counts.
     """
-    covered: dict[tuple[str, str], set[str]] = {}
-    reached: set[tuple[str, str]] = set()
+    own = {
+        loader: set(data.get("classes", {})) for loader, data in map_data.get("loaders", {}).items()
+    }
+    owned = set().union(*own.values()) if own else set()
+    covered: dict[tuple[str, str], set[tuple[str, str]]] = {}
+    reached: set[tuple[str, str, str]] = set()
     selected_away: list[str] = []
     for loader, data in sorted(map_data.get("loaders", {}).items()):
         tests = data.get("tests", {})
@@ -110,16 +135,23 @@ def compare(
         on_server = ran.get(loader, set())
         for test in sorted(tests):
             for name, info in tests[test].items():
+                if not counted(name):
+                    continue
                 for method in info.get("methods", []):
                     if method.split(":", 1)[0] == CLASS_INITIALIZER:
                         continue
-                    if not counted(name):
-                        continue
-                    key = (name, method)
-                    covered.setdefault(key, set()).add(test)
+                    covered.setdefault((name, method), set()).add((loader, test))
                     if test in on_server:
-                        reached.add(key)
-    return {key: tests for key, tests in covered.items() if key not in reached}, selected_away
+                        reached.add((loader, name, method))
+    required: dict[tuple[str, str], set[tuple[str, str]]] = {}
+    for (name, method), reaches in covered.items():
+        if name in owned:
+            server_reached = all((loader, name, method) in reached for loader, _ in reaches)
+        else:
+            server_reached = any((loader, name, method) in reached for loader in own)
+        if not server_reached:
+            required[(name, method)] = reaches
+    return required, selected_away
 
 
 def load_baseline(path: Path) -> dict:
@@ -146,12 +178,40 @@ def unreasoned(entries, reasons: dict) -> list[str]:
     return sorted({name for name, _ in entries if not reasons.get(name, "").strip()})
 
 
+def lambda_identity(method: str) -> str | None:
+    """A lambda's name with javac's per-class counter taken out, or None when it is no lambda."""
+    match = LAMBDA_COUNTER.match(method)
+    return match.group(1) + match.group(2) if match else None
+
+
+def renumbered(required: dict, entries: dict) -> dict[tuple[str, str], tuple[str, str]]:
+    """Required methods the class's other lambdas renumbered since the record was taken.
+
+    Each maps to the entry it replaces, so a count that moved is reported as that and not as code
+    that lost its reason.
+    """
+    recorded_lambda: dict[tuple[str, str], tuple[str, str]] = {}
+    for name, method in entries:
+        identity = lambda_identity(method)
+        if identity is not None:
+            recorded_lambda.setdefault((name, identity), (name, method))
+    moved: dict[tuple[str, str], tuple[str, str]] = {}
+    for key in required:
+        if key in entries:
+            continue
+        identity = lambda_identity(key[1])
+        if identity is not None and (key[0], identity) in recorded_lambda:
+            moved[key] = recorded_lambda[(key[0], identity)]
+    return moved
+
+
 def check(required: dict, baseline: dict, path: Path) -> int:
     """Fail on a method no dedicated server reached that the baseline does not record."""
     reasons = baseline.get("why", {})
     entries = recorded(baseline)
-    missing = sorted(key for key in required if key not in entries)
-    stale = sorted(key for key in entries if key not in required)
+    moved = renumbered(required, entries)
+    missing = sorted(key for key in required if key not in entries and key not in moved)
+    stale = sorted(key for key in entries if key not in required and key not in moved.values())
 
     classes = {name for name, _ in required}
     print(
@@ -160,11 +220,16 @@ def check(required: dict, baseline: dict, path: Path) -> int:
     )
     for key in missing:
         name, method = key
-        tests = sorted(required[key])
+        tests = sorted(f"{test} on {loader}" for loader, test in required[key])
         print(
             f"  {name} {method} (reached by {', '.join(tests[:3])}"
             + (f" and {len(tests) - 3} more" if len(tests) > 3 else "")
             + ")"
+        )
+    for key, before in sorted(moved.items()):
+        print(
+            f"server-reachable: {key[0]} numbers {key[1]} where the record has {before[1]}, which"
+            f" a new lambda elsewhere in the class renumbered; the record covers it"
         )
     if stale:
         print(
@@ -184,9 +249,12 @@ def check(required: dict, baseline: dict, path: Path) -> int:
         without = unreasoned(missing, reasons)
         print(
             f"error: {len(missing)} class method(s) no dedicated server reaches are not recorded"
-            f" in {path}. Give the test that covers it tick_any_side so it runs on a dedicated"
-            f" server, or, when the code needs a client, record the method under its class in that"
-            f" file with the reason it does."
+            f" in {path}. Give the test that covers one tick_any_side so a dedicated server runs"
+            f" it, or, when the code needs a client, record the method under its class in that file"
+            f" with the reason it does. A test a loader's server skips (see the loader's"
+            f" server-unsupported-tests.txt) covers nothing on that server, and a loader's own class"
+            f" is judged by that loader's server alone: when either of those is what leaves a method"
+            f" unreached, record it there with that reason."
             + (f" A class with no reason yet: {', '.join(without)}." if without else ""),
             file=sys.stderr,
         )
@@ -194,29 +262,53 @@ def check(required: dict, baseline: dict, path: Path) -> int:
     return 0
 
 
-def record(required: dict, baseline: dict, out: Path | None) -> int:
+def record(
+    required: dict, baseline: dict, out: Path | None, recorded_from: str, prune: bool
+) -> int:
     """Write the baseline that makes this run pass, keeping every existing reason."""
     methods: dict[str, list[str]] = {}
     for name, method in sorted(required):
         methods.setdefault(name, []).append(method)
-    data = dict(baseline)
-    data["methods"] = {name: sorted(values) for name, values in sorted(methods.items())}
+    dropped = sorted(key for key in recorded(baseline) if key not in required)
+    if dropped and not prune:
+        print(
+            f"error: recording this run would drop {len(dropped)} recorded method(s), starting with"
+            f" {dropped[0][0]} {dropped[0][1]}. A dispatch narrowed with -f mods= runs only some"
+            f" tests, and its record would silently lose the rest; pass --prune when this run ran"
+            f" every test.",
+            file=sys.stderr,
+        )
+        return 1
+    data = {
+        "methods": {name: sorted(values) for name, values in sorted(methods.items())},
+        "recorded_from": recorded_from,
+        "why": baseline.get("why", {}),
+    }
     text = json.dumps(data, indent=2, sort_keys=True) + "\n"
     if out is None:
         print(text)
     else:
         out.write_text(text)
-    reasons = data.get("why", {})
+    reasons = data["why"]
     for name in sorted(methods):
         if not reasons.get(name, "").strip():
             covered = sorted(
-                {test for method in methods[name] for test in required[(name, method)]}
+                {
+                    f"{test} on {loader}"
+                    for method in methods[name]
+                    for loader, test in required[(name, method)]
+                }
             )
             print(
                 f"needs a reason: {name} ({len(methods[name])} method(s), reached on a client by"
                 f" {', '.join(covered[:4])}" + (" and others)" if len(covered) > 4 else ")"),
                 file=sys.stderr,
             )
+    if dropped:
+        print(
+            f"server-reachable: the record drops {len(dropped)} method(s) this run does not need,"
+            f" starting with {dropped[0][0]} {dropped[0][1]}"
+        )
     if out is not None:
         print(f"recorded {len(required)} method(s) in {len(methods)} class(es) in {out}")
     return 0
@@ -249,6 +341,16 @@ def main(argv: list[str] | None = None) -> int:
         "--record",
         action="store_true",
         help="write the baseline that makes this run pass instead of checking it",
+    )
+    parser.add_argument(
+        "--recorded-from",
+        metavar="TEXT",
+        help="the run this record was taken from; required with --record",
+    )
+    parser.add_argument(
+        "--prune",
+        action="store_true",
+        help="let --record drop recorded methods this run no longer needs",
     )
     parser.add_argument("--out", type=Path, help="where --record writes (default: stdout)")
     args = parser.parse_args(argv)
@@ -300,7 +402,16 @@ def main(argv: list[str] | None = None) -> int:
             f" list has nothing to compare"
         )
     if args.record:
-        return record(required, load_baseline(args.baseline), args.out)
+        if not args.recorded_from:
+            print(
+                "error: --record needs --recorded-from, naming the run and the commit the record"
+                " was taken from, so the file says where its methods were seen",
+                file=sys.stderr,
+            )
+            return 1
+        return record(
+            required, load_baseline(args.baseline), args.out, args.recorded_from, args.prune
+        )
     return check(required, load_baseline(args.baseline), args.baseline)
 
 
