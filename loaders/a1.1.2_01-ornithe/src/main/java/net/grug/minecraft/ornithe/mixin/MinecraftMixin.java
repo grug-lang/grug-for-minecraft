@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugMissingClientMod;
 import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
+import net.grug.minecraft.ornithe.block.entity.GrugSavedDataPacket;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.TickTimer;
@@ -77,6 +78,9 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
         grug$hooks.tick();
+        // A saved-data packet arrives on the network thread, whose world lookup answers a tile the
+        // frame pass does not draw, so it is applied here, on the thread that draws. See #1093.
+        GrugSavedDataPacket.applyPending(((Minecraft) (Object) this).world);
         GrugControlAlpha.onClientTick((Minecraft) (Object) this, grug$hooks);
     }
 
