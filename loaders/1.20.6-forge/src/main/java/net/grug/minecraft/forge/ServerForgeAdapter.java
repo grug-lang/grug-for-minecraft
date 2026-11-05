@@ -54,6 +54,15 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * A dedicated server has no client, no integrated server and no save text to draw, and the
+     * inherited call reaches for the client's {@code Minecraft}. A test whose name asks for the
+     * forced save therefore gets none here, which is right: the indicator it exists for is drawn by
+     * the client that runs the test, not by this process.
+     */
+    @Override
+    public void requestAutosaveForTest() {}
+
+    /**
      * The first player who joined.
      *
      * <p>A server has no local player, so a test that wants one to build fixtures around and to

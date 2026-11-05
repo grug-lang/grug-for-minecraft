@@ -1172,6 +1172,8 @@ public class GrugTestRunner {
         // Before the test's tick runs, so a marked test's save lands on the tick it names rather
         // than after that tick. See GrugForcedAutosave.
         if (GrugForcedAutosave.isDue(path, currentTick)) {
+            System.out.println(
+                    "[GRUG CI] Forcing an autosave for " + path + " at tick " + currentTick);
             boxBuilder.requestAutosaveForTest();
         }
 

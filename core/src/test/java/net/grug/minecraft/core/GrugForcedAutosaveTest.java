@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class GrugForcedAutosaveTest {
     @Test
     void aMarkedTestIsDueAtExactlyTheOneTick() {
-        String marked = "coverage/tests/autosave_save_indicator-Test.grug";
+        String marked = "coverage/tests/forced_autosave_save_indicator-Test.grug";
         assertFalse(GrugForcedAutosave.isDue(marked, GrugForcedAutosave.TICK - 1));
         assertTrue(GrugForcedAutosave.isDue(marked, GrugForcedAutosave.TICK));
         assertFalse(GrugForcedAutosave.isDue(marked, GrugForcedAutosave.TICK + 1));
@@ -23,7 +23,7 @@ class GrugForcedAutosaveTest {
                         GrugForcedAutosave.TICK));
         assertFalse(
                 GrugForcedAutosave.isDue(
-                        "coverage/tests/my_autosave_x-Test.grug", GrugForcedAutosave.TICK));
+                        "coverage/tests/my_forced_autosave_x-Test.grug", GrugForcedAutosave.TICK));
         assertFalse(GrugForcedAutosave.isDue("", GrugForcedAutosave.TICK));
     }
 
@@ -31,9 +31,9 @@ class GrugForcedAutosaveTest {
     void thePrefixHasToStartTheFileName() {
         assertTrue(
                 GrugForcedAutosave.isDue(
-                        "/a/b/autosave_save_indicator-Test.grug", GrugForcedAutosave.TICK));
+                        "/a/b/forced_autosave_save_indicator-Test.grug", GrugForcedAutosave.TICK));
         assertFalse(
                 GrugForcedAutosave.isDue(
-                        "/a/b/xautosave_save_indicator-Test.grug", GrugForcedAutosave.TICK));
+                        "/a/b/xforced_autosave_save_indicator-Test.grug", GrugForcedAutosave.TICK));
     }
 }

@@ -9,12 +9,16 @@ package net.grug.minecraft.core;
  * whose file name starts with {@link #PREFIX} instead gets one save at {@link #TICK}, made the way
  * the autosave makes it, and can capture around that tick. See #1132.
  *
+ * <p>The prefix is deliberately narrow, so a test about the autosave itself does not take it by
+ * accident, and the runner says a line when it forces the save, so a run's log shows the extra save
+ * rather than leaving it silent.
+ *
  * <p>The decision is a pure function of the path and the tick, like {@link GrugTestOrder}, so it is
  * tested without a runner or a client.
  */
 public final class GrugForcedAutosave {
     /** The prefix of a test file name that asks for the forced save. */
-    public static final String PREFIX = "autosave_";
+    public static final String PREFIX = "forced_autosave_";
 
     /** The tick of a marked test before which the runner forces the save. */
     public static final long TICK = 100;
