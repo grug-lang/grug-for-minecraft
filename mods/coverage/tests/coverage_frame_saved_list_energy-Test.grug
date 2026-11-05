@@ -19,7 +19,7 @@ export tick_any_side(ctx: TestTickContext) {
     } else if not Test.world_settled() {
         ctx.not_done()
     } else if not saved {
-        before.set(Test.screenshot().capture(500, 180, 780, 340))
+        before.set(Test.screenshot().capture(500, 80, 780, 340))
         frame_block.unwrap().append_saved_list_record("things")
         frame_block.unwrap().set_saved_list_item("things", 0, item(resource_location("minecraft:stick")))
         frame_block.unwrap().receive_energy(5)
@@ -32,7 +32,7 @@ export tick_any_side(ctx: TestTickContext) {
         # settle. The runner runs up to 10 ticks for a frame, so 30 ticks hold three frames.
         ctx.not_done()
     } else {
-        after: Screenshot = Test.screenshot().capture(500, 180, 780, 340)
+        after: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
         after.differs_from(before.unwrap(), 1)
 
         ctx.assert(frame_block.unwrap().get_saved_list_size("things") == 1, "The list should hold the record.")
@@ -48,7 +48,10 @@ local _setup(ctx: TestTickContext) {
     y: number = origin.y()
     z: number = origin.z()
 
-    # The same place coverage_frame's run sits, so the crop below is the one that test compares.
+    # The same place coverage_frame's run sits. This crop is taller than that test's golden's: a
+    # dedicated server builds the room from its own copy of the player, which can stand a block
+    # above the joined client's, and the block then sits a block higher in that client's frame,
+    # above the golden's crop, with the rows still inside this one.
     level.place_block(x, y - 1.88, z + 4, "grug:coverage_frame")
 
     # A wall behind it, nine across and seven high, which covers the crop at its distance. Without
