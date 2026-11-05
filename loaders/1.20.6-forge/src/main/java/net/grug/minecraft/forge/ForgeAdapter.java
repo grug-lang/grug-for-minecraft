@@ -92,6 +92,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
@@ -523,11 +524,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
      */
     @Override
     public void requestAutosaveForTest() {
-        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
-        if (server == null) {
-            throw Grug.fatal("A test asked for an autosave without an integrated server to save.");
-        }
-        server.saveEverything(true, false, false);
+        Objects.requireNonNull(
+                        Minecraft.getInstance().getSingleplayerServer(),
+                        "a test-only autosave needs the integrated server")
+                .saveEverything(true, false, false);
     }
 
     @Override
