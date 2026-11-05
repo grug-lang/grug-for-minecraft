@@ -118,6 +118,12 @@ public class GrugSavedDataPacket extends Packet {
      * next test's fixture does, would write one block's data into another's.
      */
     public static void applyPending(Object level) {
+        // The level can be absent on a tick before the world is up, and draining first would throw
+        // every waiting packet away for good. They stay queued until there is a world for them.
+        if (!(level instanceof World)) {
+            return;
+        }
+        World world = (World) level;
         List<GrugSavedDataPacket> ready;
         synchronized (PENDING) {
             if (PENDING.isEmpty()) {
@@ -126,10 +132,6 @@ public class GrugSavedDataPacket extends Packet {
             ready = new ArrayList<>(PENDING);
             PENDING.clear();
         }
-        if (!(level instanceof World)) {
-            return;
-        }
-        World world = (World) level;
         for (GrugSavedDataPacket packet : ready) {
             if (packet.apply(world) > 0) {
                 synchronized (PENDING) {

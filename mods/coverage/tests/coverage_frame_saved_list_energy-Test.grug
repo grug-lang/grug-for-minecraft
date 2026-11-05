@@ -18,6 +18,11 @@ before: Option[Screenshot] = Option.new()
 step: number = 0
 step_tick: number = 0
 
+export init(ctx: TestInitContext) {
+    # Three waits of 90 ticks, beside the setup and the captures' own ticks, pass the default 200.
+    ctx.set_max_ticks(400)
+}
+
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
@@ -32,10 +37,12 @@ export tick_any_side(ctx: TestTickContext) {
         step = 1
         step_tick = ctx.current_tick()
         ctx.not_done()
-    } else if ctx.current_tick() < step_tick + 30 {
+    } else if ctx.current_tick() < step_tick + 90 {
         # The change is a packet and a frame away, and nothing marks the world unsettled for it: a
         # script saves data as it runs and a world that settled only between those would never
-        # settle. The runner runs up to 10 ticks for a frame, so 30 ticks hold three frames.
+        # settle. The wait is three times what the packet and a frame need, because a capture
+        # freezes the world for 20 of the client's own ticks and a busy runner can leave the client
+        # behind, which is how one dedicated-server run read the row a transition late.
         ctx.not_done()
     } else if step == 1 {
         # The list's item alone brought the row in.
@@ -46,7 +53,7 @@ export tick_any_side(ctx: TestTickContext) {
         step = 2
         step_tick = ctx.current_tick()
         ctx.not_done()
-    } else if ctx.current_tick() < step_tick + 30 {
+    } else if ctx.current_tick() < step_tick + 90 {
         ctx.not_done()
     } else if step == 2 {
         # Nothing draws the row any more, so the frame has to be the empty one again. Without this
@@ -58,7 +65,7 @@ export tick_any_side(ctx: TestTickContext) {
         step = 3
         step_tick = ctx.current_tick()
         ctx.not_done()
-    } else if ctx.current_tick() < step_tick + 30 {
+    } else if ctx.current_tick() < step_tick + 90 {
         ctx.not_done()
     } else if step == 3 {
         # The energy store alone draws the row back.
