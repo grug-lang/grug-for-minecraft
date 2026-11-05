@@ -3,15 +3,15 @@
 
     base_coverage_map_run.py <base-sha> [--repo <dir>] [--api-base <url>] [--repo-slug <owner/repo>]
 
-prints the id of the successful run of the base commit on main that uploaded a coverage-map
-artifact, so the coverage job can download it, and nothing when no such run exists, which is the
-same fallback as an error: a base commit without a recorded map has nothing to carry over, so the
-pull request runs every coverage test rather than carry one over. A run on main whose head is the
-base commit is a run of the base commit's own code: a push to main and a dispatch check the head
-out, and a pull request checks out its head merged into its base, which is the head's own code
-when its base is behind it; the coverage job then applies the map against the pull request's
-own core classes and fails the run when a class changed under it, which is the direction that
-runs more. A run that failed, or whose map's retention expired, has no artifact to read. The
+prints the id of the successful run of the base commit on main that uploaded a
+coverage-map-<attempt> artifact, so the coverage job can download it, and nothing when no such run
+exists, which is the same fallback as an error: a base commit without a recorded map has nothing to
+carry over, so the pull request runs every coverage test rather than carry one over. A run on main
+whose head is the base commit is a run of the base commit's own code: a push to main and a dispatch
+check the head out, and a pull request checks out its head merged into its base, which is the head's
+own code when its base is behind it; the coverage job then applies the map against the pull
+request's own core classes and fails the run when a class changed under it, which is the direction
+that runs more. A run that failed, or whose map's retention expired, has no artifact to read. The
 lookup is a read of the GitHub API, and a read that cannot be made answers nothing, which is the
 same fallback as a base that is not there to read.
 """
@@ -21,11 +21,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.parse
 import urllib.request
 
 MAP_ARTIFACT = "coverage-map"
+# The coverage job names the map artifact after the run attempt, so the name carries it and only a
+# `coverage-map-<n>` is a map: `coverage-map-tool` shares the prefix but holds the tool, and the
+# name this lookup originally read, a bare `coverage-map`, is what the attempt suffix replaced.
+MAP_NAME = re.compile(rf"^{MAP_ARTIFACT}-(\d+)$")
 
 
 def carries_a_map(artifact: dict) -> bool:
@@ -37,7 +42,7 @@ def carries_a_map(artifact: dict) -> bool:
     minutes-wide race an expired map is the same answer as no map. The flag is required on a
     listed artifact, and an absent one is read as live only defensively.
     """
-    return artifact.get("name") == MAP_ARTIFACT and not artifact.get("expired", False)
+    return bool(MAP_NAME.match(artifact.get("name", ""))) and not artifact.get("expired", False)
 
 
 def get_json(url: str, token: str):

@@ -26,9 +26,9 @@ code the loaders share: the map lists the classes each loader compiles itself, a
 hold different classes of the same name (a1.1.2_01-ornithe's and b1.7.3-ornithe's OrnitheAdapter are
 separate files), so a method of a loader's own class is judged by that loader's server alone.
 
-The map is the ``coverage-map`` artifact of the run, built from this run's own per-test exec data
-against this run's own classes, so a key never survives a rename or a body edit that changes the
-flow. Two kinds of key are left out:
+The map is the newest ``coverage-map-<attempt>`` artifact of the run, built from this run's own
+per-test exec data against this run's own classes, so a key never survives a rename or a body edit
+that changes the flow. Two kinds of key are left out:
 
 - a class the coverage gate excludes, because the gate does not count it and nothing here should
   make an author record a reason for a mixin or a screen;
@@ -72,6 +72,10 @@ ARTIFACT_PREFIX = "coverage-server-tests-"
 # leg adds a list beside the older one instead of overwriting the name it shares with it.
 ATTEMPT_SUFFIX = re.compile(r"^(.*)-(\d+)$")
 TESTS_FILE = "tests.txt"
+# The coverage job names its map artifact after the run attempt the same way, and the map itself
+# keeps its file name inside, so the attempt is the only thing the artifact name adds.
+MAP_ATTEMPT = re.compile(r"^coverage-map-(\d+)$")
+MAP_FILE = "coverage-map.json"
 CLASS_INITIALIZER = "<clinit>"
 # A test that is meant to fail still passes, and the runner's line says so after the path. The map
 # keys a test by its path alone, so the note has to come off before the two are compared: kept, it
@@ -83,6 +87,34 @@ EXPECTED_ERROR = " (expected error)"
 # share a descriptor, so the counter is not an identity: the enclosing name, the descriptor and the
 # rank within that pair are.
 LAMBDA_COUNTER = re.compile(r"^lambda\$([^$]+)\$(\d+)(:.*)$")
+
+
+def coverage_map(path: Path) -> tuple[Path | None, int | None]:
+    """The coverage map to read, and the run attempt whose artifact holds it.
+
+    The guard hands over the directory the run's ``coverage-map-<attempt>`` artifacts were
+    downloaded to, and a re-run of the coverage job leaves several attempts in it. Every attempt of
+    a run is that run's commit, so the newest is the map the run built last; reading the newest
+    keeps the map on the same side of a re-run as the test lists, which are read the same way
+    (#1145). ``path`` may also be a map file, which is how a map downloaded by hand is passed, and
+    that has no attempt to name.
+    """
+    if path.is_file():
+        return path, None
+    if not path.is_dir():
+        return None, None
+    newest: tuple[int, Path] | None = None
+    for entry in path.iterdir():
+        match = MAP_ATTEMPT.match(entry.name)
+        if match is None:
+            continue
+        candidate = entry / MAP_FILE
+        if not candidate.is_file():
+            continue
+        attempt = int(match.group(1))
+        if newest is None or attempt > newest[0]:
+            newest = (attempt, candidate)
+    return (newest[1], newest[0]) if newest else (None, None)
 
 
 def counted(name: str) -> bool:
@@ -370,7 +402,11 @@ def main(argv: list[str] | None = None) -> int:
         "--map",
         type=Path,
         default=Path("coverage/coverage-map.json"),
-        help="the coverage map the coverage job built (default: coverage/coverage-map.json)",
+        help=(
+            "the coverage map to judge, or the directory the run's coverage-map-<attempt>"
+            " artifacts were downloaded to, of which the newest attempt is read (default:"
+            " coverage/coverage-map.json)"
+        ),
     )
     parser.add_argument(
         "--server-tests",
@@ -407,22 +443,30 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     lists = server_tests(args.server_tests) if args.server_tests.is_dir() else {}
-    if not args.map.is_file():
+    map_path, map_attempt = coverage_map(args.map)
+    if map_path is None:
         if not lists:
             print(
                 "server-reachable: this run holds neither a coverage map nor dedicated-server"
                 " test lists, which only a dispatch runs, so there is nothing to compare"
             )
             return 0
+        where = (
+            f"{args.map} holds no coverage-map-<attempt> artifact"
+            if args.map.is_dir()
+            else f"{args.map} is missing"
+        )
         print(
-            f"error: {args.map} is missing, so the tests the dedicated server of "
+            f"error: {where}, so the tests the dedicated server of "
             + ", ".join(sorted(lists))
             + " ran have no coverage map to be compared against. The run's download step found"
             " lists and no map, so the map artifact is missing or was saved under another name",
             file=sys.stderr,
         )
         return 1
-    with args.map.open() as handle:
+    if map_attempt is not None:
+        print(f"server-reachable: read the coverage map of attempt {map_attempt}")
+    with map_path.open() as handle:
         map_data = json.load(handle)
     if not lists:
         print(

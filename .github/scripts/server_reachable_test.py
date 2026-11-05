@@ -49,13 +49,13 @@ class ServerReachableTest(unittest.TestCase):
         self.artifacts.mkdir()
         self.baseline = self.root / "server-reachable.json"
 
-    def run_script(self, *extra):
+    def run_script(self, *extra, map_path=None):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = server_reachable.main(
                 [
                     "--map",
-                    str(self.map),
+                    str(map_path or self.map),
                     "--server-tests",
                     str(self.artifacts),
                     "--baseline",
@@ -67,6 +67,12 @@ class ServerReachableTest(unittest.TestCase):
 
     def write_map(self, loaders, own=None):
         self.map.write_text(json.dumps(map_of(loaders, own)))
+
+    def write_map_attempt(self, directory, attempt, loaders):
+        path = directory / f"coverage-map-{attempt}" / "coverage-map.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(map_of(loaders)))
+        return path
 
     def write_tests(self, loader, tests, attempt=None):
         name = f"coverage-server-tests-{loader}"
@@ -510,6 +516,45 @@ class ServerReachableTest(unittest.TestCase):
             server_reachable.artifact_loader("coverage-server-tests-1.20.6-forge"),
             ("1.20.6-forge", 0),
         )
+
+    # A re-run of the coverage job leaves several map attempts in the directory it downloaded, and
+    # the newest is the map the run built last, on the same commit as the older one. Reading the
+    # older attempt would judge this run's lists against a map from before the re-run (#1145), so
+    # the older attempt here is a map that names client-only code and would fail.
+    def testTheNewestMapAttemptIsTheOneRead(self):
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        maps = self.root / "maps"
+        self.write_map_attempt(
+            maps, 2, {"1.20.6-forge": {CLIENT_TEST: {"pkg/Client": ["render:()V"]}}}
+        )
+        self.write_map_attempt(
+            maps, 10, {"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}}
+        )
+        code, out, err = self.run_script(map_path=maps)
+        self.assertEqual(code, 0, err)
+        self.assertIn("read the coverage map of attempt 10", out)
+
+    # The download pattern also matches `coverage-map-tool`, whose directory holds the tool rather
+    # than a map: that is not a map attempt, so a run holding lists and only the tool fails instead
+    # of reading a jar as the map.
+    def testADirectoryWithoutAMapAttemptFailsWhenThereAreLists(self):
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        maps = self.root / "maps"
+        tool = maps / "coverage-map-tool"
+        tool.mkdir(parents=True)
+        (tool / "coverage-map-tool.jar").write_bytes(b"jar")
+        code, out, err = self.run_script(map_path=maps)
+        self.assertEqual(code, 1)
+        self.assertIn("holds no coverage-map-<attempt> artifact", err)
+
+    # A map given as a file is read as it is, which is how a map downloaded by hand is passed and
+    # what every other case here uses.
+    def testAMapFileIsReadWithoutAnAttempt(self):
+        self.write_map({"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("read the coverage map of attempt", out)
 
 
 class RepositoryBaselineTest(unittest.TestCase):
