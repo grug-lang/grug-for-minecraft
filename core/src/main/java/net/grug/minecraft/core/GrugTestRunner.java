@@ -414,6 +414,14 @@ public class GrugTestRunner {
     /** Whether the current wait has been said, so a long one says so once. */
     private boolean staleWaitReported = false;
 
+    /**
+     * Whether this tick built the next test's room and returned, so nothing of the test has run
+     * yet. A dedicated-server loop that runs the runner more than once per server tick reads it
+     * after each call: the clear and the fixture have to reach the client on a tick boundary, or
+     * the first call runs in the same server tick as the build (#1093).
+     */
+    private boolean roomBuiltThisTick = false;
+
     /** How long a wait has to last before it is worth a line, since a short one is routine. */
     static final long STALE_BLOCK_ENTITY_REPORT_AFTER_NANOS = 1_000_000_000L;
 
@@ -1094,6 +1102,7 @@ public class GrugTestRunner {
      * {@code Test.tick()} call for it. Meant to be called once per real Minecraft tick.
      */
     public void tick(Object player) {
+        roomBuiltThisTick = false;
         if (finished) return;
 
         // A Java exception a host function threw can arrive with no call of the test's own to
@@ -1202,6 +1211,7 @@ public class GrugTestRunner {
         // one copy, so its clear and fixture land in it at once and no tick is needed.
         if (justStarted && dedicatedServer) {
             staleWaitStartNanos = clock.getAsLong();
+            roomBuiltThisTick = true;
             return;
         }
 
@@ -2020,6 +2030,15 @@ public class GrugTestRunner {
     }
 
     /** True once the run has stopped for any reason: every test passed, or one failed. */
+    /**
+     * Whether the last {@link #tick} built the next test's room and returned without making the
+     * test's first call. A server loop that runs the runner several times per server tick stops
+     * once this answers true, so the build and the first call land on different server ticks.
+     */
+    public boolean roomBuiltThisTick() {
+        return roomBuiltThisTick;
+    }
+
     public boolean isFinished() {
         return finished;
     }

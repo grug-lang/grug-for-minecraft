@@ -194,6 +194,7 @@ public final class GrugServerRun {
                 advance(server.getWorld(0), 1);
             }
             runner.tick(GrugCore.getAdapter().testPlayer());
+            if (runner.roomBuiltThisTick()) return;
             if (runner.isFinished()) {
                 stop(runner.isPassed() ? 0 : 1);
                 return;

@@ -3309,15 +3309,21 @@ class GrugTestRunnerTest {
                         true);
 
         // The room build tick ends before the first call, and the client has not been asked yet.
+        assertFalse(runner.roomBuiltThisTick(), "no tick has run yet");
         capture(() -> runner.tick(null));
         assertEquals(0, ticks[0]);
         assertFalse(asked[0]);
+        assertTrue(
+                runner.roomBuiltThisTick(),
+                "the tick that built the room says so, so a server loop can stop after it");
 
         // The next tick asks the client, and starts the test once it has dropped the cleared block
         // entities.
         capture(() -> runner.tick(null));
         assertTrue(asked[0]);
         assertEquals(1, ticks[0]);
+        assertFalse(
+                runner.roomBuiltThisTick(), "a tick that made the test's first call is not one");
     }
 
     private static List<String> runWithSweepLog(FakeOps ops, Map<String, Long> files) {
