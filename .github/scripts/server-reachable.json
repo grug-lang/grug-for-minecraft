@@ -67,7 +67,15 @@
       "lambda$Test_mining_crack$12:(DDDLjava/lang/Object;)Ljava/lang/Boolean;"
     ],
     "net/grug/minecraft/ornithe/OrnitheAdapter": [
-      "getGameDirectory:()Ljava/io/File;"
+      "getGameDirectory:()Ljava/io/File;",
+      "getStackCount:(Ljava/lang/Object;)D",
+      "getStackDamage:(Ljava/lang/Object;)D",
+      "registersModRecipes:()Z",
+      "takeCraftingResult:(Ljava/lang/Object;D)D",
+      "updateRecipeOutput:(Ljava/lang/Object;D)V"
+    ],
+    "net/grug/minecraft/ornithe/resource/GrugResourcePackProvider": [
+      "lambda$loadResourcePacks$0:(Lnet/grug/minecraft/ornithe/resource/GrugResourcePack;)Lnet/ornithemc/osl/resource/loader/api/resource/pack/ResourcePack;"
     ],
     "net/grug/minecraft/stationapi/StationApiAdapter": [
       "getGameDirectory:()Ljava/io/File;",
@@ -82,8 +90,8 @@
   "recorded_from": "run 42029618358, the full dispatch of 92a1647f on 2026-11-05",
   "why": {
     "net/grug/minecraft/core/GrugTestRunner$4": "The seam that forwards a test's forced autosave to the adapter. Only a test whose name asks for a save tick reaches it, and that test reads the save indicator a client draws, so no dedicated server runs it today.",
-    "net/grug/minecraft/forge/ForgeAdapter": "getGameDirectory is read while the game boots, and the coverage map leaves the boot segment out; miningCrackForTest draws the crack overlay only a client has; requestAutosaveForTest saves through the client's integrated server, which a dedicated server does not have.",
-    "net/grug/minecraft/forge125/Grug125Adapter": "The game directory, which the boot and the client's resource reads ask for. The map leaves the boot segment out, and a dedicated server reads no resources.",
+    "net/grug/minecraft/forge/ForgeAdapter": "The game directory the capture path writes under and the crack overlay a client draws, both reached only by tests that read a frame; requestAutosaveForTest saves through the client's integrated server, which a dedicated server does not have. The boot's own game directory read is in the boot segment, which the map leaves out.",
+    "net/grug/minecraft/forge125/Grug125Adapter": "The game directory and its 1.2.5 name, which the client's captures write under; a dedicated server captures nothing, and the boot's read is in the boot segment the map leaves out.",
     "net/grug/minecraft/forge125/Grug125ClientAdapter": "The client half of the 1.2.5 loader: the mining crack overlay and the screen only a client opens.",
     "net/grug/minecraft/grug/GrugModFileStates": "Hot reload swaps a changed file aside on the client's watcher; a dedicated server reloads no mod file.",
     "net/grug/minecraft/grug/GrugModels": "Reads a mod's model files, which a client does to draw a block or an item; a dedicated server draws nothing and reads none of them.",
@@ -94,8 +102,9 @@
     "net/grug/minecraft/grug/GrugScreenshots": "Compares a captured frame with its reference; a dedicated server draws no frame to capture.",
     "net/grug/minecraft/grug/GrugScreenshots$Comparison": "The result of a GrugScreenshots comparison, which only a client's captured frame produces.",
     "net/grug/minecraft/grug/HostFunctions": "Reached only by tests that open a menu or read a frame: GUI.add_crafting_result serves a slot a menu draws, Test.mining_crack reads the client's crack overlay, Test.reload_count reads the client's hot reload, and Screenshot.equals compares a captured frame. A test that runs on a dedicated server does none of that today; #1040 gives every test a server run.",
-    "net/grug/minecraft/ornithe/OrnitheAdapter": "The game directory, which the boot asks for and the coverage map leaves out of the boot segment; no test calls it.",
-    "net/grug/minecraft/stationapi/StationApiAdapter": "The game directory the boot asks for, which the map leaves out of the boot segment, and the packet that carries a GUI to the client which opened it.",
+    "net/grug/minecraft/ornithe/OrnitheAdapter": "The game directory the client's captures write under, and the crafting-result contract (getStackCount, getStackDamage, takeCraftingResult, updateRecipeOutput, registersModRecipes) that only client tests exercise today; #1040 gives every test a server run. The two Ornithe loaders compile separate copies of this class, and the guard judges each by its own server.",
+    "net/grug/minecraft/ornithe/resource/GrugResourcePackProvider": "Registers the mods' resources as a resource pack for the Ornithe loaders, which only a client's pack list asks for; a dedicated server serves no resources.",
+    "net/grug/minecraft/stationapi/StationApiAdapter": "The game directory the client's captures write under, and the packet that carries a GUI to the client which opened it. A dedicated server captures nothing, and the boot's own game directory read is in the boot segment the map leaves out.",
     "net/grug/minecraft/stationapi/resource/GrugResourcePackProvider": "Registers the mods' resources as a resource pack, which only a client's pack list asks for; a dedicated server serves no resources."
   }
 }
