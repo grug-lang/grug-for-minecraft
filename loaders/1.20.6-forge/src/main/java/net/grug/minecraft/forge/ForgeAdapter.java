@@ -516,6 +516,20 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return true;
     }
 
+    /**
+     * Saves the world once, at the tick a test whose file name starts with {@code autosave_} asks
+     * for, the way the game's own autosave does, so the save indicator is drawn on a tick the test
+     * knows. See {@link GrugForcedAutosave}.
+     */
+    @Override
+    public void requestAutosaveForTest() {
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+        if (server == null) {
+            throw Grug.fatal("A test asked for an autosave without an integrated server to save.");
+        }
+        server.saveEverything(true, false, false);
+    }
+
     @Override
     public void tickBlockEntity(Object blockEntityObj) {
         ((GrugBlockEntity) blockEntityObj).tick();
