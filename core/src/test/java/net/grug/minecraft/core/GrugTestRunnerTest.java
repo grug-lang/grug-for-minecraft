@@ -2455,7 +2455,7 @@ class GrugTestRunnerTest {
     @Test
     void forcesOneSaveAtTheNamedTickOnlyForATestWhoseNameAsksForIt() {
         FakeOps ops = new FakeOps();
-        Map<String, Long> files = Map.of("mymod/tests/autosave_x-Test.grug", 1L);
+        Map<String, Long> files = Map.of("mymod/tests/forced_autosave_x-Test.grug", 1L);
         ops.pathsAre(files);
         List<String> saves = new ArrayList<>();
         int[] calls = {0};
@@ -2506,7 +2506,7 @@ class GrugTestRunnerTest {
     @Test
     void doesNotForceASaveForATestWhoseNameOnlyContainsTheMark() {
         FakeOps ops = new FakeOps();
-        Map<String, Long> files = Map.of("mymod/tests/xautosave_x-Test.grug", 1L);
+        Map<String, Long> files = Map.of("mymod/tests/xforced_autosave_x-Test.grug", 1L);
         ops.pathsAre(files);
         List<String> saves = new ArrayList<>();
         int[] calls = {0};

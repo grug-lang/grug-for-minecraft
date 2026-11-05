@@ -1,14 +1,15 @@
 # A capture must never read the integrated server's "Saving world" text, which 1.20.6 draws in the
 # bottom right of the frame for about ten client ticks after a save. A test cannot wait the game's
 # own autosave out: its tick is the timer's, and the timer's worst gap is longer than a loader job
-# may take, so a test that just captured for long enough would not finish. Instead the runner saves
-# the world once at tick 100 of a test whose file name starts with `autosave_`
-# (GrugForcedAutosave), the same way the autosave does, so the captures around that tick always
-# read the fade. Without a wait in the capture path the captures that read a frame drawn during the
-# fade differ from the golden and the test fails. See #1132. The scene, the rectangle and the golden
-# are coverage_flat_hand's, so the frame is the one that test already accepts on every loader and
-# only the timing differs. The captures start once that scene's hand has finished rising, which is
-# also what makes the first one match the golden. Only 1.20.6 draws the text, so the other four loaders set the scene up and stop: a capture there
+# may take, so a test that captured for long enough would not finish. Instead the runner saves the
+# world once at tick 100 of a test whose file name starts with `forced_autosave_`
+# (GrugForcedAutosave), the same way the autosave does, and says a [GRUG CI] line when it does, so
+# the captures around that tick always read the fade. Without a wait in the capture path the
+# captures that read a frame drawn during the fade differ from the golden and the test fails. See
+# #1132. The scene, the rectangle and the golden are coverage_flat_hand's, so the frame is the one
+# that test already accepts on every loader and only the timing differs. The captures start once
+# that scene's hand has finished rising, which is also what makes the first one match the golden.
+# Only 1.20.6 draws the text, so the other four loaders set the scene up and stop: a capture there
 # cannot fail, and repeating the golden for them would only cost run time.
 settled_ticks: number = 0
 ready: bool = false
