@@ -179,6 +179,18 @@ public class GrugTestRunner {
          * forces a save for. See {@link GrugForcedAutosave}.
          */
         default void requestAutosaveForTest() {}
+
+        /**
+         * Turns on the GL capability that normalizes normals, for the test the runner forces it
+         * for. See {@link GrugForcedNormalization}.
+         */
+        default void forceNormalizationForTest() {}
+
+        /**
+         * Turns the capability back off in the tick a marked test ends. See {@link
+         * GrugForcedNormalization}.
+         */
+        default void restoreNormalizationAfterTest() {}
     }
 
     /**
@@ -235,6 +247,12 @@ public class GrugTestRunner {
      * and the test's tick budget is scaled by it. See {@link #tickBudget}.
      */
     private double appliedGameSpeed = 1;
+
+    /**
+     * Whether the running test asked the loader to turn the normals normalizing capability on, so
+     * the end of the test turns it off again. See {@link GrugForcedNormalization}.
+     */
+    private boolean forcedNormalization = false;
 
     /**
      * What the loader answered when the last test asked for a faster clock, so the log says it when
@@ -455,6 +473,16 @@ public class GrugTestRunner {
                     @Override
                     public void requestAutosaveForTest() {
                         GrugCore.getAdapter().requestAutosaveForTest();
+                    }
+
+                    @Override
+                    public void forceNormalizationForTest() {
+                        GrugCore.getAdapter().forceNormalizationForTest();
+                    }
+
+                    @Override
+                    public void restoreNormalizationAfterTest() {
+                        GrugCore.getAdapter().restoreNormalizationAfterTest();
                     }
                 },
                 repeatsFromEnv(),
@@ -1177,6 +1205,15 @@ public class GrugTestRunner {
             boxBuilder.requestAutosaveForTest();
         }
 
+        // The same, for the GL capability the game's own slime renderer leaves on. See
+        // GrugForcedNormalization.
+        if (GrugForcedNormalization.isDue(path, currentTick, GrugReference.isReferenceRun())) {
+            System.out.println(
+                    "[GRUG CI] Forcing normalized normals for " + path + " at tick " + currentTick);
+            forcedNormalization = true;
+            boxBuilder.forceNormalizationForTest();
+        }
+
         GrugTestState.currentTestTick = currentTick;
         GrugTestState.testNotDone = false;
         GrugTestState.currentTestMod = owningMod(path);
@@ -1842,6 +1879,17 @@ public class GrugTestRunner {
         boxBuilder.setGameSpeed(1);
     }
 
+    /**
+     * Turns the normals normalizing capability back off if this test forced it on, so the next
+     * test's world and captures are shaded with the state the game itself leaves. See {@link
+     * GrugForcedNormalization}.
+     */
+    private void restoreForcedNormalization() {
+        if (!forcedNormalization) return;
+        forcedNormalization = false;
+        boxBuilder.restoreNormalizationAfterTest();
+    }
+
     /** A whole number without its decimal point, which is what every speed that gets here is. */
     private static String format(double speed) {
         return Long.toString((long) speed);
@@ -1935,6 +1983,9 @@ public class GrugTestRunner {
         // Whether the test passed, expected its error or failed, because a clock left fast would
         // run the next test's room and any capture it takes at a speed it never asked for.
         restoreGameSpeed();
+        // The same for the capability one marked test asked for, so a capture another test takes
+        // is not shaded with a state that test never asked for.
+        restoreForcedNormalization();
         if (currentEntityHandle != 0) {
             // In the tick the test ends, whether it passed, expected its error or failed, so the
             // last items it dropped are gone before any gap can let the player pick them up. The

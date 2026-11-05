@@ -2539,6 +2539,151 @@ class GrugTestRunnerTest {
         assertTrue(saves.isEmpty(), saves.toString());
     }
 
+    @Test
+    void forcesNormalizationAtTheNamedTickOnlyForATestWhoseNameAsksForIt() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("jei/tests/forced_normalization_x-Test.grug", 1L);
+        ops.pathsAre(files);
+        List<String> forced = new ArrayList<>();
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    calls[0]++;
+                    GrugTestState.testNotDone = calls[0] < 140;
+                };
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public void forceNormalizationForTest() {
+                                forced.add("forced at " + calls[0]);
+                            }
+
+                            @Override
+                            public void restoreNormalizationAfterTest() {
+                                forced.add("restored at " + calls[0]);
+                            }
+                        },
+                        1);
+        capture(() -> runFor(runner, 200));
+
+        // The runner asks before the test's tick exports run, so the state is on before the tick
+        // the test sees, and is put back once, in the tick the test ends.
+        assertEquals(2, forced.size(), forced.toString());
+        assertEquals("forced at " + GrugForcedNormalization.TICK, forced.get(0));
+        assertTrue(forced.get(1).startsWith("restored at "), forced.toString());
+    }
+
+    @Test
+    void aBoxBuilderWithoutTheNormalizationHookIgnoresTheRequest() {
+        GrugTestRunner.TestBoxBuilder box =
+                new GrugTestRunner.TestBoxBuilder() {
+                    @Override
+                    public void build(int radius) {}
+
+                    @Override
+                    public void sweepItems() {}
+                };
+        box.forceNormalizationForTest();
+    }
+
+    @Test
+    void doesNotForceNormalizationForATestWhoseNameOnlyContainsTheMark() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("jei/tests/xforced_normalization_x-Test.grug", 1L);
+        ops.pathsAre(files);
+        List<String> forced = new ArrayList<>();
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    calls[0]++;
+                    GrugTestState.testNotDone = calls[0] < 140;
+                };
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public void forceNormalizationForTest() {
+                                forced.add("forced");
+                            }
+
+                            @Override
+                            public void restoreNormalizationAfterTest() {
+                                forced.add("restored");
+                            }
+                        },
+                        1);
+        capture(() -> runFor(runner, 200));
+
+        assertTrue(forced.isEmpty(), forced.toString());
+    }
+
+    @Test
+    void doesNotForceNormalizationInAReferenceRun() {
+        System.setProperty(GrugReference.PROPERTY, "1");
+        try {
+            FakeOps ops = new FakeOps();
+            Map<String, Long> files = Map.of("jei/tests/forced_normalization_x-Test.grug", 1L);
+            ops.pathsAre(files);
+            List<String> forced = new ArrayList<>();
+            int[] calls = {0};
+            ops.onCall =
+                    () -> {
+                        calls[0]++;
+                        GrugTestState.testNotDone = calls[0] < 140;
+                    };
+            GrugTestRunner runner =
+                    new GrugTestRunner(
+                            files,
+                            List.of(),
+                            ops,
+                            System::nanoTime,
+                            new GrugTestRunner.TestBoxBuilder() {
+                                @Override
+                                public void build(int radius) {}
+
+                                @Override
+                                public void sweepItems() {}
+
+                                @Override
+                                public void forceNormalizationForTest() {
+                                    forced.add("forced");
+                                }
+
+                                @Override
+                                public void restoreNormalizationAfterTest() {
+                                    forced.add("restored");
+                                }
+                            },
+                            1);
+            capture(() -> runFor(runner, 200));
+
+            assertTrue(forced.isEmpty(), forced.toString());
+        } finally {
+            System.clearProperty(GrugReference.PROPERTY);
+        }
+    }
+
     /** A room builder that logs what the runner asks of it, in order. */
     private static final class SweepLog implements GrugTestRunner.TestBoxBuilder {
         final List<String> log;

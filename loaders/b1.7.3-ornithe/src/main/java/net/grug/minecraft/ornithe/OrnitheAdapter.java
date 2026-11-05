@@ -952,6 +952,23 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return GrugClientHooks.setGameSpeed((float) speed);
     }
 
+    /**
+     * Test only: turns on the state the game's slime renderer leaves, so a capture taken after it
+     * says whether the overlay's item draw pins the normals instead of inheriting the state.
+     */
+    @Override
+    public void forceNormalizationForTest() {
+        if (getSide() != GrugSide.CLIENT) return;
+        GL11.glEnable(GL11.GL_NORMALIZE);
+    }
+
+    /** Test only: puts the normalization back off in the tick the marked test ends. */
+    @Override
+    public void restoreNormalizationAfterTest() {
+        if (getSide() != GrugSide.CLIENT) return;
+        GL11.glDisable(GL11.GL_NORMALIZE);
+    }
+
     @Override
     public void tickBlockEntity(Object blockEntityObj) {
         ((GrugBlockEntity) blockEntityObj).tick();
