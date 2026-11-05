@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
+import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.GrugWorldReady;
@@ -1198,8 +1199,49 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // nothing and answers without reading.
         boolean blocksPending =
                 blockSync.onFrame((x, y, z) -> getBlock(MinecraftInstance.get().world, x, y, z));
-        renderSettle.onFrame(frameHadPendingWork(), blocksPending);
+        // A frame drawn from a view the mouse moved is not one a capture may read, and the view is
+        // levelled again for the next frame. See GrugTestCamera and #1128.
+        renderSettle.onFrame(
+                GrugTestCamera.frameBusy(
+                        frameHadPendingWork(), testPlayerSnapped, testPlayer(), CAMERA_VIEW),
+                blocksPending);
     }
+
+    /**
+     * This generation's view of the local player: its yaw and pitch, and the pair a frame
+     * interpolates from.
+     */
+    private static final GrugTestCamera.View CAMERA_VIEW =
+            new GrugTestCamera.View() {
+                @Override
+                public float yaw(Object player) {
+                    return ((PlayerEntity) player).yaw;
+                }
+
+                @Override
+                public float pitch(Object player) {
+                    return ((PlayerEntity) player).pitch;
+                }
+
+                @Override
+                public float previousYaw(Object player) {
+                    return ((PlayerEntity) player).lastYaw;
+                }
+
+                @Override
+                public float previousPitch(Object player) {
+                    return ((PlayerEntity) player).lastPitch;
+                }
+
+                @Override
+                public void level(Object player) {
+                    PlayerEntity target = (PlayerEntity) player;
+                    target.yaw = 0.0F;
+                    target.pitch = 0.0F;
+                    target.lastYaw = 0.0F;
+                    target.lastPitch = 0.0F;
+                }
+            };
 
     /**
      * The client's frames, and whether the last one had work in it. See {@link

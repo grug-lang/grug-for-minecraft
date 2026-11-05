@@ -2,6 +2,7 @@ package net.grug.minecraft.forge125;
 
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.forge125.block.GrugBlocks;
@@ -202,8 +203,52 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         // nothing and answers without reading.
         boolean blocksPending =
                 blockSync.onFrame((x, y, z) -> getBlock(minecraft.theWorld, x, y, z));
-        renderSettle.onFrame(frameHadPendingWork(minecraft), blocksPending);
+        // A frame drawn from a view the mouse moved is not one a capture may read, and the view is
+        // levelled again for the next frame. See GrugTestCamera and #1128.
+        renderSettle.onFrame(
+                GrugTestCamera.frameBusy(
+                        frameHadPendingWork(minecraft),
+                        testPlayerSnapped,
+                        testPlayer(),
+                        CAMERA_VIEW),
+                blocksPending);
     }
+
+    /**
+     * This generation's view of the local player: its yaw and pitch, and the pair a frame
+     * interpolates from.
+     */
+    private static final GrugTestCamera.View CAMERA_VIEW =
+            new GrugTestCamera.View() {
+                @Override
+                public float yaw(Object player) {
+                    return ((EntityPlayer) player).rotationYaw;
+                }
+
+                @Override
+                public float pitch(Object player) {
+                    return ((EntityPlayer) player).rotationPitch;
+                }
+
+                @Override
+                public float previousYaw(Object player) {
+                    return ((EntityPlayer) player).prevRotationYaw;
+                }
+
+                @Override
+                public float previousPitch(Object player) {
+                    return ((EntityPlayer) player).prevRotationPitch;
+                }
+
+                @Override
+                public void level(Object player) {
+                    EntityPlayer target = (EntityPlayer) player;
+                    target.rotationYaw = 0.0F;
+                    target.rotationPitch = 0.0F;
+                    target.prevRotationYaw = 0.0F;
+                    target.prevRotationPitch = 0.0F;
+                }
+            };
 
     /**
      * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
