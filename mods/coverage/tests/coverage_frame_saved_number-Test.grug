@@ -3,9 +3,10 @@
 # the copy the game simulates, so on a dedicated server the number only arrives if the loader sends
 # it. Every loader does: with the game's block entity update packet where it has one, and with a
 # packet of grug's own on the versions that have none (#1093). The coverage_frame block draws a row
-# of three extra stacks at each of three heights once its "marker" number is above 0, and the
-# assertion is that the frame changed. The middle row is inside every camera's crop, and the low and
-# high rows catch the crops that sit a little higher or lower, so no loader sees none of them.
+# of three extra stacks at each of three heights once its "marker" number is above 0, plus a second
+# row a third of a block higher that only the number draws, and the assertion is that the frame
+# changed. The middle row is inside every camera's crop, and the low and high rows catch the crops
+# that sit a little higher or lower, so no loader sees none of them.
 # Two captures of one session are compared, rather than one against a reference image, so this holds
 # the same on every loader and needs no golden: a frame that never saw the number looks like the
 # frame before it and fails. Each stack is a quarter block across and nothing else in the crop moves,

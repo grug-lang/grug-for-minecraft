@@ -52,7 +52,9 @@ export render_frame(ctx: RenderFrameContext) {
     # is not snapped to the block centre the way a client run's is, so the crop is framed a little
     # differently on each loader: the middle row is inside every crop, and the low and high rows
     # catch the crops that sit a little higher or lower. A row rather than one stack, because one
-    # stack covers less than the 1 percent of the Alpha crop the test asks for.
+    # stack covers less than the 1 percent of the Alpha crop the test asks for. The number draws a
+    # second row a third of a block higher, so its test sees the number itself and not only the row
+    # the list and energy test may have left in the frame.
     has_list_item = me.get_saved_list_size("things") > 0 and me.get_saved_list_item("things", 0).has()
     if me.get_saved_number("marker") > 0 or has_list_item or me.get_energy_stored() > 0 {
         ctx.draw_item(log, 0, 1, 0.35, 0.2, 0.5)
@@ -64,6 +66,22 @@ export render_frame(ctx: RenderFrameContext) {
         ctx.draw_item(log, 0, 1, 0.35, 0.6, 0.5)
         ctx.draw_item(log, 0, 1, 0.5, 0.6, 0.5)
         ctx.draw_item(log, 0, 1, 0.65, 0.6, 0.5)
+    }
+
+    # The number's own row sits above the shared one, so the number test sees its save even when
+    # the client kept the previous test's block entity and that test's list or energy row is
+    # already in the before capture. The row is the same nine stacks the list and energy test
+    # draws, moved up by a third of a block, and the golden's empty store draws neither.
+    if me.get_saved_number("marker") > 0 {
+        ctx.draw_item(log, 0, 1, 0.35, 0.5, 0.5)
+        ctx.draw_item(log, 0, 1, 0.5, 0.5, 0.5)
+        ctx.draw_item(log, 0, 1, 0.65, 0.5, 0.5)
+        ctx.draw_item(log, 0, 1, 0.35, 0.7, 0.5)
+        ctx.draw_item(log, 0, 1, 0.5, 0.7, 0.5)
+        ctx.draw_item(log, 0, 1, 0.65, 0.7, 0.5)
+        ctx.draw_item(log, 0, 1, 0.35, 0.9, 0.5)
+        ctx.draw_item(log, 0, 1, 0.5, 0.9, 0.5)
+        ctx.draw_item(log, 0, 1, 0.65, 0.9, 0.5)
     }
 
     if not refused_bad_count {
