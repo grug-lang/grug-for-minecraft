@@ -1,6 +1,8 @@
 package net.grug.minecraft.stationapi.block.entity;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
@@ -20,8 +22,7 @@ public final class GrugSavedDataStation implements GrugSavedDataSync.Transport {
 
     @Override
     public boolean onServer(Object blockEntity) {
-        GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
-        return entity.world != null && !entity.world.isRemote;
+        return GrugCore.getAdapter().getSide() == GrugSide.DEDICATED_SERVER;
     }
 
     @Override
