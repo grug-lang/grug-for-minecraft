@@ -1,5 +1,13 @@
 # Captures the item list on the open container screen, so the reference job pins what real JEI
-# draws and every loader pins what the port draws. See #874.
+# draws and every loader pins what the port draws, with the GL capability that normalizes normals
+# turned on the way Beta's slime renderer leaves it. See #874 and #1137.
+
+# The file name's forced_normalization_ prefix makes the runner turn GL_NORMALIZE on at this test's
+# tick 100 (GrugForcedNormalization), and the test opens the screen after that tick, so every frame
+# it captures is drawn with the state a slime rendered earlier in a run would leave behind. Without
+# the overlay's item draw pinning the capability off, that state shades each icon's left face about
+# 1.9 times brighter, which is the flake #1137 records. A reference run never forces the state, so
+# this test pins the reference mod's own drawing unaltered.
 
 # The crop is one row of the grid, the third from its top, and the five columns at its right edge:
 # the smallest rectangle that shows the overlay's own drawing without the parts of the frame that
@@ -52,6 +60,10 @@
 # rectangle.
 frame_scale: number = 3
 
+# GrugForcedNormalization.TICK: the tick at which the runner turns the normalization on, before the
+# screen opens, so the capture is taken with it rather than possibly before it.
+forced_normalization_tick: number = 100
+
 # The row and columns the crop keeps, out of the ten rows and at most nine columns the display area
 # leaves. See the note at the top.
 first_row: number = 2
@@ -85,6 +97,12 @@ export tick_any_side(ctx: TestTickContext) {
         # failure bound is what says it never came, not a wait.
         ctx.assert(waited < 1000, "The world should settle before the inventory screen opens.")
         if not Test.world_settled() {
+            ctx.not_done()
+            return
+        }
+        # Wait for the runner's forced normalization before opening the screen, so no frame of the
+        # screen can be drawn without it. See GrugForcedNormalization.
+        if ctx.current_tick() < forced_normalization_tick {
             ctx.not_done()
             return
         }

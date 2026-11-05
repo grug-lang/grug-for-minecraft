@@ -32,6 +32,8 @@ import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
 import net.minecraft.src.WorldRenderer;
 
+import org.lwjgl.opengl.GL11;
+
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
@@ -158,6 +160,23 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     public boolean setGameSpeed(double speed) {
         setTimerSpeed(ModLoader.getMinecraftInstance(), (float) speed);
         return true;
+    }
+
+    /**
+     * Test only: turns on the state the game's slime renderer leaves, so a capture taken after it
+     * says whether the overlay's item draw pins the normals instead of inheriting the state.
+     */
+    @Override
+    public void forceNormalizationForTest() {
+        if (getSide() != GrugSide.CLIENT) return;
+        GL11.glEnable(GL11.GL_NORMALIZE);
+    }
+
+    /** Test only: puts the normalization back off in the tick the marked test ends. */
+    @Override
+    public void restoreNormalizationAfterTest() {
+        if (getSide() != GrugSide.CLIENT) return;
+        GL11.glDisable(GL11.GL_NORMALIZE);
     }
 
     /**

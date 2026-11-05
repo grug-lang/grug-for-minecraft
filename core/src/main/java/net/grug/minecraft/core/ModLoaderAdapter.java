@@ -598,6 +598,22 @@ public interface ModLoaderAdapter {
     default void requestAutosaveForTest() {}
 
     /**
+     * Test only: turns on the GL capability that normalizes normals, the way the game's slime
+     * renderer leaves it, so a capture can prove the overlay's item icons do not depend on it. The
+     * runner calls this for a test whose file name starts with {@link
+     * GrugForcedNormalization#PREFIX}, at {@link GrugForcedNormalization#TICK}. A loader whose item
+     * draw sets the state itself, and a dedicated server, keep the no-op default.
+     */
+    default void forceNormalizationForTest() {}
+
+    /**
+     * Test only: turns the capability {@link #forceNormalizationForTest()} turned on back off, in
+     * the tick the marked test ends, so the next test's frames and captures are not shaded with a
+     * state that one test asked for. A dedicated server keeps the no-op default.
+     */
+    default void restoreNormalizationAfterTest() {}
+
+    /**
      * Has the game build a block's geometry again, so a render function that reads state the world
      * does not know changed, such as a saved number, draws the new state. On a version whose client
      * keeps its own copy of the block entity this also sends that copy the block entity's saved

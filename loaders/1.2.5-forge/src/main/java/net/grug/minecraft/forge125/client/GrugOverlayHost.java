@@ -23,6 +23,7 @@ import net.minecraft.src.RenderItem;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
 
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
@@ -196,6 +197,16 @@ public final class GrugOverlayHost {
                 }
             }
 
+            // The item draw scales its model by ten and shades it with the game's fixed-function
+            // lights, so a normalizing capability the frame left on renders each icon's left face
+            // about 1.9 times brighter. The game's slime renderer turns GL_NORMALIZE on and never
+            // turns it off again, so a slime rendered earlier in the session decides it. That is
+            // what made the JEI item list capture flake (#1137). Pin both capabilities off for the
+            // icons and put back what the frame had, so this draw is the same whatever ran before.
+            boolean normalized = GL11.glIsEnabled(GL11.GL_NORMALIZE);
+            boolean rescaled = GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
+            GL11.glDisable(GL11.GL_NORMALIZE);
+            GL11.glDisable(GL12.GL_RESCALE_NORMAL);
             RenderHelper.enableGUIStandardItemLighting();
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
             renderItem.zLevel = 200.0F;
@@ -209,6 +220,8 @@ public final class GrugOverlayHost {
             }
             renderItem.zLevel = 0.0F;
             RenderHelper.disableStandardItemLighting();
+            if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
+            if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
             for (GrugScreenBox box : geometry.boxes()) {
                 Gui.drawRect(
                         (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);
