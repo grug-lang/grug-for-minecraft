@@ -44,12 +44,15 @@ export tick_any_side(ctx: TestTickContext) {
     Test.tick_block_entity(pipe, 1)
     ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The 51st move should drop the item.")
 
-    # The drop is at the face, not at the centre the item was sent from.
-    ctx.assert(level.count_item_entities(center.x(), floor_y, center.z(), 0.5) == 0, "The item should not be dropped at the pipe's centre.")
-    dropped: number = level.count_item_entities(center.x() + 0.51, floor_y, center.z(), 0.5)
+    # The drop is at the face, not at the centre the item was sent from. A count measures a box
+    # around the point, and 1.20.6 counts an item whose own quarter-block box reaches into it, so
+    # the radius is 0.3: it still holds the item at the face, which is 0.51 from the centre, and
+    # stops 0.125 short of the item's box there, so a drop at the centre is not counted.
+    ctx.assert(level.count_item_entities(center.x(), floor_y, center.z(), 0.3) == 0, "The item should not be dropped at the pipe's centre.")
+    dropped: number = level.count_item_entities(center.x() + 0.51, floor_y, center.z(), 0.3)
     ctx.assert(dropped == 1, "The pipe should have dropped the item 0.01 past its east face.")
 
-    found_opt: Option[ItemEntity] = level.find_item_entity(center.x() + 0.51, floor_y, center.z(), 0.5)
+    found_opt: Option[ItemEntity] = level.find_item_entity(center.x() + 0.51, floor_y, center.z(), 0.3)
     ctx.assert(found_opt.has(), "The dropped item should be on the ground at the face.")
     found: ItemEntity = found_opt.unwrap()
     ctx.assert(found.count() == 1, "The dropped item entity should hold the record's one item.")
