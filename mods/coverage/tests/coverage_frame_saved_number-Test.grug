@@ -14,13 +14,23 @@
 # Setting the number again to the value it holds changes nothing the client needs, so that is no
 # new send; the loader skips it, and the test reaches that path by saving the same value again.
 # It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
-# joined client, and the captures are the client's (#1086).
+# joined client, and the captures are the client's (#1086). The wait ends on the frame itself:
+# Screenshot.change_from reports how much of it changed, so a client that is behind is captured
+# again instead of being assumed to have caught up after a tick count.
 frame_block: Option[BlockEntity] = Option.new()
 before: Option[Screenshot] = Option.new()
 saved: bool = false
 
 # The runner tick the number was saved on.
 saved_tick: number = 0
+
+# How many captures have already shown the frame from before the number was saved.
+attempts: number = 0
+
+export init(ctx: TestInitContext) {
+    # Eight captures 30 ticks apart, beside the setup, pass the default 200.
+    ctx.set_max_ticks(400)
+}
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
@@ -33,18 +43,24 @@ export tick_any_side(ctx: TestTickContext) {
         frame_block.unwrap().set_saved_number("marker", 1)
         saved = true
         saved_tick = ctx.current_tick()
+        attempts = 0
         ctx.not_done()
-    } else if not Test.world_settled() or ctx.current_tick() < saved_tick + 30 {
-        # The change is a packet and a frame away, and nothing marks the world unsettled for it: a
-        # script saves numbers as it runs and a world that settled only between those would never
-        # settle. The runner runs up to 10 ticks for a frame, so 30 ticks hold three frames.
+    } else if ctx.current_tick() < saved_tick + 30 {
+        # Nothing marks the world unsettled for a saved-number change: a script saves numbers as it
+        # runs, so a world that settled only between those would never settle. This short wait keeps
+        # the captures from spinning; whether the change arrived is decided by the capture below.
         ctx.not_done()
     } else {
         after: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
-        after.differs_from(before.unwrap(), 1)
-
-        frame_block.unwrap().set_saved_number("marker", 1)
-        ctx.assert(frame_block.unwrap().get_saved_number("marker") == 1, "The number should still be saved.")
+        if after.change_from(before.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The saved number never reached the client's frame.")
+            saved_tick = ctx.current_tick()
+            ctx.not_done()
+        } else {
+            frame_block.unwrap().set_saved_number("marker", 1)
+            ctx.assert(frame_block.unwrap().get_saved_number("marker") == 1, "The number should still be saved.")
+        }
     }
 }
 
