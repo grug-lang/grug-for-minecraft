@@ -536,6 +536,7 @@ jobs:
             .github/scripts/reference_needed_test.py \
             .github/scripts/reference_selection_test.py \
             .github/scripts/no_tests_test.py \
+            .github/scripts/server_reachable_test.py \
             .github/scripts/drain_caches_test.py \
             .github/scripts/sweep_caches_test.py \
             .github/scripts/markdown_columns_test.py \
@@ -979,6 +980,28 @@ jobs:
       - name: The test-control channel's log lines
         if: (matrix.loader == '1.2.5-forge' || matrix.loader == '1.20.6-forge' || matrix.loader == 'a1.1.2_01-ornithe' || matrix.loader == 'b1.7.3-ornithe' || matrix.loader == 'b1.7.3-stationapi') && !cancelled()
         run: grep -F '[GRUG CONTROL]' loaders/${{ matrix.loader }}/run-server-ci.log loaders/${{ matrix.loader }}/run-client-ci.log || true
+
+      # Which tests this dedicated server ran, which is the record the server-reachable check reads
+      # (#1033). The server's own log is the whole source: a test that printed no PASS here did not
+      # run here, whatever its file declares, so neither a list of tests nor a list of client-only
+      # classes has to be kept in step with it. The line count goes to the log, so a leg that ran
+      # fewer tests than it should is visible without opening the artifact.
+      - name: Record the tests the dedicated server ran
+        if: always()
+        run: |
+          mkdir -p server-tests
+          grep -oE '\[GRUG CI\] PASS \S+' "loaders/${{ matrix.loader }}/run-server-ci.log" \
+            | sed -e 's/^\[GRUG CI\] PASS //' | sort -u > server-tests/tests.txt || true
+          echo "The dedicated server of ${{ matrix.loader }} ran $(wc -l < server-tests/tests.txt) test(s)."
+
+      - name: Upload the tests the dedicated server ran
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-server-tests-${{ matrix.loader }}
+          path: server-tests/tests.txt
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload logs and crash reports
         if: always()
@@ -2079,6 +2102,50 @@ jobs:
           name: coverage-report
           path: coverage/report
           retention-days: 7
+
+  # The dedicated-server guard (#1033): a method a coverage test reaches on a client that no test a
+  # dedicated server ran also reaches is code that server can run and no server test covers, unless
+  # .github/scripts/server-reachable.json records the reason it needs a client. That is the drift
+  # the multiplayer job exists to catch: a test that has a plain tick although it could run on a
+  # server stops covering its code there, and a host function added for a client-only test is never
+  # reached on a server at all. It needs only the coverage job's map and the multiplayer job's
+  # record of what each server ran, so it is pure Python: no game, no Gradle and no JaCoCo.
+  #
+  # It needs the two jobs that produce those, so it runs only when both did: a pull request and a
+  # push run no multiplayer job, and a dispatch whose gate or server leg failed has no complete data
+  # to judge. The next full dispatch on main restores the guarantee either way.
+  server-reachable:
+    name: server-reachable code
+    if: ${{ !cancelled() && needs.multiplayer.result == 'success' && needs.coverage.result == 'success' }}
+    needs: [multiplayer, coverage]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the coverage map
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-map
+          path: coverage
+
+      - name: Download the tests the dedicated servers ran
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: coverage-server-tests-*
+          path: coverage/artifacts
+
+      - name: Require server-reachable code to stay covered
+        run: |
+          if ! ls coverage/artifacts/coverage-server-tests-*/tests.txt >/dev/null 2>&1; then
+            echo "::error::the run holds no dedicated-server test lists although the multiplayer job succeeded, so the server-reachable check cannot tell what the servers reached."
+            exit 1
+          fi
+          python3 .github/scripts/server-reachable.py \
+            --map coverage/coverage-map.json \
+            --server-tests coverage/artifacts \
+            --baseline .github/scripts/server-reachable.json
 
   # The one check the ruleset requires of a pull request's Build (#638). The loader jobs are a
   # matrix whose members `discover` picks, so a loader a diff does not reach has no job and no
