@@ -173,9 +173,13 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   commit, so `release.yml` requires that dispatch and refuses a jar without the Windows native. A
   docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what
   keeps a full run of `main` from going missing.
-- **The four-hourly `main` check.** The supervisor below reports when the newest **dispatch** of
-  `build.yml` on `main` is older than four hours and no other run is in flight; the orchestrator
-  then runs `gh workflow run build.yml --ref main` and watches it with
+- **The four-hourly `main` check.** `.github/workflows/main-dispatch.yml` runs every four hours and
+  dispatches `build.yml --ref main` when main's newest dispatch is at least four hours old and no
+  build run is queued or in progress, so the check needs no live session (#1089). Its decision is
+  `.github/scripts/main-dispatch.py`, whose test pins the four cases. The supervisor below still
+  reports when the newest **dispatch** of `build.yml` on `main` is older than four hours and no
+  other run is in flight, as the fallback when the workflow is not running: the orchestrator then
+  runs `gh workflow run build.yml --ref main` and watches it with
   `.github/scripts/watch-run.sh <run-id>`. If the timer is not installed or its log shows it has not
   run, check the age at a task boundary instead. Only a dispatch runs every job: a push to `main`
   skips some of them, and which ones can change with the workflow, so a green push is not this

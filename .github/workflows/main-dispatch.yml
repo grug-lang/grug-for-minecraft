@@ -1,0 +1,71 @@
+name: Main dispatch
+
+# The four-hourly full check of main, on a schedule rather than through the orchestrator (#1089).
+#
+# Only a workflow_dispatch of build.yml runs every job, and which jobs a push to main skips can
+# change with the workflow, so AGENTS.md asks for a full dispatch of main at least every four hours.
+# Until now the orchestrator's supervisor asked a live session to run it, and a day without one let
+# main's newest dispatch reach 25 h 2 min on 2026-11-04. This workflow makes the check independent of
+# a session being open; the supervisor is unchanged and still never dispatches.
+#
+# The decision is .github/scripts/main-dispatch.py's should_dispatch, which pins the four cases:
+# due and idle dispatches, due and busy does not, recent and idle does not, recent and busy does not.
+# Busy means any build.yml run queued or in progress, on any branch, because every run shares the 20
+# job slots and a dispatch must not compete with one. The newest workflow_dispatch of build.yml on
+# main is the age that matters, so the Sunday release's dispatch, which is one of those, holds the
+# check off for four hours like any other. A run list that cannot be read fails this job instead of
+# dispatching blindly.
+#
+# The manual trigger exists to exercise the check on a throwaway branch: dry_run defaults to true,
+# and interval_minutes can shorten the four hours so the due path runs without waiting. A scheduled
+# run sends neither input and so dispatches only when the real rule says so.
+on:
+  schedule:
+    # Every four hours, at a minute the other schedules do not use.
+    - cron: '41 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print the decision without dispatching'
+        type: boolean
+        default: true
+      interval_minutes:
+        description: 'Override the four-hour interval in minutes, to exercise the check; empty uses 240'
+        type: string
+
+permissions:
+  contents: read
+  # Dispatching build.yml is the only write this run does.
+  actions: write
+
+concurrency:
+  # One check at a time, and a run in flight is never cancelled: two overlapping checks could both
+  # read the same stale dispatch and dispatch twice.
+  group: main-dispatch
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The log is the record of why main was or was not checked. The script exits 1 when the run
+      # list could not be read or the dispatch was refused, so a check that stopped working is a red
+      # run rather than a silent gap in the four-hourly rule.
+      - name: Dispatch main's full Build run when due
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+          INTERVAL_MINUTES: ${{ github.event_name == 'workflow_dispatch' && inputs.interval_minutes || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INTERVAL_MINUTES" ]; then
+            python3 .github/scripts/main-dispatch.py --interval-minutes "$INTERVAL_MINUTES" $DRY_RUN
+          else
+            python3 .github/scripts/main-dispatch.py $DRY_RUN
+          fi
