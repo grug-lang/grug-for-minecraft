@@ -9,6 +9,7 @@ import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
+import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugTickLockstep;
@@ -1308,8 +1309,49 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // the frame hook is the one place it is sampled. See #804.
         boolean blocksPending =
                 BLOCK_SYNC.onFrame((x, y, z) -> blockNameAt(minecraft.level, x, y, z));
-        RENDER_SETTLE.onFrame(!rendererIdle(minecraft), blocksPending);
+        // A frame drawn from a view the mouse moved is not one a capture may read, and the view is
+        // levelled again for the next frame. See GrugTestCamera and #1128.
+        RENDER_SETTLE.onFrame(
+                GrugTestCamera.frameBusy(
+                        !rendererIdle(minecraft), testPlayerSnapped, testPlayer(), CAMERA_VIEW),
+                blocksPending);
     }
+
+    /**
+     * This generation's view of the local player: its yaw and pitch, and the pair a frame
+     * interpolates from.
+     */
+    private static final GrugTestCamera.View CAMERA_VIEW =
+            new GrugTestCamera.View() {
+                @Override
+                public float yaw(Object player) {
+                    return ((Player) player).getYRot();
+                }
+
+                @Override
+                public float pitch(Object player) {
+                    return ((Player) player).getXRot();
+                }
+
+                @Override
+                public float previousYaw(Object player) {
+                    return ((Player) player).yRotO;
+                }
+
+                @Override
+                public float previousPitch(Object player) {
+                    return ((Player) player).xRotO;
+                }
+
+                @Override
+                public void level(Object player) {
+                    Player target = (Player) player;
+                    target.setYRot(0.0F);
+                    target.setXRot(0.0F);
+                    target.yRotO = 0.0F;
+                    target.xRotO = 0.0F;
+                }
+            };
 
     @Override
     public boolean isLoaderReloading() {
