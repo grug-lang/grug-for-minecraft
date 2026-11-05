@@ -1,0 +1,98 @@
+# Covers a cobblestone pipe handing an item to another cobblestone pipe, which the reference allows:
+# PipeLogicCobblestone.isPipeConnected refuses only a pipe whose logic is PipeLogicStone, which is the
+# stone pipe and not this one, so with the default pipes.alwaysConnect of false two cobblestone pipes
+# connect. The wooden pipe pulls from a chest and hands the item to the first cobblestone pipe, which
+# carries it 48 moves to its centre, picks the second cobblestone pipe as its only exit, and hands it
+# over on the 51st move from the centre, 0.01 past its east face. The second pipe then carries it to
+# its own centre and on to the chest. Both cobblestone pipes are ticked by hand, after one dose of
+# energy for the wooden pipe, so no engine timing can shift the counts.
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # Band 16, clear of the bands the other pipe tests use.
+    y: number = origin.y() + 16
+    z: number = origin.z()
+
+    level.place_block(x - 2, y, z, "minecraft:chest")
+    level.place_block(x - 1, y, z, "grug:wooden_pipe")
+    level.place_block(x, y, z, "grug:cobblestone_pipe")
+    level.place_block(x + 1, y, z, "grug:cobblestone_pipe")
+    level.place_block(x + 2, y, z, "minecraft:chest")
+
+    source: BlockEntity = _entity(ctx, level, x - 2, y, z)
+    wooden: BlockEntity = _entity(ctx, level, x - 1, y, z)
+    first: BlockEntity = _entity(ctx, level, x, y, z)
+    second: BlockEntity = _entity(ctx, level, x + 1, y, z)
+    target: BlockEntity = _entity(ctx, level, x + 2, y, z)
+    bx: number = Math.floor(x)
+    by: number = Math.floor(y)
+
+    source.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+    wooden.receive_energy(1)
+    Test.tick_block_entity(wooden, 1)
+    ctx.assert(wooden.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
+
+    # The pull, the 49 moves to the wooden pipe's centre and 50 of the 51 to its east face.
+    Test.tick_block_entity(wooden, 99)
+    ctx.assert(first.get_saved_list_size("traveling") == 0, "The item should still be inside the wooden pipe after 50 moves from its centre.")
+    Test.tick_block_entity(wooden, 1)
+    ctx.assert(first.get_saved_list_size("traveling") == 1, "The 51st move should hand the item to the first cobblestone pipe.")
+    ctx.assert(_hundredths(_number(first, "x") - bx) == 1, "The item should enter 0.01 past the first pipe's west face.")
+
+    # 48 moves from the entry reach the first pipe's centre, where the only exit is the second pipe.
+    Test.tick_block_entity(first, 47)
+    ctx.assert(_number(first, "to_center") == 1, "47 moves should not reach the first pipe's centre.")
+    Test.tick_block_entity(first, 1)
+    ctx.assert(_number(first, "to_center") == 0, "The 48th move should reach the centre.")
+    ctx.assert(_hundredths(_number(first, "x") - bx) == 50, "The item should snap to the first pipe's centre.")
+    ctx.assert(_number(first, "direction") == 5, "The only exit is the second cobblestone pipe, so the pick should be east.")
+
+    # 50 moves from the centre leave the item on the first pipe's east face, which endReached does not
+    # count as past it, and the 51st is 0.01 past it, where the second pipe takes it.
+    Test.tick_block_entity(first, 50)
+    ctx.assert(first.get_saved_list_size("traveling") == 1, "50 moves from the centre should still be inside the first pipe.")
+    ctx.assert(_hundredths(_number(first, "x") - bx) == 100, "50 moves should put the item on the first pipe's east face.")
+    Test.tick_block_entity(first, 1)
+    ctx.assert(first.get_saved_list_size("traveling") == 0, "The 51st move should hand the item over.")
+    ctx.assert(second.get_saved_list_size("traveling") == 1, "The second cobblestone pipe should have taken the item.")
+    ctx.assert(_number(second, "direction") == 5, "The item should still travel east into the second pipe.")
+    ctx.assert(_number(second, "to_center") == 1, "The item should be heading for the second pipe's centre.")
+    ctx.assert(_hundredths(_number(second, "x") - bx) == 101, "The item should enter 0.01 past the first pipe's east face.")
+    ctx.assert(_hundredths(_number(second, "y") - by) == 25, "A horizontal entry should put the item on the second pipe's floor.")
+    ctx.assert(_number(second, "speed") == 0.01, "The item should keep the normal pipe speed.")
+    ctx.assert(_number(second, "count") == 1, "The whole stack should have entered.")
+
+    # 48 moves from the entry reach the second pipe's centre, then 51 more hand the item to the chest.
+    Test.tick_block_entity(second, 47)
+    ctx.assert(_number(second, "to_center") == 1, "47 moves should not reach the second pipe's centre.")
+    Test.tick_block_entity(second, 1)
+    ctx.assert(_number(second, "to_center") == 0, "The 48th move should reach the centre.")
+    ctx.assert(_hundredths(_number(second, "x") - bx) == 150, "The item should snap to the second pipe's centre.")
+    ctx.assert(_number(second, "direction") == 5, "The only exit is the chest, so the pick stays east.")
+
+    Test.tick_block_entity(second, 50)
+    ctx.assert(second.get_saved_list_size("traveling") == 1, "50 moves from the centre should still be inside the second pipe.")
+    Test.tick_block_entity(second, 1)
+    ctx.assert(second.get_saved_list_size("traveling") == 0, "The 51st move should hand the item to the chest.")
+    ctx.assert(target.get_item_count_in_slot(0) == 1, "The east chest should hold the diamond.")
+    ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
+    ctx.assert(wooden.get_saved_list_size("traveling") == 0, "The wooden pipe should hold nothing.")
+    ctx.assert(first.get_saved_list_size("traveling") == 0, "The first pipe should hold nothing.")
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+local _number(pipe: BlockEntity, key: string) number {
+    return pipe.get_saved_list_number("traveling", 0, key)
+}
+
+# A position is accumulated one float64 step at a time, so rounding the distance to hundredths is
+# what the tests compare, as wooden_pipe_travel does.
+local _hundredths(value: number) number {
+    return Math.floor(value * 100 + 0.5)
+}
