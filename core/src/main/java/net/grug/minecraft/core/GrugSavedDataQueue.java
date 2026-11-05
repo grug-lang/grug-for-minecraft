@@ -1,30 +1,30 @@
-package net.grug.minecraft.ornithe.block.entity;
+package net.grug.minecraft.core;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * The saved-data packets a client holds until its world can take them.
+ * Packets a client holds until its world can take them, scoped to the world they were queued in.
  *
  * <p>A packet is queued by the game's network thread and applied on the client's own tick, because
- * the network thread's copy of the world is not the one the frame pass draws (see {@link
- * GrugSavedDataPacket}). The queue belongs to the world it was filled in: a tick that finds no
- * world after there was one drops what that world left waiting, and so does a tick whose world is
- * not the one those packets were queued in. That is what keeps a packet from a server the client
- * has left from being written into the next server's block at the same position, and it keeps the
- * queue from growing across sessions.
+ * the network thread's copy of the world is not the one the frame pass draws. The queue belongs to
+ * the world it was filled in: a tick that finds no world after there was one drops what that world
+ * left waiting, and so does a tick whose world is not the one those packets were queued in. That is
+ * what keeps a packet from a server the client has left from being written into the next server's
+ * block at the same position, and it keeps the queue from growing across sessions.
  *
  * <p>A packet that arrives before the first world is up belongs to the session that is joining, so
- * it waits for that world instead of being dropped.
+ * it waits for that world instead of being dropped. The queue names its world as an object, so a
+ * unit test can stand one in without a game.
  */
-final class GrugSavedDataQueue<T> {
+public final class GrugSavedDataQueue<T> {
     private final List<T> pending = new ArrayList<>();
     private Object world;
     private boolean hadWorld;
 
     /** Queues a packet, from whatever thread the game's network uses. */
-    synchronized void add(T packet) {
+    public synchronized void add(T packet) {
         pending.add(packet);
     }
 
@@ -33,7 +33,7 @@ final class GrugSavedDataQueue<T> {
      * list and drops the packets an earlier world queued, and a world other than the one they were
      * queued in drops them too.
      */
-    synchronized List<T> take(Object level) {
+    public synchronized List<T> take(Object level) {
         if (level == null) {
             if (hadWorld) {
                 pending.clear();
@@ -56,7 +56,7 @@ final class GrugSavedDataQueue<T> {
     }
 
     /** How many packets are still waiting, which the unit test reads. */
-    synchronized int size() {
+    public synchronized int size() {
         return pending.size();
     }
 }
