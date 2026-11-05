@@ -1191,6 +1191,20 @@ public class GrugTestRunner {
 
         String path = tests.get(nextTestIndex).getKey();
 
+        // On a dedicated server the room build clears the area, and the client learns of the clear
+        // from the tick's packets, a tick or more later. The test's first calls go straight to the
+        // client thread, and a fixture placed at a position the clear emptied has to reach a client
+        // that already dropped the block entity there: when the clear and the fixture land in the
+        // same tick, the client's chunk section carries the same block it already held, its block
+        // entity is never re-created, and the previous test's saved data is drawn by the frame pass
+        // of the next one (#1093). So the room build's tick ends here, and the first tick waits for
+        // the client to catch up, which holdForStaleBlockEntities answers. A singleplayer world is
+        // one copy, so its clear and fixture land in it at once and no tick is needed.
+        if (justStarted && dedicatedServer) {
+            staleWaitStartNanos = clock.getAsLong();
+            return;
+        }
+
         // The room is built, but the client may not have caught up with the clearing that came with
         // it. See holdForStaleBlockEntities.
         if ((justStarted || staleWaitStartNanos >= 0) && holdForStaleBlockEntities(path)) {

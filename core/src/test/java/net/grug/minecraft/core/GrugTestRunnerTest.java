@@ -3265,6 +3265,61 @@ class GrugTestRunnerTest {
         assertEquals(1, ops.destroyed);
     }
 
+    @Test
+    void aServerGivesTheRoomBuildItsOwnTickBeforeTheFirstTestCall() {
+        // The clear the room build makes has to reach the client before a fixture is placed at a
+        // position it emptied: when both land in one tick the client's chunk section carries the
+        // same block it already held, so its block entity is never re-created and the previous
+        // test's saved data is drawn by the next test's frame pass (#1093).
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("coverage/tests/a-Test.grug", 1L);
+        ops.pathsAre(files);
+        ops.anySide.add("coverage/tests/a-Test.grug");
+        int[] ticks = {0};
+        ops.onCall =
+                () -> {
+                    if ("coverage/tests/a-Test.grug".equals(ops.activePath)) ticks[0]++;
+                };
+        boolean[] asked = {false};
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public boolean staleBlockEntitiesRemain() {
+                                asked[0] = true;
+                                return false;
+                            }
+                        },
+                        1,
+                        new CoverageLog(),
+                        Set.of(),
+                        GrugTestRunner.MAX_GAME_SPEED,
+                        Set.of(),
+                        Set.of(),
+                        true);
+
+        // The room build tick ends before the first call, and the client has not been asked yet.
+        capture(() -> runner.tick(null));
+        assertEquals(0, ticks[0]);
+        assertFalse(asked[0]);
+
+        // The next tick asks the client, and starts the test once it has dropped the cleared block
+        // entities.
+        capture(() -> runner.tick(null));
+        assertTrue(asked[0]);
+        assertEquals(1, ticks[0]);
+    }
+
     private static List<String> runWithSweepLog(FakeOps ops, Map<String, Long> files) {
         List<String> log = new ArrayList<>();
         ops.pathsAre(files);
