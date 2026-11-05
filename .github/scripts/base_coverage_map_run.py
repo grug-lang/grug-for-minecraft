@@ -119,8 +119,9 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
         print(
             f"base-coverage-map-run: carrying over no coverage test: no successful run of the"
-            f" base commit {args.base} uploaded a {MAP_ARTIFACT} artifact, which a failed run,"
-            f" an expired retention or a commit older than the map's build leaves behind",
+            f" base commit {args.base} uploaded a {MAP_ARTIFACT}-<attempt> artifact, which a"
+            f" failed run, an expired retention or a commit older than the map's build leaves"
+            f" behind",
             file=sys.stderr,
         )
         return 0

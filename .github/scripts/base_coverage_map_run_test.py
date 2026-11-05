@@ -143,7 +143,7 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         }
         out, err = self.run_lookup(self.base)
         self.assertEqual(out, "")
-        self.assertIn("uploaded a coverage-map artifact", err)
+        self.assertIn("uploaded a coverage-map-<attempt> artifact", err)
 
     def test_a_run_that_failed_answers_nothing(self):
         self.server.routes["runs"] = {
@@ -160,7 +160,7 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         self.server.routes["artifacts"] = {"1": {"artifacts": [{"name": "coverage-exec-core"}]}}
         out, err = self.run_lookup(self.base)
         self.assertEqual(out, "")
-        self.assertIn("uploaded a coverage-map artifact", err)
+        self.assertIn("uploaded a coverage-map-<attempt> artifact", err)
 
     def test_a_successful_run_without_the_map_does_not_hide_a_later_one(self):
         # A Release dispatch on main is successful without building the coverage data, so the

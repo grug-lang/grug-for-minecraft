@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail when code only a client test reaches has no recorded reason (#1033).
 
-    server-reachable.py [--map <coverage-map.json>] [--server-tests <dir>]
+    server-reachable.py [--map <dir-or-coverage-map.json>] [--server-tests <dir>]
                         [--baseline <file>] [--record --recorded-from <text> [--prune]]
                         [--out <file>]
 
@@ -103,6 +103,12 @@ def coverage_map(path: Path) -> tuple[Path | None, int | None]:
         return path, None
     if not path.is_dir():
         return None, None
+    # A directory that holds the map itself, without an attempt directory around it, is accepted
+    # too: the download action writes that layout when it fetches a single artifact by name, and a
+    # map a person downloaded and unpacked lands there as well. There is no attempt to name then.
+    flat = path / MAP_FILE
+    if flat.is_file():
+        return flat, None
     newest: tuple[int, Path] | None = None
     for entry in path.iterdir():
         match = MAP_ATTEMPT.match(entry.name)
