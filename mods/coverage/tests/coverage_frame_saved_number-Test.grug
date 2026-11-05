@@ -39,7 +39,7 @@ export tick_any_side(ctx: TestTickContext) {
     } else if not Test.world_settled() {
         ctx.not_done()
     } else if not saved {
-        before.set(Test.screenshot().capture(500, 80, 780, 340))
+        before.set(Test.screenshot().capture(500, 60, 780, 440))
         frame_block.unwrap().set_saved_number("marker", 1)
         saved = true
         saved_tick = ctx.current_tick()
@@ -51,7 +51,7 @@ export tick_any_side(ctx: TestTickContext) {
         # the captures from spinning; whether the change arrived is decided by the capture below.
         ctx.not_done()
     } else {
-        after: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
+        after: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
         if after.change_from(before.unwrap()) < 1 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "The saved number never reached the client's frame.")
@@ -72,18 +72,21 @@ local _setup(ctx: TestTickContext) {
     y: number = origin.y()
     z: number = origin.z()
 
-    # The same place coverage_frame's run sits. This crop is taller than that test's golden's: a
-    # dedicated server builds the room from its own copy of the player, which can stand a block
-    # above the joined client's, and the block then sits a block higher in that client's frame,
-    # above the golden's crop, with the rows still inside this one.
+    # The same place coverage_frame's run sits. The crop is taller than that test's golden's and
+    # keeps a margin on every side of the block: a dedicated server builds the room from its own
+    # copy of the player, which can sit a block off the joined client's, and the block then sits a
+    # block off where the golden has it in that client's frame.
     level.place_block(x, y - 1.88, z + 4, "grug:coverage_frame")
 
-    # A wall behind it, nine across and seven high, which covers the crop at its distance. Without
-    # one the crop could hold sky, and clouds drift between two captures.
-    wy: number = y - 6
-    while wy < y + 1 {
-        wx: number = x - 4
-        while wx < x + 5 {
+    # A wall behind it, thirteen across and thirteen high, the size coverage_frame's golden uses,
+    # which covers the whole crop. Without one the crop could hold sky, and clouds drift between two
+    # captures; it is larger than the block because the crop keeps a margin around the block for a
+    # dedicated server, whose room is built from its own copy of the player and can sit a block off
+    # the joined client's.
+    wy: number = y - 9
+    while wy < y + 4 {
+        wx: number = x - 6
+        while wx < x + 7 {
             level.place_block(wx, wy, z + 6, "minecraft:stone")
             wx = wx + 1
         }
