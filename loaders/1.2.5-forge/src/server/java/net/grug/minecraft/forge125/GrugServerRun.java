@@ -310,6 +310,7 @@ public final class GrugServerRun implements ITickHandler {
                 return;
             }
             runner.tick(testPlayer);
+            if (runner.roomBuiltThisTick()) return;
             if (runner.isFinished()) {
                 stop(runner.isPassed() ? 0 : 1);
                 return;

@@ -205,6 +205,7 @@ public final class GrugServerRun {
                 holdPlayer(player);
             }
             runner.tick(player);
+            if (runner.roomBuiltThisTick()) return;
             if (runner.isFinished()) {
                 stop(runner.isPassed() ? 0 : 1);
                 return;
