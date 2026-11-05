@@ -21,6 +21,11 @@ frame_yaw: number = 0
 refused_bad_count: bool = false
 refused_empty_model: bool = false
 
+# Whether the saved list holds a record with an item, read before the row is drawn. The size is
+# checked first, because get_saved_list_item errors when the record is missing rather than
+# returning an empty Option, and the golden has no list at all.
+has_list_item: bool = false
+
 # The list and energy tests save through the packet and the frame pass reads them, so this block
 # has to be a receiver. The number test does not need it, and the golden has an empty store.
 export init(ctx: BlockEntityInitContext) {
@@ -48,7 +53,8 @@ export render_frame(ctx: RenderFrameContext) {
     # differently on each loader: the middle row is inside every crop, and the low and high rows
     # catch the crops that sit a little higher or lower. A row rather than one stack, because one
     # stack covers less than the 1 percent of the Alpha crop the test asks for.
-    if me.get_saved_number("marker") > 0 or me.get_saved_list_item("things", 0).has() or me.get_energy_stored() > 0 {
+    has_list_item = me.get_saved_list_size("things") > 0 and me.get_saved_list_item("things", 0).has()
+    if me.get_saved_number("marker") > 0 or has_list_item or me.get_energy_stored() > 0 {
         ctx.draw_item(log, 0, 1, 0.35, 0.2, 0.5)
         ctx.draw_item(log, 0, 1, 0.5, 0.2, 0.5)
         ctx.draw_item(log, 0, 1, 0.65, 0.2, 0.5)
