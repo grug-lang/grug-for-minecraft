@@ -14,6 +14,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugTestState;
+import net.grug.minecraft.grug.HostFunctions;
 import net.grug.minecraft.grug.Vec3;
 
 import org.junit.jupiter.api.AfterEach;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -2540,11 +2542,220 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void forcesNormalizationAtTheNamedTickOnlyForATestWhoseNameAsksForIt() {
+    void forcesNormalizationBeforeTheFirstTickOnlyForATestWhoseNameAsksForIt() {
         FakeOps ops = new FakeOps();
         Map<String, Long> files = Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
         ops.pathsAre(files);
-        List<String> forced = new ArrayList<>();
+        List<String> log = new ArrayList<>();
+        List<Boolean> reported = new ArrayList<>();
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    calls[0]++;
+                    log.add("tick " + calls[0]);
+                    reported.add(HostFunctions.Test_normalization_forced());
+                    GrugTestState.testNotDone = calls[0] < 140;
+                };
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public boolean canForceNormalizationForTest() {
+                                log.add("can");
+                                return true;
+                            }
+
+                            @Override
+                            public boolean forceNormalizationForTest() {
+                                log.add("forced");
+                                return true;
+                            }
+
+                            @Override
+                            public boolean normalizationEnabledForTest() {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean restoreNormalizationAfterTest() {
+                                log.add("restored");
+                                return true;
+                            }
+                        },
+                        1);
+        String printed = capture(() -> runFor(runner, 200));
+
+        // The state goes on before the test's own first tick, so every frame and capture the test
+        // takes runs with it, and the test can ask that it happened from its first tick. The
+        // declaration comes first, so a loader that cannot force is never asked to.
+        assertEquals(List.of("can", "forced", "tick 1"), log.subList(0, 3), log.toString());
+        assertEquals(
+                List.of(Boolean.TRUE), reported.stream().distinct().collect(Collectors.toList()));
+        assertTrue(
+                printed.contains(
+                        "[GRUG CI] Forcing normalized normals for "
+                                + files.keySet().iterator().next()),
+                printed);
+        // And it is put back once, in the tick the test ends.
+        assertEquals("restored", log.get(log.size() - 1), log.toString());
+        assertEquals(1, log.stream().filter("restored"::equals).count(), log.toString());
+    }
+
+    @Test
+    void aBoxBuilderWithoutTheNormalizationHookIgnoresTheRequest() {
+        GrugTestRunner.TestBoxBuilder box =
+                new GrugTestRunner.TestBoxBuilder() {
+                    @Override
+                    public void build(int radius) {}
+
+                    @Override
+                    public void sweepItems() {}
+                };
+        assertFalse(box.canForceNormalizationForTest());
+        assertFalse(box.forceNormalizationForTest());
+        assertFalse(box.normalizationEnabledForTest());
+        assertTrue(box.restoreNormalizationAfterTest());
+    }
+
+    @Test
+    void anAdapterThatKeepsTheNormalizationDefaultsForcesNothing() throws Throwable {
+        // The adapter's own defaults, not the room builder's seam: 1.20.6 keeps all four and only
+        // its marked test asks them, so this pins the no-op contract the grug test reads there.
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        InvocationHandler.invokeDefault(
+                                                proxy,
+                                                method,
+                                                args == null ? new Object[0] : args));
+        assertFalse(adapter.canForceNormalizationForTest());
+        assertFalse(adapter.forceNormalizationForTest());
+        assertFalse(adapter.normalizationEnabledForTest());
+        assertTrue(adapter.restoreNormalizationAfterTest());
+    }
+
+    @Test
+    void aBoxBuilderThatDeclaresTheForceAnswersForNotRestoringItWhenItKeepsTheDefault() {
+        // A room builder can say it forces the state and leave the restore to the default, which
+        // would leave the state it asked for on. The default answers false for a declaring builder,
+        // so the runner fails its marked test instead of passing with the state still on (#1144).
+        GrugTestRunner.TestBoxBuilder box =
+                new GrugTestRunner.TestBoxBuilder() {
+                    @Override
+                    public void build(int radius) {}
+
+                    @Override
+                    public void sweepItems() {}
+
+                    @Override
+                    public boolean canForceNormalizationForTest() {
+                        return true;
+                    }
+                };
+        assertTrue(box.canForceNormalizationForTest());
+        assertFalse(box.restoreNormalizationAfterTest());
+    }
+
+    @Test
+    void anAdapterThatDeclaresTheForceAnswersForNotRestoringItWhenItKeepsTheDefault()
+            throws Throwable {
+        // A loader can implement the force and leave the restore to the default, which would leave
+        // the state it asked for on. The default answers false for a declaring loader, so the
+        // runner fails its marked test instead of passing with the state still on (#1144).
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        method.getName().equals("canForceNormalizationForTest")
+                                                ? Boolean.TRUE
+                                                : InvocationHandler.invokeDefault(
+                                                        proxy,
+                                                        method,
+                                                        args == null ? new Object[0] : args));
+        assertTrue(adapter.canForceNormalizationForTest());
+        assertFalse(adapter.restoreNormalizationAfterTest());
+    }
+
+    @Test
+    void failsAMarkedTestWhenALoaderThatShouldForceItDoesNot() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
+        ops.pathsAre(files);
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    calls[0]++;
+                    GrugTestState.testNotDone = calls[0] < 140;
+                };
+        List<String> restored = new ArrayList<>();
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public boolean canForceNormalizationForTest() {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean forceNormalizationForTest() {
+                                return false;
+                            }
+
+                            @Override
+                            public boolean restoreNormalizationAfterTest() {
+                                restored.add("restored");
+                                return true;
+                            }
+                        },
+                        1);
+        String printed = capture(() -> runFor(runner, 200));
+
+        // A loader whose item draw inherits the state has to force it, so a hook that applied
+        // nothing fails the marked test instead of letting it pass having proven nothing. It fails
+        // before the test's first tick, so the test cannot capture a frame unforced either.
+        assertTrue(
+                printed.contains(
+                        "[GRUG CI] FAIL jei/tests/item_list_forced_normalization-Test.grug"),
+                printed);
+        assertTrue(printed.contains(GrugForcedNormalization.MARKER), printed);
+        assertEquals(0, calls[0], printed);
+        assertTrue(runner.isFinished());
+        // The loader is still asked to put back what its force found: a hook can change a
+        // capability before it finds out it cannot force, so the restore is due whatever the force
+        // answered, and the marked test fails before its first tick either way.
+        assertEquals(List.of("restored"), restored, printed);
+    }
+
+    @Test
+    void failsAMarkedTestWhenTheForceReportsAppliedButTheStateIsOff() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
+        ops.pathsAre(files);
         int[] calls = {0};
         ops.onCall =
                 () -> {
@@ -2565,37 +2776,211 @@ class GrugTestRunnerTest {
                             public void sweepItems() {}
 
                             @Override
-                            public void forceNormalizationForTest() {
-                                forced.add("forced at " + calls[0]);
+                            public boolean canForceNormalizationForTest() {
+                                return true;
                             }
 
                             @Override
-                            public void restoreNormalizationAfterTest() {
-                                forced.add("restored at " + calls[0]);
+                            public boolean forceNormalizationForTest() {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean normalizationEnabledForTest() {
+                                return false;
+                            }
+
+                            @Override
+                            public boolean restoreNormalizationAfterTest() {
+                                return true;
                             }
                         },
                         1);
-        capture(() -> runFor(runner, 200));
+        String printed = capture(() -> runFor(runner, 200));
 
-        // The runner asks before the test's tick exports run, so the state is on before the tick
-        // the test sees, and is put back once, in the tick the test ends.
-        assertEquals(2, forced.size(), forced.toString());
-        assertEquals("forced at " + GrugForcedNormalization.TICK, forced.get(0));
-        assertTrue(forced.get(1).startsWith("restored at "), forced.toString());
+        // The force's answer alone cannot tell a loader that applied the state from one that only
+        // reported it, which is the hole #1144 closes: the runner reads the state the client really
+        // has, and fails the marked test before its first tick.
+        assertTrue(
+                printed.contains(
+                        "[GRUG CI] FAIL jei/tests/item_list_forced_normalization-Test.grug"),
+                printed);
+        assertTrue(printed.contains("but the capabilities are off"), printed);
+        assertEquals(0, calls[0], printed);
+        assertTrue(runner.isFinished());
     }
 
     @Test
-    void aBoxBuilderWithoutTheNormalizationHookIgnoresTheRequest() {
-        GrugTestRunner.TestBoxBuilder box =
-                new GrugTestRunner.TestBoxBuilder() {
-                    @Override
-                    public void build(int radius) {}
-
-                    @Override
-                    public void sweepItems() {}
+    void failsTheMarkedTestWhenItsRestoreDoesNotPutTheStateBack() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
+        ops.pathsAre(files);
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    calls[0]++;
+                    GrugTestState.testNotDone = calls[0] < 140;
                 };
-        box.forceNormalizationForTest();
-        box.restoreNormalizationAfterTest();
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public boolean canForceNormalizationForTest() {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean forceNormalizationForTest() {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean normalizationEnabledForTest() {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean restoreNormalizationAfterTest() {
+                                return false;
+                            }
+                        },
+                        1);
+        String printed = capture(() -> runFor(runner, 200));
+
+        // The restore runs before the test is announced as passed, so a loader that cannot put the
+        // state back fails that test instead of leaving a pass line for it and a state that shades
+        // every later capture.
+        assertTrue(
+                printed.contains(
+                        "[GRUG CI] FAIL jei/tests/item_list_forced_normalization-Test.grug"),
+                printed);
+        assertTrue(printed.contains("did not put the client's capabilities back"), printed);
+        assertFalse(
+                printed.contains(
+                        "[GRUG CI] PASS jei/tests/item_list_forced_normalization-Test.grug"),
+                printed);
+        assertTrue(runner.isFinished());
+    }
+
+    @Test
+    void failsAMarkedTestThatPassedAsExpectedWhenItsRestoreDoesNotPutTheStateBack() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
+        ops.pathsAre(files);
+        ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public boolean canForceNormalizationForTest() {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean forceNormalizationForTest() {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean normalizationEnabledForTest() {
+                                return true;
+                            }
+
+                            @Override
+                            public boolean restoreNormalizationAfterTest() {
+                                return false;
+                            }
+                        },
+                        1);
+        String printed = capture(() -> runFor(runner, 200));
+
+        // The expected-error pass has its own PASS line, and the restore's failure replaces it
+        // there too: the cleanup is part of the test whichever way it passed.
+        assertTrue(
+                printed.contains(
+                        "[GRUG CI] FAIL jei/tests/item_list_forced_normalization-Test.grug"),
+                printed);
+        assertTrue(printed.contains("did not put the client's capabilities back"), printed);
+        assertFalse(printed.contains("(expected error)"), printed);
+        assertTrue(runner.isFinished());
+    }
+
+    @Test
+    void aMarkedTestOnALoaderWithNothingToForcePassesWithoutALog() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
+        ops.pathsAre(files);
+        List<Boolean> reported = new ArrayList<>();
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    calls[0]++;
+                    reported.add(HostFunctions.Test_normalization_forced());
+                    GrugTestState.testNotDone = calls[0] < 140;
+                };
+        List<String> forced = new ArrayList<>();
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public boolean canForceNormalizationForTest() {
+                                forced.add("can");
+                                return false;
+                            }
+
+                            @Override
+                            public boolean forceNormalizationForTest() {
+                                forced.add("forced");
+                                return false;
+                            }
+
+                            @Override
+                            public boolean restoreNormalizationAfterTest() {
+                                forced.add("restored");
+                                return true;
+                            }
+                        },
+                        1);
+        String printed = capture(() -> runFor(runner, 200));
+
+        // 1.20.6 draws GUI items through its own shader path, so it keeps the no-op and the run
+        // says nothing about forcing a state it does not have. Both questions are still asked:
+        // the force answers false without changing anything, the declaration says that false is
+        // the right answer, and the restore it asked for is a no-op too.
+        assertFalse(printed.contains("[GRUG CI] Forcing normalized normals"), printed);
+        assertEquals(
+                List.of(Boolean.FALSE), reported.stream().distinct().collect(Collectors.toList()));
+        assertEquals(List.of("can", "forced", "restored"), forced);
     }
 
     @Test
@@ -2625,13 +3010,20 @@ class GrugTestRunnerTest {
                             public void sweepItems() {}
 
                             @Override
-                            public void forceNormalizationForTest() {
-                                forced.add("forced");
+                            public boolean canForceNormalizationForTest() {
+                                return true;
                             }
 
                             @Override
-                            public void restoreNormalizationAfterTest() {
+                            public boolean forceNormalizationForTest() {
+                                forced.add("forced");
+                                return true;
+                            }
+
+                            @Override
+                            public boolean restoreNormalizationAfterTest() {
                                 forced.add("restored");
+                                return true;
                             }
                         },
                         1);
@@ -2669,13 +3061,20 @@ class GrugTestRunnerTest {
                                 public void sweepItems() {}
 
                                 @Override
-                                public void forceNormalizationForTest() {
-                                    forced.add("forced");
+                                public boolean canForceNormalizationForTest() {
+                                    return true;
                                 }
 
                                 @Override
-                                public void restoreNormalizationAfterTest() {
+                                public boolean forceNormalizationForTest() {
+                                    forced.add("forced");
+                                    return true;
+                                }
+
+                                @Override
+                                public boolean restoreNormalizationAfterTest() {
                                     forced.add("restored");
+                                    return true;
                                 }
                             },
                             1);

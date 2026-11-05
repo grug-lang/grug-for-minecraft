@@ -1,11 +1,20 @@
 # Ctrl+O hides the item list and shows it again, which is the reference's overlay toggle. A hidden
-# overlay takes no press, so the test reads whether the list is shown through whether a right click
-# on its first cell is taken: the key goes through the screen's own key path, and the answer of each
-# press is synchronous, so nothing here waits for a tick count. A key without control, or another
-# key, leaves the list shown. See #866.
+# overlay takes no press, so the test reads whether the list is shown through whether a page button
+# press is taken: the key goes through the screen's own key path, and the answer of each press is
+# synchronous, so nothing here waits for a tick count. A key without control, or another key, leaves
+# the list shown. See #866.
+# The probe is a page button and not a grid cell, because a right click on a cell gives the player an
+# item, and 1.20.6 gives it on the integrated server's thread: it can land after this test's cleanup
+# and after the next test's inventory reset, and then shows in that test's capture. A page button
+# press gives nothing, and the probe presses the next button and then the back one, so the page the
+# list was on is the page it stays on. The hand is then asserted empty, after waiting the ticks a
+# queued give would need: a probe that gave an item again fails here on every loader instead of
+# leaking into a capture. See #1144.
 
 started: bool = false
 waited: number = 0
+pressed: bool = false
+settled: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
     if not started {
@@ -33,38 +42,66 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
 
-    ctx.assert(_cell_taken(), "The list should be shown when the screen opens.")
+    if not pressed {
+        ctx.assert(_press_taken(), "The list should be shown when the screen opens.")
+        pressed = true
+        settled = 0
+        ctx.not_done()
+        return
+    }
+
+    # The probe has to give nothing, but a click that gives is queued to the integrated server on
+    # 1.20.6 and lands a tick or more later, so the hand is not believed empty until the time such a
+    # give would need has passed. 40 ticks is a couple of seconds at real time and a few frames at
+    # the runner's fastest clock, far more than the one server tick the queued give needs. A give
+    # that arrives fails the assertion instead of landing after this test's cleanup and showing in
+    # the next test's capture (#1144).
+    if Test.get_held_count(Test.get_player()) == 0 and settled < 40 {
+        settled = settled + 1
+        ctx.not_done()
+        return
+    }
+    ctx.assert(Test.get_held_count(Test.get_player()) == 0, "A page-button press should give the player nothing.")
     ctx.assert(not Test.press_screen_key(79, false, true), "O without control should not be taken.")
     ctx.assert(not Test.press_screen_key(80, true, true), "Ctrl+P should not be taken.")
-    ctx.assert(_cell_taken(), "The list should still be shown after keys that are not its hotkey.")
+    ctx.assert(_press_taken(), "The list should still be shown after keys that are not its hotkey.")
     ctx.assert(Test.press_screen_key(79, true, true), "Ctrl+O should be taken by the overlay.")
-    ctx.assert(not _cell_taken(), "The list should be hidden after Ctrl+O.")
+    ctx.assert(not _press_taken(), "The list should be hidden after Ctrl+O.")
     # A held Ctrl+O repeats the key event, which must not toggle again: the first press shows the
     # list, the repeat leaves it shown, and letting go ends the hold.
     ctx.assert(Test.press_screen_key(79, true, false), "Ctrl+O should be taken by the overlay.")
-    ctx.assert(_cell_taken(), "The list should be shown after the first press of a held Ctrl+O.")
+    ctx.assert(_press_taken(), "The list should be shown after the first press of a held Ctrl+O.")
     ctx.assert(not Test.press_screen_key(79, true, false), "A repeat of a held key should not be taken.")
-    ctx.assert(_cell_taken(), "A repeat of Ctrl+O should not hide the list again.")
+    ctx.assert(_press_taken(), "A repeat of Ctrl+O should not hide the list again.")
     ctx.assert(not Test.press_screen_key(79, true, true), "The last repeat before the release should not be taken.")
     ctx.assert(Test.press_screen_key(79, true, true), "Ctrl+O should be taken again once it was released.")
-    ctx.assert(not _cell_taken(), "The list should be hidden after a second full press.")
+    ctx.assert(not _press_taken(), "The list should be hidden after a second full press.")
     ctx.assert(Test.press_screen_key(79, true, true), "Ctrl+O should be taken again while the list is hidden.")
-    ctx.assert(_cell_taken(), "The list should be shown again after a second Ctrl+O.")
-    Test.clear_held_item(Test.get_player())
+    ctx.assert(_press_taken(), "The list should be shown again after a second Ctrl+O.")
     Test.close_screen()
 }
 
-# Whether a right click on the grid's first cell is taken, which it is only while the list is shown.
-local _cell_taken() bool {
-    return Test.click_screen(_cell_x(0), _cell_y(0), 1)
+# Whether the overlay takes a press on its page buttons, which it does only while the list is shown,
+# and which gives no item. The next button goes first and the back button after it, so the page the
+# list shows is the one it showed before.
+local _press_taken() bool {
+    taken: bool = Test.click_screen(_next_x(), _button_y(), 0)
+    Test.click_screen(_back_x(), _button_y(), 0)
+    return taken
 }
 
-local _cell_x(column: number) number {
-    return _grid_x() + column * 18 + 9
+# The page buttons sit at the top of the 22 pixels reserved above the grid, in a 20 by 20 square:
+# back at the grid's left edge and next at its right edge (jei-Overlay's _button_step).
+local _button_y() number {
+    return 16
 }
 
-local _cell_y(row: number) number {
-    return 28 + row * 18 + 9
+local _back_x() number {
+    return _grid_x() + 10
+}
+
+local _next_x() number {
+    return _grid_x() + _columns() * 18 - 10
 }
 
 local _grid_x() number {

@@ -1470,6 +1470,12 @@
 						"name": "bool"
 					}
 				},
+				"normalization_forced": {
+					"description": "Whether the loader forced the GL capabilities that normalize normals for the running test, which the runner does before the first tick of a test whose file name ends with `_forced_normalization` (GrugForcedNormalization), on the loaders whose GUI item draw inherits the state. A marked test asks this to prove the hook really ran: the overlay's pin makes its capture identical whether or not the state was forced, so a loader that lost its hook would otherwise leave the capture green and unproven. False on 1.20.6-forge, whose item draw never inherits the state, and in a reference run. Test only.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"notify_neighbors": {
 					"description": "Test only: notifies the neighbours of a position as if the block there had changed, so a test can deliver an on_neighbor_change without a non-quiet block write.",
 					"parameters": [

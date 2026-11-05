@@ -203,25 +203,42 @@ public final class GrugOverlayHost {
             // turns it off again, so a slime rendered earlier in the session decides it. That is
             // what made the JEI item list capture flake (#1137). Pin both capabilities off for the
             // icons and put back what the frame had, so this draw is the same whatever ran before.
+            // The frame's state goes back in a finally, so a draw that throws cannot leave either
+            // capability, or the lighting, off for the rest of the session (#1144). The lighting is
+            // turned on inside the try that turns it off, so a throw from turning it on is put back
+            // the same way.
             boolean normalized = GL11.glIsEnabled(GL11.GL_NORMALIZE);
             boolean rescaled = GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
             GL11.glDisable(GL11.GL_NORMALIZE);
             GL11.glDisable(GL12.GL_RESCALE_NORMAL);
-            RenderHelper.enableGUIStandardItemLighting();
-            GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
-            renderItem.zLevel = 200.0F;
-            for (GrugScreenItemDraw item : geometry.items()) {
-                renderItem.renderItemIntoGUI(
-                        minecraft.fontRenderer,
-                        minecraft.renderEngine,
-                        new ItemStack((Item) item.item()),
-                        (int) item.x(),
-                        (int) item.y());
+            try {
+                try {
+                    // Inside the try whose finally turns it off, so a throw from turning it on is
+                    // put back too rather than leaving the GUI lighting off for the session.
+                    RenderHelper.enableGUIStandardItemLighting();
+                    GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+                    // The item draw nests its own level, which a throw would otherwise leave at
+                    // 200 for the rest of the session.
+                    renderItem.zLevel = 200.0F;
+                    try {
+                        for (GrugScreenItemDraw item : geometry.items()) {
+                            renderItem.renderItemIntoGUI(
+                                    minecraft.fontRenderer,
+                                    minecraft.renderEngine,
+                                    new ItemStack((Item) item.item()),
+                                    (int) item.x(),
+                                    (int) item.y());
+                        }
+                    } finally {
+                        renderItem.zLevel = 0.0F;
+                    }
+                } finally {
+                    RenderHelper.disableStandardItemLighting();
+                }
+            } finally {
+                if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
+                if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
             }
-            renderItem.zLevel = 0.0F;
-            RenderHelper.disableStandardItemLighting();
-            if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
-            if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
             for (GrugScreenBox box : geometry.boxes()) {
                 Gui.drawRect(
                         (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);

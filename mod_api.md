@@ -96,6 +96,7 @@ Test.is_reference() bool
 Test.load_nbt(block_entity: BlockEntity)
 Test.loader_name() string
 Test.mining_crack(level: Level, x: number, y: number, z: number) bool
+Test.normalization_forced() bool
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.open_inventory(player: Player)
 Test.overlay_drawn() bool

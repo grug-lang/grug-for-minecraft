@@ -157,22 +157,34 @@ public final class GrugOverlayHost {
             // turns it off again, so a slime rendered earlier in the session decides it. That is
             // what made the JEI item list capture flake (#1137). Pin both capabilities off for the
             // icons and put back what the frame had, so this draw is the same whatever ran before.
+            // The frame's state goes back in a finally, so a draw that throws cannot leave either
+            // capability, or the lighting, off for the rest of the session (#1144). The lighting is
+            // turned on inside the try that turns it off, so a throw from turning it on is put back
+            // the same way.
             boolean normalized = GL11.glIsEnabled(GL11.GL_NORMALIZE);
             boolean rescaled = GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
             GL11.glDisable(GL11.GL_NORMALIZE);
             GL11.glDisable(GL12.GL_RESCALE_NORMAL);
-            Lighting.turnOn();
-            for (GrugScreenItemDraw item : drawn.items()) {
-                renderItem.renderGuiItem(
-                        minecraft.textRenderer,
-                        minecraft.textureManager,
-                        new ItemStack((Item) item.item()),
-                        (int) item.x(),
-                        (int) item.y());
+            try {
+                try {
+                    // Inside the try whose finally turns it off, so a throw from turning it on is
+                    // put back too rather than leaving the GUI lighting off for the session.
+                    Lighting.turnOn();
+                    for (GrugScreenItemDraw item : drawn.items()) {
+                        renderItem.renderGuiItem(
+                                minecraft.textRenderer,
+                                minecraft.textureManager,
+                                new ItemStack((Item) item.item()),
+                                (int) item.x(),
+                                (int) item.y());
+                    }
+                } finally {
+                    Lighting.turnOff();
+                }
+            } finally {
+                if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
+                if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
             }
-            Lighting.turnOff();
-            if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
-            if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
             boxes.addAll(drawn.boxes());
         }
         return boxes;
