@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,6 +54,18 @@ class GrugCoreTest {
                             }
                             return null;
                         });
+    }
+
+    @Test
+    void aLoaderWhoseGameNeverDrawsTheSaveTextIgnoresTheTestAutosave() {
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        Proxy.newProxyInstance(
+                                getClass().getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        InvocationHandler.invokeDefault(proxy, method, args));
+        adapter.requestAutosaveForTest();
     }
 
     @Test

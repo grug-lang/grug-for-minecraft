@@ -2491,6 +2491,19 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void aBoxBuilderWithoutTheAutosaveHookIgnoresTheRequest() {
+        GrugTestRunner.TestBoxBuilder box =
+                new GrugTestRunner.TestBoxBuilder() {
+                    @Override
+                    public void build(int radius) {}
+
+                    @Override
+                    public void sweepItems() {}
+                };
+        box.requestAutosaveForTest();
+    }
+
+    @Test
     void doesNotForceASaveForATestWhoseNameOnlyContainsTheMark() {
         FakeOps ops = new FakeOps();
         Map<String, Long> files = Map.of("mymod/tests/xautosave_x-Test.grug", 1L);
