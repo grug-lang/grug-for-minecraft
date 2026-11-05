@@ -431,7 +431,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertEqual(len([c for c in calls if "runClient" in c]), 1, calls)
         game_call = next(c for c in calls if "runClient" in c)
         self.assertIn(
-            ":loaders:fake-loader:classes :loaders:fake-loader:layerJar :loaders:fake-loader:runClient -x test",
+            ":loaders:fake-loader:classes :loaders:fake-loader:layerJar :loaders:fake-loader:test :loaders:fake-loader:runClient",
             game_call,
         )
         self.assertIn("--no-daemon", game_call)
@@ -455,7 +455,7 @@ class RunLoaderTest(unittest.TestCase):
         calls = result.gradle_args.splitlines()
         self.assertTrue(calls[0].startswith(":core:publishMavenJava"), calls)
         self.assertEqual(len([c for c in calls if "runClient" in c]), 1, calls)
-        self.assertIn("classes layerJar runClient -x test", calls[-1])
+        self.assertIn("classes layerJar test runClient", calls[-1])
 
     def test_the_run_phase_still_runs_only_the_game(self):
         result = self.run_script(PASSING_LOG, 0)
@@ -474,7 +474,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotIn("runClient", result.gradle_args)
         # Only the layer: the build lifecycle would add the sources jar and its Loom remap, which
         # nothing downstream of this job reads (#737).
-        self.assertIn(":loaders:fake-loader:layerJar -x test", calls[-1])
+        self.assertIn(":loaders:fake-loader:layerJar :loaders:fake-loader:test", calls[-1])
         self.assertNotIn(":build", calls[-1])
 
     def test_a_compile_error_in_build_run_is_a_failed_build_and_not_a_game_that_exited(self):
@@ -504,6 +504,24 @@ class RunLoaderTest(unittest.TestCase):
         # whole story of the job.
         self.assertEqual(len(result.gradle_args.splitlines()), 1)
         self.assertNotIn("failed fetching what it needs", result.stderr)
+
+    def test_a_unit_test_failure_is_reported_as_tests_and_not_as_a_failed_build(self):
+        # The loader's own unit tests run in the same Gradle invocation as the build, so a failure
+        # there also ends the process before runClient, and it is not a build failure.
+        log = (
+            "> Task :loaders:fake-loader:test FAILED\n"
+            "GrugSavedDataPacketDirectionTest > aServerRefusesASavedDataPacketAClientSends FAILED\n"
+            "FAILURE: Build failed with an exception.\n"
+            "* What went wrong:\n"
+            "Execution failed for task ':loaders:fake-loader:test'.\n"
+        )
+
+        result = self.run_script(log, 1, phase="build-run")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("fake-loader's unit tests failed", result.stderr)
+        self.assertIn("the game was never launched", result.stderr)
+        self.assertNotIn("Gradle failed to build fake-loader", result.stderr)
 
     def test_build_output_is_not_read_as_the_games(self):
         # A line of the build that looks like a failed test must not fail a run whose game passes,
@@ -626,7 +644,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(result.gradle_args.splitlines()), 2)
         self.assertIn(
-            ":loaders:fake-loader:layerJar -x test",
+            ":loaders:fake-loader:layerJar :loaders:fake-loader:test",
             result.gradle_args.splitlines()[-1],
         )
 

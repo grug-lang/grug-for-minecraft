@@ -1178,9 +1178,13 @@ public class GrugTestRunner {
         // that already dropped the block entity there: when the clear and the fixture land in the
         // same tick, the client's chunk section carries the same block it already held, its block
         // entity is never re-created, and the previous test's saved data is drawn by the frame pass
-        // of the next one (#1093). So the room build's tick ends here, and the first tick waits for
-        // the client to catch up, which holdForStaleBlockEntities answers. A singleplayer world is
-        // one copy, so its clear and fixture land in it at once and no tick is needed.
+        // of the next one (#1093). So the room build's tick ends here, and the first call runs no
+        // earlier than the next server tick, which gives the client that whole tick to process the
+        // clear before the fixture reaches it. The stale-block-entity hold cannot do this on a
+        // dedicated server: it asks the client, and the runner on a dedicated server has none, so
+        // every adapter keeps the default and 1.20.6's own implementation refuses when it is not
+        // the client. A singleplayer world is one copy, so its clear and fixture land in it at once
+        // and no tick is needed.
         if (justStarted && dedicatedServer) {
             staleWaitStartNanos = clock.getAsLong();
             roomBuiltThisTick = true;
@@ -1977,7 +1981,6 @@ public class GrugTestRunner {
         GrugCore.getAdapter().restorePlayerAfterTest();
     }
 
-    /** True once the run has stopped for any reason: every test passed, or one failed. */
     /**
      * Whether the last {@link #tick} built the next test's room and returned without making the
      * test's first call. A server loop that runs the runner several times per server tick stops
@@ -1987,6 +1990,7 @@ public class GrugTestRunner {
         return roomBuiltThisTick;
     }
 
+    /** True once the run has stopped for any reason: every test passed, or one failed. */
     public boolean isFinished() {
         return finished;
     }
