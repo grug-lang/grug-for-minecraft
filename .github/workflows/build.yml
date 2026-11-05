@@ -530,6 +530,7 @@ jobs:
             .github/scripts/affected_loaders_test.py \
             .github/scripts/mod_loaders_test.py \
             .github/scripts/main_selection_test.py \
+            .github/scripts/main_dispatch_test.py \
             .github/scripts/select_coverage_tests_test.py \
             .github/scripts/added_loaders_test.py \
             .github/scripts/reference_needed_test.py \
