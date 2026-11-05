@@ -1,8 +1,12 @@
 {
   "methods": {
+    "net/grug/minecraft/core/GrugTestRunner$4": [
+      "requestAutosaveForTest:()V"
+    ],
     "net/grug/minecraft/forge/ForgeAdapter": [
       "getGameDirectory:()Ljava/io/File;",
-      "lambda$miningCrackForTest$20:([ZLnet/minecraft/core/BlockPos;)V"
+      "lambda$miningCrackForTest$20:([ZLnet/minecraft/core/BlockPos;)V",
+      "requestAutosaveForTest:()V"
     ],
     "net/grug/minecraft/forge125/Grug125Adapter": [
       "gameDir:()Ljava/io/File;",
@@ -16,9 +20,24 @@
       "swapSibling:(Ljava/nio/file/Path;)Ljava/nio/file/Path;"
     ],
     "net/grug/minecraft/grug/GrugModels": [
+      "addElement:(Ljava/lang/String;Lcom/google/gson/JsonObject;Ljava/util/Map;Ljava/util/List;)V",
+      "face:(Ljava/lang/String;I[D[DLcom/google/gson/JsonObject;Ljava/util/Map;)Lnet/grug/minecraft/grug/GrugQuad;",
+      "inBoxOrder:(Ljava/util/List;)Ljava/util/List;",
       "itemModel:(Ljava/io/File;Ljava/lang/String;)Ljava/util/List;",
+      "lambda$inBoxOrder$0:(Lnet/grug/minecraft/grug/GrugQuad;)I",
       "loadById:(Ljava/io/File;Ljava/lang/String;)Ljava/util/List;",
-      "modelFile:(Ljava/io/File;Ljava/lang/String;)Ljava/io/File;"
+      "mergeTextures:(Ljava/io/File;Lcom/google/gson/JsonElement;Ljava/util/Map;)V",
+      "modelFile:(Ljava/io/File;Ljava/lang/String;)Ljava/io/File;",
+      "number:(Ljava/lang/String;Lcom/google/gson/JsonElement;Ljava/lang/String;)D",
+      "read:(Ljava/io/File;Ljava/lang/String;)Lcom/google/gson/JsonObject;",
+      "texture:(Ljava/lang/String;Lcom/google/gson/JsonObject;Ljava/util/Map;)Ljava/lang/String;",
+      "vector:(Ljava/lang/String;Lcom/google/gson/JsonObject;Ljava/lang/String;I)[D"
+    ],
+    "net/grug/minecraft/grug/GrugModels$Cached": [
+      "<init>:(Ljava/util/List;Ljava/util/List;Ljava/util/List;)V"
+    ],
+    "net/grug/minecraft/grug/GrugModels$Defect": [
+      "<init>:(Ljava/lang/String;)V"
     ],
     "net/grug/minecraft/grug/GrugModsWatcher": [
       "loaderReloadCount:(Ljava/lang/String;)I"
@@ -60,13 +79,16 @@
       "register:(Ljava/util/function/Consumer;)V"
     ]
   },
-  "recorded_from": "run 41982334243, the full dispatch of 09432d23 on 2026-11-05",
+  "recorded_from": "run 42029618358, the full dispatch of 92a1647f on 2026-11-05",
   "why": {
-    "net/grug/minecraft/forge/ForgeAdapter": "getGameDirectory is read while the game boots, and the coverage map leaves the boot segment out, so no test shows it; miningCrackForTest draws the crack overlay only a client has.",
+    "net/grug/minecraft/core/GrugTestRunner$4": "The seam that forwards a test's forced autosave to the adapter. Only a test whose name asks for a save tick reaches it, and that test reads the save indicator a client draws, so no dedicated server runs it today.",
+    "net/grug/minecraft/forge/ForgeAdapter": "getGameDirectory is read while the game boots, and the coverage map leaves the boot segment out; miningCrackForTest draws the crack overlay only a client has; requestAutosaveForTest saves through the client's integrated server, which a dedicated server does not have.",
     "net/grug/minecraft/forge125/Grug125Adapter": "The game directory, which the boot and the client's resource reads ask for. The map leaves the boot segment out, and a dedicated server reads no resources.",
     "net/grug/minecraft/forge125/Grug125ClientAdapter": "The client half of the 1.2.5 loader: the mining crack overlay and the screen only a client opens.",
     "net/grug/minecraft/grug/GrugModFileStates": "Hot reload swaps a changed file aside on the client's watcher; a dedicated server reloads no mod file.",
     "net/grug/minecraft/grug/GrugModels": "Reads a mod's model files, which a client does to draw a block or an item; a dedicated server draws nothing and reads none of them.",
+    "net/grug/minecraft/grug/GrugModels$Cached": "A model built for drawing and kept for the next frame that needs it; a dedicated server builds no model.",
+    "net/grug/minecraft/grug/GrugModels$Defect": "The record of a model file that could not be read, which only a client's model load produces.",
     "net/grug/minecraft/grug/GrugModsWatcher": "The reload count Test.reload_count reads after the client's watcher reloaded a file; a dedicated server reloads no mod file.",
     "net/grug/minecraft/grug/GrugQuad": "Rotates model geometry while a model is built for drawing; a dedicated server builds none.",
     "net/grug/minecraft/grug/GrugScreenshots": "Compares a captured frame with its reference; a dedicated server draws no frame to capture.",

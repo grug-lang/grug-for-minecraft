@@ -54,11 +54,21 @@ _COMBINE.loader.exec_module(combine)
 ARTIFACT_PREFIX = "coverage-server-tests-"
 TESTS_FILE = "tests.txt"
 CLASS_INITIALIZER = "<clinit>"
+# A test that is meant to fail still passes, and the runner's line says so after the path. The map
+# keys a test by its path alone, so the note has to come off before the two are compared: kept, it
+# would make every test of an expected error look like one no server ran.
+EXPECTED_ERROR = " (expected error)"
 
 
 def counted(name: str) -> bool:
     """Whether the coverage gate counts this class, by the rule combine-coverage.py applies."""
     return name.rsplit("/", 1)[-1].split("$", 1)[0] not in combine.EXCLUDED_CLASSES
+
+
+def test_name(line: str) -> str:
+    """A path the runner printed, without the note that says the test was meant to fail."""
+    line = line.strip()
+    return line[: -len(EXPECTED_ERROR)] if line.endswith(EXPECTED_ERROR) else line
 
 
 def server_tests(directory: Path) -> dict[str, set[str]]:
@@ -77,7 +87,7 @@ def server_tests(directory: Path) -> dict[str, set[str]]:
             )
             lists[loader] = set()
             continue
-        lists[loader] = {line.strip() for line in path.read_text().splitlines() if line.strip()}
+        lists[loader] = {name for name in map(test_name, path.read_text().splitlines()) if name}
     return lists
 
 
