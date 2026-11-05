@@ -53,12 +53,11 @@ class ApiHandler(http.server.BaseHTTPRequestHandler):
         if parsed.path != RUNS:
             self._reply(404)
             return
+        status = query.get("status", [""])[0]
         if query.get("event") == ["workflow_dispatch"]:
             kind = "dispatches"
-        elif query.get("status") == ["queued"]:
-            kind = "queued"
-        elif query.get("status") == ["in_progress"]:
-            kind = "in_progress"
+        elif status in main_dispatch.LIVE_STATUSES:
+            kind = status
         else:
             self._reply(400)
             return
@@ -95,7 +94,9 @@ class MainDispatchTest(unittest.TestCase):
 
     def setUp(self):
         self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
-        self.server.routes = {"dispatches": [], "queued": [], "in_progress": []}
+        self.server.routes = {"dispatches": []}
+        for status in main_dispatch.LIVE_STATUSES:
+            self.server.routes[status] = []
         self.server.fail = set()
         self.server.refuse_dispatch = False
         self.server.requests = []
@@ -157,7 +158,33 @@ class MainDispatchTest(unittest.TestCase):
         code, out, err = self.run_script()
         self.assertEqual(code, 0, err)
         self.assertEqual(self.dispatched(), [])
-        self.assertIn("queued or in progress", out)
+        self.assertIn("are live", out)
+
+    def test_every_live_status_blocks_the_dispatch(self):
+        # A run created between the dispatch read and the busy read is often still requested, and
+        # GitHub also reports waiting and pending, so every live status counts as in flight.
+        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
+        for status in main_dispatch.LIVE_STATUSES:
+            with self.subTest(status=status):
+                for other in main_dispatch.LIVE_STATUSES:
+                    self.server.routes[other] = []
+                self.server.routes[status] = [run(11, datetime.timedelta(minutes=5))]
+                self.server.requests = []
+                code, out, err = self.run_script()
+                self.assertEqual(code, 0, err)
+                self.assertEqual(self.dispatched(), [])
+                self.assertIn("are live", out)
+
+    def test_a_run_returned_under_two_statuses_is_counted_once(self):
+        # A run moves from requested to queued between the listings, so the same id can come back
+        # twice; the reason must still name one run.
+        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
+        self.server.routes["requested"] = [run(11, datetime.timedelta(minutes=1))]
+        self.server.routes["queued"] = [run(11, datetime.timedelta(minutes=1))]
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.dispatched(), [])
+        self.assertIn("1 build.yml run(s) are live", out)
 
     # The edges around those four.
 
@@ -236,15 +263,16 @@ class MainDispatchTest(unittest.TestCase):
         self.assertEqual(self.dispatched(), [])
         self.assertIn("GITHUB_REPOSITORY is not set", err)
 
-    def test_the_busy_listing_asks_for_every_branch(self):
+    def test_the_busy_listing_asks_for_every_live_status_and_branch(self):
         # The 20 job slots are shared by every run, so a pull request's run in flight holds the check
-        # off too; the status query names no branch.
+        # off too; every live status is read and the status queries name no branch.
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
         self.server.routes["in_progress"] = [run(11, datetime.timedelta(minutes=5))]
         code, _, err = self.run_script()
         self.assertEqual(code, 0, err)
         queries = [q for method, _, q, _ in self.server.requests if method == "GET"]
-        self.assertTrue(any(q.get("status") == ["in_progress"] for q in queries))
+        statuses = {q["status"][0] for q in queries if q.get("status")}
+        self.assertEqual(statuses, set(main_dispatch.LIVE_STATUSES))
         self.assertFalse(any("branch" in q for q in queries if q.get("status")))
 
 

@@ -119,20 +119,16 @@ def duration(seconds):
     return "%d min" % minutes
 
 
-def gh_runs(extra):
+def gh_runs(extra, branch="main"):
+    command = ["gh", "run", "list", "--workflow", "build.yml"]
+    if branch:
+        command += ["--branch", branch]
+    command += [
+        "--json",
+        "databaseId,createdAt,conclusion,status,event,displayTitle",
+    ]
     result = subprocess.run(
-        [
-            "gh",
-            "run",
-            "list",
-            "--workflow",
-            "build.yml",
-            "--branch",
-            "main",
-            "--json",
-            "databaseId,createdAt,conclusion,status,event,displayTitle",
-        ]
-        + extra,
+        command + extra,
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -146,7 +142,11 @@ def gh_runs(extra):
 def main_state():
     recent = gh_runs(["--limit", "10"])
     dispatches = gh_runs(["--event", "workflow_dispatch", "--limit", "1"])
-    return recent, dispatches
+    # Every branch, because the 20 job slots are shared and a pull request's run must hold the
+    # dispatch hint off too; main-dispatch.yml reads the same set. The red-main check stays on
+    # recent, which is main's own runs.
+    live = gh_runs(["--limit", "50"], branch=None)
+    return recent, dispatches, [run for run in live if run.get("status") != "completed"]
 
 
 def boot_time_ms():
@@ -249,22 +249,24 @@ def main():
 
     main_lines = []
     try:
-        recent, dispatches = main_state()
+        recent, dispatches, live = main_state()
     except Exception as error:  # noqa: BLE001 - the log is the only report a timer has
         log(str(error))
         recent = None
+        live = []
     if recent is not None:
-        in_flight = [run for run in recent if run.get("status") != "completed"]
-        if in_flight:
+        if live:
             log(
-                "a run on main is in flight (%s); no main action"
-                % ", ".join(str(run["databaseId"]) for run in in_flight)
+                "a build.yml run is in flight on some branch (%s); no dispatch hint"
+                % ", ".join(str(run["databaseId"]) for run in live)
             )
         else:
             if not dispatches:
                 main_lines.append(
                     "There is no build.yml dispatch on main. Run `gh workflow run build.yml "
-                    "--ref main` and watch it with `.github/scripts/watch-run.sh <run-id>`."
+                    "--ref main` and watch it with `.github/scripts/watch-run.sh <run-id>`. "
+                    "Re-read the newest dispatch and every build.yml run in flight on any branch "
+                    "before dispatching."
                 )
             else:
                 newest_dispatch = max(dispatches, key=lambda run: when(run["createdAt"]))
@@ -273,24 +275,25 @@ def main():
                     main_lines.append(
                         "The newest build.yml dispatch on main is %s old (%s, %s). Run "
                         "`gh workflow run build.yml --ref main` and watch it with "
-                        "`.github/scripts/watch-run.sh <run-id>`."
+                        "`.github/scripts/watch-run.sh <run-id>`. Re-read the newest dispatch and "
+                        "every build.yml run in flight on any branch before dispatching."
                         % (
                             duration(seconds),
                             newest_dispatch["databaseId"],
                             newest_dispatch.get("conclusion") or newest_dispatch.get("status"),
                         )
                     )
-            newest = recent[0] if recent else None
-            if (
-                newest
-                and newest.get("status") == "completed"
-                and newest.get("conclusion") in BAD_CONCLUSIONS
-            ):
-                main_lines.append(
-                    "The newest run on main finished red (%s, %s). Attribute it to its "
-                    "merge and fix forward or revert."
-                    % (newest["databaseId"], newest.get("displayTitle", ""))
-                )
+        newest = recent[0] if recent else None
+        if (
+            newest
+            and newest.get("status") == "completed"
+            and newest.get("conclusion") in BAD_CONCLUSIONS
+        ):
+            main_lines.append(
+                "The newest run on main finished red (%s, %s). Attribute it to its "
+                "merge and fix forward or revert."
+                % (newest["databaseId"], newest.get("displayTitle", ""))
+            )
 
     state_file = STATE / "nudge.json"
     try:

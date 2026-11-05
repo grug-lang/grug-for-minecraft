@@ -11,10 +11,10 @@ dispatch reach 25 hours (#1089). This runs from ``.github/workflows/main-dispatc
 schedule instead, so the check does not depend on a session being open.
 
 The rule, in ``should_dispatch``: a dispatch is due when ``main``'s newest ``workflow_dispatch`` run
-of ``build.yml`` is at least the interval old, and no ``build.yml`` run is queued or in progress
-anywhere, because every run shares the 20 job slots and a dispatch must not compete with one. The
-Sunday release's dispatch is a ``workflow_dispatch`` on ``main`` like any other, so a recent one
-holds the check off too.
+of ``build.yml`` is at least the interval old, and no ``build.yml`` run is live (requested, waiting,
+pending, queued or in progress) anywhere, because every run shares the 20 job slots and a dispatch
+must not compete with one. The Sunday release's dispatch is a ``workflow_dispatch`` on ``main`` like
+any other, so a recent one holds the check off too.
 
 Prints one line saying why it did or did not dispatch. A run list that cannot be read fails the
 run rather than dispatching blindly, and a refused dispatch fails it too.
@@ -32,6 +32,10 @@ import urllib.request
 
 # The interval AGENTS.md asks for between full dispatches of main.
 INTERVAL = datetime.timedelta(hours=4)
+# Every status GitHub reports for a run that has not finished. A run created between the dispatch
+# read and the busy read is often still ``requested``, and counting only queued and in_progress
+# would miss it and dispatch over it.
+LIVE_STATUSES = ("requested", "waiting", "pending", "queued", "in_progress")
 # The most runs one listing page holds. Only the newest dispatch is read, and a page holds every
 # run in flight long before a busy repository reaches it.
 PER_PAGE = 100
@@ -101,8 +105,9 @@ def should_dispatch(
     if in_flight:
         ids = ", ".join(str(run.get("id")) for run in in_flight)
         return False, (
-            f"{len(in_flight)} build.yml run(s) are queued or in progress ({ids}), and every run"
-            f" shares the 20 job slots, so this check dispatched nothing"
+            f"{len(in_flight)} build.yml run(s) are live (requested, waiting, pending, queued or"
+            f" in progress) ({ids}), and every run shares the 20 job slots, so this check"
+            f" dispatched nothing"
         )
     latest = newest(dispatches)
     if latest is None:
@@ -171,18 +176,20 @@ def main(argv: list[str] | None = None) -> int:
             token,
             {"event": "workflow_dispatch", "branch": "main", "per_page": PER_PAGE},
         )
-        in_flight = []
-        for status in ("queued", "in_progress"):
-            in_flight.extend(
-                workflow_runs(
-                    args.api_base,
-                    args.repo_slug,
-                    token,
-                    {"status": status, "per_page": PER_PAGE},
-                )
-            )
+        in_flight = {}
+        for status in LIVE_STATUSES:
+            for run in workflow_runs(
+                args.api_base,
+                args.repo_slug,
+                token,
+                {"status": status, "per_page": PER_PAGE},
+            ):
+                in_flight[run.get("id")] = run
         due, reason = should_dispatch(
-            datetime.datetime.now(datetime.timezone.utc), dispatches, in_flight, interval
+            datetime.datetime.now(datetime.timezone.utc),
+            dispatches,
+            list(in_flight.values()),
+            interval,
         )
     except Exception as e:  # noqa: BLE001 - an unreadable run list must not dispatch blindly
         print(
