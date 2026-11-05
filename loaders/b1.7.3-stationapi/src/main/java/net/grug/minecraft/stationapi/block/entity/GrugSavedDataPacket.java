@@ -1,6 +1,7 @@
 package net.grug.minecraft.stationapi.block.entity;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.nbt.NbtCompound;
@@ -92,6 +93,9 @@ public class GrugSavedDataPacket extends Packet {
      */
     @Override
     public void apply(NetworkHandler handler) {
+        if (!GrugSavedDataSync.appliesOn(GrugCore.getAdapter().getSide())) {
+            return;
+        }
         Object level = GrugCore.getAdapter().getLevel();
         if (!(level instanceof World)) {
             return;

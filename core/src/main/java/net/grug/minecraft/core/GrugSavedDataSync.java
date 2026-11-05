@@ -63,6 +63,16 @@ public final class GrugSavedDataSync {
     @GrugGenerated("utility class: never instantiated")
     private GrugSavedDataSync() {}
 
+    /**
+     * Whether this side applies a saved-data packet, which is the client alone: the data travels
+     * server to client, so a dedicated server that applied one would write a client's copy into the
+     * world it simulates. Every loader's apply path starts with this, which is also what refuses a
+     * packet a client spoofs.
+     */
+    public static boolean appliesOn(GrugSide side) {
+        return !side.isDedicatedServer();
+    }
+
     /** Installs the side that sends, which a dedicated server does once it is up. */
     public static synchronized void install(Transport installed) {
         transport = installed;

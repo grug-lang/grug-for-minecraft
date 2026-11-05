@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge125.control;
 
 import net.grug.minecraft.core.GrugControlWire;
+import net.grug.minecraft.core.GrugPacketDirection;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.NetHandler;
 import net.minecraft.src.Packet;
@@ -45,7 +46,7 @@ public class GrugControlPacket extends Packet {
      * which every packet of grug's own on this loader uses.
      */
     public static void register() {
-        GrugPacketRegister.register(ID, GrugControlPacket.class);
+        GrugPacketRegister.register(ID, GrugControlPacket.class, GrugPacketDirection.BOTH_WAYS);
     }
 
     @Override

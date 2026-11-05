@@ -1,5 +1,7 @@
 package net.grug.minecraft.ornithe.block.entity;
 
+import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.nbt.NbtCompound;
@@ -26,7 +28,9 @@ import java.util.List;
  * server's.
  *
  * <p>Both ends register it under {@link #ID} (see {@code PacketRegisterMixin}), because a packet id
- * the receiver does not know closes the connection with "Bad packet id".
+ * the receiver does not know closes the connection with "Bad packet id". Alpha registers it with no
+ * direction set, so the registry cannot refuse a client's copy: the server refuses it here instead,
+ * before the packet is queued, so a server never applies saved data and never grows the queue.
  */
 @GrugGenerated(
         "the game's packet type: its registration and its hand-off to the game's handlers need a"
@@ -91,6 +95,9 @@ public class GrugSavedDataPacket extends Packet {
 
     @Override
     public void handle(PacketHandler handler) {
+        if (!GrugSavedDataSync.appliesOn(GrugCore.getAdapter().getSide())) {
+            return;
+        }
         waits = PENDING_TICKS;
         synchronized (PENDING) {
             PENDING.add(this);

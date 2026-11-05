@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.mixin;
 
+import net.grug.minecraft.core.GrugPacketDirection;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.entity.GrugSavedDataPacket;
 import net.grug.minecraft.ornithe.control.GrugControlPacket;
@@ -20,11 +21,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Packet.class)
 public abstract class PacketRegisterMixin {
     @Shadow
-    static void register(int id, boolean clientToServer, boolean serverToClient, Class<?> type) {}
+    static void register(int id, boolean s2c, boolean c2s, Class<?> type) {}
 
     @Inject(method = "<clinit>", at = @At("TAIL"))
     private static void grug$registerPackets(CallbackInfo ci) {
-        register(GrugControlPacket.ID, true, true, GrugControlPacket.class);
-        register(GrugSavedDataPacket.ID, true, true, GrugSavedDataPacket.class);
+        // The game's register(int, boolean, boolean, Class) takes the server-to-client flag first:
+        // deserialize(input, server) requires the client-to-server set when the server reads.
+        GrugPacketDirection control = GrugPacketDirection.BOTH_WAYS;
+        GrugPacketDirection savedData = GrugPacketDirection.SERVER_TO_CLIENT;
+        register(
+                GrugControlPacket.ID,
+                control.serverToClient(),
+                control.clientToServer(),
+                GrugControlPacket.class);
+        register(
+                GrugSavedDataPacket.ID,
+                savedData.serverToClient(),
+                savedData.clientToServer(),
+                GrugSavedDataPacket.class);
     }
 }
