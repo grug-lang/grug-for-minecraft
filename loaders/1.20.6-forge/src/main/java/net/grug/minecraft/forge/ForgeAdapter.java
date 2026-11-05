@@ -1316,6 +1316,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 GrugTestCamera.frameBusy(
                         !rendererIdle(minecraft), testPlayerSnapped, testPlayer(), CAMERA_VIEW),
                 blocksPending);
+        // Sampled after the level was drawn and before the next client tick, so it describes the
+        // indicator this same frame draws, which is what makes a capture's wait count frames of it
+        // rather than a value that has already faded. See #1132.
+        RENDER_SETTLE.onSavingIndicatorFrame(savingIndicatorShown(minecraft));
     }
 
     /**
@@ -1964,7 +1968,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // at the moment it asked, and Screenshot.equals compares it against a committed PNG. The
         // world-save indicator is the exception, because it outlives the save that put it up and is
         // drawn into the frames after it: a capture waits for it to clear. See #1132.
-        awaitNoSavingIndicator();
+        awaitSavingIndicatorCleared();
         return captureChecked("Screenshot.capture", x1, y1, x2, y2);
     }
 
@@ -1974,31 +1978,28 @@ public class ForgeAdapter implements ModLoaderAdapter {
      *
      * <p>The text is drawn from a value the client fades over about ten client ticks after a save
      * ends, and the save itself runs on the thread grug calls this from, so a test cannot capture
-     * inside a save but can easily capture just after one. What has faded is not what was drawn:
-     * the frames up to the fade are still in the buffer, and the capture reads the frame before the
-     * last one drawn, so the wait covers two further frames after the text cleared. Waiting here
-     * rather than in one test is what makes every capture on this loader unable to read the text.
-     * See {@link GrugRenderSettle#awaitNoSavingIndicator} for the wait itself and #1132.
+     * inside a save but can easily capture just after one. The fade is not the rule: the frames
+     * drawn while the text was up are still in the buffer, and the capture reads the frame before
+     * the last one drawn, so the wait covers two frames drawn without it. Waiting here rather than
+     * in one test is what makes every capture on this loader unable to read the text. See {@link
+     * GrugRenderSettle#awaitSavingIndicatorCleared} and #1132.
      *
      * <p>Runs on the thread the test captured from, releasing the grug state lock while it waits,
-     * since the client has to keep ticking for the value to fall and drawing for the frames to
-     * count.
+     * since the client has to keep drawing for the frames to count.
      */
-    private static void awaitNoSavingIndicator() {
-        Minecraft minecraft = Minecraft.getInstance();
+    private static void awaitSavingIndicatorCleared() {
         Grug.runWithStateLockReleased(
                 () ->
-                        GrugRenderSettle.awaitNoSavingIndicator(
-                                () -> savingIndicatorShown(minecraft),
-                                RENDER_SETTLE::noteBusy,
-                                RENDER_SETTLE::settled));
+                        GrugRenderSettle.awaitSavingIndicatorCleared(
+                                RENDER_SETTLE::savingIndicatorCleared));
     }
 
     /**
-     * Whether the frame the client draws now would have the save indicator in it, from the two
-     * values {@code Gui} fades it with and the player's option. Both fields are read on the server
-     * thread while the client thread writes them, which is safe for a float and only decides
-     * whether the wait polls once more.
+     * Whether the frame the client is drawing would have the save indicator in it, from the two
+     * values {@code Gui} fades it with and the player's option.
+     *
+     * <p>Sampled from the frame hook, on the client thread, after the level was drawn and before
+     * the next client tick, so the values are the ones this frame's GUI pass will read. See #1132.
      */
     private static boolean savingIndicatorShown(Minecraft minecraft) {
         GuiSavingIndicatorAccessor indicator = (GuiSavingIndicatorAccessor) minecraft.gui;

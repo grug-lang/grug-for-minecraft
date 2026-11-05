@@ -27,7 +27,7 @@ import java.util.function.BooleanSupplier;
  *
  * <p>The class also decides what a frame may contain rather than what work it had left: the
  * integrated server's world-save indicator is drawn into the frames after a save ended, and {@link
- * #awaitNoSavingIndicator} is what keeps a capture from reading it (#1132).
+ * #awaitSavingIndicatorCleared} is what keeps a capture from reading it (#1132).
  */
 public final class GrugRenderSettle {
     /** Frames drawn so far. */
@@ -35,6 +35,14 @@ public final class GrugRenderSettle {
 
     /** The value {@link #frames} had when the frame that finished last had work in it. */
     private long lastBusyFrame;
+
+    /**
+     * The value {@link #frames} had when the frame that finished last had the save indicator in it.
+     *
+     * <p>Starts two frames back, so that a client that never drew the indicator answers cleared
+     * before its first frame: there is nothing in the buffer to avoid.
+     */
+    private long lastIndicatorFrame = -2;
 
     /**
      * One completed frame, called from the loader's own frame hook.
@@ -204,45 +212,62 @@ public final class GrugRenderSettle {
     }
 
     /**
-     * Waits until a frame the client draws has no save indicator in it, and until the frames that
-     * still had one are off the buffer a capture reads.
+     * Notes whether the frame that just finished had the integrated server's save indicator drawn
+     * into it, from {@link #savingIndicatorShown} sampled at the same moment.
      *
-     * <p>Clearing the indicator is not enough on its own: the frame a capture reads is one behind
-     * the last one drawn, so the frames drawn while the text was up are still reachable by it.
-     * Marking the frames busy after the text cleared and waiting for {@code framesSettled} is what
-     * makes the read cover two frames drawn from the cleared value.
+     * <p>Called right after {@link #onFrame}, by a loader whose client draws such an indicator, so
+     * that this counts the same frame. A loader whose client has none never calls it, and its
+     * frames leave the state cleared.
      *
-     * <p>The parts the game owns come in as arguments rather than being read here, so a unit test
-     * covers the wait and its order without a client: the whole loop, not only the answer it waits
-     * on, is the thing a flaky capture depends on.
+     * <p>Pure bookkeeping rather than a wait, so that the answer a capture needs is a frame number
+     * and not a value read later: the indicator fades over about ten client ticks, and a value that
+     * has just reached the floor says nothing about the frames already drawn while it was up. See
+     * #1132.
+     *
+     * @param drawn whether that frame had the indicator in it
+     */
+    public synchronized void onSavingIndicatorFrame(boolean drawn) {
+        if (drawn) {
+            lastIndicatorFrame = frames;
+        }
+    }
+
+    /**
+     * Whether the frame a capture would read has no save indicator in it.
+     *
+     * <p>The frame a capture reads is one behind the last one drawn, so a frame drawn without the
+     * indicator is not enough: the frames still on the buffer may be the ones that had it. Two
+     * frames drawn after the last one with it make the read one of them, or of a later frame. True
+     * before a frame with it is counted, so a capture waits for nothing when the client never
+     * saved.
+     */
+    public synchronized boolean savingIndicatorCleared() {
+        return frames - lastIndicatorFrame >= 2;
+    }
+
+    /**
+     * Waits until the frame a capture would read has no save indicator in it.
+     *
+     * <p>A capture must not read a frame drawn while the integrated server's "Saving world" text
+     * was up, and the text stays in the frames for about ten client ticks after a save ends. The
+     * decision is {@link #savingIndicatorCleared}, which the loader samples once per frame; the
+     * loop here is what a unit test covers, because the branch a run meets only when a capture
+     * lands in a fade would otherwise go untested.
      *
      * <p>The answer can be false for the frames drawn before the client ticked the value back and
      * the renderer drew it, so the loop polls rather than sampling once.
      *
-     * @param indicatorShown whether the client would draw the indicator into the frame now
-     * @param markFramesBusy notes that the frames counted so far describe the scene before the
-     *     change, so the frames that can be read are the two drawn after it
-     * @param framesSettled whether the frame a capture would read was drawn with the change in it
+     * @param cleared whether the frame a capture would read was drawn without the indicator
      */
-    public static void awaitNoSavingIndicator(
-            BooleanSupplier indicatorShown,
-            Runnable markFramesBusy,
-            BooleanSupplier framesSettled) {
-        if (!indicatorShown.getAsBoolean()) {
-            return;
-        }
-        while (indicatorShown.getAsBoolean()) {
-            pauseForSavingIndicator();
-        }
-        markFramesBusy.run();
-        while (!framesSettled.getAsBoolean()) {
+    public static void awaitSavingIndicatorCleared(BooleanSupplier cleared) {
+        while (!cleared.getAsBoolean()) {
             pauseForSavingIndicator();
         }
     }
 
     /**
-     * One millisecond of the save indicator wait. Both values it waits on change between frames or
-     * client ticks, so a millisecond is short enough that the wait ends within a frame of them
+     * One millisecond of the save indicator wait. The frames it waits on arrive within a client
+     * tick, so a millisecond is short enough that the wait ends within a frame of the state
      * changing, and long enough that it is not a spin.
      */
     @GrugGenerated("saving indicator wait: an interrupted wait cannot occur in a CI run")
@@ -294,5 +319,6 @@ public final class GrugRenderSettle {
     public synchronized void reset() {
         frames = 0;
         lastBusyFrame = 0;
+        lastIndicatorFrame = -2;
     }
 }
