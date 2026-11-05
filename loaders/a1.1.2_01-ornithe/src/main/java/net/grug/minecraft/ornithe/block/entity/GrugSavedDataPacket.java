@@ -16,6 +16,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -126,10 +127,16 @@ public class GrugSavedDataPacket extends Packet {
             return;
         }
         World world = (World) level;
+        List<GrugSavedDataPacket> retry = new ArrayList<>();
         for (GrugSavedDataPacket packet : ready) {
             if (packet.apply(world) > 0) {
-                PENDING.add(packet);
+                retry.add(packet);
             }
+        }
+        // In front of the queue, not at its tail: the network thread queues a newer packet for the
+        // same block while this pass runs, and the older retry must still apply before it.
+        if (!retry.isEmpty()) {
+            PENDING.requeue(retry);
         }
     }
 

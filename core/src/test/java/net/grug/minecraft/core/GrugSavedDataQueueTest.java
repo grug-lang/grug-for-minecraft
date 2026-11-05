@@ -5,12 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 /**
  * Covers the world scoping of a loader's saved-data queue, which is what keeps a packet from a
- * server the client has left out of the next server's block at the same position.
+ * server the client has left out of the next server's block at the same position, and the order a
+ * packet goes back in when the tick could not apply it yet.
  *
  * <p>The queue only names its levels as objects, so a test can stand a world or a connection in for
  * one without a game: what the packets hold does not matter here, only which world queued them.
@@ -73,9 +75,41 @@ class GrugSavedDataQueueTest {
         List<String> first = queue.take(FIRST_WORLD);
         assertEquals(Collections.singletonList(PACKET), first);
 
-        // A packet the tick could not apply yet goes back into the queue it came from.
-        queue.add(first.get(0));
+        // A packet the tick could not apply yet goes back into the queue it came from, in front.
+        queue.requeue(first);
         assertEquals(Collections.singletonList(PACKET), queue.take(FIRST_WORLD));
+        assertEquals(0, queue.size());
+    }
+
+    @Test
+    void aRetryGoesInFrontOfAPacketThatArrivedWhileItWasApplied() {
+        GrugSavedDataQueue<String> queue = new GrugSavedDataQueue<>();
+        queue.add("an older number");
+        List<String> older = queue.take(FIRST_WORLD);
+
+        // The network thread queues a newer packet for the same block while the older one is
+        // applied. Appending the older one would apply the newer first and then overwrite it.
+        queue.add("a newer number");
+        queue.requeue(older);
+
+        assertEquals(Arrays.asList("an older number", "a newer number"), queue.take(FIRST_WORLD));
+        assertEquals(0, queue.size());
+    }
+
+    @Test
+    void retriesKeepTheirOrderAheadOfPacketsThatArrivedDuringThePass() {
+        GrugSavedDataQueue<String> queue = new GrugSavedDataQueue<>();
+        queue.add("a");
+        queue.add("b");
+        queue.add("c");
+        List<String> first = queue.take(FIRST_WORLD);
+
+        // "a" applied; "b" and "c" have to be tried again, and "d" and "e" arrive meanwhile.
+        queue.add("d");
+        queue.add("e");
+        queue.requeue(Arrays.asList("b", "c"));
+
+        assertEquals(Arrays.asList("b", "c", "d", "e"), queue.take(FIRST_WORLD));
         assertEquals(0, queue.size());
     }
 

@@ -29,6 +29,16 @@ public final class GrugSavedDataQueue<T> {
     }
 
     /**
+     * Puts the packets a tick could not apply yet back in front of the queue, in the order they
+     * were handed out, so the next tick tries them before anything the network thread queued while
+     * that tick was applying. Appending them instead would let a newer packet for the same block be
+     * applied first and then be overwritten by the older retry.
+     */
+    public synchronized void requeue(List<T> packets) {
+        pending.addAll(0, packets);
+    }
+
+    /**
      * The packets to try against {@code level} this tick. A tick with no world answers an empty
      * list and drops the packets an earlier world queued, and a world other than the one they were
      * queued in drops them too.
