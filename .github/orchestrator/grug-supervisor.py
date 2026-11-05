@@ -142,11 +142,15 @@ def gh_runs(extra, branch="main"):
 def main_state():
     recent = gh_runs(["--limit", "10"])
     dispatches = gh_runs(["--event", "workflow_dispatch", "--limit", "1"])
+    return recent, dispatches
+
+
+def live_runs():
     # Every branch, because the 20 job slots are shared and a pull request's run must hold the
-    # dispatch hint off too; main-dispatch.yml reads the same set. The red-main check stays on
-    # recent, which is main's own runs.
-    live = gh_runs(["--limit", "50"], branch=None)
-    return recent, dispatches, [run for run in live if run.get("status") != "completed"]
+    # dispatch hint off too; main-dispatch.yml reads the same set. Kept out of main_state() so a
+    # failure here cannot cost the red-main report, which needs only main's own runs.
+    runs = gh_runs(["--limit", "50"], branch=None)
+    return [run for run in runs if run.get("status") != "completed"]
 
 
 def boot_time_ms():
@@ -249,13 +253,22 @@ def main():
 
     main_lines = []
     try:
-        recent, dispatches, live = main_state()
+        recent, dispatches = main_state()
     except Exception as error:  # noqa: BLE001 - the log is the only report a timer has
         log(str(error))
         recent = None
-        live = []
+        dispatches = None
+    # Its own try: the red-main report below needs only recent, so a failed all-branch read must
+    # leave that report standing and only drop the dispatch hint, whose safety the read makes.
+    live = None
+    try:
+        live = live_runs()
+    except Exception as error:  # noqa: BLE001 - the log is the only report a timer has
+        log("the all-branch run list could not be read: %s" % error)
     if recent is not None:
-        if live:
+        if live is None:
+            log("the in-flight state is unknown; no dispatch hint")
+        elif live:
             log(
                 "a build.yml run is in flight on some branch (%s); no dispatch hint"
                 % ", ".join(str(run["databaseId"]) for run in live)

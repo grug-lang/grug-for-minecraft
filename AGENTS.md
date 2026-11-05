@@ -179,15 +179,19 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   needs no live session and a due tick that was busy retries a quarter of an hour later rather than
   four hours later (#1089). Its decision is `.github/scripts/main-dispatch.py`, whose test pins the
   four cases. The supervisor below still reports when the newest **dispatch** of `build.yml` on
-  `main` is older than four hours, as the fallback when the workflow is not running. Both paths
+  `main` is older than four hours, as a second check on the same condition rather than an enforced
+  fallback, so a due window can send one extra full run if both paths reach the dispatch. Both paths
   re-read the newest dispatch's age and every build run in flight on any branch immediately before
   dispatching, because a message is a hint and both facts can change before the dispatch.
   The orchestrator then runs `gh workflow run build.yml --ref main` and watches it with
   `.github/scripts/watch-run.sh <run-id>`. If the timer is not installed or its log shows it has not
   run, check the age at a task boundary instead. Only a dispatch runs every job: a push to `main`
   skips some of them, and which ones can change with the workflow, so a green push is not this
-  check. The dispatch is the check itself: a red one is a red `main`, attributed and fixed forward
-  as usual. A release dispatch satisfies it for the next four hours.
+  check. A dispatch with `-f mods=` or `-f base=` is the exception: it counts as the newest dispatch
+  even though it ran fewer jobs, because the runs API does not expose a dispatch's inputs, so a
+  partial dispatch can hold a full check off; that is a known limit. The dispatch is the check
+  itself: a red one is a red `main`, attributed and fixed forward as usual. A release dispatch
+  satisfies it for the next four hours.
 - **The supervisor.** `.github/orchestrator/grug-supervisor.py` runs from a systemd user timer every
   ten minutes and posts a message into the orchestrator's session when fewer than five subagents
   are working, when the dispatch above is due, or when `main`'s newest run is red. It reads every
