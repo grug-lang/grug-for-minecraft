@@ -8,7 +8,9 @@ to stderr, so the CI log shows which loaders a pull request selected and why.
 
 Every loader job costs a runner slot, and the plan allows 20 concurrent jobs shared by the whole
 organisation, so a pull request runs the loaders its diff can reach plus one representative per
-family. A push to main and a dispatch run every loader, and neither asks this script.
+family. A dispatch runs every loader and does not ask this script; a push to main has a job for
+every loader, and this script decides which of them run the merged mod's tests, leaving the rest
+the gate's own mod alone.
 
 The rule is sound by construction, and every doubt resolves to running more, never fewer:
 
@@ -21,6 +23,11 @@ The rule is sound by construction, and every doubt resolves to running more, nev
   never run its tests on a pull request. An absent ``loaders`` key means every loader, which every
   representative already satisfies, so it adds nothing: the field narrows a mod's tests, and only an
   explicit list names a loader the representatives can miss;
+- a diff that touches ``mods/<mod>/screenshots/`` or ``mods/<mod>/assets/`` runs every loader,
+  because a golden is a capture per loader and an asset is rendered by every loader, so the loaders
+  a source file names are no bound on where the change differs (#1088). A representative of each
+  family is not enough for either: #1044's pull request ran 3 of the 5 loaders and its push failed
+  the 2 it skipped on the golden it changed;
 - every loader a mod whose tests the pull request runs declares gets a job: each declared loader the
   representatives and the diff do not already choose is added, because a representative of a family
   is no job on the mod's own loader. A ``core/`` change runs every mod, so an Ornithe-only port adds
@@ -64,6 +71,9 @@ HERE = Path(__file__).resolve().parent
 LOADERS = "loaders"
 # The mod directories, whose about.json declares the loaders each mod's tests run on.
 MODS = "mods"
+# The trees inside a mod that every loader renders: a golden is a capture per loader, and an asset is
+# drawn by every loader, so a change to one can differ on a loader no source file in the diff names.
+RENDERED_BY_EVERY_LOADER = ("screenshots", "assets")
 # The files a loader's build declares its source sets in.
 BUILD_FILES = ("build.gradle", "build.gradle.kts", "root.gradle")
 # A source directory a build declares, which is a literal path rather than a variable when it names
@@ -225,6 +235,12 @@ def describe(paths: list[str]) -> str:
     return shown + (f" and {len(paths) - 3} more" if len(paths) > 3 else "")
 
 
+def rendered_by_every_loader(path: str) -> bool:
+    """Whether a path is a mod's golden or asset, which every loader renders (#1088)."""
+    parts = PurePosixPath(path).parts
+    return len(parts) >= 4 and parts[0] == MODS and parts[2] in RENDERED_BY_EVERY_LOADER
+
+
 def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], list[str]]:
     """The loaders to run, sorted, and one line per reason for the CI log."""
     loaders = sorted(sibling("added-loaders").tree_loaders(repo, head))
@@ -262,6 +278,12 @@ def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], lis
                 f"loaders/{owner} is a loader's own code"
                 + (f", which {', '.join(sorted(others))} share" if others else ""),
                 [],
+            ).append(path)
+            continue
+        if rendered_by_every_loader(path):
+            chosen.update(current)
+            reasons.setdefault(
+                "a golden or an asset is rendered by every loader, so every loader runs", []
             ).append(path)
             continue
         compilers = sorted(

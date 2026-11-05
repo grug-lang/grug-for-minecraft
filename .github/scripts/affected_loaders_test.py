@@ -193,6 +193,40 @@ class AffectedLoadersTest(SelectionCase):
             REPRESENTATIVES,
         )
 
+    # A golden is a capture per loader and an asset is rendered by every loader, so neither can be
+    # narrowed to the loaders a source file names (#1088).
+
+    def test_a_change_to_a_golden_runs_every_loader(self):
+        # #1044's pull request ran 3 of the 5 loaders and its push failed the 2 it skipped on the
+        # golden it changed, because a representative's capture says nothing about another loader's.
+        self.assertEqual(
+            self.select(
+                {"mods/buildcraft/screenshots/cobblestone_pipe_straight/1.2.5-forge.png": "png\n"}
+            ),
+            ALL,
+        )
+        self.assertIn(
+            "a golden or an asset is rendered by every loader, so every loader runs", self.reason
+        )
+
+    def test_a_change_to_an_asset_runs_every_loader(self):
+        self.assertEqual(
+            self.select({"mods/buildcraft/assets/grug/lang/en_us.json": '{"block": "x"}\n'}),
+            ALL,
+        )
+        self.assertIn(
+            "a golden or an asset is rendered by every loader, so every loader runs", self.reason
+        )
+
+    def test_a_code_change_still_narrows_to_the_loaders_it_names(self):
+        # The golden and asset rule is about what every loader renders; a mod's own code still runs
+        # the representatives plus the loaders the changed mod declares, not every loader.
+        self.assertEqual(
+            self.select({"mods/buildcraft/code/wrench-Item.grug": "on_use() { x() }\n"}),
+            REPRESENTATIVES,
+        )
+        self.assertNotIn("every loader runs", self.reason)
+
     def test_a_change_in_core_runs_the_representatives(self):
         self.assertEqual(
             self.select({"core/src/Main.java": "class Main { int x; }\n"}), REPRESENTATIVES
