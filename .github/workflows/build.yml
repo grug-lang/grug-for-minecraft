@@ -1975,7 +1975,7 @@ jobs:
             "https://api.github.com/repos/$REPO/actions/runs/$BASE_RUN/artifacts?per_page=100" \
             | python3 -c "import json, re, sys; maps = sorted((int(m.group(1)), a['archive_download_url']) for a in json.load(sys.stdin)['artifacts'] if not a.get('expired', False) and (m := re.match(r'coverage-map-(\d+)$', a['name']))); print(maps[-1][1] if maps else '')")
           if [ -z "$url" ]; then
-            echo "::error::the coverage-map artifact of base run $BASE_RUN expired between the discover lookup and this step, so the carry-over fell back to nothing: the loader jobs already skipped the tests it names, and this step cannot rerun them, so the run fails instead of counting less coverage."
+            echo "::error::the coverage-map-<attempt> artifact of base run $BASE_RUN expired between the discover lookup and this step, so the carry-over fell back to nothing: the loader jobs already skipped the tests it names, and this step cannot rerun them, so the run fails instead of counting less coverage."
             exit 1
           fi
           curl -sfL -H "Authorization: Bearer $GITHUB_TOKEN" "$url" -o coverage/base-map.zip

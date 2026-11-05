@@ -556,6 +556,66 @@ class ServerReachableTest(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertNotIn("read the coverage map of attempt", out)
 
+    # The attempt is compared as a number, so attempt 10 is newer than attempt 2. Here the older
+    # attempt is the good map and the newer one names client-only code, so this run must read the
+    # newer map and fail; a selector that sorts the names as strings picks 2 and would pass.
+    def testTheAttemptIsComparedAsANumber(self):
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        maps = self.root / "maps"
+        self.write_map_attempt(
+            maps, 2, {"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}}
+        )
+        self.write_map_attempt(
+            maps, 10, {"1.20.6-forge": {CLIENT_TEST: {"pkg/Client": ["render:()V"]}}}
+        )
+        code, out, err = self.run_script(map_path=maps)
+        self.assertEqual(code, 1)
+        self.assertIn("read the coverage map of attempt 10", out)
+        self.assertIn("pkg/Client", err)
+
+    # The download pattern matches the tool too, and the two are downloaded side by side. The
+    # tool's directory holds a jar rather than a map, so the map attempt beside it is the one read.
+    def testTheToolBesideAMapAttemptIsIgnored(self):
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        maps = self.root / "maps"
+        self.write_map_attempt(
+            maps, 3, {"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}}
+        )
+        tool = maps / "coverage-map-tool"
+        tool.mkdir(parents=True)
+        (tool / "coverage-map-tool.jar").write_bytes(b"jar")
+        code, out, err = self.run_script(map_path=maps)
+        self.assertEqual(code, 0, err)
+        self.assertIn("read the coverage map of attempt 3", out)
+
+    # An empty or partial attempt directory, here the highest number, has no map to read, so it is
+    # skipped rather than chosen and then reported as a missing map.
+    def testAnAttemptDirectoryWithoutAMapFileIsSkipped(self):
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        maps = self.root / "maps"
+        self.write_map_attempt(
+            maps, 2, {"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}}
+        )
+        partial = maps / "coverage-map-5"
+        partial.mkdir(parents=True)
+        (partial / "notes.txt").write_text("an upload that stopped early")
+        code, out, err = self.run_script(map_path=maps)
+        self.assertEqual(code, 0, err)
+        self.assertIn("read the coverage map of attempt 2", out)
+
+    # A directory holding the map itself, with no attempt directory around it, is a layout the
+    # download action writes for a single artifact by name, and it is read without an attempt.
+    def testAFlatMapInTheDirectoryIsRead(self):
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        maps = self.root / "maps"
+        maps.mkdir()
+        (maps / "coverage-map.json").write_text(
+            json.dumps(map_of({"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}}))
+        )
+        code, out, err = self.run_script(map_path=maps)
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("read the coverage map of attempt", out)
+
 
 class RepositoryBaselineTest(unittest.TestCase):
     """The committed record has to explain every class it names, or it records nothing."""
