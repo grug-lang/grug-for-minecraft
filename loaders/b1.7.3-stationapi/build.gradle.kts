@@ -100,7 +100,7 @@ dependencies {
     // AlwaysMoreItems is deliberately absent: it draws 3D item cubes over the inventory's item
     // icons, so a dev runtime that loaded it drew a different item list from an installed game,
     // which loads only this mod's declared dependencies. The port never called it, and the JEI
-    // screenshot test pins the installed rendering (mods/jei/tests/item_list-Test.grug).
+    // screenshot test pins the installed rendering (mods/jei/tests/item_list_forced_normalization-Test.grug).
 }
 
 configurations.all {
