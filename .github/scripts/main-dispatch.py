@@ -14,7 +14,9 @@ The rule, in ``should_dispatch``: a dispatch is due when ``main``'s newest ``wor
 of ``build.yml`` is at least the interval old, and no ``build.yml`` run is live (requested, waiting,
 pending, queued or in progress) anywhere, because every run shares the 20 job slots and a dispatch
 must not compete with one. The Sunday release's dispatch is a ``workflow_dispatch`` on ``main`` like
-any other, so a recent one holds the check off too.
+any other, so a recent one holds the check off too. The runs API does not expose a dispatch's inputs,
+so one sent with ``-f mods=`` or ``-f base=`` counts as a full one even though it ran fewer jobs, and
+a partial dispatch can hold a full check off; that is a known limit.
 
 Prints one line saying why it did or did not dispatch. A run list that cannot be read fails the
 run rather than dispatching blindly, and a refused dispatch fails it too.

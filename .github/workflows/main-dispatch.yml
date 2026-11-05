@@ -18,9 +18,10 @@ name: Main dispatch
 #
 # The schedule is every 15 minutes, not every four hours: the check itself is a few API reads and
 # one short job, and it dispatches only when the newest dispatch is at least four hours old. A tick
-# that is due but busy therefore retries a quarter of an hour later rather than four hours later,
-# which keeps the newest dispatch under about five hours even when one build run is in flight at the
-# four-hour mark.
+# that is due but busy therefore retries a quarter of an hour later rather than four hours later, so
+# a busy pipeline delays the check by the length of that busy period instead of adding a second
+# four-hour wait. A long busy period can still hold the age near the end of it: it reached 8 h on
+# 2026-11-03, and the 25 h gap this replaces cannot come back from a busy tick alone.
 #
 # The manual trigger exists to exercise the check on a throwaway branch: dry_run defaults to true,
 # and interval_minutes can shorten the four hours so the due path runs without waiting. A scheduled
