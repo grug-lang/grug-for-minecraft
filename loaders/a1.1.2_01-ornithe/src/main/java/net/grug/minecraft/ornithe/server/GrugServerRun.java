@@ -6,6 +6,8 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.minecraft.entity.mob.player.PlayerEntity;
+import net.minecraft.network.Connection;
+import net.minecraft.network.packet.EntityTeleportPacket;
 import net.minecraft.world.World;
 
 import java.util.List;
@@ -203,6 +205,15 @@ public final class GrugServerRun {
         }
         player.setPositionAndAngles(player.x, holdY, player.z, player.yaw, player.pitch);
         player.velocityY = 0.0;
+        // A server-side setPositionAndAngles writes the server's copy and tells no one, and the
+        // camera is the client's: without the teleport the room would be built where the server's
+        // player now is while the frame is drawn from where the client's still is, which walks the
+        // fixture out of the band the saved-data tests capture. The game's own teleport packet is
+        // what makes a server's move visible, and the client's player is the entity it names.
+        Connection connection = GrugControlAlpha.connectionFor(player);
+        if (connection != null) {
+            connection.send(new EntityTeleportPacket(player));
+        }
         holds++;
         long now = System.currentTimeMillis();
         if (holds == 1 || now - lastHoldReportMillis >= 5000) {
