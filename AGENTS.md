@@ -155,14 +155,19 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 
 - A pull request runs 7 to 10 jobs of `build.yml`, or `discover` alone when no test can read the
   diff: `.github/scripts/affected-loaders.py` narrows the loader jobs to the loaders its diff
-  reaches plus one representative per mechanism (#637), and `.github/scripts/reference-needed.py`
-  and `.github/scripts/no-tests.py` skip the `reference` and the test jobs a diff cannot reach, each
-  saying why in its log. The jar, installed and smoke jobs and two steps of the core tests run only
-  on push to `main`, the weekly schedule and `workflow_dispatch`, and the Windows boot jobs only on
-  a dispatch and on a push that adds a loader (#632), so a green pull request says nothing about
-  them. A push to `main` runs only the mods its merge touched, on the loaders those reach, and
-  leaves every other loader's job on `mods/coverage` alone, which is all the coverage gate counts
-  (#909); the Monday schedule holds nothing back. `gh workflow run build.yml --ref <branch>` gives a
+  reaches plus one representative per mechanism (#637), except that a diff touching a mod's
+  `screenshots/` or `assets/` runs every loader, because a golden is a capture per loader and an
+  asset is rendered by every loader (#1088). `.github/scripts/reference-needed.py` and
+  `.github/scripts/no-tests.py` skip the `reference` and the test jobs a diff cannot reach, each
+  saying why in its log, and a golden also runs `reference`, which stages `screenshots/`, so a
+  buildcraft golden pull request runs 11. The jar, installed and smoke jobs and two steps of the
+  core tests run only on push to `main`, the weekly schedule and `workflow_dispatch`, and the
+  Windows boot jobs only on a dispatch and on a push that adds a loader (#632), so a green pull
+  request says nothing about them. A push to `main` runs only the mods its merge touched, on the
+  loaders those reach, and leaves every other loader's job on `mods/coverage` alone, which is all
+  the coverage gate counts (#909), except that a golden or an asset merge runs that mod's tests on
+  every loader, `installed` included, which costs a push 21 jobs against the plan's 20; the Monday
+  schedule holds nothing back. `gh workflow run build.yml --ref <branch>` gives a
   branch the full pipeline, with `-f repeats=<n>` to repeat the suite in one session and
   `-f base=<commit>` to compare the branch with the commit it started from, which drops the Windows
   boot jobs unless that diff reaches the native path or the installed jar (#826,

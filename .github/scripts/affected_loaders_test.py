@@ -218,6 +218,24 @@ class AffectedLoadersTest(SelectionCase):
             "a golden or an asset is rendered by every loader, so every loader runs", self.reason
         )
 
+    def test_a_png_directly_in_screenshots_runs_every_loader(self):
+        # The tree is `screenshots/<capture>/<loader>.png`, but the rule reads the third component,
+        # so a PNG straight in `screenshots/` is a golden too and must not fall through to the
+        # representatives.
+        self.assertEqual(self.select({"mods/buildcraft/screenshots/1.2.5-forge.png": "png\n"}), ALL)
+        self.assertIn(
+            "a golden or an asset is rendered by every loader, so every loader runs", self.reason
+        )
+
+    def test_a_directory_that_only_starts_with_screenshots_still_narrows(self):
+        # `<mod>/screenshots_old/` is no golden tree, so it is an ordinary mod file and the answer
+        # stays the representatives; this keeps a future tightening of the match honest.
+        self.assertEqual(
+            self.select({"mods/buildcraft/screenshots_old/1.2.5-forge.png": "png\n"}),
+            REPRESENTATIVES,
+        )
+        self.assertNotIn("every loader runs", self.reason)
+
     def test_a_code_change_still_narrows_to_the_loaders_it_names(self):
         # The golden and asset rule is about what every loader renders; a mod's own code still runs
         # the representatives plus the loaders the changed mod declares, not every loader.
