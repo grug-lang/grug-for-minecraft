@@ -151,16 +151,6 @@ public final class GrugOverlayHost {
                 }
             }
 
-            // The item draw scales its model by ten and shades it with the game's fixed-function
-            // lights, so a normalizing capability the frame left on renders each icon's left face
-            // about 1.9 times brighter. The game's slime renderer turns GL_NORMALIZE on and never
-            // turns it off again, so a slime rendered earlier in the session decides it. That is
-            // what made the JEI item list capture flake (#1137). Pin both capabilities off for the
-            // icons and put back what the frame had, so this draw is the same whatever ran before.
-            boolean normalized = GL11.glIsEnabled(GL11.GL_NORMALIZE);
-            boolean rescaled = GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
-            GL11.glDisable(GL11.GL_NORMALIZE);
-            GL11.glDisable(GL12.GL_RESCALE_NORMAL);
             Lighting.turnOn();
             for (GrugScreenItemDraw item : drawn.items()) {
                 renderItem.renderGuiItemWithEnchantmentGlint(
@@ -171,8 +161,6 @@ public final class GrugOverlayHost {
                         (int) item.y());
             }
             Lighting.turnOff();
-            if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
-            if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
             boxes.addAll(drawn.boxes());
         }
         return boxes;
