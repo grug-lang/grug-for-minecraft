@@ -15,7 +15,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -85,7 +84,8 @@ public class GrugSavedDataPacket extends Packet {
      * {@link #applyPending} is called once a client tick with the world being drawn, on the thread
      * that draws.
      */
-    private static final List<GrugSavedDataPacket> PENDING = new ArrayList<>();
+    private static final GrugSavedDataQueue<GrugSavedDataPacket> PENDING =
+            new GrugSavedDataQueue<>();
 
     /** How many client ticks a packet waits for its block entity to appear. */
     private static final int PENDING_TICKS = 20;
@@ -99,9 +99,7 @@ public class GrugSavedDataPacket extends Packet {
             return;
         }
         waits = PENDING_TICKS;
-        synchronized (PENDING) {
-            PENDING.add(this);
-        }
+        PENDING.add(this);
     }
 
     /**
@@ -116,27 +114,20 @@ public class GrugSavedDataPacket extends Packet {
      * the client yet, which is what the next few ticks settle. The block at the position has to be
      * the one the packet was sent for, or a packet that arrives after the block changed, which the
      * next test's fixture does, would write one block's data into another's.
+     *
+     * <p>The queue is scoped to the world it was filled in, so a packet that is still waiting when
+     * the client leaves that world is dropped rather than applied to whatever block the next world
+     * holds at the same position.
      */
     public static void applyPending(Object level) {
-        // The level can be absent on a tick before the world is up, and draining first would throw
-        // every waiting packet away for good. They stay queued until there is a world for them.
+        List<GrugSavedDataPacket> ready = PENDING.take(level);
         if (!(level instanceof World)) {
             return;
         }
         World world = (World) level;
-        List<GrugSavedDataPacket> ready;
-        synchronized (PENDING) {
-            if (PENDING.isEmpty()) {
-                return;
-            }
-            ready = new ArrayList<>(PENDING);
-            PENDING.clear();
-        }
         for (GrugSavedDataPacket packet : ready) {
             if (packet.apply(world) > 0) {
-                synchronized (PENDING) {
-                    PENDING.add(packet);
-                }
+                PENDING.add(packet);
             }
         }
     }

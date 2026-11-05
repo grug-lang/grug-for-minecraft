@@ -1,0 +1,11 @@
+# The screenshot asking for the share is the one that never captured anything. This is the other
+# half of the check the next test covers: there the unread one was the argument, here it is the
+# receiver, and a check written as "either capture is missing" has two ways to be true.
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.expect_error("have to be captured first")
+        never_read: Screenshot = Test.screenshot()
+        captured: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        never_read.change_from(captured)
+    }
+}

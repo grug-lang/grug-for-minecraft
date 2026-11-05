@@ -1972,6 +1972,52 @@ public class HostFunctions {
         return screenshotId;
     }
 
+    /**
+     * How much of this capture differs from another, as a percentage, without failing the test, so
+     * a test can wait for a frame drawn on another side to catch up and assert once with {@code
+     * differs_from}.
+     */
+    public static double Screenshot_change_from(long screenshotId, long otherId) {
+        String name = "Screenshot.change_from";
+        Double changed =
+                withEntity(
+                        name,
+                        "screenshot",
+                        screenshotId,
+                        screenshot ->
+                                withEntity(
+                                        name,
+                                        "screenshot",
+                                        otherId,
+                                        other -> {
+                                            GrugScreenshot shot = (GrugScreenshot) screenshot;
+                                            GrugScreenshot otherShot = (GrugScreenshot) other;
+                                            if (shot.captured() == null
+                                                    || otherShot.captured() == null) {
+                                                Grug.hostFunctionErrorHappened(
+                                                        Grug.statePtr,
+                                                        name
+                                                                + ": both screenshots have to be"
+                                                                + " captured first, with"
+                                                                + " Screenshot.capture, before"
+                                                                + " they can be compared.");
+                                                return null;
+                                            }
+                                            try {
+                                                return GrugScreenshots.changedPercent(
+                                                        shot.captured(), otherShot.captured());
+                                            } catch (IllegalArgumentException e) {
+                                                Grug.hostFunctionErrorHappened(
+                                                        Grug.statePtr,
+                                                        name + ": " + e.getMessage());
+                                                return null;
+                                            }
+                                        },
+                                        null),
+                        null);
+        return changed == null ? 0 : changed;
+    }
+
     public static void Screenshot_differs_from(long screenshotId, long otherId, double percent) {
         String name = "Screenshot.differs_from";
         withEntity(

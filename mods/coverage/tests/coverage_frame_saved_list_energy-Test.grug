@@ -4,23 +4,25 @@
 # coverage_frame block draws its extra row once its list has an item or its energy store is above 0,
 # and each assertion is that the frame changed. It defines tick_any_side, so a dedicated server runs
 # it too: the settle wait is forwarded to the joined client, and the captures are the client's
-# (#1086). The row alone cannot say which of the two paths arrived, so the test walks three transitions on
-# one block, each compared with the capture before it: an empty frame, then the list record with its
-# item, then the record removed, then the energy store alone. The row that comes back in the last
-# step is the energy's, because the list is gone by then. The crop is taller than coverage_frame's
-# golden: a dedicated server builds the room from its own copy of the player, which can stand a
-# block above the joined client's, and the block then sits a block higher in that client's frame,
-# above the golden's crop, with the rows still inside this one.
+# (#1086). The row alone cannot say which of the two paths arrived, so the test walks three
+# transitions on one block, each compared with the capture before it: an empty frame, then the list
+# record with its item, then the record removed, then the energy store alone. The row that comes
+# back in the last step is the energy's, because the list is gone by then. The crop is taller than
+# coverage_frame's golden: a dedicated server builds the room from its own copy of the player, which
+# can stand a block above the joined client's, and the block then sits a block higher in that
+# client's frame, above the golden's crop, with the rows still inside this one.
 frame_block: Option[BlockEntity] = Option.new()
 before: Option[Screenshot] = Option.new()
 
-# Which transition the test is waiting on, and the tick it made it on.
+# Which transition the test is waiting on, the tick its change was made on, and how many captures
+# have already shown the frame from before that change.
 step: number = 0
 step_tick: number = 0
+attempts: number = 0
 
 export init(ctx: TestInitContext) {
-    # Three waits of 90 ticks, beside the setup and the captures' own ticks, pass the default 200.
-    ctx.set_max_ticks(400)
+    # Eight captures of 30 ticks each per transition, beside the setup, pass the default 200.
+    ctx.set_max_ticks(1000)
 }
 
 export tick_any_side(ctx: TestTickContext) {
@@ -34,48 +36,62 @@ export tick_any_side(ctx: TestTickContext) {
         before.set(Test.screenshot().capture(500, 80, 780, 340))
         frame_block.unwrap().append_saved_list_record("things")
         frame_block.unwrap().set_saved_list_item("things", 0, item(resource_location("minecraft:stick")))
-        step = 1
-        step_tick = ctx.current_tick()
-        ctx.not_done()
-    } else if ctx.current_tick() < step_tick + 90 {
-        # The change is a packet and a frame away, and nothing marks the world unsettled for it: a
-        # script saves data as it runs and a world that settled only between those would never
-        # settle. The wait is three times what the packet and a frame need, because a capture
-        # freezes the world for 20 of the client's own ticks and a busy runner can leave the client
-        # behind, which is how one dedicated-server run read the row a transition late.
+        _next_step(ctx, 1)
+    } else if ctx.current_tick() < step_tick + 30 {
+        # Nothing marks the world unsettled for a saved-data change: a script saves data as it runs,
+        # so a world that settled only between those would never settle. This short wait keeps the
+        # captures from spinning; whether the change arrived is decided by the capture below.
         ctx.not_done()
     } else if step == 1 {
         # The list's item alone brought the row in.
         listed: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
-        listed.differs_from(before.unwrap(), 1)
-        before.set(listed)
-        frame_block.unwrap().remove_saved_list_record("things", 0)
-        step = 2
-        step_tick = ctx.current_tick()
-        ctx.not_done()
-    } else if ctx.current_tick() < step_tick + 90 {
-        ctx.not_done()
+        if listed.change_from(before.unwrap()) < 1 {
+            _wait_for_change(ctx, "The list's item never reached the client's frame.")
+        } else {
+            before.set(listed)
+            frame_block.unwrap().remove_saved_list_record("things", 0)
+            _next_step(ctx, 2)
+        }
     } else if step == 2 {
         # Nothing draws the row any more, so the frame has to be the empty one again. Without this
         # the energy's row could be the list's row that never left.
         emptied: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
-        emptied.differs_from(before.unwrap(), 1)
-        before.set(emptied)
-        frame_block.unwrap().receive_energy(5)
-        step = 3
-        step_tick = ctx.current_tick()
-        ctx.not_done()
-    } else if ctx.current_tick() < step_tick + 90 {
-        ctx.not_done()
+        if emptied.change_from(before.unwrap()) < 1 {
+            _wait_for_change(ctx, "The removed list never left the client's frame.")
+        } else {
+            before.set(emptied)
+            frame_block.unwrap().receive_energy(5)
+            _next_step(ctx, 3)
+        }
     } else if step == 3 {
         # The energy store alone draws the row back.
         energised: Screenshot = Test.screenshot().capture(500, 80, 780, 340)
-        energised.differs_from(before.unwrap(), 1)
-
-        ctx.assert(frame_block.unwrap().get_saved_list_size("things") == 0, "The record should be gone.")
-        ctx.assert(frame_block.unwrap().get_energy_stored() == 5, "The energy should still be stored.")
-        step = 4
+        if energised.change_from(before.unwrap()) < 1 {
+            _wait_for_change(ctx, "The energy store never reached the client's frame.")
+        } else {
+            ctx.assert(frame_block.unwrap().get_saved_list_size("things") == 0, "The record should be gone.")
+            ctx.assert(frame_block.unwrap().get_energy_stored() == 5, "The energy should still be stored.")
+            step = 4
+        }
     }
+}
+
+local _next_step(ctx: TestTickContext, next: number) {
+    step = next
+    step_tick = ctx.current_tick()
+    attempts = 0
+    ctx.not_done()
+}
+
+# The capture is the client's own frame, so a client that is behind answers with the frame from
+# before the change. Capture again 30 ticks later, up to the budget, rather than deciding after one
+# fixed wait: the wait ends as soon as the change arrives, and a change that never arrives fails
+# with the transition it was, however slow the runner turned out to be.
+local _wait_for_change(ctx: TestTickContext, message: string) {
+    attempts = attempts + 1
+    ctx.assert(attempts < 8, message)
+    step_tick = ctx.current_tick()
+    ctx.not_done()
 }
 
 local _setup(ctx: TestTickContext) {

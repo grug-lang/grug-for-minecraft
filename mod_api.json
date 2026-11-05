@@ -3192,6 +3192,20 @@
 						}
 					]
 				},
+				"change_from": {
+					"description": "The share of this screenshot's pixels that differ from another one, as a percentage from 0 to 100, without failing the test. Both captures have to have been read with `capture` first, and they have to be the same size. It counts a changed pixel exactly as `differs_from` does, so a share at or above that method's percent is what passes it. A test whose change is drawn on the client while the test runs on a dedicated server uses it to wait for the change to arrive: capture, compare, and try again while the share is still below the floor, so the wait ends as soon as the frame catches up instead of after a tick count that a loaded runner can outlast.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "other",
+							"type": {
+								"name": "Screenshot"
+							}
+						}
+					]
+				},
 				"differs_from": {
 					"description": "Fails the test unless at least `percent` of the pixels of this screenshot differ from another one, both of which have to have been read with `capture` first. This is the assertion for a change the test caused, such as a texture it swapped: a frame that still shows what it showed before changes nothing and fails, and it does not count a pixel a single lighting unit apart as changed at all, because a surface the game lights per vertex can come out one part brighter between two runs of an unchanged frame and that is not what the test is asking about. The two captures have to be the same size, which is how a test that cropped two different rectangles is caught rather than compared. Note that a percent of 0 always passes, so ask for the share of the rectangle the change is actually expected to cover: swapping a whole texture changes every pixel of it, while a change to one sprite in a sprite sheet may be a small part of the frame.",
 					"parameters": [
