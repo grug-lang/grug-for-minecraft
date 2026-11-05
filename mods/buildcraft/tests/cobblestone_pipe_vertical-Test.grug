@@ -1,0 +1,178 @@
+# Covers a vertical hand-over between two cobblestone pipes, up and down, as PipeTransportItems does
+# it: at a pipe's centre the item picks the exit that can take it, and endReached hands it over when
+# its position passes the pipe's block. From the pipe floor, which is a quarter above the block's
+# bottom, the top is 0.75 away and the bottom 0.25, so the 76th move upwards is the first past the
+# top and the 26th downwards the first past the bottom, where a horizontal exit takes 51.
+# entityEntering keeps a vertical entry's y and only puts a horizontal entry on the new pipe's floor,
+# so an item entering a pipe from below starts 0.01 above that pipe's bottom, which is 0.24 below its
+# floor, and reaches the centre in 23 moves; one entering from above starts 0.01 below that pipe's
+# top, which is 0.74 above its floor, and takes 73. Both hand-overs are between cobblestone pipes,
+# and the wooden pipe that pulls is ticked by hand after one dose of energy, so no engine timing can
+# shift the counts.
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    # Bands 14 and 20, clear of the bands the other pipe tests use. The two fixtures are also apart
+    # in z, so the upper fixture's chest cannot meet the lower one.
+    _up(ctx, level, origin.x(), origin.y() + 14, origin.z())
+    _down(ctx, level, origin.x(), origin.y() + 20, origin.z() + 6)
+}
+
+# The item goes from the wooden pipe into the lower pipe, which is the only pipe it can enter, then
+# up into the upper pipe and on into the chest above it.
+local _up(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    level.place_block(x - 2, y, z, "minecraft:chest")
+    level.place_block(x - 1, y, z, "grug:wooden_pipe")
+    level.place_block(x, y, z, "grug:cobblestone_pipe")
+    level.place_block(x, y + 1, z, "grug:cobblestone_pipe")
+    level.place_block(x, y + 2, z, "minecraft:chest")
+
+    source: BlockEntity = _entity(ctx, level, x - 2, y, z)
+    wooden: BlockEntity = _entity(ctx, level, x - 1, y, z)
+    lower: BlockEntity = _entity(ctx, level, x, y, z)
+    upper: BlockEntity = _entity(ctx, level, x, y + 1, z)
+    target: BlockEntity = _entity(ctx, level, x, y + 2, z)
+    bx: number = Math.floor(x)
+    by: number = Math.floor(y)
+
+    source.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+    wooden.receive_energy(1)
+    Test.tick_block_entity(wooden, 1)
+    ctx.assert(wooden.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
+
+    # The pull, the 49 moves to the wooden pipe's centre and 50 of the 51 to its east face.
+    Test.tick_block_entity(wooden, 99)
+    ctx.assert(lower.get_saved_list_size("traveling") == 0, "The item should still be inside the wooden pipe after 50 moves from its centre.")
+    Test.tick_block_entity(wooden, 1)
+    ctx.assert(lower.get_saved_list_size("traveling") == 1, "The 51st move should hand the item to the lower cobblestone pipe.")
+    ctx.assert(_number(lower, "direction") == 5, "The item should still travel east into the lower pipe.")
+    ctx.assert(_number(lower, "to_center") == 1, "The item should be heading for the lower pipe's centre.")
+    ctx.assert(_hundredths(_number(lower, "x") - bx) == 1, "The item should enter 0.01 past the lower pipe's west face.")
+    ctx.assert(_hundredths(_number(lower, "y") - by) == 25, "A horizontal entry should put the item on the lower pipe's floor.")
+
+    # 48 moves from the entry reach the lower pipe's centre, where the only exit is up.
+    Test.tick_block_entity(lower, 47)
+    ctx.assert(_number(lower, "to_center") == 1, "47 moves should not reach the lower pipe's centre.")
+    Test.tick_block_entity(lower, 1)
+    ctx.assert(_number(lower, "to_center") == 0, "The 48th move should reach the centre.")
+    ctx.assert(_hundredths(_number(lower, "x") - bx) == 50, "The item should snap to the lower pipe's centre.")
+    ctx.assert(_number(lower, "direction") == 1, "The only exit is the upper pipe, so the pick should be up.")
+
+    # 75 moves up from the centre leave the item on the block's top, which endReached does not count
+    # as past it, and the 76th is 0.01 above it.
+    Test.tick_block_entity(lower, 75)
+    ctx.assert(lower.get_saved_list_size("traveling") == 1, "75 moves up from the centre should still be inside the lower pipe.")
+    ctx.assert(_hundredths(_number(lower, "y") - by) == 100, "75 moves up should leave the item on the lower pipe's top.")
+    Test.tick_block_entity(lower, 1)
+    ctx.assert(lower.get_saved_list_size("traveling") == 0, "The 76th move up should hand the item over.")
+    ctx.assert(upper.get_saved_list_size("traveling") == 1, "The upper pipe should have taken the item.")
+    ctx.assert(_number(upper, "direction") == 1, "The item should still travel up into the upper pipe.")
+    ctx.assert(_number(upper, "to_center") == 1, "The item should be heading for the upper pipe's centre.")
+    ctx.assert(_hundredths(_number(upper, "y") - by) == 101, "The item should enter 0.01 past the lower pipe's top.")
+    ctx.assert(_hundredths(_number(upper, "x") - bx) == 50, "A vertical entry should keep the item on the pipe's centre line.")
+    ctx.assert(_number(upper, "speed") == 0.01, "The item should keep the normal pipe speed.")
+
+    # The vertical entry keeps the y, so the item is 0.24 below the upper pipe's floor and takes 23
+    # moves to reach it.
+    Test.tick_block_entity(upper, 22)
+    ctx.assert(_number(upper, "to_center") == 1, "22 moves should not reach the upper pipe's centre.")
+    Test.tick_block_entity(upper, 1)
+    ctx.assert(_number(upper, "to_center") == 0, "The 23rd move should reach the centre.")
+    ctx.assert(_hundredths(_number(upper, "y") - by) == 125, "The item should snap to the upper pipe's floor.")
+    ctx.assert(_number(upper, "direction") == 1, "The only exit is the chest above, so the pick stays up.")
+
+    Test.tick_block_entity(upper, 75)
+    ctx.assert(upper.get_saved_list_size("traveling") == 1, "75 moves up from the centre should still be inside the upper pipe.")
+    Test.tick_block_entity(upper, 1)
+    ctx.assert(upper.get_saved_list_size("traveling") == 0, "The 76th move up should hand the item to the chest.")
+    ctx.assert(target.get_item_count_in_slot(0) == 1, "The chest above should hold the diamond.")
+    ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
+    ctx.assert(wooden.get_saved_list_size("traveling") == 0, "The wooden pipe should hold nothing.")
+}
+
+# The item goes from the wooden pipe into the source pipe, then down into the lower pipe and on into
+# the chest below it.
+local _down(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    level.place_block(x - 2, y, z, "minecraft:chest")
+    level.place_block(x - 1, y, z, "grug:wooden_pipe")
+    level.place_block(x, y, z, "grug:cobblestone_pipe")
+    level.place_block(x, y - 1, z, "grug:cobblestone_pipe")
+    level.place_block(x, y - 2, z, "minecraft:chest")
+
+    source: BlockEntity = _entity(ctx, level, x - 2, y, z)
+    wooden: BlockEntity = _entity(ctx, level, x - 1, y, z)
+    upper: BlockEntity = _entity(ctx, level, x, y, z)
+    lower: BlockEntity = _entity(ctx, level, x, y - 1, z)
+    target: BlockEntity = _entity(ctx, level, x, y - 2, z)
+    bx: number = Math.floor(x)
+    by: number = Math.floor(y)
+
+    source.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+    wooden.receive_energy(1)
+    Test.tick_block_entity(wooden, 1)
+    ctx.assert(wooden.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
+
+    Test.tick_block_entity(wooden, 99)
+    ctx.assert(upper.get_saved_list_size("traveling") == 0, "The item should still be inside the wooden pipe after 50 moves from its centre.")
+    Test.tick_block_entity(wooden, 1)
+    ctx.assert(upper.get_saved_list_size("traveling") == 1, "The 51st move should hand the item to the upper cobblestone pipe.")
+    ctx.assert(_number(upper, "direction") == 5, "The item should still travel east into the upper pipe.")
+    ctx.assert(_number(upper, "to_center") == 1, "The item should be heading for the upper pipe's centre.")
+    ctx.assert(_hundredths(_number(upper, "x") - bx) == 1, "The item should enter 0.01 past the upper pipe's west face.")
+    ctx.assert(_hundredths(_number(upper, "y") - by) == 25, "A horizontal entry should put the item on the upper pipe's floor.")
+
+    # 48 moves from the entry reach the upper pipe's centre, where the only exit is down.
+    Test.tick_block_entity(upper, 47)
+    ctx.assert(_number(upper, "to_center") == 1, "47 moves should not reach the upper pipe's centre.")
+    Test.tick_block_entity(upper, 1)
+    ctx.assert(_number(upper, "to_center") == 0, "The 48th move should reach the centre.")
+    ctx.assert(_hundredths(_number(upper, "x") - bx) == 50, "The item should snap to the upper pipe's centre.")
+    ctx.assert(_number(upper, "direction") == 0, "The only exit is the lower pipe, so the pick should be down.")
+
+    # 25 moves down from the centre leave the item on the block's bottom, which endReached does not
+    # count as past it, and the 26th is 0.01 below it.
+    Test.tick_block_entity(upper, 25)
+    ctx.assert(upper.get_saved_list_size("traveling") == 1, "25 moves down from the centre should still be inside the upper pipe.")
+    ctx.assert(_hundredths(_number(upper, "y") - by) == 0, "25 moves down should leave the item on the upper pipe's bottom.")
+    Test.tick_block_entity(upper, 1)
+    ctx.assert(upper.get_saved_list_size("traveling") == 0, "The 26th move down should hand the item over.")
+    ctx.assert(lower.get_saved_list_size("traveling") == 1, "The lower pipe should have taken the item.")
+    ctx.assert(_number(lower, "direction") == 0, "The item should still travel down into the lower pipe.")
+    ctx.assert(_number(lower, "to_center") == 1, "The item should be heading for the lower pipe's centre.")
+    ctx.assert(_hundredths(_number(lower, "y") - by) == -1, "The item should enter 0.01 past the upper pipe's bottom.")
+    ctx.assert(_hundredths(_number(lower, "x") - bx) == 50, "A vertical entry should keep the item on the pipe's centre line.")
+    ctx.assert(_number(lower, "speed") == 0.01, "The item should keep the normal pipe speed.")
+
+    # The vertical entry keeps the y, so the item is 0.74 above the lower pipe's floor and takes 73
+    # moves to reach it.
+    Test.tick_block_entity(lower, 72)
+    ctx.assert(_number(lower, "to_center") == 1, "72 moves should not reach the lower pipe's centre.")
+    Test.tick_block_entity(lower, 1)
+    ctx.assert(_number(lower, "to_center") == 0, "The 73rd move should reach the centre.")
+    ctx.assert(_hundredths(_number(lower, "y") - by) == -75, "The item should snap to the lower pipe's floor.")
+    ctx.assert(_number(lower, "direction") == 0, "The only exit is the chest below, so the pick stays down.")
+
+    Test.tick_block_entity(lower, 25)
+    ctx.assert(lower.get_saved_list_size("traveling") == 1, "25 moves down from the centre should still be inside the lower pipe.")
+    Test.tick_block_entity(lower, 1)
+    ctx.assert(lower.get_saved_list_size("traveling") == 0, "The 26th move down should hand the item to the chest.")
+    ctx.assert(target.get_item_count_in_slot(0) == 1, "The chest below should hold the diamond.")
+    ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
+    ctx.assert(wooden.get_saved_list_size("traveling") == 0, "The wooden pipe should hold nothing.")
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+local _number(pipe: BlockEntity, key: string) number {
+    return pipe.get_saved_list_number("traveling", 0, key)
+}
+
+# A position is accumulated one float64 step at a time, so rounding the distance to hundredths is
+# what the tests compare, as wooden_pipe_travel does.
+local _hundredths(value: number) number {
+    return Math.floor(value * 100 + 0.5)
+}

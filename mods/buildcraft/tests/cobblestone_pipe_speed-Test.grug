@@ -1,0 +1,71 @@
+# Covers PipeTransportItems.entityEntering's readjustSpeed, which the cobblestone pipe inherits from
+# the default: a speed above Utils.pipeNormalSpeed (0.01) loses 0.01, and a speed below it is raised
+# to 0.01. In the reference the gold pipe's entityEntered is what makes an item faster than normal
+# (pipeNormalSpeed * 20), and this port has no gold pipe yet, so the three records are written at the
+# speeds a gold pipe would leave them. All three enter one cobblestone pipe in the same tick: 0.03
+# loses 0.01 and enters at 0.02, 0.015 loses 0.01 and its 0.005 is raised back to 0.01, and 0.01
+# loses nothing because the floor puts it back.
+# Each record is written at the 50th move from the source pipe's centre and at the position its own
+# speed carries 0.01 past the east face, so the one move the test runs is the hand-over for all
+# three, as the reference's endReached would see it.
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # Band 22, clear of the bands the other pipe tests use.
+    y: number = origin.y() + 22
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:cobblestone_pipe")
+    level.place_block(x + 1, y, z, "grug:cobblestone_pipe")
+    source: BlockEntity = _entity(ctx, level, x, y, z)
+    target: BlockEntity = _entity(ctx, level, x + 1, y, z)
+
+    _record(source, x + 0.48, y - 0.25, z, 0.03)
+    _record(source, x + 0.495, y - 0.25, z, 0.015)
+    _record(source, x + 0.5, y - 0.25, z, 0.01)
+
+    Test.tick_block_entity(source, 1)
+    ctx.assert(source.get_saved_list_size("traveling") == 0, "All three records should have been handed over.")
+    ctx.assert(target.get_saved_list_size("traveling") == 3, "The target pipe should have taken all three records.")
+    ctx.assert(_thousandths(_speed(target, 0)) == 20, "A speed of 0.03 should enter at 0.02.")
+    ctx.assert(_thousandths(_speed(target, 1)) == 10, "A speed of 0.015 should lose 0.01 and be raised back to 0.01.")
+    ctx.assert(_thousandths(_speed(target, 2)) == 10, "A speed of 0.01 should stay at 0.01.")
+    ctx.assert(_number(target, 0, "to_center") == 1, "Every entered record should head for the target pipe's centre.")
+    ctx.assert(_number(target, 0, "direction") == 5, "Every entered record should still travel east.")
+}
+
+# Adds one record at the pipe floor, already past the centre and 50 moves into its journey east.
+local _record(pipe: BlockEntity, px: number, py: number, pz: number, speed: number) {
+    index: number = pipe.append_saved_list_record("traveling")
+    pipe.set_saved_list_number("traveling", index, "x", px)
+    pipe.set_saved_list_number("traveling", index, "y", py)
+    pipe.set_saved_list_number("traveling", index, "z", pz)
+    pipe.set_saved_list_number("traveling", index, "speed", speed)
+    pipe.set_saved_list_number("traveling", index, "direction", 5)
+    pipe.set_saved_list_number("traveling", index, "steps", 50)
+    pipe.set_saved_list_number("traveling", index, "to_center", 0)
+    pipe.set_saved_list_number("traveling", index, "count", 1)
+    pipe.set_saved_list_number("traveling", index, "damage", 0)
+    pipe.set_saved_list_item("traveling", index, item(resource_location("minecraft:diamond")))
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+local _number(pipe: BlockEntity, index: number, key: string) number {
+    return pipe.get_saved_list_number("traveling", index, key)
+}
+
+local _speed(pipe: BlockEntity, index: number) number {
+    return pipe.get_saved_list_number("traveling", index, "speed")
+}
+
+# A readjusted speed is a float64 subtraction, so 0.03 - 0.01 is not the double nearest 0.02; the
+# thousandths are what the test compares, as the position tests compare hundredths.
+local _thousandths(value: number) number {
+    return Math.floor(value * 1000 + 0.5)
+}

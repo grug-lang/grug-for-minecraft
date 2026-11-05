@@ -1,0 +1,81 @@
+# Covers PipeTransportItems.endReached's drop when the destination cannot take the item: the item
+# reaches the face of the block it was sent to and is dropped there, moving at 0.1 + speed * 2 along
+# its travel direction with the reference's scatter, and waiting 20 ticks before it can be picked up.
+# The destination is a chest that the test removes after the pick at the source pipe's centre, so the
+# item is already on its way east when the destination disappears. The reference reaches the same
+# drop through endReached's else branch, which handles a tile that is neither an item pipe nor an
+# inventory; the port's _enter_pipe has a branch for a pipe block whose block entity is missing,
+# which no test can build because every placed pipe has one, so this covers the same _drop_moving
+# call through the route a test can reach. See #1013.
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # Band 26, clear of the bands the other pipe tests use.
+    y: number = origin.y() + 26
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:cobblestone_pipe")
+    level.place_block(x + 1, y, z, "minecraft:chest")
+    pipe: BlockEntity = _entity(ctx, level, x, y, z)
+    ctx.assert(level.get_block_entity(x + 1, y, z).has(), "The destination chest should have a block entity.")
+
+    # One record at the pipe floor and centre, heading for the centre, so the first tick picks the
+    # chest as the only exit.
+    _hold(pipe, item(resource_location("minecraft:diamond")))
+
+    Test.tick_block_entity(pipe, 1)
+    ctx.assert(_number(pipe, "to_center") == 0, "The first move should reach the centre and pick the chest.")
+    ctx.assert(_number(pipe, "direction") == 5, "The only exit is the chest, so the pick should be east.")
+
+    # The destination is gone before the item reaches its face, as a pipe that cannot take the item
+    # would leave it.
+    level.place_block(x + 1, y, z, "minecraft:air")
+    ctx.assert(level.is_air(x + 1, y, z), "The destination should be gone.")
+
+    # 50 moves from the centre leave the item on the pipe's east face, and the 51st is 0.01 past it,
+    # where the drop happens.
+    Test.tick_block_entity(pipe, 50)
+    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "50 moves from the centre should still be inside the pipe.")
+    Test.tick_block_entity(pipe, 1)
+    ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The 51st move should drop the item.")
+
+    # The drop is at the face, not at the centre the item was sent from.
+    ctx.assert(level.count_item_entities(x, y, z, 0.5) == 0, "The item should not be dropped at the pipe's centre.")
+    dropped: number = level.count_item_entities(x + 0.51, y - 0.25, z, 0.5)
+    ctx.assert(dropped == 1, "The pipe should have dropped the item 0.01 past its east face.")
+
+    found_opt: Option[ItemEntity] = level.find_item_entity(x + 0.51, y - 0.25, z, 0.5)
+    ctx.assert(found_opt.has(), "The dropped item should be on the ground at the face.")
+    found: ItemEntity = found_opt.unwrap()
+    ctx.assert(found.count() == 1, "The dropped item entity should hold the record's one item.")
+    # EntityPassiveItem.toEntityItem makes a thrown stack wait 20 ticks. No entity has ticked since
+    # the drop, so the delay is still the one the pipe set.
+    ctx.assert(found.pickup_delay() == 20, "A stack thrown out of the pipe should wait 20 ticks before it can be picked up.")
+}
+
+# One travelling record at the pipe floor and centre, heading for the centre, carrying the item.
+local _hold(pipe: BlockEntity, held: Item) {
+    center: Vec3 = pipe.block_pos().center()
+    index: number = pipe.append_saved_list_record("traveling")
+    pipe.set_saved_list_number("traveling", index, "x", center.x())
+    pipe.set_saved_list_number("traveling", index, "y", center.y() - 0.25)
+    pipe.set_saved_list_number("traveling", index, "z", center.z())
+    pipe.set_saved_list_number("traveling", index, "speed", 0.01)
+    pipe.set_saved_list_number("traveling", index, "direction", 5)
+    pipe.set_saved_list_number("traveling", index, "steps", 0)
+    pipe.set_saved_list_number("traveling", index, "to_center", 1)
+    pipe.set_saved_list_number("traveling", index, "count", 1)
+    pipe.set_saved_list_number("traveling", index, "damage", 0)
+    pipe.set_saved_list_item("traveling", index, held)
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+local _number(pipe: BlockEntity, key: string) number {
+    return pipe.get_saved_list_number("traveling", 0, key)
+}
