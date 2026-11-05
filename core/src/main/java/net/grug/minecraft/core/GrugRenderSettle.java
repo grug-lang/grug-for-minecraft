@@ -1,6 +1,5 @@
 package net.grug.minecraft.core;
 
-import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 
 import java.util.function.BooleanSupplier;
@@ -39,10 +38,11 @@ public final class GrugRenderSettle {
     /**
      * The value {@link #frames} had when the frame that finished last had the save indicator in it.
      *
-     * <p>Starts two frames back, so that a client that never drew the indicator answers cleared
-     * before its first frame: there is nothing in the buffer to avoid.
+     * <p>Starts at 0, like {@link #lastBusyFrame}, so the first two frames after a reset have to be
+     * drawn before a capture may read one: the buffer can still hold a frame from before the reset,
+     * which a previous test's save may have drawn its text into.
      */
-    private long lastIndicatorFrame = -2;
+    private long lastIndicatorFrame = 0;
 
     /**
      * One completed frame, called from the loader's own frame hook.
@@ -237,9 +237,9 @@ public final class GrugRenderSettle {
      *
      * <p>The frame a capture reads is one behind the last one drawn, so a frame drawn without the
      * indicator is not enough: the frames still on the buffer may be the ones that had it. Two
-     * frames drawn after the last one with it make the read one of them, or of a later frame. True
-     * before a frame with it is counted, so a capture waits for nothing when the client never
-     * saved.
+     * frames drawn after the last one with it make the read one of them, or of a later frame. False
+     * before two frames have been drawn since the reset, because the buffer can still hold a frame
+     * from before it, which the previous test's save may have drawn the text into.
      */
     public synchronized boolean savingIndicatorCleared() {
         return frames - lastIndicatorFrame >= 2;
@@ -270,7 +270,6 @@ public final class GrugRenderSettle {
      * tick, so a millisecond is short enough that the wait ends within a frame of the state
      * changing, and long enough that it is not a spin.
      */
-    @GrugGenerated("saving indicator wait: an interrupted wait cannot occur in a CI run")
     private static void pauseForSavingIndicator() {
         try {
             Thread.sleep(1L);
@@ -319,6 +318,6 @@ public final class GrugRenderSettle {
     public synchronized void reset() {
         frames = 0;
         lastBusyFrame = 0;
-        lastIndicatorFrame = -2;
+        lastIndicatorFrame = 0;
     }
 }
