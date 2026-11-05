@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 class GrugEntitiesConcurrencyTest {
 
-    private static final long ENTITY_ID = 0x0000_0002_0000_0001L;
+    private static final long ENTITY_ID = GrugEntities.hostEntityId(GrugEntityType.Item, 1);
 
     @AfterEach
     void clearState() {

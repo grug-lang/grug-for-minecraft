@@ -48,11 +48,32 @@ public final class GrugEntities {
      * counters are process-wide, so whether a test meets that id depends only on how far apart they
      * are when it starts and how many {@code add_item} calls it makes. See #1120.
      *
-     * <p>The base is above any id the VM's counter reaches in a session and above the type bits, so
-     * the two spaces cannot overlap. A VM-created entity's id is still registered under the id the
-     * VM reports, which is now always below every host id.
+     * <p>The base is above any id the VM's counter reaches in a session, and it sits above the type
+     * field, which sits above the index, so a session's VM ids all sit below every host id. That is
+     * a practical separation rather than a structural one, because the counter is a {@code u64}
+     * with no cap and only the number of entities a session creates keeps it down. A VM-created
+     * entity's id is still registered under the id the VM reports. See #1125.
      */
-    private static final long HOST_ENTITY_ID_BASE = 1L << 48;
+    static final long HOST_ENTITY_ID_BASE = 1L << 48;
+
+    /**
+     * The id the {@code index}th host entity of {@code type} carries: the base, the type's ordinal
+     * above the index.
+     *
+     * <p>The tests name host ids through this rather than putting one together by hand, so the
+     * shape of a host id lives here alone. See #1125.
+     */
+    static long hostEntityId(GrugEntityType type, int index) {
+        return HOST_ENTITY_ID_BASE | ((long) type.ordinal() << 32) | (index & 0xFFFFFFFFL);
+    }
+
+    /**
+     * The id the next host entity of {@code type} will carry, which a test names the id it is about
+     * to create with. See {@link #hostEntityId}.
+     */
+    static long nextHostEntityId(GrugEntityType type) {
+        return hostEntityId(type, nextEntityIndices.get(type));
+    }
 
     static {
         for (GrugEntityType type : GrugEntityType.values()) {
@@ -64,7 +85,7 @@ public final class GrugEntities {
         GrugObject grugObject = new GrugObject(type, object);
         int index = nextEntityIndices.get(type);
         nextEntityIndices.put(type, index + 1);
-        long id = HOST_ENTITY_ID_BASE | ((long) type.ordinal() << 32) | (index & 0xFFFFFFFFL);
+        long id = hostEntityId(type, index);
 
         entityData.put(id, grugObject);
         root(fnEntities, grugObject);
