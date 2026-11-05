@@ -42,7 +42,9 @@ the game directory shows up through the client's captures rather than through th
 Only a dispatch runs the multiplayer job, so a pull request and a push hold no server test lists,
 and the comparison says so and passes. A run that holds the lists holds one per loader the map
 names, and a missing one is a failure: an absent list would silently shrink what counts as
-server-reachable and let the drift this guard exists for through.
+server-reachable and let the drift this guard exists for through. Each list names the run attempt
+that wrote it, because a re-run of one leg uploads again while the other legs keep their earlier
+artifact, so a loader's newest attempt is the list its leg wrote last (#1142).
 
 ``--record`` writes the file, and it needs ``--recorded-from`` so the record says which run it came
 from. It refuses to drop a recorded method unless ``--prune`` says so, because a dispatch narrowed
@@ -66,6 +68,9 @@ combine = importlib.util.module_from_spec(_COMBINE)
 _COMBINE.loader.exec_module(combine)
 
 ARTIFACT_PREFIX = "coverage-server-tests-"
+# The multiplayer job names its artifact after the loader and the run attempt, so a re-run of one
+# leg adds a list beside the older one instead of overwriting the name it shares with it.
+ATTEMPT_SUFFIX = re.compile(r"^(.*)-(\d+)$")
 TESTS_FILE = "tests.txt"
 CLASS_INITIALIZER = "<clinit>"
 # A test that is meant to fail still passes, and the runner's line says so after the path. The map
@@ -91,13 +96,34 @@ def test_name(line: str) -> str:
     return line[: -len(EXPECTED_ERROR)] if line.endswith(EXPECTED_ERROR) else line
 
 
+def artifact_loader(name: str) -> tuple[str, int]:
+    """The loader and the run attempt an artifact directory names.
+
+    ``coverage-server-tests-<loader>-<attempt>`` is what the multiplayer job uploads; a bare
+    ``coverage-server-tests-<loader>`` is an artifact downloaded by hand, and the attempt is 0.
+    """
+    name = name[len(ARTIFACT_PREFIX) :]
+    match = ATTEMPT_SUFFIX.match(name)
+    return (match.group(1), int(match.group(2))) if match else (name, 0)
+
+
 def server_tests(directory: Path) -> dict[str, set[str]]:
-    """The tests each loader's dedicated server ran, keyed by the loader its artifact names."""
-    lists: dict[str, set[str]] = {}
+    """The tests each loader's dedicated server ran, keyed by the loader its artifact names.
+
+    A re-run of a dispatch runs only the jobs that failed, so one leg writes a list under a higher
+    attempt while the other legs keep the earlier one. Each loader's newest attempt is the list its
+    leg wrote last, and an older one is a list from a run whose leg may have stopped early (#1142).
+    """
+    newest: dict[str, tuple[int, Path]] = {}
     for entry in sorted(directory.iterdir()):
         if not entry.is_dir() or not entry.name.startswith(ARTIFACT_PREFIX):
             continue
-        loader = entry.name[len(ARTIFACT_PREFIX) :]
+        loader, attempt = artifact_loader(entry.name)
+        if loader in newest and newest[loader][0] >= attempt:
+            continue
+        newest[loader] = (attempt, entry)
+    lists: dict[str, set[str]] = {}
+    for loader, (attempt, entry) in sorted(newest.items()):
         path = entry / TESTS_FILE
         if not path.is_file():
             print(
@@ -108,6 +134,8 @@ def server_tests(directory: Path) -> dict[str, set[str]]:
             lists[loader] = set()
             continue
         lists[loader] = {name for name in map(test_name, path.read_text().splitlines()) if name}
+        source = f" from attempt {attempt}" if attempt else ""
+        print(f"server-reachable: {loader} ran {len(lists[loader])} test(s){source}")
     return lists
 
 
@@ -350,7 +378,8 @@ def main(argv: list[str] | None = None) -> int:
         default=Path("coverage/artifacts"),
         help=(
             "the directory the run's coverage artifacts were downloaded to, holding one"
-            " coverage-server-tests-<loader> per dedicated server (default: coverage/artifacts)"
+            " coverage-server-tests-<loader>-<attempt> per dedicated server and attempt, of which"
+            " each loader's newest attempt is read (default: coverage/artifacts)"
         ),
     )
     parser.add_argument(
