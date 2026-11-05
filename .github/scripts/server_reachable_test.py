@@ -157,6 +157,15 @@ class ServerReachableTest(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("can be removed", out)
 
+    # The runner's line names the test with a note when it was meant to fail, and the map keys the
+    # test by its path, so the note must not hide the tests a server ran from the comparison.
+    def testATestMeantToFailCountsAsRan(self):
+        self.write_map({"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("1.20.6-forge", [SERVER_TEST + " (expected error)"])
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertIn("0 class method(s)", out)
+
     # A pull request and a push run no multiplayer job, so there is nothing to compare and the
     # script says so rather than failing a run it cannot judge.
     def testNoServerTestListsPasses(self):
