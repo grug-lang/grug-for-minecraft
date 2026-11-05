@@ -181,16 +181,42 @@ public class GrugTestRunner {
         default void requestAutosaveForTest() {}
 
         /**
-         * Turns on the GL capability that normalizes normals, for the test the runner forces it
-         * for. See {@link GrugForcedNormalization}.
+         * Whether the loader draws GUI items with the game's fixed-function lighting, so the forced
+         * normalizing state applies here and a false answer from the force is the right one. The
+         * runner asks this for every marked test, before the force. See {@link
+         * ModLoaderAdapter#canForceNormalizationForTest}.
          */
-        default void forceNormalizationForTest() {}
+        default boolean canForceNormalizationForTest() {
+            return false;
+        }
 
         /**
-         * Turns the capability back off in the tick a marked test ends. See {@link
-         * GrugForcedNormalization}.
+         * Turns on the GL capabilities that normalize normals for the test the runner forces them
+         * for, and answers whether the loader applied it. See {@link GrugForcedNormalization}.
          */
-        default void restoreNormalizationAfterTest() {}
+        default boolean forceNormalizationForTest() {
+            return false;
+        }
+
+        /**
+         * Puts back the state the force found in the tick a marked test ends, and answers whether
+         * the state now matches what the force found. The runner fails the test when it does not,
+         * so a restore that did not take cannot leave the state on for a later capture. The default
+         * answers {@code !canForceNormalizationForTest()}, so a room builder that declares the
+         * force without putting the state back fails its marked test rather than passing silently.
+         * See {@link GrugForcedNormalization}.
+         */
+        default boolean restoreNormalizationAfterTest() {
+            return !canForceNormalizationForTest();
+        }
+
+        /**
+         * Whether the two capabilities that normalize normals are on right now, which the runner
+         * reads right after a force that reported applying it. See {@link GrugForcedNormalization}.
+         */
+        default boolean normalizationEnabledForTest() {
+            return false;
+        }
     }
 
     /**
@@ -249,10 +275,11 @@ public class GrugTestRunner {
     private double appliedGameSpeed = 1;
 
     /**
-     * Whether the running test asked the loader to turn the normals normalizing capability on, so
-     * the end of the test turns it off again. See {@link GrugForcedNormalization}.
+     * Whether the loader was asked to force the normalizing capabilities for the running test, so
+     * the end of the test lets it put back the state the force found. See {@link
+     * GrugForcedNormalization}.
      */
-    private boolean forcedNormalization = false;
+    private boolean normalizationRestoreDue = false;
 
     /**
      * What the loader answered when the last test asked for a faster clock, so the log says it when
@@ -484,13 +511,23 @@ public class GrugTestRunner {
                     }
 
                     @Override
-                    public void forceNormalizationForTest() {
-                        GrugCore.getAdapter().forceNormalizationForTest();
+                    public boolean canForceNormalizationForTest() {
+                        return GrugCore.getAdapter().canForceNormalizationForTest();
                     }
 
                     @Override
-                    public void restoreNormalizationAfterTest() {
-                        GrugCore.getAdapter().restoreNormalizationAfterTest();
+                    public boolean forceNormalizationForTest() {
+                        return GrugCore.getAdapter().forceNormalizationForTest();
+                    }
+
+                    @Override
+                    public boolean restoreNormalizationAfterTest() {
+                        return GrugCore.getAdapter().restoreNormalizationAfterTest();
+                    }
+
+                    @Override
+                    public boolean normalizationEnabledForTest() {
+                        return GrugCore.getAdapter().normalizationEnabledForTest();
                     }
                 },
                 repeatsFromEnv(),
@@ -1233,14 +1270,49 @@ public class GrugTestRunner {
             boxBuilder.requestAutosaveForTest();
         }
 
-        // The same, for the GL capability the game's own slime renderer leaves on. See
-        // GrugForcedNormalization.
-        if (GrugForcedNormalization.isDue(
-                path, currentTick, dedicatedServer, GrugReference.isReferenceRun())) {
-            System.out.println(
-                    "[GRUG CI] Forcing normalized normals for " + path + " at tick " + currentTick);
-            forcedNormalization = true;
-            boxBuilder.forceNormalizationForTest();
+        // Before the test's first tick, so every frame and every capture it takes runs with the
+        // state the game's own slime renderer leaves on. See GrugForcedNormalization.
+        if (currentTick == 0) {
+            // Cleared for every test, so the test after a marked one reads the state it has rather
+            // than the one the marked test asked for. See Test.normalization_forced.
+            GrugTestState.forcedNormalization = false;
+            if (GrugForcedNormalization.appliesTo(
+                    path, dedicatedServer, GrugReference.isReferenceRun())) {
+                // Due before the force runs, so a hook that changes a capability before it finds
+                // out it could not force is put back too, and a loader that keeps the no-op
+                // default restore is asked like every other.
+                normalizationRestoreDue = true;
+                // The declaration is asked first, and the force is asked whatever it says: the
+                // force's answer is what the runner reports and what the marked test reads, and
+                // the declaration is what decides whether a false answer is a loader with nothing
+                // to force or a hook that stopped working. Asking only on failure would leave the
+                // four loaders' true answer on a path a green run never takes (#1144).
+                boolean declared = boxBuilder.canForceNormalizationForTest();
+                if (boxBuilder.forceNormalizationForTest()) {
+                    // The adapter answers what it found, and this check is what the answer alone
+                    // cannot give: an adapter that reports applying the state while its enables did
+                    // nothing would otherwise leave the marked test green and unproven (#1144).
+                    if (!boxBuilder.normalizationEnabledForTest()) {
+                        fail(
+                                path,
+                                "The loader reported forcing normalized normals for a test whose"
+                                        + " file name ends with "
+                                        + GrugForcedNormalization.MARKER
+                                        + ", but the capabilities are off.");
+                        return;
+                    }
+                    GrugTestState.forcedNormalization = true;
+                    System.out.println("[GRUG CI] Forcing normalized normals for " + path);
+                } else if (declared) {
+                    fail(
+                            path,
+                            "The loader should force normalized normals for a test whose file"
+                                    + " name ends with "
+                                    + GrugForcedNormalization.MARKER
+                                    + ", but it did not apply it.");
+                    return;
+                }
+            }
         }
 
         GrugTestState.currentTestTick = currentTick;
@@ -1312,6 +1384,7 @@ public class GrugTestRunner {
                 // would fail the next tick as a leftover. It is reported like any other host
                 // function error, which is what expect_error matches.
                 GrugErrors.takeHostFunctionException();
+                if (restoreForcedNormalizationBeforePass(path)) return;
                 System.out.println("[GRUG CI] PASS " + path + " (expected error)");
                 passedCount++;
                 recordTestTime(path);
@@ -1364,6 +1437,7 @@ public class GrugTestRunner {
                             + "', but it completed without one.");
             return;
         }
+        if (restoreForcedNormalizationBeforePass(path)) return;
         System.out.println("[GRUG CI] PASS " + path);
 
         synchronized (GrugErrors.printQueue) {
@@ -1909,14 +1983,31 @@ public class GrugTestRunner {
     }
 
     /**
-     * Turns the normals normalizing capability back off if this test forced it on, so the next
-     * test's world and captures are shaded with the state the game itself leaves. See {@link
-     * GrugForcedNormalization}.
+     * Lets the loader put the normalizing capabilities back to the state the force found, if this
+     * test asked it to force them, so the next test's world and captures are shaded with the state
+     * the game itself leaves. Answers the failure message when the loader says the state it left
+     * does not match what the force found, and null otherwise. See {@link GrugForcedNormalization}.
      */
-    private void restoreForcedNormalization() {
-        if (!forcedNormalization) return;
-        forcedNormalization = false;
-        boxBuilder.restoreNormalizationAfterTest();
+    private String restoreForcedNormalization() {
+        if (!normalizationRestoreDue) return null;
+        normalizationRestoreDue = false;
+        if (boxBuilder.restoreNormalizationAfterTest()) return null;
+        return "The loader's restore of the normalizing state for a test whose file name ends with "
+                + GrugForcedNormalization.MARKER
+                + " did not put the client's capabilities back to what the force found.";
+    }
+
+    /**
+     * Puts back a marked test's forced state before the test is announced as passed, and reports
+     * the test as failed when the loader answered that it could not. Doing it before the PASS line
+     * keeps the log honest: a test whose cleanup did not take is a failure, not a pass followed by
+     * a failure for the same test.
+     */
+    private boolean restoreForcedNormalizationBeforePass(String path) {
+        String failure = restoreForcedNormalization();
+        if (failure == null) return false;
+        fail(path, failure);
+        return true;
     }
 
     /** A whole number without its decimal point, which is what every speed that gets here is. */
@@ -2012,8 +2103,8 @@ public class GrugTestRunner {
         // Whether the test passed, expected its error or failed, because a clock left fast would
         // run the next test's room and any capture it takes at a speed it never asked for.
         restoreGameSpeed();
-        // The same for the capability one marked test asked for, so a capture another test takes
-        // is not shaded with a state that test never asked for.
+        // The same for the normalizing state one marked test asked for, so a capture another test
+        // takes is not shaded with a state that test never asked for.
         restoreForcedNormalization();
         if (currentEntityHandle != 0) {
             // In the tick the test ends, whether it passed, expected its error or failed, so the

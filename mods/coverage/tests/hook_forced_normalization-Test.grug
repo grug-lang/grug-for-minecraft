@@ -1,12 +1,15 @@
-# The runner turns GL_NORMALIZE on at tick 100 of a test whose file name ends with
-# _forced_normalization (GrugForcedNormalization). The capture that says the overlay's item draw
-# pins that state off is jei/tests/item_list_forced_normalization-Test.grug, but another mod's test
-# run is not counted by the coverage gate, so this test reaches the same loader hook on a test the
-# gate does count. It opens the inventory first, so the hook lands with the overlay's own drawing
-# live, the way the capture test has it. See #1137.
+# The runner turns on the GL capabilities that normalize normals before the first tick of a test
+# whose file name ends with _forced_normalization (GrugForcedNormalization), through the loader's
+# own hook. The capture that says the overlay's item draw pins that state off is
+# jei/tests/item_list_forced_normalization-Test.grug, but another mod's test run is not counted by
+# the coverage gate, so this test reaches the same loader hook on a test the gate does count. It
+# opens the inventory, so the hook runs with the overlay's own drawing live, and it asserts that a
+# loader whose item draw inherits the state really forced it: the pin makes the capture identical
+# either way, so without this assertion a loader that lost its hook would stay green and unproven
+# (#1144). See #1137.
 started: bool = false
 opened: bool = false
-tick_of_the_hook: number = 100
+waited: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
     if not started {
@@ -14,6 +17,16 @@ export tick_any_side(ctx: TestTickContext) {
         if not Test.overlay_supported() {
             # This loader draws no overlays; the deviation is in about.json.
             return
+        }
+        # 1.20.6 draws GUI items through its own shader path and never inherits the state, so it
+        # keeps the adapter's no-op. Every other loader draws them with the game's fixed-function
+        # lighting, so the runner has to have forced the state before this test's first tick. The
+        # runner checks that a loader which reports applying it really turned the capabilities on,
+        # which is the hole #1144 closes.
+        if Test.loader_name() == "1.20.6-forge" {
+            ctx.assert(not Test.normalization_forced(), "1.20.6-forge should not force a state its item draw does not inherit.")
+        } else {
+            ctx.assert(Test.normalization_forced(), "A loader whose item draw inherits the normalizing state should force it.")
         }
         Test.close_screen()
         ctx.not_done()
@@ -23,20 +36,26 @@ export tick_any_side(ctx: TestTickContext) {
     # A world frame has to be drawn before a screen that shows the player opens, as in
     # item_list_forced_normalization-Test.grug.
     if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory screen opens.")
         if not Test.world_settled() {
             ctx.not_done()
             return
         }
         Test.open_inventory(Test.get_player())
         opened = true
+        waited = 0
         ctx.not_done()
         return
     }
 
-    if ctx.current_tick() < tick_of_the_hook + 1 {
+    # The overlay draws the icons the forced state is about while the state is on, so wait for a
+    # frame of the open screen before the test ends and puts the state back.
+    if not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn while the forced state is on.")
         ctx.not_done()
         return
     }
-    ctx.assert(Test.screen_open(), "The inventory should stay open across the normalization hook.")
     Test.close_screen()
 }

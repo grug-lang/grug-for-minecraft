@@ -2,6 +2,7 @@ package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugSoundArgs;
@@ -514,6 +515,19 @@ public class HostFunctions {
 
     public static boolean Test_is_reference() {
         return GrugReference.isReferenceRun();
+    }
+
+    /**
+     * Test only: whether the loader forced the normalizing GL capabilities for the running test,
+     * which the runner does before the first tick of a test whose file name ends with {@link
+     * GrugForcedNormalization#MARKER}, on the loaders whose item draw inherits the state.
+     *
+     * <p>A test asks this to prove the hook really ran. Without it a marked test passes whether or
+     * not the state was forced: the overlay's pin makes its capture identical either way, so a
+     * loader that lost its hook would leave the capture green and unproven (#1144).
+     */
+    public static boolean Test_normalization_forced() {
+        return GrugTestState.forcedNormalization;
     }
 
     /**

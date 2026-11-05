@@ -598,22 +598,74 @@ public interface ModLoaderAdapter {
     default void requestAutosaveForTest() {}
 
     /**
-     * Test only: turns on the GL capability that normalizes normals, the way the game's slime
-     * renderer leaves it, so a capture can prove the overlay's item icons do not depend on it. The
-     * runner calls this for a test whose file name ends with {@link
-     * GrugForcedNormalization#MARKER}, at {@link GrugForcedNormalization#TICK}, and never on a
-     * dedicated server, which has no GL context: {@link GrugForcedNormalization#isDue} decides
-     * that, so a server adapter that extends a client one never runs this. A loader whose item draw
-     * sets the state itself keeps the no-op default.
+     * Test only: whether this loader draws GUI items with the game's fixed-function lighting, so a
+     * normalizing capability an earlier draw left on decides how they are shaded. That is what
+     * {@link #forceNormalizationForTest()} exists to prove the port pins, so the runner asks it for
+     * every marked test and uses the answer to tell a loader that has nothing to force apart from a
+     * hook that stopped working: a force that applied nothing fails the marked test only where this
+     * answers true (1.20.6 draws items through its own shader path and keeps the default).
      */
-    default void forceNormalizationForTest() {}
+    default boolean canForceNormalizationForTest() {
+        return false;
+    }
 
     /**
-     * Test only: turns the capability {@link #forceNormalizationForTest()} turned on back off, in
-     * the tick the marked test ends, so the next test's frames and captures are not shaded with a
-     * state that one test asked for. Called on a client only, like the call that turned it on.
+     * Test only: turns on the GL capabilities that normalize normals, the way the game's slime
+     * renderer leaves one of them, and answers whether both are on once it did, which is what the
+     * runner logs and what a marked test reads. The runner calls this for a test whose file name
+     * ends with {@link GrugForcedNormalization#MARKER}, before the test's first tick, and never on
+     * a dedicated server, which has no GL context: {@link GrugForcedNormalization#appliesTo}
+     * decides that, so a server adapter that extends a client one never runs this. A loader whose
+     * item draw sets the state itself keeps the no-op default, which answers false and changes
+     * nothing, and {@link #canForceNormalizationForTest()} is what says that false is the right
+     * answer rather than a hook that stopped working.
+     *
+     * <p>An implementation saves what each capability had, so {@link
+     * #restoreNormalizationAfterTest()} can put exactly that back. Turning the capability on is not
+     * the same as changing it: the slime renderer's own leak is the case the marked test models, so
+     * the force can find the capability already on (see #1144).
+     *
+     * <p>An implementation answers what it found, not a constant: an adapter that reported applying
+     * the state while its enables did nothing would leave the marked test green and unproven, and
+     * {@link #normalizationEnabledForTest()} is what the runner reads to catch that.
      */
-    default void restoreNormalizationAfterTest() {}
+    default boolean forceNormalizationForTest() {
+        return false;
+    }
+
+    /**
+     * Test only: puts back the state {@link #forceNormalizationForTest()} found, in the tick the
+     * marked test ends, so the next test's frames and captures are not shaded with a state that one
+     * test asked for and a capability the game itself left on stays on. {@link
+     * GrugForcedNormalization#capabilitiesToTurnOff} names only the capabilities the force turned
+     * on, which is empty for the default force that applied nothing, so it is a no-op there. Called
+     * on a client only, like the call that turned it on, and after every force the runner asked
+     * for, so a hook that changed a capability before it found out it could not force is put back
+     * too.
+     *
+     * <p>Answers whether the state now matches what the force found, which an implementation reads
+     * from the client's GL state right after putting it back. The runner fails the marked test when
+     * it does not, so an implementation whose disables did not take cannot shade a later capture
+     * (#1144). The default answers {@code !canForceNormalizationForTest()}: a loader whose item
+     * draw never inherits the state forced nothing and changed nothing, so it answers true, while a
+     * loader that declares it can force but keeps the default leaves the state it asked for on, so
+     * it answers false and its marked test fails instead of passing with the state still on.
+     */
+    default boolean restoreNormalizationAfterTest() {
+        return !canForceNormalizationForTest();
+    }
+
+    /**
+     * Test only: whether the two capabilities that normalize normals are on right now, read from
+     * the client's GL state. The runner reads it right after a force that reported applying them,
+     * and fails the marked test when they are off, so an adapter that reports a state it did not
+     * turn on cannot leave the test green and unproven (#1144). The no-op default answers false:
+     * 1.20.6 draws GUI items through its own shader path and never turns it on, and a dedicated
+     * server has no GL context.
+     */
+    default boolean normalizationEnabledForTest() {
+        return false;
+    }
 
     /**
      * Has the game build a block's geometry again, so a render function that reads state the world

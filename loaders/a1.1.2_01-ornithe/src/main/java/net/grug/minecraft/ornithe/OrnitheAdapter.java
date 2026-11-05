@@ -56,6 +56,7 @@ import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -935,19 +936,80 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * Test only: turns on the state the game's slime renderer leaves, so a capture taken after it
-     * says whether the overlay's item draw pins the normals instead of inheriting the state. The
-     * runner calls this on a client only, which {@link GrugForcedNormalization} decides.
+     * Test only: the capabilities {@link #forceNormalizationForTest()} found, so {@link
+     * #restoreNormalizationAfterTest()} puts back exactly that rather than turning off a state the
+     * game itself left on.
+     */
+    private boolean normalizeWasOn;
+
+    private boolean rescaleNormalWasOn;
+
+    /**
+     * Test only: whether this loader's GUI item draw uses the game's fixed-function lighting, so
+     * the normalizing state an earlier draw left on decides how its icons shade. Every version
+     * before 1.20.6 does; 1.20.6 draws items through its own shader path and keeps the default, so
+     * the runner tells this hook from a hook that stopped working by asking.
      */
     @Override
-    public void forceNormalizationForTest() {
-        GL11.glEnable(GL11.GL_NORMALIZE);
+    public boolean canForceNormalizationForTest() {
+        return true;
     }
 
-    /** Test only: puts the normalization back off in the tick the marked test ends. */
+    /**
+     * Test only: turns on the two capabilities that normalize normals, the way the game's slime
+     * renderer leaves one of them, so a capture taken after it says whether the overlay's item draw
+     * pins them instead of inheriting the state. The runner calls this on a client only, before the
+     * marked test's first tick, which {@link GrugForcedNormalization} decides.
+     *
+     * <p>What each capability had goes into the two fields above before either is turned on,
+     * because the force can find one already on: the slime renderer's own leak is the case the
+     * marked test models, and a restore that turned it off would drop a state the game itself left
+     * on (#1144).
+     */
     @Override
-    public void restoreNormalizationAfterTest() {
-        GL11.glDisable(GL11.GL_NORMALIZE);
+    public boolean forceNormalizationForTest() {
+        normalizeWasOn = GL11.glIsEnabled(GL11.GL_NORMALIZE);
+        rescaleNormalWasOn = GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
+        GL11.glEnable(GL11.GL_NORMALIZE);
+        GL11.glEnable(GL12.GL_RESCALE_NORMAL);
+        // Both are read, not short-circuited, so the answer is the state the force really set and
+        // no branch is left that only a failed enable would take.
+        return GL11.glIsEnabled(GL11.GL_NORMALIZE) & GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
+    }
+
+    /**
+     * Test only: puts back what {@link #forceNormalizationForTest()} found in the tick the marked
+     * test ends, so only a capability the force turned on is turned off again. Which capabilities
+     * those are is {@link GrugForcedNormalization#capabilitiesToTurnOff}, so this loader turns off
+     * what it names and carries no branch that only a capability the game leaked would take.
+     */
+    @Override
+    public boolean restoreNormalizationAfterTest() {
+        for (int capability :
+                GrugForcedNormalization.capabilitiesToTurnOff(
+                        normalizeWasOn,
+                        rescaleNormalWasOn,
+                        GL11.GL_NORMALIZE,
+                        GL12.GL_RESCALE_NORMAL)) {
+            GL11.glDisable(capability);
+        }
+        // Read back, not assumed: the answer is the state the disables really left, so a call
+        // that did not take fails the marked test instead of shading a later capture.
+        return GrugForcedNormalization.matchesFound(
+                GL11.glIsEnabled(GL11.GL_NORMALIZE),
+                GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL),
+                normalizeWasOn,
+                rescaleNormalWasOn);
+    }
+
+    /**
+     * Test only: whether the two capabilities are on right now, which the runner reads right after
+     * the force, so an adapter that reports applying a state it did not turn on fails the marked
+     * test (#1144).
+     */
+    @Override
+    public boolean normalizationEnabledForTest() {
+        return GL11.glIsEnabled(GL11.GL_NORMALIZE) & GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
     }
 
     @Override

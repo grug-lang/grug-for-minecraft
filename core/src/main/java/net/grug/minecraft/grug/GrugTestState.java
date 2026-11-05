@@ -212,6 +212,12 @@ public final class GrugTestState {
     // which is what keeps a setup and its check on one row. See #158 and #609.
     public static Vec3 testOrigin = null;
 
+    // Whether the loader forced the normalizing GL capabilities for the running test, which the
+    // runner sets before the test's first tick and clears for every test. Test.normalization_forced
+    // reads it, so a coverage test can prove a loader whose item draw inherits the state really
+    // forces it instead of passing unforced. See GrugForcedNormalization.
+    public static boolean forcedNormalization = false;
+
     /**
      * Returns the origin captured for the running test, asking {@code capture} only on the first
      * call. A later call reuses the captured value, so a test that builds a fixture from the origin
