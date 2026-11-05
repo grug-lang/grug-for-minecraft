@@ -1207,7 +1207,8 @@ public class GrugTestRunner {
 
         // The same, for the GL capability the game's own slime renderer leaves on. See
         // GrugForcedNormalization.
-        if (GrugForcedNormalization.isDue(path, currentTick, GrugReference.isReferenceRun())) {
+        if (GrugForcedNormalization.isDue(
+                path, currentTick, dedicatedServer, GrugReference.isReferenceRun())) {
             System.out.println(
                     "[GRUG CI] Forcing normalized normals for " + path + " at tick " + currentTick);
             forcedNormalization = true;

@@ -600,16 +600,18 @@ public interface ModLoaderAdapter {
     /**
      * Test only: turns on the GL capability that normalizes normals, the way the game's slime
      * renderer leaves it, so a capture can prove the overlay's item icons do not depend on it. The
-     * runner calls this for a test whose file name starts with {@link
-     * GrugForcedNormalization#MARKER}, at {@link GrugForcedNormalization#TICK}. A loader whose item
-     * draw sets the state itself, and a dedicated server, keep the no-op default.
+     * runner calls this for a test whose file name ends with {@link
+     * GrugForcedNormalization#MARKER}, at {@link GrugForcedNormalization#TICK}, and never on a
+     * dedicated server, which has no GL context: {@link GrugForcedNormalization#isDue} decides
+     * that, so a server adapter that extends a client one never runs this. A loader whose item draw
+     * sets the state itself keeps the no-op default.
      */
     default void forceNormalizationForTest() {}
 
     /**
      * Test only: turns the capability {@link #forceNormalizationForTest()} turned on back off, in
      * the tick the marked test ends, so the next test's frames and captures are not shaded with a
-     * state that one test asked for. A dedicated server keeps the no-op default.
+     * state that one test asked for. Called on a client only, like the call that turned it on.
      */
     default void restoreNormalizationAfterTest() {}
 

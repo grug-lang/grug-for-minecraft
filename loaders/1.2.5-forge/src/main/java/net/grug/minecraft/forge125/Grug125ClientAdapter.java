@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125;
 
+import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
@@ -164,18 +165,17 @@ public class Grug125ClientAdapter extends Grug125Adapter {
 
     /**
      * Test only: turns on the state the game's slime renderer leaves, so a capture taken after it
-     * says whether the overlay's item draw pins the normals instead of inheriting the state.
+     * says whether the overlay's item draw pins the normals instead of inheriting the state. The
+     * runner calls this on a client only, which {@link GrugForcedNormalization} decides.
      */
     @Override
     public void forceNormalizationForTest() {
-        if (getSide() != GrugSide.CLIENT) return;
         GL11.glEnable(GL11.GL_NORMALIZE);
     }
 
     /** Test only: puts the normalization back off in the tick the marked test ends. */
     @Override
     public void restoreNormalizationAfterTest() {
-        if (getSide() != GrugSide.CLIENT) return;
         GL11.glDisable(GL11.GL_NORMALIZE);
     }
 
