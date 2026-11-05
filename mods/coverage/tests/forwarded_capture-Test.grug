@@ -2,31 +2,48 @@
 # Screenshot.capture (#1040, option A). The dedicated server forwards the capture to the joined
 # client of the player who started the run, stays frozen until the client answers, and hands the
 # pixels back here. Only a multiplayer run that forwards client calls runs a forwarded_ test.
-# Every change gets a tick of its own and every capture the tick after it, so the client has a tick
-# in which to receive the change and draw it before the capture asks for its frame. The wall goes
-# up in tick 0 and is captured in tick 1, and comes down in tick 2 and is captured in tick 3, so
-# the two captures are the wall and the room it stood in front of, each taken after its change
-# reached the client.
+# Each change is followed by a forwarded Test.world_settled() wait, not by a fixed tick. The
+# capture's own wait cannot see a change the client was never told it owed: a loader records the
+# blocks it places as ones its client is owed, and on a dedicated server the placement happens on
+# the server, whose record the client never reads, so its settle answer looks only at the frames
+# and can be true before the block arrives. The forwarded wait makes the server flush the change
+# and ask the client, which forgets the frames it has drawn and answers only once a frame after the
+# change is drawn, so the wall's capture reads a frame with the wall in it and the room's reads one
+# after the removal's relight. A fixed tick was not enough on Alpha, where the room frame could
+# still be the wall's lingering shadow, a few levels darker than the room and under the
+# comparison's per-channel floor. See #1119 and #1086.
 # The wall is obsidian in a stone room, which differs by more than the comparison's per-channel
 # floor even when the room's light is dim. Without the notify a dedicated server sends after its
 # quiet placement, neither change reaches the client, both captures are the room, and the frames
 # differ by light noise alone rather than by the 50% asked for. See #1078.
 wall: Option[Screenshot] = Option.new()
 
+# The step the next tick runs: 0 places the wall, 1 waits for the client to draw it and captures
+# it, then takes it down, 2 waits for the removal's relight and captures the room.
+step: number = 0
+
 export tick(ctx: TestTickContext) {
     origin: Vec3 = Test.get_origin()
-    if ctx.current_tick() == 0 {
+    if step == 0 {
         _wall_in_front_of(origin, "minecraft:obsidian")
+        step = 1
         ctx.not_done()
-    } else if ctx.current_tick() == 1 {
-        wall.set(Test.screenshot().capture(620, 62, 700, 118))
-        ctx.not_done()
-    } else if ctx.current_tick() == 2 {
-        _wall_in_front_of(origin, "minecraft:air")
-        ctx.not_done()
+    } else if step == 1 {
+        if not Test.world_settled() {
+            ctx.not_done()
+        } else {
+            wall.set(Test.screenshot().capture(620, 62, 700, 118))
+            _wall_in_front_of(origin, "minecraft:air")
+            step = 2
+            ctx.not_done()
+        }
     } else {
-        room: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
-        room.differs_from(wall.unwrap(), 50)
+        if not Test.world_settled() {
+            ctx.not_done()
+        } else {
+            room: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
+            room.differs_from(wall.unwrap(), 50)
+        }
     }
 }
 
