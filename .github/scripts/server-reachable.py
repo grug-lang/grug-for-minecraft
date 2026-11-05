@@ -74,8 +74,10 @@ CLASS_INITIALIZER = "<clinit>"
 EXPECTED_ERROR = " (expected error)"
 # javac numbers the lambdas of a class in source order, so adding a lambda anywhere in the class
 # renames every later one. The record is keyed by method name, so without this a host function added
-# elsewhere would look like client-only code that lost its reason.
-LAMBDA_COUNTER = re.compile(r"^(lambda\$[^$]+\$)\d+(:.*)$")
+# elsewhere would look like client-only code that lost its reason. Two lambdas of one method can
+# share a descriptor, so the counter is not an identity: the enclosing name, the descriptor and the
+# rank within that pair are.
+LAMBDA_COUNTER = re.compile(r"^lambda\$([^$]+)\$(\d+)(:.*)$")
 
 
 def counted(name: str) -> bool:
@@ -178,30 +180,50 @@ def unreasoned(entries, reasons: dict) -> list[str]:
     return sorted({name for name, _ in entries if not reasons.get(name, "").strip()})
 
 
-def lambda_identity(method: str) -> str | None:
-    """A lambda's name with javac's per-class counter taken out, or None when it is no lambda."""
-    match = LAMBDA_COUNTER.match(method)
-    return match.group(1) + match.group(2) if match else None
+def lambda_groups(keys) -> dict[tuple[str, str, str], list[str]]:
+    """Lambdas by class, enclosing method and descriptor, in the order javac numbered them.
+
+    The counter is per class in source order, so it moves when a lambda is added anywhere in the
+    class, but the order of the lambdas that share an enclosing method and descriptor does not.
+    Two lambdas of one method can share a descriptor (a resource pack provider's ``lambda$register$0``
+    and ``lambda$register$1`` both answer a ResourcePack), so that pair plus the rank is the
+    identity a renumbering keeps.
+    """
+    groups: dict[tuple[str, str, str], list[tuple[int, str]]] = {}
+    for name, method in keys:
+        match = LAMBDA_COUNTER.match(method)
+        if match is None:
+            continue
+        groups.setdefault((name, match.group(1), match.group(3)), []).append(
+            (int(match.group(2)), method)
+        )
+    return {key: [method for _, method in sorted(members)] for key, members in groups.items()}
 
 
 def renumbered(required: dict, entries: dict) -> dict[tuple[str, str], tuple[str, str]]:
-    """Required methods the class's other lambdas renumbered since the record was taken.
+    """Required methods whose lambda counter moved, each mapped to the entry it replaces.
 
-    Each maps to the entry it replaces, so a count that moved is reported as that and not as code
-    that lost its reason.
+    javac numbers the lambdas of a class in source order, so a lambda added anywhere in the class
+    renames every later one. A moved lambda is the same code, so it is not client-only code that
+    lost its reason, and the entry it replaces is not stale.
+
+    A lambda the record still holds under its exact name is matched first. Only the leftovers are
+    paired by rank inside a class, enclosing method and descriptor: the entries the record holds
+    that the run does not need, and the names the run needs that the record does not hold. That
+    keeps a class-wide shift from reading as new code without letting a new lambda take the place
+    of a recorded one: a record of one of a shared-descriptor pair does not explain the other, and
+    a record that holds ``$1`` does not explain a run that needs ``$0`` and ``$1``.
     """
-    recorded_lambda: dict[tuple[str, str], tuple[str, str]] = {}
-    for name, method in entries:
-        identity = lambda_identity(method)
-        if identity is not None:
-            recorded_lambda.setdefault((name, identity), (name, method))
+    recorded_lambdas = lambda_groups(entries)
     moved: dict[tuple[str, str], tuple[str, str]] = {}
-    for key in required:
-        if key in entries:
-            continue
-        identity = lambda_identity(key[1])
-        if identity is not None and (key[0], identity) in recorded_lambda:
-            moved[key] = recorded_lambda[(key[0], identity)]
+    for (name, enclosing, descriptor), methods in lambda_groups(required).items():
+        recorded_methods = recorded_lambdas.get((name, enclosing, descriptor), [])
+        wanted = set(methods)
+        held = set(recorded_methods)
+        gone = [method for method in recorded_methods if method not in wanted]
+        fresh = [method for method in methods if method not in held]
+        for before, after in zip(gone, fresh):
+            moved[(name, after)] = (name, before)
     return moved
 
 
@@ -355,16 +377,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, help="where --record writes (default: stdout)")
     args = parser.parse_args(argv)
 
+    lists = server_tests(args.server_tests) if args.server_tests.is_dir() else {}
     if not args.map.is_file():
+        if not lists:
+            print(
+                "server-reachable: this run holds neither a coverage map nor dedicated-server"
+                " test lists, which only a dispatch runs, so there is nothing to compare"
+            )
+            return 0
         print(
-            f"server-reachable: {args.map} is missing, so this run recorded no coverage map to"
-            f" compare and there is nothing to check",
+            f"error: {args.map} is missing, so the tests the dedicated server of "
+            + ", ".join(sorted(lists))
+            + " ran have no coverage map to be compared against. The run's download step found"
+            " lists and no map, so the map artifact is missing or was saved under another name",
             file=sys.stderr,
         )
-        return 0
+        return 1
     with args.map.open() as handle:
         map_data = json.load(handle)
-    lists = server_tests(args.server_tests) if args.server_tests.is_dir() else {}
     if not lists:
         print(
             "server-reachable: this run holds no dedicated-server test lists, which only a"

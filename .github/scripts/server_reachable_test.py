@@ -228,6 +228,88 @@ class ServerReachableTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("lambda$play$40", out)
 
+    # Two lambdas of one method can share a descriptor (the record holds such a pair in a resource
+    # pack provider), so the counter is not an identity: both move by the same shift, and neither
+    # may be reported as removable or excused as the other.
+    def testTwoLambdasOfOneMethodBothSurviveARenumbering(self):
+        pair = ":(Lpkg/Provider;Ljava/lang/String;)Lpkg/Pack;"
+        self.write_map(
+            {
+                "1.20.6-forge": {
+                    CLIENT_TEST: {
+                        "pkg/Provider": [
+                            "lambda$register$2" + pair,
+                            "lambda$register$3" + pair,
+                        ]
+                    }
+                }
+            }
+        )
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST])
+        self.write_baseline(
+            {
+                "pkg/Provider": [
+                    "lambda$register$0" + pair,
+                    "lambda$register$1" + pair,
+                ]
+            },
+            {"pkg/Provider": "registers the mods' resources as a pack."},
+        )
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("can be removed", out)
+
+    # One entry of a shared-descriptor pair does not cover the other: a record that held one of
+    # them fails on the second rather than passing on either lambda of that identity.
+    def testARenumberedPairDoesNotCoverAMissingEntry(self):
+        pair = ":(Lpkg/Provider;Ljava/lang/String;)Lpkg/Pack;"
+        self.write_map(
+            {
+                "1.20.6-forge": {
+                    CLIENT_TEST: {
+                        "pkg/Provider": [
+                            "lambda$register$2" + pair,
+                            "lambda$register$3" + pair,
+                        ]
+                    }
+                }
+            }
+        )
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST])
+        self.write_baseline(
+            {"pkg/Provider": ["lambda$register$0" + pair]},
+            {"pkg/Provider": "registers the mods' resources as a pack."},
+        )
+        code, out, err = self.run_script()
+        self.assertEqual(code, 1)
+        self.assertIn("lambda$register$3", out)
+
+    # A name the record already holds is matched before rank pairing, so a new lambda cannot take
+    # a recorded one's place: a record of $1 does not explain a run that needs $0 and $1.
+    def testARecordedLambdaDoesNotCoverANewOneOfTheSameMethod(self):
+        pair = ":(Lpkg/Provider;Ljava/lang/String;)Lpkg/Pack;"
+        self.write_map(
+            {
+                "1.20.6-forge": {
+                    CLIENT_TEST: {
+                        "pkg/Provider": [
+                            "lambda$register$0" + pair,
+                            "lambda$register$1" + pair,
+                        ]
+                    }
+                }
+            }
+        )
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST])
+        self.write_baseline(
+            {"pkg/Provider": ["lambda$register$1" + pair]},
+            {"pkg/Provider": "registers the mods' resources as a pack."},
+        )
+        code, out, err = self.run_script()
+        self.assertEqual(code, 1)
+        self.assertIn("lambda$register$0" + pair, out)
+        self.assertNotIn("can be removed", out)
+
     # A record says which run it came from, so it cannot claim provenance it was not told.
     def testARecordNeedsTheRunItCameFrom(self):
         self.write_map({"1.20.6-forge": {CLIENT_TEST: {"pkg/Client": ["render:()V"]}}})
@@ -330,11 +412,22 @@ class ServerReachableTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("pkg/Client", err)
 
-    # A run with no coverage map to read is a run with nothing to compare, and the log says so.
+    # A run with neither a map nor server lists has nothing to compare, and the log says so.
     def testAMissingMapPasses(self):
         code, out, err = self.run_script()
         self.assertEqual(code, 0, err)
-        self.assertIn("no coverage map", err)
+        self.assertIn("neither a coverage map nor dedicated-server test lists", out)
+
+    # A dispatch holds the lists, so a missing map means its download step found no map artifact
+    # (or saved it under another name) and the comparison would be skipped in silence: that is a
+    # failure, not a run with nothing to judge.
+    def testAMissingMapWithServerListsFails(self):
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        code, out, err = self.run_script()
+        self.assertEqual(code, 1)
+        self.assertIn("is missing", err)
+        self.assertIn("no coverage map to be compared against", err)
+        self.assertIn("1.20.6-forge", err)
 
 
 class RepositoryBaselineTest(unittest.TestCase):
