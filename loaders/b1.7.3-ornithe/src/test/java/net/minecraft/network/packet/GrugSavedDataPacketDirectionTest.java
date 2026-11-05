@@ -24,8 +24,8 @@ import java.io.IOException;
  * property of the game's table, which exists only with the game loaded: a unit test in the game's
  * own package is what pins it.
  *
- * <p>{@code register} is private to the game's package, which is why this test lives in it, and the
- * packet it registers is grug's own, with the direction the loader registers it in.
+ * <p>{@code register} is package-private, which is why this test lives in the game's package, and
+ * the packet it registers is grug's own, with the direction the loader registers it in.
  */
 class GrugSavedDataPacketDirectionTest {
 
