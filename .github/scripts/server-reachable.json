@@ -16,6 +16,15 @@
       "drawMiningOverlay:(Lyw;III)Z",
       "openGui:(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V"
     ],
+    "net/grug/minecraft/grug/GrugBlockFaces": [
+      "readModel:(Ljava/io/File;Ljava/lang/String;)Lcom/google/gson/JsonObject;",
+      "resolve:(Ljava/io/File;Ljava/lang/String;)[Ljava/lang/String;"
+    ],
+    "net/grug/minecraft/grug/GrugFaceTextures": [
+      "mergeTextures:(Ljava/lang/String;Lcom/google/gson/JsonObject;Ljava/util/Map;)Z",
+      "resolve:(Ljava/lang/String;[Ljava/lang/String;Ljava/util/Map;)[Ljava/lang/String;",
+      "vanillaParentFaceKeys:(Ljava/lang/String;)[Ljava/lang/String;"
+    ],
     "net/grug/minecraft/grug/GrugModFileStates": [
       "swapSibling:(Ljava/nio/file/Path;)Ljava/nio/file/Path;"
     ],
@@ -87,12 +96,14 @@
       "register:(Ljava/util/function/Consumer;)V"
     ]
   },
-  "recorded_from": "run 42029618358, the full dispatch of 92a1647f on 2026-11-05",
+  "recorded_from": "run 42029618358, the full dispatch of 92a1647f on 2026-11-05, and run 42079970039, the full dispatch of 031f946e on 2026-11-05",
   "why": {
     "net/grug/minecraft/core/GrugTestRunner$4": "The seam that forwards a test's forced autosave to the adapter. Only a test whose name asks for a save tick reaches it, and that test reads the save indicator a client draws, so no dedicated server runs it today.",
     "net/grug/minecraft/forge/ForgeAdapter": "The game directory the capture path writes under and the crack overlay a client draws, both reached only by tests that read a frame; requestAutosaveForTest saves through the client's integrated server, which a dedicated server does not have. The boot's own game directory read is in the boot segment, which the map leaves out.",
     "net/grug/minecraft/forge125/Grug125Adapter": "The game directory and its 1.2.5 name, which the client's captures write under; a dedicated server captures nothing, and the boot's read is in the boot segment the map leaves out.",
     "net/grug/minecraft/forge125/Grug125ClientAdapter": "The client half of the 1.2.5 loader: the mining crack overlay and the screen only a client opens.",
+    "net/grug/minecraft/grug/GrugBlockFaces": "Reads a block's model JSON from the mods directory and follows its parent chain, which the Ornithe loaders, StationAPI and 1.2.5 do when a client bakes a block's faces; 1.20.6 leaves the reading to the game's own model baking. A dedicated server bakes no block model, so no test its server runs reads one. The tests that reach it, hot_reload_texture and hot_reload_item_texture, capture a frame to see the reload, so no dedicated server runs them either.",
+    "net/grug/minecraft/grug/GrugFaceTextures": "The per-face keys a built-in model parent supplies and the texture each face key resolves to, reached through GrugBlockFaces while a client bakes a block model. A dedicated server bakes no model and resolves no face texture.",
     "net/grug/minecraft/grug/GrugModFileStates": "Hot reload swaps a changed file aside on the client's watcher; a dedicated server reloads no mod file.",
     "net/grug/minecraft/grug/GrugModels": "Reads a mod's model files, which a client does to draw a block or an item; a dedicated server draws nothing and reads none of them.",
     "net/grug/minecraft/grug/GrugModels$Cached": "A model built for drawing and kept for the next frame that needs it; a dedicated server builds no model.",
