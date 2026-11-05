@@ -8,6 +8,9 @@ import net.grug.minecraft.grug.GrugScreenshots;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** Covers the frame rule in {@link GrugRenderSettle}. */
 class GrugRenderSettleTest {
 
@@ -245,5 +248,92 @@ class GrugRenderSettleTest {
                 }
             }
         }
+    }
+
+    @Test
+    void theSavingIndicatorIsShownOnlyWhileItsAlphaIsDrawn() {
+        // The text is drawn while floor(255 * value) is above 8, so 8/255 is the last value that is
+        // not drawn and the next whole step of alpha is.
+        assertFalse(GrugRenderSettle.savingIndicatorShown(true, 8.0F / 255.0F, 8.0F / 255.0F));
+        assertTrue(GrugRenderSettle.savingIndicatorShown(true, 9.0F / 255.0F, 9.0F / 255.0F));
+        // Nothing was saved, so there is nothing to wait for.
+        assertFalse(GrugRenderSettle.savingIndicatorShown(true, 0.0F, 0.0F));
+        // A save in progress walks the value toward 1.
+        assertTrue(GrugRenderSettle.savingIndicatorShown(true, 1.0F, 1.0F));
+        // The renderer interpolates between the two ticks' values, so the tick before the text
+        // stops being drawn still draws the previous tick's stronger value.
+        assertTrue(GrugRenderSettle.savingIndicatorShown(true, 0.031F, 0.04F));
+        assertFalse(GrugRenderSettle.savingIndicatorShown(true, 0.031F, 0.031F));
+        // The player can turn the indicator off, and then no value draws it.
+        assertFalse(GrugRenderSettle.savingIndicatorShown(false, 1.0F, 1.0F));
+        assertFalse(GrugRenderSettle.savingIndicatorShown(false, 0.2F, 0.0F));
+    }
+
+    @Test
+    void aSaveThatEndedIsStillInFramesForTheTicksItsValueFadesOver() {
+        // The measured flake (#1132): one tick into a save the value is a fifth of the way up, and
+        // each client tick afterwards walks it a fifth of the way back to zero. The frames drawn
+        // over those ticks still have the text, which is why the capture waits for the value to
+        // reach the floor rather than for the save to end.
+        int shownTicks = 0;
+        float value = 0.2F;
+        while (GrugRenderSettle.savingIndicatorShown(true, value, value)) {
+            shownTicks++;
+            value *= 0.8F;
+        }
+        assertEquals(8, shownTicks);
+    }
+
+    @Test
+    void aCaptureWaitsOutTheIndicatorAndThenTheFramesThatStillHadIt() {
+        // The order is the rule: the frames that still had the text are marked busy only after it
+        // cleared, so the frames a capture may read are the two drawn from the cleared value.
+        List<String> order = new ArrayList<>();
+        int[] shown = {3};
+        int[] settled = {3};
+
+        GrugRenderSettle.awaitNoSavingIndicator(
+                () -> {
+                    order.add("indicator");
+                    return shown[0]-- > 0;
+                },
+                () -> order.add("busy"),
+                () -> {
+                    order.add("frames");
+                    return settled[0]-- <= 0;
+                });
+
+        // Polled once before the loop, then until the value clears, then the frames until they are
+        // the ones the capture may read.
+        assertEquals(
+                List.of(
+                        "indicator",
+                        "indicator",
+                        "indicator",
+                        "indicator",
+                        "busy",
+                        "frames",
+                        "frames",
+                        "frames",
+                        "frames"),
+                order);
+    }
+
+    @Test
+    void aCaptureWithoutTheIndicatorWaitsForNothing() {
+        List<String> order = new ArrayList<>();
+
+        GrugRenderSettle.awaitNoSavingIndicator(
+                () -> {
+                    order.add("indicator");
+                    return false;
+                },
+                () -> order.add("busy"),
+                () -> {
+                    order.add("frames");
+                    return true;
+                });
+
+        assertEquals(List.of("indicator"), order);
     }
 }

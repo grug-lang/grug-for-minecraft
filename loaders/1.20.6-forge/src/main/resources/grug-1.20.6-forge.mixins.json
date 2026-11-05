@@ -11,6 +11,7 @@
             "FogRendererMixin",
             "GameRendererMixin",
             "GuiMixin",
+            "GuiSavingIndicatorAccessor",
             "LightTextureMixin",
             "LiquidBlockRendererMixin",
             "MinecraftServerTickMixin",
