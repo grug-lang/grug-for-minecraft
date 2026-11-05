@@ -14,10 +14,10 @@ import org.junit.jupiter.api.Test;
  */
 class HostFunctionsOptionTest {
 
-    private static final long INNER = 0x0000_0001_0000_0001L;
-    private static final long OTHER = 0x0000_0001_0000_0002L;
-    private static final long UNUSED_OPTION = 0x0000_0003_0000_0001L;
-    private static final long UNKNOWN_ID = 0x0000_0003_0000_0002L;
+    private static final long INNER = GrugEntities.hostEntityId(GrugEntityType.Item, 1);
+    private static final long OTHER = GrugEntities.hostEntityId(GrugEntityType.Item, 2);
+    private static final long UNUSED_OPTION = GrugEntities.hostEntityId(GrugEntityType.Option, 1);
+    private static final long UNKNOWN_ID = GrugEntities.hostEntityId(GrugEntityType.Item, 3);
 
     @AfterEach
     void clearState() {

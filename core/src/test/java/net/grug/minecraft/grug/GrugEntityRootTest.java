@@ -17,7 +17,7 @@ import java.util.List;
  */
 class GrugEntityRootTest {
 
-    private static final long ENTITY = 0x0000_0002_0000_0001L;
+    private static final long ENTITY = GrugEntities.hostEntityId(GrugEntityType.Item, 1);
 
     @AfterEach
     void clearState() {
