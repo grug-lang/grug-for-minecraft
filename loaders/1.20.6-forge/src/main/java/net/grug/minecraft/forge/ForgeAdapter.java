@@ -1999,28 +1999,42 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * Runs the save indicator wait with the state lock released, admitting the client thread.
+     * Picks the release form for the wait: the one that admits the client thread, or the plain one
+     * for a capture before the client has ticked once.
      *
-     * <p>The two call forms are the ones {@link #onClientThread} uses: the admitted form when the
-     * client thread is known, since only it may enter the state while the wait runs, and the plain
-     * form when it is not, because the wait would then have nothing to admit and the render thread
-     * would be kept out.
-     *
-     * <p>The null fallback cannot occur in a run: {@code clientThread} is set by the client's first
-     * tick, and a capture runs from a test, which the client has been ticking for. It is the
-     * fallback line this annotation excludes, not the wait, which runs on every capture.
+     * <p>Only that null arm is unreachable in a run, since a capture runs after the client's first
+     * tick, which is what sets the field. The admitted arm is {@link #releaseWithAClientThread},
+     * which is measured like any other method and runs on every capture.
      */
     @GrugGenerated(
-            "saving indicator wait: a capture runs after the client's first tick, so"
-                    + " clientThread is set and only the admitted arm runs; the fallback for a"
-                    + " capture before the client has ticked once is the excluded line")
+            "saving indicator wait: a capture runs after the client's first tick, so clientThread"
+                    + " is set and this null arm cannot occur")
     private static void releaseStateForSavingIndicator(Runnable wait) {
         Thread admitted = clientThread;
         if (admitted == null) {
-            Grug.runWithStateLockReleased(wait);
+            releaseWithoutAClientThread(wait);
             return;
         }
+        releaseWithAClientThread(wait, admitted);
+    }
+
+    /**
+     * Releases the grug state lock for the wait, admitting only the client thread: it is the thread
+     * that draws the frames the wait counts and ticks the value it fades, and a chunk worker that
+     * entered meanwhile and drew a block entity would fold its err into the suspended call (#583,
+     * #836).
+     */
+    private static void releaseWithAClientThread(Runnable wait, Thread admitted) {
         Grug.runWithStateLockReleased(wait, admitted);
+    }
+
+    /**
+     * The release form for a capture before the client has ticked once, which no run reaches; the
+     * plain form lets every thread in, so the wait could not be kept out of the render thread.
+     */
+    @GrugGenerated("saving indicator wait: the client has ticked before any capture runs")
+    private static void releaseWithoutAClientThread(Runnable wait) {
+        Grug.runWithStateLockReleased(wait);
     }
 
     /**

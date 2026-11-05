@@ -1,11 +1,17 @@
 # A capture must never read the integrated server's "Saving world" text, which 1.20.6 draws in the
 # bottom right of the frame for about ten client ticks after a save. A save lands between a test's
-# own ticks, so this test runs for a whole autosave window, capturing the flat hand's scene every
-# few ticks: without a wait in the capture path the captures that read a frame drawn during the fade
-# differ from the golden and the test fails. See #1132. The scene, the rectangle and the golden are
-# coverage_flat_hand's, so the frame is the one that test already accepts on every loader and only
-# the timing differs. The captures start once that scene's hand has finished rising, which is also
-# what makes the first one match the golden.
+# own ticks, so this test captures the flat hand's scene every few ticks for longer than one whole
+# autosave interval: without a wait in the capture path the captures that read a frame drawn during
+# the fade differ from the golden and the test fails. See #1132. The scene, the rectangle and the
+# golden are coverage_flat_hand's, so the frame is the one that test already accepts on every loader
+# and only the timing differs. The captures start once that scene's hand has finished rising, which
+# is also what makes the first one match the golden. 1.20.6 starts the autosave countdown from 300
+# times its measured tick rate, and the two measured runs put consecutive saves 84 to 90 seconds
+# apart, about 11800 to 12700 ticks. The window has to be longer than one interval so that a save is
+# inside it whatever phase the test starts at, and 16000 ticks is; a shorter window only catches a
+# save when it happens to start just before one. Only 1.20.6 draws the text, so the other four
+# loaders set the scene up and stop: a capture there cannot fail, and repeating the golden for them
+# would only cost run time.
 settled_ticks: number = 0
 ready: bool = false
 # Counts down to the next capture, so one lands every five ticks. grug has no remainder operator.
@@ -13,14 +19,19 @@ until_capture: number = 0
 
 export init(ctx: TestInitContext) {
     # The budget is in ticks of the game's clock, which every loader runs at up to ten ticks a
-    # frame, so 6400 leaves the same window at either speed. The test stops itself at 6300.
-    ctx.set_max_ticks(6400)
+    # frame, so 16200 leaves the same window at either speed. The test stops itself at 16000.
+    ctx.set_max_ticks(16200)
 }
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup()
         ctx.not_done()
+        return
+    }
+
+    if Test.loader_name() != "1.20.6-forge" {
+        Test.clear_held_item(Test.get_player())
         return
     }
 
@@ -43,9 +54,9 @@ export tick(ctx: TestTickContext) {
         ready = true
     }
 
-    # One tick past the window: a save can land on the window's last tick, and the frames that
-    # carry its text are drawn after it.
-    if ctx.current_tick() >= 6300 {
+    # One interval plus a margin, and the fade after a save on its last tick is drawn in the frames
+    # after it, so the captures reach a little past the save they have to contain.
+    if ctx.current_tick() >= 16000 {
         Test.clear_held_item(Test.get_player())
         return
     }
