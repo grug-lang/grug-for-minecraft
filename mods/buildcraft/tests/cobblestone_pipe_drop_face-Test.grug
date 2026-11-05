@@ -19,6 +19,10 @@ export tick_any_side(ctx: TestTickContext) {
     level.place_block(x + 1, y, z, "minecraft:chest")
     pipe: BlockEntity = _entity(ctx, level, x, y, z)
     ctx.assert(level.get_block_entity(x + 1, y, z).has(), "The destination chest should have a block entity.")
+    # The origin is the player's eye, so its coordinates are not whole blocks: every position the
+    # test compares is measured from the pipe's own block, which is the centre of a whole block.
+    center: Vec3 = pipe.block_pos().center()
+    floor_y: number = center.y() - 0.25
 
     # One record at the pipe floor and centre, heading for the centre, so the first tick picks the
     # chest as the only exit.
@@ -41,11 +45,11 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The 51st move should drop the item.")
 
     # The drop is at the face, not at the centre the item was sent from.
-    ctx.assert(level.count_item_entities(x, y, z, 0.5) == 0, "The item should not be dropped at the pipe's centre.")
-    dropped: number = level.count_item_entities(x + 0.51, y - 0.25, z, 0.5)
+    ctx.assert(level.count_item_entities(center.x(), floor_y, center.z(), 0.5) == 0, "The item should not be dropped at the pipe's centre.")
+    dropped: number = level.count_item_entities(center.x() + 0.51, floor_y, center.z(), 0.5)
     ctx.assert(dropped == 1, "The pipe should have dropped the item 0.01 past its east face.")
 
-    found_opt: Option[ItemEntity] = level.find_item_entity(x + 0.51, y - 0.25, z, 0.5)
+    found_opt: Option[ItemEntity] = level.find_item_entity(center.x() + 0.51, floor_y, center.z(), 0.5)
     ctx.assert(found_opt.has(), "The dropped item should be on the ground at the face.")
     found: ItemEntity = found_opt.unwrap()
     ctx.assert(found.count() == 1, "The dropped item entity should hold the record's one item.")

@@ -20,10 +20,14 @@ export tick_any_side(ctx: TestTickContext) {
     level.place_block(x + 1, y, z, "grug:cobblestone_pipe")
     source: BlockEntity = _entity(ctx, level, x, y, z)
     target: BlockEntity = _entity(ctx, level, x + 1, y, z)
+    # The origin is the player's eye, so its coordinates are not whole blocks: the records are
+    # measured from the source pipe's own centre, which is the centre of a whole block.
+    center: Vec3 = source.block_pos().center()
+    floor_y: number = center.y() - 0.25
 
-    _record(source, x + 0.48, y - 0.25, z, 0.03)
-    _record(source, x + 0.495, y - 0.25, z, 0.015)
-    _record(source, x + 0.5, y - 0.25, z, 0.01)
+    _record(source, center.x() + 0.48, floor_y, center.z(), 0.03)
+    _record(source, center.x() + 0.495, floor_y, center.z(), 0.015)
+    _record(source, center.x() + 0.5, floor_y, center.z(), 0.01)
 
     Test.tick_block_entity(source, 1)
     ctx.assert(source.get_saved_list_size("traveling") == 0, "All three records should have been handed over.")

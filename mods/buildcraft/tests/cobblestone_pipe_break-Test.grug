@@ -32,18 +32,18 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(level.is_air(x + 4, y, z), "The second pipe should be gone.")
 
     # A radius that holds one pipe's block and not the other's, which is four blocks away.
-    dropped: number = level.count_item_entities(x, y, z, 1)
+    dropped: number = level.count_item_entities(x, y, z, 2)
     ctx.assert(dropped == 1, "The broken pipe should have dropped its one travelling item.")
-    stack_dropped: number = level.count_item_entities(x + 4, y, z, 1)
+    stack_dropped: number = level.count_item_entities(x + 4, y, z, 2)
     ctx.assert(stack_dropped == 1, "The broken pipe should have dropped its whole stack as one item entity.")
 
-    found_opt: Option[ItemEntity] = level.find_item_entity(x, y, z, 1)
+    found_opt: Option[ItemEntity] = level.find_item_entity(x, y, z, 2)
     ctx.assert(found_opt.has(), "The dropped item should be on the ground.")
     found: ItemEntity = found_opt.unwrap()
     ctx.assert(found.damage() == break_damage, "The dropped item should keep its damage.")
     ctx.assert(found.count() == 1, "The dropped item should hold the record's one item.")
 
-    stack_found_opt: Option[ItemEntity] = level.find_item_entity(x + 4, y, z, 1)
+    stack_found_opt: Option[ItemEntity] = level.find_item_entity(x + 4, y, z, 2)
     ctx.assert(stack_found_opt.has(), "The dropped stack should be on the ground.")
     stack_found: ItemEntity = stack_found_opt.unwrap()
     ctx.assert(stack_found.count() == break_stack_count, "The dropped item entity should hold the whole stack.")
