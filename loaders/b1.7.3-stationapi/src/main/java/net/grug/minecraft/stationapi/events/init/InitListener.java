@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugPacketDirection;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
@@ -118,15 +119,20 @@ public class InitListener {
      */
     @EventListener
     private static void registerPackets(PacketRegisterEvent event) {
+        // The event's register(int, boolean, boolean, Class) takes the client-receivable flag
+        // first and the server-receivable one second, and its mixin passes them through in that
+        // order to the game's register.
+        GrugPacketDirection control = GrugPacketDirection.BOTH_WAYS;
+        GrugPacketDirection savedData = GrugPacketDirection.SERVER_TO_CLIENT;
         event.register(
                 net.grug.minecraft.stationapi.control.GrugControlPacket.ID,
-                true,
-                true,
+                control.serverToClient(),
+                control.clientToServer(),
                 net.grug.minecraft.stationapi.control.GrugControlPacket.class);
         event.register(
                 net.grug.minecraft.stationapi.block.entity.GrugSavedDataPacket.ID,
-                true,
-                true,
+                savedData.serverToClient(),
+                savedData.clientToServer(),
                 net.grug.minecraft.stationapi.block.entity.GrugSavedDataPacket.class);
     }
 

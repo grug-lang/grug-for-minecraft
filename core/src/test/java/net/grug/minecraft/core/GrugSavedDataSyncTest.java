@@ -1,7 +1,9 @@
 package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedLists;
@@ -55,6 +57,17 @@ class GrugSavedDataSyncTest {
     @AfterEach
     void uninstall() {
         GrugSavedDataSync.install(null);
+    }
+
+    @Test
+    void aDedicatedServerNeverAppliesSavedData() {
+        assertTrue(
+                GrugSavedDataSync.appliesOn(GrugSide.CLIENT),
+                "the client holds the copy the frame pass reads, so it applies what the server"
+                        + " sent");
+        assertFalse(
+                GrugSavedDataSync.appliesOn(GrugSide.DEDICATED_SERVER),
+                "a server that applied a packet would write a client's copy into its own world");
     }
 
     @Test

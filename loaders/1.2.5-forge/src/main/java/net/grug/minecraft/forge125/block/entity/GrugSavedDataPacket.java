@@ -1,6 +1,8 @@
 package net.grug.minecraft.forge125.block.entity;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugPacketDirection;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.forge125.control.GrugPacketRegister;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.NBTTagCompound;
@@ -60,9 +62,14 @@ public class GrugSavedDataPacket extends Packet {
         blockEntity.writeSavedData(data);
     }
 
-    /** Registers the packet in the game's packet table, on both ends. */
+    /**
+     * Registers the packet in the game's packet table. Both ends need it there, because an id the
+     * receiver does not know closes the connection, but only the server may send it and only a
+     * client applies it.
+     */
     public static void register() {
-        GrugPacketRegister.register(ID, GrugSavedDataPacket.class);
+        GrugPacketRegister.register(
+                ID, GrugSavedDataPacket.class, GrugPacketDirection.SERVER_TO_CLIENT);
     }
 
     @Override
@@ -92,6 +99,9 @@ public class GrugSavedDataPacket extends Packet {
      */
     @Override
     public void processPacket(NetHandler handler) {
+        if (!GrugSavedDataSync.appliesOn(GrugCore.getAdapter().getSide())) {
+            return;
+        }
         Object level = GrugCore.getAdapter().getLevel();
         if (!(level instanceof World)) {
             return;
