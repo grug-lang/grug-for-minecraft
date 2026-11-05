@@ -985,7 +985,9 @@ jobs:
       # (#1033). The server's own log is the whole source: a test that printed no PASS here did not
       # run here, whatever its file declares, so neither a list of tests nor a list of client-only
       # classes has to be kept in step with it. The line count goes to the log, so a leg that ran
-      # fewer tests than it should is visible without opening the artifact.
+      # fewer tests than it should is visible without opening the artifact. The name carries the run
+      # attempt, so a re-run of this leg uploads its list beside the older attempt instead of
+      # replacing an artifact of the same name, and the guard reads each loader's newest (#1142).
       - name: Record the tests the dedicated server ran
         if: always()
         run: |
@@ -998,7 +1000,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-server-tests-${{ matrix.loader }}
+          name: coverage-server-tests-${{ matrix.loader }}-${{ github.run_attempt }}
           path: server-tests/tests.txt
           if-no-files-found: error
           retention-days: 7
@@ -2133,6 +2135,11 @@ jobs:
           name: coverage-map
           path: coverage
 
+      # Every attempt's lists, not this attempt's alone: a re-run runs only the jobs that failed, so
+      # its leg writes a newer list for its loader while the other legs keep the earlier artifact.
+      # The script reads each loader's newest attempt, which is how a re-run of one leg still holds
+      # all five lists; scoping the pattern to `${{ github.run_attempt }}` would leave it holding
+      # that one leg's list and failing on the four it does not have (#1142).
       - name: Download the tests the dedicated servers ran
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:

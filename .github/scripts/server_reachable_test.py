@@ -68,8 +68,11 @@ class ServerReachableTest(unittest.TestCase):
     def write_map(self, loaders, own=None):
         self.map.write_text(json.dumps(map_of(loaders, own)))
 
-    def write_tests(self, loader, tests):
-        directory = self.artifacts / f"coverage-server-tests-{loader}"
+    def write_tests(self, loader, tests, attempt=None):
+        name = f"coverage-server-tests-{loader}"
+        if attempt is not None:
+            name = f"{name}-{attempt}"
+        directory = self.artifacts / name
         directory.mkdir(parents=True, exist_ok=True)
         (directory / "tests.txt").write_text("\n".join(tests) + "\n")
 
@@ -428,6 +431,85 @@ class ServerReachableTest(unittest.TestCase):
         self.assertIn("is missing", err)
         self.assertIn("no coverage map to be compared against", err)
         self.assertIn("1.20.6-forge", err)
+
+    # A re-run names its artifact after the run attempt, so the loader is the name without that
+    # suffix: read as part of the loader, it would look like a loader the map does not have.
+    def testAnAttemptSuffixedArtifactIsReadForItsLoader(self):
+        self.write_map({"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("1.20.6-forge", [SERVER_TEST], attempt=2)
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertIn("0 class method(s)", out)
+        self.assertIn("1.20.6-forge ran 1 test(s) from attempt 2", out)
+
+    # The repro of #1142: a leg that stopped at its third test left a short list under attempt 1,
+    # and the re-run's full list under attempt 2 has to be the one read. Without the suffix handled,
+    # the two look like two loaders and the map's own loader has no list at all.
+    def testTheNewestAttemptsListIsTheOneRead(self):
+        self.write_map({"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST], attempt=1)
+        self.write_tests("1.20.6-forge", [SERVER_TEST], attempt=2)
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertIn("from attempt 2", out)
+
+    # A loader name carries hyphens of its own, so the attempt is the last numbered part and
+    # everything before it is the loader: a split on the first hyphen would name another loader,
+    # which would then have no list and fail.
+    def testAnAttemptSuffixAfterALoadersOwnHyphenIsRead(self):
+        self.write_map({"b1.7.3-stationapi": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("b1.7.3-stationapi", [SERVER_TEST], attempt=3)
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertIn("b1.7.3-stationapi ran 1 test(s) from attempt 3", out)
+
+    def testAnAttemptSuffixAfterAnUnderscoreAndAHyphenIsRead(self):
+        self.write_map({"a1.1.2_01-ornithe": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("a1.1.2_01-ornithe", [SERVER_TEST], attempt=2)
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertIn("a1.1.2_01-ornithe ran 1 test(s) from attempt 2", out)
+
+    # A bare name is attempt 0 and loses to any attempt a run uploaded: a list downloaded by hand
+    # must not shadow the run's own list for the same loader.
+    def testABareNameLosesToASuffixedOneForTheSameLoader(self):
+        self.write_map({"b1.7.3-stationapi": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("b1.7.3-stationapi", [UNRELATED_TEST])
+        self.write_tests("b1.7.3-stationapi", [SERVER_TEST], attempt=1)
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertIn("b1.7.3-stationapi ran 1 test(s) from attempt 1", out)
+
+    # The newest attempt wins even when it is the shorter list, and attempts compare as numbers: a
+    # re-run that ran fewer tests is a leg that stopped early, and an older, longer list must not
+    # paper over that.
+    def testANewerShorterListIsNotReplacedByAnOlderLongerOne(self):
+        self.write_map({"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("1.20.6-forge", [SERVER_TEST], attempt=1)
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST], attempt=10)
+        code, out, err = self.run_script()
+        self.assertEqual(code, 1)
+        self.assertIn("pkg/Server tick:()V", out)
+
+    # The suffix is the last numbered part, and a version in the loader's name is not one: the
+    # loader is what is left of the artifact name after that part comes off.
+    def testTheAttemptSuffixIsTheLastNumberedPart(self):
+        self.assertEqual(
+            server_reachable.artifact_loader("coverage-server-tests-1.20.6-forge-12"),
+            ("1.20.6-forge", 12),
+        )
+        self.assertEqual(
+            server_reachable.artifact_loader("coverage-server-tests-b1.7.3-stationapi-3"),
+            ("b1.7.3-stationapi", 3),
+        )
+        self.assertEqual(
+            server_reachable.artifact_loader("coverage-server-tests-a1.1.2_01-ornithe-2"),
+            ("a1.1.2_01-ornithe", 2),
+        )
+        self.assertEqual(
+            server_reachable.artifact_loader("coverage-server-tests-1.20.6-forge"),
+            ("1.20.6-forge", 0),
+        )
 
 
 class RepositoryBaselineTest(unittest.TestCase):
