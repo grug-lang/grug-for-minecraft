@@ -24,10 +24,11 @@ import java.util.WeakHashMap;
  * <p>Only a block that draws per frame is sent. A block whose geometry is in its chunk's mesh reads
  * the numbers when the mesh is built, and the script asks for that with {@code redraw}; a send here
  * would arrive without the mesh that shows it. On a client that shares the world (singleplayer and
- * the integrated server) {@code redraw} re-meshes that one world and the number is already there,
- * but a joined client's mesh is not re-meshed by it: a chunk-mesh block's number still does not
- * reach a joined client, which is a gap of its own (#1101) and not one this rule can close by
- * sending.
+ * the integrated server) {@code redraw} re-meshes that one world and the number is already there.
+ * On 1.20.6 the server's {@code redraw} also sends the client the block entity's update packet,
+ * which re-meshes the client's copy, so a chunk-mesh block's number does reach a joined client
+ * there. The older loaders' {@code redraw} only re-meshes the local world and sends nothing, so the
+ * gap (#1101) is theirs.
  *
  * <p>A send is left out when the data is what was last sent to that block entity, because a script
  * may save the same value every tick, and a machine's tick is not a reason for a packet. The data

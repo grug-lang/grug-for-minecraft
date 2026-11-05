@@ -18,22 +18,12 @@ frame_block: Option[BlockEntity] = Option.new()
 before: Option[Screenshot] = Option.new()
 saved: bool = false
 
-# Whether the crop's section has been meshed again since the fixture went in, which is also when
-# the renderer picks up the block entity this test placed. See _force_remesh.
-remeshed: bool = false
-
 # The runner tick the number was saved on.
 saved_tick: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
-        ctx.not_done()
-    } else if not Test.world_settled() {
-        ctx.not_done()
-    } else if not remeshed {
-        _force_remesh(ctx)
-        remeshed = true
         ctx.not_done()
     } else if not Test.world_settled() {
         ctx.not_done()
@@ -83,20 +73,4 @@ local _setup(ctx: TestTickContext) {
     be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
     ctx.assert(be_opt.has(), "The frame-rendered block should have a block entity.")
     frame_block.set(be_opt.unwrap())
-}
-
-# Meshes the crop's section again by changing a block state and putting it back, the same way
-# coverage_frame does. The renderer keeps the block entities it saw when the section was last
-# meshed, so without this it can still be drawing the block entity the previous test left at this
-# spot, whose copy of the number is 0, while the packet writes the one this test placed. The swap is
-# outside the crop, and dirt and stone are both opaque and unlit, so it changes no compared pixel.
-local _force_remesh(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
-    x: number = origin.x()
-    y: number = origin.y()
-    z: number = origin.z()
-    level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
-    level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
-    ctx.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the block back.")
 }

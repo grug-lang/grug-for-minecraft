@@ -21,6 +21,12 @@ frame_yaw: number = 0
 refused_bad_count: bool = false
 refused_empty_model: bool = false
 
+# The list and energy tests save through the packet and the frame pass reads them, so this block
+# has to be a receiver. The number test does not need it, and the golden has an empty store.
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_power_receiver(100)
+}
+
 export render_frame(ctx: RenderFrameContext) {
     frame_tick = ctx.partial_tick()
     frame_yaw = ctx.camera_yaw()
@@ -34,14 +40,15 @@ export render_frame(ctx: RenderFrameContext) {
     ctx.draw_item(log, 0, 1, 0.3, 0.2, 0.5)
     ctx.draw_item(stick, 0, 1, 0.7, 0.2, 0.5)
 
-    # A row of three stacks at each of three heights, drawn only once a test has saved a number,
-    # which is what the frame pass reads here: on a version whose client keeps its own copy of the
-    # block entity, that copy is the one this call runs on. See coverage_frame_saved_number. A
-    # dedicated server's camera is not snapped to the block centre the way a client run's is, so the
-    # crop is framed a little differently on each loader: the middle row is inside every crop, and
-    # the low and high rows catch the crops that sit a little higher or lower. A row rather than one
-    # stack, because one stack covers less than the 1 percent of the Alpha crop the test asks for.
-    if me.get_saved_number("marker") > 0 {
+    # A row of three stacks at each of three heights, drawn once a test has saved a number, a list
+    # record or energy, which is what the frame pass reads here: on a version whose client keeps its
+    # own copy of the block entity, that copy is the one this call runs on. See
+    # coverage_frame_saved_number and coverage_frame_saved_list_energy. A dedicated server's camera
+    # is not snapped to the block centre the way a client run's is, so the crop is framed a little
+    # differently on each loader: the middle row is inside every crop, and the low and high rows
+    # catch the crops that sit a little higher or lower. A row rather than one stack, because one
+    # stack covers less than the 1 percent of the Alpha crop the test asks for.
+    if me.get_saved_number("marker") > 0 or me.get_saved_list_item("things", 0).has() or me.get_energy_stored() > 0 {
         ctx.draw_item(log, 0, 1, 0.35, 0.2, 0.5)
         ctx.draw_item(log, 0, 1, 0.5, 0.2, 0.5)
         ctx.draw_item(log, 0, 1, 0.65, 0.2, 0.5)

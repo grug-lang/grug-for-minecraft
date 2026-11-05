@@ -37,6 +37,10 @@ public class GrugSavedDataPacket extends Packet {
     private int x;
     private int y;
     private int z;
+
+    /** The block the data belongs to, so a packet cannot write it into a different block. */
+    private int blockId;
+
     private NbtCompound data = new NbtCompound();
 
     /** Empty, for the game's packet table, which makes one of each packet to read it into. */
@@ -47,6 +51,7 @@ public class GrugSavedDataPacket extends Packet {
         this.x = blockEntity.x;
         this.y = blockEntity.y;
         this.z = blockEntity.z;
+        this.blockId = blockEntity.world.getBlockId(blockEntity.x, blockEntity.y, blockEntity.z);
         blockEntity.writeSavedData(data);
     }
 
@@ -58,6 +63,7 @@ public class GrugSavedDataPacket extends Packet {
             x = in.readInt();
             y = in.readInt();
             z = in.readInt();
+            blockId = in.readInt();
             data = NbtIo.read(in);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -70,6 +76,7 @@ public class GrugSavedDataPacket extends Packet {
             out.writeInt(x);
             out.writeInt(y);
             out.writeInt(z);
+            out.writeInt(blockId);
             NbtIo.write(data, out);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -79,7 +86,9 @@ public class GrugSavedDataPacket extends Packet {
     /**
      * Applies the data to the client's copy of the block entity, which the frame pass reads from
      * the next frame on. A client that has not loaded the block's chunk yet has no copy to update,
-     * and reads the data the chunk carries when it does.
+     * and reads the data the chunk carries when it does. The block at the position has to be the
+     * one the packet was sent for, or a packet that arrives after the block changed, which the next
+     * test's fixture does, would write one block's data into another's.
      */
     @Override
     public void apply(NetworkHandler handler) {
@@ -87,7 +96,11 @@ public class GrugSavedDataPacket extends Packet {
         if (!(level instanceof World)) {
             return;
         }
-        BlockEntity blockEntity = ((World) level).getBlockEntity(x, y, z);
+        World world = (World) level;
+        if (world.getBlockId(x, y, z) != blockId) {
+            return;
+        }
+        BlockEntity blockEntity = world.getBlockEntity(x, y, z);
         if (blockEntity instanceof GrugBlockEntity) {
             ((GrugBlockEntity) blockEntity).readSavedData(data);
         }

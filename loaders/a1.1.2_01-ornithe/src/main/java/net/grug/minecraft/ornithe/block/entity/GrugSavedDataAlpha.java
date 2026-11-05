@@ -1,6 +1,8 @@
 package net.grug.minecraft.ornithe.block.entity;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
@@ -36,8 +38,7 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
 
     @Override
     public boolean onServer(Object blockEntity) {
-        GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
-        return entity.world != null && !entity.world.isMultiplayer;
+        return GrugCore.getAdapter().getSide() == GrugSide.DEDICATED_SERVER;
     }
 
     @Override
