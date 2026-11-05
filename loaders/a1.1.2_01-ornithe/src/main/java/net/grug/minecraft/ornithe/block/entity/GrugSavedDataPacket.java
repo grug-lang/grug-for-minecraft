@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe.block.entity;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugSavedDataQueue;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.block.entity.BlockEntity;

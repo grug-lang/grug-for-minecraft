@@ -1,4 +1,4 @@
-package net.grug.minecraft.ornithe.block.entity;
+package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,8 +9,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Covers the world scoping of Alpha's saved-data queue, which is what keeps a packet from a server
- * the client has left out of the next server's block at the same position.
+ * Covers the world scoping of a loader's saved-data queue, which is what keeps a packet from a
+ * server the client has left out of the next server's block at the same position.
  *
  * <p>The queue only names its levels as objects, so a test can stand a world or a connection in for
  * one without a game: what the packets hold does not matter here, only which world queued them.
