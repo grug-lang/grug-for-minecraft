@@ -174,17 +174,37 @@ class GrugScreenshotsVerifyTest {
     @Test
     void anUpdateWritesTheMissUnderItsOwnSidesName() throws Exception {
         System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "1");
+        Path captureDirectory = references.resolve(REFERENCE_PATH);
+        // Both sides have a reference already, so this is the update-accept path rather than the
+        // bootstrap one, and the client's file is there to be left alone.
+        write(captureDirectory.resolve("server").resolve(LOADER_NAME + ".png"), solid(2, 2, RED));
+        BufferedImage clientReference = solid(2, 2, BLUE);
+        Path clientFile = captureDirectory.resolve("client").resolve(LOADER_NAME + ".png");
+        write(clientFile, clientReference);
 
         BufferedImage capture = solid(2, 2, GREEN);
         assertDoesNotThrow(() -> verifyForSide(GrugSide.DEDICATED_SERVER, capture));
 
-        Path serverReference =
-                references.resolve(REFERENCE_PATH).resolve("server").resolve(LOADER_NAME + ".png");
-        assertTrue(Files.exists(serverReference), "the miss is accepted under the side's name");
+        // The miss is accepted over the server's previous reference, not bootstrapped beside it.
+        Path serverReference = captureDirectory.resolve("server").resolve(LOADER_NAME + ".png");
         assertEquals(capture.getRGB(0, 0), read(serverReference).getRGB(0, 0));
-        assertFalse(
-                Files.exists(references.resolve(REFERENCE_PATH).resolve("client")),
-                "a server update never writes the client's directory");
+        assertEquals(1, pngCount(captureDirectory.resolve("server")), "the update replaced it");
+        // The other side's file is untouched, so a server capture can never rewrite the client's.
+        assertEquals(clientReference.getRGB(0, 0), read(clientFile).getRGB(0, 0));
+    }
+
+    /** The PNGs directly in one reference directory. */
+    private static int pngCount(Path directory) {
+        File[] files = directory.toFile().listFiles();
+        int references = 0;
+        if (files != null) {
+            for (File file : files) {
+                if (file.getName().endsWith(".png")) {
+                    references++;
+                }
+            }
+        }
+        return references;
     }
 
     @Test

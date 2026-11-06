@@ -360,10 +360,11 @@ while :; do
     done
     # The remote GUI test (#168) and the GUI capture tests run on the servers that can open a
     # container for their player, 1.20.6 and 1.2.5 (#1098): the other three servers list them as
-    # unsupported, so these two legs must show they ran. A capture compares against the unchanged
-    # client-only golden, so a leg whose panel draws differently fails in the test itself; this
-    # check catches the test not running at all on that leg (renamed, listed as unsupported, or no
-    # longer recognised as declared), which the run would otherwise pass with it silently skipped.
+    # unsupported, so these two legs must show they ran. A capture compares against the reference of
+    # the side it runs on, the server's own PNG here, so a leg whose panel draws differently fails
+    # in the test itself; this check catches the test not running at all on that leg (renamed,
+    # listed as unsupported, or no longer recognised as declared), which the run would otherwise
+    # pass with it silently skipped.
     # A server that stops opening the menu fails the test on its own tick budget, before this is
     # reached. The captures wait on the server's own state, so they run here; the item texture swap
     # is the one that cannot, because it waits for a resource reload to finish on the client the

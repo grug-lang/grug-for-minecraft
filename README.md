@@ -145,13 +145,14 @@ the adapter a server runs reaches them by reflection, and the tests it cannot ru
 ### Accepting Screenshot References
 
 A screenshot test compares its capture against the PNGs in the reference directory it names,
-which is `screenshots/` or any directory nested under it in the mod, with a `client/` and a
-`server/` subdirectory inside each capture's directory and each PNG named after the loader that
-produced it (`client/b1.7.3-ornithe.png`). A rendering that none of them represents yet has to be
-accepted explicitly, from a CI runner's capture: a world capture from a local run can differ
-slightly. A failing job uploads its unmatched capture as `loader-<loader>-screenshots` (the
-reference job as `reference-<loader>-screenshots`), also for a test with no reference yet; copy that
-loader's PNG into the right side's directory.
+which is `screenshots/<capture>/<side>/<loader>.png`: `<side>` is `client` for a client-only run
+and `server` for a dedicated-server leg, and each PNG is named after the loader that produced it
+(`client/b1.7.3-ornithe.png`). Only a capture that also runs on a dedicated server has a `server/`
+directory, so most capture directories hold `client/` alone. A rendering that none of them
+represents yet has to be accepted explicitly, from a CI runner's capture: a world capture from a
+local run can differ slightly. A failing job uploads its unmatched capture as
+`loader-<loader>-screenshots` (the reference job as `reference-<loader>-screenshots`), also for a
+test with no reference yet; copy that loader's PNG into the right side's directory.
 
 The two sides are separate because a client-only run keeps its own world's light while a
 server-driven run shows the light the server computed, and the two can be a level apart at a chunk
