@@ -56,6 +56,14 @@ public final class GrugServerRun implements ITickHandler {
     /** How many times the hold put the player back on the floor, and when it last said so. */
     private static long holds = 0;
 
+    /**
+     * Whether the floor hold has already moved the player in this server tick. The start-height
+     * hold is skipped for the rest of the tick when it has, because a faster game runs several
+     * steps, and the floor hold lifting the player in one step and the start-height hold pulling
+     * them back in the next would leave them where they started the tick.
+     */
+    private static boolean heldOnFloorThisTick = false;
+
     private static long lastHoldReportMillis = 0;
 
     /** Registers the run's tick with FML, on a server. Called by reflection from mod_Grug. */
@@ -218,21 +226,19 @@ public final class GrugServerRun implements ITickHandler {
      * <p>It runs before readiness is asked and before each runner tick. It does nothing while a
      * rebuild has cleared the floor and the player is falling, because there is no floor to put
      * them on yet. No host function moves the player down, so holding the feet at the floor cannot
-     * hide a test's own movement.
-     *
-     * @return whether it moved the player, so the start-height hold does not move them again on the
-     *     same tick
+     * hide a test's own movement. A move here also stops the start-height hold from moving the
+     * player again for the rest of this server tick, since a faster game runs several steps in one.
      */
-    private static boolean holdOnFloor(EntityPlayerMP player) {
+    private static void holdOnFloor(EntityPlayerMP player) {
         World world = world();
         if (world == null) {
-            return false;
+            return;
         }
         GrugPlayerFloor.BlockSource blocks = Grug125ServerAdapter.solidBlocks(world);
         double feet = player.boundingBox.minY;
         double floor = GrugPlayerFloor.floorTop(blocks, player.posX, feet, player.posZ);
         if (!GrugPlayerFloor.below(feet, floor)) {
-            return false;
+            return;
         }
         // This version's teleport takes the entity position, and a server player's collision box
         // bottom sits a fixed distance below it, so the move is applied as that same difference
@@ -241,6 +247,7 @@ public final class GrugServerRun implements ITickHandler {
         player.playerNetServerHandler.teleportTo(
                 player.posX, target, player.posZ, player.rotationYaw, player.rotationPitch);
         player.motionY = 0;
+        heldOnFloorThisTick = true;
         holds++;
         long now = System.currentTimeMillis();
         if (holds == 1 || now - lastHoldReportMillis >= 5000) {
@@ -252,7 +259,6 @@ public final class GrugServerRun implements ITickHandler {
                             + feet
                             + " (inside the ground)");
         }
-        return true;
     }
 
     /**
@@ -293,7 +299,8 @@ public final class GrugServerRun implements ITickHandler {
             player.setEntityHealth(player.getMaxHealth());
         }
         player.fallDistance = 0;
-        if (!holdOnFloor(player) && player.posY < holdY - HOLD_TOLERANCE) {
+        holdOnFloor(player);
+        if (!heldOnFloorThisTick && player.posY < holdY - HOLD_TOLERANCE) {
             player.playerNetServerHandler.teleportTo(
                     player.posX, holdY, player.posZ, player.rotationYaw, player.rotationPitch);
             player.motionY = 0;
@@ -304,6 +311,7 @@ public final class GrugServerRun implements ITickHandler {
     private static void tick() {
         List<?> players = players();
         pollModFiles();
+        heldOnFloorThisTick = false;
 
         if (runner == null) {
             if (waitStartMillis == 0) {
