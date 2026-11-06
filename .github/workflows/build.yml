@@ -1013,10 +1013,13 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: multiplayer-${{ matrix.loader }}-logs
+          # The server's unmatched captures are here too: a GUI test on a dedicated server
+          # compares the joined client's frame, and its diff is what says why it failed (#1098).
           path: |
             loaders/${{ matrix.loader }}/run-server/logs
             loaders/${{ matrix.loader }}/run-server/crash-reports
             loaders/${{ matrix.loader }}/run-server-ci.log
+            loaders/${{ matrix.loader }}/run-server/grug-screenshot-artifacts
             loaders/${{ matrix.loader }}/run/logs
             loaders/${{ matrix.loader }}/run/crash-reports
             loaders/${{ matrix.loader }}/run-client-ci.log
