@@ -145,18 +145,12 @@ the adapter a server runs reaches them by reflection, and the tests it cannot ru
 ### Accepting Screenshot References
 
 A screenshot test compares its capture against the PNGs in the reference directory it names,
-which is `screenshots/<capture>/<side>/<loader>.png`: `<side>` is `client` for a client-only run
-and `server` for a dedicated-server leg, and each PNG is named after the loader that produced it
-(`client/b1.7.3-ornithe.png`). Only a capture that also runs on a dedicated server has a `server/`
-directory, so most capture directories hold `client/` alone. A rendering that none of them
-represents yet has to be accepted explicitly, from a CI runner's capture: a world capture from a
-local run can differ slightly. A failing job uploads its unmatched capture as
-`loader-<loader>-screenshots` (the reference job as `reference-<loader>-screenshots`), also for a
-test with no reference yet; copy that loader's PNG into the right side's directory.
-
-The two sides are separate because a client-only run keeps its own world's light while a
-server-driven run shows the light the server computed, and the two can be a level apart at a chunk
-boundary, so one PNG cannot honestly hold both ([#1092](https://github.com/grug-lang/grug-for-minecraft/issues/1092)).
+which is `screenshots/` or any directory nested under it in the mod, each PNG named after the
+loader that produced it, so a rendering that none of them represents yet has to be accepted
+explicitly, from a CI runner's capture: a world capture from a local run can differ slightly. A
+failing job uploads its unmatched capture as `loader-<loader>-screenshots` (the reference job as
+`reference-<loader>-screenshots`), also for a test with no reference yet; copy that loader's PNG
+into the reference directory.
 
 The `update-goldens` phase writes every unmatched capture into the reference directory under the
 running loader's name instead of failing, so the new PNGs turn up in `git status` to review:
@@ -166,7 +160,4 @@ running loader's name instead of failing, so the new PNGs turn up in `git status
 ```
 
 Use it locally for a GUI capture, or on CI when many references change at once, since the suite
-stops at its first failure. The server goldens can only come from CI, because no client-only run
-draws the server's light: dispatch `build.yml` with `update-goldens` checked, which makes the
-dedicated-server legs accept their misses and uploads both their reference trees, and commit the
-`server/` PNGs from the `multiplayer-<loader>-screenshots` artifacts.
+stops at its first failure.
