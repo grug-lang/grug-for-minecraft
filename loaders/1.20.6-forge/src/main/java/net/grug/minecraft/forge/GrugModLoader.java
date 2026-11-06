@@ -110,6 +110,14 @@ public class GrugModLoader {
     }
 
     /**
+     * Ends a joined client's run after it leaves its server, putting back the settings the run
+     * changed. See {@link ClientForgeEvents#endControlRun}.
+     */
+    static void endControlRun(Minecraft mc) {
+        ClientForgeEvents.endControlRun(mc);
+    }
+
+    /**
      * The section buffer pool's size, recorded by {@link SectionBufferBuilderPoolMixin} when the
      * pool is built, or 0 before that.
      *
@@ -829,6 +837,23 @@ public class GrugModLoader {
         }
 
         private static boolean grug$controlRunStarted = false;
+
+        /**
+         * Ends the run a joined client started, when it leaves its server, because a run belongs to
+         * the connection that started it. Puts back everything the start changed, so the fog,
+         * vignette and lightmap pinning, the hidden cursor and the parked mouse are the client's
+         * own again rather than a run's; until this existed they outlived the connection.
+         */
+        static void endControlRun(Minecraft mc) {
+            if (!grug$controlRunStarted) {
+                return;
+            }
+            grug$controlRunStarted = false;
+            WINDOW.endRun();
+            restoreTutorialAfterRun(mc);
+            restoreViewAfterRun(mc);
+            restoreParticlesAfterRun(mc);
+        }
 
         @GrugGenerated("dev-only: R runs tests and M forces the test resolution")
         private static void handleDevHotkeys(Minecraft mc) {

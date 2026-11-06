@@ -43,7 +43,11 @@ public class GrugContainer extends Container {
             // The result is not an inventory slot; the block entity owns a one-slot container for
             // it. Taking from that container is the same path take_crafting_result uses. A
             // placeholder has no block entity behind it, so its result slot is one of its own and
-            // nothing is notified when it is taken from: the server's own take sends the item.
+            // nothing is notified when it is taken from: the server's own take sends the item. A
+            // joined client's copy does not notify either, because the hook is the block entity's
+            // own work: it consumes the taken result and restocks the grid, which only the server
+            // owns, and a client's unsynced neighbours would diverge with no packet to correct them
+            // (#1098).
             IInventory resultInventory = resultInventoryOf(blockInventory);
             addSlot(
                     new Slot(resultInventory, 0, result.x(), result.y()) {
@@ -55,7 +59,8 @@ public class GrugContainer extends Container {
                         @Override
                         public void onPickupFromSlot(ItemStack stack) {
                             super.onPickupFromSlot(stack);
-                            if (blockInventory instanceof GrugBlockEntity) {
+                            if (!player.worldObj.isRemote
+                                    && blockInventory instanceof GrugBlockEntity) {
                                 ((GrugBlockEntity) blockInventory)
                                         .notifyOutputTaken(stack != null ? stack.stackSize : 0);
                             }
