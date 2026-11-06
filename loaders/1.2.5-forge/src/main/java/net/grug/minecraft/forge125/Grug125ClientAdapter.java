@@ -287,11 +287,13 @@ public class Grug125ClientAdapter extends Grug125Adapter {
                 blockSync.onFrame((x, y, z) -> getBlock(minecraft.theWorld, x, y, z));
         // A frame drawn from a view the mouse moved is not one a capture may read, and the view is
         // levelled again for the next frame. See GrugTestCamera and #1128. A joined client has no
-        // test runner of its own, so its control run owns the view too (#1161).
+        // test runner of its own, so its control run owns the view too (#1161). The two flags are
+        // combined with a non-short-circuit | so every leg evaluates both and no branch lands here
+        // that only a joined client could take.
         renderSettle.onFrame(
                 GrugTestCamera.frameBusy(
                         frameHadPendingWork(minecraft),
-                        testPlayerSnapped || GrugClientHooks.isControlRunActive(),
+                        testPlayerSnapped | GrugClientHooks.isControlRunActive(),
                         testPlayer(),
                         CAMERA_VIEW),
                 blocksPending);

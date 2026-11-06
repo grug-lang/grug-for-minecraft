@@ -1280,11 +1280,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 blockSync.onFrame((x, y, z) -> getBlock(MinecraftInstance.get().world, x, y, z));
         // A frame drawn from a view the mouse moved is not one a capture may read, and the view is
         // levelled again for the next frame. See GrugTestCamera and #1128. A joined client has no
-        // test runner of its own, so its control run owns the view too (#1161).
+        // test runner of its own, so its control run owns the view too (#1161). The two flags are
+        // combined with a non-short-circuit | so every leg evaluates both and no branch lands here
+        // that only a joined client could take.
         renderSettle.onFrame(
                 GrugTestCamera.frameBusy(
                         frameHadPendingWork(),
-                        testPlayerSnapped || GrugClientHooks.isControlRunActive(),
+                        testPlayerSnapped | GrugClientHooks.isControlRunActive(),
                         testPlayer(),
                         CAMERA_VIEW),
                 blocksPending);
@@ -1975,9 +1977,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      */
     @GrugGenerated("a joined client's forwarded capture, which only the multiplayer job runs")
     public BufferedImage captureForControl(int x1, int y1, int x2, int y2, Minecraft mc) {
-        BufferedImage image = captureRectangle("Screenshot.capture", x1, y1, x2, y2, mc.height);
-        GrugControlDiagnostic.describe(image, mc);
-        return image;
+        return captureRectangle("Screenshot.capture", x1, y1, x2, y2, mc.height);
     }
 
     /**

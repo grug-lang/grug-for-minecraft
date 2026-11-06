@@ -313,12 +313,26 @@ public class GrugClientHooks implements ITickHandler {
      */
     public void beginControlRun() {
         controlRunStarted = true;
+        // A joined client keeps the game's own particle setting, which draws the particles a
+        // reference's block spawns from the world's random, such as the redstone engine's (#581).
+        // A capture with one in it is a different picture on every run, so a control run sets what
+        // a run this client drives sets for its own captures (#1161).
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft != null && savedControlParticleSetting < 0) {
+            savedControlParticleSetting = minecraft.gameSettings.particleSetting;
+            minecraft.gameSettings.particleSetting = MINIMAL_PARTICLES;
+        }
         window.beginRun();
     }
 
     /** Puts the window back when this client has left the server whose run it started. */
     public void endControlRun() {
         controlRunStarted = false;
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft != null && savedControlParticleSetting >= 0) {
+            minecraft.gameSettings.particleSetting = savedControlParticleSetting;
+            savedControlParticleSetting = -1;
+        }
         window.endRun();
     }
 
@@ -328,6 +342,12 @@ public class GrugClientHooks implements ITickHandler {
      * adapter reads it without a handle on these hooks, of which the client constructs one.
      */
     private static boolean controlRunStarted;
+
+    /**
+     * The particle setting a control run found, put back when this client leaves the server. -1
+     * while a control run has not changed one.
+     */
+    private static int savedControlParticleSetting = -1;
 
     /**
      * Whether a run owns this client, whether this client drives it or the server it joined does,

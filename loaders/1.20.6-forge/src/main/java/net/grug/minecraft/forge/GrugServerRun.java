@@ -65,17 +65,10 @@ public final class GrugServerRun {
             if (GrugControlForge.server().hasStarter()
                     && testPlayer != null
                     && GrugCore.getAdapter().isWorldReady(testPlayer)) {
-                // The origin is the server-side answer Test.get_origin reports, printed beside the
-                // start so a joined client's capture can be compared with it (#1161).
-                net.grug.minecraft.grug.Vec3 origin = GrugCore.getAdapter().getTestOrigin();
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
-                                + " ms. Server origin "
-                                + (origin == null
-                                        ? "none"
-                                        : origin.x() + " " + origin.y() + " " + origin.z())
-                                + ". Firing tests!");
+                                + " ms. Firing tests!");
                 runner = new GrugTestRunner();
             } else if (System.currentTimeMillis() - waitStartMillis >= PLAYER_JOIN_TIMEOUT_MILLIS) {
                 System.out.println("[GRUG CI] FAIL world readiness");
