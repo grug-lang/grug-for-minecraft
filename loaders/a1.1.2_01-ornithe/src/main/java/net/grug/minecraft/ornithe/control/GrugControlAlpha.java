@@ -38,9 +38,10 @@ import java.util.function.Consumer;
  * GrugControlPacket#read} says, so nothing drains the connection by hand.
  *
  * <p>The sender of an answer is the connection the reader thread belongs to, and core's server
- * accepts an answer only from the connection that started the run. The server does not flush block
- * changes before a request, the way 1.20.6 does, because Alpha's server queues them per chunk and a
- * test that waits a tick between placing and capturing has had them sent.
+ * accepts an answer only from the connection that started the run. Before a request the server
+ * sends the block changes its player manager has queued, whose own tick a frozen one never reaches,
+ * so a test that places a block and captures in the same tick reads the client's frame with that
+ * block in it (#1123).
  */
 @GrugGenerated(
         "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since only"
@@ -129,9 +130,10 @@ public final class GrugControlAlpha {
 
         @Override
         public void flushWorld() {
-            System.out.println(
-                    "[GRUG CONTROL] no world flush on Alpha: the test waited a tick since it"
-                            + " placed blocks");
+            // The server sends queued block changes from its player manager's tick, after the
+            // world's, which a frozen test's tick never reaches; the same tick sends them here
+            // (#1123).
+            GrugServerRun.flushBlockChanges();
         }
 
         /**

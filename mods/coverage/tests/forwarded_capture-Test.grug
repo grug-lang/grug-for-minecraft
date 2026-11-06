@@ -9,10 +9,10 @@
 # and can be true before the block arrives. The forwarded ask names the revision the change made,
 # and a client that has not drawn it answers 0, so the wait returns only once a frame after the
 # change is drawn: the wall's capture reads a frame with the wall in it and the room's reads one
-# after the removal's relight. A loader whose settle ask flushes the queued change sends it then;
-# Alpha has no flush, so the change goes out with the server tick before the next ask, which is
-# why each change and its wait are on separate ticks. A fixed tick was not enough on Alpha, where
-# the room frame could still be the wall's lingering shadow, a few levels darker than the room and
+# after the removal's relight. The ask flushes the queued change, and this test keeps each change
+# and its wait on separate ticks; forwarded_capture_same_tick places a block and asks in the same
+# tick, which is what the flush is for (#1123). A fixed tick was not enough on Alpha, where the
+# room frame could still be the wall's lingering shadow, a few levels darker than the room and
 # under the comparison's per-channel floor. See #1119 and #1086.
 # The wall is obsidian in a stone room, which differs by more than the comparison's per-channel
 # floor even when the room's light is dim. Without the notify a dedicated server sends after its
