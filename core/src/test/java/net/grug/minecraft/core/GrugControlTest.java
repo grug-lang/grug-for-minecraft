@@ -51,6 +51,14 @@ class GrugControlTest {
             flushed = true;
         }
 
+        /** How many times the server asked the loader to apply the client's queued work. */
+        int drained = 0;
+
+        @Override
+        public void applyClientWork() {
+            drained++;
+        }
+
         @Override
         public boolean mayStartRun(Object sender) {
             return mayStart;
@@ -127,6 +135,16 @@ class GrugControlTest {
                 public double camera(int axis) {
                     throw new AssertionError("no camera call was expected");
                 }
+
+                @Override
+                public boolean clickScreen(double x, double y, int button) {
+                    throw new AssertionError("no screen call was expected");
+                }
+
+                @Override
+                public void openInventory() {
+                    throw new AssertionError("no screen call was expected");
+                }
             };
 
     private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
@@ -189,6 +207,16 @@ class GrugControlTest {
         public double camera(int axis) {
             throw new AssertionError("no camera call was expected");
         }
+
+        @Override
+        public boolean clickScreen(double x, double y, int button) {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public void openInventory() {
+            throw new AssertionError("no screen call was expected");
+        }
     }
 
     /** A client whose settle answer the test decides, and which counts the frames it forgets. */
@@ -245,6 +273,16 @@ class GrugControlTest {
         public double camera(int axis) {
             throw new AssertionError("no camera call was expected");
         }
+
+        @Override
+        public boolean clickScreen(double x, double y, int button) {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public void openInventory() {
+            throw new AssertionError("no screen call was expected");
+        }
     }
 
     /** A client whose screen answers the test decides, and which records the calls it gets. */
@@ -253,8 +291,10 @@ class GrugControlTest {
         boolean open = true;
         boolean keyTaken = true;
         boolean scrollTaken = false;
+        boolean clickTaken = false;
         double read = 176.0;
         boolean closed;
+        boolean opened;
 
         @Override
         public boolean hasSound(String path) {
@@ -311,6 +351,19 @@ class GrugControlTest {
         public double camera(int axis) {
             seen.add("camera " + axis);
             return 70.62;
+        }
+
+        @Override
+        public boolean clickScreen(double x, double y, int button) {
+            seen.add("click " + x + " " + y + " " + button);
+            return clickTaken;
+        }
+
+        @Override
+        public void openInventory() {
+            seen.add("openInventory");
+            opened = true;
+            open = true;
         }
     }
 
@@ -1080,6 +1133,9 @@ class GrugControlTest {
                     public void flushWorld() {}
 
                     @Override
+                    public void applyClientWork() {}
+
+                    @Override
                     public boolean mayStartRun(Object sender) {
                         return true;
                     }
@@ -1231,8 +1287,22 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCROLL_SCREEN));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLOSE_SCREEN));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CAMERA));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLICK_SCREEN));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OPEN_INVENTORY));
         assertFalse(GrugControlWire.isCall((byte) 0));
-        assertFalse(GrugControlWire.isCall((byte) 10));
+        assertFalse(GrugControlWire.isCall((byte) 12));
+
+        // Only the calls that can make the client send a packet ask the server to drain.
+        assertTrue(GrugControlWire.sendsPacket(GrugControlWire.CALL_CLICK_SCREEN));
+        assertTrue(GrugControlWire.sendsPacket(GrugControlWire.CALL_PRESS_SCREEN_KEY));
+        assertTrue(GrugControlWire.sendsPacket(GrugControlWire.CALL_CLOSE_SCREEN));
+        assertTrue(GrugControlWire.sendsPacket(GrugControlWire.CALL_OPEN_INVENTORY));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_SCREEN_OPEN));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_SCREEN_READ));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_SCROLL_SCREEN));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_HAS_SOUND));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_WORLD_SETTLED));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_CAMERA));
 
         // A settle ask carries its revision in the volume slot, whole for every revision a run
         // reaches.
@@ -1258,7 +1328,7 @@ class GrugControlTest {
                                 GrugControlWire.captureRequest(
                                         1, 0, 0, 1, 1, 0, Double.POSITIVE_INFINITY, 0)));
 
-        byte[] unknown = GrugControlWire.callRequest(1, (byte) 10, "x", 0, 0, 0);
+        byte[] unknown = GrugControlWire.callRequest(1, (byte) 12, "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1335,6 +1405,8 @@ class GrugControlTest {
         assertTrue(caller.pressScreenKey(1, true, false));
         assertTrue(caller.scrollScreen(2, 3, -1));
         caller.closeScreen();
+        assertTrue(caller.clickScreen(4, 5, 0));
+        caller.openInventory();
         assertEquals(2.0, caller.camera(1));
         assertEquals(
                 List.of(
@@ -1348,6 +1420,9 @@ class GrugControlTest {
                         "pressScreenKey 1",
                         "scrollScreen 2.0",
                         "closeOpenScreenForTest",
+                        "clickScreen 4.0",
+                        "testPlayer",
+                        "openInventory null",
                         "testCamera"),
                 seen);
     }
@@ -1368,6 +1443,8 @@ class GrugControlTest {
         assertEquals(176.0, forwarded.read(GrugScreenCalls.GUI_WIDTH));
         assertTrue(forwarded.pressScreenKey(75, true, false));
         assertFalse(forwarded.scrollScreen(10, 20, -1));
+        assertFalse(forwarded.clickScreen(12, 34, 0));
+        forwarded.openInventory();
         // The other side of each answer, so both a taken and a left-alone call are asked.
         screens.open = false;
         assertFalse(forwarded.screenOpen());
@@ -1375,6 +1452,8 @@ class GrugControlTest {
         assertFalse(forwarded.pressScreenKey(75, false, true));
         screens.scrollTaken = true;
         assertTrue(forwarded.scrollScreen(10, 20, 1));
+        screens.clickTaken = true;
+        assertTrue(forwarded.clickScreen(12, 34, 1));
         forwarded.closeScreen();
         assertTrue(screens.closed);
         assertEquals(
@@ -1383,9 +1462,12 @@ class GrugControlTest {
                         "read gui_width",
                         "key 75 true false",
                         "scroll 10.0 20.0 -1.0",
+                        "click 12.0 34.0 0",
+                        "openInventory",
                         "screenOpen",
                         "key 75 false true",
                         "scroll 10.0 20.0 1.0",
+                        "click 12.0 34.0 1",
                         "close"),
                 screens.seen);
     }
@@ -1451,6 +1533,43 @@ class GrugControlTest {
     }
 
     @Test
+    void onlyACallThatCanSendAPacketAsksTheLoaderToDrainTheConnection() throws Exception {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+        GrugControlServer server = loop.server;
+
+        // A read leaves the client nothing to send, so it costs no drain.
+        server.screenOpen();
+        server.screenRead(GrugScreenCalls.GUI_WIDTH);
+        server.scrollScreen(10, 20, 1);
+        server.applyClientWork();
+        assertEquals(0, loop.drained);
+
+        // Each of the four calls that can send a packet marks the work once, and one drain clears
+        // the mark for all of them.
+        server.clickScreen(12, 34, 0);
+        server.pressScreenKey(75, true, false);
+        server.closeScreen();
+        server.openInventory();
+        assertEquals(0, loop.drained);
+        server.applyClientWork();
+        assertEquals(1, loop.drained);
+
+        // A drain with nothing new to apply does not touch the connection again.
+        server.applyClientWork();
+        server.applyClientWork();
+        assertEquals(1, loop.drained);
+
+        // A call that fails still marks the work: the client may have sent a packet before it
+        // answered with the error.
+        loop.client.endRun();
+        assertThrows(GrugControlServer.ControlException.class, () -> server.clickScreen(1, 2, 0));
+        server.applyClientWork();
+        assertEquals(2, loop.drained);
+    }
+
+    @Test
     void anUnknownCallIsAnsweredAsAnErrorRatherThanClosingTheScreen() {
         ScreenCalls screens = new ScreenCalls();
         Loopback loop = wireCalls(1000, screens);
@@ -1463,7 +1582,7 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) 10,
+                        (byte) 12,
                         0,
                         0,
                         0,
@@ -1477,7 +1596,7 @@ class GrugControlTest {
         GrugControlWire.Message answer = GrugControlWire.decode(loop.toServer.get(0));
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
-        assertTrue(answer.text.contains("unknown call 10"), answer.text);
+        assertTrue(answer.text.contains("unknown call 12"), answer.text);
     }
 
     @Test
@@ -1519,6 +1638,17 @@ class GrugControlTest {
                         GrugControlServer.ControlException.class, () -> server.screenRead(null));
         assertTrue(unnamed.getMessage().contains("has no name"), unnamed.getMessage());
 
+        GrugControlServer.ControlException clickX =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server.clickScreen(Double.NaN, 0, 0));
+        assertTrue(clickX.getMessage().contains("position has to be finite"), clickX.getMessage());
+        GrugControlServer.ControlException clickY =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server.clickScreen(0, Double.POSITIVE_INFINITY, 0));
+        assertTrue(clickY.getMessage().contains("position has to be finite"), clickY.getMessage());
+
         assertTrue(loop.toClient.isEmpty());
         assertTrue(GrugControlServer.failed());
     }
@@ -1539,6 +1669,9 @@ class GrugControlTest {
                     public void flushWorld() {}
 
                     @Override
+                    public void applyClientWork() {}
+
+                    @Override
                     public boolean mayStartRun(Object sender) {
                         return true;
                     }
@@ -1552,6 +1685,12 @@ class GrugControlTest {
                         GrugControlServer.ControlException.class, () -> server[0].closeScreen());
 
         assertTrue(e.getMessage().contains("not the ack 1"), e.getMessage());
+        assertTrue(GrugControlServer.failed());
+
+        GrugControlServer.ControlException open =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> server[0].openInventory());
+        assertTrue(open.getMessage().contains("not the ack 1"), open.getMessage());
         assertTrue(GrugControlServer.failed());
     }
 
@@ -1610,6 +1749,16 @@ class GrugControlTest {
                             public double camera(int axis) {
                                 throw new AssertionError("no camera call was expected");
                             }
+
+                            @Override
+                            public boolean clickScreen(double x, double y, int button) {
+                                throw new AssertionError("no screen call was expected");
+                            }
+
+                            @Override
+                            public void openInventory() {
+                                throw new AssertionError("no screen call was expected");
+                            }
                         });
         loop.client.beginRun();
         loop.toServer.clear();
@@ -1667,6 +1816,25 @@ class GrugControlTest {
                             0,
                             Double.NEGATIVE_INFINITY),
                     GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_CLICK_SCREEN, "", Double.NaN, 0, 0),
+                    GrugControlWire.callRequest(
+                            3,
+                            GrugControlWire.CALL_CLICK_SCREEN,
+                            "",
+                            0,
+                            Double.POSITIVE_INFINITY,
+                            0),
+                    GrugControlWire.callRequest(
+                            3,
+                            GrugControlWire.CALL_CLICK_SCREEN,
+                            "",
+                            0,
+                            0,
+                            Double.POSITIVE_INFINITY),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_CLICK_SCREEN, "", 0, 0, 1.5),
+                    GrugControlWire.callRequest(3, GrugControlWire.CALL_CLICK_SCREEN, "", 0, 0, -1),
+                    GrugControlWire.callRequest(
                             3, GrugControlWire.CALL_SCREEN_READ, "bogus", 0, 0, 0)
                 }) {
             loop.client.onMessage(bad);
@@ -1701,6 +1869,9 @@ class GrugControlTest {
 
                     @Override
                     public void flushWorld() {}
+
+                    @Override
+                    public void applyClientWork() {}
 
                     @Override
                     public boolean mayStartRun(Object sender) {
@@ -1861,6 +2032,9 @@ class GrugControlTest {
 
                     @Override
                     public void flushWorld() {}
+
+                    @Override
+                    public void applyClientWork() {}
 
                     @Override
                     public boolean mayStartRun(Object sender) {

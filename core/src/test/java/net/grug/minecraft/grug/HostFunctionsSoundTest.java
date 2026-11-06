@@ -111,6 +111,9 @@ class HostFunctionsSoundTest {
                             public void flushWorld() {}
 
                             @Override
+                            public void applyClientWork() {}
+
+                            @Override
                             public boolean mayStartRun(Object sender) {
                                 return true;
                             }

@@ -22,6 +22,8 @@ import net.minecraft.src.Block;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerMP;
 import net.minecraft.src.IInventory;
+import net.minecraft.src.Item;
+import net.minecraft.src.ItemStack;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
 
@@ -40,7 +42,9 @@ import java.util.Set;
  * functions refuse themselves through {@code ModLoaderAdapter.refuseWithoutAClient}; {@code
  * useBlockForTest} is not one of them and is overridden, so the server right-clicks in its own
  * world, the world the test reads (#1090). {@code GUI.open} is not one either: the server owns the
- * container and the client shows it (#1098).
+ * container and the client shows it (#1098). The screen calls and the clicks on them are forwarded
+ * to that client (#1094), and the cursor calls are answered from this server's own container, which
+ * is the one a click is applied to.
  *
  * <p>Excluded from coverage because only the dispatch-only multiplayer job launches a server
  * (#166).
@@ -127,11 +131,23 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     // The screen functions a client adapter implements. The ones a test makes on a screen are
     // forwarded to the client of the player who started the run (#1094); GUI.open builds the block
     // entity's container here, so the client's screen is the one this server's slots belong to
-    // (#1098). The functions that open or click a screen of their own are still refused.
+    // (#1098). The pointer calls are the menu's, so this server answers them itself: a click is
+    // applied to this server's own container, and a carried stack only the client knows would not
+    // be the one the click uses.
 
+    /**
+     * Opened by the client of the player who started the run, whose own inventory it is (#1094).
+     *
+     * <p>The container this server has open is closed first, so both sides are on the player's own
+     * inventory, window 0, by the time the client's screen is up: a press there carries window 0,
+     * which this server only accepts as its own player's inventory container.
+     */
     @Override
     public void openInventory(Object playerObj) {
-        refuseWithoutAClient("Test.open_inventory");
+        if (playerObj instanceof EntityPlayerMP) {
+            closeOpenContainer((EntityPlayerMP) playerObj);
+        }
+        screens.openInventory();
     }
 
     @Override
@@ -144,10 +160,85 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         return screens.scrollScreen(x, y, delta);
     }
 
+    /**
+     * Pressed on the client's screen, by the client of the player who started the run (#1094).
+     *
+     * <p>The screen is the block entity's container, which this server built in {@code GUI.open}
+     * under the window id it sent to that client, so the click packet the press sends names this
+     * server's container and lands in this server's slots. It is applied by {@link
+     * GrugControlServer#applyClientWork} on a later tick, never inside this call, because the
+     * server thread is frozen here and cannot read it.
+     */
     @Override
     public boolean clickScreen(double x, double y, double button) {
-        refuseWithoutAClient("Test.click_screen");
-        return false;
+        return screens.clickScreen(x, y, (int) button);
+    }
+
+    /**
+     * The carried stack of this server's player, which is the one a click uses (#1094).
+     *
+     * <p>1.2.5 keeps the cursor in the player's inventory, and the click applies to the player's
+     * container, so this answer and a click agree. The inherited answer reads the cursor of a
+     * client's screen, which a dedicated server has none of.
+     */
+    @Override
+    public Object carriedItem() {
+        EntityPlayerMP player = serverPlayer();
+        if (player == null) return null;
+        ItemStack stack = player.inventory.getItemStack();
+        return stack == null ? null : stack.getItem();
+    }
+
+    /**
+     * Sets the carried stack this server's next click uses, and tells the client, so a frame it
+     * draws and a click it predicts both agree with it (#1094).
+     */
+    @Override
+    public void setCarriedItem(Object itemObj) {
+        EntityPlayerMP player = serverPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.set_carried_item: There is no player to set a cursor on.");
+            return;
+        }
+        player.inventory.setItemStack(itemObj == null ? null : new ItemStack((Item) itemObj));
+        // The cursor is not a slot this server's container sends, so the click's own slot update
+        // would leave the client's copy stale: window -1 slot -1 is the cursor, which is what the
+        // game's own updateHeldItem sends when a click changes it.
+        player.updateHeldItem();
+    }
+
+    /** Clears the carried stack, and the client's copy of it (#1094). */
+    @Override
+    public void deleteCarriedItem() {
+        EntityPlayerMP player = serverPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
+                            + " on.");
+            return;
+        }
+        player.inventory.setItemStack(null);
+        player.updateHeldItem();
+    }
+
+    /** The player who started the run, or the first joined one, whose container a click uses. */
+    @GrugGenerated("the no-player arm: a test's own cursor work happens while a player is joined")
+    private static EntityPlayerMP serverPlayer() {
+        EntityPlayerMP starter = GrugControlServer125.starterPlayer();
+        return starter != null ? starter : GrugServerRun.firstPlayer();
+    }
+
+    /**
+     * Closes the container this server has open, the way the game's own close packet does, so both
+     * sides are back on the player's own inventory, window 0 (#1094).
+     */
+    @GrugGenerated("the no-container arm: a run's screen work happens with one container open")
+    private static void closeOpenContainer(EntityPlayerMP player) {
+        if (player.craftingInventory != player.inventorySlots) {
+            player.closeCraftingGui();
+        }
     }
 
     @Override
@@ -321,9 +412,18 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      * Closes the joined client's screen (#1094). This server has no screen of its own: 1.2.5's GUI
      * is a client-only object, so the call is the client's, and the client of the player who
      * started the run performs it.
+     *
+     * <p>The container this server opened is closed too, so both sides are on the player's own
+     * inventory, window 0, when the call returns. Nothing else does it: the client's controller
+     * sends no close packet for the screen it leaves, so a container would otherwise stay open on
+     * this server and accept no press from any screen that follows.
      */
     @Override
     public void closeOpenScreenForTest() {
+        EntityPlayerMP player = serverPlayer();
+        if (player != null) {
+            closeOpenContainer(player);
+        }
         screens.closeScreen();
     }
 

@@ -133,6 +133,9 @@ class GrugScreenCallsTest {
                             public void flushWorld() {}
 
                             @Override
+                            public void applyClientWork() {}
+
+                            @Override
                             public boolean mayStartRun(Object sender) {
                                 return false;
                             }
@@ -147,13 +150,17 @@ class GrugScreenCallsTest {
         assertFalse(forwarded.pressScreenKey(1, false, true));
         assertFalse(forwarded.scrollScreen(0, 0, 1));
         forwarded.closeScreen();
+        assertFalse(forwarded.clickScreen(12, 34, 0));
+        forwarded.openInventory();
 
-        assertEquals(5, failures.size(), failures.toString());
+        assertEquals(7, failures.size(), failures.toString());
         assertTrue(failures.get(0).startsWith("Test.screen_open: "), failures.get(0));
         assertTrue(failures.get(1).startsWith("Test.screen_width: "), failures.get(1));
         assertTrue(failures.get(2).startsWith("Test.press_screen_key: "), failures.get(2));
         assertTrue(failures.get(3).startsWith("Test.scroll_screen: "), failures.get(3));
         assertTrue(failures.get(4).startsWith("Test.close_screen: "), failures.get(4));
+        assertTrue(failures.get(5).startsWith("Test.click_screen: "), failures.get(5));
+        assertTrue(failures.get(6).startsWith("Test.open_inventory: "), failures.get(6));
         for (String failure : failures) {
             assertTrue(failure.contains("No client has started a run"), failure);
         }

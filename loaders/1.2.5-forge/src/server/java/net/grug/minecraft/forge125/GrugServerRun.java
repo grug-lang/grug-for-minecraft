@@ -382,6 +382,11 @@ public final class GrugServerRun implements ITickHandler {
             if (!holdPlayer(testPlayer)) {
                 return;
             }
+            // Applies what the joined client sent during the previous tick's calls, which here is a
+            // forwarded click's packet (#1094). The game's own tick reads the connection too, but
+            // only after this whole game-speed loop, and a test asserts on the tick after its
+            // click.
+            GrugControlServer125.server().applyClientWork();
             runner.tick(testPlayer);
             if (runner.roomBuiltThisTick()) return;
             if (runner.isFinished()) {

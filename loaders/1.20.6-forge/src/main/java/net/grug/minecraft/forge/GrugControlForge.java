@@ -159,5 +159,17 @@ public final class GrugControlForge {
                                 + level.dimension().location());
             }
         }
+
+        /**
+         * Runs the tasks the next server tick would run, which is where the packet handlers a
+         * forwarded click queued are (#1094). The server thread is not frozen here: the caller runs
+         * between two runner ticks, so a click's effect lands before the test's next assertion.
+         */
+        @Override
+        public void applyClientWork() {
+            MinecraftServer minecraft = ServerLifecycleHooks.getCurrentServer();
+            if (minecraft == null) return;
+            while (minecraft.pollTask()) {}
+        }
     }
 }

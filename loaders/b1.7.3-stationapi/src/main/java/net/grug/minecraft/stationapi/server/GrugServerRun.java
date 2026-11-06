@@ -212,6 +212,11 @@ public final class GrugServerRun {
             if (player != null) {
                 holdPlayer(player);
             }
+            // Applies what the joined client sent during the previous tick's calls, which here is a
+            // forwarded click's packet (#1094). The game's own tick reads the connection too, but
+            // only after this whole game-speed loop, and a test asserts on the tick after its
+            // click.
+            GrugControlStation.server().applyClientWork();
             runner.tick(player);
             if (runner.roomBuiltThisTick()) return;
             if (runner.isFinished()) {

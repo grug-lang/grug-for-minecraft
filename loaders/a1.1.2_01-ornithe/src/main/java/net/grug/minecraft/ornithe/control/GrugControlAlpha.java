@@ -141,6 +141,20 @@ public final class GrugControlAlpha {
         }
 
         /**
+         * Reads the packets the starter's client sent and the frozen server thread has not read
+         * yet, which is where a forwarded click's packet is (#1094). Alpha's connection is only
+         * read from its own tick, a frozen one never reaches, so the caller runs this before the
+         * runner tick.
+         */
+        @Override
+        public void applyClientWork() {
+            Object starter = server().starter();
+            if (starter instanceof Connection) {
+                ((Connection) starter).tick();
+            }
+        }
+
+        /**
          * Any player who has finished login may start a run (first start wins in core); a
          * connection whose player was not found has not finished login. Operator-only starting is a
          * possible later hardening.

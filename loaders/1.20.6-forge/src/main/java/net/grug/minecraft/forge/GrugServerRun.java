@@ -94,6 +94,10 @@ public final class GrugServerRun {
 
         ServerPlayer testPlayer = (ServerPlayer) GrugCore.getAdapter().testPlayer();
         holdPlayer(testPlayer);
+        // Applies what the joined client sent during the previous tick's calls, which here is a
+        // forwarded click's packet (#1094). The server's own tick would run it too, but only after
+        // this test's tick, and a test asserts on the tick after its click.
+        GrugControlForge.server().applyClientWork();
         runner.tick(testPlayer);
         if (runner.isFinished()) {
             stop(server);

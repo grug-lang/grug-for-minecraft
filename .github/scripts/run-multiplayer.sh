@@ -310,16 +310,17 @@ while :; do
     # forwarded_ ones are the channel's own tests, including forwarded_world_settled, which is the
     # control for the forwarded settle answer (#1086), forwarded_capture_same_tick, which is what a
     # settle ask's flush is for (#1123), and the screen calls (#1094), which every
-    # leg that forwards them asks here: the reads and close_screen with no screen, and the open
-    # GUI's reads on 1.20.6. The pixel tests stay client-only until a joined client's frame
-    # matches a singleplayer one (#1092); coverage_frame_saved_number,
+    # leg that forwards them asks here: the reads and close_screen with no screen, the open
+    # GUI's reads on 1.20.6, and open_inventory, which the two newer legs open and the three older
+    # ones refuse until #1098 gives them a server-side container. The pixel tests stay client-only
+    # until a joined client's frame matches a singleplayer one (#1092); coverage_frame_saved_number,
     # coverage_frame_saved_list_energy,
     # coverage_mesh_saved_number and coverage_mesh_saved_reinit run on every server leg now that a
     # loader sends saved numbers, a list's item and the energy store to the client's copy (#1093),
     # sends a chunk-mesh block's saved data with the block update that rebuilds its mesh, and
     # inits a kept tile from the block that is there (#1101).
     if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
-      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_capture_same_tick forwarded_world_settled forwarded_screen_open forwarded_screen_width forwarded_gui_left forwarded_gui_top forwarded_gui_width forwarded_gui_height forwarded_close_screen coverage_frame_saved_number coverage_frame_saved_list_energy coverage_mesh_saved_number coverage_mesh_saved_reinit; do
+      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_capture_same_tick forwarded_world_settled forwarded_screen_open forwarded_screen_width forwarded_gui_left forwarded_gui_top forwarded_gui_width forwarded_gui_height forwarded_close_screen forwarded_open_inventory coverage_frame_saved_number coverage_frame_saved_list_energy coverage_mesh_saved_number coverage_mesh_saved_reinit; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${required}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${required}-Test.grug did not run on the dedicated server." >&2
           exit 1
@@ -361,22 +362,26 @@ while :; do
         fi
         ;;
     esac
-    # The remote GUI test (#168) and the GUI capture tests run on the servers that can open a
-    # container for their player, 1.20.6 and 1.2.5 (#1098): the other three servers list them as
-    # unsupported, so these two legs must show they ran. A capture compares against the unchanged
-    # client-only golden, so a leg whose panel draws differently fails in the test itself; this
-    # check catches the test not running at all on that leg (renamed, listed as unsupported, or no
-    # longer recognised as declared), which the run would otherwise pass with it silently skipped.
+    # The remote GUI test (#168), the GUI capture tests and the two container-click tests run on the
+    # servers that can open a container for their player, 1.20.6 and 1.2.5 (#1098): the other three
+    # servers list them as unsupported, so these two legs must show they ran. A capture compares
+    # against the unchanged client-only golden, so a leg whose panel draws differently fails in the
+    # test itself; this check catches the test not running at all on that leg (renamed, listed as
+    # unsupported, or no longer recognised as declared), which the run would otherwise pass with it
+    # silently skipped.
     # A server that stops opening the menu fails the test on its own tick budget, before this is
     # reached. The captures wait on the server's own state, so they run here; the item texture swap
     # is the one that cannot, because it waits for a resource reload to finish on the client the
-    # frame comes from and the server cannot observe that reload. It stays client-only.
+    # frame comes from and the server cannot observe that reload. It stays client-only. The click
+    # tests are the proof that the server's slot order is the client's on the 1.2.5 leg, whose whole
+    # game-speed loop runs between two runner ticks: on 1.20.6 the next server tick's own task queue
+    # would apply the click before the runner's next tick anyway.
     case "$LOADER" in
       1.20.6-forge)
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
         ;;
       1.2.5-forge)
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
         ;;
       *)
         gui_tests=""

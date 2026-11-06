@@ -1,0 +1,56 @@
+# The container click a server applies (#1094): the client presses a slot of the container the
+# server opened, and the click packet it sends is applied between two runner ticks, never inside the
+# call that pressed. The assertion on the next tick sees the item in the block entity's own slot.
+# That ordering is the contract: a test clicks, returns with not_done, and asserts on a later tick,
+# never in the same one, because the click's effect is the server's. On a dedicated server the drain
+# reads the packet before the next tick; on the 1.20.6 client leg the click's handler is a task on
+# the integrated server, so the runner holds its next tick until that handler ran. The cursor is set
+# on the server's menu, which is the one the click is applied to. The servers that can open no
+# container for their player list this test as unsupported until #1098 gives them one, so it runs on
+# 1.20.6 and 1.2.5.
+started: bool = false
+clicked: bool = false
+
+export tick_any_side(ctx: TestTickContext) {
+    if not started {
+        started = true
+        Test.close_screen()
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_block")
+        Test.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.not_done()
+        return
+    }
+    if not clicked {
+        # The server opens the container and sends it, so the client's screen arrives a frame later.
+        if not Test.screen_open() {
+            ctx.not_done()
+            return
+        }
+        clicked = true
+        Test.set_carried_item(item(resource_location("minecraft:diamond")))
+        ctx.assert(Test.get_carried_item().has(), "The cursor should carry the diamond the test put on it.")
+        # The grid's first slot is 30,17 from the panel's corner and a slot is 16 pixels, so this
+        # presses its centre. No overlay is asked on a mod's own GrugScreen, so the press is left to
+        # the screen: it answers false and sends the click packet.
+        left: number = Test.gui_left()
+        top: number = Test.gui_top()
+        ctx.assert(not Test.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+        ctx.not_done()
+        return
+    }
+    # The effect is the server's, so it is read on the tick after the click, once the drain has
+    # applied the client's packet.
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+    ctx.assert(block_entity.get_item_count_in_slot(0) == 1, "The click should have put the diamond in the grid's first slot.")
+    in_slot: Option[Item] = block_entity.get_item_in_slot(0)
+    ctx.assert(in_slot.has(), "The grid's first slot should hold the diamond.")
+    if in_slot.has() {
+        ctx.assert(equals(in_slot.unwrap(), item(resource_location("minecraft:diamond"))), "The click should have moved the diamond, not another item.")
+    }
+    ctx.assert(not Test.get_carried_item().has(), "The click should have taken the item off the cursor.")
+    Test.close_screen()
+}
