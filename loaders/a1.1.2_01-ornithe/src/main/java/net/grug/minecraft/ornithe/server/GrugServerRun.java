@@ -54,6 +54,14 @@ public final class GrugServerRun {
     private static long holds = 0;
 
     /**
+     * Whether the floor hold has already moved the player in this server tick. The start-height
+     * hold is skipped for the rest of the tick when it has, because the floor hold lifting the
+     * player in one call and the start-height hold pulling them back in the next would leave them
+     * where they started the tick. See #1150 and #1168.
+     */
+    private static boolean heldOnFloorThisTick = false;
+
+    /**
      * The ticks the world takes for each of the runner's, which is how the server runs a test at
      * the loader's maximum game speed (#677): the server's own loop gives one, and this runs the
      * rest before the runner's tick.
@@ -135,6 +143,7 @@ public final class GrugServerRun {
         world = tickedWorld;
         List<?> players = tickedWorld.players;
         pollModFiles();
+        heldOnFloorThisTick = false;
 
         if (runner == null) {
             if (waitStartMillis == 0) {
@@ -225,20 +234,22 @@ public final class GrugServerRun {
      * rebuild has cleared the floor and the player is falling, because there is no floor to put
      * them on yet. No host function moves the player down, so holding the feet at the floor cannot
      * hide a test's own movement. The move is sent to the client as a teleport for the reason
-     * {@link #holdPlayer} gives.
+     * {@link #holdPlayer} gives, and it also stops the start-height hold for the rest of this
+     * server tick.
      */
-    private static boolean holdOnFloor(PlayerEntity player) {
+    private static void holdOnFloor(PlayerEntity player) {
         World world = world();
         if (world == null) {
-            return false;
+            return;
         }
         GrugPlayerFloor.BlockSource blocks = ServerOrnitheAdapter.solidBlocks(world);
         double feet = player.shape.minY;
         double floor = GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z);
         if (!GrugPlayerFloor.below(feet, floor)) {
-            return false;
+            return;
         }
         moveTo(player, floor);
+        heldOnFloorThisTick = true;
         floorHolds++;
         long now = System.currentTimeMillis();
         if (floorHolds == 1 || now - lastHoldReportMillis >= 5000) {
@@ -250,7 +261,6 @@ public final class GrugServerRun {
                             + feet
                             + " (inside the ground)");
         }
-        return true;
     }
 
     /**
@@ -265,13 +275,15 @@ public final class GrugServerRun {
      * 1.2.5 and b1.7.3-ornithe have held their test players since #1095 and #1102; Alpha had not.
      *
      * <p>The floor hold above runs first and answers the case where the client is inside the
-     * ground; this one keeps the room's own height. No host function moves the player, so the hold
-     * cannot hide a test's own movement. The tolerance is there because the world's own tick can
-     * leave the feet a fraction of a block off their height, and correcting that on every tick
-     * would send a teleport packet per tick.
+     * ground; this one keeps the room's own height. It is skipped for the rest of a server tick
+     * once the floor hold has moved the player, so the two cannot undo each other within one tick.
+     * No host function moves the player, so the hold cannot hide a test's own movement. The
+     * tolerance is there because the world's own tick can leave the feet a fraction of a block off
+     * their height, and correcting that on every tick would send a teleport packet per tick.
      */
     private static void holdPlayer(PlayerEntity player) {
-        if (holdOnFloor(player)) {
+        holdOnFloor(player);
+        if (heldOnFloorThisTick) {
             return;
         }
         double feet = player.shape.minY;
