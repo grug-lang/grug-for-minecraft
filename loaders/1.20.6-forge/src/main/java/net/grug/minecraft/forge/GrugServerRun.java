@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.server.MinecraftServer;
@@ -37,6 +38,11 @@ public final class GrugServerRun {
     private GrugTestRunner runner = null;
     private boolean done = false;
 
+    /** How many times the hold put the player back on the floor, and when it last said so. */
+    private long holds = 0;
+
+    private long lastHoldReportMillis = 0;
+
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || done) return;
@@ -49,8 +55,13 @@ public final class GrugServerRun {
             }
             // The run starts when a player has started it (#1040): the joined client sends its
             // start
-            // once it is in the world, and the screen the forwarded calls use is that player's.
+            // once it is in the world, and the screen the forwarded calls use is that player's. The
+            // player is held on the server's own floor before readiness is asked, so a client that
+            // reported a position a fraction inside the ground can land and be accepted (#1136).
             Object testPlayer = GrugCore.getAdapter().testPlayer();
+            if (testPlayer instanceof ServerPlayer) {
+                holdPlayer((ServerPlayer) testPlayer);
+            }
             if (GrugControlForge.server().hasStarter()
                     && testPlayer != null
                     && GrugCore.getAdapter().isWorldReady(testPlayer)) {
@@ -81,15 +92,65 @@ public final class GrugServerRun {
             return;
         }
 
-        runner.tick((ServerPlayer) GrugCore.getAdapter().testPlayer());
+        ServerPlayer testPlayer = (ServerPlayer) GrugCore.getAdapter().testPlayer();
+        holdPlayer(testPlayer);
+        runner.tick(testPlayer);
         if (runner.isFinished()) {
             stop(server);
+        }
+    }
+
+    /**
+     * Puts the player back on the ground the server's own world has under them.
+     *
+     * <p>A client that fell through the terrain while its chunks were arriving reports a position a
+     * fraction of a block inside the ground, and the server accepts it because the box its
+     * collision check tests is contracted by 0.0625. The client's own collision then never reports
+     * support, so the wait for {@code onGround} never ended (#1136, the rule #1095 added to
+     * b1.7.3-ornithe). The ground is in the server's world, so the server teleports the player to
+     * the top of the collision column under them whenever they are below it, and zeroes {@code
+     * deltaMovement} so the fall does not continue. The top is the block's collision shape, not its
+     * full cube, so a player on a slab is put on the slab's top at 70.5 rather than half a block
+     * above it (#1102). This version's teleport packet is what tells the joined client, so the
+     * camera follows the player the tests are built around.
+     *
+     * <p>It runs before readiness is asked and before each runner tick. It does nothing while a
+     * rebuild has cleared the floor and the player is falling, because there is no floor to put
+     * them on yet. No host function moves the player down, so holding the feet at the floor cannot
+     * hide a test's own movement.
+     */
+    private void holdPlayer(ServerPlayer player) {
+        if (player == null) {
+            return;
+        }
+        GrugPlayerFloor.BlockSource blocks = ServerForgeAdapter.solidBlocks(player.level());
+        double feet = player.getY();
+        double floor = GrugPlayerFloor.floorTop(blocks, player.getX(), feet, player.getZ());
+        if (!GrugPlayerFloor.below(feet, floor)) {
+            return;
+        }
+        player.teleportTo(player.getX(), floor, player.getZ());
+        player.setDeltaMovement(0.0, 0.0, 0.0);
+        holds++;
+        long now = System.currentTimeMillis();
+        if (holds == 1 || now - lastHoldReportMillis >= 5000) {
+            lastHoldReportMillis = now;
+            System.out.println(
+                    "[GRUG CI] holding the test player on the floor at "
+                            + floor
+                            + ", up from "
+                            + feet
+                            + " (inside the ground)");
         }
     }
 
     private void stop(MinecraftServer server) {
         done = true;
         GrugControlForge.server().endRun();
+        if (holds > 0) {
+            System.out.println(
+                    "[GRUG CI] The test player was held on the floor " + holds + " times.");
+        }
         server.halt(false);
     }
 }

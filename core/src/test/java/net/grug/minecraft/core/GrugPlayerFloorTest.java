@@ -170,6 +170,50 @@ class GrugPlayerFloorTest {
     }
 
     /**
+     * The state every dedicated-server leg lost a run to: the client joined 0.0625 inside ground
+     * whose top is 71 and never reported support, so the wait on {@code onGround} timed out. The
+     * server must not start there, and it must not start on the strength of {@code onGround} alone
+     * either, because the room would then be built around a player inside the ground. Once the hold
+     * has put the feet on the floor the run may start, whether or not the client has caught up and
+     * reported support yet.
+     */
+    @Test
+    void theStuckFeetAreNeverReadyUntilTheHoldPutsThemOnTheFloor() {
+        FakeLevel level = new FakeLevel();
+        level.addSolid(-24, 70, -65);
+
+        double stuck = 70.9375;
+        assertFalse(GrugPlayerFloor.mayStart(level, -23.5, stuck, -64.5, false));
+        assertFalse(GrugPlayerFloor.mayStart(level, -23.5, stuck, -64.5, true));
+
+        assertTrue(GrugPlayerFloor.mayStart(level, -23.5, 71.0, -64.5, false));
+        assertTrue(GrugPlayerFloor.mayStart(level, -23.5, 71.0, -64.5, true));
+    }
+
+    /**
+     * A player still falling above the floor is not on it, so a run waits for them to land, which
+     * is what keeps the test origin from differing between runs (#1052). Once they report support
+     * the wait ends.
+     */
+    @Test
+    void aFallingPlayerIsOnlyReadyOnceTheyReportSupport() {
+        FakeLevel level = new FakeLevel();
+        level.addSolid(-24, 70, -65);
+
+        assertFalse(GrugPlayerFloor.mayStart(level, -23.5, 71.05, -64.5, false));
+        assertTrue(GrugPlayerFloor.mayStart(level, -23.5, 71.05, -64.5, true));
+    }
+
+    /** Over the void there is no floor to stand on, so only the client's own support will do. */
+    @Test
+    void overTheVoidOnlyTheClientsSupportIsReady() {
+        FakeLevel level = new FakeLevel();
+
+        assertFalse(GrugPlayerFloor.mayStart(level, -23.5, 40.0, -64.5, false));
+        assertTrue(GrugPlayerFloor.mayStart(level, -23.5, 40.0, -64.5, true));
+    }
+
+    /**
      * The client keeps its feet a few millionths above the floor after a teleport, because its
      * position is the eye and the eye height is a float. That still counts as standing.
      */

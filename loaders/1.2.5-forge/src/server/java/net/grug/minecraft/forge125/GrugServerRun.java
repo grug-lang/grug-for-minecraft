@@ -5,6 +5,7 @@ import cpw.mods.fml.common.TickType;
 import cpw.mods.fml.server.FMLServerHandler;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.block.entity.GrugSavedDataPacket;
@@ -51,6 +52,11 @@ public final class GrugServerRun implements ITickHandler {
     private static int healedHealth = 0;
     private static EntityPlayerMP testPlayer = null;
     private static final double HOLD_TOLERANCE = 0.25;
+
+    /** How many times the hold put the player back on the floor, and when it last said so. */
+    private static long holds = 0;
+
+    private static long lastHoldReportMillis = 0;
 
     /** Registers the run's tick with FML, on a server. Called by reflection from mod_Grug. */
     public static void install() {
@@ -197,6 +203,55 @@ public final class GrugServerRun implements ITickHandler {
     }
 
     /**
+     * Puts the player back on the ground the server's own world has under them.
+     *
+     * <p>A client that fell through the terrain while its chunks were arriving reports a position a
+     * fraction of a block inside the ground, and the server accepts it because the box its
+     * collision check tests is contracted by 0.0625. The client's own collision then never reports
+     * support, so the wait for {@code onGround} never ended (#1136, the rule #1095 added to
+     * b1.7.3-ornithe). The ground is in the server's world, so the server teleports the player to
+     * the top of the collision column under them whenever they are below it, and zeroes {@code
+     * motionY} so the fall does not continue. The top is the block's collision shape, not its full
+     * cube, so a player on a slab is put on the slab's top at 70.5 rather than half a block above
+     * it (#1102).
+     *
+     * <p>It runs before readiness is asked and before each runner tick. It does nothing while a
+     * rebuild has cleared the floor and the player is falling, because there is no floor to put
+     * them on yet. No host function moves the player down, so holding the feet at the floor cannot
+     * hide a test's own movement.
+     */
+    private static void holdOnFloor(EntityPlayerMP player) {
+        World world = world();
+        if (world == null) {
+            return;
+        }
+        GrugPlayerFloor.BlockSource blocks = Grug125ServerAdapter.solidBlocks(world);
+        double feet = player.boundingBox.minY;
+        double floor = GrugPlayerFloor.floorTop(blocks, player.posX, feet, player.posZ);
+        if (!GrugPlayerFloor.below(feet, floor)) {
+            return;
+        }
+        // This version's teleport takes the entity position, and a server player's collision box
+        // bottom sits a fixed distance below it, so the move is applied as that same difference
+        // rather than as a feet height.
+        double target = player.posY + (floor - feet);
+        player.playerNetServerHandler.teleportTo(
+                player.posX, target, player.posZ, player.rotationYaw, player.rotationPitch);
+        player.motionY = 0;
+        holds++;
+        long now = System.currentTimeMillis();
+        if (holds == 1 || now - lastHoldReportMillis >= 5000) {
+            lastHoldReportMillis = now;
+            System.out.println(
+                    "[GRUG CI] holding the test player on the floor at "
+                            + floor
+                            + ", up from "
+                            + feet
+                            + " (inside the ground)");
+        }
+    }
+
+    /**
      * Keeps the test player where the tests expect them: at the height they landed at, and alive.
      *
      * <p>The client owns the player's movement, and each test clears and rebuilds the floor under
@@ -234,6 +289,7 @@ public final class GrugServerRun implements ITickHandler {
             player.setEntityHealth(player.getMaxHealth());
         }
         player.fallDistance = 0;
+        holdOnFloor(player);
         if (player.posY < holdY - HOLD_TOLERANCE) {
             player.playerNetServerHandler.teleportTo(
                     player.posX, holdY, player.posZ, player.rotationYaw, player.rotationPitch);
@@ -251,8 +307,13 @@ public final class GrugServerRun implements ITickHandler {
                 waitStartMillis = System.currentTimeMillis();
             }
             // The run starts when a player has started it (#1040): the joined client sends its
-            // start once it is in the world.
+            // start once it is in the world. The player is held on the server's own floor before
+            // readiness is asked, so a client that reported a position a fraction inside the ground
+            // can land and be accepted (#1136).
             EntityPlayerMP starter = GrugControlServer125.starterPlayer();
+            if (starter != null) {
+                holdOnFloor(starter);
+            }
             if (!players.isEmpty()
                     && GrugControlServer125.server().hasStarter()
                     && starter != null
@@ -324,6 +385,10 @@ public final class GrugServerRun implements ITickHandler {
         GrugControlServer125.server().endRun();
         System.out.println(
                 "[GRUG CI] The test player was healed " + healedHealth + " health in all.");
+        if (holds > 0) {
+            System.out.println(
+                    "[GRUG CI] The test player was held on the floor " + holds + " times.");
+        }
         System.out.flush();
         System.exit(status);
     }
