@@ -1019,6 +1019,7 @@ jobs:
             loaders/${{ matrix.loader }}/run-client-ci.log
             loaders/${{ matrix.loader }}/run-threads-ci.log
             loaders/${{ matrix.loader }}/run/control-captures
+            loaders/${{ matrix.loader }}/run-server/grug-screenshot-artifacts
             loaders/${{ matrix.loader }}/run-server/hs_err_pid*.log
             loaders/${{ matrix.loader }}/run/hs_err_pid*.log
           if-no-files-found: ignore

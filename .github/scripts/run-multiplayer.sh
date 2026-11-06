@@ -302,11 +302,21 @@ while :; do
     # control for the forwarded settle answer (#1086). The pixel tests stay client-only until they
     # have a per-side reference (#1092); coverage_frame_saved_number and
     # coverage_frame_saved_list_energy run on every server leg now that a loader sends saved numbers,
-    # a list's item and the energy store to the client's copy (#1093).
+    # a list's item and the energy store to the client's copy (#1093). The cobblestone pipe's shape
+    # test and the three redstone engine tests are the first part of the buildcraft S+U+B+H+W group
+    # promoted to both sides (#1096): each captures the joined client's frame and compares it with
+    # its own golden, so a leg that skips one must fail here. The group's two wooden pipe tests stay
+    # client-only until a chunk-mesh block's saved data reaches a joined client (#1101, #1152).
     if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
       for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_world_settled coverage_frame_saved_number coverage_frame_saved_list_energy; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${required}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${required}-Test.grug did not run on the dedicated server." >&2
+          exit 1
+        fi
+      done
+      for shapes in cobblestone_pipe_shapes redstone_engine redstone_engine_animation redstone_engine_facings; do
+        if ! grep -qF "[GRUG CI] PASS buildcraft/tests/${shapes}-Test.grug" "$SERVER_LOG"; then
+          echo "==> The run passed, but buildcraft/tests/${shapes}-Test.grug did not run on the dedicated server." >&2
           exit 1
         fi
       done
