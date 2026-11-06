@@ -2,8 +2,6 @@ package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.GrugScreenshots;
 
-import java.util.function.BooleanSupplier;
-
 /**
  * Whether the frame a capture would read is one the client had no work left in.
  *
@@ -26,7 +24,7 @@ import java.util.function.BooleanSupplier;
  *
  * <p>The class also decides what a frame may contain rather than what work it had left: the
  * integrated server's world-save indicator is drawn into the frames after a save ended, and {@link
- * #awaitSavingIndicatorCleared} is what keeps a capture from reading it (#1132).
+ * #captureable} is what keeps a capture from reading a frame that has it (#1132).
  */
 public final class GrugRenderSettle {
     /** Frames drawn so far. */
@@ -34,15 +32,6 @@ public final class GrugRenderSettle {
 
     /** The value {@link #frames} had when the frame that finished last had work in it. */
     private long lastBusyFrame;
-
-    /**
-     * The value {@link #frames} had when the frame that finished last had the save indicator in it.
-     *
-     * <p>Starts at 0, like {@link #lastBusyFrame}, so the first two frames after a reset have to be
-     * drawn before a capture may read one: the buffer can still hold a frame from before the reset,
-     * which a previous test's save may have drawn its text into.
-     */
-    private long lastIndicatorFrame = 0;
 
     /**
      * One completed frame, called from the loader's own frame hook.
@@ -212,70 +201,37 @@ public final class GrugRenderSettle {
     }
 
     /**
-     * Notes whether the frame that just finished had the integrated server's save indicator drawn
-     * into it, from {@link #savingIndicatorShown} sampled at the same moment.
+     * Frames drawn so far, which a capture records when it asks for one.
      *
-     * <p>Called right after {@link #onFrame}, by a loader whose client draws such an indicator, so
-     * that this counts the same frame. A loader whose client has none never calls it, and its
-     * frames leave the state cleared.
-     *
-     * <p>Pure bookkeeping rather than a wait, so that the answer a capture needs is a frame number
-     * and not a value read later: the indicator fades over about ten client ticks, and a value that
-     * has just reached the floor says nothing about the frames already drawn while it was up. See
-     * #1132.
-     *
-     * @param drawn whether that frame had the indicator in it
+     * <p>{@link #captureable} needs the frame a capture reads to be one drawn after it asked: the
+     * main render target holds the last completed frame, and a capture that asked between two
+     * frames would otherwise read the one before its ask. The count is what tells the two apart.
      */
-    public synchronized void onSavingIndicatorFrame(boolean drawn) {
-        if (drawn) {
-            lastIndicatorFrame = frames;
-        }
+    public synchronized long framesDrawn() {
+        return frames;
     }
 
     /**
-     * Whether the frame a capture would read has no save indicator in it.
+     * Whether the frame that has just finished is one a capture may read: a frame was drawn after
+     * the capture asked for one, and {@link #savingIndicatorShown} says that frame is without the
+     * integrated server's save indicator.
      *
-     * <p>The frame a capture reads is one behind the last one drawn, so a frame drawn without the
-     * indicator is not enough: the frames still on the buffer may be the ones that had it. Two
-     * frames drawn after the last one with it make the read one of them, or of a later frame. False
-     * before two frames have been drawn since the reset, because the buffer can still hold a frame
-     * from before it, which the previous test's save may have drawn the text into.
+     * <p>Both halves check a condition the earlier wait could slip past (#1132). The wait for the
+     * indicator used to run on the test's own thread and be followed, a frame later, by a read of
+     * whichever frame was on the buffer: a frame drawn in between was never checked, and a tick
+     * that raised the indicator could put the text into exactly that frame. The loader now asks
+     * this at the end of the frame it is about to read, so the check and the read describe one
+     * frame. The frames-drawn half is what keeps that frame from being one drawn before the ask,
+     * which is what a test's own settle wait promises the capture reads.
+     *
+     * <p>Pure in the two values, so its unit test covers every combination instead of the loader
+     * carrying a conjunction whose arms a run only meets while saving.
+     *
+     * @param framesWhenAsked the value of {@link #framesDrawn()} when the capture asked
+     * @param indicatorShown whether {@link #savingIndicatorShown} says this frame has the text
      */
-    public synchronized boolean savingIndicatorCleared() {
-        return frames - lastIndicatorFrame >= 2;
-    }
-
-    /**
-     * Waits until the frame a capture would read has no save indicator in it.
-     *
-     * <p>A capture must not read a frame drawn while the integrated server's "Saving world" text
-     * was up, and the text stays in the frames for about ten client ticks after a save ends. The
-     * decision is {@link #savingIndicatorCleared}, which the loader samples once per frame; the
-     * loop here is what a unit test covers, because the branch a run meets only when a capture
-     * lands in a fade would otherwise go untested.
-     *
-     * <p>The answer can be false for the frames drawn before the client ticked the value back and
-     * the renderer drew it, so the loop polls rather than sampling once.
-     *
-     * @param cleared whether the frame a capture would read was drawn without the indicator
-     */
-    public static void awaitSavingIndicatorCleared(BooleanSupplier cleared) {
-        while (!cleared.getAsBoolean()) {
-            pauseForSavingIndicator();
-        }
-    }
-
-    /**
-     * One millisecond of the save indicator wait. The frames it waits on arrive within a client
-     * tick, so a millisecond is short enough that the wait ends within a frame of the state
-     * changing, and long enough that it is not a spin.
-     */
-    private static void pauseForSavingIndicator() {
-        try {
-            Thread.sleep(1L);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+    public synchronized boolean captureable(long framesWhenAsked, boolean indicatorShown) {
+        return frames > framesWhenAsked && !indicatorShown;
     }
 
     /**
@@ -318,6 +274,5 @@ public final class GrugRenderSettle {
     public synchronized void reset() {
         frames = 0;
         lastBusyFrame = 0;
-        lastIndicatorFrame = 0;
     }
 }

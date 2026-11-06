@@ -282,107 +282,41 @@ class GrugRenderSettleTest {
     }
 
     @Test
-    void theIndicatorClearsTwoFramesAfterTheLastOneThatHadIt() {
-        GrugRenderSettle settle = new GrugRenderSettle();
+    void aCaptureIsServedOnlyByAFrameDrawnAfterItAskedAndWithoutTheIndicator() {
+        // Both answers come from the loader, and a run only meets the branch where a save starts
+        // inside the wait when it is unlucky. So every combination is answered here. See #1132.
+        for (int combination = 0; combination < 4; combination++) {
+            boolean frameDrawnAfterTheAsk = (combination & 1) != 0;
+            boolean indicatorShown = (combination & 2) != 0;
+            GrugRenderSettle settle = new GrugRenderSettle();
+            settle.onFrame(false, false);
+            long framesWhenAsked = settle.framesDrawn();
+            if (frameDrawnAfterTheAsk) {
+                settle.onFrame(false, false);
+            }
 
-        // Nothing is readable before two frames have been drawn, so a capture waits for them.
-        assertFalse(settle.savingIndicatorCleared());
-
-        settle.onFrame(false, false);
-        settle.onSavingIndicatorFrame(false);
-        assertFalse(settle.savingIndicatorCleared());
-
-        settle.onFrame(false, false);
-        settle.onSavingIndicatorFrame(false);
-        assertTrue(settle.savingIndicatorCleared(), "Two frames were drawn without the text.");
-
-        settle.onFrame(false, false);
-        settle.onSavingIndicatorFrame(true);
-        assertFalse(settle.savingIndicatorCleared(), "The frame just drawn has the text.");
-
-        // The capture reads the frame before the last one drawn, and that is the one with the text,
-        // so one frame drawn without it is not enough.
-        settle.onFrame(false, false);
-        settle.onSavingIndicatorFrame(false);
-        assertFalse(settle.savingIndicatorCleared());
-
-        settle.onFrame(false, false);
-        settle.onSavingIndicatorFrame(false);
-        assertTrue(settle.savingIndicatorCleared());
-    }
-
-    @Test
-    void aResetForgetsAnIndicatorAnotherTestSaved() {
-        GrugRenderSettle settle = new GrugRenderSettle();
-        settle.onFrame(false, false);
-        settle.onSavingIndicatorFrame(true);
-        assertFalse(settle.savingIndicatorCleared());
-
-        settle.reset();
-
-        // The buffer can still hold a frame from before the reset, which may have that test's text
-        // in it, so the new test's first capture waits for two frames of its own.
-        assertFalse(settle.savingIndicatorCleared());
-        settle.onFrame(false, false);
-        settle.onSavingIndicatorFrame(false);
-        assertFalse(settle.savingIndicatorCleared());
-        settle.onFrame(false, false);
-        settle.onSavingIndicatorFrame(false);
-        assertTrue(
-                settle.savingIndicatorCleared(),
-                "Two frames of the new test are enough; the earlier save no longer delays it.");
-    }
-
-    @Test
-    void theWaitPollsUntilTheFrameTheCaptureWouldReadIsCleared() {
-        // The rule is false until the client has ticked the fade down and drawn the frames after
-        // it, so the wait samples again after each false answer.
-        int[] remainingFalseAnswers = {2};
-        int[] polls = {0};
-
-        GrugRenderSettle.awaitSavingIndicatorCleared(
-                () -> {
-                    polls[0]++;
-                    return remainingFalseAnswers[0]-- <= 0;
-                });
-
-        assertEquals(3, polls[0]);
-    }
-
-    @Test
-    void aCaptureWithNothingToWaitForPollsOnce() {
-        int[] polls = {0};
-
-        GrugRenderSettle.awaitSavingIndicatorCleared(
-                () -> {
-                    polls[0]++;
-                    return true;
-                });
-
-        assertEquals(1, polls[0]);
-    }
-
-    @Test
-    void anInterruptedWaitKeepsTheInterruptForTheCaller() {
-        // The interrupt path only runs when the game shuts down mid-wait, but it is reachable:
-        // sleep throws at once on an interrupted thread, and the catch has to put the flag back.
-        // The second sample ends the loop so the flag can be checked and cleared here.
-        boolean[] firstSample = {true};
-        Thread.currentThread().interrupt();
-        try {
-            GrugRenderSettle.awaitSavingIndicatorCleared(
-                    () -> {
-                        if (firstSample[0]) {
-                            firstSample[0] = false;
-                            return false;
-                        }
-                        return true;
-                    });
-            assertTrue(
-                    Thread.currentThread().isInterrupted(),
-                    "The wait must keep the interrupt for the caller.");
-        } finally {
-            Thread.interrupted();
+            assertEquals(
+                    frameDrawnAfterTheAsk && !indicatorShown,
+                    settle.captureable(framesWhenAsked, indicatorShown),
+                    "frameDrawnAfterTheAsk="
+                            + frameDrawnAfterTheAsk
+                            + " indicatorShown="
+                            + indicatorShown);
         }
+    }
+
+    @Test
+    void aCaptureAskedBeforeAnyFrameWaitsForOne() {
+        GrugRenderSettle settle = new GrugRenderSettle();
+        long framesWhenAsked = settle.framesDrawn();
+
+        // The buffer can still hold a frame from before the request, which may be a previous
+        // test's,
+        // so the answer before a frame is drawn has to be false.
+        assertFalse(settle.captureable(framesWhenAsked, false));
+
+        settle.onFrame(false, false);
+
+        assertTrue(settle.captureable(framesWhenAsked, false));
     }
 }

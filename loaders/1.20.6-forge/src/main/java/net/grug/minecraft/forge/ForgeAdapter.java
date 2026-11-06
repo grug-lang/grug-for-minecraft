@@ -1330,10 +1330,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 GrugTestCamera.frameBusy(
                         !rendererIdle(minecraft), testPlayerSnapped, testPlayer(), CAMERA_VIEW),
                 blocksPending);
-        // Sampled after the level was drawn and before the next client tick, so it describes the
-        // indicator this same frame draws, which is what makes a capture's wait count frames of it
-        // rather than a value that has already faded. See #1132.
-        RENDER_SETTLE.onSavingIndicatorFrame(savingIndicatorShown(minecraft));
     }
 
     /**
@@ -1978,38 +1974,104 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
-        // No settle wait for the frame itself: the frame this reads is the one the test asked for
-        // at the moment it asked, and Screenshot.equals compares it against a committed PNG. The
-        // world-save indicator is the exception, because it outlives the save that put it up and is
-        // drawn into the frames after it: a capture waits for it to clear. See #1132.
-        awaitSavingIndicatorCleared();
+        // No settle wait for the frame itself: the frame this reads is one drawn after the test
+        // asked, and Screenshot.equals compares it against a committed PNG. The world-save
+        // indicator is the exception, because it outlives the save that put it up and is drawn into
+        // the frames after it: the read is served at the end of the first frame drawn after this
+        // call whose own sample says the text is not in it. See #1132.
         return captureChecked("Screenshot.capture", x1, y1, x2, y2);
     }
 
+    /** The capture a test's thread is waiting for, served by {@link #onFrameEnded}. */
+    private static final class PendingCapture {
+        final int x1;
+        final int y1;
+        final int x2;
+        final int y2;
+
+        /**
+         * {@link GrugRenderSettle#framesDrawn()} when the test asked, so that the frame read is one
+         * drawn after the ask rather than the one already on the buffer.
+         */
+        final long framesWhenAsked;
+
+        /**
+         * The rectangle the frame's end read, which the asking thread returns once {@link #done}.
+         */
+        BufferedImage image;
+
+        /** Counted down by the frame that read the rectangle, which is what the ask waits on. */
+        final CountDownLatch done = new CountDownLatch(1);
+
+        PendingCapture(int x1, int y1, int x2, int y2, long framesWhenAsked) {
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+            this.framesWhenAsked = framesWhenAsked;
+        }
+    }
+
     /**
-     * Waits until the frame a capture reads was drawn without the integrated server's "Saving
-     * world" text in it.
+     * The capture a test's thread is waiting for, or null.
      *
-     * <p>The text is drawn from a value the client fades over about ten client ticks after a save
-     * ends, and the save itself runs on the thread grug calls this from, so a test cannot capture
-     * inside a save but can easily capture just after one. The fade is not the rule: the frames
-     * drawn while the text was up are still in the buffer, and the capture reads the frame before
-     * the last one drawn, so the wait covers two frames drawn without it. Waiting here rather than
-     * in one test is what makes every capture on this loader unable to read the text. See {@link
-     * GrugRenderSettle#awaitSavingIndicatorCleared} and #1132.
+     * <p>Written by the test's thread and read by the client thread at the end of every frame, so
+     * it is volatile. Only one capture runs at a time: the runner makes one grug call at a time,
+     * and a capture does not return until its frame has served it.
+     */
+    private static volatile PendingCapture pendingCapture;
+
+    /**
+     * Serves the capture a test is waiting for, at the end of the frame just drawn, once that frame
+     * is one a capture may read.
+     *
+     * <p>Called from the render tick's end on the client thread, after the frame is complete, so
+     * the check and the read describe the same frame and no frame can be drawn in between. That is
+     * what the previous wait could not promise: it ran on the test's thread and the read followed a
+     * frame later, so a frame whose client tick raised the indicator was never checked and could be
+     * the one read (#1132). Waiting here rather than in one test is what makes every capture on
+     * this loader unable to read the text.
+     *
+     * <p>The frame may serve only if it was drawn after the test asked and its own sample says the
+     * text is not in it; see {@link GrugRenderSettle#captureable}. A frame that is not served yet
+     * leaves the request in place, and the next frame's end asks again.
+     */
+    static void onFrameEnded() {
+        PendingCapture capture = pendingCapture;
+        if (capture == null) {
+            return;
+        }
+        // Sampled after the frame was drawn and before the next client tick, so the values are the
+        // ones this frame's GUI pass read. See #1132.
+        if (!RENDER_SETTLE.captureable(capture.framesWhenAsked, savingIndicatorShown())) {
+            return;
+        }
+        capture.image = capture(capture.x1, capture.y1, capture.x2, capture.y2);
+        // Cleared before the countdown, so that a frame which ends before the asking thread has
+        // taken its image cannot serve the same request twice and replace what it returns.
+        pendingCapture = null;
+        capture.done.countDown();
+    }
+
+    /**
+     * Asks for a capture and waits for the frame's end to serve it.
      *
      * <p>Runs on the thread the test captured from, releasing the grug state lock while it waits,
-     * since the client has to keep drawing for the frames to count. Only the client thread is
-     * admitted into the state for the duration: it is the thread that draws those frames, and a
+     * since the client has to keep drawing for a frame to serve the request. Only the client thread
+     * is admitted into the state for the duration: it is the thread that draws those frames, and a
      * chunk worker that entered meanwhile and drew a block entity would fold its err into the
-     * suspended call (#583, #836). See {@link #releaseStateForSavingIndicator}.
+     * suspended call (#583, #836). See {@link #releaseStateForFrameEndWait}.
      */
-    private static void awaitSavingIndicatorCleared() {
-        Runnable wait =
-                () ->
-                        GrugRenderSettle.awaitSavingIndicatorCleared(
-                                RENDER_SETTLE::savingIndicatorCleared);
-        releaseStateForSavingIndicator(wait);
+    private static BufferedImage captureOnFrameEnd(int x1, int y1, int x2, int y2) {
+        PendingCapture capture = new PendingCapture(x1, y1, x2, y2, RENDER_SETTLE.framesDrawn());
+        pendingCapture = capture;
+        try {
+            Runnable wait = () -> awaitLatch(capture.done);
+            releaseStateForFrameEndWait(wait);
+        } finally {
+            pendingCapture = null;
+        }
+        return capture.image;
     }
 
     /**
@@ -2021,9 +2083,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * which is measured like any other method and runs on every capture.
      */
     @GrugGenerated(
-            "saving indicator wait: a capture runs after the client's first tick, so clientThread"
+            "frame-end capture wait: a capture runs after the client's first tick, so clientThread"
                     + " is set and this null arm cannot occur")
-    private static void releaseStateForSavingIndicator(Runnable wait) {
+    private static void releaseStateForFrameEndWait(Runnable wait) {
         Thread admitted = clientThread;
         if (admitted == null) {
             releaseWithoutAClientThread(wait);
@@ -2034,9 +2096,8 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     /**
      * Releases the grug state lock for the wait, admitting only the client thread: it is the thread
-     * that draws the frames the wait counts and ticks the value it fades, and a chunk worker that
-     * entered meanwhile and drew a block entity would fold its err into the suspended call (#583,
-     * #836).
+     * that draws the frame the capture is served by, and a chunk worker that entered meanwhile and
+     * drew a block entity would fold its err into the suspended call (#583, #836).
      */
     private static void releaseWithAClientThread(Runnable wait, Thread admitted) {
         Grug.runWithStateLockReleased(wait, admitted);
@@ -2046,7 +2107,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * The release form for a capture before the client has ticked once, which no run reaches; the
      * plain form lets every thread in, so the wait could not be kept out of the render thread.
      */
-    @GrugGenerated("saving indicator wait: the client has ticked before any capture runs")
+    @GrugGenerated("frame-end capture wait: the client has ticked before any capture runs")
     private static void releaseWithoutAClientThread(Runnable wait) {
         Grug.runWithStateLockReleased(wait);
     }
@@ -2055,10 +2116,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * Whether the frame the client is drawing would have the save indicator in it, from the two
      * values {@code Gui} fades it with and the player's option.
      *
-     * <p>Sampled from the frame hook, on the client thread, after the level was drawn and before
-     * the next client tick, so the values are the ones this frame's GUI pass will read. See #1132.
+     * <p>Sampled from the render tick's end, on the client thread, after the frame was drawn and
+     * before the next client tick, so the values are the ones this frame's GUI pass read. See
+     * #1132.
      */
-    private static boolean savingIndicatorShown(Minecraft minecraft) {
+    private static boolean savingIndicatorShown() {
+        Minecraft minecraft = Minecraft.getInstance();
         GuiSavingIndicatorAccessor indicator = (GuiSavingIndicatorAccessor) minecraft.gui;
         return GrugRenderSettle.savingIndicatorShown(
                 minecraft.options.showAutosaveIndicator().get(),
@@ -2104,13 +2167,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
             return null;
         }
 
-        return captureOnClientThread(left, top, right, bottom);
-    }
-
-    private static BufferedImage captureOnClientThread(int x1, int y1, int x2, int y2) {
-        final BufferedImage[] result = new BufferedImage[1];
-        onClientThread(() -> result[0] = capture(x1, y1, x2, y2));
-        return result[0];
+        return captureOnFrameEnd(left, top, right, bottom);
     }
 
     /**
