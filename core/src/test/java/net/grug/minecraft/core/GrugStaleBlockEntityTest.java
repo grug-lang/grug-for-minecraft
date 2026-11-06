@@ -64,8 +64,18 @@ class GrugStaleBlockEntityTest {
     }
 
     @Test
-    void nothingIsMadeBeforeAGrugEntityExists() {
-        assertFalse(GrugStaleBlockEntity.shouldReinit(Grug.INVALID_GRUG_FILE_ID, 334L));
+    void aBlockWithAnEntityFileIsInitedAfterOneWithNone() {
+        assertTrue(
+                GrugStaleBlockEntity.shouldReinit(Grug.INVALID_GRUG_FILE_ID, 334L),
+                "a tile a block with no entity file initialized must be inited again for the"
+                        + " chunk-mesh block placed on it");
+    }
+
+    @Test
+    void anAttemptWithNoEntityFileIsNotRetriedForTheSameBlock() {
+        assertFalse(
+                GrugStaleBlockEntity.shouldReinit(
+                        Grug.INVALID_GRUG_FILE_ID, Grug.INVALID_GRUG_FILE_ID));
     }
 
     @Test

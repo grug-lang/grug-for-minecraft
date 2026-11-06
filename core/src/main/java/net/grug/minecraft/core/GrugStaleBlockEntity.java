@@ -39,16 +39,19 @@ public final class GrugStaleBlockEntity {
     }
 
     /**
-     * Whether the grug entity a block entity holds was created for another block than the one now
+     * Whether the grug entity a block entity holds was attempted for another block than the one now
      * at its position, so it is the previous block's script with the previous block's members.
      *
-     * <p>{@code initedEntityFileId} is the entity file the tile's grug entity was created from, and
-     * {@link Grug#INVALID_GRUG_FILE_ID} before one was made. A block that names no entity file of
-     * its own has nothing for the tile to hold either, so the entity the previous block made goes
-     * rather than drawing that block's script for this one.
+     * <p>{@code attemptedEntityFileId} is the entity file the tile last tried to make its grug
+     * entity from, and {@link Grug#INVALID_GRUG_FILE_ID} when that block names no entity file of
+     * its own: the attempt is recorded even then, because a block that names no entity file
+     * initializes the tile with nothing, and the chunk-mesh block placed on that tile afterwards
+     * has to be inited from its own file rather than keeping the attempt.
+     *
+     * <p>An attempt equal to the block's file id is kept, including INVALID, so a creation that
+     * failed is not retried on every render: only a different block re-inits the tile.
      */
-    public static boolean shouldReinit(long initedEntityFileId, long blockEntityFileId) {
-        return initedEntityFileId != Grug.INVALID_GRUG_FILE_ID
-                && initedEntityFileId != blockEntityFileId;
+    public static boolean shouldReinit(long attemptedEntityFileId, long blockEntityFileId) {
+        return attemptedEntityFileId != blockEntityFileId;
     }
 }

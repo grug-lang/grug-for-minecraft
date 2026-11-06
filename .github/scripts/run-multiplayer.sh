@@ -312,12 +312,13 @@ while :; do
     # settle ask's flush is for (#1123), and the screen calls (#1094), which every
     # leg that forwards them asks here: the reads and close_screen with no screen, and the open
     # GUI's reads on 1.20.6. The pixel tests stay client-only until they have a per-side
-    # reference (#1092); coverage_frame_saved_number, coverage_frame_saved_list_energy and
-    # coverage_mesh_saved_number run on every server leg now that a loader sends saved numbers,
-    # a list's item and the energy store to the client's copy (#1093) and sends a chunk-mesh
-    # block's saved data with the block update that rebuilds its mesh (#1101).
+    # reference (#1092); coverage_frame_saved_number, coverage_frame_saved_list_energy,
+    # coverage_mesh_saved_number and coverage_mesh_saved_reinit run on every server leg now that a
+    # loader sends saved numbers, a list's item and the energy store to the client's copy (#1093),
+    # sends a chunk-mesh block's saved data with the block update that rebuilds its mesh, and
+    # inits a kept tile from the block that is there (#1101).
     if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
-      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_capture_same_tick forwarded_world_settled forwarded_screen_open forwarded_screen_width forwarded_gui_left forwarded_gui_top forwarded_gui_width forwarded_gui_height forwarded_close_screen coverage_frame_saved_number coverage_frame_saved_list_energy coverage_mesh_saved_number; do
+      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_capture_same_tick forwarded_world_settled forwarded_screen_open forwarded_screen_width forwarded_gui_left forwarded_gui_top forwarded_gui_width forwarded_gui_height forwarded_close_screen coverage_frame_saved_number coverage_frame_saved_list_energy coverage_mesh_saved_number coverage_mesh_saved_reinit; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${required}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${required}-Test.grug did not run on the dedicated server." >&2
           exit 1
