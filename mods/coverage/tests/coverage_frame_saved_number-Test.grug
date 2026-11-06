@@ -9,8 +9,9 @@
 # that sit a little higher or lower, so no loader sees none of them.
 # Two captures of one session are compared, rather than one against a reference image, so this holds
 # the same on every loader and needs no golden: a frame that never saw the number looks like the
-# frame before it and fails. Each stack is a quarter block across and nothing else in the crop moves,
-# so the ask is 1 percent of the crop, where two captures of an unchanged frame differ in none.
+# frame before it and fails. Nine stacks a quarter block across are drawn and nothing else in the
+# crop moves, so the ask is 1 percent of the crop, above the block-light flicker between two
+# captures of an unchanged frame (about 0.3 percent), which alone cannot pass the wait.
 # Setting the number again to the value it holds changes nothing the client needs, so that is no
 # new send; the loader skips it, and the test reaches that path by saving the same value again.
 # It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the

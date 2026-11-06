@@ -95,22 +95,28 @@ public final class GrugSavedLists {
      * Adds an empty record at the end of the list and answers its index, creating the list when the
      * block entity has none under that name. The caller has checked {@link #isHolder}.
      */
-    public static synchronized int append(Object blockEntity, String name) {
-        Map<String, List<Record>> lists =
-                LISTS.computeIfAbsent(blockEntity, unused -> new HashMap<>());
-        List<Record> records = lists.computeIfAbsent(name, unused -> new ArrayList<>());
-        records.add(new Record());
-        ((Holder) blockEntity).markSavedNumbersChanged();
-        return records.size() - 1;
+    public static int append(Object blockEntity, String name) {
+        int index;
+        synchronized (GrugSavedLists.class) {
+            Map<String, List<Record>> lists =
+                    LISTS.computeIfAbsent(blockEntity, unused -> new HashMap<>());
+            List<Record> records = lists.computeIfAbsent(name, unused -> new ArrayList<>());
+            records.add(new Record());
+            index = records.size() - 1;
+        }
+        markChanged(blockEntity);
+        return index;
     }
 
     /**
      * Drops the record at {@code index}, moving every later record one place down. The caller has
      * checked that the record exists.
      */
-    public static synchronized void remove(Object blockEntity, String name, int index) {
-        list(blockEntity, name).remove(index);
-        ((Holder) blockEntity).markSavedNumbersChanged();
+    public static void remove(Object blockEntity, String name, int index) {
+        synchronized (GrugSavedLists.class) {
+            list(blockEntity, name).remove(index);
+        }
+        markChanged(blockEntity);
     }
 
     /**
@@ -129,18 +135,31 @@ public final class GrugSavedLists {
      * Saves {@code value} under {@code key} in {@code record}, which the caller read with {@link
      * #record} or added with {@link #append} and so knows exists.
      */
-    public static synchronized void setNumber(
-            Object blockEntity, Record record, String key, double value) {
-        record.numbers.put(key, value);
-        ((Holder) blockEntity).markSavedNumbersChanged();
+    public static void setNumber(Object blockEntity, Record record, String key, double value) {
+        synchronized (GrugSavedLists.class) {
+            record.numbers.put(key, value);
+        }
+        markChanged(blockEntity);
     }
 
     /**
      * Puts {@code item} in {@code record}, replacing the item that was there. The caller read the
      * record with {@link #record} or added it with {@link #append} and so knows it exists.
      */
-    public static synchronized void setItem(Object blockEntity, Record record, Object item) {
-        record.item = item;
+    public static void setItem(Object blockEntity, Record record, Object item) {
+        synchronized (GrugSavedLists.class) {
+            record.item = item;
+        }
+        markChanged(blockEntity);
+    }
+
+    /**
+     * Tells the block entity its lists changed, after this class's monitor is released: the block
+     * entity marks itself changed by calling back through GrugSavedDataSync.changed, which
+     * snapshots these lists, and taking that monitor while holding this one is the other half of a
+     * lock order the sender can invert.
+     */
+    private static void markChanged(Object blockEntity) {
         ((Holder) blockEntity).markSavedNumbersChanged();
     }
 

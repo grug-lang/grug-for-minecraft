@@ -69,16 +69,21 @@ public final class GrugSavedNumbers {
      * @return false when the block entity is not a {@link Holder}, which the caller reports;
      *     nothing is saved then
      */
-    public static synchronized boolean set(Object blockEntity, String name, double value) {
+    public static boolean set(Object blockEntity, String name, double value) {
         if (!isHolder(blockEntity)) {
             return false;
         }
-        Map<String, Double> numbers = NUMBERS.get(blockEntity);
-        if (numbers == null) {
-            numbers = new HashMap<>();
-            NUMBERS.put(blockEntity, numbers);
+        synchronized (GrugSavedNumbers.class) {
+            Map<String, Double> numbers = NUMBERS.get(blockEntity);
+            if (numbers == null) {
+                numbers = new HashMap<>();
+                NUMBERS.put(blockEntity, numbers);
+            }
+            numbers.put(name, value);
         }
-        numbers.put(name, value);
+        // Outside this class's monitor: the block entity marks itself changed by calling back
+        // through GrugSavedDataSync.changed, which snapshots these numbers, and taking that monitor
+        // while holding this one is the other half of a lock order the sender can invert.
         ((Holder) blockEntity).markSavedNumbersChanged();
         return true;
     }
