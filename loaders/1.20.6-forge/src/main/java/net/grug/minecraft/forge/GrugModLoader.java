@@ -100,9 +100,13 @@ public class GrugModLoader {
     public static final String MODID = "grug";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Whether a screenshot test run (the R hotkey or CI) is currently active. */
+    /**
+     * Whether a screenshot test run (the R hotkey, CI, or a server's run that captures this joined
+     * client) currently owns the client, so the capture settings below apply to it.
+     */
     public static boolean isTestRunActive() {
-        return ClientForgeEvents.grug$testRunner != null;
+        return ClientForgeEvents.grug$testRunner != null
+                || ClientForgeEvents.grug$controlRunStarted;
     }
 
     /**
@@ -748,6 +752,14 @@ public class GrugModLoader {
                 // parks too (#1098).
                 if ((grug$testRunner != null || grug$controlRunStarted) && mc.screen != null) {
                     WINDOW.parkCursor();
+                }
+
+                // A toast is transient client state that has nothing to do with the mod under test,
+                // and a joined client is shown one nobody asked for: the "messages may be modified"
+                // warning an unverified (offline) server produces. It sits in the corner for a few
+                // seconds and lands in a capture, so a run clears them. See #1098.
+                if (grug$testRunner != null || grug$controlRunStarted) {
+                    mc.getToasts().clear();
                 }
 
                 // Registered once the manager exists, which is before any hot reload, so every
