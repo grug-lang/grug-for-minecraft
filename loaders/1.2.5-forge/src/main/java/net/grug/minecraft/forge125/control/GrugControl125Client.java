@@ -176,7 +176,8 @@ public final class GrugControl125Client implements GrugControlRouter {
         // room was built around, so a capture names the eye and the client waits for its own camera
         // to reach it (#1161).
         boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
-        if (waited < MIN_TICKS || ((!settled || !cameraHere) && waited < MAX_TICKS)) return;
+        if (GrugTestCamera.waitsForCapture(waited, MIN_TICKS, MAX_TICKS, settled, cameraHere))
+            return;
         pending = false;
         if (mc.displayWidth != GrugScreenshots.WIDTH
                 || mc.displayHeight != GrugScreenshots.HEIGHT) {

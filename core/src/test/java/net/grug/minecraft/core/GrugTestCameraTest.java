@@ -158,6 +158,24 @@ class GrugTestCameraTest {
     }
 
     @Test
+    void aCaptureWaitsForTheFrameAndGivesTheCameraABoundedGrace() {
+        // Under the minimum it always waits, whatever the other two say.
+        assertTrue(GrugTestCamera.waitsForCapture(0, 60, 300, true, true));
+        assertTrue(GrugTestCamera.waitsForCapture(59, 60, 300, false, false));
+        // A frame that is not ready keeps the capture waiting to its own budget.
+        assertTrue(GrugTestCamera.waitsForCapture(100, 60, 300, false, true));
+        assertFalse(GrugTestCamera.waitsForCapture(300, 60, 300, false, true));
+        // The camera has a grace past the minimum, and no longer.
+        assertTrue(GrugTestCamera.waitsForCapture(100, 60, 300, true, false));
+        assertFalse(
+                GrugTestCamera.waitsForCapture(
+                        60 + GrugTestCamera.EYE_GRACE_TICKS, 60, 300, true, false));
+        // Ready and at the eye is a capture, and the grace never outlives the budget.
+        assertFalse(GrugTestCamera.waitsForCapture(60, 60, 300, true, true));
+        assertFalse(GrugTestCamera.waitsForCapture(60, 4, 60, true, false));
+    }
+
+    @Test
     void aCameraAxisIsOneComponentOfThePosition() {
         Vec3 camera = new Vec3(1.5, 65.62, -2.5);
 
