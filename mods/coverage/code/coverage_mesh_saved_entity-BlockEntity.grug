@@ -4,9 +4,11 @@
 # The pedestal is always drawn, because a block that declares set_custom_render and draws nothing
 # reports an error, and it is a whole block so that its appearance moves several times the 1 percent
 # of the crop the test asks for: half a block face was under that on the tall crop, so the room with
-# the block could not be told apart from the empty room. The plate is a second whole block on top, so
-# the frame the number changes is a whole block face too, and the frame that returns to the pedestal
-# alone is one the plate cannot be hiding in.
+# the block could not be told apart from the empty room. The plate is a second whole block in front
+# of the block, toward the camera, so a room built a block off the joined client's, which moves the
+# block up the screen, still has the plate inside the frame: a plate on top was mostly above the
+# screen on the alpha server leg. The frame the number changes is a whole block face too, and the
+# frame that returns to the pedestal alone is one the plate cannot be hiding in.
 # The number name is this block's own, because a client that keeps the block entity of the block
 # that was there keeps its saved numbers too, and a number another test already saved cannot show
 # that this one's save arrived.
@@ -14,6 +16,6 @@ export render(ctx: RenderContext) {
     ctx.draw_box(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
 
     if me.get_saved_number("mesh_marker") > 0 {
-        ctx.draw_box(0.0, 1.0, 0.0, 1.0, 2.0, 1.0)
+        ctx.draw_box(0.0, 0.0, -1.0, 1.0, 1.0, 0.0)
     }
 }

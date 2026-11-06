@@ -10,9 +10,10 @@
 # rather than the block merely appearing, which a block whose render never ran cannot make either.
 # The capture between the two is what the plate is compared against, so a block that never drew
 # leaves the same frame on both sides of the save and the assertion fails.
-# The wall and the two agreeing captures of the empty room are coverage_mesh_saved_number's, for the
-# same reason: without a wall behind the block, drifting clouds would be a change of their own, and
-# a room that is still moving would be where the plate is looked for.
+# The wall, the whole-screen-height crop and the two agreeing captures of the empty room are
+# coverage_mesh_saved_number's, for the same reason: without a wall behind the block, drifting
+# clouds would be a change of their own, and a room that is still moving would be where the plate is
+# looked for.
 # It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
 # joined client, and the captures are the client's (#1086).
 mesh_block: Option[BlockEntity] = Option.new()
@@ -86,7 +87,7 @@ export tick_any_side(ctx: TestTickContext) {
         # spinning.
         ctx.not_done()
     } else {
-        plate: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        plate: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
         if plate.change_from(pedestal.unwrap()) < 1 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "The chunk-mesh block's plate never drew on the tile a block with no entity file left.")
@@ -123,7 +124,7 @@ local _wall(ctx: TestTickContext) {
 # mesh arrives late, or a cloud, is not what the plate is then compared against.
 local _settle_empty(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 {
-        shot: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        shot: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
         room_tick = ctx.current_tick()
         if empty_prev.has() and shot.change_from(empty_prev.unwrap()) < 1 {
             empty.set(shot)
@@ -173,7 +174,7 @@ local _place_mesh(ctx: TestTickContext) {
 # in, the wall keeps the sky out, and neither block there moves.
 local _capture_pedestal(ctx: TestTickContext) {
     if ctx.current_tick() >= mesh_tick + 30 {
-        pedestal.set(Test.screenshot().capture(500, 60, 780, 440))
+        pedestal.set(Test.screenshot().capture(500, 0, 780, 720))
         attempts = 0
     }
 }
