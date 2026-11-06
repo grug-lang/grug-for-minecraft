@@ -743,8 +743,10 @@ public class GrugModLoader {
                 // A captured frame must not depend on where the invisible cursor happens to be: the
                 // game highlights the slot under the mouse and tooltips follow it, so park the
                 // cursor in a corner outside the centered GUI for the duration of a run. The cursor
-                // isn't drawn into the framebuffer, so this only removes that incidental state.
-                if (grug$testRunner != null && mc.screen != null) {
+                // isn't drawn into the framebuffer, so this only removes that incidental state. A
+                // joined client has no runner, but the server's tests capture its screen, so it
+                // parks too (#1098).
+                if ((grug$testRunner != null || grug$controlRunStarted) && mc.screen != null) {
                     WINDOW.parkCursor();
                 }
 

@@ -89,6 +89,13 @@ public class GrugClientHooks implements ITickHandler {
     private boolean testRunnerFromCI = false;
 
     /**
+     * Whether this client is the joined client of a server's run (#1040). It has no runner of its
+     * own, but its screen is what the server's screenshot tests capture, so the frame rules a run
+     * applies to the window apply to it too (#1098).
+     */
+    private boolean controlRun = false;
+
+    /**
      * R starts a test run and M forces the screenshot resolution by hand, matching the other four
      * loaders. 1.2.5 registers these by constructing KeyBindings, which the game's own input loop
      * feeds: a key press sits in the binding until {@code isPressed()} reads it, so a press is not
@@ -312,11 +319,13 @@ public class GrugClientHooks implements ITickHandler {
      * server (#1040): the screenshot size. The view is left alone, as on the other loaders.
      */
     public void beginControlRun() {
+        controlRun = true;
         window.beginRun();
     }
 
     /** Puts the window back when this client has left the server whose run it started. */
     public void endControlRun() {
+        controlRun = false;
         window.endRun();
     }
 
@@ -513,8 +522,9 @@ public class GrugClientHooks implements ITickHandler {
         // pointer
         // is not drawn into the framebuffer, so parking it in a corner only removes that incidental
         // state. See #124. The game re-reads the pointer every frame, so the shared class has to be
-        // called every frame, not once when the run starts.
-        if (testRunner != null && !Mouse.isGrabbed()) {
+        // called every frame, not once when the run starts. A joined client has no runner, but the
+        // server's tests capture its screen, so it parks too (#1098).
+        if ((testRunner != null || controlRun) && !Mouse.isGrabbed()) {
             window.parkCursor();
         }
 
