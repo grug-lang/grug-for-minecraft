@@ -36,7 +36,15 @@ public final class GrugModsWatcher {
 
     /** The body of {@link #update}, which runs while this thread holds the state lock. */
     private static String[] updateLocked(Consumer<String> onError) {
-        FileInfo[] updatedFiles = GrugNative.nativeUpdate(Grug.statePtr);
+        // A reload re-initializes the entities of a recompiled file, which pushes a frame on grug's
+        // call stack, so a host function error in that initializer has a call to fail (#1134).
+        int outerDepth = Grug.beginGrugCall();
+        FileInfo[] updatedFiles;
+        try {
+            updatedFiles = GrugNative.nativeUpdate(Grug.statePtr);
+        } finally {
+            Grug.endGrugCall(outerDepth);
+        }
         return applyReport(
                 updatedFiles, GrugNative.nativeGetUpdatedResources(Grug.statePtr), onError);
     }
