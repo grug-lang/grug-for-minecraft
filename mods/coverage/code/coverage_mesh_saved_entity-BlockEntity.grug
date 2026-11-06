@@ -1,0 +1,13 @@
+# Draws the geometry the chunk's mesh holds, from the saved number the mesh is built with. A block
+# whose shape the mesh holds reads the saved data here, not in render_frame, so a number a script
+# saved only shows once the client rebuilt the mesh (#1101).
+# The core is always drawn, because a block that declares set_custom_render and draws nothing reports
+# an error. The plate is wide enough that its appearance moves more than the 1 percent of the crop
+# the test asks for.
+export render(ctx: RenderContext) {
+    ctx.draw_box(0.35, 0.0, 0.35, 0.65, 0.3, 0.65)
+
+    if me.get_saved_number("marker") > 0 {
+        ctx.draw_box(0.0, 0.3, 0.0, 1.0, 0.75, 1.0)
+    }
+}

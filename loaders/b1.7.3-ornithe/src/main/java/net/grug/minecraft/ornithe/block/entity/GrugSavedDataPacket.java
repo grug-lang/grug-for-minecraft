@@ -43,15 +43,31 @@ public class GrugSavedDataPacket extends Packet {
 
     private NbtCompound data = new NbtCompound();
 
+    /**
+     * Whether the client is also told to build the block's mesh again, which a chunk-mesh block
+     * needs before it reads the data. A frame-only block reads the data on the next frame and is
+     * sent without it.
+     */
+    private boolean redraw;
+
     /** Empty, for the game's packet table, which makes one of each packet to read it into. */
     public GrugSavedDataPacket() {}
 
     /** The saved data of {@code blockEntity}, for the clients that hold its chunk. */
     public GrugSavedDataPacket(GrugBlockEntity blockEntity) {
+        this(blockEntity, false);
+    }
+
+    /**
+     * The saved data of {@code blockEntity}, and whether the client also has to build the block's
+     * mesh again with it.
+     */
+    public GrugSavedDataPacket(GrugBlockEntity blockEntity, boolean redraw) {
         this.x = blockEntity.x;
         this.y = blockEntity.y;
         this.z = blockEntity.z;
         this.blockId = blockEntity.world.getBlock(blockEntity.x, blockEntity.y, blockEntity.z);
+        this.redraw = redraw;
         blockEntity.writeSavedData(data);
     }
 
@@ -61,6 +77,7 @@ public class GrugSavedDataPacket extends Packet {
         y = in.readInt();
         z = in.readInt();
         blockId = in.readInt();
+        redraw = in.readBoolean();
         data = NbtIo.read(in);
     }
 
@@ -70,6 +87,7 @@ public class GrugSavedDataPacket extends Packet {
         out.writeInt(y);
         out.writeInt(z);
         out.writeInt(blockId);
+        out.writeBoolean(redraw);
         NbtIo.write(data, out);
     }
 
@@ -96,6 +114,11 @@ public class GrugSavedDataPacket extends Packet {
         BlockEntity blockEntity = world.getBlockEntity(x, y, z);
         if (blockEntity instanceof GrugBlockEntity) {
             ((GrugBlockEntity) blockEntity).readSavedData(data);
+            if (redraw) {
+                // The client builds its own mesh again from the data it just read, which is the
+                // local world's mark, not a packet: the data travels server to client only.
+                GrugCore.getAdapter().redraw(blockEntity);
+            }
         }
     }
 

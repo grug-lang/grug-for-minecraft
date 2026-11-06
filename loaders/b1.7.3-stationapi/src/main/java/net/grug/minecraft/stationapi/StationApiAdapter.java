@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugRenderSettle;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
@@ -554,6 +555,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // The world tells its renderers that the block changed, which marks the chunk around it for
         // compiling again, the same as a block being placed there.
         be.world.blockUpdateEvent(be.x, be.y, be.z);
+        // A dedicated server's client draws its own copy of the world, so it is sent the block
+        // update that builds that copy's mesh again; on a client this has no transport and does
+        // nothing, the local mark above being the whole rebuild.
+        GrugSavedDataSync.redrawn(be);
     }
 
     @Override

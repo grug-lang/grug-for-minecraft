@@ -55,11 +55,20 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
 
     @Override
     public void send(Object blockEntity) {
+        sendPacket(new GrugSavedDataPacket((GrugBlockEntity) blockEntity));
+    }
+
+    @Override
+    public void redraw(Object blockEntity) {
+        sendPacket(new GrugSavedDataPacket((GrugBlockEntity) blockEntity, true));
+    }
+
+    /** Sends {@code packet} to every player in the world the block entity belongs to. */
+    private static void sendPacket(GrugSavedDataPacket packet) {
         World world = GrugServerRun.world();
         if (world == null) {
             return;
         }
-        GrugSavedDataPacket packet = new GrugSavedDataPacket((GrugBlockEntity) blockEntity);
         for (Object player : new ArrayList<>(world.players)) {
             Connection connection = connectionOf(player);
             if (connection == null) {

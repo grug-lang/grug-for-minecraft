@@ -42,4 +42,10 @@ public final class GrugSavedDataStation implements GrugSavedDataSync.Transport {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
         GrugServerRun.sendToWorld(entity.world, new GrugSavedDataPacket(entity));
     }
+
+    @Override
+    public void redraw(Object blockEntity) {
+        GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
+        GrugServerRun.sendToWorld(entity.world, new GrugSavedDataPacket(entity, true));
+    }
 }

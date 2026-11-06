@@ -11,24 +11,25 @@ import java.util.TreeMap;
 import java.util.WeakHashMap;
 
 /**
- * Sends a grug block entity's saved data to the client's copy of it when the script changes it, so
- * that a {@code set_saved_number}, a saved list or the energy store reaches the frame pass that
- * reads it.
+ * Sends a grug block entity's saved data to the client's copy of it when the script changes it or
+ * asks for a redraw, so that a {@code set_saved_number}, a saved list or the energy store reaches
+ * the frame pass or chunk mesh that reads it.
  *
  * <p>Every loader's grug block entity writes that data into its NBT, and the client's copy reads it
  * from the chunk when it arrives. On a dedicated server the script runs on the server's copy, so
  * nothing the client holds changes with it, and a block that draws only per frame is never meshed
  * again for it: the packet has to be sent by itself. The rule is the same on every loader, so it
- * lives here and each loader only supplies the three things only it can answer ({@link Transport}).
+ * lives here and each loader only supplies the things only it can answer ({@link Transport}).
  *
- * <p>Only a block that draws per frame is sent. A block whose geometry is in its chunk's mesh reads
- * the numbers when the mesh is built, and the script asks for that with {@code redraw}; a send here
- * would arrive without the mesh that shows it. On a client that shares the world (singleplayer and
- * the integrated server) {@code redraw} re-meshes that one world and the number is already there.
- * On 1.20.6 the server's {@code redraw} also sends the client the block entity's update packet,
- * which re-meshes the client's copy, so a chunk-mesh block's number does reach a joined client
- * there. The older loaders' {@code redraw} only re-meshes the local world and sends nothing, so the
- * gap (#1101) is theirs.
+ * <p>Only a block that draws all of its own geometry per frame is sent when its data changes: it
+ * reads the numbers on the next frame, and nothing meshes it again for them. A block whose geometry
+ * is in its chunk's mesh reads them when the mesh is built, which the script asks for with {@code
+ * redraw}; a send on every change would be a packet without the mesh that shows it, and on 1.20.6
+ * the game's own update packet re-meshes, so a block that also draws per frame would rebuild its
+ * mesh every time that frame state changed. {@link #redrawn} is where such a block is sent: the
+ * client's copy is given the data and the block update that makes it build the mesh again. On a
+ * client that shares the world (singleplayer and the integrated server) {@code redraw} re-meshes
+ * that one world and the number is already there.
  *
  * <p>A send is left out when the data is what was last sent to that block entity, because a script
  * may save the same value every tick, and a machine's tick is not a reason for a packet. The data
@@ -53,6 +54,9 @@ public final class GrugSavedDataSync {
 
         /** Sends the block entity's saved data to the clients that hold it. */
         void send(Object blockEntity);
+
+        /** Sends the block update that makes those clients build the block's mesh again. */
+        void redraw(Object blockEntity);
     }
 
     /** What was last sent to each block entity, keyed weakly so a broken one is collected. */
@@ -99,6 +103,21 @@ public final class GrugSavedDataSync {
         }
         LAST_SENT.put(blockEntity, now);
         installed.send(blockEntity);
+    }
+
+    /**
+     * A script asked for the block's geometry to be built again, which a block in its chunk's mesh
+     * needs before it reads saved data the client's copy may not hold yet. The side that owns the
+     * block entity sends the clients that hold it the data and the block update that builds the
+     * mesh again; a client builds its own mesh again and sends nothing, because the data travels
+     * server to client only.
+     */
+    public static synchronized void redrawn(Object blockEntity) {
+        Transport installed = transport;
+        if (installed == null) {
+            return;
+        }
+        installed.redraw(blockEntity);
     }
 
     /**

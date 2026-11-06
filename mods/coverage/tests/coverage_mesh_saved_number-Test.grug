@@ -1,0 +1,94 @@
+# A saved number a script writes reaches the client's chunk mesh, on either side.
+# A block whose geometry is in its chunk's mesh reads the saved numbers when the mesh is built, so
+# the number only reaches a joined client when the client's copy holds it and the client builds the
+# mesh again. The script asks for that with redraw(), and on a dedicated server the loader has to
+# send the client both the data and the block update that rebuilds the mesh (#1101). The
+# coverage_mesh_saved block draws a small core always, and a wide plate once its "marker" number is
+# above 0, so the assertion is that the client's frame changed after the save and the redraw.
+# Two captures of one session are compared, rather than one against a reference image, so this holds
+# on every loader and needs no golden: a mesh that was never rebuilt looks like the frame before it
+# and fails. The crop is the tall one coverage_frame_saved_number uses, with a wall behind the block,
+# because a dedicated server builds the room from its own copy of the player, which can sit a block
+# off the joined client's; the wall keeps drifting clouds out of the comparison.
+# It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
+# joined client, and the captures are the client's (#1086). The wait ends on the frame itself:
+# Screenshot.change_from reports how much of it changed, so a client that is behind is captured
+# again instead of being assumed to have caught up after a tick count.
+mesh_block: Option[BlockEntity] = Option.new()
+before: Option[Screenshot] = Option.new()
+saved: bool = false
+
+# The runner tick the number was saved and the redraw asked for on.
+saved_tick: number = 0
+
+# How many captures have already shown the frame from before the save.
+attempts: number = 0
+
+export init(ctx: TestInitContext) {
+    # Eight captures 30 ticks apart, beside the setup, pass the default 200.
+    ctx.set_max_ticks(400)
+}
+
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    } else if not saved {
+        before.set(Test.screenshot().capture(500, 60, 780, 440))
+        block: BlockEntity = mesh_block.unwrap()
+        block.set_saved_number("marker", 1)
+        block.redraw()
+        saved = true
+        saved_tick = ctx.current_tick()
+        attempts = 0
+        ctx.not_done()
+    } else if ctx.current_tick() < saved_tick + 30 {
+        # Nothing marks the world unsettled for a saved-number change or a redraw: a script saves
+        # numbers as it runs, so a world that settled only between those would never settle. This
+        # short wait keeps the captures from spinning; whether the rebuilt mesh arrived is decided
+        # by the capture below.
+        ctx.not_done()
+    } else {
+        after: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        if after.change_from(before.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The saved number never rebuilt the client's chunk mesh.")
+            saved_tick = ctx.current_tick()
+            ctx.not_done()
+        } else {
+            ctx.assert(mesh_block.unwrap().get_saved_number("marker") == 1, "The number should still be saved.")
+        }
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    Test.set_box_radius(6)
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The same place coverage_frame_saved_number's block sits, with the same tall crop for a
+    # dedicated server whose room is built from its own copy of the joined player.
+    level.place_block(x, y - 1.88, z + 4, "grug:coverage_mesh_saved")
+
+    # A wall behind it, thirteen across and thirteen high, the size coverage_frame's golden uses,
+    # which covers the whole crop. Without one the crop could hold sky, and clouds drift between two
+    # captures.
+    wy: number = y - 9
+    while wy < y + 4 {
+        wx: number = x - 6
+        while wx < x + 7 {
+            level.place_block(wx, wy, z + 6, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+
+    be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    ctx.assert(be_opt.has(), "The chunk-mesh block should have a block entity.")
+    mesh_block.set(be_opt.unwrap())
+}
