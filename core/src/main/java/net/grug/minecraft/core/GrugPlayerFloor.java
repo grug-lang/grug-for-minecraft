@@ -112,6 +112,28 @@ public final class GrugPlayerFloor {
     }
 
     /**
+     * Whether a dedicated server may start a run with the feet here: the server's own world has a
+     * floor under them and they are on it, and they are not inside a block.
+     *
+     * <p>{@code onGround} alone is not enough. The server copies it from the client's movement
+     * packets, and a client that fell through the terrain while its chunks were arriving reports a
+     * position a fraction of a block inside the ground, which the server accepts because the box
+     * its collision check tests is contracted by 0.0625. From there the client's own collision
+     * never reports support, so the value stays false and the wait for a joined player times out
+     * with the client in the world and the run already started (#1095). The floor is the server's
+     * own, so standing on it is enough, and a feet position inside a block's shape is never
+     * accepted, so the room is never built around a player the ground has swallowed (#1136).
+     *
+     * <p>Every dedicated-server loader asks this one function, so the rule cannot drift between
+     * them the way five copies of it could.
+     */
+    public static boolean mayStart(
+            BlockSource blocks, double x, double feetY, double z, boolean onGround) {
+        return !insideABlock(blocks, x, feetY, z)
+                && (onGround || standsOn(feetY, floorTop(blocks, x, feetY, z)));
+    }
+
+    /**
      * Whether the feet are inside a block's collision shape, which is never a state a test may
      * start in: the room would be built around the wrong height and a forwarded capture would see
      * the inside of the block. A player standing on a shape's top is not inside it, within the same
