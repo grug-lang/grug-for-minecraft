@@ -37,10 +37,10 @@ import javax.imageio.ImageIO;
  * replace the other side's golden.
  *
  * <p>A directory with no references yet is bootstrapped locally, and for a reference run: the first
- * capture is written as {@code <loader>.png} and accepted, so a new screenshot test doesn't need
- * its directory created by hand. A normal CI run refuses to bootstrap, so an uncommitted golden
- * fails the run by name instead of being certified by the very capture it should verify. A capture
- * that matches none of an existing directory's references is instead written to the
+ * capture is written as {@code <side>/<loader>.png} and accepted, so a new screenshot test doesn't
+ * need its directory created by hand. A normal CI run refuses to bootstrap, so an uncommitted
+ * golden fails the run by name instead of being certified by the very capture it should verify. A
+ * capture that matches none of an existing directory's references is instead written to the
  * screenshot-artifacts directory (mirroring the reference path) so CI can upload it, and the test
  * fails; promoting that artifact into the reference directory is how a new rendering is accepted.
  * Setting {@code GRUG_UPDATE_GOLDENS=1} (or a loader's {@code update-goldens} phase) accepts the
