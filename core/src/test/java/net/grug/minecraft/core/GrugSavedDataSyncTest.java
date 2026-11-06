@@ -216,6 +216,22 @@ class GrugSavedDataSyncTest {
     }
 
     @Test
+    void aClientCopyIsNotSentTheRedraw() {
+        Recorder recorder = new Recorder();
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        recorder.onServer = false;
+        GrugSavedDataSync.redrawn(machine);
+
+        assertEquals(
+                0,
+                recorder.redraws,
+                "a client builds its own mesh again and sends nothing, because the data travels"
+                        + " server to client only");
+    }
+
+    @Test
     void theSnapshotIsTheSameForTheSameDataAndDiffersForDifferentData() {
         Machine one = new Machine();
         Machine two = new Machine();

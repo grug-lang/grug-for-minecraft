@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.grug.Grug;
+
 import org.junit.jupiter.api.Test;
 
 class GrugStaleBlockEntityTest {
@@ -49,5 +51,25 @@ class GrugStaleBlockEntityTest {
                                 }));
 
         assertTrue(GrugStaleBlockEntity.shouldDrop(true, false));
+    }
+
+    @Test
+    void aGrugEntityMadeForAnotherBlockIsMadeAgain() {
+        assertTrue(GrugStaleBlockEntity.shouldReinit(331L, 334L));
+    }
+
+    @Test
+    void aGrugEntityOfTheBlockThatIsThereIsKept() {
+        assertFalse(GrugStaleBlockEntity.shouldReinit(334L, 334L));
+    }
+
+    @Test
+    void nothingIsMadeBeforeAGrugEntityExists() {
+        assertFalse(GrugStaleBlockEntity.shouldReinit(Grug.INVALID_GRUG_FILE_ID, 334L));
+    }
+
+    @Test
+    void aBlockWithNoEntityFileHasNothingToMake() {
+        assertFalse(GrugStaleBlockEntity.shouldReinit(334L, Grug.INVALID_GRUG_FILE_ID));
     }
 }

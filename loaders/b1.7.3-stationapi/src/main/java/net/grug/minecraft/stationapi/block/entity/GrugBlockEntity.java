@@ -2,6 +2,7 @@ package net.grug.minecraft.stationapi.block.entity;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.core.GrugStaleBlockEntity;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
@@ -33,6 +34,14 @@ public class GrugBlockEntity extends BlockEntity
     private long frameRenderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean frameRenderFnIdResolved = false;
     private boolean initStarted = false;
+
+    /**
+     * The entity file {@link #entityHandle} was created from, or {@link Grug#INVALID_GRUG_FILE_ID}
+     * before one exists. A client joined to a server is told only that a block changed, and this
+     * version keeps the tile of the block that was there, so the tile can hold the previous block's
+     * script: the render path compares this with the block now at the position.
+     */
+    private long initedEntityFileId = Grug.INVALID_GRUG_FILE_ID;
 
     /**
      * The host entities this block entity's member scope created, rooted here so they live exactly
@@ -175,7 +184,9 @@ public class GrugBlockEntity extends BlockEntity
         long fileId = ((GrugBlock) block).getEntityFileId();
         if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;
 
-        return GrugEntities.createEntityWithOwner(fileId, childEntities, this);
+        long handle = GrugEntities.createEntityWithOwner(fileId, childEntities, this);
+        if (handle != 0) initedEntityFileId = fileId;
+        return handle;
     }
 
     /**
@@ -207,8 +218,31 @@ public class GrugBlockEntity extends BlockEntity
      * drawn, so the render path inits rather than assuming a tick got there first.
      */
     public long getGrugEntityHandle() {
+        dropGrugEntityIfTheBlockChanged();
         initGrug();
         return entityHandle;
+    }
+
+    /**
+     * Drops the grug entity when the block at this position is not the one it was made for.
+     *
+     * <p>A client joined to a server is told only that a block changed, and this version keeps the
+     * tile: a grug block placed where another grug block was inherits its entity, which has the
+     * previous block's members and exports, and the chunk compile then draws that script or, when
+     * it has no {@code render}, nothing at all. The entity is dropped here and {@link #initGrug()}
+     * makes the right one from the block that is there.
+     */
+    @GrugGenerated("a client's kept tile: only a live joined client has one")
+    private void dropGrugEntityIfTheBlockChanged() {
+        if (world == null) return;
+
+        Block block = Block.BLOCKS[world.getBlockId(x, y, z)];
+        if (!(block instanceof GrugBlock)) return;
+
+        long blockEntityFileId = ((GrugBlock) block).getEntityFileId();
+        if (!GrugStaleBlockEntity.shouldReinit(initedEntityFileId, blockEntityFileId)) return;
+
+        destroyGrugEntity();
     }
 
     /**
@@ -268,6 +302,7 @@ public class GrugBlockEntity extends BlockEntity
         // And so a tile a chunk unload removed, which keeps the same Java object, is inited again
         // by onRegistered() when the chunk comes back.
         initStarted = false;
+        initedEntityFileId = Grug.INVALID_GRUG_FILE_ID;
     }
 
     // Inventory

@@ -110,11 +110,15 @@ public final class GrugSavedDataSync {
      * needs before it reads saved data the client's copy may not hold yet. The side that owns the
      * block entity sends the clients that hold it the data and the block update that builds the
      * mesh again; a client builds its own mesh again and sends nothing, because the data travels
-     * server to client only.
+     * server to client only. That is the same side check {@link #changed} makes, so no loader's
+     * transport can turn a client's redraw into a packet even if it installed one.
      */
     public static synchronized void redrawn(Object blockEntity) {
         Transport installed = transport;
         if (installed == null) {
+            return;
+        }
+        if (!installed.onServer(blockEntity)) {
             return;
         }
         installed.redraw(blockEntity);
