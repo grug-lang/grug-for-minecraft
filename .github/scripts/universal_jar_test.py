@@ -12,6 +12,7 @@ import io
 import json
 import sys
 import tempfile
+import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -202,11 +203,14 @@ STAMPED = VERSION + "-0123456789ab"
 
 
 def write_jar(path, files, duplicate=None):
+    # The same fixed stamp universal_jar.assemble writes, so the fixture's inputs never carry the
+    # clock: two assemblies of the same files have to be the same bytes, however long they take.
+    stamp = (1980, 1, 1, 0, 0, 0)
     with zipfile.ZipFile(path, "w") as archive:
         for name, data in files.items():
-            archive.writestr(name, data)
+            archive.writestr(zipfile.ZipInfo(name, stamp), data)
         if duplicate:
-            archive.writestr(duplicate, files[duplicate])
+            archive.writestr(zipfile.ZipInfo(duplicate, stamp), files[duplicate])
     return path
 
 
@@ -300,8 +304,16 @@ class AssembleTest(unittest.TestCase):
 
     def test_assembles_the_same_bytes_twice(self):
         fixture = Fixture(self)
-        first = fixture.assemble().read_bytes()
-        self.assertEqual(fixture.assemble().read_bytes(), first)
+        # The fixture writes its input jars through write_jar, so a clock that moves between the
+        # two assemblies must not change a byte of the output. The two values straddle a DOS
+        # timestamp's two-second boundary, which is where the real flake came from: the assembly
+        # is deterministic, but its inputs used to carry the moment they were written.
+        early = time.struct_time((2026, 11, 6, 11, 0, 0, 0, 0, 0))
+        late = time.struct_time((2026, 11, 6, 11, 0, 2, 0, 0, 0))
+        with mock.patch("time.localtime", return_value=early):
+            first = fixture.assemble().read_bytes()
+        with mock.patch("time.localtime", return_value=late):
+            self.assertEqual(fixture.assemble().read_bytes(), first)
 
     def test_holds_every_invariant(self):
         self.assertEqual(Fixture(self).problems(), [])
