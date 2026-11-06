@@ -64,6 +64,9 @@ public final class GrugServerRun implements ITickHandler {
      */
     private static boolean heldOnFloorThisTick = false;
 
+    /** Whether this process has forced the stuck start, which it does once. */
+    private static boolean forcedStuckStart = false;
+
     private static long lastHoldReportMillis = 0;
 
     /** Registers the run's tick with FML, on a server. Called by reflection from mod_Grug. */
@@ -323,6 +326,7 @@ public final class GrugServerRun implements ITickHandler {
             // can land and be accepted (#1136).
             EntityPlayerMP starter = GrugControlServer125.starterPlayer();
             if (starter != null) {
+                forceStuckOnce(starter);
                 holdOnFloor(starter);
             }
             if (!players.isEmpty()
@@ -388,6 +392,44 @@ public final class GrugServerRun implements ITickHandler {
                 return;
             }
         }
+    }
+
+    /**
+     * Instrumentation for #1136's proof only, on the throwaway branch {@code floor-hold-trigger},
+     * never in the pull request: the joined client landed exactly on the floor, so the race that
+     * leaves it 0.0625 inside the ground did not happen, and the hold never had anything to lift.
+     * This puts the player where that race does, once, before the hold runs, so the hold has to
+     * move them and the run's log says so.
+     */
+    private static void forceStuckOnce(EntityPlayerMP player) {
+        if (forcedStuckStart) {
+            return;
+        }
+        forcedStuckStart = true;
+        World world = world();
+        if (world == null) {
+            return;
+        }
+        double feet = player.boundingBox.minY;
+        double floor =
+                GrugPlayerFloor.floorTop(
+                        Grug125ServerAdapter.solidBlocks(world), player.posX, feet, player.posZ);
+        if (floor == Double.NEGATIVE_INFINITY) {
+            return;
+        }
+        player.playerNetServerHandler.teleportTo(
+                player.posX,
+                player.posY + (floor - 0.0625 - feet),
+                player.posZ,
+                player.rotationYaw,
+                player.rotationPitch);
+        player.motionY = 0;
+        System.out.println(
+                "[GRUG CI] forcing the stuck start at "
+                        + (floor - 0.0625)
+                        + ", inside the floor at "
+                        + floor
+                        + " (instrumentation, not in the pull request)");
     }
 
     /** Ends the server process; a non-zero status says the run did not pass. */

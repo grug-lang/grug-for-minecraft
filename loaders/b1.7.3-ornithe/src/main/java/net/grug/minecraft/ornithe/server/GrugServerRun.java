@@ -42,6 +42,9 @@ public final class GrugServerRun {
 
     private static long lastHoldReportMillis = 0;
 
+    /** Whether this process has forced the stuck start, which it does once. */
+    private static boolean forcedStuckStart;
+
     private GrugServerRun() {}
 
     /**
@@ -144,6 +147,7 @@ public final class GrugServerRun {
             }
             PlayerEntity waiting = (PlayerEntity) GrugCore.getAdapter().testPlayer();
             if (waiting != null) {
+                forceStuckOnce(waiting);
                 holdPlayer(waiting);
             }
             // The run starts when a player has started it (#1040): the joined client sends its
@@ -257,6 +261,45 @@ public final class GrugServerRun {
                             + feet
                             + " (inside the ground)");
         }
+    }
+
+    /**
+     * Instrumentation for #1136's proof only, on the throwaway branch {@code floor-hold-trigger},
+     * never in the pull request: the joined client landed exactly on the floor, so the race that
+     * leaves it 0.0625 inside the ground did not happen, and the hold never had anything to lift.
+     * This puts the player where that race does, once, before the hold runs, so the hold has to
+     * move them and the run's log says so.
+     */
+    private static void forceStuckOnce(PlayerEntity player) {
+        if (forcedStuckStart) {
+            return;
+        }
+        forcedStuckStart = true;
+        World world = world();
+        if (world == null) {
+            return;
+        }
+        double feet = player.shape.minY;
+        double floor =
+                GrugPlayerFloor.floorTop(
+                        ServerOrnitheAdapter.solidBlocks(world), player.x, feet, player.z);
+        if (floor == Double.NEGATIVE_INFINITY) {
+            return;
+        }
+        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        serverPlayer.networkHandler.teleport(
+                serverPlayer.x,
+                floor - 0.0625,
+                serverPlayer.z,
+                serverPlayer.yaw,
+                serverPlayer.pitch);
+        serverPlayer.velocityY = 0.0;
+        System.out.println(
+                "[GRUG CI] forcing the stuck start at "
+                        + (floor - 0.0625)
+                        + ", inside the floor at "
+                        + floor
+                        + " (instrumentation, not in the pull request)");
     }
 
     /** Ends the server process; a non-zero status says the run did not pass. */

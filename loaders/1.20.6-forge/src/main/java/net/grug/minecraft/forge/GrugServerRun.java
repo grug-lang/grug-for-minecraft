@@ -43,6 +43,9 @@ public final class GrugServerRun {
 
     private long lastHoldReportMillis = 0;
 
+    /** Whether this process has forced the stuck start, which it does once. */
+    private boolean forcedStuckStart = false;
+
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || done) return;
@@ -60,6 +63,7 @@ public final class GrugServerRun {
             // reported a position a fraction inside the ground can land and be accepted (#1136).
             Object testPlayer = GrugCore.getAdapter().testPlayer();
             if (testPlayer instanceof ServerPlayer) {
+                forceStuckOnce((ServerPlayer) testPlayer);
                 holdPlayer((ServerPlayer) testPlayer);
             }
             if (GrugControlForge.server().hasStarter()
@@ -142,6 +146,38 @@ public final class GrugServerRun {
                             + feet
                             + " (inside the ground)");
         }
+    }
+
+    /**
+     * Instrumentation for #1136's proof only, on the throwaway branch {@code floor-hold-trigger},
+     * never in the pull request: the joined client landed exactly on the floor, so the race that
+     * leaves it 0.0625 inside the ground did not happen, and the hold never had anything to lift.
+     * This puts the player where that race does, once, before the hold runs, so the hold has to
+     * move them and the run's log says so.
+     */
+    private void forceStuckOnce(ServerPlayer player) {
+        if (forcedStuckStart) {
+            return;
+        }
+        forcedStuckStart = true;
+        double feet = player.getY();
+        double floor =
+                GrugPlayerFloor.floorTop(
+                        ServerForgeAdapter.solidBlocks(player.level()),
+                        player.getX(),
+                        feet,
+                        player.getZ());
+        if (floor == Double.NEGATIVE_INFINITY) {
+            return;
+        }
+        player.teleportTo(player.getX(), floor - 0.0625, player.getZ());
+        player.setDeltaMovement(0.0, 0.0, 0.0);
+        System.out.println(
+                "[GRUG CI] forcing the stuck start at "
+                        + (floor - 0.0625)
+                        + ", inside the floor at "
+                        + floor
+                        + " (instrumentation, not in the pull request)");
     }
 
     private void stop(MinecraftServer server) {
