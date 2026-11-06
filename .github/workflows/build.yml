@@ -991,8 +991,14 @@ jobs:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           # The coverage suite takes about five minutes on b1.7.3-stationapi, and the 300 s cap
           # stopped it before its last tests while it was still passing them. The cap is the hang
-          # detector rather than a second budget, so it leaves room for the suite's growth.
-          GRUG_CI_RUN_TIMEOUT: '420'
+          # detector rather than a second budget, so it leaves room for the suite's growth; the
+          # suite grew again, and the 228 tests of the b1.7.3-ornithe leg now take 399 to 430 s
+          # (#1094's dispatch), so 420 s stopped that leg 0.65 s before its last line.
+          GRUG_CI_RUN_TIMEOUT: '600'
+          # An update-goldens dispatch accepts each unmatched capture into its own side's reference
+          # directory, which is the only way the server goldens are generated (#1092). core reads
+          # this, and run-multiplayer.sh prints which mode the leg is in.
+          GRUG_UPDATE_GOLDENS: ${{ inputs.update-goldens && '1' || '' }}
 
       # What the test-control channel did (#1040), from both ends, so a reader of the job log sees the
       # round trips and the injected faults without opening the artifact.
