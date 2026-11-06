@@ -973,7 +973,10 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer.sh ${{ matrix.loader }}
         env:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
-          GRUG_CI_RUN_TIMEOUT: '300'
+          # The coverage suite takes about five minutes on b1.7.3-stationapi, and the 300 s cap
+          # stopped it before its last tests while it was still passing them. The cap is the hang
+          # detector rather than a second budget, so it leaves room for the suite's growth.
+          GRUG_CI_RUN_TIMEOUT: '420'
 
       # What the test-control channel did (#1040), from both ends, so a reader of the job log sees the
       # round trips and the injected faults without opening the artifact.
