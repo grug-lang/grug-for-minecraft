@@ -55,3 +55,9 @@ buildcraft/tests/redstone_engine_item-Test.grug
 # 1.20.6's game mode right-click the chest, so the two tests run there.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
+#
+# The camera parity #1161 added. This server's player keeps the feet in y where the client keeps
+# the eye, so the room's floor is built an eye height above the joined client's and its camera
+# never reads as the room's eye (#1178). The test is required on the three server legs that carry
+# the parity.
+coverage/tests/camera-Test.grug
