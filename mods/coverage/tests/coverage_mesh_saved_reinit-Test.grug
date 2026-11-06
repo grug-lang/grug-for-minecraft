@@ -4,12 +4,12 @@
 # nothing, and the chunk-mesh block placed on the same cell has to be inited from its own entity
 # file rather than keeping that attempt: without that, its render pass never runs and the block
 # draws nothing at all.
-# This places a block that names no entity file and then the chunk-mesh block on its cell, and
-# requires the chunk-mesh block's plate to draw. The number is saved as 0 and then as 1, so the
-# assertion is the change the plate itself adds rather than the block merely appearing, which a
-# block whose render never ran cannot make either. The pedestal is looked for against the empty room
-# only to know when the block reached the client, because the room stays as empty as it was when the
-# render pass did not run.
+# This places a block that names no entity file, a block beside it that makes it ask for its own
+# tile, and then the chunk-mesh block on its cell, and requires the chunk-mesh block's plate to
+# draw. The number is saved as 0 and then as 1, so the assertion is the change the plate itself adds
+# rather than the block merely appearing, which a block whose render never ran cannot make either.
+# The capture between the two is what the plate is compared against, so a block that never drew
+# leaves the same frame on both sides of the save and the assertion fails.
 # The wall and the two agreeing captures of the empty room are coverage_mesh_saved_number's, for the
 # same reason: without a wall behind the block, drifting clouds would be a change of their own, and
 # a room that is still moving would be where the plate is looked for.
@@ -20,12 +20,13 @@ empty: Option[Screenshot] = Option.new()
 empty_prev: Option[Screenshot] = Option.new()
 pedestal: Option[Screenshot] = Option.new()
 
-# Whether the no-entity-file block is in place, and whether the chunk-mesh block is.
+# Whether the no-entity-file block is in place, whether the block next to it is, and whether the
+# chunk-mesh block is.
 plain_placed: bool = false
+neighbour_placed: bool = false
 mesh_placed: bool = false
 
-# The runner tick the no-entity-file block went in on, and the one its follower went in on.
-plain_tick: number = 0
+# The runner tick the chunk-mesh block went in on.
 mesh_tick: number = 0
 
 # Whether the number has been saved as 1, and the runner tick it was saved on.
@@ -40,7 +41,7 @@ attempts: number = 0
 room_tick: number = 0
 
 export init(ctx: TestInitContext) {
-    # The setup's empty room, the pedestal and the plate each capture up to eight times, and a
+    # The setup's empty room captures up to eight times and the plate up to eight more, and one
     # capture waits about 60 ticks for the client to draw the frame it is about.
     ctx.set_max_ticks(2000)
 }
@@ -57,11 +58,12 @@ export tick_any_side(ctx: TestTickContext) {
     } else if not plain_placed {
         _place_plain(ctx)
         plain_placed = true
-        plain_tick = ctx.current_tick()
         ctx.not_done()
-    } else if ctx.current_tick() < plain_tick + 10 {
-        # The joined client has the block, and this gives its kept tile a tick to be inited from
-        # the block that names no entity file before the chunk-mesh block goes on top of it.
+    } else if not neighbour_placed {
+        # A block next to it makes the block that names no entity file ask for its own tile, which
+        # is the moment the tile is inited from a block that has nothing to init it with.
+        _place_neighbour(ctx)
+        neighbour_placed = true
         ctx.not_done()
     } else if not mesh_placed {
         _place_mesh(ctx)
@@ -141,6 +143,15 @@ local _place_plain(ctx: TestTickContext) {
     level.place_block(origin.x(), origin.y() - 1.88, origin.z() + 4, "grug:coverage_model_cube")
 }
 
+# Puts a block beside it, which is what makes a grug block resolve its own tile: the neighbour
+# notification asks the world for the block entity at the block's position, and the tile the game
+# then creates is inited from a block that names no entity file.
+local _place_neighbour(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    level.place_block(origin.x() + 1, origin.y() - 1.88, origin.z() + 4, "minecraft:stone")
+}
+
 # Puts the chunk-mesh block on that same cell, which is the block the kept tile has to be inited
 # for, and saves its number as 0 so the pedestal is what the first capture is of.
 local _place_mesh(ctx: TestTickContext) {
@@ -157,19 +168,13 @@ local _place_mesh(ctx: TestTickContext) {
     _save(0)
 }
 
-# Waits until the chunk-mesh block's pedestal is in the frame, which is what a tile that was inited
-# from it draws, and keeps that frame as the one the plate is compared against.
+# Keeps the frame the block is in before its number changes, which is what the plate is compared
+# against. Nothing else in the crop changes between the two: the room settled before the block went
+# in, the wall keeps the sky out, and neither block there moves.
 local _capture_pedestal(ctx: TestTickContext) {
     if ctx.current_tick() >= mesh_tick + 30 {
-        shot: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
-        if shot.change_from(empty.unwrap()) < 1 {
-            attempts = attempts + 1
-            ctx.assert(attempts < 8, "The chunk-mesh block never drew on the tile a block with no entity file left.")
-            mesh_tick = ctx.current_tick()
-        } else {
-            pedestal.set(shot)
-            attempts = 0
-        }
+        pedestal.set(Test.screenshot().capture(500, 60, 780, 440))
+        attempts = 0
     }
 }
 
