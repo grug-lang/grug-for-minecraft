@@ -45,10 +45,10 @@ public final class GrugBlockEntitySync implements GrugSavedDataSync.Transport {
     }
 
     /**
-     * The server sends the tracking players the data first, then the game's own block update, which
-     * makes their client build the block's mesh again with it. The data has to be on the client
-     * before the block update's own packet handler runs, and the block update is the one call
-     * {@link net.grug.minecraft.forge.ForgeAdapter#redraw} does not make on this side.
+     * The server sends the tracking players the data first and then the one block update that makes
+     * their client build the block's mesh again; the handler that meshes it is {@code
+     * GrugBlockEntity.onDataPacket}. A client's own block update is the adapter's, so this
+     * transport never sends two for one change.
      */
     @Override
     public void redraw(Object blockEntity) {

@@ -125,6 +125,20 @@ public final class GrugSavedDataSync {
     }
 
     /**
+     * Runs a client's own rebuild when this process holds a client's copy of the block entity.
+     *
+     * <p>1.20.6 makes the block update a redraw sends on the side that has the level: a client
+     * marks its own level, while a server's transport sends the update to the players after the
+     * data. The answer is a plain boolean here so a core unit test covers both, because the
+     * dedicated-server side of a loader's redraw is a run the coverage gate does not count.
+     */
+    public static void onClientLevel(boolean clientLevel, Runnable rebuild) {
+        if (clientLevel) {
+            rebuild.run();
+        }
+    }
+
+    /**
      * Everything the frame pass reads from the block entity, as text: the numbers and lists by
      * name, sorted so the same data always reads the same, and the energy store.
      */
