@@ -1,5 +1,5 @@
-# Tests the b1.7.3 dedicated server cannot run although they define tick_any_side, one path per
-# line. Interim (#163): this mechanism is removed together with tick_any_side when #1040 lands.
+# Tests the b1.7.3 dedicated server cannot run although they define tick_any_side or are
+# forwarded_ tests, one path per line. Interim (#163): this mechanism is removed together with tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
 # Block selection. The b1.7.3 server Block has no getOutlineShape (the selection box is a client
