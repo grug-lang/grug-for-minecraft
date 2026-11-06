@@ -539,6 +539,10 @@ public class GrugTestRunner {
                 GrugCore.getAdapter().getSide().isDedicatedServer(),
                 GrugCore.getAdapter().serverUnsupportedTests(),
                 GrugCore.getAdapter().forwardsClientCalls());
+        // A host function error with no grug call to fail belongs to this run from now on, so a
+        // report is recorded for the runner instead of only reported. A run refused before it
+        // started has nothing to own. See GrugTestState.testRunActive.
+        GrugTestState.runStarting(finished);
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -1181,6 +1185,9 @@ public class GrugTestRunner {
                 repeatsRemaining--;
                 nextTestIndex = 0;
                 passedCount = 0;
+                // Another pass is another suite, so it owns reports again. See
+                // GrugTestState.testRunActive.
+                GrugTestState.testRunActive = true;
                 printTestTimes();
                 System.out.println(
                         "[GRUG CI] repeat "
@@ -1194,6 +1201,10 @@ public class GrugTestRunner {
             // Marked before the write rather than after it, so that a write which throws stops the
             // loaders from queueing this runner again and repeating one failure once per tick.
             finished = true;
+            // The run is over, so a later report is no longer its to fail. A record the last test
+            // left was taken by the drain at the top of this tick, so the run cannot end green for
+            // one. See GrugTestState.testRunActive.
+            GrugTestState.testRunActive = false;
             if (ranNothing(dedicatedServer, totalCount)) {
                 // "ALL 0 TESTS PASSED" would read as a green run that proved nothing.
                 throw Grug.fatal(
@@ -1391,6 +1402,7 @@ public class GrugTestRunner {
                 destroyCurrentEntity();
                 nextTestIndex++;
                 currentTick = 0;
+                endRunOwnershipIfNothingIsLeft();
                 return;
             }
             // The script aborted partway through: either a host function reported a runtime error
@@ -1449,6 +1461,7 @@ public class GrugTestRunner {
         destroyCurrentEntity();
         nextTestIndex++;
         currentTick = 0;
+        endRunOwnershipIfNothingIsLeft();
     }
 
     /**
@@ -1941,6 +1954,23 @@ public class GrugTestRunner {
         destroyCurrentEntity();
         nextTestIndex++;
         currentTick = 0;
+        endRunOwnershipIfNothingIsLeft();
+    }
+
+    /**
+     * Ends the run's ownership of host function error reports when the test that just ended was the
+     * last one it had left, because the run finishes on its next tick: a report that arrives in
+     * between is then reported to the log and chat rather than left in the record for a later run's
+     * first test to inherit.
+     *
+     * <p>A record the test left while it was running is still taken by the drain at the top of the
+     * tick that ends the run, whatever the flag says, so the run cannot end green for one. See
+     * GrugTestState.testRunActive.
+     */
+    private void endRunOwnershipIfNothingIsLeft() {
+        if (nextTestIndex >= tests.size()) {
+            GrugTestState.testRunActive = false;
+        }
     }
 
     /**
@@ -2054,6 +2084,9 @@ public class GrugTestRunner {
         if (path != null) recordTestTime(path);
         destroyCurrentEntity();
         finished = true;
+        // The run is over, so a later report is no longer its to fail. See
+        // GrugTestState.testRunActive.
+        GrugTestState.testRunActive = false;
         writeTestTimesRecord(path == null ? Collections.emptySet() : Collections.singleton(path));
     }
 
@@ -2076,8 +2109,11 @@ public class GrugTestRunner {
      * that is running, else the one that just ended, because the fixtures it left are what the game
      * ticks between two of its calls.
      *
+     * <p>The room build of a test that is starting happens after that test's entity has been
+     * created, so a report from it belongs to the starting test, not the one that just ended.
+     *
      * <p>A record made on another thread, such as a client thread reporting while the server's call
-     * waits on it, belongs to the test that is running too, because that is the test whose call is
+     * waits on it, belongs to the test that is running, because that is the test whose call is
      * suspended. That is the owner the native fold gave such a report before #1134, and the record
      * carries no thread of its own to name a different one.
      */

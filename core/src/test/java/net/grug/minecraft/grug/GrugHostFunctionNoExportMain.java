@@ -3,18 +3,22 @@ package net.grug.minecraft.grug;
 import java.io.File;
 
 /**
- * Boots a grug state, reports a host function error with no export active and prints what was
- * recorded, in a JVM of its own.
+ * Boots a grug state, reports a host function error with no export active and no test run, and
+ * prints what was left in the record, in a JVM of its own.
  *
  * <p>A build without the guard in {@link Grug#hostFunctionErrorHappened} reaches grug-rs's native
  * report with an empty call stack, whose panic cannot unwind through the JNI boundary and aborts
  * the process (#1134). Here that abort is this process's exit status rather than the death of the
  * test JVM that started it, which is the assertion {@link
  * GrugHostFunctionExceptionTest#aHostFunctionErrorWithNoExportToFailDoesNotAbortTheProcess} makes.
+ * The message itself is reported to the log and chat, and the record stays empty because no run
+ * owns it.
  */
 public final class GrugHostFunctionNoExportMain {
 
-    /** The text the record is printed under, so the test can tell a record from a bare exit. */
+    /**
+     * The text the record is printed under, so the test can tell an empty record from a full one.
+     */
     static final String RECORDED_PREFIX = "RECORDED: ";
 
     private GrugHostFunctionNoExportMain() {}
