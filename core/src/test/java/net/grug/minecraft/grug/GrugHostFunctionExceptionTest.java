@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,8 +24,10 @@ import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Drives a host function that really throws through the JNI wrapper {@code generate.py} emits,
@@ -57,6 +60,10 @@ class GrugHostFunctionExceptionTest {
     /** A test that keeps asking for ticks, so a fixture can run between two of them. */
     private static final String STAYING_TEST =
             "export tick(ctx: TestTickContext) {\n" + "    ctx.not_done()\n" + "}\n";
+
+    /** The error a host-side write reports when no grug call is there to fail. */
+    private static final String NO_EXPORT_MESSAGE =
+            "The world refused the block at 0, 128, 0, and no grug call made that write";
 
     /** One state for the class, because booting one is the expensive part. */
     @TempDir static Path mods;
@@ -158,6 +165,63 @@ class GrugHostFunctionExceptionTest {
         assertTrue(printed.contains("[GRUG CI] FAIL stays/tests/c-Test.grug"), printed);
         assertTrue(printed.contains("Test_get_client_level"), printed);
         assertFalse(printed.contains("TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aHostFunctionErrorWithNoExportToFailIsRecordedInsteadOfAborting() {
+        // The room build writes blocks from the server tick, between two calls, where grug-rs has
+        // pushed no frame: its native report used to panic on the empty call stack and abort the
+        // process (#1134). The game keeps running here, and the record is what the runner fails the
+        // owning test for.
+        Grug.hostFunctionErrorHappened(Grug.statePtr, NO_EXPORT_MESSAGE);
+
+        assertEquals(NO_EXPORT_MESSAGE, GrugErrors.takeHostFunctionException());
+    }
+
+    @Test
+    void theRunnerFailsTheTestTheRoomBuildReportedUnderWithNoExport() {
+        // The other end of the same path: a record made between two calls of a running test is
+        // drained by the runner's next tick, which fails that test by name.
+        long testFile = compile("c-Test.grug");
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        Map.of("stays/tests/c-Test.grug", testFile), List.of(), nativeOps());
+        runner.tick(null);
+        assertFalse(runner.isFinished(), "the test has to still be running for this case");
+
+        Grug.hostFunctionErrorHappened(Grug.statePtr, NO_EXPORT_MESSAGE);
+
+        String printed = capture(() -> runner.tick(null));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL stays/tests/c-Test.grug"), printed);
+        assertTrue(printed.contains(NO_EXPORT_MESSAGE), printed);
+        assertFalse(printed.contains("TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aHostFunctionErrorWithNoExportToFailDoesNotAbortTheProcess() throws Exception {
+        // The call above proves the record, but a build without the guard aborts the whole test
+        // JVM there, so the exit status is asserted in a JVM of its own: it answers 0 with the
+        // record, where the unguarded path answers the abort's status and grug-rs's panic.
+        ProcessBuilder builder =
+                new ProcessBuilder(
+                        Paths.get(System.getProperty("java.home"), "bin", "java").toString(),
+                        "-cp",
+                        System.getProperty(
+                                "surefire.test.class.path", System.getProperty("java.class.path")),
+                        GrugHostFunctionNoExportMain.class.getName(),
+                        modApiJson().getAbsolutePath(),
+                        mods.toAbsolutePath().toString(),
+                        NO_EXPORT_MESSAGE);
+        builder.redirectErrorStream(true);
+        Process child = builder.start();
+        assertTrue(child.waitFor(120, TimeUnit.SECONDS), "the child JVM did not end");
+        String printed = new String(child.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        assertEquals(0, child.exitValue(), printed);
+        assertTrue(
+                printed.contains(GrugHostFunctionNoExportMain.RECORDED_PREFIX + NO_EXPORT_MESSAGE),
+                printed);
     }
 
     /** Writes one mod with a single script, the way a loader's mods directory holds them. */

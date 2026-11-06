@@ -77,10 +77,11 @@ public final class GrugBlockGeometry {
      *     not a shape anyone chose and silence would let it ship. The sandbox is that the script
      *     carries on afterwards.
      *     <p>Neither report can go through {@link Grug#hostFunctionErrorHappened}. That reports
-     *     from inside a grug call, and by here the render function has returned and grug has
-     *     already popped the frame it pushed, so the call stack this would report against is empty
-     *     and grug aborts the game rather than failing the run. {@link GrugModTreeDefect} is the
-     *     reporting channel that works from outside a call.
+     *     against the grug call that made it, and by here the render function has returned and grug
+     *     has already popped the frame it pushed, so there is no call to name this block in: the
+     *     error would be recorded for the test runner and fail its test without saying which block
+     *     rendered as nothing. {@link GrugModTreeDefect} is the reporting channel that works from
+     *     outside a call and names the block.
      */
     public static GrugGeometry draw(long entityHandle, long renderFnId, String blockDescription) {
         // The whole pass runs under the state lock, because 1.20.6 rebuilds chunks on worker
