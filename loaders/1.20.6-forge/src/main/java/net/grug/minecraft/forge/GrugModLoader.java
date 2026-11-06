@@ -41,6 +41,7 @@ import net.minecraft.client.tutorial.TutorialSteps;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.PackLocationInfo;
 import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackSelectionConfig;
@@ -982,8 +983,8 @@ public class GrugModLoader {
                 return;
             }
             // Push the execution onto the server thread to prevent ghost blocks & crashes. The
-            // whole
-            // advance happens there, so the runner's state is only ever touched by one thread.
+            // whole advance happens there, so the runner's state is only ever touched by one
+            // thread.
             //
             // The tick that starts the next test builds that test's room on the server thread,
             // which takes far longer than one frame, and a tick the client queues meanwhile is not
@@ -993,40 +994,60 @@ public class GrugModLoader {
             // GrugTestRunner#startedTests
             // and #717.
             long startsWhenQueued = runner.startedTests();
-            mc.getSingleplayerServer()
-                    .execute(
-                            () -> {
-                                Player serverPlayer =
-                                        mc.getSingleplayerServer()
-                                                .getPlayerList()
-                                                .getPlayer(mc.player.getUUID());
-                                if (serverPlayer == null) {
-                                    return;
+            queueRunnerTick(mc, runner, startsWhenQueued);
+        }
+
+        /**
+         * Queues one runner tick on the integrated server's thread.
+         *
+         * <p>A tick that reaches the server before a press this client made has been applied puts
+         * itself back on the queue instead of running: the click packet only reaches that queue
+         * through the network threads, while the client can queue a whole frame of runner ticks,
+         * and one of them would assert on a slot the server has not changed yet (#1094). Putting it
+         * back rather than dropping it keeps the runner at one tick per counted client tick.
+         */
+        private static void queueRunnerTick(
+                Minecraft mc, GrugTestRunner runner, long startsWhenQueued) {
+            Runnable tick =
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            MinecraftServer server = mc.getSingleplayerServer();
+                            Player serverPlayer =
+                                    server.getPlayerList().getPlayer(mc.player.getUUID());
+                            if (serverPlayer == null) {
+                                return;
+                            }
+                            // Tasks queued before an earlier one finished the run are stale;
+                            // the runner has
+                            // already been cleared, so skip them rather than dereferencing a
+                            // null.
+                            if (grug$testRunner != runner) {
+                                return;
+                            }
+                            if (GrugTestRunner.queuedTickIsStale(
+                                    startsWhenQueued, runner.startedTests())) {
+                                return;
+                            }
+                            if (GrugClientClicks.pending()) {
+                                server.execute(this);
+                                return;
+                            }
+                            runner.tick(serverPlayer);
+                            if (runner.isFinished()) {
+                                boolean fromCI = grug$testRunnerFromCI;
+                                grug$testRunner = null;
+                                grug$testRunnerFromCI = false;
+                                grug$testRunFinished = true;
+                                // The hotkey path leaves the game running so another R press can
+                                // start a fresh run.
+                                if (fromCI) {
+                                    mc.stop();
                                 }
-                                // Tasks queued before an earlier one finished the run are stale;
-                                // the runner has
-                                // already been cleared, so skip them rather than dereferencing a
-                                // null.
-                                if (grug$testRunner != runner) {
-                                    return;
-                                }
-                                if (GrugTestRunner.queuedTickIsStale(
-                                        startsWhenQueued, runner.startedTests())) {
-                                    return;
-                                }
-                                runner.tick(serverPlayer);
-                                if (runner.isFinished()) {
-                                    boolean fromCI = grug$testRunnerFromCI;
-                                    grug$testRunner = null;
-                                    grug$testRunnerFromCI = false;
-                                    grug$testRunFinished = true;
-                                    // The hotkey path leaves the game running so another R press
-                                    // can start a fresh run.
-                                    if (fromCI) {
-                                        mc.stop();
-                                    }
-                                }
-                            });
+                            }
+                        }
+                    };
+            mc.getSingleplayerServer().execute(tick);
         }
 
         private static void applyWindowSize(Minecraft mc, int width, int height) {

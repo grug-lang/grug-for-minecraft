@@ -17,11 +17,13 @@
             "MinecraftServerTickMixin",
             "MinecraftTimerMixin",
             "ModelBlockRendererMixin",
+            "MultiPlayerGameModeMixin",
             "SectionBufferBuilderPoolMixin",
             "ThreadedLevelLightEngineMixin"
         ],
         "mixins": [
-            "ChunkMapAccessor"
+            "ChunkMapAccessor",
+            "ServerGamePacketListenerMixin"
         ]
     }
 }

@@ -33,6 +33,10 @@ import javax.imageio.stream.ImageInputStream;
  * of a test's tick). A timeout is an error the host function reports, which fails the test with the
  * usual {@code [GRUG CI] FAIL} line.
  *
+ * <p>A call whose effect is the server's, such as a container click, is applied by the game's own
+ * packet handler rather than by the call: the packet is queued while the server thread is frozen,
+ * and {@link #applyClientWork}, which a loader calls between ticks, reads it (#1094).
+ *
  * <p>Only the player who sent {@link GrugControlWire#RUN_START} may answer, and only a player the
  * loader says has finished login ({@link Link#mayStartRun}) can become the starter. That is the
  * server's half of the consent rule; the client's half is in {@link GrugControlClient}. What a
@@ -58,6 +62,20 @@ public final class GrugControlServer {
          * start is accepted.
          */
         boolean mayStartRun(Object sender);
+
+        /**
+         * Applies what the starter's client has already sent this server and the frozen server
+         * thread has not read yet (#1094).
+         *
+         * <p>A forwarded call that makes the client send a packet, such as a container click, has
+         * its effect applied by the game's own packet handler, which runs on the server thread.
+         * That thread is the one frozen inside the call, so the client's click packet is only
+         * queued when the call returns; the game's own next tick would read it too late for a test
+         * that ticks before it. This is the loader's one way to read that queue from the test's own
+         * tick loop, and the caller ({@link GrugControlServer#applyClientWork}) calls it only after
+         * a call that could have sent a packet.
+         */
+        void applyClientWork();
     }
 
     /** A request that cannot be answered; its message is what the test's error says. */
@@ -105,9 +123,40 @@ public final class GrugControlServer {
     private final AtomicReference<Object> starter = new AtomicReference<>();
     private final GrugSettledRevision settled = new GrugSettledRevision();
 
+    /**
+     * Whether a forwarded call since the last {@link #applyClientWork} can have left the server a
+     * packet to read (#1094). Written on the server thread by {@link #forward}, which runs inside a
+     * test's tick, and read by {@link #applyClientWork} from the same thread between ticks.
+     */
+    private volatile boolean clientWorkPending;
+
     public GrugControlServer(Link link, long timeoutMillis) {
         this.link = link;
         this.timeoutMillis = timeoutMillis;
+    }
+
+    /**
+     * Applies the packets the starter's client sent during the calls made since the last drain
+     * (#1094). A loader calls this once before each runner tick, outside any grug call.
+     *
+     * <p>A test clicks, returns with {@code ctx.not_done()}, and asserts on a later tick, because
+     * the click's effect is the server's: the client sends the game's own click packet before it
+     * sends its control answer, TCP order puts it in the server's queue first, and the frozen
+     * server thread cannot read it until the call returns. Draining here, before the next grug
+     * call, is what applies the click, and it applies it to the server's own menu, so a slot change
+     * reports an {@code item_inserted} error to the test's assertion rather than folding it into
+     * the call that clicked (#583, #836).
+     *
+     * <p>The drain is paid only by a call that can have sent a packet, so a tick that only reads a
+     * screen's geometry does not touch the connection. A call that sent nothing still marks it,
+     * which costs one empty drain and keeps the rule simple.
+     */
+    public void applyClientWork() {
+        if (!clientWorkPending) {
+            return;
+        }
+        clientWorkPending = false;
+        link.applyClientWork();
     }
 
     /** The player who started the run, or null when none has. */
@@ -435,6 +484,24 @@ public final class GrugControlServer {
         return number(GrugControlWire.CALL_CAMERA, "", axis, 0, 0);
     }
 
+    /**
+     * Asks the starter's client to press a mouse button on its open screen, and answers whether an
+     * overlay took the press (#1094). The press is the client's half of a container click: the
+     * click packet it sends is applied by {@link #applyClientWork} on a later tick.
+     */
+    public boolean clickScreen(double x, double y, int button) throws ControlException {
+        byte result = call(GrugControlWire.CALL_CLICK_SCREEN, "", x, y, button);
+        return yesOrNo(result, "click_screen");
+    }
+
+    /** Asks the starter's client to open its own inventory, and waits for its ack (#1094). */
+    public void openInventory() throws ControlException {
+        byte result = call(GrugControlWire.CALL_OPEN_INVENTORY, "", 0, 0, 0);
+        if (result != 1) {
+            throw failure("The client answered open_inventory with " + result + ", not the ack 1.");
+        }
+    }
+
     /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
     private static boolean yesOrNo(byte result, String call) throws ControlException {
         if (result != 0 && result != 1) {
@@ -509,8 +576,11 @@ public final class GrugControlServer {
                 return flagProblem(pitch, third);
             case GrugControlWire.CALL_SCROLL_SCREEN:
                 return scrollProblem(volume, pitch, third);
+            case GrugControlWire.CALL_CLICK_SCREEN:
+                return clickProblem(volume, pitch, third);
             case GrugControlWire.CALL_SCREEN_OPEN:
             case GrugControlWire.CALL_CLOSE_SCREEN:
+            case GrugControlWire.CALL_OPEN_INVENTORY:
                 return null;
             case GrugControlWire.CALL_CAMERA:
                 return cameraAxisProblem(volume);
@@ -558,6 +628,17 @@ public final class GrugControlServer {
         }
         if (!Double.isFinite(delta)) {
             return "The delta has to be finite.";
+        }
+        return null;
+    }
+
+    /** Why a forwarded screen press cannot be sent, or null. The button is the third number. */
+    private static String clickProblem(double x, double y, double button) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            return "The position has to be finite.";
+        }
+        if (!Double.isFinite(button) || button != Math.floor(button) || button < 0) {
+            return "The button has to be a whole number from 0 up, and was " + button + ".";
         }
         return null;
     }
@@ -617,6 +698,11 @@ public final class GrugControlServer {
         Pending request = new Pending(0, 0, answer);
         pending.put(id, request);
         long startNanos = System.nanoTime();
+        if (GrugControlWire.sendsPacket(call)) {
+            // Marked before the message goes out, so the drain happens even when this call fails
+            // or times out: the client may still have sent a packet the server has to apply.
+            clientWorkPending = true;
+        }
         try {
             // No flushWorld here: a sound or screen call depends on no world state, and flushing
             // sends the queued block changes to the client early, which changed what a later

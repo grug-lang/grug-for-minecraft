@@ -107,6 +107,11 @@ EXCLUDED_CLASSES = {
     "GameRendererMixin",
     "FogRendererMixin",
     "ServerGrugModLoader",
+    # The two client-side mixins that order a single-player click against the runner (#1094): a
+    # mixin's methods are copied into its target and never run in place, so JaCoCo cannot measure
+    # them. The counts they keep are in GrugClientClicks, which a coverage run exercises.
+    "MultiPlayerGameModeMixin",
+    "ServerGamePacketListenerMixin",
     "GrugRecipeHelper",
     "GrugRecipeParser",
     "GrugResourcePack",

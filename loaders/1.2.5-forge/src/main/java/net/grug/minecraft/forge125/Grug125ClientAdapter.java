@@ -438,10 +438,25 @@ public class Grug125ClientAdapter extends Grug125Adapter {
 
     @Override
     public void closeOpenScreenForTest() {
+        // A joined client's controller leaves the open container in place when a screen closes
+        // (PlayerControllerMP.func_20086_a is empty), so the player's craftingInventory would keep
+        // pointing at the server-owned container whose window it just left. A later press from the
+        // player's own inventory would then carry the wrong window id, and its prediction would
+        // run on the wrong container (#1094).
+        resetOpenContainer();
         // Not null: on a headless client the window is never active, so 1.2.5's focus check would
         // put its in-game menu up over the next frame and pause the world behind it. The empty
         // screen keeps the focus check quiet and the world ticking. See GrugEmptyScreen.
         ModLoader.getMinecraftInstance().displayGuiScreen(new GrugEmptyScreen());
+    }
+
+    /** Puts the player's open container back to their own inventory, which is window 0. */
+    @GrugGenerated("the no-player arm: a test's own screen work has a player to do it with")
+    private static void resetOpenContainer() {
+        EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;
+        if (player != null) {
+            player.craftingInventory = player.inventorySlots;
+        }
     }
 
     @Override
@@ -456,6 +471,9 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     public void openInventory(Object playerObj) {
         EntityPlayer player = (EntityPlayer) playerObj;
         if (player == null) return;
+        // The player's own inventory is window 0, so the container a click on it belongs to is the
+        // player's own, not whatever this client had open before (#1094).
+        resetOpenContainer();
         ModLoader.getMinecraftInstance().displayGuiScreen(new GuiInventory(player));
     }
 

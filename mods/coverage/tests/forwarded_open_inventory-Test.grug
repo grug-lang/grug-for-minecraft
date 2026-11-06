@@ -1,0 +1,31 @@
+# Test.open_inventory asked of a dedicated server's joined client (#1094). On 1.20.6 and 1.2.5 the
+# server forwards the call, the client opens its own inventory screen, and this waits for that
+# screen and closes it: the screen is the client's, not a menu the server made up. The three older
+# servers have no container for their player yet, so the call keeps refusing with a host function
+# error naming the function instead of reaching for the client's own game class, which a server
+# refuses to load (#1064, #1098). See forwarded_screen_width-Test for why this is a forwarded_ test.
+started: bool = false
+
+export tick(ctx: TestTickContext) {
+    loader: string = Test.loader_name()
+    if loader != "1.20.6-forge" and loader != "1.2.5-forge" {
+        # A server that cannot forward the call names the function rather than reaching for the
+        # client's own game class, which a server refuses to load.
+        ctx.expect_error("Test.open_inventory: This needs a client")
+        Test.open_inventory(Test.get_player())
+        return
+    }
+    if not started {
+        started = true
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+    if not Test.screen_open() {
+        ctx.not_done()
+        return
+    }
+    Test.close_screen()
+    ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
+}

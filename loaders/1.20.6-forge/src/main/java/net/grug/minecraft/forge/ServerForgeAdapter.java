@@ -18,6 +18,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -49,7 +52,9 @@ import java.util.UUID;
  * net.minecraft.client}. {@code useBlockForTest} is not one of them and is overridden: a click is
  * not a client-only function, so the server right-clicks in its own world, the world the test reads
  * (#1090). {@code playUiSound} is overridden as well: the sound engine belongs to the client, so a
- * server forwards the play to the player who started the run (#1032).
+ * server forwards the play to the player who started the run (#1032). The screen calls are
+ * forwarded the same way (#1094), and so are the cursor calls, which this server answers from its
+ * own menu because that is the menu a click is applied to.
  *
  * <p>Whole class is excluded from coverage until CI launches a server: see #167.
  */
@@ -363,6 +368,76 @@ public class ServerForgeAdapter extends ForgeAdapter {
     @Override
     public boolean scrollScreen(double x, double y, double delta) {
         return screens.scrollScreen(x, y, delta);
+    }
+
+    /**
+     * Pressed on the client's screen, by the client of the player who started the run (#1094).
+     *
+     * <p>The container half of the click is this server's: {@code GUI.open} reaches {@code
+     * ServerPlayer.openMenu}, so this server's menu is the one that client's screen shows, and the
+     * click packet the client's press sends lands in this server's own slots. It is applied by
+     * {@link GrugControlServer#applyClientWork} on a later tick, never inside this call, because
+     * the server thread is frozen here and cannot read the packet.
+     */
+    @Override
+    public boolean clickScreen(double x, double y, double button) {
+        return screens.clickScreen(x, y, (int) button);
+    }
+
+    /** Opened by the client of the player who started the run (#1094). */
+    @Override
+    public void openInventory(Object playerObj) {
+        screens.openInventory();
+    }
+
+    /**
+     * The item on the mouse cursor of this server's own menu, which is the menu the joined client's
+     * screen is built from (#1094). The inherited answer reads {@code Minecraft.getInstance()} and
+     * the client's screen, which a dedicated server refuses to load.
+     *
+     * <p>The menu is the one the click is applied to: {@code AbstractContainerMenu.doClick} uses
+     * the carried stack this answer reads, so a carried item set here and a click afterwards agree
+     * even though the click packet carries the client's own copy of it.
+     */
+    @Override
+    public Object carriedItem() {
+        AbstractContainerMenu menu = serverMenu();
+        if (menu == null) return null;
+        ItemStack carried = menu.getCarried();
+        return carried.isEmpty() ? null : carried.getItem();
+    }
+
+    /** Sets the cursor of this server's own menu, which a click then applies (#1094). */
+    @Override
+    public void setCarriedItem(Object itemObj) {
+        AbstractContainerMenu menu = serverMenu();
+        if (menu == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.set_carried_item: There is no player with a menu open.");
+            return;
+        }
+        menu.setCarried(itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
+    }
+
+    /** Clears the cursor of this server's own menu (#1094). */
+    @Override
+    public void deleteCarriedItem() {
+        AbstractContainerMenu menu = serverMenu();
+        if (menu == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "OverlayClickContext.delete_carried_item: There is no player with a menu"
+                            + " open.");
+            return;
+        }
+        menu.setCarried(ItemStack.EMPTY);
+    }
+
+    /** The menu of this server's test player, or null when no player has joined. */
+    @GrugGenerated("the no-player arm: a run's cursor work happens while the player is joined")
+    private AbstractContainerMenu serverMenu() {
+        Object playerObj = testPlayer();
+        return playerObj instanceof ServerPlayer ? ((ServerPlayer) playerObj).containerMenu : null;
     }
 
     /**

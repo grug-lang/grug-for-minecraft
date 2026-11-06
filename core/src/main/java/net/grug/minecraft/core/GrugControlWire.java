@@ -100,6 +100,20 @@ public final class GrugControlWire {
      */
     public static final byte CALL_CAMERA = 9;
 
+    /**
+     * The call: press a mouse button on the open screen. The numbers are the position's x and y in
+     * the scaled pixels a screen's own handlers use, then the button. The answer is 1 when an
+     * overlay took the press and 0 when it was left to the screen (#1094).
+     *
+     * <p>The press is the client's half of a container click: the client's own press path sends the
+     * click packet the game has always sent, which the server applies on its next tick (see {@link
+     * GrugControlServer#applyClientWork}).
+     */
+    public static final byte CALL_CLICK_SCREEN = 10;
+
+    /** The call: open the player's own inventory screen on the client. The answer is 1 (#1094). */
+    public static final byte CALL_OPEN_INVENTORY = 11;
+
     /** The longest name a call may carry, in bytes. */
     public static final int MAX_NAME = 256;
 
@@ -236,7 +250,23 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_CAMERA;
+        return call >= CALL_HAS_SOUND && call <= CALL_OPEN_INVENTORY;
+    }
+
+    /**
+     * Whether {@code call} can make the client send the server a packet, which is what the server
+     * has to drain its connection to apply (#1094).
+     *
+     * <p>A click sends the game's own click packet, a key press can close the screen it is pressed
+     * on, and closing or opening a screen sends the window packets the game sends for them. A read
+     * sends nothing, so a tick that only measures a screen does not drain: the drain is the cost of
+     * a call, paid only by the calls that can leave the server work to do.
+     */
+    public static boolean sendsPacket(byte call) {
+        return call == CALL_CLICK_SCREEN
+                || call == CALL_PRESS_SCREEN_KEY
+                || call == CALL_CLOSE_SCREEN
+                || call == CALL_OPEN_INVENTORY;
     }
 
     public static byte[] callRequest(

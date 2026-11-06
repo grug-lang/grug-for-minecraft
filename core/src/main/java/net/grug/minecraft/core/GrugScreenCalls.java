@@ -163,5 +163,28 @@ public final class GrugScreenCalls {
                 failed.accept("Test.close_screen: " + e.getMessage());
             }
         }
+
+        /**
+         * Whether the client's overlay took the press, false when the client could not be asked.
+         * The client's click packet is applied by the next {@link
+         * GrugControlServer#applyClientWork} (#1094).
+         */
+        public boolean clickScreen(double x, double y, int button) {
+            try {
+                return server.get().clickScreen(x, y, button);
+            } catch (GrugControlServer.ControlException e) {
+                failed.accept("Test.click_screen: " + e.getMessage());
+                return false;
+            }
+        }
+
+        /** Opens the client's own inventory, reporting a client that could not be asked. */
+        public void openInventory() {
+            try {
+                server.get().openInventory();
+            } catch (GrugControlServer.ControlException e) {
+                failed.accept("Test.open_inventory: " + e.getMessage());
+            }
+        }
     }
 }

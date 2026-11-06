@@ -426,9 +426,14 @@ public final class GrugOverlayHost {
      * <p>This is the same patched loop a real press goes through, so it tests the input patch as
      * well as the overlay: a press an overlay takes must be skipped by {@code handleMouseInput},
      * and a press no overlay takes must still reach it.
+     *
+     * <p>A grug mod's own {@link GrugScreen} is not offered to the overlays, as {@link #eligible}
+     * says, but a press on it still has to reach the screen: its container is the server's, so a
+     * press is how a GUI test moves an item in it (#1094). The press is delivered and no overlay is
+     * asked, which is the order a real press on that screen has too.
      */
     public static boolean clickThroughScreen(GuiScreen screen, int x, int y, int button) {
-        if (eligible(screen) == null) return false;
+        if (!(screen instanceof GuiContainer)) return false;
         GrugOverlay.beginTestPress();
         appendMouseEvent(screen, x, y, button, true, 0);
         screen.handleInput();

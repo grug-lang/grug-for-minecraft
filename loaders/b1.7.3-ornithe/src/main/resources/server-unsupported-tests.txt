@@ -13,11 +13,15 @@ coverage/tests/block_shape-Test.grug
 # GUI.open until #1098 gives it a server-side container, so the menu never opens there.
 # #1094's forwarded_screen_open and forwarded_close_screen run here instead. The five GUI capture
 # tests export tick_any_side since 1.2.5's server opens a container for its player, and wait here
-# for this server to do the same (#1098).
+# for this server to do the same (#1098). The two container-click tests press a slot of that
+# container, so they need it for the same reason: a click from this server's client names slot ids
+# this server has no menu for.
 coverage/tests/remote_gui-Test.grug
 coverage/tests/item_icon-Test.grug
 coverage/tests/gui_builder-Test.grug
 coverage/tests/hot_reload_item_texture-Test.grug
+coverage/tests/gui_click-Test.grug
+coverage/tests/gui_click_empty-Test.grug
 buildcraft/tests/autocrafting_table-Test.grug
 buildcraft/tests/redstone_engine_item-Test.grug
 #

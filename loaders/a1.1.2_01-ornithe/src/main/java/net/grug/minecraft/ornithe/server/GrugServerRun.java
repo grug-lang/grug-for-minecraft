@@ -211,6 +211,10 @@ public final class GrugServerRun {
         if (testPlayer instanceof PlayerEntity) {
             holdPlayer((PlayerEntity) testPlayer);
         }
+        // Applies what the joined client sent during the previous tick's calls, which here is a
+        // forwarded click's packet (#1094). The game's own tick reads the connection too, but only
+        // after this runner tick, and a test asserts on the tick after its click.
+        GrugControlAlpha.server().applyClientWork();
         runner.tick(testPlayer);
         if (runner.isFinished()) {
             stop(runner.isPassed() ? 0 : 1);

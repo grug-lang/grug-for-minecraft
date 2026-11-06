@@ -80,6 +80,12 @@ public final class GrugControlClient {
          * for x, 1 for y and 2 for z (#1161).
          */
         double camera(int axis);
+
+        /** Presses a mouse button on the open screen, and answers whether an overlay took it. */
+        boolean clickScreen(double x, double y, int button);
+
+        /** Opens the player's own inventory screen, as {@code Test.open_inventory} asks. */
+        void openInventory();
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -133,6 +139,20 @@ public final class GrugControlClient {
             @Override
             public double camera(int axis) {
                 return GrugTestCamera.axis(adapter.get().testCamera(), axis);
+            }
+
+            @Override
+            public boolean clickScreen(double x, double y, int button) {
+                return adapter.get().clickScreen(x, y, button);
+            }
+
+            /**
+             * Opens this client's own inventory. The server's call names the player it is about,
+             * but this client is that player's, so the screen is this client's own player's.
+             */
+            @Override
+            public void openInventory() {
+                adapter.get().openInventory(adapter.get().testPlayer());
             }
         };
     }
@@ -305,6 +325,13 @@ public final class GrugControlClient {
                 link.send(
                         GrugControlWire.answerNumber(
                                 message.id, caller.camera((int) message.volume)));
+            } else if (message.call == GrugControlWire.CALL_CLICK_SCREEN) {
+                boolean taken =
+                        caller.clickScreen(message.volume, message.pitch, (int) message.third);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (taken ? 1 : 0)));
+            } else if (message.call == GrugControlWire.CALL_OPEN_INVENTORY) {
+                caller.openInventory();
+                link.send(GrugControlWire.answerValue(message.id, (byte) 1));
             } else {
                 // A call this client has no arm for, which is what a call code added to the wire
                 // before its arm becomes. Answering it as an error keeps the server's mistake

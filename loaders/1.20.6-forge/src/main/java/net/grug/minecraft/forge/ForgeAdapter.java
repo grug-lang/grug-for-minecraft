@@ -1055,6 +1055,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run reads the screen it just opened")
     public Object carriedItem() {
+        // The screen's menu is the answer even on a single-player run: delete_carried_item clears
+        // that copy at once and only queues the server's clear behind the next tick, so the two
+        // menus disagree until the queue drains (#1094).
         AbstractContainerScreen<?> container = openContainerScreen();
         if (container == null) return null;
         ItemStack carried = container.getMenu().getCarried();
@@ -1065,6 +1068,29 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @GrugGenerated("the no-screen arm: a run sets the cursor on the screen it just opened")
     public void setCarriedItem(Object itemObj) {
         onClientThread(() -> setCarriedItemOnClient(itemObj));
+        // The press a test sends next is applied to the server's own menu, and the press packet
+        // carries only the client's copy of the cursor, which never sets the server's (#1094). A
+        // test ticks on the integrated server's own thread in single player, so the item is put
+        // there before the press rather than queued behind the tick that needs it.
+        ServerPlayer serverPlayer = integratedServerPlayer();
+        if (serverPlayer != null) {
+            serverPlayer.containerMenu.setCarried(
+                    itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
+        }
+    }
+
+    /**
+     * The player whose menu a press from this client is applied to, when this runs on an integrated
+     * server's own thread: the menu that client's click reaches. Null on the client thread, whose
+     * presses that server has not applied yet, and on a client of a remote server, which has no
+     * integrated server at all.
+     */
+    @GrugGenerated("a client of a remote server has no integrated server, which no CI leg is")
+    private static ServerPlayer integratedServerPlayer() {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null || !server.isSameThread()) return null;
+        Player local = Minecraft.getInstance().player;
+        return local == null ? null : server.getPlayerList().getPlayer(local.getUUID());
     }
 
     @GrugGenerated("the no-screen arm: a run sets the cursor on the screen it just opened")
@@ -1705,6 +1731,18 @@ public class ForgeAdapter implements ModLoaderAdapter {
         boolean[] state = new boolean[] {false};
         ForgeEventFactoryClient.onScreenMouseClicked(state, screen, x, y, button);
         outcome[1] = GrugOverlay.testPressTaken();
+        if (outcome[1]) {
+            // The overlay took the press, so the screen never saw it and there is nothing to
+            // release: releasing would click the vanilla slot under the icon, the click the
+            // cancellation exists to prevent.
+            return;
+        }
+        // A click is a press and a release. A container screen sends the click packet from the
+        // release when the cursor carries a stack, and from the press when the cursor is empty
+        // (that press marks the release as already handled), so a carried click reaches the
+        // server only when both halves are delivered (#1094).
+        boolean[] released = new boolean[] {false};
+        ForgeEventFactoryClient.onScreenMouseReleased(released, screen, x, y, button);
     }
 
     @Override

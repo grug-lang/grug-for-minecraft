@@ -98,6 +98,20 @@ public final class GrugControlServer125 implements GrugControlRouter {
         }
 
         /**
+         * Reads the packets the starter's client sent and the frozen server thread has not read
+         * yet, which is where a forwarded click's packet is (#1094). The game's own tick calls this
+         * through the player's handler once per server tick; a test ticks inside that tick, so
+         * without this its assertion would run before the click.
+         */
+        @Override
+        public void applyClientWork() {
+            Object starter = GrugControlServer125.server().starter();
+            if (starter instanceof NetworkManager) {
+                ((NetworkManager) starter).processReadPackets();
+            }
+        }
+
+        /**
          * Any player who has finished login may start a run (first start wins in core); a
          * connection whose player was not found has not finished login.
          */
