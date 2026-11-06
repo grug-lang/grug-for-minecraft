@@ -51,9 +51,12 @@ on:
         # The commit a dispatch compares its branch with (#826), a SHA or a branch name. The Windows
         # boot jobs are the only run of the native path and of the installed jar on Windows, and a
         # verification dispatch whose diff cannot reach them does not need them: windows-needed.py
-        # answers from the diff and explains its answer in this log. Empty is the full run, which is
-        # what the four-hourly check and the weekly release send, so a release always gets the native
-        # and the boots, and a dispatch on main is full whatever this names.
+        # answers from the diff and explains its answer in this log. An abbreviated SHA cannot be
+        # fetched, so dispatch-base.py resolves it through the API before either step reads it
+        # (#1170), and a base that names no commit fails the dispatch rather than run every job a
+        # typo meant to skip. Empty is the full run, which is what the four-hourly check and the
+        # weekly release send, so a release always gets the native and the boots, and a dispatch on
+        # main is full whatever this names.
         description: 'A commit or branch this dispatch compares with to decide whether the Windows boot jobs can be affected; empty runs them, which a release requires'
         type: string
 
@@ -131,6 +134,33 @@ jobs:
         id: smoke
         run: echo "matrix=$(python3 .github/scripts/universal_jar.py smoke-matrix)" >> "$GITHUB_OUTPUT"
 
+      # The base a dispatch compares its branch with, resolved once (#1170). The affected-loaders and
+      # Windows steps below both need a commit this one-commit-deep checkout holds, and the three
+      # shapes a person types each need their own route: a full SHA is the commit itself, an
+      # abbreviated SHA is one no fetch can name so it is resolved through the API, and a branch name
+      # is fetched from origin one commit deep (dispatch-base.py explains its answer in this log). It
+      # is fetched here when it is not already held, so both steps read the same 40-character SHA and
+      # the Windows step's diff is taken against exactly the commit the selection saw. A base that
+      # names no commit fails the dispatch: a comparison whose base is silently empty runs every job
+      # the comparison exists to skip, so a typo would spend a full run. An empty base, which a
+      # release and the four-hourly check send, resolves to nothing, and the steps below run it whole.
+      - name: Resolve the dispatch base
+        id: base
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          BASE: ${{ inputs.base }}
+          # gh api, which resolves an abbreviated SHA, reads with the workflow's token.
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          base=$(python3 .github/scripts/dispatch-base.py "$BASE") || exit 1
+          if [ -n "$base" ] && ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            if ! git fetch --quiet --no-tags --depth=1 origin "$base"; then
+              echo "::error::the base '$BASE' resolved to the commit $base, which this checkout cannot fetch, so this dispatch fails rather than run the Windows boot jobs it cannot narrow."
+              exit 1
+            fi
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
       # What this run selects (#909): the mods a push to main runs and the loaders that run them, as
       # the build and installed matrices; whether the smoke games and the reference job can see the
       # diff; and the mods the jobs that run the suite once run. One script answers for every event,
@@ -147,12 +177,15 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DISPATCH_BASE: ${{ steps.base.outputs.base }}
           COVERAGE_ONLY: ${{ inputs.coverage-only == true }}
         run: |
-          base="$BASE"
+          # A dispatch's base is the SHA the step above resolved, a pull request's is its own base
+          # commit and a push's is the commit it started from.
+          base="${DISPATCH_BASE:-$BASE}"
           # A push to main compares against the commit it started from, which the one commit deep
           # checkout does not hold; a pull request's base is its own commit, the same one the
-          # carry-over and no-tests steps below read.
+          # carry-over and no-tests steps below read. A dispatch's base was fetched by the step above.
           if [ -n "$base" ] && [ "$EVENT" != workflow_dispatch ] && [ "$EVENT" != schedule ] \
             && ! git fetch --quiet --no-tags --depth=1 origin "$base"; then
             echo "::warning::the $EVENT base '$base' could not be fetched, so this run selects everything."
@@ -258,49 +291,31 @@ jobs:
       # asks windows-needed.py whether the diff against it can reach the native path or the installed
       # jar (it explains its answer in this log); its answer is true for a dispatch with no base and
       # for one on main, because those are the full runs a release and the four-hourly check send and
-      # neither can tell a narrowed run from a full one afterwards. A pull request and the weekly
-      # schedule run neither: #632 keeps them out of a run that no release and no added loader needs,
-      # and no entry leaves the jobs a matrix GitHub refuses, so their condition skips them.
+      # neither can tell a narrowed run from a full one afterwards. The base is the commit the step
+      # above resolved, so the diff here is against the same commit the selection read, whatever
+      # shape the person typed, and a base that named no commit already failed the dispatch there
+      # (#1170). A pull request and the weekly schedule run neither job: #632 keeps them out of a run
+      # that no release and no added loader needs, and no entry leaves the jobs a matrix GitHub
+      # refuses, so their condition skips them.
       - name: Choose the loaders the Windows jobs run
         id: windows
         env:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
-          BASE: ${{ inputs.base }}
+          BASE: ${{ steps.base.outputs.base }}
           REF: ${{ github.ref }}
           LOADERS: ${{ steps.discover.outputs.matrix }}
         run: |
           dirs='[]'
           if [ "$EVENT" = workflow_dispatch ]; then
-            # The input takes a commit, and a branch or a remote-tracking name people type instead is
-            # resolved to the commit it names. A fetch writes FETCH_HEAD and nothing else, so only a
-            # fetch that succeeded makes what it brought in the base: a base that is no commit this
-            # checkout holds is passed on empty, the script answers every loader for it, and the
-            # warning says this dispatch did not narrow.
-            base=''
-            if [ -n "$BASE" ]; then
-              base=$(git rev-parse --verify --quiet "${BASE}^{commit}") || base=''
-              if [ -z "$base" ]; then
-                name="${BASE#origin/}"
-                if git fetch --quiet --no-tags --depth=1 origin "$name"; then
-                  base=$(git rev-parse --verify --quiet 'FETCH_HEAD^{commit}') || base=''
-                fi
-              fi
-              if [ -z "$base" ]; then
-                echo "::warning::the base '$BASE' is no commit this checkout could fetch, so the Windows jobs run."
-              fi
-            fi
-            if [ -n "$BASE" ] && [ -z "$base" ]; then
-              dirs="$LOADERS"
-              echo "Running the Windows jobs on every loader: the base names no commit this run can read."
+            # An empty base is the full run, which windows-needed.py answers every loader for; a base
+            # that names a commit was resolved and fetched by the step above.
+            needed=$(python3 .github/scripts/windows-needed.py --event "$EVENT" --ref "$REF" "$BASE" HEAD) || needed=true
+            if [ "$needed" = 'false' ]; then
+              echo "Running the Windows jobs nowhere: this dispatch's diff cannot reach what they test."
             else
-              needed=$(python3 .github/scripts/windows-needed.py --event "$EVENT" --ref "$REF" "$base" HEAD) || needed=true
-              if [ "$needed" = 'false' ]; then
-                echo "Running the Windows jobs nowhere: this dispatch's diff cannot reach what they test."
-              else
-                dirs="$LOADERS"
-                echo "Running the Windows jobs on every loader."
-              fi
+              dirs="$LOADERS"
+              echo "Running the Windows jobs on every loader."
             fi
           elif [ "$EVENT" = push ]; then
             git fetch --quiet --no-tags --depth=1 origin "$BEFORE" || true
@@ -540,7 +555,8 @@ jobs:
             .github/scripts/drain_caches_test.py \
             .github/scripts/sweep_caches_test.py \
             .github/scripts/markdown_columns_test.py \
-            .github/scripts/windows_needed_test.py
+            .github/scripts/windows_needed_test.py \
+            .github/scripts/dispatch_base_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory
