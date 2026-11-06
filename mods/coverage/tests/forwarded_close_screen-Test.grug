@@ -1,10 +1,11 @@
 # Test.close_screen and the screen measurements asked of a dedicated server's joined client (#1094).
-# On 1.20.6, the only leg whose server can open a GUI for its player, this opens coverage_gui, waits
-# for the client's own screen, reads the panel's geometry through the forwarded gui_* calls, and
-# closes it. On the other four legs it proves that close_screen returns from the client and leaves
-# no screen open; their servers keep refusing GUI.open until #1098 gives them a server-side
-# container, so there is no panel to measure there. Only a multiplayer run that forwards client
-# calls runs a forwarded_ test.
+# Every leg closes and reads the client's gui_width as 0, which the old server answered itself and
+# refused without a client, so this fails before the change. On 1.20.6, the only leg whose server can
+# open a GUI for its player, this opens coverage_gui, waits for the client's own screen, reads the
+# panel's geometry through the forwarded gui_* calls, and closes it. The other three older legs keep
+# refusing GUI.open until #1098 gives them a server-side container, so there is no panel to measure
+# there; 1.2.5 runs the close half with its empty screen. Only a multiplayer run that forwards
+# client calls runs a forwarded_ test.
 started: bool = false
 
 export tick(ctx: TestTickContext) {
@@ -13,6 +14,7 @@ export tick(ctx: TestTickContext) {
         started = true
         Test.close_screen()
         ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
+        ctx.assert(Test.gui_width() == 0, "A client with no container screen open should measure 0 wide.")
         if loader != "1.20.6-forge" {
             return
         }
@@ -34,4 +36,5 @@ export tick(ctx: TestTickContext) {
     ctx.assert(Test.screen_width() > Test.gui_width(), "The client's window is wider than the panel.")
     Test.close_screen()
     ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
+    ctx.assert(Test.gui_width() == 0, "The closed client's screen should measure 0 wide.")
 }

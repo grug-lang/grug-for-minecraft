@@ -1329,6 +1329,36 @@ class GrugControlTest {
     }
 
     @Test
+    void anUnknownCallIsAnsweredAsAnErrorRatherThanClosingTheScreen() {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        GrugControlWire.Message unknown =
+                new GrugControlWire.Message(
+                        GrugControlWire.CALL_REQUEST,
+                        7,
+                        new int[] {0, 0, 0, 0},
+                        0,
+                        0,
+                        new byte[0],
+                        "ui.button.click",
+                        (byte) 9,
+                        0,
+                        0,
+                        0,
+                        (byte) 0,
+                        0);
+
+        loop.client.perform(unknown);
+
+        assertFalse(screens.closed, "an unknown call must not close the client's screen");
+        assertEquals(1, loop.toServer.size());
+        GrugControlWire.Message answer = GrugControlWire.decode(loop.toServer.get(0));
+        assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
+        assertEquals(7, answer.id);
+        assertTrue(answer.text.contains("unknown call 9"), answer.text);
+    }
+
+    @Test
     void screenCallArgumentsThatCannotBeSentAreRefused() {
         ScreenCalls screens = new ScreenCalls();
         Loopback loop = wireCalls(1000, screens);

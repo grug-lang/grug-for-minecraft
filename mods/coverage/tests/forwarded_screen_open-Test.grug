@@ -1,6 +1,7 @@
-# Test.screen_open asked of a dedicated server's joined client (#1094). Before this, a server
-# answered from its own container menu (1.20.6) or with false (the other four), so a client's screen
-# was invisible to a server-run test. This asks the closed answer on every leg, and the open one on
+# Test.screen_open asked of a dedicated server's joined client (#1094). The first two lines are
+# what makes this a regression test: a server used to answer from its own container menu (1.20.6)
+# or with false (the other four), and a measurement refused without a client, so the forwarded
+# gui_width read below raised a host function error before this change. The open answer is asked on
 # 1.20.6, the only leg whose server can open a GUI for its player: the four older servers keep
 # refusing GUI.open until #1098 gives them a server-side container. Only a multiplayer run that
 # forwards client calls runs a forwarded_ test.
@@ -12,6 +13,9 @@ export tick(ctx: TestTickContext) {
         started = true
         Test.close_screen()
         ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
+        # The client has no container screen open, so this is its own measurement. The old server
+        # answered the call itself and refused without a client, which fails this assertion.
+        ctx.assert(Test.gui_width() == 0, "A client with no container screen open should measure 0 wide.")
         if loader != "1.20.6-forge" {
             return
         }
@@ -26,6 +30,7 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
+    ctx.assert(Test.gui_width() == 176, "The client's coverage_gui panel is 176 pixels wide.")
     Test.close_screen()
     ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
 }

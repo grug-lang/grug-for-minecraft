@@ -4,16 +4,15 @@
 # calls GUI.open, which reaches ForgeAdapter.openGui with a ServerPlayer. It opens the menu with
 # ServerPlayer.openMenu, which sends the joined client the open-screen packet its screen is built
 # from, so the GUI crosses a real connection rather than an integrated server's function call.
-# Test.screen_open answers about the side the test runs on: a client answers whether its own screen
-# is open, and a dedicated server that answers (only 1.20.6-forge so far) whether the player it runs
-# as has a container open, which is the menu that client's screen is built from. That answer can be
-# true before the open-screen packet reaches the client, so it says the menu exists, not that the
-# client has drawn it. So the same file proves both halves of the split, and a
-# regression that opens the GUI on a client instead, or does not open it at all, leaves the menu
-# closed and ends the test at the runner's tick budget instead of reaching the assertions below.
-# Test.screen_open is forwarded to the client's own screen now (#1094). The four loaders whose
-# server refuses GUI.open still list this test as unsupported on their dedicated server, because
-# the menu this test waits for never opens there until #1098 gives them a server-side container.
+# Test.screen_open answers about the client's own screen (#1094): a client answers whether its own
+# screen is open, and a dedicated server asks the joined client's screen. It used to answer from
+# this server's container menu, which turned true before the open-screen packet reached the client,
+# so that answer said the menu existed, not that the client had drawn it. So the same file proves
+# both halves of the split, and a regression that opens the GUI on a client instead, or does not
+# open it at all, leaves the screen closed and ends the test at the runner's tick budget instead of
+# reaching the assertions below. The four loaders whose server refuses GUI.open still list this test
+# as unsupported on their dedicated server, because the menu this test waits for never opens there
+# until #1098 gives them a server-side container.
 # No frame is waited for: on 1.20.6 a placed block may reach the client after the menu does, and
 # GrugMenu builds itself on a placeholder container when its block entity has not arrived (#425).
 export tick_any_side(ctx: TestTickContext) {

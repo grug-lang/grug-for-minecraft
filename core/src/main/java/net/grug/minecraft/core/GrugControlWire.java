@@ -15,7 +15,7 @@ import java.util.List;
  * packet its game has; nothing here knows about a packet, so every loader can reuse the format and
  * a unit test can run both ends in one process.
  *
- * <p>Nine messages exist. {@link #RUN_START} goes from the client to the server and says this
+ * <p>Eight messages exist. {@link #RUN_START} goes from the client to the server and says this
  * player started a run, which is the consent the client later relies on. {@link #CAPTURE_REQUEST}
  * goes the other way and names a screenshot rectangle. The client answers with either {@link
  * #ANSWER_ERROR} or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound
