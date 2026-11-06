@@ -35,7 +35,9 @@ class GrugSavedDataSyncTest {
         boolean onServer = true;
         boolean frameOnly = true;
         int sends = 0;
+        int redraws = 0;
         Object lastSent = null;
+        Object lastRedrawn = null;
 
         @Override
         public boolean onServer(Object blockEntity) {
@@ -51,6 +53,12 @@ class GrugSavedDataSyncTest {
         public void send(Object blockEntity) {
             sends++;
             lastSent = blockEntity;
+        }
+
+        @Override
+        public void redraw(Object blockEntity) {
+            redraws++;
+            lastRedrawn = blockEntity;
         }
     }
 
@@ -169,7 +177,18 @@ class GrugSavedDataSyncTest {
     }
 
     @Test
-    void aClientCopyAndABlockWithGeometryInItsMeshAreNotSent() {
+    void aRedrawSendsTheBlockEntityToTheClientThatRebuildsItsMesh() {
+        Recorder recorder = new Recorder();
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedDataSync.redrawn(machine);
+        assertEquals(1, recorder.redraws, "the client is told to build the mesh again");
+        assertEquals(machine, recorder.lastRedrawn);
+    }
+
+    @Test
+    void aClientCopyAndABlockWithGeometryInItsMeshAreNotSentOnAChange() {
         Recorder recorder = new Recorder();
         GrugSavedDataSync.install(recorder);
         Machine machine = new Machine();
@@ -182,7 +201,18 @@ class GrugSavedDataSyncTest {
         recorder.onServer = true;
         recorder.frameOnly = false;
         GrugSavedDataSync.changed(machine);
-        assertEquals(0, recorder.sends, "a block in its chunk's mesh is drawn again by its redraw");
+        assertEquals(0, recorder.sends, "a block in its chunk's mesh is sent by its redraw");
+    }
+
+    @Test
+    void nothingIsRedrawnBeforeALoaderInstallsItsSide() {
+        Recorder recorder = new Recorder();
+        GrugSavedDataSync.install(null);
+        Machine machine = new Machine();
+
+        GrugSavedDataSync.redrawn(machine);
+
+        assertEquals(0, recorder.redraws, "no side is installed, so nothing was asked to redraw");
     }
 
     @Test

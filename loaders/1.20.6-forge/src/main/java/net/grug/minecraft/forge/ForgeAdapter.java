@@ -7,6 +7,7 @@ import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugRenderSettle;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
@@ -592,12 +593,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         RENDER_SETTLE.noteBusy();
         // On the server this sends the client the block entity's update packet, whose handler has
         // the client mesh the block again; on a client it marks the block's section for meshing.
-        be.getLevel()
-                .sendBlockUpdated(
-                        be.getBlockPos(),
-                        be.getBlockState(),
-                        be.getBlockState(),
-                        net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
+        GrugSavedDataSync.redrawn(be);
     }
 
     @Override
