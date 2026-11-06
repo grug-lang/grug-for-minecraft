@@ -94,6 +94,7 @@ public final class GrugControlClientForge {
             // Left the server: a run belongs to the connection that started it.
             pendingCapture = false;
             if (client != null) client.endRun();
+            GrugModLoader.endControlRun(mc);
             return;
         }
         if (!pendingCapture) return;

@@ -4,7 +4,6 @@ import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
-import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -24,11 +23,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -258,38 +252,6 @@ public class ServerForgeAdapter extends ForgeAdapter {
     @Override
     public boolean forwardsClientCalls() {
         return true;
-    }
-
-    /**
-     * The tests listed in {@code forge206-server-unsupported-tests.txt}, which says why. This
-     * loader needed none until the test that swaps an item's texture became {@code tick_any_side}
-     * (#1098): a joined client never observes a change to the mods tree, so the resource reload
-     * that test compares a frame against never happens there.
-     */
-    @Override
-    public Set<String> serverUnsupportedTests() {
-        try (InputStream in =
-                ServerForgeAdapter.class.getResourceAsStream(
-                        "/forge206-server-unsupported-tests.txt")) {
-            if (in == null) {
-                throw new IllegalStateException(
-                        "forge206-server-unsupported-tests.txt is not in the mod jar.");
-            }
-            return GrugTestRunner.parseTestList(new String(readAll(in), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new IllegalStateException(
-                    "Could not read forge206-server-unsupported-tests.txt.", e);
-        }
-    }
-
-    private static byte[] readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int n;
-        while ((n = in.read(buffer)) > 0) {
-            out.write(buffer, 0, n);
-        }
-        return out.toByteArray();
     }
 
     /**

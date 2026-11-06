@@ -352,14 +352,15 @@ while :; do
     # check catches the test not running at all on that leg (renamed, listed as unsupported, or no
     # longer recognised as declared), which the run would otherwise pass with it silently skipped.
     # A server that stops opening the menu fails the test on its own tick budget, before this is
-    # reached. The item texture swap is 1.2.5's alone: 1.20.6 lists it unsupported because a joined
-    # client never sees a change to the mods tree, and its file says why.
+    # reached. The captures wait on the server's own state, so they run here; the item texture swap
+    # is the one that cannot, because it waits for a resource reload to finish on the client the
+    # frame comes from and the server cannot observe that reload. It stays client-only.
     case "$LOADER" in
       1.20.6-forge)
         gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
         ;;
       1.2.5-forge)
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/hot_reload_item_texture buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
         ;;
       *)
         gui_tests=""
