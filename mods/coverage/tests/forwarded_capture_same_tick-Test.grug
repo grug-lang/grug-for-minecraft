@@ -1,0 +1,58 @@
+# A server-run test, a plain tick and not tick_any_side, that places the obsidian wall
+# forwarded_capture draws and requires the joined client's frame to show it in the same tick that
+# placed it (#1123).
+# A loader sends its queued block changes from its player manager's tick, which the server runs
+# after the world's own tick, and a test's tick runs at the end of the world's, so a frozen test
+# never reaches it. The settle ask therefore flushes them itself, as b1.7.3-ornithe's does; Alpha's
+# used to do nothing, which is what this test is about. With the flush the block packet is queued
+# before the settle ask, so the frames the ask waits for are drawn after it and the wall is in the
+# frame that follows; without it the wall sits in the queue while the frozen server is asked, the
+# settle answer is about a frame without it, and the capture reads the room.
+# Only a multiplayer run that forwards client calls runs a forwarded_ test.
+room: Option[Screenshot] = Option.new()
+
+# The step the next tick runs: 0 captures the room, 1 places the wall, asks for the settle and
+# captures the wall, all in that one tick.
+step: number = 0
+
+export tick(ctx: TestTickContext) {
+    if step == 0 {
+        room.set(Test.screenshot().capture(620, 62, 700, 118))
+        step = 1
+        ctx.not_done()
+    } else {
+        origin: Vec3 = Test.get_origin()
+        _wall_in_front_of(origin, "minecraft:obsidian")
+        _wait_for_the_wall(ctx)
+        wall: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
+        wall.differs_from(room.unwrap(), 50)
+    }
+}
+
+# Asks the joined client whether it has drawn the world the placement made, again in this one
+# tick: the first ask tells it the revision the placement gave, and the ones after it answer only
+# once the frames it draws are the settled ones, so the capture that follows reads the wall.
+local _wait_for_the_wall(ctx: TestTickContext) {
+    settled: bool = Test.world_settled()
+    asks: number = 1
+    while not settled and asks < 60 {
+        settled = Test.world_settled()
+        asks = asks + 1
+    }
+    ctx.assert(settled, "The client should have drawn the wall the same tick placed it.")
+}
+
+local _wall_in_front_of(origin: Vec3, block_name: string) {
+    level: Level = Test.get_client_level()
+    z: number = origin.z() + 1
+    across: number = -2
+    while across <= 2 {
+        x: number = origin.x() + across
+        up: number = -4
+        while up <= 0 {
+            level.place_block(x, origin.y() + up, z, block_name)
+            up = up + 1
+        }
+        across = across + 1
+    }
+}

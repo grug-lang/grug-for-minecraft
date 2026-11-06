@@ -69,6 +69,19 @@ public final class GrugServerRun {
         return world;
     }
 
+    /**
+     * Sends the block changes the player manager owes its clients.
+     *
+     * <p>Alpha sends them from the player manager's tick, which the server runs after the world's
+     * own tick, so a test frozen inside that tick never reaches it: a placement it made would sit
+     * in the queue while its capture read a client that had not been told (#1123). The player
+     * manager's tick is therefore called here too, as b1.7.3-ornithe's {@code flushBlockChanges}
+     * does, which sends only the changes queued since the last call.
+     */
+    public static void flushBlockChanges() {
+        GrugPlayerManagerAccess.flushQueuedChanges();
+    }
+
     /** Called at the end of every tick of a server world. */
     public static void onWorldTick(World tickedWorld) {
         if (done || advancing || !"true".equals(System.getenv("GRUG_CI"))) {
