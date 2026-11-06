@@ -219,17 +219,20 @@ public final class GrugServerRun implements ITickHandler {
      * rebuild has cleared the floor and the player is falling, because there is no floor to put
      * them on yet. No host function moves the player down, so holding the feet at the floor cannot
      * hide a test's own movement.
+     *
+     * @return whether it moved the player, so the start-height hold does not move them again on the
+     *     same tick
      */
-    private static void holdOnFloor(EntityPlayerMP player) {
+    private static boolean holdOnFloor(EntityPlayerMP player) {
         World world = world();
         if (world == null) {
-            return;
+            return false;
         }
         GrugPlayerFloor.BlockSource blocks = Grug125ServerAdapter.solidBlocks(world);
         double feet = player.boundingBox.minY;
         double floor = GrugPlayerFloor.floorTop(blocks, player.posX, feet, player.posZ);
         if (!GrugPlayerFloor.below(feet, floor)) {
-            return;
+            return false;
         }
         // This version's teleport takes the entity position, and a server player's collision box
         // bottom sits a fixed distance below it, so the move is applied as that same difference
@@ -249,6 +252,7 @@ public final class GrugServerRun implements ITickHandler {
                             + feet
                             + " (inside the ground)");
         }
+        return true;
     }
 
     /**
@@ -289,8 +293,7 @@ public final class GrugServerRun implements ITickHandler {
             player.setEntityHealth(player.getMaxHealth());
         }
         player.fallDistance = 0;
-        holdOnFloor(player);
-        if (player.posY < holdY - HOLD_TOLERANCE) {
+        if (!holdOnFloor(player) && player.posY < holdY - HOLD_TOLERANCE) {
             player.playerNetServerHandler.teleportTo(
                     player.posX, holdY, player.posZ, player.rotationYaw, player.rotationPitch);
             player.motionY = 0;
