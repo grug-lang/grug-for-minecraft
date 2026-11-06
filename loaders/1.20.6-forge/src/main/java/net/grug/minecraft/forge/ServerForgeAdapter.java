@@ -261,22 +261,24 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
-     * The tests listed in {@code server-unsupported-tests.txt}, which says why. This loader needed
-     * none until the test that swaps an item's texture became {@code tick_any_side} (#1098): a
-     * joined client never observes a change to the mods tree, so the resource reload that test
-     * compares a frame against never happens there.
+     * The tests listed in {@code forge206-server-unsupported-tests.txt}, which says why. This
+     * loader needed none until the test that swaps an item's texture became {@code tick_any_side}
+     * (#1098): a joined client never observes a change to the mods tree, so the resource reload
+     * that test compares a frame against never happens there.
      */
     @Override
     public Set<String> serverUnsupportedTests() {
         try (InputStream in =
-                ServerForgeAdapter.class.getResourceAsStream("/server-unsupported-tests.txt")) {
+                ServerForgeAdapter.class.getResourceAsStream(
+                        "/forge206-server-unsupported-tests.txt")) {
             if (in == null) {
                 throw new IllegalStateException(
-                        "server-unsupported-tests.txt is not in the mod jar.");
+                        "forge206-server-unsupported-tests.txt is not in the mod jar.");
             }
             return GrugTestRunner.parseTestList(new String(readAll(in), StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new IllegalStateException("Could not read server-unsupported-tests.txt.", e);
+            throw new IllegalStateException(
+                    "Could not read forge206-server-unsupported-tests.txt.", e);
         }
     }
 

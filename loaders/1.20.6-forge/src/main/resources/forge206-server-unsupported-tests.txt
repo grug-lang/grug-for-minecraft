@@ -1,6 +1,8 @@
 # Tests the 1.20.6 dedicated server cannot run although they define tick_any_side, one path per
-# line. Interim (#166): this mechanism is removed together with tick_any_side when #1040 lands.
-# Each group below says why its tests cannot run on that server.
+# line. Named after the loader because this layer sits at the universal jar's root and the nested
+# layers' lists are read from the class path by their bare name: a root server-unsupported-tests.txt
+# would shadow theirs, which the universal jar's check refuses. Interim (#166): this mechanism is
+# removed together with tick_any_side when #1040 lands.
 #
 # A texture a test swaps on disk. Reloading resources is the client's work, and the joined client of
 # a server-run test never sees a change to the mods tree: this loader polls the tree from the server
