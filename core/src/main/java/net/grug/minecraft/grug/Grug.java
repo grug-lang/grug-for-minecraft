@@ -243,13 +243,14 @@ public final class Grug {
      * <p>When no call is active on this thread there is none. That is the room build, which writes
      * blocks from the server tick between two calls, and a client thread that reports while the
      * server's call waits on it. grug-rs's call stack is empty in the first case, so its native
-     * report would panic across the JNI boundary and abort the process (#1134). The error is
-     * recorded for the test runner instead, which fails the test that is running, or the one that
-     * just ended when the room build is starting the next one.
+     * report would panic across the JNI boundary and abort the process (#1134). The error is handed
+     * to {@link GrugErrors#hostFunctionErrorOutsideACall} instead, which records it for a running
+     * test run and reports it to the log and chat otherwise; the owner is the test that is running,
+     * or the one that is starting when the room build reported before its first call.
      */
     public static void hostFunctionErrorHappened(long statePtr, String message) {
         if (grugCallDepth.get() == 0) {
-            GrugErrors.recordHostFunctionException(message);
+            GrugErrors.hostFunctionErrorOutsideACall(message);
             return;
         }
         GrugStateLock.lock();

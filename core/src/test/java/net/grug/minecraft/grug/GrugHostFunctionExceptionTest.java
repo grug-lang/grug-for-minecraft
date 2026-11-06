@@ -3,6 +3,7 @@ package net.grug.minecraft.grug;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.core.GrugCore;
@@ -25,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -75,6 +77,9 @@ class GrugHostFunctionExceptionTest {
     /** A Block whose member scope throws through a host function when its entity is created. */
     private static final String THROWING_MEMBER = "level: Level = Test.get_client_level()\n";
 
+    /** A Block whose member scope is harmless, so its entity can be created and tracked. */
+    private static final String HARMLESS_MEMBER = "count: number = 0\n";
+
     /** One state for the class, because booting one is the expensive part. */
     @TempDir static Path mods;
 
@@ -92,6 +97,8 @@ class GrugHostFunctionExceptionTest {
         writeMod("stays", "c-Test.grug", STAYING_TEST);
         writeMod("use-block", "u-Block.grug", THROWING_USE);
         writeMod("init-block", "i-Block.grug", THROWING_MEMBER);
+        writeMod("recompile-block", "r-Block.grug", HARMLESS_MEMBER);
+        writeMod("reload-block", "v-Block.grug", HARMLESS_MEMBER);
         Grug.init(modApiJson(), mods.toFile());
         assertNotEquals(0, Grug.statePtr, "the grug state did not come up");
     }
@@ -114,6 +121,10 @@ class GrugHostFunctionExceptionTest {
         synchronized (GrugErrors.runtimeErrorQueue) {
             GrugErrors.runtimeErrorQueue.clear();
         }
+        // A unit-test runner does not own reports; the tests that need a record set this
+        // themselves,
+        // and the rest start from no run, so the order these tests run in does not matter.
+        GrugTestState.testRunActive = false;
         GrugEntities.endTestEntities();
     }
 
@@ -180,14 +191,64 @@ class GrugHostFunctionExceptionTest {
     }
 
     @Test
-    void aHostFunctionErrorWithNoExportToFailIsRecordedInsteadOfAborting() {
+    void aHostFunctionErrorWithNoRunIsReportedInsteadOfAborting() {
         // The room build writes blocks from the server tick, between two calls, where grug-rs has
         // pushed no frame: its native report used to panic on the empty call stack and abort the
-        // process (#1134). The game keeps running here, and the record is what the runner fails the
-        // owning test for.
-        Grug.hostFunctionErrorHappened(Grug.statePtr, NO_EXPORT_MESSAGE);
+        // process (#1134). With no test run to fail, the error is a bounded defect of the write
+        // that reported it: the game keeps running, the log and chat get the message, and nothing
+        // is left in the record for a later run's first test to inherit.
+        String printed =
+                capture(() -> Grug.hostFunctionErrorHappened(Grug.statePtr, NO_EXPORT_MESSAGE));
 
-        assertEquals(NO_EXPORT_MESSAGE, GrugErrors.takeHostFunctionException());
+        assertTrue(printed.contains("[GRUG CI] FAIL " + NO_EXPORT_MESSAGE), printed);
+        assertTrue(runtimeErrors().contains(NO_EXPORT_MESSAGE), runtimeErrors());
+        assertNull(GrugErrors.takeHostFunctionException());
+    }
+
+    @Test
+    void aRefusedRunOwnsNothingSoNothingIsRecordedForIt() {
+        // The runner that refused to start owns no reports: recording one for it would hold it
+        // until a test of a run that never starts, and the next run would inherit it.
+        GrugTestState.runStarting(true);
+        assertFalse(GrugTestState.testRunActive);
+
+        GrugTestState.runStarting(false);
+        assertTrue(GrugTestState.testRunActive);
+    }
+
+    @Test
+    void aHostFunctionErrorWithNoRunAndNoAdapterIsStillReported() throws Exception {
+        // The state can be up before a loader has set an adapter, and the report must not need one
+        // to reach the log and chat.
+        Field field = adapterField();
+        Object installed = field.get(null);
+        field.set(null, null);
+        try {
+            String printed =
+                    capture(() -> Grug.hostFunctionErrorHappened(Grug.statePtr, NO_EXPORT_MESSAGE));
+
+            assertTrue(printed.contains("[GRUG CI] FAIL " + NO_EXPORT_MESSAGE), printed);
+            assertTrue(runtimeErrors().contains(NO_EXPORT_MESSAGE), runtimeErrors());
+        } finally {
+            field.set(null, installed);
+        }
+    }
+
+    @Test
+    void aReportMadeBeforeARunDoesNotFailItsFirstTest() {
+        // The no-run case is not recorded, so a session that reported before the run was started
+        // cannot hand the run's first test a record it did not make.
+        capture(() -> Grug.hostFunctionErrorHappened(Grug.statePtr, NO_EXPORT_MESSAGE));
+
+        long testFile = compile("c-Test.grug");
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        Map.of("stays/tests/c-Test.grug", testFile), List.of(), nativeOps());
+
+        String first = capture(() -> runner.tick(null));
+
+        assertTrue(first.contains("[GRUG CI] Executing test: stays/tests/c-Test.grug"), first);
+        assertFalse(first.contains("[GRUG CI] FAIL"), first);
     }
 
     @Test
@@ -200,6 +261,9 @@ class GrugHostFunctionExceptionTest {
                         Map.of("stays/tests/c-Test.grug", testFile), List.of(), nativeOps());
         runner.tick(null);
         assertFalse(runner.isFinished(), "the test has to still be running for this case");
+        // The loader's own runner sets this while it runs; a unit-test runner leaves it to its
+        // test, so the run has to own reports here for the record path to be the one taken.
+        GrugTestState.testRunActive = true;
 
         Grug.hostFunctionErrorHappened(Grug.statePtr, NO_EXPORT_MESSAGE);
 
@@ -231,9 +295,11 @@ class GrugHostFunctionExceptionTest {
         String printed = new String(child.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 
         assertEquals(0, child.exitValue(), printed);
+        // No run is active in the child either, so it reports the error to the log and chat and
+        // leaves nothing in the record.
+        assertTrue(printed.contains("[GRUG CI] FAIL " + NO_EXPORT_MESSAGE), printed);
         assertTrue(
-                printed.contains(GrugHostFunctionNoExportMain.RECORDED_PREFIX + NO_EXPORT_MESSAGE),
-                printed);
+                printed.contains(GrugHostFunctionNoExportMain.RECORDED_PREFIX + "null"), printed);
     }
 
     @Test
@@ -304,6 +370,9 @@ class GrugHostFunctionExceptionTest {
                 new GrugTestRunner(Map.of("stays/tests/c-Test.grug", testFile), List.of(), ops);
         runner.tick(null);
         assertFalse(runner.isFinished(), "the test has to still be running for this case");
+        // The loader's own runner sets this while it runs; a unit-test runner leaves it to its
+        // test, so the run has to own reports here for the record path to be the one taken.
+        GrugTestState.testRunActive = true;
 
         reportOnNextCall[0] = true;
         String printed = capture(() -> runner.tick(null));
@@ -312,10 +381,152 @@ class GrugHostFunctionExceptionTest {
         assertTrue(printed.contains(NO_EXPORT_MESSAGE), printed);
     }
 
+    @Test
+    void aRecordLeftWhenTheRunEndsFailsTheRunInsteadOfPassing() {
+        // The record can arrive in the same tick as the last test's end, when no next tick is left
+        // to drain it. The run must not end green for it, and the message belongs to the test that
+        // just ended.
+        long testFile = compile("c-Test.grug");
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        Map.of("stays/tests/c-Test.grug", testFile),
+                        List.of(),
+                        completingOps(
+                                () ->
+                                        Grug.hostFunctionErrorHappened(
+                                                Grug.statePtr, NO_EXPORT_MESSAGE)));
+        GrugTestState.testRunActive = true;
+
+        // The test passes in the first tick, which is also where the error was reported, and the
+        // run finishes on the next one: the record has to fail it there rather than be lost.
+        runner.tick(null);
+        String printed = capture(() -> runner.tick(null));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL stays/tests/c-Test.grug"), printed);
+        assertFalse(printed.contains("TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aReportAfterTheLastTestPassedIsReportedNotHeldForALaterRun() {
+        // A run owns nothing once its last test has passed, though it finishes a tick later: a
+        // report in between is reported to the log and chat, not stored where the next run's first
+        // test would inherit it.
+        long testFile = compile("c-Test.grug");
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        Map.of("stays/tests/c-Test.grug", testFile),
+                        List.of(),
+                        completingOps(() -> {}));
+        GrugTestState.testRunActive = true;
+        runner.tick(null);
+        assertFalse(runner.isFinished(), "the run finishes on its next tick");
+
+        String printed =
+                capture(() -> Grug.hostFunctionErrorHappened(Grug.statePtr, NO_EXPORT_MESSAGE));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL " + NO_EXPORT_MESSAGE), printed);
+        assertNull(GrugErrors.takeHostFunctionException());
+    }
+
+    /**
+     * The runner's entity operations for a test that its first tick completes: the tick_any_side
+     * probe misses, then the tick runs {@code onTick} and answers that it completed.
+     */
+    private static GrugTestRunner.TestEntityOps completingOps(Runnable onTick) {
+        int[] calls = {0};
+        return new GrugTestRunner.TestEntityOps() {
+            @Override
+            public long createEntity(long fileId) {
+                return GrugEntities.createTestEntity(fileId);
+            }
+
+            @Override
+            public long getExportFnId(String entityType, String fnName) {
+                return Grug.getExportFnId(entityType, fnName);
+            }
+
+            @Override
+            public boolean callExportFn(long entityHandle, long exportFnId) {
+                if (++calls[0] == 2) {
+                    onTick.run();
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public boolean callInitFn(long entityHandle, long exportFnId) {
+                return GrugTestState.callInit(entityHandle, exportFnId);
+            }
+
+            @Override
+            public void destroyEntity(long entityHandle) {
+                Grug.destroyEntity(entityHandle);
+            }
+        };
+    }
+
+    @Test
+    void aSecondCompileFailsTheInitializerOfAnEntityItAlreadyTracks() throws IOException {
+        // A compile re-initializes the entities of a file it already tracks, which pushes a frame
+        // on
+        // grug's call stack. Marked, the throw fails that initializer and reaches the runtime error
+        // channel; unmarked, it was only recorded and the entity kept a member the host never
+        // answered (#1134).
+        long block = Grug.createEntity(compile("r-Block.grug"));
+        assertNotEquals(0, block, "the block entity was not created");
+        // A run owns reports here, so an unmarked call would leave the message in the record
+        // instead of raising it: that is the difference this test tells.
+        GrugTestState.testRunActive = true;
+        rewrite("recompile-block", "r-Block.grug", THROWING_MEMBER);
+
+        Grug.compileAllFiles();
+
+        assertTrue(runtimeErrors().contains("Test_get_client_level"), runtimeErrors());
+        Grug.destroyEntity(block);
+    }
+
+    @Test
+    void aReloadFailsTheInitializerOfAnEntityItRecompiles() throws Exception {
+        // The watcher's update recompiles a changed file and re-initializes its entities through
+        // the same native entry, and that call carries the same mark.
+        long block = Grug.createEntity(compile("v-Block.grug"));
+        assertNotEquals(0, block, "the block entity was not created");
+        // A run owns reports here, so an unmarked call would leave the message in the record
+        // instead of raising it: that is the difference this test tells.
+        GrugTestState.testRunActive = true;
+        rewrite("reload-block", "v-Block.grug", THROWING_MEMBER);
+
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (!runtimeErrors().contains("Test_get_client_level") && System.nanoTime() < deadline) {
+            GrugModsWatcher.update(error -> {});
+            Thread.sleep(50);
+        }
+
+        assertTrue(runtimeErrors().contains("Test_get_client_level"), runtimeErrors());
+        Grug.destroyEntity(block);
+    }
+
     /** Writes one mod with a single script, the way a loader's mods directory holds them. */
     private static void writeMod(String mod, String file, String source) throws IOException {
         Path code = Files.createDirectories(mods.resolve(mod).resolve("code"));
         Files.write(code.resolve(file), source.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Rewrites one script of a mod this test wrote, the way an author's edit changes it. The move
+     * keeps the poller from reading the file half written, which would record a compile error for
+     * content that never existed.
+     */
+    private static void rewrite(String mod, String file, String source) throws IOException {
+        Path target = mods.resolve(mod).resolve("code").resolve(file);
+        Path temporary = target.resolveSibling(file + ".tmp");
+        Files.write(temporary, source.getBytes(StandardCharsets.UTF_8));
+        Files.move(
+                temporary,
+                target,
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE);
     }
 
     /** The file id of a script this test wrote, once every script has compiled. */

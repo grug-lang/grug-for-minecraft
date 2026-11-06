@@ -160,6 +160,24 @@ public final class GrugTestState {
         return completed[0];
     }
 
+    // Set by the loaders' GrugTestRunner, through its no-argument constructor, and cleared when
+    // that run ends. While it is set, a host function error with no grug call to fail on this
+    // thread is recorded for the runner, which fails the test that owns it; with no run to fail, it
+    // is reported to the log and chat instead. A report made before a run starts is therefore never
+    // left in the record for that run's first test to inherit. Unit-test runners leave it alone: a
+    // test that needs a report recorded sets it itself.
+    public static volatile boolean testRunActive = false;
+
+    /**
+     * Says whether the test run that is starting owns host function error reports. The loaders call
+     * it from the runner that will run them. A run refused before it starts owns nothing, because
+     * no test of it will ever run to fail for a report, so a message recorded for it would wait for
+     * a run that never comes. See {@link #testRunActive}.
+     */
+    public static void runStarting(boolean refused) {
+        testRunActive = !refused;
+    }
+
     /**
      * How many ticks the running test may take before the runner gives up on it. The runner resets
      * it to the default before every test, and the test's {@code init()} can raise it through

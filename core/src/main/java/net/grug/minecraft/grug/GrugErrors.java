@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.ModLoaderAdapter;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -106,6 +107,31 @@ public final class GrugErrors {
                 pendingHostFunctionException = message;
             }
         }
+    }
+
+    /**
+     * Deals with a host function error that has no grug call on this thread to fail.
+     *
+     * <p>While a test run is in flight the run is the scope that fails, so the message is recorded
+     * for the runner, which fails the owning test on its next tick. With no run to fail it the
+     * error is a bounded defect of the operation that raised it: the game keeps running, and the
+     * message is reported to the log and to chat, with the {@code [GRUG CI] FAIL} line that fails a
+     * CI run reading the log. It is deliberately not recorded then, because a report made before a
+     * run starts must not be left for that run's first test to inherit. See #1134.
+     */
+    static void hostFunctionErrorOutsideACall(String message) {
+        if (GrugTestState.testRunActive) {
+            recordHostFunctionException(message);
+            return;
+        }
+        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        if (adapter != null) {
+            adapter.logError(message);
+        }
+        synchronized (runtimeErrorQueue) {
+            runtimeErrorQueue.add(message);
+        }
+        System.out.println("[GRUG CI] FAIL " + message);
     }
 
     /** Takes the record {@link #recordHostFunctionException} left, or null when there is none. */
