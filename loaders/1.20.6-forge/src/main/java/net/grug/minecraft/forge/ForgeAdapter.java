@@ -591,8 +591,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // it and the frames drawn before this call say nothing about it: the capture waits for two
         // after it. Up to 10 ticks run for a frame, so the test's own wait cannot stand in for it.
         RENDER_SETTLE.noteBusy();
-        // On the server this sends the client the block entity's update packet, whose handler has
-        // the client mesh the block again; on a client it marks the block's section for meshing.
+        // On a client this mark is the whole rebuild: there is no transport to send through, and
+        // GrugSavedDataSync.redrawn returns on this side. On the server the same call reaches the
+        // tracking players, whose client re-meshes from the block entity packet the game sends at
+        // the end of the tick.
+        be.getLevel()
+                .sendBlockUpdated(
+                        be.getBlockPos(),
+                        be.getBlockState(),
+                        be.getBlockState(),
+                        net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
         GrugSavedDataSync.redrawn(be);
     }
 

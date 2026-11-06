@@ -5,7 +5,8 @@
 # runServer in the background, then, once the server says it is ready, its runClient pointed at the
 # server through the game's quick play. The server drives the tests (GrugServerRun) and stops itself
 # when they end; this script reads its log for the same [GRUG CI] lines run-loader.sh watches, and
-# reads the client's log only for a crash, so a failure names which of the two processes died.
+# reads the client's log for a crash and for a [GRUG CI] FAIL, because the joined client reports
+# what it drew there and that report has to fail the leg (#1101).
 #
 # The server decides what it runs: a test runs there only when it defines
 # tick_any_side instead of tick (#168), and the runner skips the others and prints how many it
@@ -292,6 +293,14 @@ while :; do
   if grep -qF '[GRUG CI] FAIL' "$SERVER_LOG"; then
     echo "==> A test failed on the dedicated server." >&2
     grep -m1 -B 5 -A 10 -F '[GRUG CI] FAIL' "$SERVER_LOG" >&2
+    exit 1
+  fi
+  # A client-side failure is a test failure too (#1101): the joined client reports what it drew,
+  # and a block that declared custom rendering and drew nothing is such a line. The capture can
+  # still pass while it is there, so the leg fails here rather than only on a crash.
+  if grep -qF '[GRUG CI] FAIL' "$CLIENT_LOG"; then
+    echo "==> A test failed on the joined client." >&2
+    grep -m1 -B 5 -A 10 -F '[GRUG CI] FAIL' "$CLIENT_LOG" >&2
     exit 1
   fi
   if line=$(grep -m1 -E "$SUCCESS_RE" "$SERVER_LOG"); then

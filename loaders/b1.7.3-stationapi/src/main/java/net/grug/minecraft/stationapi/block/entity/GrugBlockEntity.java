@@ -230,7 +230,8 @@ public class GrugBlockEntity extends BlockEntity
      * tile: a grug block placed where another grug block was inherits its entity, which has the
      * previous block's members and exports, and the chunk compile then draws that script or, when
      * it has no {@code render}, nothing at all. The entity is dropped here and {@link #initGrug()}
-     * makes the right one from the block that is there.
+     * makes the right one from the block that is there, or leaves none when that block names no
+     * entity file, so nothing of the previous block draws for it.
      */
     @GrugGenerated("a client's kept tile: only a live joined client has one")
     private void dropGrugEntityIfTheBlockChanged() {
