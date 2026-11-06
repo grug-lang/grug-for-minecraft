@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Covers the decision to send a block entity's saved data to the client's copy, which every loader
@@ -207,12 +208,16 @@ class GrugSavedDataSyncTest {
     @Test
     void nothingIsRedrawnBeforeALoaderInstallsItsSide() {
         Recorder recorder = new Recorder();
-        GrugSavedDataSync.install(null);
+        GrugSavedDataSync.install(recorder);
         Machine machine = new Machine();
 
+        GrugSavedDataSync.install(null);
         GrugSavedDataSync.redrawn(machine);
 
-        assertEquals(0, recorder.redraws, "no side is installed, so nothing was asked to redraw");
+        assertEquals(
+                0,
+                recorder.redraws,
+                "installing no side detaches the last one, so nothing was asked to redraw");
     }
 
     @Test
@@ -229,6 +234,20 @@ class GrugSavedDataSyncTest {
                 recorder.redraws,
                 "a client builds its own mesh again and sends nothing, because the data travels"
                         + " server to client only");
+    }
+
+    @Test
+    void aClientLevelRunsItsOwnRebuild() {
+        AtomicBoolean ran = new AtomicBoolean(false);
+        GrugSavedDataSync.onClientLevel(true, () -> ran.set(true));
+        assertTrue(ran.get(), "a client's copy of the block entity marks its own level");
+    }
+
+    @Test
+    void aServerLevelLeavesTheRebuildToItsTransport() {
+        AtomicBoolean ran = new AtomicBoolean(false);
+        GrugSavedDataSync.onClientLevel(false, () -> ran.set(true));
+        assertFalse(ran.get(), "a server's transport sends the data and its client rebuilds there");
     }
 
     @Test

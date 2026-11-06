@@ -1,30 +1,150 @@
-# BlockEntity.redraw makes the game draw a block entity's render function again. The block draws a
-# model, so this also reaches draw_model's accepted path. The wait is for the world to settle, which
-# is false until the chunk's mesh has been rebuilt, both after the placement and after the redraw.
+# BlockEntity.redraw rebuilds the calling client's own chunk mesh. The block draws its pedestal in
+# its render function, and its frame render saves the number as 1 on the client and asks for the
+# mesh again when a stone block appears high above it, out of the captured frame: the number is the
+# client's, so a mesh built from the server's copy never sees it, and only the client's own rebuild
+# can draw the plate. Without that rebuild the pedestal is what stays on screen and the plate
+# comparison fails.
+# The wall, the whole-screen crop and the two agreeing captures of the empty room are
+# coverage_mesh_saved_number's, for the same reasons: without a wall behind the block drifting
+# clouds change the crop, and a room that is still moving is where the plate is looked for.
 # It defines tick, so a dedicated server skips it: on a1.1.2 the client's first draw of a
-# server-placed block entity has no model geometry yet, and the set_custom_render check fails
-# before redraw() can draw it, which is a client-side gap separate from the forwarded settle (#1086).
-redrawn: bool = false
-block: Option[BlockEntity] = Option.new()
+# server-placed block entity has no model geometry yet, which is a client-side gap separate from
+# the forwarded settle (#1086).
+mesh_block: Option[BlockEntity] = Option.new()
+empty: Option[Screenshot] = Option.new()
+empty_prev: Option[Screenshot] = Option.new()
+pedestal: Option[Screenshot] = Option.new()
+
+# Whether the block is in, whether the stone that asks for the redraw is, and the runner tick the
+# stone went in on.
+placed: bool = false
+triggered: bool = false
+trigger_tick: number = 0
+
+# How many captures have already shown the frame from before the redraw.
+attempts: number = 0
+
+# The runner tick the last empty capture was taken on. Up to 10 ticks run for one frame, so a
+# capture on the very next tick can be of the same frame and show no change that has been drawn.
+room_tick: number = 0
+
+export init(ctx: TestInitContext) {
+    # The setup's empty room captures up to eight times and the plate up to eight more, and one
+    # capture waits about 60 ticks for the client to draw the frame it is about.
+    ctx.set_max_ticks(2000)
+}
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
-        level.place_block(origin.x(), origin.y() + 20, origin.z(), "grug:coverage_neighbor_block")
-        block_opt: Option[BlockEntity] = level.get_block_entity(origin.x(), origin.y() + 20, origin.z())
-        ctx.assert(block_opt.has(), "The neighbour-coverage block should have a block entity.")
-        block.set(block_opt.unwrap())
+        _wall(ctx)
         ctx.not_done()
     } else if not Test.world_settled() {
         ctx.not_done()
-    } else if not redrawn {
-        redrawn = true
-        block.unwrap().redraw()
+    } else if not empty.has() {
+        _settle_empty(ctx)
         ctx.not_done()
-    } else if ctx.current_tick() < 5 or not Test.world_settled() {
+    } else if not placed {
+        _place(ctx)
+        placed = true
+        attempts = 0
+        ctx.not_done()
+    } else if not pedestal.has() {
+        _capture_pedestal(ctx)
+        ctx.not_done()
+    } else if not triggered {
+        _trigger(ctx)
+        triggered = true
+        trigger_tick = ctx.current_tick()
+        attempts = 0
+        ctx.not_done()
+    } else if ctx.current_tick() < trigger_tick + 30 or not Test.world_settled() {
+        # Nothing marks the world unsettled for the client's own redraw: the capture below decides
+        # whether the rebuilt mesh arrived, and this wait only keeps it from spinning.
         ctx.not_done()
     } else {
-        ctx.assert(block.has(), "The block entity should survive the redraw.")
+        plate: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        if plate.change_from(pedestal.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The client's own redraw never rebuilt the block's chunk mesh.")
+            trigger_tick = ctx.current_tick()
+            ctx.not_done()
+        } else {
+            ctx.assert(mesh_block.has(), "The block entity should survive the redraw.")
+        }
     }
+}
+
+local _wall(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    Test.set_box_radius(6)
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The wall coverage_mesh_saved_number puts behind the block's spot, thirteen across and
+    # thirteen high, which covers the whole crop.
+    wy: number = y - 9
+    while wy < y + 4 {
+        wx: number = x - 6
+        while wx < x + 7 {
+            level.place_block(wx, wy, z + 6, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Waits until two captures of the room without a block agree before anything goes in. A wall whose
+# mesh arrives late, or a cloud, is not what the pedestal is then compared against.
+local _settle_empty(ctx: TestTickContext) {
+    if ctx.current_tick() >= room_tick + 10 {
+        shot: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        room_tick = ctx.current_tick()
+        if empty_prev.has() and shot.change_from(empty_prev.unwrap()) < 1 {
+            empty.set(shot)
+            attempts = 0
+        } else {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The room never stopped changing before the block went in.")
+            empty_prev.set(shot)
+        }
+    }
+}
+
+local _place(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    level.place_block(origin.x(), origin.y() - 1.88, origin.z() + 4, "grug:coverage_mesh_saved")
+
+    be_opt: Option[BlockEntity] = level.get_block_entity(origin.x(), origin.y() - 1.88, origin.z() + 4)
+    ctx.assert(be_opt.has(), "The chunk-mesh block should have a block entity.")
+    mesh_block.set(be_opt.unwrap())
+    room_tick = ctx.current_tick()
+}
+
+# The frame the pedestal is in before the redraw, which the plate is compared against. A capture
+# that still matches the empty room is the block not drawn yet, not a baseline.
+local _capture_pedestal(ctx: TestTickContext) {
+    if ctx.current_tick() >= room_tick + 10 {
+        shot: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        room_tick = ctx.current_tick()
+        if shot.change_from(empty.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The client never drew the chunk-mesh block's pedestal.")
+        } else {
+            pedestal.set(shot)
+            attempts = 0
+        }
+    }
+}
+
+# A coverage block nine blocks behind the block, outside the camera's view: the frame render sees it
+# and asks for the redraw. The cell is this block's own, so the render computes the same one, it is
+# inside the clear box the runner empties before every test, and the block is one no terrain and no
+# other test puts there.
+local _trigger(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    center: Vec3 = mesh_block.unwrap().block_pos().center()
+    level.place_block(center.x(), center.y(), center.z() - 9, "grug:coverage_block")
 }

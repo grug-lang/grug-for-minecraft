@@ -19,3 +19,21 @@ export render(ctx: RenderContext) {
         ctx.draw_box(0.0, 0.0, -1.0, 1.0, 1.0, 0.0)
     }
 }
+
+# Asks for the one client-side redraw redraw_custom_render makes: when that test puts a coverage
+# block nine blocks behind this one, outside the camera's view, this copy saves the number the mesh
+# reads and asks for the mesh again. The number changes on the client, so a mesh built from the
+# server's copy never sees it, and only the client's own rebuild can draw the plate. The trigger is
+# inside the clear box the runner empties before every test, and it is a grug block no terrain puts
+# there; a stone block above the room was found in the world on some loaders and fired in the tests
+# that never place one.
+export render_frame(ctx: RenderFrameContext) {
+    if me.get_saved_number("redraw_done") == 0 {
+        center: Vec3 = me.block_pos().center()
+        if me.level().get_block(center.x(), center.y(), center.z() - 9) == "grug:coverage_block" {
+            me.set_saved_number("redraw_done", 1)
+            me.set_saved_number("mesh_marker", 1)
+            me.redraw()
+        }
+    }
+}

@@ -14,13 +14,15 @@ import net.minecraftforge.network.PacketDistributor;
  * <p>The packet is the game's own block entity data packet, sent straight to the players tracking
  * the chunk. A block update is not sent with it: the number changes no block, and a block that
  * draws per frame reads the data from the next frame on. A block whose geometry is in the chunk's
- * mesh is sent one by {@link #redraw}, which is what makes the client build that mesh again.
+ * mesh is sent the packet by {@link #redraw}, and the client's own {@code onDataPacket} marks its
+ * section and builds that mesh again. A client's own redraw is the adapter's local mark, not a
+ * packet: a client sends nothing.
  */
 public final class GrugBlockEntitySync implements GrugSavedDataSync.Transport {
 
     @GrugGenerated(
-            "a script call only reaches a block entity in the server's level, so the no-level and"
-                    + " client-side answers are defensive and no test can make them")
+            "a block entity with no level is defensive: a script call resolves one that is in a"
+                    + " level, and no test can make one without")
     @Override
     public boolean onServer(Object blockEntity) {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
@@ -45,20 +47,14 @@ public final class GrugBlockEntitySync implements GrugSavedDataSync.Transport {
     }
 
     /**
-     * The server sends the tracking players the data first and then the one block update that makes
-     * their client build the block's mesh again; the handler that meshes it is {@code
-     * GrugBlockEntity.onDataPacket}. A client's own block update is the adapter's, so this
-     * transport never sends two for one change.
+     * The server sends the tracking players the data, and the client's own {@code
+     * GrugBlockEntity.onDataPacket} marks its section and builds the block's mesh again. A server
+     * block update would not do that: the game broadcasts a block update packet, and the client
+     * drops it when the state is the one it already holds. A client's own redraw is the adapter's
+     * local mark, so this transport sends one packet per redraw and never a block update.
      */
     @Override
     public void redraw(Object blockEntity) {
-        GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
-        send(entity);
-        entity.getLevel()
-                .sendBlockUpdated(
-                        entity.getBlockPos(),
-                        entity.getBlockState(),
-                        entity.getBlockState(),
-                        net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
+        send((GrugBlockEntity) blockEntity);
     }
 }
