@@ -8,9 +8,11 @@
 # (GrugTestOrigin.LIFT), so the room's eye is the origin's y minus 3. It needs no capture: the eye
 # is the whole assertion, and a capture would only prove the same point again.
 
-# The test runs on every dedicated-server leg and run-multiplayer.sh requires it in each log,
-# because a leg that skipped it (its export reverted, or the loader listing it as unsupported)
-# would still pass its run with the parity unproven.
+# run-multiplayer.sh requires it in the log of every server leg that carries the parity, because a
+# leg that skipped it (its export reverted, or the loader listing it as unsupported) would still
+# pass its run with the parity unproven. The two Ornithe servers list it as unsupported (#1178):
+# their player keeps the feet where the client keeps the eye, so their room's floor is an eye
+# height above the joined client's and its camera never reads as the room's eye.
 export tick_any_side(ctx: TestTickContext) {
     # The first wait is for the client to have drawn the room, which is also when its camera has
     # arrived: the runner teleports the player to the room's start before the test, and the camera
