@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe;
 
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -48,6 +49,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     public GrugSide getSide() {
         return GrugSide.DEDICATED_SERVER;
     }
+
+    /**
+     * The screen calls this server makes, which its joined client performs: a server has no screen
+     * of its own, so every one of them is a round trip to the client of the player who started the
+     * run (#1094). A failure is a host function error, which fails the test.
+     */
+    private final GrugScreenCalls.Forwarded screens =
+            new GrugScreenCalls.Forwarded(
+                    GrugControlAlpha::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
     /**
      * Queues the placement for the joined client. {@code setBlockQuietly} writes the chunk without
@@ -198,14 +209,61 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         return true;
     }
 
-    /** Nothing to close: the screen belongs to a client, and a server has none. */
+    /**
+     * Closes the joined client's screen (#1094): this server has no screen of its own, so the call
+     * is the client's, and the client of the player who started the run performs it.
+     */
     @Override
-    public void closeOpenScreenForTest() {}
+    public void closeOpenScreenForTest() {
+        screens.closeScreen();
+    }
 
-    /** No screen can be open on a server. */
+    /** Whether the joined client of the player who started the run has a screen open (#1094). */
     @Override
     public boolean isScreenOpenForTest() {
-        return false;
+        return screens.screenOpen();
+    }
+
+    /** The client's screen width, measured by the client of the player who started the run. */
+    @Override
+    public double screenWidthForTest() {
+        return screens.read(GrugScreenCalls.SCREEN_WIDTH);
+    }
+
+    /** The client's GUI x, measured by the client of the player who started the run. */
+    @Override
+    public double guiLeftForTest() {
+        return screens.read(GrugScreenCalls.GUI_LEFT);
+    }
+
+    /** The client's GUI y, measured by the client of the player who started the run. */
+    @Override
+    public double guiTopForTest() {
+        return screens.read(GrugScreenCalls.GUI_TOP);
+    }
+
+    /** The client's GUI width, measured by the client of the player who started the run. */
+    @Override
+    public double guiWidthForTest() {
+        return screens.read(GrugScreenCalls.GUI_WIDTH);
+    }
+
+    /** The client's GUI height, measured by the client of the player who started the run. */
+    @Override
+    public double guiHeightForTest() {
+        return screens.read(GrugScreenCalls.GUI_HEIGHT);
+    }
+
+    /** Pressed on the client's screen, by the client of the player who started the run (#1094). */
+    @Override
+    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        return screens.pressScreenKey(key, ctrl, release);
+    }
+
+    /** Turned on the client's screen, by the client of the player who started the run (#1094). */
+    @Override
+    public boolean scrollScreen(double x, double y, double delta) {
+        return screens.scrollScreen(x, y, delta);
     }
 
     /**

@@ -1,0 +1,32 @@
+# Test.press_screen_key forwarded to a dedicated server's joined client (#1094): the keys are
+# pressed on the client's screen through the client's own key path, and the answer is whether an
+# overlay took the key. This runs only on 1.20.6, the leg whose server can open coverage_gui for its
+# player; the four older servers refuse GUI.open until #1098 gives them a server-side container, so
+# they list this test as unsupported. Ctrl+K is the key the coverage overlay takes, K without
+# control is left to the screen, and Escape (GLFW's 256) is left to the screen, which closes itself
+# on it. Only a multiplayer run that forwards client calls runs a forwarded_ test.
+started: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        Test.close_screen()
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_gui")
+        Test.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.not_done()
+        return
+    }
+    if not Test.screen_open() {
+        ctx.not_done()
+        return
+    }
+    ctx.assert(Test.press_screen_key(75, true, true), "Ctrl+K should be taken by the coverage overlay on the client.")
+    ctx.assert(not Test.press_screen_key(75, false, true), "K without control should be left to the client's screen.")
+    ctx.assert(not Test.press_screen_key(256, false, true), "Escape should be left to the client's screen.")
+    ctx.assert(not Test.screen_open(), "Escape should have closed the client's screen.")
+    # Escape closed the client's screen; the server's menu is closed here, so the panel this test
+    # opened does not outlive it.
+    Test.close_screen()
+}

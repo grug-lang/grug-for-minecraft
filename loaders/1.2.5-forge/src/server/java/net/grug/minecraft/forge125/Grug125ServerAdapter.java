@@ -2,6 +2,7 @@ package net.grug.minecraft.forge125;
 
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
+import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -38,6 +39,16 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     /** A player's eye is this far above their feet. */
     private static final double EYE_HEIGHT = 1.62;
 
+    /**
+     * The screen calls this server makes, which its joined client performs: a server has no screen
+     * of its own, so every one of them is a round trip to the client of the player who started the
+     * run (#1094). A failure is a host function error, which fails the test.
+     */
+    private final GrugScreenCalls.Forwarded screens =
+            new GrugScreenCalls.Forwarded(
+                    GrugControlServer125::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
     @Override
     public GrugSide getSide() {
         return GrugSide.DEDICATED_SERVER;
@@ -48,10 +59,10 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         refuseWithoutAClient("GUI.open");
     }
 
-    // The screen functions a client adapter implements, refused here rather than inherited, so a
-    // server says it has no client instead of saying this loader cannot drive a screen: 1.2.5's
-    // server adapter does not extend the client adapter, so it would otherwise answer with the
-    // interface's default.
+    // The screen functions a client adapter implements. The ones a test makes on a screen are
+    // forwarded to the client of the player who started the run (#1094); the ones that open a
+    // container are refused, because 1.2.5's GUI.open is a client-only screen over a client-only
+    // container and a click from it would carry slot ids this server does not have (#1098).
 
     @Override
     public void openInventory(Object playerObj) {
@@ -60,14 +71,12 @@ public class Grug125ServerAdapter extends Grug125Adapter {
 
     @Override
     public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
-        refuseWithoutAClient("Test.press_screen_key");
-        return false;
+        return screens.pressScreenKey(key, ctrl, release);
     }
 
     @Override
     public boolean scrollScreen(double x, double y, double delta) {
-        refuseWithoutAClient("Test.scroll_screen");
-        return false;
+        return screens.scrollScreen(x, y, delta);
     }
 
     @Override
@@ -78,32 +87,27 @@ public class Grug125ServerAdapter extends Grug125Adapter {
 
     @Override
     public double screenWidthForTest() {
-        refuseWithoutAClient("Test.screen_width");
-        return 0.0;
+        return screens.read(GrugScreenCalls.SCREEN_WIDTH);
     }
 
     @Override
     public double guiLeftForTest() {
-        refuseWithoutAClient("Test.gui_left");
-        return 0.0;
+        return screens.read(GrugScreenCalls.GUI_LEFT);
     }
 
     @Override
     public double guiWidthForTest() {
-        refuseWithoutAClient("Test.gui_width");
-        return 0.0;
+        return screens.read(GrugScreenCalls.GUI_WIDTH);
     }
 
     @Override
     public double guiTopForTest() {
-        refuseWithoutAClient("Test.gui_top");
-        return 0.0;
+        return screens.read(GrugScreenCalls.GUI_TOP);
     }
 
     @Override
     public double guiHeightForTest() {
-        refuseWithoutAClient("Test.gui_height");
-        return 0.0;
+        return screens.read(GrugScreenCalls.GUI_HEIGHT);
     }
 
     @Override
@@ -194,12 +198,20 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public void forgetSettledFrames() {}
 
+    /**
+     * Closes the joined client's screen (#1094). This server has no screen of its own: 1.2.5's GUI
+     * is a client-only object, so the call is the client's, and the client of the player who
+     * started the run performs it.
+     */
     @Override
-    public void closeOpenScreenForTest() {}
+    public void closeOpenScreenForTest() {
+        screens.closeScreen();
+    }
 
+    /** Whether the joined client of the player who started the run has a screen open (#1094). */
     @Override
     public boolean isScreenOpenForTest() {
-        return false;
+        return screens.screenOpen();
     }
 
     @Override

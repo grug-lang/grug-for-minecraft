@@ -1,8 +1,0 @@
-# A dedicated server has no client, so Test.scroll_screen must refuse with a host function error
-# naming the function instead of reaching for the client's own game class, which a server refuses to
-# load (#1064). The position and delta are valid, so the refusal is about the missing client and not
-# the arguments. See forwarded_screen_width_refused-Test for why this is a forwarded_ test.
-export tick(ctx: TestTickContext) {
-    ctx.expect_error("Test.scroll_screen: This needs a client")
-    Test.scroll_screen(0, 0, 1)
-}

@@ -1,7 +1,0 @@
-# A dedicated server has no client, so Test.gui_width must refuse with a host function error naming
-# the function instead of reaching for the client's own game class, which a server refuses to load
-# (#1064). See forwarded_screen_width_refused-Test for why this is a forwarded_ test.
-export tick(ctx: TestTickContext) {
-    ctx.expect_error("Test.gui_width: This needs a client")
-    Test.gui_width()
-}

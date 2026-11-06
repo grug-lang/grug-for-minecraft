@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
@@ -52,6 +53,16 @@ public class ServerForgeAdapter extends ForgeAdapter {
     public GrugSide getSide() {
         return GrugSide.DEDICATED_SERVER;
     }
+
+    /**
+     * The screen calls this server makes, which its joined client performs: a server has no screen
+     * of its own, so every one of them is a round trip to the client of the player who started the
+     * run (#1094). A failure is a host function error, which fails the test.
+     */
+    private final GrugScreenCalls.Forwarded screens =
+            new GrugScreenCalls.Forwarded(
+                    GrugControlForge::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
     /**
      * A dedicated server has no client, no integrated server and no save text to draw, and the
@@ -169,41 +180,80 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
-     * Closes the menu the test player has open, which is this server's half of closing the joined
+     * Closes the menu the test player has open, which this server's half of closing the joined
      * client's screen: {@code ServerPlayer.closeContainer} sends the packet that client closes it
-     * with. One client serves the whole run, so a screen a test opened outlives it, and a capture
-     * test that follows a GUI test would otherwise take a frame of the panel rather than of the
-     * world (#418). The inherited answer reaches for {@code Minecraft.getInstance()}, a client
-     * class the server refuses to load, and the runner calls this before the run's first test. See
-     * #167.
+     * with. The client is then asked to close its own screen too (#1094), because the screen call
+     * is the client's and a client that closed its screen itself (Escape, say) has already sent
+     * this server the packet that empties the menu. One client serves the whole run, so a screen a
+     * test opened outlives it, and a capture test that follows a GUI test would otherwise take a
+     * frame of the panel rather than of the world (#418). The inherited answer reaches for {@code
+     * Minecraft.getInstance()}, a client class the server refuses to load, and the runner calls
+     * this before the run's first test. See #167.
      */
     @Override
     public void closeOpenScreenForTest() {
         Object playerObj = testPlayer();
-        if (!(playerObj instanceof ServerPlayer)) return;
-        ServerPlayer player = (ServerPlayer) playerObj;
-        if (player.containerMenu != player.inventoryMenu) player.closeContainer();
+        if (playerObj instanceof ServerPlayer) {
+            ServerPlayer player = (ServerPlayer) playerObj;
+            if (player.containerMenu != player.inventoryMenu) player.closeContainer();
+        }
+        screens.closeScreen();
     }
 
     /**
-     * Whether the test player has a container open on this server, which is the menu the joined
-     * client's screen is built from.
+     * Whether the joined client of the player who started the run has a screen open (#1094).
      *
-     * <p>A test that clicks a block whose use export opens a GUI reaches {@code
-     * ServerPlayer.openMenu}, which sends the open-screen packet before it stores the menu here, so
-     * this answer is true while that packet may still be on its way to the client and says nothing
-     * about the client having drawn the screen. A right-click on a container opens the game's own
-     * menu the same way. So a test that asks this after such a click learns whether the window it
-     * opened exists for the player it runs as, and a regression that opens the GUI on a client
-     * instead, or does not open it at all, leaves it closed. What this does not answer is the
-     * client's own screen, which is a client-side object: asking it is what #1094 forwards.
+     * <p>This is the client's own screen, which is what a test that captures a panel waits for. It
+     * used to answer from this server's container menu, which is the menu that client's screen is
+     * built from: that answer turns true when {@code ServerPlayer.openMenu} stores the menu, before
+     * the open-screen packet has reached the client, so it did not say the client had drawn
+     * anything. The container menu is still this server's half of a click in item 2 of #1094.
      */
     @Override
     public boolean isScreenOpenForTest() {
-        Object playerObj = testPlayer();
-        if (!(playerObj instanceof ServerPlayer)) return false;
-        ServerPlayer player = (ServerPlayer) playerObj;
-        return player.containerMenu != player.inventoryMenu;
+        return screens.screenOpen();
+    }
+
+    /** The client's screen width, measured by the client of the player who started the run. */
+    @Override
+    public double screenWidthForTest() {
+        return screens.read(GrugScreenCalls.SCREEN_WIDTH);
+    }
+
+    /** The client's GUI x, measured by the client of the player who started the run. */
+    @Override
+    public double guiLeftForTest() {
+        return screens.read(GrugScreenCalls.GUI_LEFT);
+    }
+
+    /** The client's GUI y, measured by the client of the player who started the run. */
+    @Override
+    public double guiTopForTest() {
+        return screens.read(GrugScreenCalls.GUI_TOP);
+    }
+
+    /** The client's GUI width, measured by the client of the player who started the run. */
+    @Override
+    public double guiWidthForTest() {
+        return screens.read(GrugScreenCalls.GUI_WIDTH);
+    }
+
+    /** The client's GUI height, measured by the client of the player who started the run. */
+    @Override
+    public double guiHeightForTest() {
+        return screens.read(GrugScreenCalls.GUI_HEIGHT);
+    }
+
+    /** Pressed on the client's screen, by the client of the player who started the run (#1094). */
+    @Override
+    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        return screens.pressScreenKey(key, ctrl, release);
+    }
+
+    /** Turned on the client's screen, by the client of the player who started the run (#1094). */
+    @Override
+    public boolean scrollScreen(double x, double y, double delta) {
+        return screens.scrollScreen(x, y, delta);
     }
 
     /**

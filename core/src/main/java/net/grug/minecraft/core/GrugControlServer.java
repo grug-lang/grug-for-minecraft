@@ -67,22 +67,32 @@ public final class GrugControlServer {
         }
     }
 
+    /** What kind of answer a request waits for. */
+    private enum Answer {
+        /** A PNG, cut into {@link GrugControlWire#ANSWER_CHUNK}s. */
+        CHUNKS,
+        /** One byte, from an {@link GrugControlWire#ANSWER_VALUE}. */
+        VALUE,
+        /** One measurement, from an {@link GrugControlWire#ANSWER_NUMBER}. */
+        NUMBER
+    }
+
     private static final class Pending {
         final CompletableFuture<byte[]> png = new CompletableFuture<>();
         final int width;
         final int height;
 
-        /** A call, answered by a value; a capture is answered by chunks. */
-        final boolean call;
+        /** A capture is answered by chunks, a call by a value or a number. */
+        final Answer answer;
 
         byte[][] chunks = null;
         int received = 0;
         long bytes = 0;
 
-        Pending(int width, int height, boolean call) {
+        Pending(int width, int height, Answer answer) {
             this.width = width;
             this.height = height;
-            this.call = call;
+            this.answer = answer;
         }
     }
 
@@ -138,9 +148,7 @@ public final class GrugControlServer {
         if (!fromStarter) {
             return;
         }
-        if (message.type != GrugControlWire.ANSWER_ERROR
-                && message.type != GrugControlWire.ANSWER_CHUNK
-                && message.type != GrugControlWire.ANSWER_VALUE) {
+        if (!GrugControlWire.isAnswer(message.type)) {
             failAll("The client sent a control message of type " + message.type + ".");
             return;
         }
@@ -151,16 +159,30 @@ public final class GrugControlServer {
         }
         if (message.type == GrugControlWire.ANSWER_ERROR) {
             request.png.completeExceptionally(new ControlException(message.text));
-        } else if (request.call != (message.type == GrugControlWire.ANSWER_VALUE)) {
+        } else if (wrongKind(request.answer, message.type)) {
             request.png.completeExceptionally(
                     new ControlException(
                             "The client answered request "
                                     + message.id
                                     + " with the wrong kind of answer."));
-        } else if (request.call) {
+        } else if (request.answer == Answer.VALUE) {
             request.png.complete(new byte[] {message.value});
+        } else if (request.answer == Answer.NUMBER) {
+            request.png.complete(java.nio.ByteBuffer.allocate(8).putDouble(message.number).array());
         } else {
             accept(request, message);
+        }
+    }
+
+    /** Whether a message of type {@code type} is not the answer {@code answer} waits for. */
+    private static boolean wrongKind(Answer answer, byte type) {
+        switch (answer) {
+            case CHUNKS:
+                return type != GrugControlWire.ANSWER_CHUNK;
+            case VALUE:
+                return type != GrugControlWire.ANSWER_VALUE;
+            default:
+                return type != GrugControlWire.ANSWER_NUMBER;
         }
     }
 
@@ -245,7 +267,7 @@ public final class GrugControlServer {
                             + " starts a run when its player starts one.");
         }
         long id = nextId.getAndIncrement();
-        Pending request = new Pending(x2 - x1, y2 - y1, false);
+        Pending request = new Pending(x2 - x1, y2 - y1, Answer.CHUNKS);
         pending.put(id, request);
         long startNanos = System.nanoTime();
         try {
@@ -335,19 +357,65 @@ public final class GrugControlServer {
 
     /** Asks the starter's client whether the game has the sound under {@code path}. */
     public boolean hasSound(String path) throws ControlException {
-        byte result = call(GrugControlWire.CALL_HAS_SOUND, path, 0, 0);
-        if (result != 0 && result != 1) {
-            throw failure("The client answered has_sound with " + result + ", not 0 or 1.");
-        }
-        return result == 1;
+        byte result = call(GrugControlWire.CALL_HAS_SOUND, path, 0, 0, 0);
+        return yesOrNo(result, "has_sound");
     }
 
     /** Asks the starter's client to play the sound under {@code path}, and waits for its ack. */
     public void playUiSound(String path, double volume, double pitch) throws ControlException {
-        byte result = call(GrugControlWire.CALL_PLAY_UI_SOUND, path, volume, pitch);
+        byte result = call(GrugControlWire.CALL_PLAY_UI_SOUND, path, volume, pitch, 0);
         if (result != 1) {
             throw failure("The client answered play_ui_sound with " + result + ", not the ack 1.");
         }
+    }
+
+    /** Asks the starter's client whether it has a screen open (#1094). */
+    public boolean screenOpen() throws ControlException {
+        byte result = call(GrugControlWire.CALL_SCREEN_OPEN, "", 0, 0, 0);
+        return yesOrNo(result, "screen_open");
+    }
+
+    /**
+     * Asks the starter's client for one of its screen's measurements, named as {@link
+     * GrugScreenCalls} names them (#1094). A client with no screen open answers 0.
+     */
+    public double screenRead(String read) throws ControlException {
+        return number(GrugControlWire.CALL_SCREEN_READ, read, 0, 0, 0);
+    }
+
+    /**
+     * Asks the starter's client to press a key on its open screen, and answers whether an overlay
+     * took it (#1094).
+     */
+    public boolean pressScreenKey(int key, boolean ctrl, boolean release) throws ControlException {
+        byte result =
+                call(GrugControlWire.CALL_PRESS_SCREEN_KEY, "", key, ctrl ? 1 : 0, release ? 1 : 0);
+        return yesOrNo(result, "press_screen_key");
+    }
+
+    /**
+     * Asks the starter's client to turn its mouse wheel on its open screen, and answers whether an
+     * overlay took the movement (#1094).
+     */
+    public boolean scrollScreen(double x, double y, double delta) throws ControlException {
+        byte result = call(GrugControlWire.CALL_SCROLL_SCREEN, "", x, y, delta);
+        return yesOrNo(result, "scroll_screen");
+    }
+
+    /** Asks the starter's client to close its screen, and waits for its ack (#1094). */
+    public void closeScreen() throws ControlException {
+        byte result = call(GrugControlWire.CALL_CLOSE_SCREEN, "", 0, 0, 0);
+        if (result != 1) {
+            throw failure("The client answered close_screen with " + result + ", not the ack 1.");
+        }
+    }
+
+    /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
+    private static boolean yesOrNo(byte result, String call) throws ControlException {
+        if (result != 0 && result != 1) {
+            throw failure("The client answered " + call + " with " + result + ", not 0 or 1.");
+        }
+        return result == 1;
     }
 
     /**
@@ -386,7 +454,9 @@ public final class GrugControlServer {
         }
         byte result;
         try {
-            result = forward(GrugControlWire.CALL_WORLD_SETTLED, "", 0, 0, revision);
+            result =
+                    forward(GrugControlWire.CALL_WORLD_SETTLED, "", revision, 0, 0, Answer.VALUE)[
+                            0];
         } catch (ControlException e) {
             FAILED.set(true);
             throw e;
@@ -404,12 +474,55 @@ public final class GrugControlServer {
     }
 
     /** Why a call's arguments cannot be sent, or null: the same checks the client makes. */
-    static String callProblem(byte call, String name, double volume, double pitch) {
-        String problem = GrugSoundArgs.pathProblem(name);
-        if (problem == null && call == GrugControlWire.CALL_PLAY_UI_SOUND) {
-            problem = GrugSoundArgs.levelsProblem(volume, pitch);
+    static String callProblem(byte call, String name, double volume, double pitch, double third) {
+        switch (call) {
+            case GrugControlWire.CALL_SCREEN_READ:
+                return GrugScreenCalls.readProblem(name);
+            case GrugControlWire.CALL_PRESS_SCREEN_KEY:
+                String key = screenKeyProblem(volume);
+                if (key != null) return key;
+                return flagProblem(pitch, third);
+            case GrugControlWire.CALL_SCROLL_SCREEN:
+                return scrollProblem(volume, pitch, third);
+            case GrugControlWire.CALL_SCREEN_OPEN:
+            case GrugControlWire.CALL_CLOSE_SCREEN:
+                return null;
+            default:
+                String problem = GrugSoundArgs.pathProblem(name);
+                if (problem == null && call == GrugControlWire.CALL_PLAY_UI_SOUND) {
+                    problem = GrugSoundArgs.levelsProblem(volume, pitch);
+                }
+                return problem;
         }
-        return problem;
+    }
+
+    /** Why a forwarded key press carries what it cannot, or null. The key is the first number. */
+    private static String screenKeyProblem(double key) {
+        if (!Double.isFinite(key) || key != Math.floor(key) || key < 0) {
+            return "The key has to be a whole number from 0 up, and was " + key + ".";
+        }
+        return null;
+    }
+
+    /** Why the two flags of a forwarded key press are not booleans, or null. */
+    private static String flagProblem(double ctrl, double release) {
+        for (double flag : new double[] {ctrl, release}) {
+            if (flag != 0 && flag != 1) {
+                return "A key press flag has to be 0 or 1, and was " + flag + ".";
+            }
+        }
+        return null;
+    }
+
+    /** Why a forwarded wheel movement cannot be sent, or null. */
+    private static String scrollProblem(double x, double y, double delta) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            return "The position has to be finite.";
+        }
+        if (!Double.isFinite(delta)) {
+            return "The delta has to be finite.";
+        }
+        return null;
     }
 
     /**
@@ -417,13 +530,31 @@ public final class GrugControlServer {
      * the world frozen as in {@link #capture}. The arguments are checked here as well as by the
      * host function, so a caller that skipped it still cannot send what the client would refuse.
      */
-    private byte call(byte call, String name, double volume, double pitch) throws ControlException {
-        String problem = callProblem(call, name, volume, pitch);
+    private byte call(byte call, String name, double volume, double pitch, double third)
+            throws ControlException {
+        String problem = callProblem(call, name, volume, pitch, third);
         if (problem != null) {
             throw failure("The call was not sent: " + problem);
         }
         try {
-            return forward(call, name, volume, pitch, 0);
+            return forward(call, name, volume, pitch, third, Answer.VALUE)[0];
+        } catch (ControlException e) {
+            FAILED.set(true);
+            throw e;
+        }
+    }
+
+    /** Forwards a call whose answer is a measurement, as {@link #call} forwards one with a byte. */
+    private double number(byte call, String name, double volume, double pitch, double third)
+            throws ControlException {
+        String problem = callProblem(call, name, volume, pitch, third);
+        if (problem != null) {
+            throw failure("The call was not sent: " + problem);
+        }
+        try {
+            return java.nio.ByteBuffer.wrap(
+                            forward(call, name, volume, pitch, third, Answer.NUMBER))
+                    .getDouble();
         } catch (ControlException e) {
             FAILED.set(true);
             throw e;
@@ -431,11 +562,13 @@ public final class GrugControlServer {
     }
 
     /**
-     * Forwards one client-only call to the starter's client and waits for its one-byte result, with
-     * the world frozen as in {@link #capture}. {@code revision} is the world revision a {@link
-     * GrugControlWire#CALL_WORLD_SETTLED} asks about, and is unused by the sound calls.
+     * Forwards one client-only call to the starter's client and waits for its answer, with the
+     * world frozen as in {@link #capture}. The three numbers are the call's own: a settle ask puts
+     * its world revision in the first, a sound call its volume and pitch in the first two, and a
+     * screen call the arguments {@link GrugControlWire} documents for it.
      */
-    private byte forward(byte call, String name, double volume, double pitch, long revision)
+    private byte[] forward(
+            byte call, String name, double volume, double pitch, double third, Answer answer)
             throws ControlException {
         Object to = starter.get();
         if (to == null) {
@@ -444,24 +577,25 @@ public final class GrugControlServer {
                             + " client starts a run when its player starts one.");
         }
         long id = nextId.getAndIncrement();
-        Pending request = new Pending(0, 0, true);
+        Pending request = new Pending(0, 0, answer);
         pending.put(id, request);
         long startNanos = System.nanoTime();
         try {
-            // No flushWorld here: a sound call depends on no world state, and flushing sends the
-            // queued block changes to the client early, which changed what a later test's client
-            // saw (a chest removed by an explosion before its block entity arrived, on b1.7.3). A
-            // settle ask flushes before it reaches here, because its answer is about those changes.
+            // No flushWorld here: a sound or screen call depends on no world state, and flushing
+            // sends the queued block changes to the client early, which changed what a later
+            // test's client saw (a chest removed by an explosion before its block entity arrived,
+            // on b1.7.3). A settle ask flushes before it reaches here, because its answer is about
+            // those changes.
             byte[] message =
                     call == GrugControlWire.CALL_WORLD_SETTLED
-                            ? GrugControlWire.worldSettledRequest(id, revision)
-                            : GrugControlWire.callRequest(id, call, name, volume, pitch);
+                            ? GrugControlWire.worldSettledRequest(id, (long) volume)
+                            : GrugControlWire.callRequest(id, call, name, volume, pitch, third);
             System.out.println(
                     "[GRUG CONTROL] request "
                             + id
                             + ": "
                             + (call == GrugControlWire.CALL_WORLD_SETTLED
-                                    ? "world_settled at revision " + revision
+                                    ? "world_settled at revision " + (long) volume
                                     : "call " + call + " \"" + name + "\"")
                             + " sent to "
                             + to
@@ -470,8 +604,14 @@ public final class GrugControlServer {
                 throw new ControlException(
                         "The player who started the run is not connected any more.");
             }
-            byte result = await(request, id)[0];
-            System.out.println("[GRUG CONTROL] request " + id + " answered: " + result);
+            byte[] result = await(request, id);
+            System.out.println(
+                    "[GRUG CONTROL] request "
+                            + id
+                            + " answered: "
+                            + (answer == Answer.NUMBER
+                                    ? String.valueOf(java.nio.ByteBuffer.wrap(result).getDouble())
+                                    : String.valueOf(result[0])));
             return result;
         } finally {
             pending.remove(id);

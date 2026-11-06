@@ -1,8 +1,0 @@
-# A dedicated server has no client, so Test.screen_width must refuse with a host function error
-# naming the function instead of reaching for the client's own game class, which a server refuses to
-# load (#1064). Only a run that forwards client calls runs a forwarded_ test, and the screen
-# functions are not forwarded, so this is the run that asks a server for one.
-export tick(ctx: TestTickContext) {
-    ctx.expect_error("Test.screen_width: This needs a client")
-    Test.screen_width()
-}

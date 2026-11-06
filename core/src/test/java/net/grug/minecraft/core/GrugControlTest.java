@@ -92,6 +92,31 @@ class GrugControlTest {
                 public void forgetSettledFrames() {
                     throw new AssertionError("no settle ask was expected");
                 }
+
+                @Override
+                public boolean screenOpen() {
+                    throw new AssertionError("no screen call was expected");
+                }
+
+                @Override
+                public double screenRead(String read) {
+                    throw new AssertionError("no screen call was expected");
+                }
+
+                @Override
+                public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+                    throw new AssertionError("no screen call was expected");
+                }
+
+                @Override
+                public boolean scrollScreen(double x, double y, double delta) {
+                    throw new AssertionError("no screen call was expected");
+                }
+
+                @Override
+                public void closeScreen() {
+                    throw new AssertionError("no screen call was expected");
+                }
             };
 
     private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
@@ -124,6 +149,31 @@ class GrugControlTest {
         public void forgetSettledFrames() {
             throw new AssertionError("no settle ask was expected");
         }
+
+        @Override
+        public boolean screenOpen() {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public double screenRead(String read) {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public boolean scrollScreen(double x, double y, double delta) {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public void closeScreen() {
+            throw new AssertionError("no screen call was expected");
+        }
     }
 
     /** A client whose settle answer the test decides, and which counts the frames it forgets. */
@@ -149,6 +199,92 @@ class GrugControlTest {
         @Override
         public void forgetSettledFrames() {
             forgotten++;
+        }
+
+        @Override
+        public boolean screenOpen() {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public double screenRead(String read) {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public boolean scrollScreen(double x, double y, double delta) {
+            throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public void closeScreen() {
+            throw new AssertionError("no screen call was expected");
+        }
+    }
+
+    /** A client whose screen answers the test decides, and which records the calls it gets. */
+    private static final class ScreenCalls implements GrugControlClient.Caller {
+        final List<String> seen = new ArrayList<>();
+        boolean open = true;
+        boolean keyTaken = true;
+        boolean scrollTaken = false;
+        double read = 176.0;
+        boolean closed;
+
+        @Override
+        public boolean hasSound(String path) {
+            throw new AssertionError("no sound call was expected");
+        }
+
+        @Override
+        public void playUiSound(String path, double volume, double pitch) {
+            throw new AssertionError("no sound call was expected");
+        }
+
+        @Override
+        public boolean isWorldSettled() {
+            throw new AssertionError("no settle ask was expected");
+        }
+
+        @Override
+        public void forgetSettledFrames() {
+            throw new AssertionError("no settle ask was expected");
+        }
+
+        @Override
+        public boolean screenOpen() {
+            seen.add("screenOpen");
+            return open;
+        }
+
+        @Override
+        public double screenRead(String read) {
+            seen.add("read " + read);
+            return this.read;
+        }
+
+        @Override
+        public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+            seen.add("key " + key + " " + ctrl + " " + release);
+            return keyTaken;
+        }
+
+        @Override
+        public boolean scrollScreen(double x, double y, double delta) {
+            seen.add("scroll " + x + " " + y + " " + delta);
+            return scrollTaken;
+        }
+
+        @Override
+        public void closeScreen() {
+            seen.add("close");
+            closed = true;
+            open = false;
         }
     }
 
@@ -951,6 +1087,45 @@ class GrugControlTest {
                 assertThrows(
                         GrugControlServer.ControlException.class, () -> valued.capture(0, 0, 4, 4));
         assertTrue(wrongToo.getMessage().contains("wrong kind of answer"), wrongToo.getMessage());
+
+        // A number answering a value call, and a value answering a number call, are each the wrong
+        // kind too.
+        GrugControlServer numbered = new GrugControlServer(link, 5000);
+        numbered.onMessage(PLAYER, GrugControlWire.runStart());
+        int numberedBefore = sent.size();
+        Thread numberer =
+                new Thread(
+                        () -> {
+                            awaitSent(sent, numberedBefore + 1);
+                            long id = GrugControlWire.decode(sent.get(sent.size() - 1)).id;
+                            numbered.onMessage(PLAYER, GrugControlWire.answerNumber(id, 176.0));
+                        });
+        numberer.start();
+        GrugControlServer.ControlException wrongValue =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> numbered.hasSound("random.click"));
+        assertTrue(
+                wrongValue.getMessage().contains("wrong kind of answer"), wrongValue.getMessage());
+
+        GrugControlServer measured = new GrugControlServer(link, 5000);
+        measured.onMessage(PLAYER, GrugControlWire.runStart());
+        int measuredBefore = sent.size();
+        Thread measuredValuer =
+                new Thread(
+                        () -> {
+                            awaitSent(sent, measuredBefore + 1);
+                            long id = GrugControlWire.decode(sent.get(sent.size() - 1)).id;
+                            measured.onMessage(PLAYER, GrugControlWire.answerValue(id, (byte) 1));
+                        });
+        measuredValuer.start();
+        GrugControlServer.ControlException wrongNumber =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> measured.screenRead(GrugScreenCalls.SCREEN_WIDTH));
+        assertTrue(
+                wrongNumber.getMessage().contains("wrong kind of answer"),
+                wrongNumber.getMessage());
     }
 
     private static void awaitSent(List<byte[]> sent, int count) {
@@ -969,7 +1144,12 @@ class GrugControlTest {
         GrugControlWire.Message call =
                 GrugControlWire.decode(
                         GrugControlWire.callRequest(
-                                5, GrugControlWire.CALL_PLAY_UI_SOUND, "random.click", 0.25, 1.5));
+                                5,
+                                GrugControlWire.CALL_PLAY_UI_SOUND,
+                                "random.click",
+                                0.25,
+                                1.5,
+                                0));
         assertEquals(GrugControlWire.CALL_REQUEST, call.type);
         assertEquals(5, call.id);
         assertEquals(GrugControlWire.CALL_PLAY_UI_SOUND, call.call);
@@ -982,6 +1162,36 @@ class GrugControlTest {
         assertEquals(GrugControlWire.ANSWER_VALUE, value.type);
         assertEquals(1, value.value);
 
+        // A measurement comes back as its own kind of answer, a whole double in eight bytes.
+        GrugControlWire.Message number =
+                GrugControlWire.decode(GrugControlWire.answerNumber(7, 123.5));
+        assertEquals(GrugControlWire.ANSWER_NUMBER, number.type);
+        assertEquals(7, number.id);
+        assertEquals(123.5, number.number);
+
+        // A screen call carries its arguments in the call's three number slots.
+        GrugControlWire.Message press =
+                GrugControlWire.decode(
+                        GrugControlWire.callRequest(
+                                8, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75, 1, 0));
+        assertEquals(75, press.volume);
+        assertEquals(1, press.pitch);
+        assertEquals(0, press.third);
+
+        assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_ERROR));
+        assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_CHUNK));
+        assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_VALUE));
+        assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_NUMBER));
+        assertFalse(GrugControlWire.isAnswer(GrugControlWire.CALL_REQUEST));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_HAS_SOUND));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCREEN_OPEN));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCREEN_READ));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_PRESS_SCREEN_KEY));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCROLL_SCREEN));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLOSE_SCREEN));
+        assertFalse(GrugControlWire.isCall((byte) 0));
+        assertFalse(GrugControlWire.isCall((byte) 9));
+
         // A settle ask carries its revision in the volume slot, whole for every revision a run
         // reaches.
         GrugControlWire.Message settled =
@@ -992,19 +1202,29 @@ class GrugControlTest {
         assertEquals("", settled.text);
         assertEquals(1_234_567_890_123L, (long) settled.volume);
 
-        byte[] unknown = GrugControlWire.callRequest(1, (byte) 9, "x", 0, 0);
+        byte[] unknown = GrugControlWire.callRequest(1, (byte) 9, "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
-                GrugControlWire.callRequest(1, GrugControlWire.CALL_HAS_SOUND, "x", Double.NaN, 0);
+                GrugControlWire.callRequest(
+                        1, GrugControlWire.CALL_HAS_SOUND, "x", Double.NaN, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(nan));
         byte[] nanPitch =
-                GrugControlWire.callRequest(1, GrugControlWire.CALL_HAS_SOUND, "x", 0, Double.NaN);
+                GrugControlWire.callRequest(
+                        1, GrugControlWire.CALL_HAS_SOUND, "x", 0, Double.NaN, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(nanPitch));
+        byte[] nanThird =
+                GrugControlWire.callRequest(
+                        1, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 0, 0, Double.NaN);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(nanThird));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(GrugControlWire.answerNumber(1, Double.NaN)));
         byte[] longName =
                 GrugControlWire.callRequest(
                         1,
                         GrugControlWire.CALL_HAS_SOUND,
                         "a".repeat(GrugControlWire.MAX_NAME + 1),
+                        0,
                         0,
                         0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(longName));
@@ -1013,6 +1233,7 @@ class GrugControlTest {
                         1,
                         GrugControlWire.CALL_HAS_SOUND,
                         "a".repeat(GrugControlWire.MAX_NAME),
+                        0,
                         0,
                         0);
         assertEquals(GrugControlWire.MAX_NAME, GrugControlWire.decode(atCap).text.length());
@@ -1039,16 +1260,147 @@ class GrugControlTest {
                                                             : " " + args[0]));
                                     return method.getReturnType() == boolean.class
                                             ? Boolean.TRUE
-                                            : null;
+                                            : method.getReturnType() == double.class ? 0.0 : null;
                                 });
         GrugControlClient.Caller caller = GrugControlClient.adapterCaller(() -> adapter);
+        // The screen calls share whether a screen was already open, so start from closed.
+        GrugScreenCalls.closeScreen(adapter);
+        seen.clear();
         assertTrue(caller.hasSound("a"));
         caller.playUiSound("b", 1, 1);
         assertTrue(caller.isWorldSettled());
         caller.forgetSettledFrames();
+        assertTrue(caller.screenOpen());
+        assertEquals(0.0, caller.screenRead(GrugScreenCalls.GUI_LEFT));
+        assertTrue(caller.pressScreenKey(1, true, false));
+        assertTrue(caller.scrollScreen(2, 3, -1));
+        caller.closeScreen();
         assertEquals(
-                List.of("hasSound a", "playUiSound b", "isWorldSettled", "forgetSettledFrames"),
+                List.of(
+                        "hasSound a",
+                        "playUiSound b",
+                        "isWorldSettled",
+                        "forgetSettledFrames",
+                        "isScreenOpenForTest",
+                        "forgetSettledFrames",
+                        "guiLeftForTest",
+                        "pressScreenKey 1",
+                        "scrollScreen 2.0",
+                        "closeOpenScreenForTest"),
                 seen);
+    }
+
+    @Test
+    void aForwardedScreenCallIsAskedOfTheClientAndAnswered() throws Exception {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+        GrugScreenCalls.Forwarded forwarded =
+                new GrugScreenCalls.Forwarded(
+                        () -> loop.server,
+                        message -> {
+                            throw new AssertionError(message);
+                        });
+
+        assertTrue(forwarded.screenOpen());
+        assertEquals(176.0, forwarded.read(GrugScreenCalls.GUI_WIDTH));
+        assertTrue(forwarded.pressScreenKey(75, true, false));
+        assertFalse(forwarded.scrollScreen(10, 20, -1));
+        // The other side of each answer, so both a taken and a left-alone call are asked.
+        screens.open = false;
+        assertFalse(forwarded.screenOpen());
+        screens.keyTaken = false;
+        assertFalse(forwarded.pressScreenKey(75, false, true));
+        screens.scrollTaken = true;
+        assertTrue(forwarded.scrollScreen(10, 20, 1));
+        forwarded.closeScreen();
+        assertTrue(screens.closed);
+        assertEquals(
+                List.of(
+                        "screenOpen",
+                        "read gui_width",
+                        "key 75 true false",
+                        "scroll 10.0 20.0 -1.0",
+                        "screenOpen",
+                        "key 75 false true",
+                        "scroll 10.0 20.0 1.0",
+                        "close"),
+                screens.seen);
+    }
+
+    @Test
+    void screenCallArgumentsThatCannotBeSentAreRefused() {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+        GrugControlServer server = loop.server;
+        GrugControlServer.clearFailure();
+
+        GrugControlServer.ControlException key =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server.pressScreenKey(-1, false, false));
+        assertTrue(key.getMessage().contains("whole number from 0 up"), key.getMessage());
+
+        GrugControlServer.ControlException x =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server.scrollScreen(Double.NaN, 0, 0));
+        assertTrue(x.getMessage().contains("position has to be finite"), x.getMessage());
+        GrugControlServer.ControlException y =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server.scrollScreen(0, Double.POSITIVE_INFINITY, 0));
+        assertTrue(y.getMessage().contains("position has to be finite"), y.getMessage());
+        GrugControlServer.ControlException delta =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server.scrollScreen(0, 0, Double.NEGATIVE_INFINITY));
+        assertTrue(delta.getMessage().contains("delta has to be finite"), delta.getMessage());
+
+        GrugControlServer.ControlException named =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> server.screenRead("bogus"));
+        assertTrue(named.getMessage().contains("no screen read named bogus"), named.getMessage());
+        GrugControlServer.ControlException unnamed =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> server.screenRead(null));
+        assertTrue(unnamed.getMessage().contains("has no name"), unnamed.getMessage());
+
+        assertTrue(loop.toClient.isEmpty());
+        assertTrue(GrugControlServer.failed());
+    }
+
+    @Test
+    void aCloseScreenAnswerThatIsNotTheAckFailsTheCall() {
+        GrugControlServer[] server = new GrugControlServer[1];
+        GrugControlServer.Link link =
+                new GrugControlServer.Link() {
+                    @Override
+                    public boolean sendToStarter(Object starter, byte[] message) {
+                        long id = GrugControlWire.decode(message).id;
+                        server[0].onMessage(PLAYER, GrugControlWire.answerValue(id, (byte) 0));
+                        return true;
+                    }
+
+                    @Override
+                    public void flushWorld() {}
+
+                    @Override
+                    public boolean mayStartRun(Object sender) {
+                        return true;
+                    }
+                };
+        server[0] = new GrugControlServer(link, 1000);
+        server[0].onMessage(PLAYER, GrugControlWire.runStart());
+        GrugControlServer.clearFailure();
+
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> server[0].closeScreen());
+
+        assertTrue(e.getMessage().contains("not the ack 1"), e.getMessage());
+        assertTrue(GrugControlServer.failed());
     }
 
     @Test
@@ -1076,6 +1428,31 @@ class GrugControlTest {
                             public void forgetSettledFrames() {
                                 throw new AssertionError("no settle ask was expected");
                             }
+
+                            @Override
+                            public boolean screenOpen() {
+                                throw new AssertionError("no screen call was expected");
+                            }
+
+                            @Override
+                            public double screenRead(String read) {
+                                throw new AssertionError("no screen call was expected");
+                            }
+
+                            @Override
+                            public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+                                throw new AssertionError("no screen call was expected");
+                            }
+
+                            @Override
+                            public boolean scrollScreen(double x, double y, double delta) {
+                                throw new AssertionError("no screen call was expected");
+                            }
+
+                            @Override
+                            public void closeScreen() {
+                                throw new AssertionError("no screen call was expected");
+                            }
                         });
         loop.client.beginRun();
         loop.toServer.clear();
@@ -1088,10 +1465,52 @@ class GrugControlTest {
                             GrugControlWire.CALL_PLAY_UI_SOUND,
                             "x",
                             Double.POSITIVE_INFINITY,
-                            1),
-                    GrugControlWire.callRequest(3, GrugControlWire.CALL_PLAY_UI_SOUND, "x", 2, 1),
-                    GrugControlWire.callRequest(3, GrugControlWire.CALL_PLAY_UI_SOUND, "x", 1, 0.1),
-                    GrugControlWire.callRequest(3, GrugControlWire.CALL_HAS_SOUND, "Bad Name", 0, 0)
+                            1,
+                            0),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_PLAY_UI_SOUND, "x", 2, 1, 0),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_PLAY_UI_SOUND, "x", 1, 0.1, 0),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_HAS_SOUND, "Bad Name", 0, 0, 0),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75, 2, 0),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75, 0, 2),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75.5, 0, 0),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", -1, 0, 0),
+                    GrugControlWire.callRequest(
+                            3,
+                            GrugControlWire.CALL_PRESS_SCREEN_KEY,
+                            "",
+                            Double.POSITIVE_INFINITY,
+                            0,
+                            0),
+                    GrugControlWire.callRequest(
+                            3,
+                            GrugControlWire.CALL_SCROLL_SCREEN,
+                            "",
+                            Double.POSITIVE_INFINITY,
+                            0,
+                            0),
+                    GrugControlWire.callRequest(
+                            3,
+                            GrugControlWire.CALL_SCROLL_SCREEN,
+                            "",
+                            0,
+                            Double.POSITIVE_INFINITY,
+                            0),
+                    GrugControlWire.callRequest(
+                            3,
+                            GrugControlWire.CALL_SCROLL_SCREEN,
+                            "",
+                            0,
+                            0,
+                            Double.NEGATIVE_INFINITY),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_SCREEN_READ, "bogus", 0, 0, 0)
                 }) {
             loop.client.onMessage(bad);
             GrugControlWire.Message answer =
