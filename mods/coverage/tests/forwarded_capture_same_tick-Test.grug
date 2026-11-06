@@ -3,11 +3,13 @@
 # placed it (#1123).
 # A loader sends its queued block changes from its player manager's tick, which the server runs
 # after the world's own tick, and a test's tick runs at the end of the world's, so a frozen test
-# never reaches it. The settle ask therefore flushes them itself, as b1.7.3-ornithe's does; Alpha's
-# used to do nothing, which is what this test is about. With the flush the block packet is queued
-# before the settle ask, so the frames the ask waits for are drawn after it and the wall is in the
-# frame that follows; without it the wall sits in the queue while the frozen server is asked, the
-# settle answer is about a frame without it, and the capture reads the room.
+# never reaches it. Alpha's flush used to do nothing, which is what this test is about. A capture
+# asks the server to flush the queue before it sends the capture request, so the client has the wall
+# when it draws the frame that is read; without the flush the wall sits in the queue and the capture
+# reads the room. Alpha's block update packet is delayed while the control packet is immediate, so a
+# flush can reach the wire just after the request: the settle wait's first answer can be 0, and a
+# later ask sees the change once the connection has written it. That is why the wait loops and why
+# the capture, not the first settle answer, is the assertion.
 # Only a multiplayer run that forwards client calls runs a forwarded_ test.
 room: Option[Screenshot] = Option.new()
 
@@ -30,8 +32,9 @@ export tick(ctx: TestTickContext) {
 }
 
 # Asks the joined client whether it has drawn the world the placement made, again in this one
-# tick: the first ask tells it the revision the placement gave, and the ones after it answer only
-# once the frames it draws are the settled ones, so the capture that follows reads the wall.
+# tick. The first ask tells it the revision the placement gave; Alpha can answer it before the
+# delayed block packet is written, so the loop asks until a frame drawn after the change settles,
+# and the capture that follows reads the wall.
 local _wait_for_the_wall(ctx: TestTickContext) {
     settled: bool = Test.world_settled()
     asks: number = 1
