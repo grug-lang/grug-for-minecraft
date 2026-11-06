@@ -5,12 +5,13 @@ import net.grug.minecraft.grug.GrugScreenshots;
 /**
  * Whether the frame a capture would read is one the client had no work left in.
  *
- * <p>A capture reads the frame the client drew last, so "the renderer has no pending rebuilds" is
- * not on its own enough: the renderer can go idle between two frames (on 1.20.6 a compile finishing
- * on a worker thread empties its queues; on the older loaders a window resize or the world load
- * leaves the frame before it at the wrong size or with the fixture missing), and a check made on a
- * later game tick would then pass while the frame the capture reads is still the older one. The
- * game draws fewer frames than it runs ticks, so a tick-based answer cannot see that difference.
+ * <p>A capture reads the last frame the client drew, or on the loaders that read the back buffer
+ * the frame before it, so "the renderer has no pending rebuilds" is not on its own enough: the
+ * renderer can go idle between two frames (on 1.20.6 a compile finishing on a worker thread empties
+ * its queues; on the older loaders a window resize or the world load leaves the frame before it at
+ * the wrong size or with the fixture missing), and a check made on a later game tick would then
+ * pass while the frame the capture reads is still the older one. The game draws fewer frames than
+ * it runs ticks, so a tick-based answer cannot see that difference.
  *
  * <p>The loader therefore calls {@link #onFrame} from its own frame hook, with whether the frame
  * that just finished still had work in it and whether the client still owed a test's block edit,
@@ -56,10 +57,11 @@ public final class GrugRenderSettle {
      * Whether the frame a capture would read had nothing pending, so the capture would read the
      * settled scene.
      *
-     * <p>The frame a capture reads is one behind the last one drawn: on this stack the back buffer
-     * it reads holds what the previous swap left there, which is the frame before the last. So the
-     * last two frames have to have ended idle for the one the capture reads to have. False before
-     * two frames have been drawn, when there is nothing settled to read yet.
+     * <p>On the loaders that read the back buffer, the frame a capture reads is one behind the last
+     * one drawn: the back buffer holds what the previous swap left there. On 1.20.6 the capture is
+     * served at the end of the frame just drawn, where one idle frame would do, but the same
+     * two-frame wait is kept so one rule covers both paths. False before two frames have been
+     * drawn, when there is nothing settled to read yet.
      */
     public synchronized boolean settled() {
         return frames - lastBusyFrame >= 2;
