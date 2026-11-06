@@ -7,6 +7,10 @@
 # Only the icon's opaque pixels change colour, and about 65 percent of its 16 by 16 texels are opaque. The
 # ask is 50 percent, below the roughly 60 a full swap should give and far above the 0 two captures of an
 # unchanged frame give. A frame caught before the reload finished would fall short of it.
+# It runs on a dedicated server as well since 1.2.5's server opens the GUI (#1098): that server answers a
+# resource change at once and its joined client polls the mods tree itself, so the reload the capture waits
+# for happens on the client the frame comes from. 1.20.6 lists it unsupported, because its joined client
+# never sees a change to the mods tree and the swap would never reach a frame.
 # The GUI is the same one item_icon-Test.grug captures, opened through coverage_block's use export, so its
 # slot is at (466, 162) in the frame.
 # The "normal" state at the end puts the shipped texture back, and a run that dies before it gets there is
@@ -18,13 +22,13 @@ reload_baseline: number = -1
 path: string = "coverage/assets/grug/textures/item/coverage_item.png"
 before: Option[Screenshot] = Option.new()
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
     } else if not Test.screen_open() {
-        # On 1.20.6 the screen is opened by a packet from the server, so it is not open when use_block
-        # returns. See #418, #421.
+        # On a server the screen is opened by a packet from the server, so it is not open when
+        # use_block returns. See #418, #421.
         ctx.not_done()
     } else if not Test.world_settled() {
         # The panel is only on screen once a frame holding it has been drawn, as in the other GUI tests.

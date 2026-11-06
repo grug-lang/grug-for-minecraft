@@ -7,15 +7,19 @@ import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
+import net.grug.minecraft.forge125.client.GrugContainer;
 import net.grug.minecraft.forge125.control.GrugControlServer125;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
+import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerMP;
+import net.minecraft.src.IInventory;
+import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
 
 import java.awt.image.BufferedImage;
@@ -29,10 +33,11 @@ import java.util.Set;
 /**
  * The adapter for a 1.2.5 dedicated server: everything that is not about which process this is
  * lives in {@link Grug125Adapter}, and what a server answers differently (the level and the player
- * handles, no screens, no frames, no sound, no capture) is here. The server has no client, so the
- * client-only functions refuse themselves through {@code ModLoaderAdapter.refuseWithoutAClient};
- * {@code useBlockForTest} is not one of them and is overridden, so the server right-clicks in its
- * own world, the world the test reads (#1090).
+ * handles, no frames, no sound, no capture) is here. The server has no client, so the client-only
+ * functions refuse themselves through {@code ModLoaderAdapter.refuseWithoutAClient}; {@code
+ * useBlockForTest} is not one of them and is overridden, so the server right-clicks in its own
+ * world, the world the test reads (#1090). {@code GUI.open} is not one either: the server owns the
+ * container and the client shows it (#1098).
  *
  * <p>Excluded from coverage because only the dispatch-only multiplayer job launches a server
  * (#166).
@@ -66,13 +71,50 @@ public class Grug125ServerAdapter extends Grug125Adapter {
 
     @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
-        refuseWithoutAClient("GUI.open");
+        EntityPlayerMP player = (EntityPlayerMP) playerObj;
+        IInventory inventory = (IInventory) blockEntityObj;
+        TileEntity blockEntity = (TileEntity) blockEntityObj;
+        GrugGuiBuilder layout = (GrugGuiBuilder) guiBuilderObj;
+
+        // Whatever container the player had open is closed first, as vanilla does before it
+        // installs the next one, so nothing keeps sending that container's slots.
+        player.closeCraftingGui();
+
+        GrugContainer container = new GrugContainer(player, inventory, layout);
+        int windowId = nextWindowId();
+        container.windowId = windowId;
+        player.craftingInventory = container;
+
+        // The layout goes first: the client builds its own container from it, numbered the same
+        // way, and the slot contents onCraftGuiOpened sends below then land in that container. A
+        // client whose copy of the block entity has not arrived yet builds it on a placeholder
+        // (#425) and is filled by the same packets.
+        player.playerNetServerHandler.sendPacket(
+                new GrugScreenPacket(
+                        windowId,
+                        blockEntity.xCoord,
+                        blockEntity.yCoord,
+                        blockEntity.zCoord,
+                        layout));
+        container.onCraftGuiOpened(player);
     }
 
+    /**
+     * The window id the next {@code GUI.open} installs its container under, one after another as
+     * vanilla's own counter does. It must not be 0: the client treats window 0 as the player's own
+     * inventory, so a container opened under it would never receive the slot contents.
+     */
+    private static int nextWindowId() {
+        windowId = windowId % 99 + 1;
+        return windowId;
+    }
+
+    private static int windowId = 0;
+
     // The screen functions a client adapter implements. The ones a test makes on a screen are
-    // forwarded to the client of the player who started the run (#1094); the ones that open a
-    // container are refused, because 1.2.5's GUI.open is a client-only screen over a client-only
-    // container and a click from it would carry slot ids this server does not have (#1098).
+    // forwarded to the client of the player who started the run (#1094); GUI.open builds the block
+    // entity's container here, so the client's screen is the one this server's slots belong to
+    // (#1098). The functions that open or click a screen of their own are still refused.
 
     @Override
     public void openInventory(Object playerObj) {

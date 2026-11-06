@@ -10,12 +10,13 @@
 # because the items it draws are the player's own and no golden can hold them: crafting.png draws the slots
 # empty, so the row of the hotbar has to differ from the row of the main inventory above it only if the builder
 # put the player's slots there and the menu drew the diamond in one of them.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
     } else if not Test.screen_open() {
-        # On 1.20.6 the screen is opened by a packet, so wait for the screen itself. See item_icon-Test.
+        # On a server the screen is opened by a packet, so wait for the screen itself. See
+        # item_icon-Test.
         ctx.not_done()
     } else if not Test.world_settled() {
         ctx.not_done()

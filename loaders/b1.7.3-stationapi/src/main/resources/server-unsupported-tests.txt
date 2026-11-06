@@ -11,8 +11,15 @@ coverage/tests/block_shape-Test.grug
 # The GUI a server opens for its player. Test.screen_open is forwarded to the joined client now
 # (#1094), but a server-run GUI test needs the server to open the menu, and this server refuses
 # GUI.open until #1098 gives it a server-side container, so the menu never opens there.
-# #1094's forwarded_screen_open and forwarded_close_screen run here instead.
+# #1094's forwarded_screen_open and forwarded_close_screen run here instead. The five GUI capture
+# tests export tick_any_side since 1.2.5's server opens a container for its player, and wait here
+# for this server to do the same (#1098).
 coverage/tests/remote_gui-Test.grug
+coverage/tests/item_icon-Test.grug
+coverage/tests/gui_builder-Test.grug
+coverage/tests/hot_reload_item_texture-Test.grug
+buildcraft/tests/autocrafting_table-Test.grug
+buildcraft/tests/redstone_engine_item-Test.grug
 #
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
 # client's screen, but this server can open no screen for its player: Test.use_block only

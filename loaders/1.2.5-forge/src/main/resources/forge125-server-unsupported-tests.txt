@@ -11,9 +11,3 @@
 # dedicated server.
 buildcraft/tests/wooden_pipe_boxes-Test.grug
 coverage/tests/block_shape-Test.grug
-#
-# The GUI a server opens for its player. Test.screen_open is forwarded to the joined client now
-# (#1094), but a server-run GUI test needs the server to open the menu, and this server refuses
-# GUI.open until #1098 gives it a server-side container, so the menu never opens there.
-# #1094's forwarded_screen_open and forwarded_close_screen run here instead.
-coverage/tests/remote_gui-Test.grug
