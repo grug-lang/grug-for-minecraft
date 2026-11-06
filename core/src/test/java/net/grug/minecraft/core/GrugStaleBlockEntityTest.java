@@ -69,7 +69,9 @@ class GrugStaleBlockEntityTest {
     }
 
     @Test
-    void aBlockWithNoEntityFileHasNothingToMake() {
-        assertFalse(GrugStaleBlockEntity.shouldReinit(334L, Grug.INVALID_GRUG_FILE_ID));
+    void aBlockWithNoEntityFileDropsTheEntityItFound() {
+        assertTrue(
+                GrugStaleBlockEntity.shouldReinit(334L, Grug.INVALID_GRUG_FILE_ID),
+                "a block that names no entity file must not keep the previous block's script");
     }
 }

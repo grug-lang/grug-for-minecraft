@@ -43,12 +43,12 @@ public final class GrugStaleBlockEntity {
      * at its position, so it is the previous block's script with the previous block's members.
      *
      * <p>{@code initedEntityFileId} is the entity file the tile's grug entity was created from, and
-     * {@link Grug#INVALID_GRUG_FILE_ID} before one was made; {@code blockEntityFileId} is the file
-     * the block now there names. A block that names no entity file has nothing to start.
+     * {@link Grug#INVALID_GRUG_FILE_ID} before one was made. A block that names no entity file of
+     * its own has nothing for the tile to hold either, so the entity the previous block made goes
+     * rather than drawing that block's script for this one.
      */
     public static boolean shouldReinit(long initedEntityFileId, long blockEntityFileId) {
         return initedEntityFileId != Grug.INVALID_GRUG_FILE_ID
-                && blockEntityFileId != Grug.INVALID_GRUG_FILE_ID
                 && initedEntityFileId != blockEntityFileId;
     }
 }
