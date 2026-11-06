@@ -1,6 +1,7 @@
 package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.Vec3;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -29,7 +30,14 @@ public final class GrugControlClient {
 
     /** The loader's capture of a rectangle of the frame, answered later on any thread. */
     public interface Capturer {
+        /**
+         * Takes the rectangle once this client's own camera is at {@code eye} and a frame has been
+         * drawn from there, which is what the loader's tick loop waits for (#1161). A loader that
+         * cannot compare its camera against it captures anyway when its wait runs out, so a
+         * mismatch leaves a wrong picture and a log line rather than no answer at all.
+         */
         void capture(
+                Vec3 eye,
                 int x1,
                 int y1,
                 int x2,
@@ -66,6 +74,12 @@ public final class GrugControlClient {
 
         /** Closes whatever screen is open. */
         void closeScreen();
+
+        /**
+         * One component of this client's own render camera, which is the eye of its test player: 0
+         * for x, 1 for y and 2 for z (#1161).
+         */
+        double camera(int axis);
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -114,6 +128,11 @@ public final class GrugControlClient {
             @Override
             public void closeScreen() {
                 GrugScreenCalls.closeScreen(adapter.get());
+            }
+
+            @Override
+            public double camera(int axis) {
+                return GrugTestCamera.axis(adapter.get().testCamera(), axis);
             }
         };
     }
@@ -214,7 +233,11 @@ public final class GrugControlClient {
         }
         System.out.println("[GRUG CONTROL] request " + id + " received, capturing");
         boolean late = message.x2 - message.x1 == lateWidth;
+        // A capture request names the eye the test's room was built above, and the loader's wait
+        // holds the capture until this client's own camera is there (#1161).
+        Vec3 eye = new Vec3(message.volume, message.pitch, message.third);
         capturer.capture(
+                eye,
                 message.x1,
                 message.y1,
                 message.x2,
@@ -278,6 +301,10 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_CLOSE_SCREEN) {
                 caller.closeScreen();
                 link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+            } else if (message.call == GrugControlWire.CALL_CAMERA) {
+                link.send(
+                        GrugControlWire.answerNumber(
+                                message.id, caller.camera((int) message.volume)));
             } else {
                 // A call this client has no arm for, which is what a call code added to the wire
                 // before its arm becomes. Answering it as an error keeps the server's mistake

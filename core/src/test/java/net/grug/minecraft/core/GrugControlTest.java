@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.grug.Vec3;
+
 import org.junit.jupiter.api.Test;
 
 import java.awt.image.BufferedImage;
@@ -22,6 +24,9 @@ import javax.imageio.ImageIO;
 /** Both ends of the test-control channel, wired to each other the way a loader's packets do. */
 class GrugControlTest {
     private static final String PLAYER = "alice";
+
+    /** The eye a capture names; these tests are about the wire, not about where it was drawn. */
+    private static final Vec3 EYE = new Vec3(0.5, 65.62, 0.5);
 
     /** A client whose frame is a solid colour, and that answers on the calling thread. */
     private static class Loopback implements GrugControlServer.Link, GrugControlClient.Link {
@@ -117,6 +122,11 @@ class GrugControlTest {
                 public void closeScreen() {
                     throw new AssertionError("no screen call was expected");
                 }
+
+                @Override
+                public double camera(int axis) {
+                    throw new AssertionError("no camera call was expected");
+                }
             };
 
     private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
@@ -174,6 +184,11 @@ class GrugControlTest {
         public void closeScreen() {
             throw new AssertionError("no screen call was expected");
         }
+
+        @Override
+        public double camera(int axis) {
+            throw new AssertionError("no camera call was expected");
+        }
     }
 
     /** A client whose settle answer the test decides, and which counts the frames it forgets. */
@@ -224,6 +239,11 @@ class GrugControlTest {
         @Override
         public void closeScreen() {
             throw new AssertionError("no screen call was expected");
+        }
+
+        @Override
+        public double camera(int axis) {
+            throw new AssertionError("no camera call was expected");
         }
     }
 
@@ -286,10 +306,16 @@ class GrugControlTest {
             closed = true;
             open = false;
         }
+
+        @Override
+        public double camera(int axis) {
+            seen.add("camera " + axis);
+            return 70.62;
+        }
     }
 
     private static GrugControlClient.Capturer solid(int rgb) {
-        return (x1, y1, x2, y2, done, failed) -> {
+        return (eye, x1, y1, x2, y2, done, failed) -> {
             BufferedImage image = new BufferedImage(x2 - x1, y2 - y1, BufferedImage.TYPE_INT_RGB);
             for (int y = 0; y < image.getHeight(); y++) {
                 for (int x = 0; x < image.getWidth(); x++) {
@@ -324,7 +350,7 @@ class GrugControlTest {
                 capture(
                         () -> {
                             try {
-                                got[0] = loop.server.capture(10, 20, 30, 50);
+                                got[0] = loop.server.capture(EYE, 10, 20, 30, 50);
                             } catch (GrugControlServer.ControlException e) {
                                 throw new AssertionError(e);
                             }
@@ -334,7 +360,8 @@ class GrugControlTest {
         assertEquals(30, got[0].getHeight());
         assertEquals(0x123456, got[0].getRGB(3, 3) & 0xFFFFFF);
         assertTrue(loop.flushed);
-        assertTrue(printed.contains("request 1: capture (10,20,30,50) sent to alice"), printed);
+        assertTrue(printed.contains("request 1: capture (10,20,30,50) from the eye"), printed);
+        assertTrue(printed.contains("sent to alice"), printed);
         assertTrue(printed.contains("request 1 received, capturing"), printed);
         assertTrue(printed.contains("answered with a 20x30 capture in 1 packet(s)"), printed);
         assertTrue(printed.contains("the world was frozen for about"), printed);
@@ -346,7 +373,7 @@ class GrugControlTest {
         // Noise does not compress, so the PNG is larger than one chunk.
         Random random = new Random(1);
         GrugControlClient.Capturer noise =
-                (x1, y1, x2, y2, done, failed) -> {
+                (eye, x1, y1, x2, y2, done, failed) -> {
                     BufferedImage image =
                             new BufferedImage(x2 - x1, y2 - y1, BufferedImage.TYPE_INT_RGB);
                     for (int y = 0; y < image.getHeight(); y++) {
@@ -360,7 +387,7 @@ class GrugControlTest {
         loop.client.beginRun();
         loop.toServer.clear();
 
-        BufferedImage image = loop.server.capture(0, 0, 100, 100);
+        BufferedImage image = loop.server.capture(EYE, 0, 0, 100, 100);
 
         assertEquals(100, image.getWidth());
         assertTrue(loop.toServer.size() > 1, "chunks: " + loop.toServer.size());
@@ -376,7 +403,7 @@ class GrugControlTest {
                 wire(
                         1000,
                         -1,
-                        (x1, y1, x2, y2, done, failed) -> {
+                        (eye, x1, y1, x2, y2, done, failed) -> {
                             captured[0] = true;
                         });
         // The server has a starter, as if a malicious client had sent the start for it, but this
@@ -386,7 +413,7 @@ class GrugControlTest {
         GrugControlServer.ControlException e =
                 assertThrows(
                         GrugControlServer.ControlException.class,
-                        () -> loop.server.capture(0, 0, 10, 10));
+                        () -> loop.server.capture(EYE, 0, 0, 10, 10));
 
         assertTrue(e.getMessage().contains("refused"), e.getMessage());
         assertTrue(e.getMessage().contains("no run was started by this player"), e.getMessage());
@@ -402,7 +429,8 @@ class GrugControlTest {
         loop.client.endRun();
 
         assertThrows(
-                GrugControlServer.ControlException.class, () -> loop.server.capture(0, 0, 10, 10));
+                GrugControlServer.ControlException.class,
+                () -> loop.server.capture(EYE, 0, 0, 10, 10));
     }
 
     @Test
@@ -412,7 +440,7 @@ class GrugControlTest {
         GrugControlServer.ControlException e =
                 assertThrows(
                         GrugControlServer.ControlException.class,
-                        () -> loop.server.capture(0, 0, 10, 10));
+                        () -> loop.server.capture(EYE, 0, 0, 10, 10));
 
         assertTrue(e.getMessage().contains("No client has started a run"), e.getMessage());
         assertFalse(loop.server.hasStarter());
@@ -428,7 +456,7 @@ class GrugControlTest {
         GrugControlServer.ControlException e =
                 assertThrows(
                         GrugControlServer.ControlException.class,
-                        () -> loop.server.capture(0, 0, 10, 10));
+                        () -> loop.server.capture(EYE, 0, 0, 10, 10));
 
         assertTrue(e.getMessage().contains("not connected any more"), e.getMessage());
     }
@@ -446,7 +474,7 @@ class GrugControlTest {
                                 error[0] =
                                         assertThrows(
                                                 GrugControlServer.ControlException.class,
-                                                () -> loop.server.capture(0, 0, 7, 10)));
+                                                () -> loop.server.capture(EYE, 0, 0, 7, 10)));
 
         assertTrue(error[0].getMessage().contains("did not answer request 1 within 50 ms"));
         assertTrue(printed[0].contains("fault injection: request 1 is never answered"), printed[0]);
@@ -461,7 +489,8 @@ class GrugControlTest {
         loop.client.beginRun();
 
         assertThrows(
-                GrugControlServer.ControlException.class, () -> loop.server.capture(0, 0, 9, 10));
+                GrugControlServer.ControlException.class,
+                () -> loop.server.capture(EYE, 0, 0, 9, 10));
         int before = loop.toServer.size();
         BufferedImage next = captureOrFail(loop.server, 0, 0, 10, 10);
 
@@ -480,7 +509,7 @@ class GrugControlTest {
         GrugControlServer.ControlException e =
                 assertThrows(
                         GrugControlServer.ControlException.class,
-                        () -> answeredWithAPngOf(9, 10).capture(0, 0, 10, 10));
+                        () -> answeredWithAPngOf(9, 10).capture(EYE, 0, 0, 10, 10));
         assertTrue(e.getMessage().contains("9x10, but 10x10 was asked for"), e.getMessage());
     }
 
@@ -489,7 +518,7 @@ class GrugControlTest {
         GrugControlServer.ControlException e =
                 assertThrows(
                         GrugControlServer.ControlException.class,
-                        () -> answeredWithAPngOf(10, 9).capture(0, 0, 10, 10));
+                        () -> answeredWithAPngOf(10, 9).capture(EYE, 0, 0, 10, 10));
         assertTrue(e.getMessage().contains("10x9, but 10x10 was asked for"), e.getMessage());
     }
 
@@ -508,7 +537,7 @@ class GrugControlTest {
     private static BufferedImage captureOrFail(
             GrugControlServer server, int x1, int y1, int x2, int y2) {
         try {
-            return server.capture(x1, y1, x2, y2);
+            return server.capture(EYE, x1, y1, x2, y2);
         } catch (GrugControlServer.ControlException e) {
             throw new AssertionError(e);
         }
@@ -520,13 +549,14 @@ class GrugControlTest {
                 wire(
                         1000,
                         -1,
-                        (x1, y1, x2, y2, done, failed) -> failed.accept("the window is 800x600"));
+                        (eye, x1, y1, x2, y2, done, failed) ->
+                                failed.accept("the window is 800x600"));
         loop.client.beginRun();
 
         GrugControlServer.ControlException e =
                 assertThrows(
                         GrugControlServer.ControlException.class,
-                        () -> loop.server.capture(0, 0, 10, 10));
+                        () -> loop.server.capture(EYE, 0, 0, 10, 10));
 
         assertTrue(e.getMessage().contains("the window is 800x600"), e.getMessage());
     }
@@ -597,7 +627,9 @@ class GrugControlTest {
                 failFrom(
                         (server) ->
                                 server.onMessage(
-                                        PLAYER, GrugControlWire.captureRequest(1, 0, 0, 1, 1)));
+                                        PLAYER,
+                                        GrugControlWire.captureRequest(
+                                                1, 0, 0, 1, 1, 0.5, 65.62, 0.5)));
         assertTrue(e.getMessage().contains("control message of type 2"), e.getMessage());
     }
 
@@ -633,11 +665,12 @@ class GrugControlTest {
         loop.server.endRun();
         assertFalse(loop.client.runActive());
         assertThrows(
-                GrugControlServer.ControlException.class, () -> loop.server.capture(0, 0, 10, 10));
+                GrugControlServer.ControlException.class,
+                () -> loop.server.capture(EYE, 0, 0, 10, 10));
     }
 
     private static Loopback silentLoop() {
-        Loopback loop = wire(60_000, -1, (x1, y1, x2, y2, done, failed) -> {});
+        Loopback loop = wire(60_000, -1, (eye, x1, y1, x2, y2, done, failed) -> {});
         loop.client.beginRun();
         return loop;
     }
@@ -651,7 +684,7 @@ class GrugControlTest {
                                 error[0] =
                                         assertThrows(
                                                 GrugControlServer.ControlException.class,
-                                                () -> loop.server.capture(0, 0, 10, 10)));
+                                                () -> loop.server.capture(EYE, 0, 0, 10, 10)));
         caller.start();
         try {
             long deadline = System.nanoTime() + 5_000_000_000L;
@@ -704,7 +737,7 @@ class GrugControlTest {
             GrugControlServer.ControlException e =
                     assertThrows(
                             GrugControlServer.ControlException.class,
-                            () -> server.capture(0, 0, 1, 1));
+                            () -> server.capture(EYE, 0, 0, 1, 1));
             assertTrue(e.getMessage().contains("inconsistent chunk"), e.getMessage());
         }
     }
@@ -724,7 +757,7 @@ class GrugControlTest {
             GrugControlServer.ControlException e =
                     assertThrows(
                             GrugControlServer.ControlException.class,
-                            () -> server.capture(0, 0, 1, 1));
+                            () -> server.capture(EYE, 0, 0, 1, 1));
             assertTrue(e.getMessage().contains("malformed control message"), e.getMessage());
         }
     }
@@ -742,7 +775,8 @@ class GrugControlTest {
         GrugControlServer server = lyingServer(answers);
         GrugControlServer.ControlException e =
                 assertThrows(
-                        GrugControlServer.ControlException.class, () -> server.capture(0, 0, 1, 1));
+                        GrugControlServer.ControlException.class,
+                        () -> server.capture(EYE, 0, 0, 1, 1));
         assertTrue(e.getMessage().contains("bytes of PNG"), e.getMessage());
     }
 
@@ -757,7 +791,8 @@ class GrugControlTest {
                 lyingServer(GrugControlWire.answerChunks(1, bytes).toArray(new byte[0][]));
         GrugControlServer.ControlException e =
                 assertThrows(
-                        GrugControlServer.ControlException.class, () -> server.capture(0, 0, 8, 8));
+                        GrugControlServer.ControlException.class,
+                        () -> server.capture(EYE, 0, 0, 8, 8));
         assertTrue(e.getMessage().contains("60000x60000, but 8x8 was asked for"), e.getMessage());
     }
 
@@ -770,7 +805,7 @@ class GrugControlTest {
             GrugControlServer.ControlException e =
                     assertThrows(
                             GrugControlServer.ControlException.class,
-                            () -> server.capture(0, 0, 40, 40));
+                            () -> server.capture(EYE, 0, 0, 40, 40));
 
             assertTrue(e.getMessage().contains("is not a PNG"), e.getMessage());
         }
@@ -778,14 +813,14 @@ class GrugControlTest {
 
     @Test
     void anInterruptedWaitIsAnError() {
-        Loopback loop = wire(60_000, -1, (x1, y1, x2, y2, done, failed) -> {});
+        Loopback loop = wire(60_000, -1, (eye, x1, y1, x2, y2, done, failed) -> {});
         loop.client.beginRun();
         Thread.currentThread().interrupt();
         try {
             GrugControlServer.ControlException e =
                     assertThrows(
                             GrugControlServer.ControlException.class,
-                            () -> loop.server.capture(0, 0, 1, 1));
+                            () -> loop.server.capture(EYE, 0, 0, 1, 1));
             assertTrue(e.getMessage().contains("interrupted"), e.getMessage());
             assertTrue(Thread.currentThread().isInterrupted());
         } finally {
@@ -814,7 +849,7 @@ class GrugControlTest {
                 wire(
                         1000,
                         -1,
-                        (x1, y1, x2, y2, done, failed) -> {
+                        (eye, x1, y1, x2, y2, done, failed) -> {
                             // Noise does not compress, so this PNG is far over the cap.
                             int side = 2400;
                             BufferedImage big =
@@ -831,17 +866,22 @@ class GrugControlTest {
         GrugControlServer.ControlException e =
                 assertThrows(
                         GrugControlServer.ControlException.class,
-                        () -> loop.server.capture(0, 0, 2400, 2400));
+                        () -> loop.server.capture(EYE, 0, 0, 2400, 2400));
         assertTrue(e.getMessage().contains("a control answer may hold"), e.getMessage());
     }
 
     @Test
     void theWireRoundTripsEveryMessage() {
         GrugControlWire.Message request =
-                GrugControlWire.decode(GrugControlWire.captureRequest(7, 1, 2, 3, 4));
+                GrugControlWire.decode(
+                        GrugControlWire.captureRequest(7, 1, 2, 3, 4, 0.5, 65.62, -0.5));
         assertEquals(GrugControlWire.CAPTURE_REQUEST, request.type);
         assertEquals(7, request.id);
         assertEquals(4, request.y2);
+        // The eye travels in the three numbers, which is what the client compares its camera with.
+        assertEquals(0.5, request.volume, 0.0);
+        assertEquals(65.62, request.pitch, 1e-9);
+        assertEquals(-0.5, request.third, 0.0);
 
         GrugControlWire.Message error =
                 GrugControlWire.decode(GrugControlWire.answerError(8, "no é"));
@@ -1085,7 +1125,8 @@ class GrugControlTest {
         valuer.start();
         GrugControlServer.ControlException wrongToo =
                 assertThrows(
-                        GrugControlServer.ControlException.class, () -> valued.capture(0, 0, 4, 4));
+                        GrugControlServer.ControlException.class,
+                        () -> valued.capture(EYE, 0, 0, 4, 4));
         assertTrue(wrongToo.getMessage().contains("wrong kind of answer"), wrongToo.getMessage());
 
         // A number answering a value call, and a value answering a number call, are each the wrong
@@ -1189,8 +1230,9 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_PRESS_SCREEN_KEY));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCROLL_SCREEN));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLOSE_SCREEN));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CAMERA));
         assertFalse(GrugControlWire.isCall((byte) 0));
-        assertFalse(GrugControlWire.isCall((byte) 9));
+        assertFalse(GrugControlWire.isCall((byte) 10));
 
         // A settle ask carries its revision in the volume slot, whole for every revision a run
         // reaches.
@@ -1202,7 +1244,21 @@ class GrugControlTest {
         assertEquals("", settled.text);
         assertEquals(1_234_567_890_123L, (long) settled.volume);
 
-        byte[] unknown = GrugControlWire.callRequest(1, (byte) 9, "x", 0, 0, 0);
+        // A capture's eye has to be a finite position: a NaN or infinite component is refused
+        // rather than compared with a camera, where NaN would never match and infinity could.
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        GrugControlWire.decode(
+                                GrugControlWire.captureRequest(1, 0, 0, 1, 1, Double.NaN, 0, 0)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        GrugControlWire.decode(
+                                GrugControlWire.captureRequest(
+                                        1, 0, 0, 1, 1, 0, Double.POSITIVE_INFINITY, 0)));
+
+        byte[] unknown = GrugControlWire.callRequest(1, (byte) 10, "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1260,7 +1316,11 @@ class GrugControlTest {
                                                             : " " + args[0]));
                                     return method.getReturnType() == boolean.class
                                             ? Boolean.TRUE
-                                            : method.getReturnType() == double.class ? 0.0 : null;
+                                            : method.getReturnType() == double.class
+                                                    ? 0.0
+                                                    : method.getReturnType() == Vec3.class
+                                                            ? new Vec3(1, 2, 3)
+                                                            : null;
                                 });
         GrugControlClient.Caller caller = GrugControlClient.adapterCaller(() -> adapter);
         // The screen calls share whether a screen was already open, so start from closed.
@@ -1275,6 +1335,7 @@ class GrugControlTest {
         assertTrue(caller.pressScreenKey(1, true, false));
         assertTrue(caller.scrollScreen(2, 3, -1));
         caller.closeScreen();
+        assertEquals(2.0, caller.camera(1));
         assertEquals(
                 List.of(
                         "hasSound a",
@@ -1286,7 +1347,8 @@ class GrugControlTest {
                         "guiLeftForTest",
                         "pressScreenKey 1",
                         "scrollScreen 2.0",
-                        "closeOpenScreenForTest"),
+                        "closeOpenScreenForTest",
+                        "testCamera"),
                 seen);
     }
 
@@ -1329,6 +1391,66 @@ class GrugControlTest {
     }
 
     @Test
+    void aForwardedCameraReadIsAskedOfTheJoinedClientAndAnswered() {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+        GrugTestCamera.Forwarded camera =
+                new GrugTestCamera.Forwarded(
+                        () -> loop.server,
+                        message -> {
+                            throw new AssertionError(message);
+                        });
+
+        assertEquals(new Vec3(70.62, 70.62, 70.62), camera.camera());
+        assertEquals(List.of("camera 0", "camera 1", "camera 2"), screens.seen);
+
+        // An axis the wire does not carry never leaves the server.
+        GrugControlServer.clearFailure();
+        assertThrows(GrugControlServer.ControlException.class, () -> loop.server.camera(3));
+        assertTrue(GrugControlServer.failed());
+
+        // A server nobody started a run on has no camera to ask for, and says so.
+        List<String> failed = new ArrayList<>();
+        Loopback none = wireCalls(1000, screens);
+        GrugTestCamera.Forwarded withoutStarter =
+                new GrugTestCamera.Forwarded(() -> none.server, failed::add);
+        assertNull(withoutStarter.camera());
+        assertEquals(1, failed.size());
+        assertTrue(failed.get(0).contains("No client has started a run"), failed.get(0));
+    }
+
+    @Test
+    void aCaptureWithoutAnEyeToDrawFromIsAnError() {
+        Loopback loop = wire(1000, -1, solid(0));
+        loop.client.beginRun();
+
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> loop.server.capture(null, 0, 0, 10, 10));
+
+        assertTrue(e.getMessage().contains("no test camera"), e.getMessage());
+    }
+
+    @Test
+    void theWireRefusesACaptureWhoseEyeIsNotAPosition() {
+        byte[] nan =
+                java.nio.ByteBuffer.allocate(1 + 8 + 16 + 24)
+                        .put(GrugControlWire.CAPTURE_REQUEST)
+                        .putLong(1)
+                        .putInt(0)
+                        .putInt(0)
+                        .putInt(10)
+                        .putInt(10)
+                        .putDouble(0.5)
+                        .putDouble(Double.NaN)
+                        .putDouble(0.5)
+                        .array();
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(nan));
+    }
+
+    @Test
     void anUnknownCallIsAnsweredAsAnErrorRatherThanClosingTheScreen() {
         ScreenCalls screens = new ScreenCalls();
         Loopback loop = wireCalls(1000, screens);
@@ -1341,7 +1463,7 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) 9,
+                        (byte) 10,
                         0,
                         0,
                         0,
@@ -1355,7 +1477,7 @@ class GrugControlTest {
         GrugControlWire.Message answer = GrugControlWire.decode(loop.toServer.get(0));
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
-        assertTrue(answer.text.contains("unknown call 9"), answer.text);
+        assertTrue(answer.text.contains("unknown call 10"), answer.text);
     }
 
     @Test
@@ -1482,6 +1604,11 @@ class GrugControlTest {
                             @Override
                             public void closeScreen() {
                                 throw new AssertionError("no screen call was expected");
+                            }
+
+                            @Override
+                            public double camera(int axis) {
+                                throw new AssertionError("no camera call was expected");
                             }
                         });
         loop.client.beginRun();

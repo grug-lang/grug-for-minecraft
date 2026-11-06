@@ -92,6 +92,14 @@ public final class GrugControlWire {
     /** The call: close whatever screen is open. The answer is 1. */
     public static final byte CALL_CLOSE_SCREEN = 8;
 
+    /**
+     * The call: one component of the joined client's own render camera, which is the eye of its
+     * test player (#1161). The volume slot carries the axis, 0 for x, 1 for y and 2 for z, and the
+     * answer is an {@link #ANSWER_NUMBER}. {@code Test.camera} makes the three calls, so a test can
+     * assert that the client draws from the place the room was built around.
+     */
+    public static final byte CALL_CAMERA = 9;
+
     /** The longest name a call may carry, in bytes. */
     public static final int MAX_NAME = 256;
 
@@ -158,7 +166,8 @@ public final class GrugControlWire {
          * #CALL_WORLD_SETTLED} puts its world revision in the volume slot, {@link
          * #CALL_PRESS_SCREEN_KEY} puts its key there, its control flag in the pitch slot and its
          * release flag in the third, and {@link #CALL_SCROLL_SCREEN} puts its x, y and delta there
-         * in that order. The name is in {@link #text}.
+         * in that order. A {@link #CAPTURE_REQUEST} puts the eye it must be taken from there, x, y
+         * and z in that order (#1161). The name is in {@link #text}.
          */
         public final double volume;
 
@@ -227,7 +236,7 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_CLOSE_SCREEN;
+        return call >= CALL_HAS_SOUND && call <= CALL_CAMERA;
     }
 
     public static byte[] callRequest(
@@ -275,14 +284,24 @@ public final class GrugControlWire {
         return ByteBuffer.allocate(1).put(RUN_END).array();
     }
 
-    public static byte[] captureRequest(long id, int x1, int y1, int x2, int y2) {
-        return ByteBuffer.allocate(1 + 8 + 16)
+    /**
+     * The ask for a capture of the rectangle, taken from {@code eye}: the render camera's position
+     * the test's room was built above (#1161). The client waits for its own camera to reach it and
+     * for a frame to be drawn from there before it captures, so the pixels are the ones a run this
+     * client drove would have drawn rather than whatever the joined player's view happened to be.
+     */
+    public static byte[] captureRequest(
+            long id, int x1, int y1, int x2, int y2, double eyeX, double eyeY, double eyeZ) {
+        return ByteBuffer.allocate(1 + 8 + 16 + 24)
                 .put(CAPTURE_REQUEST)
                 .putLong(id)
                 .putInt(x1)
                 .putInt(y1)
                 .putInt(x2)
                 .putInt(y2)
+                .putDouble(eyeX)
+                .putDouble(eyeY)
+                .putDouble(eyeZ)
                 .array();
     }
 
@@ -336,7 +355,17 @@ public final class GrugControlWire {
                 case CAPTURE_REQUEST:
                     long id = in.getLong();
                     int[] rectangle = {in.getInt(), in.getInt(), in.getInt(), in.getInt()};
-                    message = new Message(type, id, rectangle, 0, 0, null, null);
+                    double[] eye = {in.getDouble(), in.getDouble(), in.getDouble()};
+                    for (double value : eye) {
+                        if (Double.isNaN(value) || Double.isInfinite(value)) {
+                            throw new IllegalArgumentException(
+                                    "a capture's eye is not a finite position");
+                        }
+                    }
+                    message =
+                            new Message(
+                                    type, id, rectangle, 0, 0, null, null, (byte) 0, eye[0], eye[1],
+                                    eye[2], (byte) 0, 0);
                     break;
                 case ANSWER_ERROR:
                     long errorId = in.getLong();

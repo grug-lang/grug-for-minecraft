@@ -1290,10 +1290,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         boolean blocksPending =
                 blockSync.onFrame((x, y, z) -> getBlock(MinecraftInstance.get().world, x, y, z));
         // A frame drawn from a view the mouse moved is not one a capture may read, and the view is
-        // levelled again for the next frame. See GrugTestCamera and #1128.
+        // levelled again for the next frame. See GrugTestCamera and #1128. A joined client has no
+        // test runner of its own, so its control run owns the view too (#1161). The two flags are
+        // combined with a non-short-circuit | so a client run and a joined client both evaluate
+        // the control-run answer.
         renderSettle.onFrame(
                 GrugTestCamera.frameBusy(
-                        frameHadPendingWork(), testPlayerSnapped, testPlayer(), CAMERA_VIEW),
+                        frameHadPendingWork(),
+                        testPlayerSnapped | GrugClientHooks.isControlRunActive(),
+                        testPlayer(),
+                        CAMERA_VIEW),
                 blocksPending);
     }
 

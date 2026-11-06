@@ -1230,6 +1230,12 @@
 						}
 					]
 				},
+				"camera": {
+					"description": "Test only: the render camera of the client that draws the tests, which is the eye its player's origin is measured from. On a client that is its own camera; on a dedicated server it is the joined client's camera, asked for over the test-control channel, so a test can assert that the client draws from the point the room was built around rather than from wherever its own view has drifted to. With no camera to read, the call reports an error naming `Test.camera` rather than answering a position, the way `Test.get_origin` reports without a player. See #1161.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				},
 				"clear_carried_item": {
 					"description": "Test only: clears the mouse cursor of the container screen that is open, on the client and on the integrated server, so a test starts a press with nothing carried. A test with no container screen open does nothing."
 				},

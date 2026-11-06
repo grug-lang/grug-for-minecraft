@@ -1,5 +1,10 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.Vec3;
+
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
 /**
  * Whether a frame a run drew has to be counted busy because the mouse moved the player's view.
  *
@@ -102,5 +107,86 @@ public final class GrugTestCamera {
         // combines both reasons a capture may not read the frame.
         boolean moved = levelForFrame(viewOwned, player, view);
         return frameHadPendingWork || moved;
+    }
+
+    /**
+     * How far a client's own camera may be from the eye a capture names and still be that view, in
+     * blocks.
+     *
+     * <p>The two come from the same server and client player, so a match is the same place to
+     * within the noise of two processes integrating a tick each: a thousandth of a block is a tenth
+     * of a pixel at the distance a test's fixture sits, and anything larger is the client not
+     * having arrived yet rather than rounding. See #1161.
+     */
+    public static final double CAPTURE_EYE_TOLERANCE = 1.0 / 1024;
+
+    /**
+     * Whether {@code camera} is the eye {@code eye}, so a capture taken now is drawn from the place
+     * the test's room was built above.
+     *
+     * <p>A side with no camera yet, or a request that named no eye, is never at it: a capture waits
+     * for both rather than reading a frame nobody has.
+     */
+    public static boolean cameraAt(Vec3 camera, Vec3 eye) {
+        if (camera == null || eye == null) return false;
+        return Math.abs(camera.x() - eye.x()) <= CAPTURE_EYE_TOLERANCE
+                && Math.abs(camera.y() - eye.y()) <= CAPTURE_EYE_TOLERANCE
+                && Math.abs(camera.z() - eye.z()) <= CAPTURE_EYE_TOLERANCE;
+    }
+
+    /**
+     * One component of a camera position, 0 for x, 1 for y and 2 for z, which is what a forwarded
+     * {@link GrugControlWire#CALL_CAMERA} asks for.
+     *
+     * <p>It throws rather than answering 0 for an axis a caller invented, and for a side with no
+     * player: the forwarded call turns that into an error answer, so a test sees why its camera
+     * could not be read instead of a position the game never had.
+     */
+    public static double axis(Vec3 camera, int axis) {
+        if (camera == null) {
+            throw new IllegalStateException("this side has no test player to read a camera from");
+        }
+        switch (axis) {
+            case 0:
+                return camera.x();
+            case 1:
+                return camera.y();
+            case 2:
+                return camera.z();
+            default:
+                throw new IllegalArgumentException("there is no camera axis " + axis);
+        }
+    }
+
+    /**
+     * The camera calls of a dedicated server, which has no camera of its own: the joined client of
+     * the player who started the run reports its own, which is the view a capture is drawn from
+     * (#1161).
+     *
+     * <p>The server comes in as a supplier rather than as a server, because a loader creates it on
+     * the first use and the adapter that holds this object outlives that, as with the screen calls.
+     */
+    public static final class Forwarded {
+        private final Supplier<GrugControlServer> server;
+        private final Consumer<String> failed;
+
+        public Forwarded(Supplier<GrugControlServer> server, Consumer<String> failed) {
+            this.server = server;
+            this.failed = failed;
+        }
+
+        /**
+         * The joined client's own camera, or null when it could not be asked, which the failure
+         * reports as the host function's error.
+         */
+        public Vec3 camera() {
+            try {
+                return new Vec3(
+                        server.get().camera(0), server.get().camera(1), server.get().camera(2));
+            } catch (GrugControlServer.ControlException e) {
+                failed.accept("Test.camera: " + e.getMessage());
+                return null;
+            }
+        }
     }
 }

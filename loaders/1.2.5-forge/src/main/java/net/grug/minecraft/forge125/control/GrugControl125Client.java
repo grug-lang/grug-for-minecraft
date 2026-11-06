@@ -4,12 +4,14 @@ import net.grug.minecraft.core.GrugControlClient;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
+import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.forge125.Grug125ClientAdapter;
 import net.grug.minecraft.forge125.client.GrugClientHooks;
 import net.grug.minecraft.forge125.client.GrugEmptyScreen;
 import net.grug.minecraft.forge125.client.GrugScreen;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.Vec3;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.NetClientHandler;
@@ -54,6 +56,7 @@ public final class GrugControl125Client implements GrugControlRouter {
     private static final GrugQuietCount chunksQuiet = new GrugQuietCount(SETTLE_QUIET_TICKS, 9);
 
     private static boolean started = false;
+    private static Vec3 eye;
     private static int x1;
     private static int y1;
     private static int x2;
@@ -92,12 +95,14 @@ public final class GrugControl125Client implements GrugControlRouter {
     }
 
     private static void capture(
+            Vec3 at,
             int left,
             int top,
             int right,
             int bottom,
             Consumer<BufferedImage> onDone,
             Consumer<String> onFailed) {
+        eye = at;
         x1 = left;
         y1 = top;
         x2 = right;
@@ -166,9 +171,12 @@ public final class GrugControl125Client implements GrugControlRouter {
                             + " on "
                             + Thread.currentThread().getName());
         }
-        if (waited < MIN_TICKS) return;
         boolean settled = GrugCore.getAdapter().isWorldSettled();
-        if (!settled && waited < MAX_TICKS) return;
+        // The frame has to show the world the server has and be drawn from the place the test's
+        // room was built around, so a capture names the eye and the client waits for its own camera
+        // to reach it (#1161).
+        boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
+        if (waited < MIN_TICKS || ((!settled || !cameraHere) && waited < MAX_TICKS)) return;
         pending = false;
         if (mc.displayWidth != GrugScreenshots.WIDTH
                 || mc.displayHeight != GrugScreenshots.HEIGHT) {
@@ -193,6 +201,8 @@ public final class GrugControl125Client implements GrugControlRouter {
                         + waited
                         + " client ticks (world settled: "
                         + settled
+                        + ", camera at the room's eye: "
+                        + cameraHere
                         + ")");
         done.accept(
                 ((Grug125ClientAdapter) GrugCore.getAdapter())

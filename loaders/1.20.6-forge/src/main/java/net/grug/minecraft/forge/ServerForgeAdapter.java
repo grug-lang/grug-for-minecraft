@@ -4,10 +4,14 @@ import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugTestState;
+import net.grug.minecraft.grug.Vec3;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -18,7 +22,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
@@ -73,6 +76,16 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     private final GrugScreenCalls.Forwarded screens =
             new GrugScreenCalls.Forwarded(
+                    GrugControlForge::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    /**
+     * The camera reads this server makes, which its joined client answers with its own camera: a
+     * dedicated server has none, so a test that asserts where the client draws from asks there
+     * (#1161). A failure is a host function error, which fails the test.
+     */
+    private final GrugTestCamera.Forwarded camera =
+            new GrugTestCamera.Forwarded(
                     GrugControlForge::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
@@ -203,7 +216,11 @@ public class ServerForgeAdapter extends ForgeAdapter {
                         GrugUseBlockFace.face(
                                 testPlayerEye(player), pos.getX(), pos.getY(), pos.getZ())];
         BlockHitResult hit =
-                new BlockHitResult(new Vec3(x + 0.5, y + 0.5, z + 0.5), face, pos, false);
+                new BlockHitResult(
+                        new net.minecraft.world.phys.Vec3(x + 0.5, y + 0.5, z + 0.5),
+                        face,
+                        pos,
+                        false);
         player.gameMode.useItemOn(
                 player, level, player.getMainHandItem(), InteractionHand.MAIN_HAND, hit);
     }
@@ -227,8 +244,9 @@ public class ServerForgeAdapter extends ForgeAdapter {
 
     /**
      * Forwards the capture to the joined client of the player who started the run and waits for the
-     * answer with the world frozen (#1040, option A). A failure, including a timeout, is a host
-     * function error, which fails the test.
+     * answer with the world frozen (#1040, option A). The request names the eye the test's room was
+     * built above, so the client draws from the same place a run it drove would have (#1161). A
+     * failure, including a timeout, is a host function error, which fails the test.
      */
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
@@ -239,11 +257,27 @@ public class ServerForgeAdapter extends ForgeAdapter {
             return null;
         }
         try {
-            return GrugControlForge.server().capture((int) x1, (int) y1, (int) x2, (int) y2);
+            return GrugControlForge.server()
+                    .capture(captureEye(), (int) x1, (int) y1, (int) x2, (int) y2);
         } catch (GrugControlServer.ControlException e) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * The eye the capture is drawn from: the origin the running test's room was built above, less
+     * {@link GrugTestOrigin#LIFT}, or null when this side has no player to measure one from.
+     */
+    private Vec3 captureEye() {
+        Vec3 origin = GrugTestState.captureTestOrigin(this::getTestOrigin);
+        return origin == null ? null : GrugTestOrigin.eyeOf(origin);
+    }
+
+    /** The joined client's own camera, which is where its captures are drawn from (#1161). */
+    @Override
+    public Vec3 testCamera() {
+        return camera.camera();
     }
 
     /**

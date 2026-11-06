@@ -696,6 +696,20 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Test only: the position of this side's render camera, which is {@link #testPlayerEye(Object)}
+     * of {@link #testPlayer()}, so {@code Test.camera} and a capture's own eye are one measure.
+     *
+     * <p>On a client that is its own camera. A dedicated server has none of its own, so each server
+     * adapter overrides this to ask the joined client for its camera (#1161), which is what lets a
+     * test assert that the client draws from the point the room was built around. Null when this
+     * side has no player, which {@code Test.camera} reports as the reason it cannot answer.
+     */
+    default Vec3 testCamera() {
+        Object player = testPlayer();
+        return player == null ? null : testPlayerEye(player);
+    }
+
+    /**
      * Puts the player where every test starts: the centre of the block they stand in, with their
      * yaw and pitch at 0, so a fixture lands in the same place relative to every loader's camera
      * and a test need not set a camera up itself. The player stays in their own block, and so

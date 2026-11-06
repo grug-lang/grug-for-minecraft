@@ -265,6 +265,14 @@ public class GrugClientHooks {
     }
 
     /**
+     * Whether this client started a run on the server it joined (#1040), which the adapter reads
+     * for the view a capture needs (#1161).
+     */
+    public static boolean isControlRunActive() {
+        return instance != null && instance.controlRunStarted;
+    }
+
+    /**
      * Whether a screenshot test run is currently driving the client.
      *
      * <p>Read by {@code MinecraftMixin.pauseGame} to decline the focus-loss pause while a run owns

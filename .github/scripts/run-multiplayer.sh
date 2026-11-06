@@ -358,6 +358,22 @@ while :; do
         exit 1
       fi
     done
+    # The parity #1161 added has to be proven on every leg: Test.camera reads the joined client's
+    # camera on a dedicated server, and coverage/tests/camera asserts it is the eye the room was
+    # built around. A loader whose capture client ignored the eye would otherwise still be green.
+    if ! grep -qF '[GRUG CI] PASS coverage/tests/camera-Test.grug' "$SERVER_LOG"; then
+      echo "==> The run passed, but coverage/tests/camera-Test.grug did not run on the dedicated server." >&2
+      exit 1
+    fi
+    # The four buildcraft tests #1161 promoted capture the room from the joined client's camera
+    # (#1092 kept them client-only until the capture carried the eye the room was built around).
+    # They have to show as passed, or a leg that skips one would still look green.
+    for eye in buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings; do
+      if ! grep -qF "[GRUG CI] PASS ${eye}-Test.grug" "$SERVER_LOG"; then
+        echo "==> The run passed, but ${eye}-Test.grug did not run on the dedicated server." >&2
+        exit 1
+      fi
+    done
     # The remote GUI test (#168) and the GUI capture tests run on the servers that can open a
     # container for their player, 1.20.6 and 1.2.5 (#1098): the other three servers list them as
     # unsupported, so these two legs must show they ran. A capture compares against the reference of

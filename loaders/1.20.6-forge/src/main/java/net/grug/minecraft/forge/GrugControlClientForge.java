@@ -3,8 +3,10 @@ package net.grug.minecraft.forge;
 import net.grug.minecraft.core.GrugControlClient;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.Vec3;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.event.network.CustomPayloadEvent;
 
@@ -41,6 +43,7 @@ public final class GrugControlClientForge {
     private static int y1;
     private static int x2;
     private static int y2;
+    private static Vec3 eye;
     private static Consumer<BufferedImage> done;
     private static Consumer<String> failed;
     private static int waited;
@@ -72,12 +75,14 @@ public final class GrugControlClientForge {
     }
 
     private static void capture(
+            Vec3 at,
             int left,
             int top,
             int right,
             int bottom,
             Consumer<BufferedImage> onDone,
             Consumer<String> onFailed) {
+        eye = at;
         x1 = left;
         y1 = top;
         x2 = right;
@@ -100,7 +105,11 @@ public final class GrugControlClientForge {
         if (!pendingCapture) return;
         waited++;
         boolean idle = mc.level != null && ForgeAdapter.clientIdleForControl(mc);
-        if (waited < MIN_TICKS || (!idle && waited < MAX_TICKS)) return;
+        // The frame has to show the world the server has and be drawn from the place the test's
+        // room was built around, so a capture names the eye and the client waits for its own
+        // camera to reach it (#1161).
+        boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
+        if (waited < MIN_TICKS || ((!idle || !cameraHere) && waited < MAX_TICKS)) return;
         pendingCapture = false;
         if (mc.getWindow().getWidth() != GrugScreenshots.WIDTH
                 || mc.getWindow().getHeight() != GrugScreenshots.HEIGHT) {
@@ -142,6 +151,8 @@ public final class GrugControlClientForge {
                         + waited
                         + " client ticks (renderer idle: "
                         + idle
+                        + ", camera at the room's eye: "
+                        + cameraHere
                         + ")");
         done.accept(ForgeAdapter.captureRectangle(x1, y1, x2, y2));
     }
