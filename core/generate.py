@@ -348,11 +348,19 @@ def generate_java_exports(exports: List[Dict[str, Any]]) -> str:
 
         lines.append(f"    public static boolean {method_name}({param_str}) {{")
         lines.append("        boolean result;")
-        lines.append("        GrugStateLock.lock();")
+        # The native side pushes this export's frame on grug's call stack, so the thread is marked
+        # as inside a call for as long as it runs: a host function error inside it then fails this
+        # call, where a depth of zero would record it and let the script carry on (#1134).
+        lines.append("        int outerDepth = Grug.beginGrugCall();")
         lines.append("        try {")
-        lines.append(f"            result = {native_name}({call_str});")
+        lines.append("            GrugStateLock.lock();")
+        lines.append("            try {")
+        lines.append(f"                result = {native_name}({call_str});")
+        lines.append("            } finally {")
+        lines.append("                GrugStateLock.unlock();")
+        lines.append("            }")
         lines.append("        } finally {")
-        lines.append("            GrugStateLock.unlock();")
+        lines.append("            Grug.endGrugCall(outerDepth);")
         lines.append("        }")
         lines.append("        GrugErrors.throwPendingFatal();")
         lines.append("        return result;")

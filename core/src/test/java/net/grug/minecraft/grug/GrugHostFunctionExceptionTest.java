@@ -65,6 +65,16 @@ class GrugHostFunctionExceptionTest {
     private static final String NO_EXPORT_MESSAGE =
             "The world refused the block at 0, 128, 0, and no grug call made that write";
 
+    /** A Block whose Java-invoked {@code use} export throws through a host function. */
+    private static final String THROWING_USE =
+            "export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number,"
+                    + " player: Player) {\n"
+                    + "    level: Level = Test.get_client_level()\n"
+                    + "}\n";
+
+    /** A Block whose member scope throws through a host function when its entity is created. */
+    private static final String THROWING_MEMBER = "level: Level = Test.get_client_level()\n";
+
     /** One state for the class, because booting one is the expensive part. */
     @TempDir static Path mods;
 
@@ -80,6 +90,8 @@ class GrugHostFunctionExceptionTest {
         writeMod("throws", "a-Test.grug", THROWING_TEST);
         writeMod("fixture", "b-Test.grug", THROWING_FIXTURE);
         writeMod("stays", "c-Test.grug", STAYING_TEST);
+        writeMod("use-block", "u-Block.grug", THROWING_USE);
+        writeMod("init-block", "i-Block.grug", THROWING_MEMBER);
         Grug.init(modApiJson(), mods.toFile());
         assertNotEquals(0, Grug.statePtr, "the grug state did not come up");
     }
@@ -222,6 +234,82 @@ class GrugHostFunctionExceptionTest {
         assertTrue(
                 printed.contains(GrugHostFunctionNoExportMain.RECORDED_PREFIX + NO_EXPORT_MESSAGE),
                 printed);
+    }
+
+    @Test
+    void aHostErrorInsideAJavaInvokedExportStillFailsTheCall() {
+        // Block.use is reached through an ExportFns wrapper, whose native side pushes the export's
+        // frame even though Grug.callExportFn is not the entry. The thread has to be marked there
+        // too, or the throw would be recorded, the script would carry on, and the click would be
+        // reported as handled (#1134).
+        long block = Grug.createEntity(compile("u-Block.grug"));
+        assertNotEquals(0, block, "the block entity was not created");
+
+        assertFalse(
+                GrugBlockUse.use(block, 0, 0, 0, 0, 0),
+                "the script carried on after the throw in its use export");
+        assertTrue(runtimeErrors().contains("Test_get_client_level"), runtimeErrors());
+    }
+
+    @Test
+    void aHostErrorInAMemberInitializerStillFailsEntityCreation() {
+        // Creating an entity runs its member scope in an initializer on grug's call stack. With the
+        // thread marked, the throw has to fail the creation; unmarked, it would be recorded and the
+        // entity would come up with a member the host never answered (#1134).
+        assertEquals(0, Grug.createEntity(compile("i-Block.grug")));
+        assertTrue(runtimeErrors().contains("Test_get_client_level"), runtimeErrors());
+    }
+
+    @Test
+    void aRecordWaitingWhenTheTestFailsIsNotDropped() {
+        // A client thread reports while the server's call is suspended, which is a record with no
+        // call of its own on that thread. Here the suspended call resumes and fails for its own
+        // reason in the same tick, so fail() ends the run before the next tick can take the
+        // record: it still has to name the host function it came from (#1134).
+        long testFile = compile("c-Test.grug");
+        boolean[] reportOnNextCall = {false};
+        GrugTestRunner.TestEntityOps ops =
+                new GrugTestRunner.TestEntityOps() {
+                    @Override
+                    public long createEntity(long fileId) {
+                        return GrugEntities.createTestEntity(fileId);
+                    }
+
+                    @Override
+                    public long getExportFnId(String entityType, String fnName) {
+                        return Grug.getExportFnId(entityType, fnName);
+                    }
+
+                    @Override
+                    public boolean callExportFn(long entityHandle, long exportFnId) {
+                        if (reportOnNextCall[0]) {
+                            reportOnNextCall[0] = false;
+                            Grug.hostFunctionErrorHappened(Grug.statePtr, NO_EXPORT_MESSAGE);
+                            return false;
+                        }
+                        return GrugTestState.callTick(entityHandle, exportFnId);
+                    }
+
+                    @Override
+                    public boolean callInitFn(long entityHandle, long exportFnId) {
+                        return GrugTestState.callInit(entityHandle, exportFnId);
+                    }
+
+                    @Override
+                    public void destroyEntity(long entityHandle) {
+                        Grug.destroyEntity(entityHandle);
+                    }
+                };
+        GrugTestRunner runner =
+                new GrugTestRunner(Map.of("stays/tests/c-Test.grug", testFile), List.of(), ops);
+        runner.tick(null);
+        assertFalse(runner.isFinished(), "the test has to still be running for this case");
+
+        reportOnNextCall[0] = true;
+        String printed = capture(() -> runner.tick(null));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL stays/tests/c-Test.grug"), printed);
+        assertTrue(printed.contains(NO_EXPORT_MESSAGE), printed);
     }
 
     /** Writes one mod with a single script, the way a loader's mods directory holds them. */

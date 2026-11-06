@@ -42,24 +42,41 @@ public final class Grug {
      */
     public static FileInfo[] compileAllFiles() {
         FileInfo[] files;
-        GrugStateLock.lock();
+        // A compile re-initializes the entities of a file it already tracks, which pushes a frame
+        // on grug's call stack, so this is marked like the other entries that run script code
+        // (#1134). A first compile runs no script code at all.
+        int outerDepth = beginGrugCall();
         try {
-            if (statePtr == 0) throw new IllegalStateException("grug_state is not initialized");
-            files = GrugNative.nativeCompileAllFiles(statePtr);
+            GrugStateLock.lock();
+            try {
+                if (statePtr == 0) throw new IllegalStateException("grug_state is not initialized");
+                files = GrugNative.nativeCompileAllFiles(statePtr);
+            } finally {
+                GrugStateLock.unlock();
+            }
         } finally {
-            GrugStateLock.unlock();
+            endGrugCall(outerDepth);
         }
         // Outside the lock, so the shutdown it can start never waits on it.
         GrugBootOnly.finish();
         return files;
     }
 
+    /**
+     * Creates an entity from a compiled file, which runs the file's member scope in an initializer
+     * on grug's call stack, so a host function error in it has that call to fail (#1134).
+     */
     public static long createEntity(long fileId) {
-        GrugStateLock.lock();
+        int outerDepth = beginGrugCall();
         try {
-            return GrugNative.nativeCreateEntity(statePtr, fileId);
+            GrugStateLock.lock();
+            try {
+                return GrugNative.nativeCreateEntity(statePtr, fileId);
+            } finally {
+                GrugStateLock.unlock();
+            }
         } finally {
-            GrugStateLock.unlock();
+            endGrugCall(outerDepth);
         }
     }
 
@@ -92,20 +109,40 @@ public final class Grug {
     }
 
     /**
-     * How many export calls this thread is inside, which is what {@link #hostFunctionErrorHappened}
-     * reads to tell an error raised by a grug call from one raised with no call to fail.
+     * How many calls that pushed a frame on grug's call stack this thread is inside, which is what
+     * {@link #hostFunctionErrorHappened} reads to tell an error that has a call to fail from one
+     * that has none.
      *
-     * <p>grug-rs reports a host function error against the frame on top of its call stack, and it
-     * pushes a frame only for an export call, so with an empty stack the native report panics
-     * across the JNI boundary and aborts the process (#1134). A render pass calls an export from
-     * inside another export, hence a depth rather than a flag.
+     * <p>grug-rs reports a host function error against the frame on top of that stack, and it
+     * pushes a frame only for a call that runs script code: an export call (through {@link
+     * #callExportFn} or a generated {@code ExportFns} wrapper) and an entity initializer run by
+     * {@link #createEntity} or a mods file update. Between calls the stack is empty, where the
+     * native report panics across the JNI boundary and aborts the process (#1134). A render pass
+     * calls an export from inside another export, hence a depth rather than a flag.
      */
-    private static final ThreadLocal<Integer> exportFnDepth = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Integer> grugCallDepth = ThreadLocal.withInitial(() -> 0);
+
+    /**
+     * Marks this thread as inside one call that pushed a frame on grug's call stack, and answers
+     * the depth {@link #endGrugCall} has to put back. See {@link #grugCallDepth}.
+     */
+    static int beginGrugCall() {
+        int outerDepth = grugCallDepth.get();
+        grugCallDepth.set(outerDepth + 1);
+        return outerDepth;
+    }
+
+    /**
+     * Puts back the depth {@link #beginGrugCall} answered, so a call that ends by an exception
+     * leaves the thread where it found it.
+     */
+    static void endGrugCall(int outerDepth) {
+        grugCallDepth.set(outerDepth);
+    }
 
     public static boolean callExportFn(long entityHandle, long exportFnId) {
         boolean result;
-        int outerDepth = exportFnDepth.get();
-        exportFnDepth.set(outerDepth + 1);
+        int outerDepth = beginGrugCall();
         try {
             GrugStateLock.lock();
             try {
@@ -114,7 +151,7 @@ public final class Grug {
                 GrugStateLock.unlock();
             }
         } finally {
-            exportFnDepth.set(outerDepth);
+            endGrugCall(outerDepth);
         }
         GrugErrors.throwPendingFatal();
         return result;
@@ -130,8 +167,7 @@ public final class Grug {
      */
     public static boolean callExportFn(long entityHandle, long exportFnId, long firstArgId) {
         boolean result;
-        int outerDepth = exportFnDepth.get();
-        exportFnDepth.set(outerDepth + 1);
+        int outerDepth = beginGrugCall();
         try {
             GrugStateLock.lock();
             try {
@@ -142,7 +178,7 @@ public final class Grug {
                 GrugStateLock.unlock();
             }
         } finally {
-            exportFnDepth.set(outerDepth);
+            endGrugCall(outerDepth);
         }
         GrugErrors.throwPendingFatal();
         return result;
@@ -204,13 +240,15 @@ public final class Grug {
      * Reports a host function error against the grug call that made it, so that call fails and the
      * test that made it is named.
      *
-     * <p>When no export is active on this thread there is no such call: the room build and a
-     * fixture's tick run between two calls, where grug-rs's call stack is empty and its native
-     * report panics across the JNI boundary and aborts the process (#1134). The error is recorded
-     * for the test runner instead, which fails the test it belongs to by name.
+     * <p>When no call is active on this thread there is none. That is the room build, which writes
+     * blocks from the server tick between two calls, and a client thread that reports while the
+     * server's call waits on it. grug-rs's call stack is empty in the first case, so its native
+     * report would panic across the JNI boundary and abort the process (#1134). The error is
+     * recorded for the test runner instead, which fails the test that is running, or the one that
+     * just ended when the room build is starting the next one.
      */
     public static void hostFunctionErrorHappened(long statePtr, String message) {
-        if (exportFnDepth.get() == 0) {
+        if (grugCallDepth.get() == 0) {
             GrugErrors.recordHostFunctionException(message);
             return;
         }

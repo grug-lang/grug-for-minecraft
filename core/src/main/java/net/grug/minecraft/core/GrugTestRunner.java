@@ -2038,9 +2038,16 @@ public class GrugTestRunner {
             GrugErrors.runtimeErrorQueue.add(msg);
         }
 
-        // The failure has its own message, and a record left by the call that aborted here would
-        // fail the tick after it as well.
-        GrugErrors.takeHostFunctionException();
+        // The failure has its own message, and a record still waiting belongs to it: the run ends
+        // here, so the tick that would have taken the record never runs, and dropping it would
+        // leave the host function that reported before this failure unnamed (#1134).
+        String pending = GrugErrors.takeHostFunctionException();
+        if (pending != null) {
+            System.out.println("[GRUG CI] " + pending);
+            synchronized (GrugErrors.runtimeErrorQueue) {
+                GrugErrors.runtimeErrorQueue.add(pending);
+            }
+        }
 
         // Before destroyCurrentEntity, which puts the test's start back where it belongs, so the
         // test that failed is timed on the run it failed, and the next one starts there.
@@ -2068,6 +2075,11 @@ public class GrugTestRunner {
      * The test a host function exception belongs to, or null before the first test has run: the one
      * that is running, else the one that just ended, because the fixtures it left are what the game
      * ticks between two of its calls.
+     *
+     * <p>A record made on another thread, such as a client thread reporting while the server's call
+     * waits on it, belongs to the test that is running too, because that is the test whose call is
+     * suspended. That is the owner the native fold gave such a report before #1134, and the record
+     * carries no thread of its own to name a different one.
      */
     private String hostFunctionExceptionOwner() {
         // A running test is always the one nextTestIndex names, and the index never passes the
