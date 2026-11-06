@@ -121,6 +121,33 @@ public final class GrugTestCamera {
     public static final double CAPTURE_EYE_TOLERANCE = 1.0 / 1024;
 
     /**
+     * How many client ticks past the minimum a capture waits for its camera to reach the eye.
+     *
+     * <p>A joined client's camera is one process's copy of the player the server teleported a few
+     * ticks before the request, so it is already at the room's eye when the frame is ready: every
+     * dedicated-server leg that carries the parity logs its first capture at or after the minimum
+     * with {@code camera at the room's eye: true}. A side whose eye the room was never built around
+     * (#1178) never gets there, and waiting a capture's whole budget on each of a suite's captures
+     * stretched a leg past its run timeout, so the wait is bounded. A capture whose camera never
+     * arrived still takes its frame and says so.
+     */
+    public static final int EYE_GRACE_TICKS = 60;
+
+    /**
+     * Whether a capture that has waited {@code waited} client ticks still has to wait: its frame
+     * has to be ready, and its camera has a bounded grace past the minimum to reach the eye.
+     *
+     * <p>Pure, so the five capture clients share one decision and its unit test covers every
+     * combination.
+     */
+    public static boolean waitsForCapture(
+            int waited, int minTicks, int maxTicks, boolean frameReady, boolean cameraHere) {
+        if (waited < minTicks) return true;
+        if (!frameReady && waited < maxTicks) return true;
+        return !cameraHere && waited < Math.min(maxTicks, minTicks + EYE_GRACE_TICKS);
+    }
+
+    /**
      * Whether {@code camera} is the eye {@code eye}, so a capture taken now is drawn from the place
      * the test's room was built above.
      *
