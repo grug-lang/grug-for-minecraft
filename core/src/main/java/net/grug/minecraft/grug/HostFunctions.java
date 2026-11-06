@@ -591,8 +591,8 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: closes whatever screen is open, which on a dedicated server that forwards is the
-     * joined client's screen (#1094), and on the other four servers has nothing else to close.
+     * Test only: closes whatever screen is open, which on a dedicated server is the joined client's
+     * screen (#1094), and there is nothing else to close there.
      *
      * <p>One client serves the whole run, so a screen a test opened outlives it. A screenshot test
      * that follows one which opened a GUI needs this, or it captures that panel rather than the

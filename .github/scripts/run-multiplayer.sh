@@ -334,20 +334,23 @@ while :; do
       fi
     done
     # The remote GUI test (#168) runs only on the 1.20.6 server so far: the other four servers
-    # answer Test.screen_open for their nonexistent client, so their lists skip it until #1094
-    # forwards the question, and only this leg has to show it ran. This catches the test not running
-    # at all on that leg (renamed, listed as unsupported, or no longer recognised as declared),
-    # which the run would otherwise pass with it silently skipped; a server that stops opening the
-    # menu fails the test on its own tick budget, before this is reached.
+    # cannot open a menu for their player until #1098, so their lists skip it, and only this leg has
+    # to show it ran. This catches the test not running at all on that leg (renamed, listed as
+    # unsupported, or no longer recognised as declared), which the run would otherwise pass with it
+    # silently skipped; a server that stops opening the menu fails the test on its own tick budget,
+    # before this is reached.
     if [ "$LOADER" = "1.20.6-forge" ]; then
       remote_gui='[GRUG CI] PASS coverage/tests/remote_gui-Test.grug'
       if ! grep -qF "$remote_gui" "$SERVER_LOG"; then
         echo "==> The run passed, but coverage/tests/remote_gui-Test.grug did not run." >&2
         exit 1
       fi
-      # The screen input #1094 forwards needs a screen the server can open for its player, which
-      # only 1.20.6's server can do until #1098 gives the older ones a server-side container, so
-      # only this leg has to show these two ran.
+    fi
+    # The screen input #1094 forwards needs a screen the server can open for its player, which
+    # 1.2.5's interaction manager and 1.20.6's game mode do by right-clicking the chest these tests
+    # place. The other three servers can open no screen for their player until #1098, so their
+    # lists skip these two and only these legs have to show they ran.
+    if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ]; then
       for input in forwarded_press_screen_key forwarded_scroll_screen; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${input}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${input}-Test.grug did not run." >&2

@@ -237,8 +237,11 @@ public final class GrugControlClient {
      * Performs a call on this thread, which the loader delivers on the game thread. An argument the
      * host function would refuse, or an adapter that throws, is answered as an error, so the server
      * reports a real cause instead of waiting out its timeout.
+     *
+     * <p>Package-private so a unit test can drive a call code the wire does not yet accept, which
+     * is the only way to reach the unknown-call arm.
      */
-    private void perform(GrugControlWire.Message message) {
+    void perform(GrugControlWire.Message message) {
         System.out.println("[GRUG CONTROL] request " + message.id + ": call " + message.call);
         if (message.call == GrugControlWire.CALL_WORLD_SETTLED) {
             worldSettled(message);
@@ -272,9 +275,14 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_SCROLL_SCREEN) {
                 boolean taken = caller.scrollScreen(message.volume, message.pitch, message.third);
                 link.send(GrugControlWire.answerValue(message.id, (byte) (taken ? 1 : 0)));
-            } else {
+            } else if (message.call == GrugControlWire.CALL_CLOSE_SCREEN) {
                 caller.closeScreen();
                 link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+            } else {
+                // A call this client has no arm for, which is what a call code added to the wire
+                // before its arm becomes. Answering it as an error keeps the server's mistake
+                // visible instead of performing another call's effect.
+                link.send(GrugControlWire.answerError(message.id, "unknown call " + message.call));
             }
         } catch (RuntimeException e) {
             link.send(

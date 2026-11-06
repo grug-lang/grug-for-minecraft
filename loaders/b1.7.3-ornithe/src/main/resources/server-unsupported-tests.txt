@@ -1,5 +1,6 @@
 # Tests the b1.7.3 dedicated server cannot run although they define tick_any_side or are
-# forwarded_ tests, one path per line. Interim (#163): this mechanism is removed together with tick_any_side when #1040 lands.
+# forwarded_ tests, one path per line. Interim (#163): this mechanism is removed together with
+# tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
 # Block selection. The b1.7.3 server Block has no getOutlineShape (the selection box is a client
@@ -14,7 +15,9 @@ coverage/tests/block_shape-Test.grug
 coverage/tests/remote_gui-Test.grug
 #
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
-# client's screen, and this server cannot open one for its player until #1098, so these run only
-# on 1.20.6.
+# client's screen, but this server can open no screen for its player: Test.use_block only
+# right-clicks a grug block, and GUI.open is refused until #1098 gives it a server-side container,
+# so the vanilla chest these tests place cannot be opened here. 1.2.5's interaction manager and
+# 1.20.6's game mode right-click the chest, so the two tests run there.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug

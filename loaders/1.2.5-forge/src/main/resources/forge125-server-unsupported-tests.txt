@@ -1,5 +1,6 @@
 # Tests the 1.2.5 dedicated server cannot run although they define tick_any_side or are
-# forwarded_ tests, one path per line. Interim (#166): this mechanism is removed together with tick_any_side when #1040 lands.
+# forwarded_ tests, one path per line. Interim (#166): this mechanism is removed together with
+# tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
 # The file is named after the loader because the 1.2.5 layer sits at the universal jar's root and
@@ -16,9 +17,3 @@ coverage/tests/block_shape-Test.grug
 # GUI.open until #1098 gives it a server-side container, so the menu never opens there.
 # #1094's forwarded_screen_open and forwarded_close_screen run here instead.
 coverage/tests/remote_gui-Test.grug
-#
-# The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
-# client's screen, and this server cannot open one for its player until #1098, so these run only
-# on 1.20.6.
-coverage/tests/forwarded_press_screen_key-Test.grug
-coverage/tests/forwarded_scroll_screen-Test.grug
