@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugSide;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -26,6 +27,14 @@ import javax.imageio.ImageIO;
  * sprites, GUI scaling), so every accepted appearance gets its own file and one test stays green on
  * all of them. A loader renders a screenshot one way, so it owns at most one file, and a rendering
  * two loaders share is one file named after one of them.
+ *
+ * <p>A loader's two sides get their own directories below the reference path, {@code
+ * <reference>/client/<loader>.png} and {@code <reference>/server/<loader>.png}. A client-only run
+ * keeps its own world's light while a server-driven one shows the light the server computed, and
+ * the two light engines can differ by a level at a chunk boundary, so one file cannot honestly hold
+ * both (#1092). The directory a run reads is chosen by {@link #sideName(GrugSide)}, and a capture
+ * that matches none of its side's files is written under that side's name, so an update can never
+ * replace the other side's golden.
  *
  * <p>A directory with no references yet is bootstrapped locally, and for a reference run: the first
  * capture is written as {@code <loader>.png} and accepted, so a new screenshot test doesn't need
@@ -117,9 +126,14 @@ public final class GrugScreenshots {
     private GrugScreenshots() {}
 
     /**
-     * Passes if {@code capture} matches one of the loader-named PNGs in {@code referenceDirectory},
-     * bootstraps that directory with the capture when it has no references yet, and otherwise
-     * reports the closest miss and writes the capture to the artifacts directory.
+     * Passes if {@code capture} matches one of the loader-named PNGs in this side's reference
+     * directory, bootstraps that directory with the capture when it has no references yet, and
+     * otherwise reports the closest miss and writes the capture to the artifacts directory.
+     *
+     * <p>The reference path is the test's, such as {@code coverage/screenshots/coverage_frame}; the
+     * side is appended to it for both the directory read and the path named in every message, so a
+     * client-only run and a server-driven run of one loader never compare with each other's golden
+     * (#1092). See {@link #sideName(GrugSide)}.
      *
      * <p>With a {@code tolerancePercent} of 0 the capture must be pixel-identical to a reference;
      * otherwise it passes when no single pixel changed by more than {@code 255 * percent / 100} on
@@ -127,16 +141,48 @@ public final class GrugScreenshots {
      * fails instead, so the stated tolerance is always the smallest integer that actually passes.
      */
     public static void verify(
-            BufferedImage capture,
-            File referenceDirectory,
-            String referencePath,
-            double tolerancePercent) {
+            BufferedImage capture, String referencePath, GrugSide side, double tolerancePercent) {
         verify(
                 capture,
-                referenceDirectory,
                 referencePath,
+                side,
+                GrugCore.getAdapter().getGrugModsDirectory(),
                 new File(GrugCore.getAdapter().getGameDirectory(), ARTIFACTS_DIRECTORY),
                 GrugCore.getAdapter().getLoaderName(),
+                tolerancePercent);
+    }
+
+    /**
+     * The side's own reference tree: the part of the reference that can differ between a client and
+     * a server even though a loader drew both.
+     *
+     * <p>A client-only run keeps its own world's light, and a server-driven run shows the light the
+     * server computed, so the same fixture can come out a level apart at a chunk boundary. Each
+     * side therefore holds its own PNGs instead of one file having to accept both (#1092).
+     */
+    public static String sideName(GrugSide side) {
+        return side.isDedicatedServer() ? "server" : "client";
+    }
+
+    /**
+     * The side-aware entry point, with the mods directory and the artifacts root passed in so tests
+     * can drive it.
+     */
+    static void verify(
+            BufferedImage capture,
+            String referencePath,
+            GrugSide side,
+            File modsDirectory,
+            File artifactsRoot,
+            String loaderName,
+            double tolerancePercent) {
+        String sidePath = referencePath + "/" + sideName(side);
+        verify(
+                capture,
+                new File(modsDirectory, sidePath),
+                sidePath,
+                artifactsRoot,
+                loaderName,
                 tolerancePercent);
     }
 

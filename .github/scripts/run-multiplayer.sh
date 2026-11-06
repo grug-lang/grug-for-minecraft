@@ -70,6 +70,17 @@ crash_re='Uncaught exception in thread "Server thread"|Exception in thread "main
 export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Djava.util.Arrays.useLegacyMergeSort=true"
 export RUST_BACKTRACE="${RUST_BACKTRACE:-full}"
 
+# An update-goldens run accepts a capture that matches no reference into its own side's reference
+# directory instead of failing, which is how the server goldens #1092 needs are generated: no
+# client-only run can produce them. core reads GRUG_UPDATE_GOLDENS itself and the workflow sets it
+# for a dispatch that asks for the update; this only tells the reader of the job log which mode the
+# leg is in. The two Ornithe legs load their grug mods from an installed copy under
+# run-server/grug_mods, so their server goldens land there rather than in the repository's mods/
+# tree, and build.yml uploads both places for such a dispatch.
+if [ "${GRUG_UPDATE_GOLDENS:-}" = "1" ]; then
+  echo "==> Accepting unmatched captures into each side's reference directory, for the server goldens."
+fi
+
 # The test-control channel's fault injection (#1040): the server waits 5 s for an answer (30 s on Alpha,
 # whose software-rendered client took over 3 s to read the request while it loaded chunks, and stays
 # under Alpha's 60 s silence timeout), and the
