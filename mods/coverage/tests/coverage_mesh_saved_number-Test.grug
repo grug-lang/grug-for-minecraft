@@ -52,6 +52,10 @@ cleared_tick: number = 0
 # How many captures have already shown the frame from before the change being waited for.
 attempts: number = 0
 
+# The runner tick the last capture was taken on. Up to 10 ticks run for one frame, so a capture on
+# the very next tick can be of the frame before it and show no change that has not been drawn yet.
+room_tick: number = 0
+
 export init(ctx: TestInitContext) {
     # A capture waits for the client to draw the frames it is about, which is up to about 60 ticks
     # each, and each of the four waits below may capture eight times beside the setup's own.
@@ -126,28 +130,35 @@ local _wall(ctx: TestTickContext) {
     }
 }
 
-# Waits until two captures of the room without the block agree, and then places the block.
+# Waits until two captures of the room without the block agree, and then places the block. The two
+# are a frame apart at least, so a room that is still moving is not accepted as settled.
 local _settle_empty(ctx: TestTickContext) {
-    shot: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
-    if empty_prev.has() and shot.change_from(empty_prev.unwrap()) < 1 {
-        empty.set(shot)
-        attempts = 0
-        _place(ctx)
-    } else {
-        attempts = attempts + 1
-        ctx.assert(attempts < 8, "The room never stopped changing before the block went in.")
-        empty_prev.set(shot)
+    if ctx.current_tick() >= room_tick + 10 {
+        shot: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        room_tick = ctx.current_tick()
+        if empty_prev.has() and shot.change_from(empty_prev.unwrap()) < 1 {
+            empty.set(shot)
+            attempts = 0
+            _place(ctx)
+        } else {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The room never stopped changing before the block went in.")
+            empty_prev.set(shot)
+        }
     }
 }
 
 local _capture_before(ctx: TestTickContext) {
-    drawn: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
-    if drawn.change_from(empty.unwrap()) < 1 {
-        attempts = attempts + 1
-        ctx.assert(attempts < 8, "The client never drew the chunk-mesh block's pedestal.")
-    } else {
-        before.set(drawn)
-        attempts = 0
+    if ctx.current_tick() >= room_tick + 10 {
+        drawn: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        room_tick = ctx.current_tick()
+        if drawn.change_from(empty.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The client never drew the chunk-mesh block's pedestal.")
+        } else {
+            before.set(drawn)
+            attempts = 0
+        }
     }
 }
 

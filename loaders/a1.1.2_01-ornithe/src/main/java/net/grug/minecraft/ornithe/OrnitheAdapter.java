@@ -34,6 +34,7 @@ import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
 import net.grug.minecraft.ornithe.item.GrugItem;
 import net.grug.minecraft.ornithe.mixin.SoundEngineAccess;
+import net.grug.minecraft.ornithe.mixin.WorldNotifyAccess;
 import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
@@ -518,8 +519,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                             + " position in a chunk the client has not received is discarded.");
             return;
         }
-        // A quiet write does not tell the world's listeners, and on a dedicated server that is
-        // what queues the change for the joined client. See #1078.
+        // A quiet write does not tell the world's listeners, and that notification is what queues
+        // the change for a joined client and what marks a client's own chunk for compiling again.
+        // See #1078.
         notifyPlacedBlock(world, posX, posY, posZ);
         // The client and the server share this loader's world, so the block is there, but the
         // settle wait still has to be told that a frame has to see it. See #804.
@@ -527,12 +529,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * Tells the world that {@link #placeBlock} changed a position, which is how a dedicated server
-     * queues the change for a joined client. The client and the server share this loader's world,
-     * so a client's own frame already shows the block and this does nothing there; {@code
-     * ServerOrnitheAdapter} overrides it. See #1078.
+     * Tells the world that {@link #placeBlock} changed a position, which is what the game's own
+     * {@code setBlock} does after writing: on a dedicated server it queues the change for the
+     * joined client, and on a client it marks the chunk around the position for compiling again. A
+     * quiet write tells neither, so a block whose geometry is in the chunk's mesh would only appear
+     * once something else marked its chunk; a block that draws per frame shows without it, which is
+     * why leaving this out looked harmless. See #1078.
      */
-    protected void notifyPlacedBlock(World world, int x, int y, int z) {}
+    protected void notifyPlacedBlock(World world, int x, int y, int z) {
+        ((WorldNotifyAccess) world).grug$notifyBlockChanged(x, y, z);
+    }
 
     /**
      * The name this loader spells a canonical block name with, which is what {@link #resolveBlock}

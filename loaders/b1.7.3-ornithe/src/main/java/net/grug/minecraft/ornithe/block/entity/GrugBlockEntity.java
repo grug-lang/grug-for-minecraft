@@ -36,10 +36,11 @@ public class GrugBlockEntity extends BlockEntity
     private boolean initStarted = false;
 
     /**
-     * The entity file {@link #entityHandle} was created from, or {@link Grug#INVALID_GRUG_FILE_ID}
-     * before one exists. A client joined to a server is told only that a block changed, and this
-     * version keeps the tile of the block that was there, so the tile can hold the previous block's
-     * script: the render path compares this with the block now at the position.
+     * The entity file the tile last tried to make its grug entity from, including {@link
+     * Grug#INVALID_GRUG_FILE_ID} when the block named none, and {@link Grug#INVALID_GRUG_FILE_ID}
+     * before anything was attempted. A client joined to a server is told only that a block changed,
+     * and this version keeps the tile of the block that was there, so the tile can hold the
+     * previous block's script: the render path compares this with the block now at the position.
      */
     private long initedEntityFileId = Grug.INVALID_GRUG_FILE_ID;
 
@@ -144,6 +145,9 @@ public class GrugBlockEntity extends BlockEntity
         if (entityHandle != 0 || initStarted) return;
 
         initStarted = true;
+        // The attempt is recorded even when the block names no entity file, so a tile that stays
+        // for the next block is inited from that block rather than keeping this attempt.
+        initedEntityFileId = entityFileIdHere();
         entityHandle = createGrugEntity();
 
         if (entityHandle != 0) {
@@ -168,22 +172,23 @@ public class GrugBlockEntity extends BlockEntity
         return true;
     }
 
+    /** The entity file the block at this position names, or INVALID when it names none. */
+    @GrugGenerated("a tile outside a world, or under a non-grug block, cannot be forced in tests")
+    private long entityFileIdHere() {
+        if (world == null) return Grug.INVALID_GRUG_FILE_ID;
+
+        Block block = Block.BY_ID[world.getBlock(x, y, z)];
+        if (!(block instanceof GrugBlock)) return Grug.INVALID_GRUG_FILE_ID;
+        return ((GrugBlock) block).getEntityFileId();
+    }
+
     @GrugGenerated(
             "inventory/entity setup guards: the world and block are not controllable in tests")
     private long createGrugEntity() {
         ensureSized();
-        if (world == null) return 0;
-
-        Block block = Block.BY_ID[world.getBlock(x, y, z)];
-        if (!(block instanceof GrugBlock)) return 0;
-        GrugBlock grugBlock = (GrugBlock) block;
-
-        long fileId = grugBlock.getEntityFileId();
+        long fileId = entityFileIdHere();
         if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;
-
-        long handle = GrugEntities.createEntityWithOwner(fileId, childEntities, this);
-        if (handle != 0) initedEntityFileId = fileId;
-        return handle;
+        return GrugEntities.createEntityWithOwner(fileId, childEntities, this);
     }
 
     /**
@@ -232,6 +237,9 @@ public class GrugBlockEntity extends BlockEntity
      */
     @GrugGenerated("a client's kept tile: only a live joined client has one")
     private void dropGrugEntityIfTheBlockChanged() {
+        // Nothing has been attempted before the first init, and shouldReinit compares the attempt
+        // with the block, so a first render must not drop an entity nothing made.
+        if (!initStarted) return;
         if (world == null) return;
 
         Block block = Block.BY_ID[world.getBlock(x, y, z)];
