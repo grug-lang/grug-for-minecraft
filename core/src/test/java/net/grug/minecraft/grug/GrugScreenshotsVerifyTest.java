@@ -6,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import net.grug.minecraft.core.GrugSide;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,14 +19,13 @@ import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
 /**
- * Covers {@link GrugScreenshots#verify}: the any-reference match, a per-side match (a client and a
- * dedicated-server run of one loader each reading only their own subdirectory), a server update
- * writing under the server's own name, a match at the smallest tolerance that passes, a miss below
- * it, a tolerance higher than the capture needs, bootstrapping a directory that has no references
- * yet locally, refusing to bootstrap on a CI run, a reference run comparing only its own loader's
- * reference, accepting a miss under the loader's own name (locally, replacing a previous reference
- * of the same loader) and declining to add one when another loader's reference already matches, the
- * mismatch path (artifact + magick-style diff), and the exact diff colors.
+ * Covers {@link GrugScreenshots#verify}: the any-reference match, a match at the smallest tolerance
+ * that passes, a miss below it, a tolerance higher than the capture needs, bootstrapping a
+ * directory that has no references yet locally, refusing to bootstrap on a CI run, a reference run
+ * comparing only its own loader's reference, accepting a miss under the loader's own name (locally,
+ * replacing a previous reference of the same loader) and declining to add one when another loader's
+ * reference already matches, the mismatch path (artifact + magick-style diff), and the exact diff
+ * colors.
  */
 class GrugScreenshotsVerifyTest {
 
@@ -104,21 +101,6 @@ class GrugScreenshotsVerifyTest {
                 tolerancePercent);
     }
 
-    /**
-     * Drives the side-aware seam the way {@code Screenshot.equals} does: the side is appended to
-     * the reference path, and the mods directory holds the whole tree below it.
-     */
-    private void verifyForSide(GrugSide side, BufferedImage capture) {
-        GrugScreenshots.verify(
-                capture,
-                REFERENCE_PATH,
-                side,
-                references.toFile(),
-                artifacts.toFile(),
-                LOADER_NAME,
-                0);
-    }
-
     @Test
     void passesWhenTheCaptureMatchesAnyReference() throws Exception {
         write(references.resolve(OTHER_LOADER + ".png"), solid(2, 2, RED));
@@ -127,84 +109,6 @@ class GrugScreenshotsVerifyTest {
         // It skips the other loader's reference and matches this loader's.
         assertDoesNotThrow(() -> verify(solid(2, 2, GREEN)));
         assertFalse(Files.exists(artifacts), "a passing capture leaves no artifacts");
-    }
-
-    @Test
-    void eachSideMatchesOnlyItsOwnReference() throws Exception {
-        BufferedImage green = solid(2, 2, GREEN);
-        BufferedImage red = solid(2, 2, RED);
-        // The side-aware seam appends the side to the reference path, so each side's file sits in
-        // its own subdirectory of that path.
-        Path captureDirectory = references.resolve(REFERENCE_PATH);
-        write(captureDirectory.resolve("client").resolve(LOADER_NAME + ".png"), green);
-        write(captureDirectory.resolve("server").resolve(LOADER_NAME + ".png"), red);
-
-        assertDoesNotThrow(() -> verifyForSide(GrugSide.CLIENT, green));
-        assertDoesNotThrow(() -> verifyForSide(GrugSide.DEDICATED_SERVER, red));
-
-        // A directory shared by the two sides would accept each of these captures, because the
-        // other side's reference is exactly the capture. Each side reading only its own file is
-        // what
-        // makes these misses.
-        IllegalStateException clientMiss =
-                assertThrows(
-                        IllegalStateException.class, () -> verifyForSide(GrugSide.CLIENT, red));
-        assertTrue(
-                clientMiss.getMessage().contains("none of the 1 reference"),
-                clientMiss.getMessage());
-        assertTrue(
-                clientMiss.getMessage().contains(REFERENCE_PATH + "/client"),
-                clientMiss.getMessage());
-
-        IllegalStateException serverMiss =
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> verifyForSide(GrugSide.DEDICATED_SERVER, green));
-        assertTrue(
-                serverMiss.getMessage().contains("none of the 1 reference"),
-                serverMiss.getMessage());
-        assertTrue(
-                serverMiss.getMessage().contains(REFERENCE_PATH + "/server"),
-                serverMiss.getMessage());
-
-        assertEquals("client", GrugScreenshots.sideName(GrugSide.CLIENT));
-        assertEquals("server", GrugScreenshots.sideName(GrugSide.DEDICATED_SERVER));
-    }
-
-    @Test
-    void anUpdateWritesTheMissUnderItsOwnSidesName() throws Exception {
-        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "1");
-        Path captureDirectory = references.resolve(REFERENCE_PATH);
-        // Both sides have a reference already, so this is the update-accept path rather than the
-        // bootstrap one, and the client's file is there to be left alone.
-        write(captureDirectory.resolve("server").resolve(LOADER_NAME + ".png"), solid(2, 2, RED));
-        BufferedImage clientReference = solid(2, 2, BLUE);
-        Path clientFile = captureDirectory.resolve("client").resolve(LOADER_NAME + ".png");
-        write(clientFile, clientReference);
-
-        BufferedImage capture = solid(2, 2, GREEN);
-        assertDoesNotThrow(() -> verifyForSide(GrugSide.DEDICATED_SERVER, capture));
-
-        // The miss is accepted over the server's previous reference, not bootstrapped beside it.
-        Path serverReference = captureDirectory.resolve("server").resolve(LOADER_NAME + ".png");
-        assertEquals(capture.getRGB(0, 0), read(serverReference).getRGB(0, 0));
-        assertEquals(1, pngCount(captureDirectory.resolve("server")), "the update replaced it");
-        // The other side's file is untouched, so a server capture can never rewrite the client's.
-        assertEquals(clientReference.getRGB(0, 0), read(clientFile).getRGB(0, 0));
-    }
-
-    /** The PNGs directly in one reference directory. */
-    private static int pngCount(Path directory) {
-        File[] files = directory.toFile().listFiles();
-        int references = 0;
-        if (files != null) {
-            for (File file : files) {
-                if (file.getName().endsWith(".png")) {
-                    references++;
-                }
-            }
-        }
-        return references;
     }
 
     @Test

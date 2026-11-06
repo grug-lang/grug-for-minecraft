@@ -35,16 +35,6 @@ on:
         # is in it, since each loader's game boots and then runs only coverage's tests.
         description: 'Run only the tests of mods/coverage in the development loader jobs, to measure the coverage gate in 95 to 149 s per loader; every other job of the dispatch runs as usual'
         type: boolean
-      update-goldens:
-        # A dispatch that checks this makes the dedicated-server legs accept a capture that matches
-        # no reference into the server's own reference directory, `<test>/server/<loader>.png`,
-        # instead of failing (#1092). No client-only run can produce those goldens: a server places
-        # the world and the joined client shows the light the server computed, which differs from a
-        # client-only run's by a level at a chunk boundary. An update-goldens dispatch generates
-        # them, uploads both the repository's screenshots trees and the installed Ornithe servers'
-        # copies, and the goldens are committed from those artifacts.
-        description: 'Accept each dedicated-server leg''s unmatched captures into its server reference tree, so the server goldens can be committed; uploads the screenshots trees'
-        type: boolean
       refresh-test-times:
         # Every game run writes its loader's test order record back to the repository it read it
         # from (#778), so set this and the loader jobs hand the records back as artifacts: the
@@ -987,10 +977,6 @@ jobs:
           # stopped it before its last tests while it was still passing them. The cap is the hang
           # detector rather than a second budget, so it leaves room for the suite's growth.
           GRUG_CI_RUN_TIMEOUT: '420'
-          # An update-goldens dispatch accepts each unmatched capture into its own side's reference
-          # directory, which is the only way the server goldens are generated (#1092). core reads
-          # this, and run-multiplayer.sh prints which mode the leg is in.
-          GRUG_UPDATE_GOLDENS: ${{ inputs.update-goldens && '1' || '' }}
 
       # What the test-control channel did (#1040), from both ends, so a reader of the job log sees the
       # round trips and the injected faults without opening the artifact.
@@ -1041,21 +1027,6 @@ jobs:
             loaders/${{ matrix.loader }}/run/control-captures
             loaders/${{ matrix.loader }}/run-server/hs_err_pid*.log
             loaders/${{ matrix.loader }}/run/hs_err_pid*.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-      # The reference tree an update-goldens dispatch wrote. The three development servers load the
-      # repository's own mods/ tree, so their goldens are there; the two Ornithe legs run an
-      # installed server whose grug_mods is a copy, so theirs are under run-server. Both are
-      # attached, and the author commits the server PNGs from them (#1092).
-      - name: Upload the screenshots an update-goldens run accepted
-        if: ${{ always() && inputs.update-goldens }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: multiplayer-${{ matrix.loader }}-screenshots
-          path: |
-            mods/*/screenshots
-            loaders/${{ matrix.loader }}/run-server/grug_mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 

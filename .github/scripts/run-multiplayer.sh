@@ -70,17 +70,6 @@ crash_re='Uncaught exception in thread "Server thread"|Exception in thread "main
 export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Djava.util.Arrays.useLegacyMergeSort=true"
 export RUST_BACKTRACE="${RUST_BACKTRACE:-full}"
 
-# An update-goldens run accepts a capture that matches no reference into its own side's reference
-# directory instead of failing, which is how the server goldens #1092 needs are generated: no
-# client-only run can produce them. core reads GRUG_UPDATE_GOLDENS itself and the workflow sets it
-# for a dispatch that asks for the update; this only tells the reader of the job log which mode the
-# leg is in. The two Ornithe legs load their grug mods from an installed copy under
-# run-server/grug_mods, so their server goldens land there rather than in the repository's mods/
-# tree, and build.yml uploads both places for such a dispatch.
-if [ "${GRUG_UPDATE_GOLDENS:-}" = "1" ]; then
-  echo "==> Accepting unmatched captures into each side's reference directory, for the server goldens."
-fi
-
 # The test-control channel's fault injection (#1040): the server waits 5 s for an answer (30 s on Alpha,
 # whose software-rendered client took over 3 s to read the request while it loaded chunks, and stays
 # under Alpha's 60 s silence timeout), and the
@@ -322,10 +311,9 @@ while :; do
     # control for the forwarded settle answer (#1086), forwarded_capture_same_tick, which is what a
     # settle ask's flush is for (#1123), and the screen calls (#1094), which every
     # leg that forwards them asks here: the reads and close_screen with no screen, and the open
-    # GUI's reads on 1.20.6. The pixel tests stay client-only: coverage_render waits for #1053, and
-    # coverage_frame for a joined client's view the server can level (#1052), because a dedicated
-    # server skips the player snap and the fixture lands outside coverage_frame's tight crop on
-    # Alpha and Beta (#1092). coverage_frame_saved_number, coverage_frame_saved_list_energy,
+    # GUI's reads on 1.20.6. The pixel tests stay client-only until a joined client's frame
+    # matches a singleplayer one (#1092); coverage_frame_saved_number,
+    # coverage_frame_saved_list_energy,
     # coverage_mesh_saved_number and coverage_mesh_saved_reinit run on every server leg now that a
     # loader sends saved numbers, a list's item and the energy store to the client's copy (#1093),
     # sends a chunk-mesh block's saved data with the block update that rebuilds its mesh, and
@@ -375,11 +363,10 @@ while :; do
     esac
     # The remote GUI test (#168) and the GUI capture tests run on the servers that can open a
     # container for their player, 1.20.6 and 1.2.5 (#1098): the other three servers list them as
-    # unsupported, so these two legs must show they ran. A capture compares against the reference of
-    # the side it runs on, the server's own PNG here, so a leg whose panel draws differently fails
-    # in the test itself; this check catches the test not running at all on that leg (renamed,
-    # listed as unsupported, or no longer recognised as declared), which the run would otherwise
-    # pass with it silently skipped.
+    # unsupported, so these two legs must show they ran. A capture compares against the unchanged
+    # client-only golden, so a leg whose panel draws differently fails in the test itself; this
+    # check catches the test not running at all on that leg (renamed, listed as unsupported, or no
+    # longer recognised as declared), which the run would otherwise pass with it silently skipped.
     # A server that stops opening the menu fails the test on its own tick budget, before this is
     # reached. The captures wait on the server's own state, so they run here; the item texture swap
     # is the one that cannot, because it waits for a resource reload to finish on the client the
