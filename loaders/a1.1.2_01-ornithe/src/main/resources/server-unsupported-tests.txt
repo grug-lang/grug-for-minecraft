@@ -1,5 +1,5 @@
-# Tests the Alpha a0.2.1 dedicated server cannot run although they define tick_any_side, one path
-# per line. Interim (#1021): this mechanism is removed together with tick_any_side when #1040 lands.
+# Tests the Alpha a0.2.1 dedicated server cannot run although they define tick_any_side or are
+# forwarded_ tests, one path per line. Interim (#1021): this mechanism is removed together with tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
 # Recipes and crafting. The a0.2.1 server jar has no CraftingManager (crafting was client-side
