@@ -108,10 +108,12 @@ public final class GrugSavedDataSync {
     /**
      * A script asked for the block's geometry to be built again, which a block in its chunk's mesh
      * needs before it reads saved data the client's copy may not hold yet. The side that owns the
-     * block entity sends the clients that hold it the data and the block update that builds the
-     * mesh again; a client builds its own mesh again and sends nothing, because the data travels
-     * server to client only. That is the same side check {@link #changed} makes, so no loader's
-     * transport can turn a client's redraw into a packet even if it installed one.
+     * block entity sends the clients that hold it the data, and each client's handler marks its own
+     * section and builds the mesh again; a server that sends a block update instead would not, as
+     * the client drops a same-state update. A client's own copy rebuilds its mesh locally, through
+     * the loader's mark, and sends nothing, because the data travels server to client only. That is
+     * the same side check {@link #changed} makes, so no loader's transport can turn a client's
+     * redraw into a packet even if it installed one.
      */
     public static synchronized void redrawn(Object blockEntity) {
         Transport installed = transport;
@@ -122,6 +124,20 @@ public final class GrugSavedDataSync {
             return;
         }
         installed.redraw(blockEntity);
+    }
+
+    /**
+     * Runs a client's own rebuild when this process holds a client's copy of the block entity.
+     *
+     * <p>A 1.20.6 client marks its own level's section, which is also how the block entity packet's
+     * handler rebuilds the mesh; a server's transport sends the data and never a block update. The
+     * answer is a plain boolean here so a core unit test covers both, and the client's rebuilt mesh
+     * is drawn by redraw_custom_render.
+     */
+    public static void onClientLevel(boolean clientLevel, Runnable rebuild) {
+        if (clientLevel) {
+            rebuild.run();
+        }
     }
 
     /**

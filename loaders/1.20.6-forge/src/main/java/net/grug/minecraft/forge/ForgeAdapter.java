@@ -591,13 +591,22 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // it and the frames drawn before this call say nothing about it: the capture waits for two
         // after it. Up to 10 ticks run for a frame, so the test's own wait cannot stand in for it.
         RENDER_SETTLE.noteBusy();
-        // The transport is the side that owns the block entity: it sends the saved data and then
-        // the one block update that reaches the clients holding it, so the data is there before
-        // the mesh is built again. A joined client builds its mesh from that block entity packet's
-        // handler, GrugBlockEntity.onDataPacket, and a client's own copy of a redrawn block entity
-        // has no caller here, so this side adds no mark of its own. One block update per side,
-        // never two, and no side branch the coverage gate would miss (#1027).
+        // The transport is the side that owns the block entity: it sends the saved data to the
+        // clients holding it, and their GrugBlockEntity.onDataPacket marks their own section and
+        // builds the mesh again. A client's own copy of a redrawn block entity has no transport
+        // that sends, so its rebuild is the local mark below; a client never sends a packet. One
+        // rebuild per side, never two. The side decision lives in core, so a core unit test covers
+        // both answers, and redraw_custom_render draws the client's rebuilt plate.
         GrugSavedDataSync.redrawn(be);
+        GrugSavedDataSync.onClientLevel(
+                be.getLevel().isClientSide(),
+                () ->
+                        be.getLevel()
+                                .sendBlockUpdated(
+                                        be.getBlockPos(),
+                                        be.getBlockState(),
+                                        be.getBlockState(),
+                                        net.minecraft.world.level.block.Block.UPDATE_CLIENTS));
     }
 
     @Override
