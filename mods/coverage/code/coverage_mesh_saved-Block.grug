@@ -1,6 +1,7 @@
-# A block whose block entity draws its own geometry into the chunk's mesh: a small core, and a wide
-# plate once a script saved a number. The chunk mesh reads the saved data when it is built, so the
-# plate only appears when the client's copy holds the number and the mesh is built again from it.
+# A block whose block entity draws its own geometry into the chunk's mesh: a whole block, and a
+# second whole block on top once a script saved a number. The chunk mesh reads the saved data when it
+# is built, so the plate only appears when the client's copy holds the number and the mesh is built
+# again from it.
 # See coverage_mesh_saved_number-Test.grug.
 export init(ctx: BlockInitContext) {
     ctx.set_hardness(1)
