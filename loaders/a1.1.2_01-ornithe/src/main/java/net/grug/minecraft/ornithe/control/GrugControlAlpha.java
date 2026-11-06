@@ -344,6 +344,8 @@ public final class GrugControlAlpha {
             // Left the server: a run belongs to the connection that started it.
             pending = false;
             client().endRun();
+            started = false;
+            hooks.endControlRun();
         }
         if (!pending) return;
         waited++;

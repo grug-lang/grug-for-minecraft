@@ -9,6 +9,7 @@ import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.forge125.block.GrugBlocks;
 import net.grug.minecraft.forge125.block.GrugBoxRenderer;
 import net.grug.minecraft.forge125.client.GlBridge;
+import net.grug.minecraft.forge125.client.GrugClientHooks;
 import net.grug.minecraft.forge125.client.GrugEmptyScreen;
 import net.grug.minecraft.forge125.client.GrugOverlayHost;
 import net.grug.minecraft.forge125.client.GrugScreen;
@@ -285,11 +286,12 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         boolean blocksPending =
                 blockSync.onFrame((x, y, z) -> getBlock(minecraft.theWorld, x, y, z));
         // A frame drawn from a view the mouse moved is not one a capture may read, and the view is
-        // levelled again for the next frame. See GrugTestCamera and #1128.
+        // levelled again for the next frame. See GrugTestCamera and #1128. A joined client has no
+        // test runner of its own, so its control run owns the view too (#1161).
         renderSettle.onFrame(
                 GrugTestCamera.frameBusy(
                         frameHadPendingWork(minecraft),
-                        testPlayerSnapped,
+                        testPlayerSnapped || GrugClientHooks.isControlRunActive(),
                         testPlayer(),
                         CAMERA_VIEW),
                 blocksPending);

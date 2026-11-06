@@ -214,10 +214,19 @@ public class GrugClientHooks {
 
     /**
      * Whether a test run currently owns the client, for the render mixins that pin state a capture
-     * must not depend on. See {@code GameGuiMixin}.
+     * must not depend on. See {@code GameGuiMixin}. A joined client has no test runner of its own,
+     * because the server it joined drives the run, so its control run counts too (#1161).
      */
     public static boolean isTestRunActive() {
-        return instance.testRunner != null;
+        return instance.testRunner != null || instance.controlRunStarted;
+    }
+
+    /**
+     * Whether this client started a run on the server it joined, which owns the client as a run it
+     * drove itself does (#1040). The adapter reads it for the view bookkeeping a capture needs.
+     */
+    public static boolean isControlRunActive() {
+        return instance != null && instance.controlRunStarted;
     }
 
     /**
@@ -253,6 +262,7 @@ public class GrugClientHooks {
      * server (#1040): the screenshot size.
      */
     public void beginControlRun() {
+        controlRunStarted = true;
         // The view is left alone: the joined client overflowed its stack in Alpha's recursive light
         // update after it shrank the view, which a client that keeps the default view did not.
         window.beginRun();
@@ -260,8 +270,16 @@ public class GrugClientHooks {
 
     /** Puts the window back when this client has left the server whose run it started. */
     public void endControlRun() {
+        controlRunStarted = false;
         window.endRun();
     }
+
+    /**
+     * Set while a run this client started on a server owns it (#1040). A joined client has no test
+     * runner of its own, so the mixins would otherwise leave the flicker and vignette unpinned and
+     * the adapter would not level the view (#1161).
+     */
+    private boolean controlRunStarted;
 
     public void tick() {
         if (!titleSet) {

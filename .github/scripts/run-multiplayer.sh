@@ -312,6 +312,17 @@ while :; do
           exit 1
         fi
       done
+      # The cobblestone pipe's shape test and the three redstone engine tests are the first part of
+      # the buildcraft S+U+B+H+W group promoted to both sides (#1096, #1161): each captures the
+      # joined client's frame and compares it with its own golden, so a leg that skips one must fail
+      # here. The group's two wooden pipe tests stay client-only until a chunk-mesh block's saved
+      # data reaches a joined client (#1101, #1152).
+      for shapes in cobblestone_pipe_shapes redstone_engine redstone_engine_animation redstone_engine_facings; do
+        if ! grep -qF "[GRUG CI] PASS buildcraft/tests/${shapes}-Test.grug" "$SERVER_LOG"; then
+          echo "==> The run passed, but buildcraft/tests/${shapes}-Test.grug did not run on the dedicated server." >&2
+          exit 1
+        fi
+      done
     fi
     # A server leg that skips a use_block test (it is not tick_any_side, or the loader lists it as
     # unsupported) still passes its run, so every leg must show that these ran (#1090). The coverage

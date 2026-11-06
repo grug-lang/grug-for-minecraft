@@ -142,6 +142,8 @@ public final class GrugControlClientForge {
                         + " client ticks (renderer idle: "
                         + idle
                         + ")");
-        done.accept(ForgeAdapter.captureRectangle(x1, y1, x2, y2));
+        BufferedImage image = ForgeAdapter.captureRectangle(x1, y1, x2, y2);
+        GrugControlDiagnosticForge.describe(image, mc);
+        done.accept(image);
     }
 }

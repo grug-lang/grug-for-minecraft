@@ -312,12 +312,34 @@ public class GrugClientHooks implements ITickHandler {
      * server (#1040): the screenshot size. The view is left alone, as on the other loaders.
      */
     public void beginControlRun() {
+        controlRunStarted = true;
         window.beginRun();
     }
 
     /** Puts the window back when this client has left the server whose run it started. */
     public void endControlRun() {
+        controlRunStarted = false;
         window.endRun();
+    }
+
+    /**
+     * Set while a run this client started on a server owns it (#1040). A joined client has no test
+     * runner of its own, so the frame pins would otherwise be off (#1161). It is static because the
+     * adapter reads it without a handle on these hooks, of which the client constructs one.
+     */
+    private static boolean controlRunStarted;
+
+    /**
+     * Whether a run owns this client, whether this client drives it or the server it joined does,
+     * for the frame pins a capture must not depend on (#1161).
+     */
+    private boolean isTestRunActive() {
+        return testRunner != null || controlRunStarted;
+    }
+
+    /** The control-run half of {@link #isTestRunActive()}, for the adapter's view bookkeeping. */
+    public static boolean isControlRunActive() {
+        return controlRunStarted;
     }
 
     /**
@@ -436,8 +458,9 @@ public class GrugClientHooks implements ITickHandler {
     private void renderTick(Minecraft minecraft) {
         // The lightmap multiplies a random walk into the block-light color (see GrugTorchFlicker),
         // so pin it on every frame a run draws: the value the game picked this tick would otherwise
-        // make the same scene a light step brighter or darker than another run's capture of it.
-        if (testRunner != null) {
+        // make the same scene a light step brighter or darker than another run's capture of it. A
+        // joined client's control run counts as a run here too (#1161).
+        if (isTestRunActive()) {
             GrugTorchFlicker.pin(minecraft.entityRenderer);
             GrugTorchFlicker.pinVignette(minecraft.ingameGUI);
         }

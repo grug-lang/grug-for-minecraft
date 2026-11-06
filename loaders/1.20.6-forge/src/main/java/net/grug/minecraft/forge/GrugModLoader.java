@@ -100,9 +100,13 @@ public class GrugModLoader {
     public static final String MODID = "grug";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Whether a screenshot test run (the R hotkey or CI) is currently active. */
+    /**
+     * Whether a screenshot test run (the R hotkey, CI, or a run this client started on a server)
+     * currently owns the client.
+     */
     public static boolean isTestRunActive() {
-        return ClientForgeEvents.grug$testRunner != null;
+        return ClientForgeEvents.grug$testRunner != null
+                || ClientForgeEvents.grug$controlRunStarted;
     }
 
     /**
