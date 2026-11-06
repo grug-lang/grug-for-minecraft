@@ -38,9 +38,10 @@ import java.util.function.Consumer;
  * GrugControlPacket#read} says, so nothing drains the connection by hand.
  *
  * <p>The sender of an answer is the connection the reader thread belongs to, and core's server
- * accepts an answer only from the connection that started the run. Before a request the server
- * flushes the block changes its chunk maps queued, as 1.20.6 does, because the server only sends
- * them at the end of its own tick, which a frozen tick never reaches.
+ * accepts an answer only from the connection that started the run. Before a capture and before a
+ * settle ask the server flushes the block changes its chunk maps queued, as 1.20.6 does, because
+ * the server only sends them at the end of its own tick, which a frozen tick never reaches. Sound
+ * and screen calls do not flush, because they depend on no world state.
  */
 @GrugGenerated(
         "the Beta channel glue of #1040: no test the coverage gate counts can reach it, since only"

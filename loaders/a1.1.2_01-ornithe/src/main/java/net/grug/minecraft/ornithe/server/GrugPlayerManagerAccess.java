@@ -43,6 +43,9 @@ final class GrugPlayerManagerAccess {
             if (playerManager == null) {
                 playerManager = findPlayerManager();
             }
+            if (playerManager == null) {
+                return;
+            }
             playerManager.getClass().getMethod(SERVER_PLAYER_MANAGER_TICK).invoke(playerManager);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(
@@ -53,8 +56,12 @@ final class GrugPlayerManagerAccess {
         }
     }
 
+    /** The running server's player manager, or null before the server exists or after it ended. */
     private static Object findPlayerManager() throws ReflectiveOperationException {
         Object server = Class.forName(SERVER_INSTANCE).getMethod("get").invoke(null);
+        if (server == null) {
+            return null;
+        }
         return server.getClass().getField(SERVER_PLAYER_MANAGER).get(server);
     }
 }

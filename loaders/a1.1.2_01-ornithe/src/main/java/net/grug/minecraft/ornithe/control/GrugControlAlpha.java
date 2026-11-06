@@ -38,10 +38,11 @@ import java.util.function.Consumer;
  * GrugControlPacket#read} says, so nothing drains the connection by hand.
  *
  * <p>The sender of an answer is the connection the reader thread belongs to, and core's server
- * accepts an answer only from the connection that started the run. Before a request the server
- * sends the block changes its player manager has queued, whose own tick a frozen one never reaches,
- * so a test that places a block and captures in the same tick reads the client's frame with that
- * block in it (#1123).
+ * accepts an answer only from the connection that started the run. Before a capture and before a
+ * settle ask the server sends the block changes its player manager has queued, whose own tick a
+ * frozen one never reaches, so a test that places a block and captures in the same tick reads the
+ * client's frame with that block in it (#1123). Sound and screen calls do not flush, because they
+ * depend on no world state.
  */
 @GrugGenerated(
         "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since only"
