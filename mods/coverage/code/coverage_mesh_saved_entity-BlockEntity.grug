@@ -1,13 +1,15 @@
 # Draws the geometry the chunk's mesh holds, from the saved number the mesh is built with. A block
 # whose shape the mesh holds reads the saved data here, not in render_frame, so a number a script
 # saved only shows once the client rebuilt the mesh (#1101).
-# The core is always drawn, because a block that declares set_custom_render and draws nothing reports
-# an error. The plate is wide enough that its appearance moves more than the 1 percent of the crop
-# the test asks for.
+# The pedestal is always drawn, because a block that declares set_custom_render and draws nothing
+# reports an error, and it is large enough that its appearance moves well past the 1 percent of the
+# crop the test asks for. The plate sits above it and is wide enough that its appearance moves more
+# than the pedestal alone, so the frame the number changes is not one the block's arrival could
+# have produced.
 export render(ctx: RenderContext) {
-    ctx.draw_box(0.35, 0.0, 0.35, 0.65, 0.3, 0.65)
+    ctx.draw_box(0.25, 0.0, 0.25, 0.75, 0.4, 0.75)
 
     if me.get_saved_number("marker") > 0 {
-        ctx.draw_box(0.0, 0.3, 0.0, 1.0, 0.75, 1.0)
+        ctx.draw_box(0.0, 0.4, 0.0, 1.0, 0.9, 1.0)
     }
 }

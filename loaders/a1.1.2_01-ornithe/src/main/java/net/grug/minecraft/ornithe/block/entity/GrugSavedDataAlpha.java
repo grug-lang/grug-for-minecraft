@@ -6,7 +6,6 @@ import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
-import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
@@ -20,11 +19,11 @@ import java.util.ArrayList;
  * Sends a grug block entity's saved data to the joined clients on an Alpha dedicated server, which
  * is where {@link GrugSavedDataSync} asks.
  *
- * <p>The players are reached through the world, and each player's connection by type: this layer is
- * compiled against the a1.1.2_01 client, which has no server classes, so the server's player
- * manager and player handler cannot be named here. The fields are found the way {@code
- * GrugControlAlpha} finds a connection, by what they hold rather than by what they are called,
- * since the game's names are obfuscated at run time.
+ * <p>The players are reached through the block entity's own world, and each player's connection by
+ * type: this layer is compiled against the a1.1.2_01 client, which has no server classes, so the
+ * server's player manager and player handler cannot be named here. The fields are found the way
+ * {@code GrugControlAlpha} finds a connection, by what they hold rather than by what they are
+ * called, since the game's names are obfuscated at run time.
  *
  * <p>A singleplayer Alpha game has no server and no second copy of the world, so it installs none:
  * the copy the script writes is the one the frame pass reads.
@@ -55,17 +54,25 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
 
     @Override
     public void send(Object blockEntity) {
-        sendPacket(new GrugSavedDataPacket((GrugBlockEntity) blockEntity));
+        GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
+        sendPacket(entity.world, new GrugSavedDataPacket(entity));
     }
 
     @Override
     public void redraw(Object blockEntity) {
-        sendPacket(new GrugSavedDataPacket((GrugBlockEntity) blockEntity, true));
+        GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
+        sendPacket(entity.world, new GrugSavedDataPacket(entity, true));
     }
 
-    /** Sends {@code packet} to every player in the world the block entity belongs to. */
-    private static void sendPacket(GrugSavedDataPacket packet) {
-        World world = GrugServerRun.world();
+    /**
+     * Sends {@code packet} to every player in {@code world}, and to no one else: the packet carries
+     * a position, and a client in another world applies it to whatever block sits at those
+     * coordinates in its own. That is the block entity's own world rather than the server's first
+     * one, the same rule the other four loaders follow through their server's player manager; Alpha
+     * has one world, so the two agree there today, and the block entity's is the one that stays
+     * right if it ever has more.
+     */
+    private static void sendPacket(World world, GrugSavedDataPacket packet) {
         if (world == null) {
             return;
         }

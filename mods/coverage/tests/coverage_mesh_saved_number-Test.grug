@@ -3,40 +3,75 @@
 # the number only reaches a joined client when the client's copy holds it and the client builds the
 # mesh again. The script asks for that with redraw(), and on a dedicated server the loader has to
 # send the client both the data and the block update that rebuilds the mesh (#1101). The
-# coverage_mesh_saved block draws a small core always, and a wide plate once its "marker" number is
-# above 0, so the assertion is that the client's frame changed after the save and the redraw.
-# Two captures of one session are compared, rather than one against a reference image, so this holds
-# on every loader and needs no golden: a mesh that was never rebuilt looks like the frame before it
-# and fails. The crop is the tall one coverage_frame_saved_number uses, with a wall behind the block,
-# because a dedicated server builds the room from its own copy of the player, which can sit a block
-# off the joined client's; the wall keeps drifting clouds out of the comparison.
+# coverage_mesh_saved block draws a small pedestal always, and a wide plate above it once its
+# "marker" number is above 0, so the assertion is that the client's frame changed after the save and
+# the redraw.
+# Three captures of one session are compared, so this holds on every loader and needs no golden:
+# the crop with the block cleared out, the crop with the block drawn from its own render pass, and
+# the crop after the number was saved. Comparing the second against the first is what proves the
+# client had the block and its render() before the number was saved, so the third differing from it
+# is the saved number arriving rather than the block merely appearing or the mesh being rebuilt. A
+# frame that lost the block looks like the first and fails, and so does a number that never reached
+# the mesh, which looks like the second.
+# The crop is the tall one coverage_frame_saved_number uses, with a wall behind the block, because a
+# dedicated server builds the room from its own copy of the player, which can sit a block off the
+# joined client's; the wall keeps drifting clouds out of the comparison.
+# The block goes in only after the room's clearing has reached the client, and that wait is the
+# capture of the empty crop: a joined client is told only that a block changed, so the block entity
+# of the block that was there stays until the client processes that change. A block placed in the
+# same tick as the clear inherits that block entity, which the render path drops and inits from the
+# block that is there (GrugStaleBlockEntity.shouldReinit); the empty capture is what proves the
+# second capture is this block rather than the room that was there.
 # It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
-# joined client, and the captures are the client's (#1086). The wait ends on the frame itself:
+# joined client, and the captures are the client's (#1086). The waits end on the frame itself:
 # Screenshot.change_from reports how much of it changed, so a client that is behind is captured
-# again instead of being assumed to have caught up after a tick count.
+# again instead of being assumed to have caught up after a tick count. redraw() is what asks the
+# client for the mesh build again, and it also inits the client's copy of the block entity when the
+# chunk's build got there first.
 mesh_block: Option[BlockEntity] = Option.new()
+empty: Option[Screenshot] = Option.new()
 before: Option[Screenshot] = Option.new()
+
+# Whether the block has been placed, and whether its core has been seen in the client's frame.
+placed: bool = false
+
+# Whether the number has been saved and the redraw asked for on it.
 saved: bool = false
 
 # The runner tick the number was saved and the redraw asked for on.
 saved_tick: number = 0
 
-# How many captures have already shown the frame from before the save.
+# How many captures have already shown the frame from before the change being waited for.
 attempts: number = 0
 
 export init(ctx: TestInitContext) {
-    # Eight captures 30 ticks apart, beside the setup, pass the default 200.
-    ctx.set_max_ticks(400)
+    # A capture waits for the client to draw the frames it is about, which is up to about 60 ticks
+    # each, and each of the two waits below may capture eight times beside the setup's own.
+    ctx.set_max_ticks(2000)
 }
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        _setup(ctx)
+        _wall(ctx)
+        empty.set(Test.screenshot().capture(500, 60, 780, 440))
+        _place(ctx)
         ctx.not_done()
     } else if not Test.world_settled() {
         ctx.not_done()
+    } else if not placed {
+        drawn: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        if drawn.change_from(empty.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The client never drew the chunk-mesh block's core.")
+            mesh_block.unwrap().redraw()
+            ctx.not_done()
+        } else {
+            before.set(drawn)
+            placed = true
+            attempts = 0
+            ctx.not_done()
+        }
     } else if not saved {
-        before.set(Test.screenshot().capture(500, 60, 780, 440))
         block: BlockEntity = mesh_block.unwrap()
         block.set_saved_number("marker", 1)
         block.redraw()
@@ -63,7 +98,7 @@ export tick_any_side(ctx: TestTickContext) {
     }
 }
 
-local _setup(ctx: TestTickContext) {
+local _wall(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     Test.set_box_radius(6)
     origin: Vec3 = Test.get_origin()
@@ -71,13 +106,9 @@ local _setup(ctx: TestTickContext) {
     y: number = origin.y()
     z: number = origin.z()
 
-    # The same place coverage_frame_saved_number's block sits, with the same tall crop for a
-    # dedicated server whose room is built from its own copy of the joined player.
-    level.place_block(x, y - 1.88, z + 4, "grug:coverage_mesh_saved")
-
-    # A wall behind it, thirteen across and thirteen high, the size coverage_frame's golden uses,
-    # which covers the whole crop. Without one the crop could hold sky, and clouds drift between two
-    # captures.
+    # A wall behind the block's spot, thirteen across and thirteen high, the size coverage_frame's
+    # golden uses, which covers the whole crop. Without one the crop could hold sky, and clouds
+    # drift between two captures.
     wy: number = y - 9
     while wy < y + 4 {
         wx: number = x - 6
@@ -87,6 +118,18 @@ local _setup(ctx: TestTickContext) {
         }
         wy = wy + 1
     }
+}
+
+local _place(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The same place coverage_frame_saved_number's block sits, with the same tall crop for a
+    # dedicated server whose room is built from its own copy of the joined player.
+    level.place_block(x, y - 1.88, z + 4, "grug:coverage_mesh_saved")
 
     be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
     ctx.assert(be_opt.has(), "The chunk-mesh block should have a block entity.")
