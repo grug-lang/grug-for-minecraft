@@ -14,7 +14,8 @@
         "GameRendererMixin",
         "InventoryMenuScreenMixin",
         "ScreenMixin",
-        "GrugFillInvoker"
+        "GrugFillInvoker",
+        "WorldNotifyAccess"
     ],
     "injectors": {
         "defaultRequire": 1
