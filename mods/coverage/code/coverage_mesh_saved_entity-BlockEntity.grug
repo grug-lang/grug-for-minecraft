@@ -6,10 +6,13 @@
 # crop the test asks for. The plate sits above it and is wide enough that its appearance moves more
 # than the pedestal alone, so the frame the number changes is not one the block's arrival could
 # have produced.
+# The number name is this block's own, because a client that keeps the block entity of the block
+# that was there keeps its saved numbers too, and a number another test already saved cannot show
+# that this one's save arrived.
 export render(ctx: RenderContext) {
     ctx.draw_box(0.25, 0.0, 0.25, 0.75, 0.4, 0.75)
 
-    if me.get_saved_number("marker") > 0 {
+    if me.get_saved_number("mesh_marker") > 0 {
         ctx.draw_box(0.0, 0.4, 0.0, 1.0, 0.9, 1.0)
     }
 }

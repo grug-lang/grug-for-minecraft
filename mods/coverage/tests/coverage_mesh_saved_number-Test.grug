@@ -4,24 +4,27 @@
 # mesh again. The script asks for that with redraw(), and on a dedicated server the loader has to
 # send the client both the data and the block update that rebuilds the mesh (#1101). The
 # coverage_mesh_saved block draws a small pedestal always, and a wide plate above it once its
-# "marker" number is above 0, so the assertion is that the client's frame changed after the save and
-# the redraw.
+# "mesh_marker" number is above 0, so the assertion is that the client's frame changed after the
+# save and the redraw.
 # Three captures of one session are compared, so this holds on every loader and needs no golden:
-# the crop with the block cleared out, the crop with the block drawn from its own render pass, and
-# the crop after the number was saved. Comparing the second against the first is what proves the
-# client had the block and its render() before the number was saved, so the third differing from it
-# is the saved number arriving rather than the block merely appearing or the mesh being rebuilt. A
-# frame that lost the block looks like the first and fails, and so does a number that never reached
-# the mesh, which looks like the second.
+# the room without the block, the room with the block drawn from its own render pass, and the room
+# after the number was saved. Comparing the second against the first is what proves the client had
+# the block and its render() before the number was saved, so the third differing from it is the
+# saved number arriving rather than the block merely appearing or the mesh being rebuilt. A frame
+# that lost the block looks like the first and fails, and so does a number that never reached the
+# mesh, which looks like the second.
 # The crop is the tall one coverage_frame_saved_number uses, with a wall behind the block, because a
 # dedicated server builds the room from its own copy of the player, which can sit a block off the
 # joined client's; the wall keeps drifting clouds out of the comparison.
-# The block goes in only after the room's clearing has reached the client, and that wait is the
-# capture of the empty crop: a joined client is told only that a block changed, so the block entity
-# of the block that was there stays until the client processes that change. A block placed in the
-# same tick as the clear inherits that block entity, which the render path drops and inits from the
-# block that is there (GrugStaleBlockEntity.shouldReinit); the empty capture is what proves the
-# second capture is this block rather than the room that was there.
+# Only two captures of the room that agree count as the first one: the wall's own mesh and the light
+# reaching it arrive after the blocks are placed, and a wall that appeared between two captures would
+# otherwise be what the second capture adds rather than the block. The block goes in only after that
+# baseline, and a joined client is told only that a block changed, so the block entity of the block
+# that was there stays until the client processes that change. A block placed on that tile inherits
+# that block entity, which the render path drops and inits from the block that is there
+# (GrugStaleBlockEntity.shouldReinit). The tile also keeps the previous test's saved numbers, which
+# is why this block uses a number name of its own: a number that is already saved cannot show that
+# the save arrived.
 # It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
 # joined client, and the captures are the client's (#1086). The waits end on the frame itself:
 # Screenshot.change_from reports how much of it changed, so a client that is behind is captured
@@ -30,10 +33,8 @@
 # chunk's build got there first.
 mesh_block: Option[BlockEntity] = Option.new()
 empty: Option[Screenshot] = Option.new()
+empty_prev: Option[Screenshot] = Option.new()
 before: Option[Screenshot] = Option.new()
-
-# Whether the block has been placed, and whether its core has been seen in the client's frame.
-placed: bool = false
 
 # Whether the number has been saved and the redraw asked for on it.
 saved: bool = false
@@ -46,34 +47,25 @@ attempts: number = 0
 
 export init(ctx: TestInitContext) {
     # A capture waits for the client to draw the frames it is about, which is up to about 60 ticks
-    # each, and each of the two waits below may capture eight times beside the setup's own.
+    # each, and each of the three waits below may capture eight times beside the setup's own.
     ctx.set_max_ticks(2000)
 }
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _wall(ctx)
-        empty.set(Test.screenshot().capture(500, 60, 780, 440))
-        _place(ctx)
         ctx.not_done()
     } else if not Test.world_settled() {
         ctx.not_done()
-    } else if not placed {
-        drawn: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
-        if drawn.change_from(empty.unwrap()) < 1 {
-            attempts = attempts + 1
-            ctx.assert(attempts < 8, "The client never drew the chunk-mesh block's core.")
-            mesh_block.unwrap().redraw()
-            ctx.not_done()
-        } else {
-            before.set(drawn)
-            placed = true
-            attempts = 0
-            ctx.not_done()
-        }
+    } else if not empty.has() {
+        _settle_empty(ctx)
+        ctx.not_done()
+    } else if not before.has() {
+        _capture_before(ctx)
+        ctx.not_done()
     } else if not saved {
         block: BlockEntity = mesh_block.unwrap()
-        block.set_saved_number("marker", 1)
+        block.set_saved_number("mesh_marker", 1)
         block.redraw()
         saved = true
         saved_tick = ctx.current_tick()
@@ -90,10 +82,11 @@ export tick_any_side(ctx: TestTickContext) {
         if after.change_from(before.unwrap()) < 1 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "The saved number never rebuilt the client's chunk mesh.")
+            mesh_block.unwrap().redraw()
             saved_tick = ctx.current_tick()
             ctx.not_done()
         } else {
-            ctx.assert(mesh_block.unwrap().get_saved_number("marker") == 1, "The number should still be saved.")
+            ctx.assert(mesh_block.unwrap().get_saved_number("mesh_marker") == 1, "The number should still be saved.")
         }
     }
 }
@@ -117,6 +110,32 @@ local _wall(ctx: TestTickContext) {
             wx = wx + 1
         }
         wy = wy + 1
+    }
+}
+
+# Waits until two captures of the room without the block agree, and then places the block.
+local _settle_empty(ctx: TestTickContext) {
+    shot: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+    if empty_prev.has() and shot.change_from(empty_prev.unwrap()) < 1 {
+        empty.set(shot)
+        attempts = 0
+        _place(ctx)
+    } else {
+        attempts = attempts + 1
+        ctx.assert(attempts < 8, "The room never stopped changing before the block went in.")
+        empty_prev.set(shot)
+    }
+}
+
+local _capture_before(ctx: TestTickContext) {
+    drawn: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+    if drawn.change_from(empty.unwrap()) < 1 {
+        attempts = attempts + 1
+        ctx.assert(attempts < 8, "The client never drew the chunk-mesh block's pedestal.")
+        mesh_block.unwrap().redraw()
+    } else {
+        before.set(drawn)
+        attempts = 0
     }
 }
 
