@@ -13,7 +13,6 @@ import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.function.BiConsumer;
@@ -1928,14 +1927,14 @@ public class HostFunctions {
                     }
                     // grug resolves a resource to "<mod name>/<path relative to the mod>", so
                     // joining it onto the mods root gives the reference directory on disk. That
-                    // directory holds PNGs named after the loaders that produced them, and the
-                    // assertion passes if the capture matches any of them; see GrugScreenshots.
-                    File referenceDirectory =
-                            new File(GrugCore.getAdapter().getGrugModsDirectory(), referencePath);
+                    // directory holds one subdirectory per side, each holding PNGs named after the
+                    // loaders that produced them; the assertion passes if the capture matches any
+                    // of this side's, and a dedicated server compares with the server's own golden
+                    // (#1092). See GrugScreenshots.
                     GrugScreenshots.verify(
                             capture,
-                            referenceDirectory,
                             referencePath,
+                            GrugCore.getAdapter().getSide(),
                             ((GrugScreenshot) screenshot).tolerancePercent());
                 });
     }
