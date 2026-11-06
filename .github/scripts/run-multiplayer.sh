@@ -345,18 +345,33 @@ while :; do
         exit 1
       fi
     done
-    # The remote GUI test (#168) runs only on the 1.20.6 server so far: the other four servers
-    # cannot open a menu for their player until #1098, so their lists skip it, and only this leg has
-    # to show it ran. This catches the test not running at all on that leg (renamed, listed as
-    # unsupported, or no longer recognised as declared), which the run would otherwise pass with it
-    # silently skipped; a server that stops opening the menu fails the test on its own tick budget,
-    # before this is reached.
-    if [ "$LOADER" = "1.20.6-forge" ]; then
-      remote_gui='[GRUG CI] PASS coverage/tests/remote_gui-Test.grug'
-      if ! grep -qF "$remote_gui" "$SERVER_LOG"; then
-        echo "==> The run passed, but coverage/tests/remote_gui-Test.grug did not run." >&2
-        exit 1
-      fi
+    # The remote GUI test (#168) and the GUI capture tests run on the servers that can open a
+    # container for their player, 1.20.6 and 1.2.5 (#1098): the other three servers list them as
+    # unsupported, so these two legs must show they ran. A capture compares against the unchanged
+    # client-only golden, so a leg whose panel draws differently fails in the test itself; this
+    # check catches the test not running at all on that leg (renamed, listed as unsupported, or no
+    # longer recognised as declared), which the run would otherwise pass with it silently skipped.
+    # A server that stops opening the menu fails the test on its own tick budget, before this is
+    # reached. The item texture swap is 1.2.5's alone: 1.20.6 lists it unsupported because a joined
+    # client never sees a change to the mods tree, and its file says why.
+    case "$LOADER" in
+      1.20.6-forge)
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
+        ;;
+      1.2.5-forge)
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/hot_reload_item_texture buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
+        ;;
+      *)
+        gui_tests=""
+        ;;
+    esac
+    if [ -n "$gui_tests" ]; then
+      for gui in $gui_tests; do
+        if ! grep -qF "[GRUG CI] PASS ${gui}-Test.grug" "$SERVER_LOG"; then
+          echo "==> The run passed, but ${gui}-Test.grug did not run on the dedicated server." >&2
+          exit 1
+        fi
+      done
     fi
     # The screen input #1094 forwards needs a screen the server can open for its player, which
     # 1.2.5's interaction manager and 1.20.6's game mode do by right-clicking the chest these tests

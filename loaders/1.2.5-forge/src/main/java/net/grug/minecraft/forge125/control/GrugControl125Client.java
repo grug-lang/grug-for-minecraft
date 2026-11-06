@@ -7,6 +7,7 @@ import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.forge125.Grug125ClientAdapter;
 import net.grug.minecraft.forge125.client.GrugClientHooks;
 import net.grug.minecraft.forge125.client.GrugEmptyScreen;
+import net.grug.minecraft.forge125.client.GrugScreen;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
@@ -148,10 +149,14 @@ public final class GrugControl125Client implements GrugControlRouter {
         }
         if (!pending) return;
         waited++;
-        if (waited == 1 && !(mc.currentScreen instanceof GrugEmptyScreen)) {
+        if (waited == 1
+                && !(mc.currentScreen instanceof GrugEmptyScreen)
+                && !(mc.currentScreen instanceof GrugScreen)) {
             // A headless client is never the active window, so 1.2.5 puts a screen with a dirt
             // background over the world; the runner shows the empty screen between tests, so the
-            // forwarded capture of the joined client's world does the same.
+            // forwarded capture of the joined client's world does the same. The GUI a server opened
+            // for its player is the capture's subject, so it stays: replacing it would capture the
+            // world and close the server's container with it (#1098).
             mc.displayGuiScreen(new GrugEmptyScreen());
         }
         if (waited == 1 || waited % 100 == 0) {

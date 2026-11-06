@@ -2,9 +2,9 @@
 # what makes this a regression test: a server used to answer from its own container menu (1.20.6)
 # or with false (the other four), and a measurement refused without a client, so the forwarded
 # gui_width read below raised a host function error before this change. The open answer is asked on
-# 1.20.6, the only leg whose server can open a GUI for its player: the four older servers keep
-# refusing GUI.open until #1098 gives them a server-side container. Only a multiplayer run that
-# forwards client calls runs a forwarded_ test.
+# the servers that can open a GUI for their player, 1.20.6 and 1.2.5 (#1098): the three older
+# servers keep refusing GUI.open until they get a server-side container too. Only a multiplayer run
+# that forwards client calls runs a forwarded_ test.
 started: bool = false
 
 export tick(ctx: TestTickContext) {
@@ -16,7 +16,7 @@ export tick(ctx: TestTickContext) {
         # The client has no container screen open, so this is its own measurement. The old server
         # answered the call itself and refused without a client, which fails this assertion.
         ctx.assert(Test.gui_width() == 0, "A client with no container screen open should measure 0 wide.")
-        if loader != "1.20.6-forge" {
+        if loader != "1.20.6-forge" and loader != "1.2.5-forge" {
             return
         }
         level: Level = Test.get_client_level()

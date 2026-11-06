@@ -5,6 +5,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.src.Container;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.IInventory;
+import net.minecraft.src.InventoryBasic;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.Slot;
 
@@ -13,6 +14,11 @@ import net.minecraft.src.Slot;
  *
  * <p>1.2.5 predates menu providers, so the slots are assembled by hand and the container is handed
  * straight to the screen instead of being registered with a menu type.
+ *
+ * <p>Both sides build one from the same layout: the server from the block entity's own inventory,
+ * when {@code GUI.open} opens it for a player (#1098), and the client from the layout the server
+ * sent, so the two number their slots identically. A client whose block entity has not arrived yet
+ * builds it on a placeholder inventory instead, as vanilla menus do (#425).
  */
 public class GrugContainer extends Container {
     private final IInventory blockInventory;
@@ -35,8 +41,10 @@ public class GrugContainer extends Container {
 
         for (GrugGuiBuilder.CraftingResultDef result : layout.craftingResults) {
             // The result is not an inventory slot; the block entity owns a one-slot container for
-            // it. Taking from that container is the same path take_crafting_result uses.
-            IInventory resultInventory = ((GrugBlockEntity) blockInventory).getResultInventory();
+            // it. Taking from that container is the same path take_crafting_result uses. A
+            // placeholder has no block entity behind it, so its result slot is one of its own and
+            // nothing is notified when it is taken from: the server's own take sends the item.
+            IInventory resultInventory = resultInventoryOf(blockInventory);
             addSlot(
                     new Slot(resultInventory, 0, result.x(), result.y()) {
                         @Override
@@ -47,8 +55,10 @@ public class GrugContainer extends Container {
                         @Override
                         public void onPickupFromSlot(ItemStack stack) {
                             super.onPickupFromSlot(stack);
-                            ((GrugBlockEntity) blockInventory)
-                                    .notifyOutputTaken(stack != null ? stack.stackSize : 0);
+                            if (blockInventory instanceof GrugBlockEntity) {
+                                ((GrugBlockEntity) blockInventory)
+                                        .notifyOutputTaken(stack != null ? stack.stackSize : 0);
+                            }
                         }
                     });
         }
@@ -68,6 +78,17 @@ public class GrugContainer extends Container {
                 addSlot(new Slot(player.inventory, col, layout.hotbarX + col * 18, layout.hotbarY));
             }
         }
+    }
+
+    /**
+     * The container the result slot reads: the block entity's own one-slot container, or a new one
+     * when there is no block entity behind the layout, which is the client's placeholder (#425).
+     */
+    private static IInventory resultInventoryOf(IInventory blockInventory) {
+        if (blockInventory instanceof GrugBlockEntity) {
+            return ((GrugBlockEntity) blockInventory).getResultInventory();
+        }
+        return new InventoryBasic("Crafting Result", 1);
     }
 
     @Override

@@ -71,6 +71,7 @@ public final class GrugServerRun implements ITickHandler {
         GrugControlPacket.register();
         GrugControlServer125.install();
         GrugSavedDataPacket.register();
+        GrugScreenPacket.register();
         GrugSavedDataSync.install(new GrugSavedDataServer125());
         cpw.mods.fml.common.FMLCommonHandler.instance().registerTickHandler(new GrugServerRun());
     }

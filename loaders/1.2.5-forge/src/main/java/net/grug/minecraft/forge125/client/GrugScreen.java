@@ -1,13 +1,17 @@
 package net.grug.minecraft.forge125.client;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.forge125.GrugScreenPacket;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.GuiContainer;
 import net.minecraft.src.IInventory;
+import net.minecraft.src.InventoryBasic;
 import net.minecraft.src.ModLoader;
+import net.minecraft.src.TileEntity;
+import net.minecraft.src.World;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -46,6 +50,63 @@ public class GrugScreen extends GuiContainer {
         ModLoader.getMinecraftInstance()
                 .displayGuiScreen(
                         new GrugScreen(new GrugContainer(player, inventory, layout), layout));
+    }
+
+    /**
+     * Installs the client's half of {@link GrugScreenPacket}, which is how a server opens a GUI for
+     * this player (#1098). Called by {@code mod_Grug.load} on a client.
+     */
+    public static void installServerScreens() {
+        GrugScreenPacket.clientHandler =
+                new GrugScreenPacket.Handler() {
+                    @Override
+                    public void openScreen(
+                            int x, int y, int z, int windowId, GrugGuiBuilder layout) {
+                        openFromServer(x, y, z, windowId, layout);
+                    }
+                };
+    }
+
+    /**
+     * Shows the GUI a server opened: the same {@link GrugContainer} the server built, from the same
+     * layout, on this client's copy of the block entity's inventory. Installing the container as
+     * the player's open one is what makes a click send the window id the server's container has, so
+     * the click lands in the server's slots rather than in the player's own inventory.
+     */
+    private static void openFromServer(int x, int y, int z, int windowId, GrugGuiBuilder layout) {
+        EntityPlayerSP player = ModLoader.getMinecraftInstance().thePlayer;
+        if (player == null) {
+            // The block entity's chunk, and this screen with it, can only arrive in a world the
+            // player is in, so a packet without one is a screen nothing could show.
+            return;
+        }
+
+        GrugContainer container =
+                new GrugContainer(player, blockInventory(player.worldObj, x, y, z, layout), layout);
+        container.windowId = windowId;
+        player.craftingInventory = container;
+        ModLoader.getMinecraftInstance().displayGuiScreen(new GrugScreen(container, layout));
+    }
+
+    /**
+     * The inventory the client's container reads: this client's copy of the block entity, or a
+     * placeholder of the size the layout's grid needs when that copy has not arrived yet, which a
+     * block placed and used in one server tick does (#425). The contents come from the server's
+     * window packets either way.
+     */
+    private static IInventory blockInventory(
+            World world, int x, int y, int z, GrugGuiBuilder layout) {
+        if (world != null) {
+            TileEntity blockEntity = world.getBlockTileEntity(x, y, z);
+            if (blockEntity instanceof IInventory) {
+                return (IInventory) blockEntity;
+            }
+        }
+        int size = 0;
+        for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
+            size = Math.max(size, grid.startSlot() + 9);
+        }
+        return new InventoryBasic("Grug Inventory", size);
     }
 
     @Override

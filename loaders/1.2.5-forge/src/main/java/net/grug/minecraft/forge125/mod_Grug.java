@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.GrugBlocks;
 import net.grug.minecraft.forge125.block.entity.GrugSavedDataPacket;
 import net.grug.minecraft.forge125.client.GrugClientSetup;
+import net.grug.minecraft.forge125.client.GrugScreen;
 import net.grug.minecraft.forge125.control.GrugControl125Client;
 import net.grug.minecraft.forge125.control.GrugControlPacket;
 import net.grug.minecraft.grug.FileInfo;
@@ -92,6 +93,8 @@ public class mod_Grug extends BaseMod {
             GrugControlPacket.register();
             GrugControl125Client.install();
             GrugSavedDataPacket.register();
+            GrugScreenPacket.register();
+            GrugScreen.installServerScreens();
         }
 
         FileInfo[] files = Grug.compileAllFiles();
