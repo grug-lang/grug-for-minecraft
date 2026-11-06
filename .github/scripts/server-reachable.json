@@ -53,6 +53,7 @@
       "modelFile:(Ljava/io/File;Ljava/lang/String;)Ljava/io/File;",
       "number:(Ljava/lang/String;Lcom/google/gson/JsonElement;Ljava/lang/String;)D",
       "read:(Ljava/io/File;Ljava/lang/String;)Lcom/google/gson/JsonObject;",
+      "sideNamed:(Ljava/lang/String;)I",
       "texture:(Ljava/lang/String;Lcom/google/gson/JsonObject;Ljava/util/Map;)Ljava/lang/String;",
       "vector:(Ljava/lang/String;Lcom/google/gson/JsonObject;Ljava/lang/String;I)[D"
     ],
@@ -119,7 +120,7 @@
       "register:(Ljava/util/function/Consumer;)V"
     ]
   },
-  "recorded_from": "run 42029618358, the full dispatch of 92a1647f on 2026-11-05, and run 42079970039, the full dispatch of 031f946e on 2026-11-05; Test_normalization_forced and the adapter hooks that back it were added by #1144 before a dispatch ran them, and the test that asks it PASSes on a dedicated server by returning at Test.overlay_supported",
+  "recorded_from": "run 42029618358, the full dispatch of 92a1647f on 2026-11-05, and run 42079970039, the full dispatch of 031f946e on 2026-11-05; Test_normalization_forced and the adapter hooks that back it were added by #1144 before a dispatch ran them, and the test that asks it PASSes on a dedicated server by returning at Test.overlay_supported, and run 42225234577, the full dispatch of 39601bcb on 2026-11-06",
   "why": {
     "net/grug/minecraft/core/GrugTestRunner$4": "The seam that forwards a test's forced autosave and its forced-normalization hooks to the adapter. The autosave hook is reached only by a test whose name asks for a save tick, and that test reads the save indicator a client draws. The normalization hooks are reached only for a marked test on a client: a dedicated server runs hook_forced_normalization-Test.grug and PASSes by returning at Test.overlay_supported, and the runner's GrugForcedNormalization.appliesTo is false there, so a server never calls them. The dispatch's check counts a test a dedicated server ran as reaching what that test reaches on the client, so it offers these entries for removal; they stay because the server's run of the test returns at Test.overlay_supported and never reaches them.",
     "net/grug/minecraft/core/ModLoaderAdapter": "The test hooks an adapter keeps the no-op default for: the forced-normalization hook (canForceNormalizationForTest, forceNormalizationForTest, restoreNormalizationAfterTest, normalizationEnabledForTest) runs only for a marked test on a client. A dedicated server runs the coverage test that would ask it, but it PASSes by returning at Test.overlay_supported, and the runner's GrugForcedNormalization.appliesTo is false on a server, so it never calls the hooks there. 1.20.6 keeps all four defaults on its client too, because its item draw uses its own shader path. The dispatch's check counts a test a dedicated server ran as reaching what that test reaches on the client, so it offers these entries for removal; they stay because the server's run of the test returns at Test.overlay_supported and never reaches them.",
