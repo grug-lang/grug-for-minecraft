@@ -591,23 +591,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // it and the frames drawn before this call say nothing about it: the capture waits for two
         // after it. Up to 10 ticks run for a frame, so the test's own wait cannot stand in for it.
         RENDER_SETTLE.noteBusy();
-        // The transport sends the data first and then the one block update a server makes, so a
-        // joined client reads the data before it builds the mesh again. On this side of a
-        // singleplayer game the transport returns, and a client's level has no transport at all,
-        // so the client's one block update is the mark below; the side decision lives in core, so
-        // a unit test covers both answers rather than a dedicated-server run the gate does not
-        // count (#1027). One call per side, never two: the game would otherwise put the same
-        // position in its changed-block set twice and the client would rebuild for one change.
+        // The transport is the side that owns the block entity: it sends the saved data and then
+        // the one block update that reaches the clients holding it, so the data is there before
+        // the mesh is built again. A joined client builds its mesh from that block entity packet's
+        // handler, GrugBlockEntity.onDataPacket, and a client's own copy of a redrawn block entity
+        // has no caller here, so this side adds no mark of its own. One block update per side,
+        // never two, and no side branch the coverage gate would miss (#1027).
         GrugSavedDataSync.redrawn(be);
-        GrugSavedDataSync.onClientLevel(
-                be.getLevel().isClientSide(),
-                () ->
-                        be.getLevel()
-                                .sendBlockUpdated(
-                                        be.getBlockPos(),
-                                        be.getBlockState(),
-                                        be.getBlockState(),
-                                        net.minecraft.world.level.block.Block.UPDATE_CLIENTS));
     }
 
     @Override
