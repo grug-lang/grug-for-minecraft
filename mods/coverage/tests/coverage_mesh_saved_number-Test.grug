@@ -3,9 +3,11 @@
 # the number only reaches a joined client when the client's copy holds it and the client builds the
 # mesh again. The script asks for that with redraw(), and on a dedicated server the loader has to
 # send the client both the data and the block update that rebuilds the mesh (#1101). The
-# coverage_mesh_saved block draws a small pedestal always, and a wide plate above it once its
+# coverage_mesh_saved block draws a whole block always, and a second whole block on top once its
 # "mesh_marker" number is above 0, so the assertion is that the client's frame changed after the
 # save and the redraw, and changed back when the number was saved as 0 again.
+# The captures are whole block faces several times the 1 percent of the crop compared, because a
+# half-block face was under that on this crop and could not be told from the empty room.
 # Four captures of one session are compared, so this holds on every loader and needs no golden: the
 # settled room without the block, the room with the block drawn from its own render pass, the room
 # after the number was saved as 1, and the room after it was saved as 0 again. Comparing the second
