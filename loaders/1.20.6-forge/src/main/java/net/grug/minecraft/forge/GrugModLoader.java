@@ -630,6 +630,10 @@ public class GrugModLoader {
          * there would let a test capture the previous frame, which still has the old resources in
          * it. The render tick's end runs after the frame, so the frame a test reads next is the one
          * the reload is in.
+         *
+         * <p>The same moment serves a capture a test is waiting for, which needs the frame to be
+         * complete and its save indicator to describe that frame. See {@link
+         * ForgeAdapter#onFrameEnded}.
          */
         @SubscribeEvent
         public static void onRenderTick(TickEvent.RenderTickEvent event) {
@@ -639,6 +643,7 @@ public class GrugModLoader {
                         GrugModLoader.appliedReloadBatches.pollFirst());
                 GrugModLoader.reloadsOutstanding.decrementAndGet();
             }
+            ForgeAdapter.onFrameEnded();
         }
 
         /**
