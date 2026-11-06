@@ -473,6 +473,39 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: the render camera of the client that draws the tests, which is the eye its
+     * player's origin is measured from. On a client that is its own camera; on a dedicated server
+     * it is the joined client's, which the server asks (#1161), so a test can assert that the
+     * client draws from the point the room was built around rather than from wherever its own view
+     * has drifted to. With no camera to read, it reports the reason and answers 0, the way {@link
+     * #Test_get_origin} does without a player.
+     */
+    public static long Test_camera() {
+        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        // A forwarded read that failed already says why, so this does not add a second reason for
+        // the same call; see play_ui_sound.
+        GrugControlServer.clearFailure();
+        return addCamera(adapter.testCamera(), adapter);
+    }
+
+    @GrugGenerated(
+            "no camera: a client has a player by its first tick, so only a dedicated server whose"
+                    + " joined client could not be asked reaches it")
+    private static long addCamera(Vec3 camera, ModLoaderAdapter adapter) {
+        if (camera == null) {
+            if (!GrugControlServer.failed()) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        "Test.camera: There is no test camera to measure on "
+                                + adapter.getSide().description()
+                                + " yet.");
+            }
+            return 0;
+        }
+        return GrugEntities.addEntity(GrugEntityType.Vec3, camera);
+    }
+
+    /**
      * Test only: asks the JVM for a full garbage collection.
      *
      * <p>Host entities are weakly held, so a test that proves an entity is still rooted has to make

@@ -2,7 +2,10 @@ package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import net.grug.minecraft.grug.Vec3;
 
 import org.junit.jupiter.api.Test;
 
@@ -125,5 +128,45 @@ class GrugTestCameraTest {
         assertTrue(GrugTestCamera.frameBusy(true, true, new Object(), moved));
         assertEquals(0.0F, moved.pitch);
         assertEquals(1, moved.levelCalls);
+    }
+
+    @Test
+    void aCaptureWaitsForTheCameraToBeTheEyeItNames() {
+        Vec3 eye = new Vec3(0.5, 65.62, -0.5);
+
+        assertTrue(GrugTestCamera.cameraAt(eye, new Vec3(0.5, 65.62, -0.5)));
+        // Within the tolerance the two processes' own arithmetic leaves.
+        assertTrue(
+                GrugTestCamera.cameraAt(
+                        new Vec3(
+                                0.5 + GrugTestCamera.CAPTURE_EYE_TOLERANCE,
+                                65.62,
+                                -0.5 - GrugTestCamera.CAPTURE_EYE_TOLERANCE),
+                        eye));
+        // A camera that has not arrived, on any of the three axes, is not the eye.
+        for (Vec3 off :
+                new Vec3[] {
+                    new Vec3(0.5 + 0.01, 65.62, -0.5),
+                    new Vec3(0.5, 65.62 + 0.01, -0.5),
+                    new Vec3(0.5, 65.62, -0.5 + 0.01)
+                }) {
+            assertFalse(GrugTestCamera.cameraAt(off, eye));
+        }
+        // A side with no camera, or a request that named no eye, is never there.
+        assertFalse(GrugTestCamera.cameraAt(null, eye));
+        assertFalse(GrugTestCamera.cameraAt(eye, null));
+    }
+
+    @Test
+    void aCameraAxisIsOneComponentOfThePosition() {
+        Vec3 camera = new Vec3(1.5, 65.62, -2.5);
+
+        assertEquals(1.5, GrugTestCamera.axis(camera, 0), 0.0);
+        assertEquals(65.62, GrugTestCamera.axis(camera, 1), 0.0);
+        assertEquals(-2.5, GrugTestCamera.axis(camera, 2), 0.0);
+        assertThrows(IllegalArgumentException.class, () -> GrugTestCamera.axis(camera, 3));
+        IllegalStateException none =
+                assertThrows(IllegalStateException.class, () -> GrugTestCamera.axis(null, 0));
+        assertTrue(none.getMessage().contains("no test player"), none.getMessage());
     }
 }

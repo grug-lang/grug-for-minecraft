@@ -1334,10 +1334,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
         boolean blocksPending =
                 BLOCK_SYNC.onFrame((x, y, z) -> blockNameAt(minecraft.level, x, y, z));
         // A frame drawn from a view the mouse moved is not one a capture may read, and the view is
-        // levelled again for the next frame. See GrugTestCamera and #1128.
+        // levelled again for the next frame. See GrugTestCamera and #1128. A joined client has no
+        // test runner of its own, so its control run owns the view too (#1161). The two flags are
+        // combined with a non-short-circuit | so a client run and a joined client both evaluate
+        // the control-run answer.
         RENDER_SETTLE.onFrame(
                 GrugTestCamera.frameBusy(
-                        !rendererIdle(minecraft), testPlayerSnapped, testPlayer(), CAMERA_VIEW),
+                        !rendererIdle(minecraft),
+                        testPlayerSnapped | GrugModLoader.isControlRunActive(),
+                        testPlayer(),
+                        CAMERA_VIEW),
                 blocksPending);
     }
 

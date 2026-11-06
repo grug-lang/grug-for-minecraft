@@ -34,6 +34,26 @@ class GrugTestOriginTest {
         assertNull(adapterWithPlayer(null, null).getTestOrigin());
     }
 
+    @Test
+    void anEyeIsTheOriginLessTheLift() {
+        Vec3 origin = new Vec3(1.5, 67.62, -3.5);
+        Vec3 eye = GrugTestOrigin.eyeOf(origin);
+
+        assertEquals(1.5, eye.x(), 0.0);
+        assertEquals(64.62, eye.y(), 1e-9);
+        assertEquals(-3.5, eye.z(), 0.0);
+        assertEquals(origin, GrugTestOrigin.of(eye));
+    }
+
+    @Test
+    void theAdapterReportsItsOwnCameraFromThePlayerItChooses() {
+        Object player = new Object();
+        Vec3 eye = new Vec3(5.5, 70.0, 6.5);
+
+        assertEquals(eye, adapterWithPlayer(player, eye).testCamera());
+        assertNull(adapterWithPlayer(null, null).testCamera());
+    }
+
     /**
      * A stand-in adapter that answers a player and its eye, so the default {@link
      * ModLoaderAdapter#getTestOrigin()} is the code that runs. Its other methods answer null, which

@@ -1,0 +1,49 @@
+# The eye a server-run test's frames are drawn from (#1161). A dedicated server builds the room
+# around its own copy of the player, so the capture request carries the eye it built around and
+# each loader's capture client waits for its own camera to reach that eye before it takes the
+# frame. Test.camera is the same measure a test can read: on a client it is that client's own
+# camera, and on a dedicated server it is the joined client's camera, asked for over the control
+# channel, so this assertion proves the client's view really is the room's eye rather than wherever
+# its own view has drifted to. Test.get_origin answers the camera plus the runner's 3 block lift
+# (GrugTestOrigin.LIFT), so the room's eye is the origin's y minus 3. It needs no capture: the eye
+# is the whole assertion, and a capture would only prove the same point again.
+
+# The test runs on every dedicated-server leg and run-multiplayer.sh requires it in each log,
+# because a leg that skipped it (its export reverted, or the loader listing it as unsupported)
+# would still pass its run with the parity unproven.
+export tick_any_side(ctx: TestTickContext) {
+    # The first wait is for the client to have drawn the room, which is also when its camera has
+    # arrived: the runner teleports the player to the room's start before the test, and the camera
+    # follows that teleport. Asking before a frame is drawn could read a camera still on the old
+    # position, which is a wait and not a parity failure.
+    if not Test.world_settled() {
+        ctx.not_done()
+        return
+    }
+    origin: Vec3 = Test.get_origin()
+    camera: Vec3 = Test.camera()
+    if not _at_eye(camera, origin) and ctx.current_tick() < 100 {
+        # A capture waits for the camera the same way before it takes its frame, so a camera that
+        # is still moving is a wait here too. The bound fails a camera that never arrives rather
+        # than waiting out the test's tick budget.
+        ctx.not_done()
+        return
+    }
+    ctx.assert(_near(camera.x(), origin.x()), "The camera's x should be the room's eye.")
+    ctx.assert(_near(camera.y(), origin.y() - 3.0), "The camera's y should be the room's eye, the origin less its 3 block lift.")
+    ctx.assert(_near(camera.z(), origin.z()), "The camera's z should be the room's eye.")
+}
+
+# Whether the camera is the room's eye, the origin less its 3 block lift.
+local _at_eye(camera: Vec3, origin: Vec3) bool {
+    return _near(camera.x(), origin.x()) and _near(camera.y(), origin.y() - 3.0) and _near(camera.z(), origin.z())
+}
+
+# The tolerance is the wire's own capture-eye tolerance, a block in 1024 (GrugTestCamera's
+# CAPTURE_EYE_TOLERANCE), so a camera this test accepts is one a capture client would also count as
+# being at the room's eye. The older loaders carry the position as a float and the server reads its
+# own copy while the client answers with its camera, so the bound is also the expansion of a
+# coordinate near 70 from float32 to double.
+local _near(a: number, b: number) bool {
+    return a > b - 0.0009765625 and a < b + 0.0009765625
+}

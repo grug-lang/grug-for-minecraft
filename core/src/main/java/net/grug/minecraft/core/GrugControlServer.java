@@ -1,5 +1,7 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.Vec3;
+
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -257,14 +259,20 @@ public final class GrugControlServer {
 
     /**
      * Asks the starter's client for the rectangle of its frame and waits for it, with the world
-     * frozen. Called from the server thread.
+     * frozen. {@code eye} is the eye the test's room was built above, which the client waits for
+     * its own camera to reach before it captures (#1161). Called from the server thread.
      */
-    public BufferedImage capture(int x1, int y1, int x2, int y2) throws ControlException {
+    public BufferedImage capture(Vec3 eye, int x1, int y1, int x2, int y2) throws ControlException {
         Object to = starter.get();
         if (to == null) {
             throw new ControlException(
                     "No client has started a run, so there is no screen to capture. A client"
                             + " starts a run when its player starts one.");
+        }
+        if (eye == null) {
+            throw new ControlException(
+                    "There is no test camera to take a capture from, so the client would not know"
+                            + " which view to draw.");
         }
         long id = nextId.getAndIncrement();
         Pending request = new Pending(x2 - x1, y2 - y1, Answer.CHUNKS);
@@ -283,10 +291,19 @@ public final class GrugControlServer {
                             + x2
                             + ","
                             + y2
+                            + ") from the eye ("
+                            + eye.x()
+                            + ","
+                            + eye.y()
+                            + ","
+                            + eye.z()
                             + ") sent to "
                             + to
                             + ", the world is frozen until the client answers");
-            if (!link.sendToStarter(to, GrugControlWire.captureRequest(id, x1, y1, x2, y2))) {
+            if (!link.sendToStarter(
+                    to,
+                    GrugControlWire.captureRequest(
+                            id, x1, y1, x2, y2, eye.x(), eye.y(), eye.z()))) {
                 throw new ControlException(
                         "The player who started the run is not connected any more.");
             }
@@ -410,6 +427,14 @@ public final class GrugControlServer {
         }
     }
 
+    /**
+     * Asks the starter's client for one component of its own render camera (#1161), 0 for x, 1 for
+     * y and 2 for z.
+     */
+    public double camera(int axis) throws ControlException {
+        return number(GrugControlWire.CALL_CAMERA, "", axis, 0, 0);
+    }
+
     /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
     private static boolean yesOrNo(byte result, String call) throws ControlException {
         if (result != 0 && result != 1) {
@@ -487,6 +512,8 @@ public final class GrugControlServer {
             case GrugControlWire.CALL_SCREEN_OPEN:
             case GrugControlWire.CALL_CLOSE_SCREEN:
                 return null;
+            case GrugControlWire.CALL_CAMERA:
+                return cameraAxisProblem(volume);
             default:
                 String problem = GrugSoundArgs.pathProblem(name);
                 if (problem == null && call == GrugControlWire.CALL_PLAY_UI_SOUND) {
@@ -500,6 +527,16 @@ public final class GrugControlServer {
     private static String screenKeyProblem(double key) {
         if (!Double.isFinite(key) || key != Math.floor(key) || key < 0) {
             return "The key has to be a whole number from 0 up, and was " + key + ".";
+        }
+        return null;
+    }
+
+    /**
+     * Why a forwarded camera read carries what it cannot, or null. The axis is the first number.
+     */
+    private static String cameraAxisProblem(double axis) {
+        if (axis != 0 && axis != 1 && axis != 2) {
+            return "A camera read asks for the axis 0, 1 or 2, and was " + axis + ".";
         }
         return null;
     }
@@ -594,9 +631,7 @@ public final class GrugControlServer {
                     "[GRUG CONTROL] request "
                             + id
                             + ": "
-                            + (call == GrugControlWire.CALL_WORLD_SETTLED
-                                    ? "world_settled at revision " + (long) volume
-                                    : "call " + call + " \"" + name + "\"")
+                            + describe(call, name, volume)
                             + " sent to "
                             + to
                             + ", the world is frozen until the client answers");
@@ -622,6 +657,17 @@ public final class GrugControlServer {
                             + (System.nanoTime() - startNanos) / 1_000_000L
                             + " ms and the world is running again");
         }
+    }
+
+    /** What a forwarded call is, for the line that says what the world was frozen for. */
+    private static String describe(byte call, String name, double volume) {
+        if (call == GrugControlWire.CALL_WORLD_SETTLED) {
+            return "world_settled at revision " + (long) volume;
+        }
+        if (call == GrugControlWire.CALL_CAMERA) {
+            return "camera axis " + (int) volume;
+        }
+        return "call " + call + " \"" + name + "\"";
     }
 
     /**

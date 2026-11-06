@@ -110,6 +110,14 @@ public class GrugModLoader {
     }
 
     /**
+     * Whether this client started a run on the server it joined (#1040), which owns the client as a
+     * run it drove itself does. The adapter reads it for the view a capture needs (#1161).
+     */
+    public static boolean isControlRunActive() {
+        return ClientForgeEvents.grug$controlRunStarted;
+    }
+
+    /**
      * Ends a joined client's run after it leaves its server, putting back the settings the run
      * changed. See {@link ClientForgeEvents#endControlRun}.
      */

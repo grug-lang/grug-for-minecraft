@@ -33,4 +33,13 @@ public final class GrugTestOrigin {
     public static Vec3 of(Vec3 eye) {
         return new Vec3(eye.x(), eye.y() + LIFT, eye.z());
     }
+
+    /**
+     * The eye an origin was measured from, which is what a capture request names: the room a test
+     * builds is placed around the origin, so its camera has to be this point rather than wherever
+     * the joined client's view happens to be (#1161).
+     */
+    public static Vec3 eyeOf(Vec3 origin) {
+        return new Vec3(origin.x(), origin.y() - LIFT, origin.z());
+    }
 }

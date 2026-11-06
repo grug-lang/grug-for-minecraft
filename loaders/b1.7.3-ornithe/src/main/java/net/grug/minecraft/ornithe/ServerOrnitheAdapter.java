@@ -5,11 +5,15 @@ import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugTestState;
+import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
@@ -71,6 +75,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private final GrugScreenCalls.Forwarded screens =
             new GrugScreenCalls.Forwarded(
+                    GrugControlBeta::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    /**
+     * The camera reads this server makes, which its joined client answers with its own camera: a
+     * dedicated server has none, so a test that asserts where the client draws from asks there
+     * (#1161). A failure is a host function error, which fails the test.
+     */
+    private final GrugTestCamera.Forwarded camera =
+            new GrugTestCamera.Forwarded(
                     GrugControlBeta::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
@@ -204,11 +218,27 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             return null;
         }
         try {
-            return GrugControlBeta.server().capture((int) x1, (int) y1, (int) x2, (int) y2);
+            return GrugControlBeta.server()
+                    .capture(captureEye(), (int) x1, (int) y1, (int) x2, (int) y2);
         } catch (GrugControlServer.ControlException e) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * The eye the capture is drawn from: the origin the running test's room was built above, less
+     * {@link GrugTestOrigin#LIFT}, or null when this side has no player to measure one from.
+     */
+    private Vec3 captureEye() {
+        Vec3 origin = GrugTestState.captureTestOrigin(this::getTestOrigin);
+        return origin == null ? null : GrugTestOrigin.eyeOf(origin);
+    }
+
+    /** The joined client's own camera, which is where its captures are drawn from (#1161). */
+    @Override
+    public Vec3 testCamera() {
+        return camera.camera();
     }
 
     /** This server forwards a test's client-only calls to the player who started the run. */

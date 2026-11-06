@@ -93,7 +93,7 @@ public class GrugClientHooks implements ITickHandler {
      * own, but its screen is what the server's screenshot tests capture, so the frame rules a run
      * applies to the window apply to it too (#1098).
      */
-    private boolean controlRun = false;
+    private static boolean controlRun = false;
 
     /**
      * R starts a test run and M forces the screenshot resolution by hand, matching the other four
@@ -330,6 +330,22 @@ public class GrugClientHooks implements ITickHandler {
     }
 
     /**
+     * Whether this client started a run on the server it joined, which the adapter reads for the
+     * view a capture needs (#1161).
+     */
+    public static boolean isControlRunActive() {
+        return controlRun;
+    }
+
+    /**
+     * Whether a run owns this client, whether this client drives it or the server it joined does,
+     * for the frame pins a capture must not depend on (#1161).
+     */
+    private boolean isTestRunActive() {
+        return testRunner != null || controlRun;
+    }
+
+    /**
      * The game tick, which is where the test runner is driven: one {@code Test.tick()} call per
      * game tick, the cadence the other four loaders use.
      */
@@ -445,8 +461,9 @@ public class GrugClientHooks implements ITickHandler {
     private void renderTick(Minecraft minecraft) {
         // The lightmap multiplies a random walk into the block-light color (see GrugTorchFlicker),
         // so pin it on every frame a run draws: the value the game picked this tick would otherwise
-        // make the same scene a light step brighter or darker than another run's capture of it.
-        if (testRunner != null) {
+        // make the same scene a light step brighter or darker than another run's capture of it. A
+        // joined client's control run counts as a run here too (#1161).
+        if (isTestRunActive()) {
             GrugTorchFlicker.pin(minecraft.entityRenderer);
             GrugTorchFlicker.pinVignette(minecraft.ingameGUI);
         }

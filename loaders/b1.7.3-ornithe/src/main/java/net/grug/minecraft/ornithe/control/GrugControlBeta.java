@@ -7,8 +7,10 @@ import net.grug.minecraft.core.GrugControlWire;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
@@ -62,6 +64,7 @@ public final class GrugControlBeta {
     private static GrugControlServer server;
     private static GrugControlClient client;
     private static boolean started = false;
+    private static Vec3 eye;
 
     private static int x1;
     private static int y1;
@@ -264,12 +267,14 @@ public final class GrugControlBeta {
     }
 
     private static void capture(
+            Vec3 at,
             int left,
             int top,
             int right,
             int bottom,
             Consumer<BufferedImage> onDone,
             Consumer<String> onFailed) {
+        eye = at;
         x1 = left;
         y1 = top;
         x2 = right;
@@ -342,9 +347,12 @@ public final class GrugControlBeta {
                             + " on "
                             + Thread.currentThread().getName());
         }
-        if (waited < MIN_TICKS) return;
         boolean settled = GrugCore.getAdapter().isWorldSettled();
-        if (!settled && waited < MAX_TICKS) return;
+        // The frame has to show the world the server has and be drawn from the place the test's
+        // room was built around, so a capture names the eye and the client waits for its own camera
+        // to reach it (#1161).
+        boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
+        if (waited < MIN_TICKS || ((!settled || !cameraHere) && waited < MAX_TICKS)) return;
         pending = false;
         if (mc.width != GrugScreenshots.WIDTH || mc.height != GrugScreenshots.HEIGHT) {
             failed.accept(
@@ -368,6 +376,8 @@ public final class GrugControlBeta {
                         + waited
                         + " client ticks (world settled: "
                         + settled
+                        + ", camera at the room's eye: "
+                        + cameraHere
                         + ")");
         done.accept(((OrnitheAdapter) GrugCore.getAdapter()).captureForControl(x1, y1, x2, y2, mc));
     }
