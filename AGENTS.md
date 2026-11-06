@@ -171,8 +171,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   branch the full pipeline, with `-f repeats=<n>` to repeat the suite in one session and
   `-f base=<commit>` to compare the branch with the commit it started from, which drops the Windows
   boot jobs unless that diff reaches the native path or the installed jar (#826,
-  `.github/scripts/windows-needed.py`); the base must be the full 40-character SHA, because an
-  abbreviated one cannot be fetched and the Windows jobs then run instead of narrowing (#1170); a
+  `.github/scripts/windows-needed.py`); the base may be a branch name, a full SHA or an abbreviated
+  one, which `dispatch-base.py` resolves before either step reads it, and one that names no commit
+  fails the dispatch rather than run the Windows jobs a typo meant to skip (#1170); a
   branch verification dispatch passes it by default, and so does a diagnostic or measurement
   dispatch, so the Windows boot jobs do not run for a diff that cannot reach the native path or the
   installed jar; a dispatch with no inputs, or on `main`, always runs them, and the four-hourly check
