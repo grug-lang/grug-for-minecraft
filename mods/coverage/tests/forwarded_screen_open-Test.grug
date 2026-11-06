@@ -1,0 +1,31 @@
+# Test.screen_open asked of a dedicated server's joined client (#1094). Before this, a server
+# answered from its own container menu (1.20.6) or with false (the other four), so a client's screen
+# was invisible to a server-run test. This asks the closed answer on every leg, and the open one on
+# 1.20.6, the only leg whose server can open a GUI for its player: the four older servers keep
+# refusing GUI.open until #1098 gives them a server-side container. Only a multiplayer run that
+# forwards client calls runs a forwarded_ test.
+started: bool = false
+
+export tick(ctx: TestTickContext) {
+    loader: string = Test.loader_name()
+    if not started {
+        started = true
+        Test.close_screen()
+        ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
+        if loader != "1.20.6-forge" {
+            return
+        }
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_gui")
+        Test.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.not_done()
+        return
+    }
+    if not Test.screen_open() {
+        ctx.not_done()
+        return
+    }
+    Test.close_screen()
+    ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
+}

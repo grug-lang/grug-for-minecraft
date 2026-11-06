@@ -163,10 +163,7 @@ public final class GrugControlStation {
      */
     static boolean onRead(byte[] bytes) {
         if (!onServer() || bytes.length == 0) return false;
-        byte type = bytes[0];
-        if (type != GrugControlWire.ANSWER_ERROR
-                && type != GrugControlWire.ANSWER_CHUNK
-                && type != GrugControlWire.ANSWER_VALUE) {
+        if (!GrugControlWire.isAnswer(bytes[0])) {
             return false;
         }
         // The reader thread of a Connection is a Thread subclass that holds it, so the sender of

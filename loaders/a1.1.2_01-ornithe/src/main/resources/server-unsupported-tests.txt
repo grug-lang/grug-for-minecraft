@@ -34,7 +34,14 @@ coverage/tests/block_shape-Test.grug
 buildcraft/tests/wooden_pipe_break-Test.grug
 buildcraft/tests/cobblestone_pipe_break-Test.grug
 #
-# The GUI a server opens for its player. Test.screen_open answers for the client's own screen here,
-# and a server has none to ask, so a server-run test cannot see the menu it opened. #1094 forwards
-# the question to the joined client.
+# The GUI a server opens for its player. Test.screen_open is forwarded to the joined client now
+# (#1094), but a server-run GUI test needs the server to open the menu, and this server refuses
+# GUI.open until #1098 gives it a server-side container, so the menu never opens there.
+# #1094's forwarded_screen_open and forwarded_close_screen run here instead.
 coverage/tests/remote_gui-Test.grug
+#
+# The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
+# client's screen, and this server cannot open one for its player until #1098, so these run only
+# on 1.20.6.
+coverage/tests/forwarded_press_screen_key-Test.grug
+coverage/tests/forwarded_scroll_screen-Test.grug

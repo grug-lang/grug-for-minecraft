@@ -6,6 +6,10 @@
 # the previous test left lands in the middle of this test's own call and stops it. Asking over and over
 # for the first ticks makes that moment as likely as it can be. Nothing here is asserted but that the
 # calls come back: a draw that is not this test's must not stop them.
+# Since #1094 a dedicated server forwards Test.close_screen to the joined client, so each of the 30
+# calls is a round trip that freezes the world and waits for the client's answer, and every one of them
+# has to come back: the 30 round trips are also the standing proof that forwarded close_screen neither
+# deadlocks nor times out.
 export tick_any_side(ctx: TestTickContext) {
     # A frame is only drawn for a test that asks for one (#770), and the draw path this test exists
     # to provoke runs only on a drawn frame: a rebuild of the block entities the runner just cleared

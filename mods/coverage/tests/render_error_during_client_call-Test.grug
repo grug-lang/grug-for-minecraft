@@ -11,6 +11,8 @@
 # draw while a call waits. A rebuild from the runner's own clear of the previous test is not the only
 # way in, which is why runner_clear_a_leaves_render_blocks and runner_clear_b_hammers_client alone did
 # not close this. Nothing is asserted but that the calls come back.
+# Since #1094 a dedicated server forwards Test.close_screen to the joined client, so its eight calls
+# each wait on the client and have to come back: repeated forwarding is part of what this test proves.
 export tick_any_side(ctx: TestTickContext) {
     # A frame is only drawn for a test that asks for one (#770), and a chunk rebuild is only started by
     # a drawn frame, so ask every tick. The answer is not the point here.

@@ -49,6 +49,23 @@ public final class GrugControlClient {
 
         /** Forgets the frames the settle answer counts, so it waits for frames drawn from now. */
         void forgetSettledFrames();
+
+        /** Whether a screen is open on this client, as {@code Test.screen_open} asks (#1094). */
+        boolean screenOpen();
+
+        /**
+         * One of this client's screen measurements, named as {@link GrugScreenCalls} names them.
+         */
+        double screenRead(String read);
+
+        /** Presses a key on the screen that is open, and answers whether an overlay took it. */
+        boolean pressScreenKey(int key, boolean ctrl, boolean release);
+
+        /** Turns the wheel at a screen position, and answers whether an overlay took it. */
+        boolean scrollScreen(double x, double y, double delta);
+
+        /** Closes whatever screen is open. */
+        void closeScreen();
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -72,6 +89,31 @@ public final class GrugControlClient {
             @Override
             public void forgetSettledFrames() {
                 adapter.get().forgetSettledFrames();
+            }
+
+            @Override
+            public boolean screenOpen() {
+                return GrugScreenCalls.screenOpen(adapter.get());
+            }
+
+            @Override
+            public double screenRead(String read) {
+                return GrugScreenCalls.read(adapter.get(), read);
+            }
+
+            @Override
+            public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+                return adapter.get().pressScreenKey(key, ctrl, release);
+            }
+
+            @Override
+            public boolean scrollScreen(double x, double y, double delta) {
+                return adapter.get().scrollScreen(x, y, delta);
+            }
+
+            @Override
+            public void closeScreen() {
+                GrugScreenCalls.closeScreen(adapter.get());
             }
         };
     }
@@ -204,17 +246,34 @@ public final class GrugControlClient {
         }
         String problem =
                 GrugControlServer.callProblem(
-                        message.call, message.text, message.volume, message.pitch);
+                        message.call, message.text, message.volume, message.pitch, message.third);
         if (problem != null) {
             link.send(GrugControlWire.answerError(message.id, "refused: " + problem));
             return;
         }
         try {
-            if (message.call == GrugControlWire.CALL_HAS_SOUND) {
+            if (message.call == GrugControlWire.CALL_SCREEN_READ) {
+                link.send(
+                        GrugControlWire.answerNumber(message.id, caller.screenRead(message.text)));
+            } else if (message.call == GrugControlWire.CALL_HAS_SOUND) {
                 boolean has = caller.hasSound(message.text);
                 link.send(GrugControlWire.answerValue(message.id, (byte) (has ? 1 : 0)));
-            } else {
+            } else if (message.call == GrugControlWire.CALL_PLAY_UI_SOUND) {
                 caller.playUiSound(message.text, message.volume, message.pitch);
+                link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+            } else if (message.call == GrugControlWire.CALL_SCREEN_OPEN) {
+                boolean open = caller.screenOpen();
+                link.send(GrugControlWire.answerValue(message.id, (byte) (open ? 1 : 0)));
+            } else if (message.call == GrugControlWire.CALL_PRESS_SCREEN_KEY) {
+                boolean taken =
+                        caller.pressScreenKey(
+                                (int) message.volume, message.pitch != 0, message.third != 0);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (taken ? 1 : 0)));
+            } else if (message.call == GrugControlWire.CALL_SCROLL_SCREEN) {
+                boolean taken = caller.scrollScreen(message.volume, message.pitch, message.third);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (taken ? 1 : 0)));
+            } else {
+                caller.closeScreen();
                 link.send(GrugControlWire.answerValue(message.id, (byte) 1));
             }
         } catch (RuntimeException e) {

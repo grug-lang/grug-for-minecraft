@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugItemStacks;
+import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSoundArgs;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugWorldRevision;
@@ -243,13 +244,13 @@ public class HostFunctions {
      */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
     public static double Test_screen_width() {
-        return GrugCore.getAdapter().screenWidthForTest();
+        return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.SCREEN_WIDTH);
     }
 
     /** Test only: the x of the open container screen's GUI, the same measure an overlay gets. */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
     public static double Test_gui_left() {
-        return GrugCore.getAdapter().guiLeftForTest();
+        return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.GUI_LEFT);
     }
 
     /**
@@ -257,13 +258,13 @@ public class HostFunctions {
      */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
     public static double Test_gui_width() {
-        return GrugCore.getAdapter().guiWidthForTest();
+        return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.GUI_WIDTH);
     }
 
     /** Test only: the y of the open container screen's GUI, the same measure an overlay gets. */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
     public static double Test_gui_top() {
-        return GrugCore.getAdapter().guiTopForTest();
+        return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.GUI_TOP);
     }
 
     /**
@@ -271,7 +272,7 @@ public class HostFunctions {
      */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
     public static double Test_gui_height() {
-        return GrugCore.getAdapter().guiHeightForTest();
+        return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.GUI_HEIGHT);
     }
 
     /**
@@ -590,15 +591,8 @@ public class HostFunctions {
     }
 
     /**
-     * Whether the client had a screen open the last time {@link #Test_screen_open()} asked, so that
-     * call can tell a screen that has just appeared from one that was already up.
-     */
-    private static boolean screenWasOpen = false;
-
-    /**
-     * Test only: closes whatever screen is open, which on a dedicated server that closes one
-     * (1.20.6-forge) is the container the player the test runs as has open, and on the other four
-     * servers has nothing to close.
+     * Test only: closes whatever screen is open, which on a dedicated server that forwards is the
+     * joined client's screen (#1094), and on the other four servers has nothing else to close.
      *
      * <p>One client serves the whole run, so a screen a test opened outlives it. A screenshot test
      * that follows one which opened a GUI needs this, or it captures that panel rather than the
@@ -608,31 +602,21 @@ public class HostFunctions {
      * {@link #Test_screen_open()} forgets the settled frames for it.
      */
     public static void Test_close_screen() {
-        GrugCore.getAdapter().closeOpenScreenForTest();
-        screenWasOpen = false;
+        GrugScreenCalls.closeScreen(GrugCore.getAdapter());
     }
 
     /**
-     * Test only: whether a screen is open, which on a dedicated server that answers (1.20.6-forge)
-     * is the container the player the test runs as has open, the menu the joined client's screen is
-     * built from, and false on the other four servers. A block's GUI is opened by a packet from the
-     * server on 1.20.6, so it is not open yet when {@code Test.use_block} returns, and a settled
-     * world does not say it has arrived. See #418.
+     * Test only: whether a screen is open, which on a dedicated server is the joined client's own
+     * screen (#1094). A block's GUI is opened by a packet from the server on 1.20.6, so it is not
+     * open yet when {@code Test.use_block} returns, and a settled world does not say it has
+     * arrived. See #418.
      *
-     * <p>A screen that has just appeared forgets the frames counted so far. {@code screen_open}
-     * alone only says the screen object exists, and {@code world_settled} only says the last frames
-     * were idle, so the two together could still let a capture read a frame drawn before the screen
-     * opened once the world was already settled. Forgetting the frames here means a following
-     * {@code world_settled} wait can only be answered by frames drawn after the screen opened,
-     * which is the frame-hook guarantee the settled-frame wait is supposed to give. See #421.
+     * <p>A screen that has just appeared forgets the frames counted so far, so a following {@code
+     * world_settled} wait can only be answered by frames drawn after the screen opened. See {@link
+     * GrugScreenCalls#screenOpen}.
      */
     public static boolean Test_screen_open() {
-        boolean open = GrugCore.getAdapter().isScreenOpenForTest();
-        if (open && !screenWasOpen) {
-            GrugCore.getAdapter().forgetSettledFrames();
-        }
-        screenWasOpen = open;
-        return open;
+        return GrugScreenCalls.screenOpen(GrugCore.getAdapter());
     }
 
     /**

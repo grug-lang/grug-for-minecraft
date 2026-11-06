@@ -299,12 +299,14 @@ while :; do
     # A server skips a test that does not define tick_any_side and skips a forwarded_ test it
     # cannot forward, and either skip is a green run: the tests below have to show as passed. The
     # forwarded_ ones are the channel's own tests, including forwarded_world_settled, which is the
-    # control for the forwarded settle answer (#1086). The pixel tests stay client-only until they
-    # have a per-side reference (#1092); coverage_frame_saved_number and
+    # control for the forwarded settle answer (#1086), and the screen calls (#1094), which every
+    # leg that forwards them asks here: the reads and close_screen with no screen, and the open
+    # GUI's reads on 1.20.6. The pixel tests stay client-only until
+    # they have a per-side reference (#1092); coverage_frame_saved_number and
     # coverage_frame_saved_list_energy run on every server leg now that a loader sends saved numbers,
     # a list's item and the energy store to the client's copy (#1093).
     if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
-      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_world_settled coverage_frame_saved_number coverage_frame_saved_list_energy; do
+      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_world_settled forwarded_screen_open forwarded_screen_width forwarded_gui_left forwarded_gui_top forwarded_gui_width forwarded_gui_height forwarded_close_screen coverage_frame_saved_number coverage_frame_saved_list_energy; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${required}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${required}-Test.grug did not run on the dedicated server." >&2
           exit 1
@@ -343,6 +345,15 @@ while :; do
         echo "==> The run passed, but coverage/tests/remote_gui-Test.grug did not run." >&2
         exit 1
       fi
+      # The screen input #1094 forwards needs a screen the server can open for its player, which
+      # only 1.20.6's server can do until #1098 gives the older ones a server-side container, so
+      # only this leg has to show these two ran.
+      for input in forwarded_press_screen_key forwarded_scroll_screen; do
+        if ! grep -qF "[GRUG CI] PASS coverage/tests/${input}-Test.grug" "$SERVER_LOG"; then
+          echo "==> The run passed, but coverage/tests/${input}-Test.grug did not run." >&2
+          exit 1
+        fi
+      done
     fi
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0

@@ -11,9 +11,9 @@
 # client has drawn it. So the same file proves both halves of the split, and a
 # regression that opens the GUI on a client instead, or does not open it at all, leaves the menu
 # closed and ends the test at the runner's tick budget instead of reaching the assertions below.
-# What a server cannot see is the client's own screen object: #1094 forwards that question to the
-# client, and until then the four loaders whose server answers screen_open for the client only list
-# this test as unsupported on their dedicated server.
+# Test.screen_open is forwarded to the client's own screen now (#1094). The four loaders whose
+# server refuses GUI.open still list this test as unsupported on their dedicated server, because
+# the menu this test waits for never opens there until #1098 gives them a server-side container.
 # No frame is waited for: on 1.20.6 a placed block may reach the client after the menu does, and
 # GrugMenu builds itself on a placeholder container when its block entity has not arrived (#425).
 export tick_any_side(ctx: TestTickContext) {

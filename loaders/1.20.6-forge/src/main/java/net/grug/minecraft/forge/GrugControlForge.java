@@ -26,6 +26,10 @@ import java.util.UUID;
  * opaque byte array of core's {@code GrugControlWire}. Mod authors never see it: it is the plumbing
  * behind client-only host functions.
  *
+ * <p>The protocol version is 2 since the screen calls joined the wire (#1094): the call request
+ * carries a third number and a screen measurement comes back as a number, so a client and a server
+ * built from different commits must refuse each other rather than misread each other's messages.
+ *
  * <p>The channel is registered on both sides and is {@code optional()}, so a player without grug
  * can still join a grug server and the other way round. Handlers run on the network thread, never
  * the game thread: the server's answer handler only completes a future that the frozen server
@@ -61,7 +65,7 @@ public final class GrugControlForge {
     public static void init() {
         channel =
                 ChannelBuilder.named("grug:control")
-                        .networkProtocolVersion(1)
+                        .networkProtocolVersion(2)
                         .optional()
                         .simpleChannel()
                         .messageBuilder(Packet.class, NetworkProtocol.PLAY)

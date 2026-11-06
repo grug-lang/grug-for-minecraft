@@ -1,0 +1,13 @@
+# Test.screen_width asked of a dedicated server's joined client (#1094). The answer is the client's
+# own window measurement, which is why 1.2.5 answers a width: its close_screen leaves an empty
+# screen up with the window's size, while the other loaders leave no screen, and a client with no
+# screen open answers 0. Only a multiplayer run that forwards client calls runs a forwarded_ test.
+export tick(ctx: TestTickContext) {
+    loader: string = Test.loader_name()
+    Test.close_screen()
+    if loader == "1.2.5-forge" {
+        ctx.assert(Test.screen_width() > 0, "1.2.5's close_screen leaves the client's empty screen up with its window width.")
+    } else {
+        ctx.assert(Test.screen_width() == 0, "A client with no screen open should answer 0.")
+    }
+}
