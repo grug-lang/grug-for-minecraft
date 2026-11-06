@@ -91,13 +91,30 @@ public final class Grug {
         }
     }
 
+    /**
+     * How many export calls this thread is inside, which is what {@link #hostFunctionErrorHappened}
+     * reads to tell an error raised by a grug call from one raised with no call to fail.
+     *
+     * <p>grug-rs reports a host function error against the frame on top of its call stack, and it
+     * pushes a frame only for an export call, so with an empty stack the native report panics
+     * across the JNI boundary and aborts the process (#1134). A render pass calls an export from
+     * inside another export, hence a depth rather than a flag.
+     */
+    private static final ThreadLocal<Integer> exportFnDepth = ThreadLocal.withInitial(() -> 0);
+
     public static boolean callExportFn(long entityHandle, long exportFnId) {
         boolean result;
-        GrugStateLock.lock();
+        int outerDepth = exportFnDepth.get();
+        exportFnDepth.set(outerDepth + 1);
         try {
-            result = GrugNative.nativeCallExportFn(statePtr, entityHandle, exportFnId);
+            GrugStateLock.lock();
+            try {
+                result = GrugNative.nativeCallExportFn(statePtr, entityHandle, exportFnId);
+            } finally {
+                GrugStateLock.unlock();
+            }
         } finally {
-            GrugStateLock.unlock();
+            exportFnDepth.set(outerDepth);
         }
         GrugErrors.throwPendingFatal();
         return result;
@@ -113,13 +130,19 @@ public final class Grug {
      */
     public static boolean callExportFn(long entityHandle, long exportFnId, long firstArgId) {
         boolean result;
-        GrugStateLock.lock();
+        int outerDepth = exportFnDepth.get();
+        exportFnDepth.set(outerDepth + 1);
         try {
-            result =
-                    GrugNative.nativeCallExportFnWithId(
-                            statePtr, entityHandle, exportFnId, firstArgId);
+            GrugStateLock.lock();
+            try {
+                result =
+                        GrugNative.nativeCallExportFnWithId(
+                                statePtr, entityHandle, exportFnId, firstArgId);
+            } finally {
+                GrugStateLock.unlock();
+            }
         } finally {
-            GrugStateLock.unlock();
+            exportFnDepth.set(outerDepth);
         }
         GrugErrors.throwPendingFatal();
         return result;
@@ -177,7 +200,20 @@ public final class Grug {
         GrugStateLock.runReleased(blockingWait, admitted);
     }
 
+    /**
+     * Reports a host function error against the grug call that made it, so that call fails and the
+     * test that made it is named.
+     *
+     * <p>When no export is active on this thread there is no such call: the room build and a
+     * fixture's tick run between two calls, where grug-rs's call stack is empty and its native
+     * report panics across the JNI boundary and aborts the process (#1134). The error is recorded
+     * for the test runner instead, which fails the test it belongs to by name.
+     */
     public static void hostFunctionErrorHappened(long statePtr, String message) {
+        if (exportFnDepth.get() == 0) {
+            GrugErrors.recordHostFunctionException(message);
+            return;
+        }
         GrugStateLock.lock();
         try {
             GrugNative.nativeHostFunctionErrorHappened(statePtr, message);
