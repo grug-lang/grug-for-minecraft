@@ -322,8 +322,10 @@ while :; do
     # control for the forwarded settle answer (#1086), forwarded_capture_same_tick, which is what a
     # settle ask's flush is for (#1123), and the screen calls (#1094), which every
     # leg that forwards them asks here: the reads and close_screen with no screen, and the open
-    # GUI's reads on 1.20.6. The pixel tests stay client-only until they have a per-side
-    # reference (#1092); coverage_frame_saved_number, coverage_frame_saved_list_energy,
+    # GUI's reads on 1.20.6. The pixel tests stay client-only: coverage_render waits for #1053, and
+    # coverage_frame for a joined client's view the server can level (#1052), because a dedicated
+    # server skips the player snap and the fixture lands outside coverage_frame's tight crop on
+    # Alpha and Beta (#1092). coverage_frame_saved_number, coverage_frame_saved_list_energy,
     # coverage_mesh_saved_number and coverage_mesh_saved_reinit run on every server leg now that a
     # loader sends saved numbers, a list's item and the energy store to the client's copy (#1093),
     # sends a chunk-mesh block's saved data with the block update that rebuilds its mesh, and
