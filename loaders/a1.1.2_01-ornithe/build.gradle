@@ -84,7 +84,6 @@ dependencies {
     // layer off a Babric b1.7.3 game, which reports the same Minecraft version but names its classes
     // by another intermediary: OSL is built against Ornithe's, so no Babric instance has it.
     ploceus.dependOsl(project.osl_version)
-
 }
 
 tasks.withType(ProcessResources) {
