@@ -1,9 +1,11 @@
 package net.grug.minecraft.ornithe.server;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.ornithe.ServerOrnitheAdapter;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
@@ -41,10 +43,15 @@ public final class GrugServerRun {
     /** How far the feet may drift from that height before the hold corrects them. */
     private static final double HOLD_TOLERANCE = 0.25;
 
-    /** How many times the hold corrected the player, and when it last said so. */
-    private static long holds = 0;
+    /**
+     * How many times the floor hold put the player back on the ground, and when it last said so.
+     */
+    private static long floorHolds = 0;
 
     private static long lastHoldReportMillis = 0;
+
+    /** How many times the hold corrected the player, and when it last said so. */
+    private static long holds = 0;
 
     /**
      * The ticks the world takes for each of the runner's, which is how the server runs a test at
@@ -122,8 +129,13 @@ public final class GrugServerRun {
             }
             // The run starts when a player has started it (#1040): the joined client sends its
             // start
-            // once it is in the world.
+            // once it is in the world. The player is held on the server's own floor before
+            // readiness is asked, so a client that reported a position a fraction inside the ground
+            // can land and be accepted (#1136).
             Object testPlayer = GrugCore.getAdapter().testPlayer();
+            if (testPlayer instanceof PlayerEntity) {
+                holdOnFloor((PlayerEntity) testPlayer);
+            }
             if (!players.isEmpty()
                     && GrugControlAlpha.server().hasStarter()
                     && GrugControlAlpha.starterPlayer() != null
@@ -184,6 +196,51 @@ public final class GrugServerRun {
     }
 
     /**
+     * Puts the test player back on the ground the server's own world has under them.
+     *
+     * <p>A client that fell through the terrain while its chunks were arriving reports a position a
+     * fraction of a block inside the ground, and the server accepts it because the box its
+     * collision check tests is contracted by 0.0625. The client's own collision then never reports
+     * support, so the wait for {@code onGround} never ended (#1136, the rule #1095 added to
+     * b1.7.3-ornithe). The ground is in the server's world, so the server teleports the player to
+     * the top of the collision column under them whenever they are below it, and zeroes {@code
+     * velocityY} so the fall does not continue. The top is the block's collision shape, not its
+     * full cube, so a player on a slab is put on the slab's top at 70.5 rather than half a block
+     * above it (#1102).
+     *
+     * <p>It runs before readiness is asked and before each runner tick. It does nothing while a
+     * rebuild has cleared the floor and the player is falling, because there is no floor to put
+     * them on yet. No host function moves the player down, so holding the feet at the floor cannot
+     * hide a test's own movement. The move is sent to the client as a teleport for the reason
+     * {@link #holdPlayer} gives.
+     */
+    private static boolean holdOnFloor(PlayerEntity player) {
+        World world = world();
+        if (world == null) {
+            return false;
+        }
+        GrugPlayerFloor.BlockSource blocks = ServerOrnitheAdapter.solidBlocks(world);
+        double feet = player.shape.minY;
+        double floor = GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z);
+        if (!GrugPlayerFloor.below(feet, floor)) {
+            return false;
+        }
+        moveTo(player, floor);
+        floorHolds++;
+        long now = System.currentTimeMillis();
+        if (floorHolds == 1 || now - lastHoldReportMillis >= 5000) {
+            lastHoldReportMillis = now;
+            System.out.println(
+                    "[GRUG CI] holding the test player on the floor at "
+                            + floor
+                            + ", up from "
+                            + feet
+                            + " (inside the ground)");
+        }
+        return true;
+    }
+
+    /**
      * Puts the test player back at the height the run started at when a tick leaves them further
      * from it than {@link #HOLD_TOLERANCE} (#1134).
      *
@@ -194,26 +251,21 @@ public final class GrugServerRun {
      * reached the VM with an empty call stack, which aborted the process instead of failing a test.
      * 1.2.5 and b1.7.3-ornithe have held their test players since #1095 and #1102; Alpha had not.
      *
-     * <p>No host function moves the player, so the hold cannot hide a test's own movement. The
-     * tolerance is there because the world's own tick can leave the feet a fraction of a block off
-     * their height, and correcting that on every tick would send a teleport packet per tick.
+     * <p>The floor hold above runs first and answers the case where the client is inside the
+     * ground; this one keeps the room's own height. No host function moves the player, so the hold
+     * cannot hide a test's own movement. The tolerance is there because the world's own tick can
+     * leave the feet a fraction of a block off their height, and correcting that on every tick
+     * would send a teleport packet per tick.
      */
     private static void holdPlayer(PlayerEntity player) {
+        if (holdOnFloor(player)) {
+            return;
+        }
         double feet = player.shape.minY;
         if (Math.abs(feet - holdY) <= HOLD_TOLERANCE) {
             return;
         }
-        player.setPositionAndAngles(player.x, holdY, player.z, player.yaw, player.pitch);
-        player.velocityY = 0.0;
-        // A server-side setPositionAndAngles writes the server's copy and tells no one, and the
-        // camera is the client's: without the teleport the room would be built where the server's
-        // player now is while the frame is drawn from where the client's still is, which walks the
-        // fixture out of the band the saved-data tests capture. The game's own teleport packet is
-        // what makes a server's move visible, and the client's player is the entity it names.
-        Connection connection = GrugControlAlpha.connectionFor(player);
-        if (connection != null) {
-            connection.send(new EntityTeleportPacket(player));
-        }
+        moveTo(player, holdY);
         holds++;
         long now = System.currentTimeMillis();
         if (holds == 1 || now - lastHoldReportMillis >= 5000) {
@@ -223,10 +275,32 @@ public final class GrugServerRun {
         }
     }
 
+    /**
+     * Moves the server's copy of the player to {@code y} and tells the client.
+     *
+     * <p>A server-side {@code setPositionAndAngles} writes the server's copy and tells no one, and
+     * the camera is the client's: without the teleport the room would be built where the server's
+     * player now is while the frame is drawn from where the client's still is, which walks the
+     * fixture out of the band the saved-data tests capture. The game's own teleport packet is what
+     * makes a server's move visible, and the client's player is the entity it names.
+     */
+    private static void moveTo(PlayerEntity player, double y) {
+        player.setPositionAndAngles(player.x, y, player.z, player.yaw, player.pitch);
+        player.velocityY = 0.0;
+        Connection connection = GrugControlAlpha.connectionFor(player);
+        if (connection != null) {
+            connection.send(new EntityTeleportPacket(player));
+        }
+    }
+
     /** Ends the server process; a non-zero status says the run did not pass. */
     private static void stop(int status) {
         done = true;
         GrugControlAlpha.server().endRun();
+        if (floorHolds > 0) {
+            System.out.println(
+                    "[GRUG CI] The test player was held on the floor " + floorHolds + " times.");
+        }
         if (holds > 0) {
             System.out.println(
                     "[GRUG CI] The test player was held at their start height "

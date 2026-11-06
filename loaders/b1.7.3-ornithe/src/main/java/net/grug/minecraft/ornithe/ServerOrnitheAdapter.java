@@ -234,16 +234,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * falling when the first test starts gives an origin whose height differs from run to run,
      * which put one test's blocks above the world's height (#1052).
      *
-     * <p>{@code onGround} alone is not enough. The server copies it from the client's movement
+     * <p>{@code onGround} alone is not enough: the server copies it from the client's movement
      * packets, and a client that fell through the terrain while its chunks were arriving reports a
      * position a fraction of a block inside the ground, which the server accepts because the box
      * its collision check tests is contracted by 0.0625. From there the client's own collision
-     * never reports support, and every later packet takes the handler's teleport-back path, which
-     * returns before {@code onGround} is copied, so the wait timed out with the client in the world
-     * and the run already started (#1095). The server's own world has the ground, so the player
-     * counts as ready when they stand on it, and a player inside a block's collision shape is never
-     * accepted. The ground is the shape's top, not the block's top, so a player standing on a slab
-     * at 70.5 is ready rather than read as half a block inside it (#1102).
+     * never reports support, so the wait timed out with the client in the world and the run already
+     * started (#1095). {@link GrugPlayerFloor#mayStart} is that rule, and every dedicated-server
+     * loader asks it, so the five cannot drift apart (#1136). The ground is the shape's top, not
+     * the block's top, so a player standing on a slab at 70.5 is ready rather than read as half a
+     * block inside it (#1102).
      */
     @Override
     public boolean isWorldReady(Object playerObj) {
@@ -251,10 +250,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         double feet = feetY(player);
         GrugPlayerFloor.BlockSource blocks = solidBlocks(getLevel());
         return super.isWorldReady(playerObj)
-                && !GrugPlayerFloor.insideABlock(blocks, player.x, feet, player.z)
-                && (player.onGround
-                        || GrugPlayerFloor.standsOn(
-                                feet, GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z)));
+                && GrugPlayerFloor.mayStart(blocks, player.x, feet, player.z, player.onGround);
     }
 
     /**

@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe;
 
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -15,12 +16,14 @@ import net.minecraft.block.Block;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.entity.mob.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -43,6 +46,12 @@ import java.util.Set;
  */
 @GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class ServerOrnitheAdapter extends OrnitheAdapter {
+
+    /**
+     * How thin the column is that asks which collision boxes cover the player's own point. It only
+     * has to be non-zero so a box whose edge is exactly on the point still intersects it.
+     */
+    private static final double POINT_EDGE = 1e-9;
 
     @Override
     public GrugSide getSide() {
@@ -209,14 +218,70 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
-     * Ready once the world around the player is loaded and the player has landed. The test origin
-     * is read from the player's position, and a player still falling when the first test starts
-     * gives an origin whose height differs from run to run, which put one test's blocks above the
-     * world's height (#1052).
+     * Ready once the world around the player is loaded, the player has landed and the player is not
+     * inside a block. The test origin is read from the player's position, and a player still
+     * falling when the first test starts gives an origin whose height differs from run to run,
+     * which put one test's blocks above the world's height (#1052).
+     *
+     * <p>{@code onGround} alone is not enough: the server copies it from the client's movement
+     * packets, and a client that fell through the terrain while its chunks were arriving reports a
+     * position a fraction of a block inside the ground, which the server accepts because the box
+     * its collision check tests is contracted by 0.0625. From there the client's own collision
+     * never reports support, so the wait timed out with the client in the world and the run already
+     * started (#1136, the rule #1095 added to b1.7.3-ornithe). {@link GrugPlayerFloor#mayStart} is
+     * that rule, so the server's own ground is enough and a player inside a block is never
+     * accepted.
      */
     @Override
     public boolean isWorldReady(Object playerObj) {
-        return super.isWorldReady(playerObj) && ((PlayerEntity) playerObj).onGround;
+        PlayerEntity player = (PlayerEntity) playerObj;
+        double feet = player.shape.minY;
+        return super.isWorldReady(playerObj)
+                && GrugPlayerFloor.mayStart(
+                        solidBlocks(getLevel()), player.x, feet, player.z, player.onGround);
+    }
+
+    /**
+     * The collision shapes of a level's blocks, as {@link GrugPlayerFloor} reads them: the top of
+     * the highest box that covers the player's own point, which is what the game's own collision
+     * meets there. A slab's floor is half a block below its block top, a stair's lower step is not
+     * its upper one, and a block with no collision box at all, such as a torch or a plant, is not a
+     * floor (#1102, #1136).
+     *
+     * <p>Alpha's dedicated server is a different version from its client (a0.2.1 against
+     * a1.1.2_01), so the block id is read through {@link GrugWorldAccess}, which knows the name
+     * each side uses. The boxes come from the block's own {@code addCollisions}, the query the
+     * game's entity movement makes, with the thin column through the player's own point as the
+     * area, so a box is filtered by where the player stands rather than by its block position.
+     */
+    @SuppressWarnings("rawtypes")
+    public static GrugPlayerFloor.BlockSource solidBlocks(Object levelObj) {
+        World world = (World) levelObj;
+        return (x, y, z, pointX, pointZ) -> {
+            int id = GrugWorldAccess.blockId(world, x, y, z);
+            if (id <= 0 || id >= Block.BY_ID.length) {
+                return GrugPlayerFloor.BlockSource.NO_COLLISION;
+            }
+            Block block = Block.BY_ID[id];
+            if (block == null) {
+                return GrugPlayerFloor.BlockSource.NO_COLLISION;
+            }
+            Box point =
+                    Box.of(
+                            pointX - POINT_EDGE,
+                            y,
+                            pointZ - POINT_EDGE,
+                            pointX + POINT_EDGE,
+                            y + 1.0,
+                            pointZ + POINT_EDGE);
+            ArrayList boxes = new ArrayList();
+            block.addCollisions(world, x, y, z, point, boxes);
+            double top = GrugPlayerFloor.BlockSource.NO_COLLISION;
+            for (Object boxObj : boxes) {
+                top = Math.max(top, ((Box) boxObj).maxY - y);
+            }
+            return top;
+        };
     }
 
     /**

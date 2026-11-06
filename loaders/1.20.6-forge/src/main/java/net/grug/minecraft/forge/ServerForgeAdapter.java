@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
@@ -11,8 +12,13 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.awt.image.BufferedImage;
@@ -47,6 +53,12 @@ import java.util.UUID;
         "a dedicated server, which only the dispatch-only multiplayer job of #167 launches, and the"
                 + " coverage gate does not count that job")
 public class ServerForgeAdapter extends ForgeAdapter {
+
+    /**
+     * How thin the column is that asks which collision boxes cover the player's own point. It only
+     * has to be non-zero so a box whose edge is exactly on the point still intersects it.
+     */
+    private static final double POINT_EDGE = 1e-9;
 
     @Override
     public GrugSide getSide() {
@@ -83,6 +95,69 @@ public class ServerForgeAdapter extends ForgeAdapter {
         }
         var players = server.getPlayerList().getPlayers();
         return players.isEmpty() ? null : (ServerPlayer) players.get(0);
+    }
+
+    /**
+     * Ready once the server's world around the player is loaded, the player is out of any block and
+     * the player has landed, the same rule every other dedicated-server loader asks.
+     *
+     * <p>The inherited answer only proves the chunks arrived, which says nothing about a player
+     * still falling when the first test starts, and the test origin is read from the player's
+     * position, so that origin would differ between runs (#1052). {@code onGround} alone is not
+     * enough either: the server copies it from the client's movement packets, and a client that
+     * fell through the terrain while its chunks were arriving reports a position a fraction of a
+     * block inside the ground, which the server accepts because the box its collision check tests
+     * is contracted by 0.0625. From there the client's own collision never reports support, so the
+     * wait timed out with the client in the world and the run already started (#1136, the rule
+     * #1095 added to b1.7.3-ornithe). {@link GrugPlayerFloor#mayStart} is that rule, so the
+     * server's own ground is enough and a player inside a block is never accepted.
+     */
+    @Override
+    public boolean isWorldReady(Object playerObj) {
+        Player player = (Player) playerObj;
+        return super.isWorldReady(playerObj)
+                && GrugPlayerFloor.mayStart(
+                        solidBlocks(getLevel()),
+                        player.getX(),
+                        player.getY(),
+                        player.getZ(),
+                        player.onGround());
+    }
+
+    /**
+     * The collision shapes of a level's blocks, as {@link GrugPlayerFloor} reads them: the top of
+     * the highest box that covers the player's own point, which is what the game's own collision
+     * meets there. A slab's floor is half a block below its block top, a stair's lower step is not
+     * its upper one, and a block with no collision box at all, such as a torch or a plant, is not a
+     * floor (#1102, #1136).
+     *
+     * <p>The shape a {@code BlockState} answers is relative to its block position and may hold more
+     * than one box, as a stair's two steps do, so each box is filtered by the player's own point
+     * rather than the block's whole footprint being taken. The boxes are the game's own collision
+     * shapes, so a block with no collision such as water or a plant answers none.
+     */
+    public static GrugPlayerFloor.BlockSource solidBlocks(Object levelObj) {
+        Level level = (Level) levelObj;
+        return (x, y, z, pointX, pointZ) -> {
+            BlockPos pos = new BlockPos(x, y, z);
+            BlockState state = level.getBlockState(pos);
+            VoxelShape shape = state.getCollisionShape(level, pos);
+            if (shape.isEmpty()) {
+                return GrugPlayerFloor.BlockSource.NO_COLLISION;
+            }
+            double localX = pointX - x;
+            double localZ = pointZ - z;
+            double top = GrugPlayerFloor.BlockSource.NO_COLLISION;
+            for (AABB box : shape.toAabbs()) {
+                if (localX >= box.minX - POINT_EDGE
+                        && localX <= box.maxX + POINT_EDGE
+                        && localZ >= box.minZ - POINT_EDGE
+                        && localZ <= box.maxZ + POINT_EDGE) {
+                    top = Math.max(top, box.maxY);
+                }
+            }
+            return top;
+        };
     }
 
     /**
