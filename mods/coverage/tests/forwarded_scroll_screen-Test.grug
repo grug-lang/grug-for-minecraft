@@ -1,10 +1,12 @@
 # Test.scroll_screen forwarded to a dedicated server's joined client (#1094): the wheel is turned on
 # the client's screen through the client's own wheel path, at the centre of the coverage overlay's
-# box, and the answer is whether an overlay took the movement. This runs only on 1.20.6, the leg
-# whose server can open coverage_gui for its player; the four older servers refuse GUI.open until
-# #1098 gives them a server-side container, so they list this test as unsupported. The overlay takes
-# a wheel turned down, and the screen stays open. Only a multiplayer run that forwards client calls
-# runs a forwarded_ test.
+# box, and the answer is whether an overlay took the movement. The fixture is a vanilla chest rather
+# than grug:coverage_gui, because a loader leaves a mod's own GrugScreen out of the screens its
+# overlays are asked on, while the coverage overlay is asked on the game's own container screens.
+# This runs only on 1.20.6, the leg whose server can open a container screen for its player; the
+# four older servers refuse GUI.open until #1098 gives them a server-side container, so they list
+# this test as unsupported. The overlay takes a wheel turned down, and the screen stays open. Only a
+# multiplayer run that forwards client calls runs a forwarded_ test.
 started: bool = false
 
 export tick(ctx: TestTickContext) {
@@ -13,7 +15,7 @@ export tick(ctx: TestTickContext) {
         Test.close_screen()
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
-        level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_gui")
+        level.place_block(origin.x(), origin.y(), origin.z(), "minecraft:chest")
         Test.use_block(level, origin.x(), origin.y(), origin.z())
         ctx.not_done()
         return
