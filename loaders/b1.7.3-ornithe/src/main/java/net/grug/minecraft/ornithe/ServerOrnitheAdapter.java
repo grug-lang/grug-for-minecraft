@@ -42,8 +42,10 @@ import java.util.Set;
  * net.grug.minecraft.core.ModLoaderAdapter} again, because everything that is not about which
  * process this is, is the same code: the block registry has no client in it, the recipe manager has
  * no client in it, and neither has any of the inventory or entity host functions. What a server
- * cannot inherit is the pair of handles, and that is all this replaces: the origin follows the
- * player {@link #testPlayer()} answers, so it is inherited too.
+ * cannot inherit is the pair of handles, the player position convention and the player the origin
+ * follows. The position convention is the one override that matters here: this server's player
+ * keeps the feet in {@code y}, so {@link #testPlayerEye} adds the eye height above the room's floor
+ * anchor (#1178).
  *
  * <p>The client-only functions are inherited too, and are not overridden here: each one refuses
  * itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot
@@ -439,6 +441,18 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     protected double feetY(PlayerEntity player) {
         return Math.rint(player.shape.minY * 1e6) / 1e6;
+    }
+
+    /**
+     * The eye the room was built around: {@link #feetY} is the floor's anchor, and this server's
+     * player keeps the feet in {@code y} while the client keeps the eye there, so reading {@code y}
+     * directly named a camera one eye height below the joined client's (#1178). The room build is
+     * unchanged, since this only adds the eye above the same anchor.
+     */
+    @Override
+    public Vec3 testPlayerEye(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        return GrugTestOrigin.eyeOfFeet(player.x, feetY(player), player.z);
     }
 
     /** The tests listed in {@code server-unsupported-tests.txt}, which says why. */
