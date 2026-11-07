@@ -9,9 +9,9 @@ import net.grug.minecraft.grug.Vec3;
  * <p>The rule lives here rather than in each adapter so the five loaders cannot drift apart, and so
  * a unit test reaches it without a game. What a loader still answers is its player's eye, through
  * {@link ModLoaderAdapter#testPlayerEye(Object)}, because only that loader's mappings say whether
- * the position it reads is the eye (every client before 1.20.6, and the a1.1.2_01 server, whose
- * player keeps the eye in {@code y}) or the feet (1.20.6, whose {@code getEyeY} adds the eye
- * height, and the b1.7.3 server, which adds it through {@link #eyeOfFeet}).
+ * the position it reads is the eye (every client before 1.20.6) or the feet (1.20.6, whose {@code
+ * getY} is the feet, and the a1.1.2_01 and b1.7.3 servers, whose movement handler stores the
+ * client's feet in {@code y} and which therefore add the eye height through {@link #eyeOfFeet}).
  *
  * <p>Adding the lift to the eye, rather than to the feet, is what keeps a fixture and a capture on
  * the same row: the camera is the eye, so a fixture this far above it is the same distance from

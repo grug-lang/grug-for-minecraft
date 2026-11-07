@@ -9,6 +9,7 @@ import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.GrugWorldReady;
@@ -892,6 +893,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return MinecraftInstance.get().player;
     }
 
+    /**
+     * The player's feet, which is where a test's room is anchored. This generation's client keeps
+     * the eye height in {@code y}, so the feet are one eye below it; the a0.2.1 server's player
+     * keeps the feet there instead, which {@link ServerOrnitheAdapter} answers (#1190).
+     */
+    protected double feetY(PlayerEntity player) {
+        return player.y - GrugTestOrigin.EYE_HEIGHT;
+    }
+
     @Override
     @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
     public void buildTestBox(int radius) {
@@ -901,7 +911,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         renderSettle.reset();
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
-        GrugTestBox.build(this, getLevel(), player.x, player.y - 1.62, player.z, radius, false);
+        GrugTestBox.build(this, getLevel(), player.x, feetY(player), player.z, radius, false);
     }
 
     @Override
@@ -909,7 +919,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void sweepTestItems() {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
-        GrugTestBox.sweepItems(this, getLevel(), player.x, player.y - 1.62, player.z);
+        GrugTestBox.sweepItems(this, getLevel(), player.x, feetY(player), player.z);
     }
 
     @Override
@@ -1250,9 +1260,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         PlayerEntity player = (PlayerEntity) playerObj;
         Object level = getLevel();
 
-        // y is the eye reference in this version, so the feet come from the collision box.
+        // The feet, because a room is anchored there and this version's y is the eye.
         return GrugWorldReady.isReady(
-                (x, y, z) -> isAir(level, x, y, z), player.x, player.shape.minY, player.z);
+                (x, y, z) -> isAir(level, x, y, z), player.x, feetY(player), player.z);
     }
 
     @Override
@@ -1402,6 +1412,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return true;
     }
 
+    /**
+     * This version's client keeps the eye in {@code y}, so the position is the eye the room's
+     * camera is measured from. The a0.2.1 server's player keeps the feet there, so it overrides
+     * this to add the eye height above {@link #feetY} (#1190).
+     */
     @Override
     public Vec3 testPlayerEye(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;

@@ -328,10 +328,34 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public boolean isWorldReady(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
-        double feet = player.shape.minY;
+        double feet = feetY(player);
         return super.isWorldReady(playerObj)
                 && GrugPlayerFloor.mayStart(
                         solidBlocks(getLevel()), player.x, feet, player.z, player.onGround);
+    }
+
+    /**
+     * The feet are {@code player.y} here. This server's movement handler stores the client's
+     * packet's {@code minY}, which the client fills with its own feet, into the player's position,
+     * and the server's own teleport confirms the convention by sending {@code minY = y + 1.62}
+     * (#1190). The client keeps the eye in {@code y}, which {@link OrnitheAdapter#feetY} answers
+     * there.
+     */
+    @Override
+    protected double feetY(PlayerEntity player) {
+        return player.y;
+    }
+
+    /**
+     * The eye the room was built around: {@link #feetY} is the room's anchor, and this server's
+     * player keeps the feet in {@code y} where the joined client keeps the eye, so reading {@code
+     * y} directly named a camera one eye height below the client's (#1190). The room build is
+     * unchanged, since this only adds the eye above the same anchor.
+     */
+    @Override
+    public Vec3 testPlayerEye(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        return GrugTestOrigin.eyeOfFeet(player.x, feetY(player), player.z);
     }
 
     /**
