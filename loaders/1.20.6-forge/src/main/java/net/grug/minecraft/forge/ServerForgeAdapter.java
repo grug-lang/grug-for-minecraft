@@ -82,16 +82,18 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
-     * The tests listed in {@code server-unsupported-tests.txt}, which says why. The file is read
-     * here rather than inherited, because a task that declares {@code tick_any_side} has to be
-     * skippable on one server leg without sending it client-only on all five (#1178).
+     * The tests listed in {@code forge206-server-unsupported-tests.txt}, which says why. The name
+     * carries the loader because this layer is at the universal jar's root, and a root file of the
+     * bare name would shadow the nested layers' own lists on the class path (#1178).
      */
     @Override
     public Set<String> serverUnsupportedTests() {
         try (InputStream in =
-                ServerForgeAdapter.class.getResourceAsStream("/server-unsupported-tests.txt")) {
+                ServerForgeAdapter.class.getResourceAsStream(
+                        "/forge206-server-unsupported-tests.txt")) {
             if (in == null) {
-                throw new IllegalStateException("server-unsupported-tests.txt is not in the jar.");
+                throw new IllegalStateException(
+                        "forge206-server-unsupported-tests.txt is not in the jar.");
             }
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buffer = new byte[4096];
@@ -102,7 +104,8 @@ public class ServerForgeAdapter extends ForgeAdapter {
             return GrugTestRunner.parseTestList(
                     new String(out.toByteArray(), StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new IllegalStateException("Could not read server-unsupported-tests.txt.", e);
+            throw new IllegalStateException(
+                    "Could not read forge206-server-unsupported-tests.txt.", e);
         }
     }
 

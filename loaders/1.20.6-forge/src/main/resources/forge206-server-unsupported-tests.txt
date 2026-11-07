@@ -3,6 +3,10 @@
 # tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
+# The file is named after the loader because the other four layers sit nested in the universal jar
+# and read their own bare-named lists from the class path: a root server-unsupported-tests.txt would
+# shadow them there (#1178).
+#
 # The buildcraft captures #1178 promoted. Their tick_any_side export is now carried by the two
 # Ornithe server legs, which hold the camera at the room's eye, but this leg's residue #1161
 # measured still stands: cobblestone_pipe_shapes differs in 109366 of 115200 pixels, with both
