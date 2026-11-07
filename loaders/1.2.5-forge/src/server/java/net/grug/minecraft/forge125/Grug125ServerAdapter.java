@@ -484,8 +484,14 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         return true;
     }
 
+    /** This server has no local player, so it snaps its copy of the joined one instead (#1161). */
     @Override
     public void snapPlayerForTestOnClient() {}
+
+    @Override
+    public void snapPlayerForTestOnServer() {
+        GrugServerRun.snapToBlockCentre((EntityPlayerMP) testPlayer());
+    }
 
     @Override
     public void restorePlayerAfterTest() {}

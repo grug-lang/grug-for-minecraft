@@ -1,8 +1,6 @@
 package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -12,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Covers where the runner snaps the test player to, and the side it does not snap on. See #609. */
+/** Covers where the runner snaps the test player to, and which side's player it moves. See #609. */
 class GrugTestPlayerSnapTest {
 
     @Test
@@ -27,29 +25,38 @@ class GrugTestPlayerSnapTest {
     }
 
     @Test
-    void snapsOnAClient() throws Throwable {
-        AtomicInteger snaps = new AtomicInteger();
+    void snapsTheLocalPlayerOnAClient() throws Throwable {
+        AtomicInteger clientSnaps = new AtomicInteger();
+        AtomicInteger serverSnaps = new AtomicInteger();
 
-        adapter(GrugSide.CLIENT, snaps).snapPlayerForTest();
+        adapter(GrugSide.CLIENT, clientSnaps, serverSnaps).snapPlayerForTest();
 
-        assertEquals(1, snaps.get());
+        assertEquals(1, clientSnaps.get());
+        assertEquals(0, serverSnaps.get());
     }
 
     @Test
-    void skipsTheSnapOnADedicatedServer() throws Throwable {
-        // A dedicated server has no local player to move, so the runner skips the snap there rather
-        // than reporting a defect every time a test starts.
-        AtomicInteger snaps = new AtomicInteger();
+    void snapsTheServersPlayerCopyOnADedicatedServer() throws Throwable {
+        // The server has no local player, but it does have its copy of the joined player, which is
+        // the player the room, the origin and the capture are built around (#1161).
+        AtomicInteger clientSnaps = new AtomicInteger();
+        AtomicInteger serverSnaps = new AtomicInteger();
 
-        adapter(GrugSide.DEDICATED_SERVER, snaps).snapPlayerForTest();
+        adapter(GrugSide.DEDICATED_SERVER, clientSnaps, serverSnaps).snapPlayerForTest();
 
-        assertEquals(0, snaps.get());
+        assertEquals(0, clientSnaps.get());
+        assertEquals(1, serverSnaps.get());
     }
 
     @Test
-    void answersWhichSidesHaveAPlayerToSnap() {
-        assertTrue(GrugTestPlayerSnap.canSnap(GrugSide.CLIENT));
-        assertFalse(GrugTestPlayerSnap.canSnap(GrugSide.DEDICATED_SERVER));
+    void leavesADedicatedServerWithoutAServerSnapAlone() throws Throwable {
+        // The server half's default moves nothing, so a server whose adapter has not wired a
+        // player copy fails no test at the start of one.
+        AtomicInteger clientSnaps = new AtomicInteger();
+
+        adapter(GrugSide.DEDICATED_SERVER, clientSnaps).snapPlayerForTest();
+
+        assertEquals(0, clientSnaps.get());
     }
 
     @Test
@@ -88,8 +95,11 @@ class GrugTestPlayerSnapTest {
                         });
     }
 
-    /** An adapter that says which side it is on and counts the client snaps it is asked for. */
-    private static ModLoaderAdapter adapter(GrugSide side, AtomicInteger snaps) {
+    /**
+     * An adapter that says which side it is on and counts the client snaps. It leaves the server
+     * half to its default, which is the no-op a server adapter without a player copy uses.
+     */
+    private static ModLoaderAdapter adapter(GrugSide side, AtomicInteger clientSnaps) {
         return (ModLoaderAdapter)
                 Proxy.newProxyInstance(
                         ModLoaderAdapter.class.getClassLoader(),
@@ -97,7 +107,28 @@ class GrugTestPlayerSnapTest {
                         (proxy, method, args) -> {
                             if (method.getName().equals("getSide")) return side;
                             if (method.getName().equals("snapPlayerForTestOnClient")) {
-                                snaps.incrementAndGet();
+                                clientSnaps.incrementAndGet();
+                                return null;
+                            }
+                            return InvocationHandler.invokeDefault(proxy, method, args);
+                        });
+    }
+
+    /** An adapter that says which side it is on and counts both halves of the snap. */
+    private static ModLoaderAdapter adapter(
+            GrugSide side, AtomicInteger clientSnaps, AtomicInteger serverSnaps) {
+        return (ModLoaderAdapter)
+                Proxy.newProxyInstance(
+                        ModLoaderAdapter.class.getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) -> {
+                            if (method.getName().equals("getSide")) return side;
+                            if (method.getName().equals("snapPlayerForTestOnClient")) {
+                                clientSnaps.incrementAndGet();
+                                return null;
+                            }
+                            if (method.getName().equals("snapPlayerForTestOnServer")) {
+                                serverSnaps.incrementAndGet();
                                 return null;
                             }
                             return InvocationHandler.invokeDefault(proxy, method, args);

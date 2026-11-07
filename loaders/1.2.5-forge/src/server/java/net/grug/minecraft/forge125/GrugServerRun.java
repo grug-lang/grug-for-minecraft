@@ -7,6 +7,7 @@ import cpw.mods.fml.server.FMLServerHandler;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.block.entity.GrugSavedDataPacket;
 import net.grug.minecraft.forge125.block.entity.GrugSavedDataServer125;
@@ -282,6 +283,29 @@ public final class GrugServerRun implements ITickHandler {
      *
      * @return whether the run may go on
      */
+    /**
+     * Snaps the server's copy of the test player to the centre of the block they stand in on x and
+     * z, before the runner builds the room (#1161).
+     *
+     * <p>A client-only run's player is snapped by the adapter, so its room, origin and fixtures sit
+     * on the block grid; a dedicated server skipped that and built from wherever the joined client
+     * stood. The height is left to {@link #holdPlayer}, which owns the floor, and the player is not
+     * moved again after the build. This version's teleport takes the entity position, which is what
+     * {@code posX}/{@code posY}/{@code posZ} hold here, and it sends the packet that carries the
+     * joined client's camera with the player.
+     */
+    public static void snapToBlockCentre(EntityPlayerMP player) {
+        if (player == null) {
+            return;
+        }
+        player.playerNetServerHandler.teleportTo(
+                GrugTestPlayerSnap.blockCentre(player.posX),
+                player.posY,
+                GrugTestPlayerSnap.blockCentre(player.posZ),
+                player.rotationYaw,
+                player.rotationPitch);
+    }
+
     private static boolean holdPlayer(EntityPlayerMP player) {
         if (player.isDead || player.getHealth() <= 0 || player != testPlayer) {
             System.out.println("[GRUG CI] FAIL the test player is gone");

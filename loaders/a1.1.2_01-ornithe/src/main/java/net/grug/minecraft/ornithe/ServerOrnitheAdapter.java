@@ -636,6 +636,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * Snaps this server's copy of the test player to their block centre, so the room, origin and
+     * fixtures land on the grid a client-only run's snap puts them on (#1161). The teleport is the
+     * one the server run's floor hold uses, so the joined client's camera follows it.
+     */
+    @Override
+    public void snapPlayerForTestOnServer() {
+        GrugServerRun.snapToBlockCentre((PlayerEntity) testPlayer());
+    }
+
+    /**
      * The collision shapes of a level's blocks, as {@link GrugPlayerFloor} reads them: the top of
      * the highest box that covers the player's own point, which is what the game's own collision
      * meets there. A slab's floor is half a block below its block top, a stair's lower step is not

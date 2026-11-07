@@ -159,6 +159,16 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * Snaps this server's copy of the test player to their block centre through the same teleport
+     * its floor hold uses, so the room, origin and fixtures land on the grid a client-only run's
+     * snap puts them on (#1161). The joined client's camera follows the packet.
+     */
+    @Override
+    public void snapPlayerForTestOnServer() {
+        GrugServerRun.snapToBlockCentre((ServerPlayer) testPlayer());
+    }
+
+    /**
      * Ready once the server's world around the player is loaded, the player is out of any block and
      * the player has landed, the same rule every other dedicated-server loader asks.
      *

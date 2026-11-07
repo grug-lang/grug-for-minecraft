@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
@@ -348,20 +349,45 @@ public final class GrugServerRun {
      * the room was built around.
      */
     private static void moveTo(PlayerEntity player, double feetY) {
-        player.updatePositionAndAngles(player.x, feetY, player.z, player.yaw, player.pitch);
+        moveTo(player, feetY, player.x, player.z);
+    }
+
+    private static void moveTo(PlayerEntity player, double feetY, double x, double z) {
+        player.updatePositionAndAngles(x, feetY, z, player.yaw, player.pitch);
         player.velocityY = 0.0;
         Connection connection = GrugControlAlpha.connectionFor(player);
         if (connection != null) {
             connection.send(
                     new PlayerMovePacket.PositionAndAngles(
-                            player.x,
+                            x,
                             feetY + GrugTestOrigin.EYE_HEIGHT,
                             feetY,
-                            player.z,
+                            z,
                             player.yaw,
                             player.pitch,
                             false));
         }
+    }
+
+    /**
+     * Snaps the server's copy of the test player to the centre of the block they stand in on x and
+     * z, before the runner builds the room (#1161).
+     *
+     * <p>A client-only run's player is snapped by the adapter, so its room, origin and fixtures sit
+     * on the block grid; a dedicated server skipped that and built from wherever the joined client
+     * stood. The height is the feet, which this server keeps in {@code y}, and is left to the holds
+     * above; the player is not moved again after the build. {@link #moveTo} sends the packet that
+     * carries the joined client's camera with the player.
+     */
+    public static void snapToBlockCentre(PlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+        moveTo(
+                player,
+                player.y,
+                GrugTestPlayerSnap.blockCentre(player.x),
+                GrugTestPlayerSnap.blockCentre(player.z));
     }
 
     /** Ends the server process; a non-zero status says the run did not pass. */

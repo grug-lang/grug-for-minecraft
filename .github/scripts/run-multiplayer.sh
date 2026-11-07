@@ -587,6 +587,16 @@ while :; do
         exit 1
       fi
     done
+    # The four wall-backed buildcraft captures #1161 promoted have to show as passed on every leg.
+    # Each compares against its single flat golden, so a leg whose joined client still draws a
+    # different picture fails in the test itself; this check catches one not running at all (an
+    # export reverted, or a loader listing it as unsupported) and passing quietly.
+    for wall_backed in buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings; do
+      if ! grep -qF "[GRUG CI] PASS ${wall_backed}-Test.grug" "$SERVER_LOG"; then
+        echo "==> The run passed, but ${wall_backed}-Test.grug did not run on the dedicated server." >&2
+        exit 1
+      fi
+    done
     # The parity #1161 added has to be proven on every leg that carries it: Test.camera reads the
     # joined client's camera on a dedicated server, and coverage/tests/camera asserts it is the eye
     # the room was built around. A loader whose capture client ignored the eye would otherwise

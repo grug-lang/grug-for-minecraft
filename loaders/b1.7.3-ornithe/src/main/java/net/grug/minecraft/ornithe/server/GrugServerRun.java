@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.server;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
@@ -295,6 +296,29 @@ public final class GrugServerRun {
      * and the player is falling, because there is no floor to put them on yet. No host function
      * moves the player down, so holding the feet at the floor cannot hide a test's own movement.
      */
+    /**
+     * Snaps the server's copy of the test player to the centre of the block they stand in on x and
+     * z, before the runner builds the room (#1161).
+     *
+     * <p>A client-only run's player is snapped by the adapter, so its room, origin and fixtures sit
+     * on the block grid; a dedicated server skipped that and built from wherever the joined client
+     * stood. The feet are the bottom of the box, as {@link #holdPlayer} reads them, and the height
+     * is left to that hold; the player is not moved again after the build. The teleport is the same
+     * server move the floor hold uses, so it carries the joined client's camera with the player.
+     */
+    public static void snapToBlockCentre(PlayerEntity player) {
+        if (!(player instanceof ServerPlayerEntity)) {
+            return;
+        }
+        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        serverPlayer.networkHandler.teleport(
+                GrugTestPlayerSnap.blockCentre(serverPlayer.x),
+                serverPlayer.shape.minY,
+                GrugTestPlayerSnap.blockCentre(serverPlayer.z),
+                serverPlayer.yaw,
+                serverPlayer.pitch);
+    }
+
     private static void holdPlayer(PlayerEntity player) {
         World world = world();
         if (world == null) {
