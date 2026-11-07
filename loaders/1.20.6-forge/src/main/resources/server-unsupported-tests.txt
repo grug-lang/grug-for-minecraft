@@ -1,0 +1,14 @@
+# Tests the 1.20.6 dedicated server cannot run although they define tick_any_side or are
+# forwarded_ tests, one path per line. Interim (#166): this mechanism is removed together with
+# tick_any_side when #1040 lands.
+# Each group below says why its tests cannot run on that server.
+#
+# The buildcraft captures #1178 promoted. Their tick_any_side export is now carried by the two
+# Ornithe server legs, which hold the camera at the room's eye, but this leg's residue #1161
+# measured still stands: cobblestone_pipe_shapes differs in 109366 of 115200 pixels, with both
+# signs of delta and a far-off pipe edge, which fits a fraction-of-a-pixel view shift rather than
+# the eye being wrong. The two engine captures were never reached behind it. They wait here for
+# #1161's own work.
+buildcraft/tests/cobblestone_pipe_shapes-Test.grug
+buildcraft/tests/redstone_engine_animation-Test.grug
+buildcraft/tests/redstone_engine_facings-Test.grug

@@ -8,6 +8,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -72,6 +73,15 @@ public final class GrugControlAlpha {
     private static Consumer<String> failed;
     private static int waited;
     private static boolean pending = false;
+
+    /** Where the client stood before a capture pinned it at the room's eye, or {@code false}. */
+    private static boolean pinned = false;
+
+    private static double pinnedX;
+    private static double pinnedY;
+    private static double pinnedZ;
+    private static float pinnedYaw;
+    private static float pinnedPitch;
 
     private GrugControlAlpha() {}
 
@@ -317,6 +327,45 @@ public final class GrugControlAlpha {
     }
 
     /**
+     * Holds the client's own player at the eye the capture named. The server cannot: it is frozen
+     * inside the call that asked for the frame, so nothing there ticks to hold its player, and a
+     * client that drifted from the eye drew the room from where it had drifted to (#1178). The eye
+     * is what the request names, and this version's {@code setPositionAndAngles} takes the feet and
+     * adds the eye height itself, so the feet go one eye height below it.
+     */
+    private static void pinAtCaptureEye(PlayerEntity player) {
+        if (!pinned) {
+            pinned = true;
+            pinnedX = player.x;
+            pinnedY = player.y;
+            pinnedZ = player.z;
+            pinnedYaw = player.yaw;
+            pinnedPitch = player.pitch;
+        }
+        player.setPositionAndAngles(
+                eye.x(), eye.y() - GrugTestOrigin.EYE_HEIGHT, eye.z(), 0.0F, 0.0F);
+        player.velocityX = 0.0;
+        player.velocityY = 0.0;
+        player.velocityZ = 0.0;
+    }
+
+    /**
+     * Puts the client back where it stood before the first capture pinned it, when it leaves the
+     * server. The player is already gone on most disconnects, so there is nothing to put back then;
+     * the flag is cleared either way so a second run does not restore a stale place.
+     */
+    private static void restoreAfterCapturePin(PlayerEntity player) {
+        if (!pinned) return;
+        pinned = false;
+        if (player == null) return;
+        player.setPositionAndAngles(
+                pinnedX, pinnedY - GrugTestOrigin.EYE_HEIGHT, pinnedZ, pinnedYaw, pinnedPitch);
+        player.velocityX = 0.0;
+        player.velocityY = 0.0;
+        player.velocityZ = 0.0;
+    }
+
+    /**
      * The client starts its run only once the chunks around its player have stopped arriving: the
      * count of loaded chunks in a square of {@link #SETTLE_RADIUS} chunks has held for {@link
      * #SETTLE_QUIET_TICKS} ticks, with the 3x3 around the player at least. The server freezes at
@@ -364,6 +413,7 @@ public final class GrugControlAlpha {
         }
         if (started && mc.world == null) {
             // Left the server: a run belongs to the connection that started it.
+            restoreAfterCapturePin(mc.player);
             pending = false;
             client().endRun();
             started = false;
@@ -377,6 +427,9 @@ public final class GrugControlAlpha {
                             + waited
                             + " on "
                             + Thread.currentThread().getName());
+        }
+        if (eye != null && mc.player != null) {
+            pinAtCaptureEye(mc.player);
         }
         boolean settled = GrugCore.getAdapter().isWorldSettled();
         // The frame has to show the world the server has and be drawn from the place the test's

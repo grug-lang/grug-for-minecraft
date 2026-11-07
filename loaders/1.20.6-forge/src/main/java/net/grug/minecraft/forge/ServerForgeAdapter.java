@@ -7,6 +7,7 @@ import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -30,6 +31,11 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -73,6 +79,31 @@ public class ServerForgeAdapter extends ForgeAdapter {
     @Override
     public GrugSide getSide() {
         return GrugSide.DEDICATED_SERVER;
+    }
+
+    /**
+     * The tests listed in {@code server-unsupported-tests.txt}, which says why. The file is read
+     * here rather than inherited, because a task that declares {@code tick_any_side} has to be
+     * skippable on one server leg without sending it client-only on all five (#1178).
+     */
+    @Override
+    public Set<String> serverUnsupportedTests() {
+        try (InputStream in =
+                ServerForgeAdapter.class.getResourceAsStream("/server-unsupported-tests.txt")) {
+            if (in == null) {
+                throw new IllegalStateException("server-unsupported-tests.txt is not in the jar.");
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int n;
+            while ((n = in.read(buffer)) > 0) {
+                out.write(buffer, 0, n);
+            }
+            return GrugTestRunner.parseTestList(
+                    new String(out.toByteArray(), StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read server-unsupported-tests.txt.", e);
+        }
     }
 
     /**

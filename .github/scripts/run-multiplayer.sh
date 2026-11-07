@@ -351,21 +351,25 @@ while :; do
         exit 1
       fi
     done
-    # The parity #1161 added has to be proven on the legs that carry it: Test.camera reads the
-    # joined client's camera on a dedicated server, and coverage/tests/camera asserts it is the eye
-    # the room was built around. A loader whose capture client ignored the eye would otherwise
-    # still be green. The two Ornithe servers cannot carry it yet (#1178): their player keeps the
-    # feet where the client keeps the eye, so the room's floor is built an eye height above the
-    # client's, and the camera reads false there, so each lists the test as unsupported and the
-    # proof is these three legs.
-    case "$LOADER" in
-      1.2.5-forge|1.20.6-forge|b1.7.3-stationapi)
-        if ! grep -qF '[GRUG CI] PASS coverage/tests/camera-Test.grug' "$SERVER_LOG"; then
-          echo "==> The run passed, but coverage/tests/camera-Test.grug did not run on the dedicated server." >&2
+    # The parity #1161 added has to be proven on every leg: Test.camera reads the joined client's
+    # camera on a dedicated server, and coverage/tests/camera asserts it is the eye the room was
+    # built around. A loader whose capture client ignored the eye would otherwise still be green.
+    if ! grep -qF '[GRUG CI] PASS coverage/tests/camera-Test.grug' "$SERVER_LOG"; then
+      echo "==> The run passed, but coverage/tests/camera-Test.grug did not run on the dedicated server." >&2
+      exit 1
+    fi
+    # The buildcraft captures #1178 promoted run on the two Ornithe server legs, which now hold the
+    # camera at the room's eye as the client-only run does (#1161). The other three legs list them
+    # as unsupported, where the residues #1161 measured still stand, so these two legs must show
+    # they ran; a leg that silently skipped one would otherwise look green.
+    if [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ]; then
+      for capture in buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings; do
+        if ! grep -qF "[GRUG CI] PASS ${capture}-Test.grug" "$SERVER_LOG"; then
+          echo "==> The run passed, but ${capture}-Test.grug did not run on the dedicated server." >&2
           exit 1
         fi
-        ;;
-    esac
+      done
+    fi
     # The remote GUI test (#168), the GUI capture tests and the two container-click tests run on the
     # servers that can open a container for their player, 1.20.6 and 1.2.5 (#1098): the other three
     # servers list them as unsupported, so these two legs must show they ran. A capture compares
