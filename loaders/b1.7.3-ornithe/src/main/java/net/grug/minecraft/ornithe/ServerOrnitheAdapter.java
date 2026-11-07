@@ -669,6 +669,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         return GrugTestOrigin.eyeOfFeet(player.x, feetY(player), player.z);
     }
 
+    /**
+     * Snaps this server's copy of the test player to their block centre, so the room, origin and
+     * fixtures land on the grid a client-only run's snap puts them on (#1161). The teleport is the
+     * one the server run's floor hold uses, so the joined client's camera follows it.
+     */
+    @Override
+    public void snapPlayerForTestOnServer() {
+        GrugServerRun.snapToBlockCentre((PlayerEntity) testPlayer());
+    }
+
     /** The tests listed in {@code server-unsupported-tests.txt}, which says why. */
     @Override
     public Set<String> serverUnsupportedTests() {

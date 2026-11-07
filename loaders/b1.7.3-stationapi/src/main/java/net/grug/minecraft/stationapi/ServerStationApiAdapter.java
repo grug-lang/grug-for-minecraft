@@ -234,6 +234,16 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                 player.x, Math.rint(player.boundingBox.minY * 1e6) / 1e6 + EYE_HEIGHT, player.z);
     }
 
+    /**
+     * Snaps this server's copy of the test player to their block centre, so the room, origin and
+     * fixtures land on the grid a client-only run's snap puts them on (#1161). The teleport is the
+     * one the server run's floor hold uses, so the joined client's camera follows it.
+     */
+    @Override
+    public void snapPlayerForTestOnServer() {
+        GrugServerRun.snapToBlockCentre((PlayerEntity) testPlayer());
+    }
+
     /** Asked of the client of the player who started the run, with the world frozen (#1040). */
     @Override
     public boolean hasSound(String path) {

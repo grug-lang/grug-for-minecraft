@@ -3,6 +3,7 @@ package net.grug.minecraft.forge;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugRunPlayers;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.server.MinecraftServer;
@@ -182,6 +183,27 @@ public final class GrugServerRun {
                             + " blocks from the starter, so a run that picked it would read another"
                             + " player's eye.");
         }
+    }
+
+    /**
+     * Snaps the server's copy of the test player to the centre of the block they stand in on x and
+     * z, before the runner builds the room (#1161).
+     *
+     * <p>A client-only run's player is snapped by the adapter, so its room, origin and fixtures sit
+     * on the block grid; a dedicated server skipped that and built from wherever the joined client
+     * stood, which put the 1.20.6 room 0.39 blocks off and shrank the fixture in the capture. The
+     * height is left to {@link #holdPlayer}, which owns the floor, and the player is not moved
+     * again after the build. The teleport is this version's server move, so it sends the packet
+     * that carries the joined client's camera with the player.
+     */
+    public static void snapToBlockCentre(ServerPlayer player) {
+        if (player == null) {
+            return;
+        }
+        player.teleportTo(
+                GrugTestPlayerSnap.blockCentre(player.getX()),
+                player.getY(),
+                GrugTestPlayerSnap.blockCentre(player.getZ()));
     }
 
     /**

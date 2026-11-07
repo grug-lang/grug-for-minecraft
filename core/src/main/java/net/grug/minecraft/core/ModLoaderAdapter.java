@@ -816,16 +816,38 @@ public interface ModLoaderAdapter {
      * crashes Alpha.
      *
      * <p>The runner calls this before its room build and before the first {@link #getTestOrigin}
-     * answer is captured, and calls {@link #restorePlayerAfterTest} when the test ends. A dedicated
-     * server has no local player to snap, so the snap is skipped there without an error. See #609.
+     * answer is captured, and calls {@link #restorePlayerAfterTest} when the test ends. Each side
+     * snaps the player it has: a client its own local player, and a dedicated server its copy of
+     * the joined player, which the room is then built from. A server that skipped its half built
+     * the room off the block grid a capture is framed against, which is #1161's 1.20.6 leg.
      */
     default void snapPlayerForTest() {
-        if (!GrugTestPlayerSnap.canSnap(getSide())) return;
-        snapPlayerForTestOnClient();
+        switch (getSide()) {
+            case CLIENT:
+                snapPlayerForTestOnClient();
+                break;
+            case DEDICATED_SERVER:
+                snapPlayerForTestOnServer();
+                break;
+        }
     }
 
     /** The client half of {@link #snapPlayerForTest}, which needs a game's own player object. */
     void snapPlayerForTestOnClient();
+
+    /**
+     * The server half of {@link #snapPlayerForTest}: moves the server's copy of the test player to
+     * the centre of the block in x and z, so the room, the origin and the fixtures land on the same
+     * block grid a client-only run's snapped player puts them on. The height is left alone, as the
+     * floor hold owns it, and the player is not moved again after the build.
+     *
+     * <p>The move goes through the same teleport the server run's floor hold uses, because a
+     * server-side write tells no one: without the packet the joined client's camera would stay
+     * where it was and the capture would be drawn from a point the room was not built around. A
+     * server that has not been given a player copy leaves the default answer alone, which moves
+     * nothing and moves no camera with it.
+     */
+    default void snapPlayerForTestOnServer() {}
 
     /**
      * Empties the test player's inventory and puts their selected slot back on the first, so a test

@@ -202,9 +202,8 @@ public class GrugClientHooks implements ITickHandler {
      * the run down and, on Beta, makes the frame cost grow across repeats as the world streams in
      * (#422). The run puts the old distance back when it ends. See #444.
      *
-     * <p>Particles go to minimal for the run too. They come from the world's random, so a capture
-     * with one in it is a different picture on every run, and a reference mod's particles, such as
-     * the redstone engine's (#581), would fail its screenshots at random.
+     * <p>The particle setting is pinned for the run too, by {@link #minimiseParticlesForRun}: a
+     * run's capture must not hold a particle that came from the world's random.
      */
     @GrugGenerated("dev-only: the view is shrunk for a run")
     private static void shrinkViewForRun(Minecraft minecraft) {
@@ -213,8 +212,7 @@ public class GrugClientHooks implements ITickHandler {
         }
         savedRenderDistance = minecraft.gameSettings.renderDistance;
         minecraft.gameSettings.renderDistance = TINY_RENDER_DISTANCE;
-        savedParticleSetting = minecraft.gameSettings.particleSetting;
-        minecraft.gameSettings.particleSetting = MINIMAL_PARTICLES;
+        minimiseParticlesForRun(minecraft);
         System.setProperty(FOG_PROPERTY, "1");
         if (minecraft.renderGlobal != null) {
             minecraft.renderGlobal.loadRenderers();
@@ -229,12 +227,40 @@ public class GrugClientHooks implements ITickHandler {
         }
         minecraft.gameSettings.renderDistance = savedRenderDistance;
         savedRenderDistance = -1;
-        minecraft.gameSettings.particleSetting = savedParticleSetting;
-        savedParticleSetting = -1;
+        restoreParticlesAfterRun(minecraft);
         System.clearProperty(FOG_PROPERTY);
         if (minecraft.renderGlobal != null) {
             minecraft.renderGlobal.loadRenderers();
         }
+    }
+
+    /**
+     * Turns the particles down to the game's minimal setting for the duration of a run, whether
+     * this client drives the run or a server it joined does.
+     *
+     * <p>Particles come from the world's random, so a capture with one in it is a different picture
+     * on every run, and a reference mod's particles, such as the redstone engine's (#581), would
+     * fail its screenshots at random. A joined client saw the option's own value until #1161, so
+     * the torch's red dust starbursts reached the engine's capture there while the client-only
+     * golden had none. The saved setting is put back when the run ends.
+     */
+    @GrugGenerated("dev-only: the particles are minimised for a run")
+    private static void minimiseParticlesForRun(Minecraft minecraft) {
+        if (savedParticleSetting >= 0) {
+            return;
+        }
+        savedParticleSetting = minecraft.gameSettings.particleSetting;
+        minecraft.gameSettings.particleSetting = MINIMAL_PARTICLES;
+    }
+
+    /** Puts the particle setting back, and only if a run changed it. */
+    @GrugGenerated("dev-only: the particles are minimised for a run")
+    private static void restoreParticlesAfterRun(Minecraft minecraft) {
+        if (savedParticleSetting < 0) {
+            return;
+        }
+        minecraft.gameSettings.particleSetting = savedParticleSetting;
+        savedParticleSetting = -1;
     }
 
     /**
@@ -317,7 +343,9 @@ public class GrugClientHooks implements ITickHandler {
 
     /**
      * What a run's start does to the window, for a joined client that starts its own run on a
-     * server (#1040): the screenshot size. The view is left alone, as on the other loaders.
+     * server (#1040): the screenshot size. The view distance is left alone, as on the other
+     * loaders, but the particles are pinned to minimal as a client-only run pins them, because a
+     * capture taken on the server has to be the same picture (#1161).
      *
      * <p>Answers whether the run started. One run owns the window at a time, so a client-only run
      * this client started by hand refuses this one (#1213): nothing is taken, and the joined client
@@ -325,19 +353,20 @@ public class GrugClientHooks implements ITickHandler {
      */
     public boolean beginControlRun() {
         controlRun = window.beginRun();
+        if (controlRun) {
+            minimiseParticlesForRun(ModLoader.getMinecraftInstance());
+        }
         return controlRun;
     }
 
-    /**
-     * Puts the window back when the run this client started on a server is over, whether it ended,
-     * failed or the client left. Nothing happens for a run the window refused, which owns nothing.
-     */
+    /** Puts the window and the particle setting back when this client has left the server's run. */
     public void endControlRun() {
         if (!controlRun) {
             return;
         }
         controlRun = false;
         window.endRun();
+        restoreParticlesAfterRun(ModLoader.getMinecraftInstance());
     }
 
     /**
