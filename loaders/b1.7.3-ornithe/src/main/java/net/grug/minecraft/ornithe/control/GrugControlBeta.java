@@ -77,15 +77,6 @@ public final class GrugControlBeta {
     private static int waited;
     private static boolean pending = false;
 
-    /** Where the client stood before a capture pinned it at the room's eye, or {@code false}. */
-    private static boolean pinned = false;
-
-    private static double pinnedX;
-    private static double pinnedY;
-    private static double pinnedZ;
-    private static float pinnedYaw;
-    private static float pinnedPitch;
-
     private GrugControlBeta() {}
 
     public static synchronized GrugControlServer server() {
@@ -318,32 +309,8 @@ public final class GrugControlBeta {
      * adds the eye height itself, so the feet go one eye height below it.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
-        if (!pinned) {
-            pinned = true;
-            pinnedX = player.x;
-            pinnedY = player.y;
-            pinnedZ = player.z;
-            pinnedYaw = player.yaw;
-            pinnedPitch = player.pitch;
-        }
         player.setPositionAndAngles(
                 eye.x(), eye.y() - GrugTestOrigin.EYE_HEIGHT, eye.z(), 0.0F, 0.0F);
-        player.velocityX = 0.0;
-        player.velocityY = 0.0;
-        player.velocityZ = 0.0;
-    }
-
-    /**
-     * Puts the client back where it stood before the first capture pinned it, when it leaves the
-     * server. The player is already gone on most disconnects, so there is nothing to put back then;
-     * the flag is cleared either way so a second run does not restore a stale place.
-     */
-    private static void restoreAfterCapturePin(PlayerEntity player) {
-        if (!pinned) return;
-        pinned = false;
-        if (player == null) return;
-        player.setPositionAndAngles(
-                pinnedX, pinnedY - GrugTestOrigin.EYE_HEIGHT, pinnedZ, pinnedYaw, pinnedPitch);
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
@@ -397,7 +364,6 @@ public final class GrugControlBeta {
         }
         if (started && mc.world == null) {
             // Left the server: a run belongs to the connection that started it.
-            restoreAfterCapturePin(GrugClientPlayer.of(mc));
             pending = false;
             client().endRun();
             started = false;
