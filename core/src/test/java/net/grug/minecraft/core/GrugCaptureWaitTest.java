@@ -28,13 +28,9 @@ class GrugCaptureWaitTest {
 
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
-    void aFrameThatNeverArrivesIsReportedRatherThanWaitedForForever() throws Exception {
-        CountDownLatch never = new CountDownLatch(1);
-        long started = System.nanoTime();
+    void aFrameThatNeverArrivesIsReportedRatherThanWaitedForForever() {
+        String problem = GrugCaptureWait.await(new CountDownLatch(1), 100);
 
-        String problem = GrugCaptureWait.await(never, 100);
-
-        long waitedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
         assertNotNull(problem, "A frame that never comes has to fail the test, not pass it.");
         assertTrue(
                 problem.contains("Screenshot.capture"),
@@ -42,7 +38,6 @@ class GrugCaptureWaitTest {
         assertTrue(
                 problem.contains("the frame the capture reads"),
                 "The failure names the wait: " + problem);
-        assertTrue(waitedMillis < 30_000, "The wait returned after its deadline: " + waitedMillis);
     }
 
     @Test

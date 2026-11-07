@@ -13,8 +13,9 @@ import java.util.concurrent.TimeUnit;
  * until the run's timeout kills them with no test named.
  *
  * <p>The answer is a message rather than an exception: the caller reports it as a host function
- * error on the thread that asked, where it fails that test's call and names the test, and keeps
- * this wait free of the game and of the grug state. A null answer means a frame served the capture.
+ * error on the thread that asked, where it fails that test's call and names the test. A message
+ * also keeps this wait free of the game and of the grug state, so its test needs neither. A null
+ * answer means a frame served the capture.
  *
  * <p>An interrupted wait answers the same way and puts the interrupt back. A CI run is not
  * interrupted, so that arm describes a shutdown that cut a capture short, and it must fail the test
