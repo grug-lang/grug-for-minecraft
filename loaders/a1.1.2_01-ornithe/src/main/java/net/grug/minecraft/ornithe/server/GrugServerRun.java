@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.server;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
@@ -10,7 +11,7 @@ import net.grug.minecraft.ornithe.ServerOrnitheAdapter;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
-import net.minecraft.network.packet.EntityTeleportPacket;
+import net.minecraft.network.packet.PlayerMovePacket;
 import net.minecraft.world.World;
 
 import java.util.List;
@@ -38,7 +39,10 @@ public final class GrugServerRun {
     private static boolean advancing = false;
     private static int gameSpeed = 1;
 
-    /** The feet height the run started at, which the hold puts the player back on. */
+    /**
+     * The feet height the run started at, which the hold puts the player back on. It is {@code y}
+     * itself, because this server keeps the feet in the player's position (#1190).
+     */
     private static double holdY = 0;
 
     /** How far the feet may drift from that height before the hold corrects them. */
@@ -176,7 +180,7 @@ public final class GrugServerRun {
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
                 runner = new GrugTestRunner();
-                holdY = ((PlayerEntity) testPlayer).shape.minY;
+                holdY = ((PlayerEntity) testPlayer).y;
             } else if (System.currentTimeMillis() - waitStartMillis >= PLAYER_JOIN_TIMEOUT_MILLIS) {
                 System.out.println("[GRUG CI] FAIL world readiness");
                 System.out.println(
@@ -195,7 +199,7 @@ public final class GrugServerRun {
                             "[GRUG CI] waiting for the world: player at "
                                     + player.x
                                     + ", "
-                                    + player.shape.minY
+                                    + player.y
                                     + ", "
                                     + player.z);
                 }
@@ -246,9 +250,8 @@ public final class GrugServerRun {
      * <p>It runs before readiness is asked and before each runner tick. It does nothing while a
      * rebuild has cleared the floor and the player is falling, because there is no floor to put
      * them on yet. No host function moves the player down, so holding the feet at the floor cannot
-     * hide a test's own movement. The move is sent to the client as a teleport for the reason
-     * {@link #holdPlayer} gives, and it also stops the start-height hold for the rest of this
-     * server tick.
+     * hide a test's own movement. The move is sent to the client for the reason {@link #moveTo}
+     * gives, and it also stops the start-height hold for the rest of this server tick.
      */
     private static void holdOnFloor(PlayerEntity player) {
         World world = world();
@@ -256,7 +259,7 @@ public final class GrugServerRun {
             return;
         }
         GrugPlayerFloor.BlockSource blocks = ServerOrnitheAdapter.solidBlocks(world);
-        double feet = player.shape.minY;
+        double feet = player.y;
         double floor = GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z);
         if (!GrugPlayerFloor.below(feet, floor)) {
             return;
@@ -292,14 +295,14 @@ public final class GrugServerRun {
      * once the floor hold has moved the player, so the two cannot undo each other within one tick.
      * No host function moves the player, so the hold cannot hide a test's own movement. The
      * tolerance is there because the world's own tick can leave the feet a fraction of a block off
-     * their height, and correcting that on every tick would send a teleport packet per tick.
+     * their height, and correcting that on every tick would send a move packet per tick.
      */
     private static void holdPlayer(PlayerEntity player) {
         holdOnFloor(player);
         if (heldOnFloorThisTick) {
             return;
         }
-        double feet = player.shape.minY;
+        double feet = player.y;
         if (Math.abs(feet - holdY) <= HOLD_TOLERANCE) {
             return;
         }
@@ -314,20 +317,42 @@ public final class GrugServerRun {
     }
 
     /**
-     * Moves the server's copy of the player to {@code y} and tells the client.
+     * Moves the server's copy of the player's feet to {@code feetY} and tells the client.
      *
-     * <p>A server-side {@code setPositionAndAngles} writes the server's copy and tells no one, and
-     * the camera is the client's: without the teleport the room would be built where the server's
-     * player now is while the frame is drawn from where the client's still is, which walks the
-     * fixture out of the band the saved-data tests capture. The game's own teleport packet is what
-     * makes a server's move visible, and the client's player is the entity it names.
+     * <p>A server-side move writes the server's copy and tells no one, and the camera is the
+     * client's: without a packet the room would be built where the server's player now is while the
+     * frame is drawn from where the client's still is, which walks the fixture out of the band the
+     * saved-data tests capture.
+     *
+     * <p>The two sides name the height differently. This server keeps the feet in the player's
+     * position (its movement handler stores the client's {@code minY}, which the client fills with
+     * its feet), so {@code updatePositionAndAngles} is given the feet. The joined client's position
+     * is its eye, so the packet carries the eye in {@code minY}, which is the field its handler
+     * writes into the client's position, and the feet in {@code y}. That is exactly what this
+     * server's own {@code ServerPlayNetworkHandler.teleport} sends (#1190).
+     *
+     * <p>The packet goes through the client's player-move handler rather than the entity teleport
+     * packet, because that is the handler the game itself uses for a server correction: it sets the
+     * client's {@code lastY} along with its position, zeroes the velocity and has the client report
+     * the position back. The view transform interpolates the camera from {@code lastY}, so a frame
+     * drawn after the entity teleport packet (which sets only the position) is drawn from a height
+     * between the old and the new one, while one drawn after this handler is drawn from the height
+     * the room was built around.
      */
-    private static void moveTo(PlayerEntity player, double y) {
-        player.setPositionAndAngles(player.x, y, player.z, player.yaw, player.pitch);
+    private static void moveTo(PlayerEntity player, double feetY) {
+        player.updatePositionAndAngles(player.x, feetY, player.z, player.yaw, player.pitch);
         player.velocityY = 0.0;
         Connection connection = GrugControlAlpha.connectionFor(player);
         if (connection != null) {
-            connection.send(new EntityTeleportPacket(player));
+            connection.send(
+                    new PlayerMovePacket.PositionAndAngles(
+                            player.x,
+                            feetY + GrugTestOrigin.EYE_HEIGHT,
+                            feetY,
+                            player.z,
+                            player.yaw,
+                            player.pitch,
+                            false));
         }
     }
 

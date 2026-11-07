@@ -54,8 +54,3 @@ buildcraft/tests/redstone_engine_item-Test.grug
 # 1.20.6's game mode right-click the chest, so the two tests run there.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
-#
-# The camera parity #1161 added. This server's joined client moves with the hold now, but its camera
-# oscillates about 1.5 blocks around the room's eye instead of settling (#1190), so the test cannot
-# pass here yet. The other four server legs are required to run it (#1178).
-coverage/tests/camera-Test.grug
