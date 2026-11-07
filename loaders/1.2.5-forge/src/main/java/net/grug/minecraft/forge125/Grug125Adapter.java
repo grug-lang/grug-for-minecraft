@@ -31,6 +31,7 @@ import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
+import net.minecraft.src.AnvilChunkLoader;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
@@ -47,13 +48,13 @@ import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.MovingObjectPosition;
 import net.minecraft.src.NBTTagCompound;
-import net.minecraft.src.ThreadedFileIOBase;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -1348,6 +1349,12 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     /** The name the test block registers under. No mod ships it. */
     private static final String HIGH_BLOCK_ID = "grug:zz_high_block_round_trip";
 
+    /** How long the round trip waits for its chunk save to reach the region file. */
+    private static final long SAVE_TIMEOUT_NANOS = 5_000_000_000L;
+
+    /** How long one wait for the chunk save turns the game thread loose. */
+    private static final long SAVE_POLL_MILLIS = 5L;
+
     /**
      * The block the test takes the high id under, with none of grug's wiring.
      *
@@ -1525,29 +1532,94 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
 
     private static Chunk saveAndLoad(World world, int ox, int oz) throws IOException {
         Chunk chunk = world.getChunkFromBlockCoords(ox, oz);
-        IChunkLoader loader = world.getSaveHandler().getChunkLoader(world.worldProvider);
-        loader.saveChunk(world, chunk);
 
-        // 1.2.5's save is a queue: saveChunk hands the chunk's NBT to the file IO thread and
-        // returns before the region file holds it. While the entry is still queued loadChunk
-        // answers that NBT, so the read back is right; but once the IO thread has taken the entry
-        // off the queue it spends a while compressing and writing, and a load that lands in that
-        // window reads the chunk as it was before the write, which is how a high id once came
-        // back 0 (#1188). Wait for the queue to drain, the way the game's own save does
-        // (World.saveWorldIndirectly), so the load reads what the save wrote.
-        waitForFileIo();
+        // The chunk is saved into a directory of the test's own, empty until this save writes it.
+        // 1.2.5's AnvilChunkLoader.saveChunk only queues the chunk's NBT on the game's file IO
+        // thread, which takes the entry off its queue before it compresses and writes it, so the
+        // region file holds the chunk only once that write lands. In the world's own save
+        // directory that is still not enough to read the save back: the world autosaves every 40
+        // ticks (World.tick), and each autosave saves up to two modified loaded chunks
+        // (ChunkProviderLoadOrGenerate.saveChunks), so a capture of this very chunk made before
+        // the test placed the block can be queued behind the other chunk of that autosave and
+        // written after this save's, putting the chunk back the way it was before the block.
+        // ThreadedFileIOBase.waitForFinish drains the queue, which only settles that the last write
+        // of the chunk is in the file, not that the last write is this save's. That is how the
+        // round trip once read block id 386 back as 0 (#1188) and as 130 (#1206), 130 being the low
+        // id of a grug block an earlier test had left in the cell.
+        //
+        // A directory of the test's own has no other writer, and nothing in it to read until this
+        // save's own bytes have reached it, so waiting for the read to answer waits for the save.
+        File directory = Files.createTempDirectory("grug-high-block-round-trip").toFile();
+        try {
+            new AnvilChunkLoader(directory).saveChunk(world, chunk);
 
-        return loader.loadChunk(world, ox >> 4, oz >> 4);
+            // A loader of its own for the read: while an entry is still queued, the saving
+            // loader's loadChunk answers that queued NBT rather than the file, so a read through it
+            // could pass without the file holding anything.
+            IChunkLoader reader = new AnvilChunkLoader(directory);
+            return awaitSavedChunk(reader, world, ox >> 4, oz >> 4);
+        } finally {
+            deleteSaveDirectory(directory);
+        }
     }
 
-    @GrugGenerated("file IO wait: a run does not interrupt its own chunk save")
-    private static void waitForFileIo() throws IOException {
+    /**
+     * The chunk as the save's region file holds it, once the queued write has reached it.
+     *
+     * <p>Nothing is in the file until the file IO thread has written the chunk, so any answer at
+     * all is the write having landed: wait for it instead of reading the first answer, which is
+     * what raced the write before.
+     */
+    private static Chunk awaitSavedChunk(IChunkLoader reader, World world, int cx, int cz)
+            throws IOException {
+        long deadline = System.nanoTime() + SAVE_TIMEOUT_NANOS;
+        while (true) {
+            Chunk loaded = reader.loadChunk(world, cx, cz);
+            if (loaded != null) {
+                return loaded;
+            }
+            pauseForSave(deadline);
+        }
+    }
+
+    /**
+     * Waits for the next ask, and ends the round trip if the save has not reached its file by the
+     * deadline or the wait is interrupted.
+     *
+     * <p>Both arms are what keeps a stopped file IO thread or a shutdown from hanging the test
+     * indefinitely; each fails the test instead. The save reaches its file within milliseconds of a
+     * run, so neither is reachable in one, and a run does not interrupt its own save.
+     */
+    @GrugGenerated(
+            "wait arms: the save reaches its file within milliseconds of a run, so the deadline is"
+                    + " never reached, and a run does not interrupt its own save")
+    private static void pauseForSave(long deadline) throws IOException {
+        if (System.nanoTime() >= deadline) {
+            throw new IOException(
+                    "the test chunk's save did not reach its file within "
+                            + (SAVE_TIMEOUT_NANOS / 1_000_000_000L)
+                            + " seconds");
+        }
         try {
-            ThreadedFileIOBase.threadedIOInstance.waitForFinish();
+            Thread.sleep(SAVE_POLL_MILLIS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("interrupted while the test chunk was being saved", e);
+            throw new IOException(
+                    "interrupted while the test chunk's save was reaching its file", e);
         }
+    }
+
+    /** Removes the test's own save directory: its region file, or the directory if none came. */
+    private static void deleteSaveDirectory(File directory) {
+        File[] children = directory.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                deleteSaveDirectory(child);
+            }
+        }
+        // A directory left behind would sit in the system's temporary directory and hold nothing
+        // the world reads, so a failed delete is not worth the round trip's answer.
+        directory.delete();
     }
 
     private static int readBackId(Chunk loaded, int ox, int oy, int oz) {
