@@ -58,7 +58,7 @@ export tick_any_side(ctx: TestTickContext) {
     motion: Vec3 = stack_found.entity().get_delta_movement()
     ctx.assert(motion.x() > -0.100001 and motion.x() < 0.100001, "The hop's x should stay within the constructor's random 0.1.")
     ctx.assert(motion.z() > -0.100001 and motion.z() < 0.100001, "The hop's z should stay within the constructor's random 0.1.")
-    ctx.assert(motion.y() > 0.199999 and motion.y() < 0.200001, "The hop's y should be the constructor's 0.2, within a float's expansion.")
+    ctx.assert(motion.y() > 0.19 and motion.y() < 0.200001, "The hop's y should be the constructor's 0.2, within a float's expansion or a dedicated server's 1/128 step.")
 }
 
 # One travelling record at the pipe floor, carrying the item, its damage and its count.
