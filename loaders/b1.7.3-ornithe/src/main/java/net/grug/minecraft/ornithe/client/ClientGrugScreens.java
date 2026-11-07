@@ -2,7 +2,6 @@ package net.grug.minecraft.ornithe.client;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.grug.minecraft.grug.GrugGenerated;
-import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.gui.GrugScreenPacket;
 
 /**
@@ -16,13 +15,6 @@ import net.grug.minecraft.ornithe.gui.GrugScreenPacket;
 public class ClientGrugScreens implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        GrugScreenPacket.clientHandler =
-                new GrugScreenPacket.Handler() {
-                    @Override
-                    public void openScreen(
-                            int x, int y, int z, int windowId, GrugGuiBuilder layout) {
-                        GrugScreen.openFromServer(x, y, z, windowId, layout);
-                    }
-                };
+        GrugScreenPacket.clientHandler = GrugScreen::openFromServer;
     }
 }
