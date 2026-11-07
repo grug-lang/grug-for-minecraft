@@ -354,18 +354,12 @@ while :; do
     # The parity #1161 added has to be proven on every leg that carries it: Test.camera reads the
     # joined client's camera on a dedicated server, and coverage/tests/camera asserts it is the eye
     # the room was built around. A loader whose capture client ignored the eye would otherwise
-    # still be green, so every loader is required by default and only the a1.1.2_01 one is exempt,
-    # because its joined client's camera oscillates around the eye instead of settling (#1190).
-    case "$LOADER" in
-      a1.1.2_01-ornithe)
-        ;;
-      *)
-        if ! grep -qF '[GRUG CI] PASS coverage/tests/camera-Test.grug' "$SERVER_LOG"; then
-          echo "==> The run passed, but coverage/tests/camera-Test.grug did not run on the dedicated server." >&2
-          exit 1
-        fi
-        ;;
-    esac
+    # still be green, so every loader is required, the a1.1.2_01 one since its camera was fixed
+    # (#1190).
+    if ! grep -qF '[GRUG CI] PASS coverage/tests/camera-Test.grug' "$SERVER_LOG"; then
+      echo "==> The run passed, but coverage/tests/camera-Test.grug did not run on the dedicated server." >&2
+      exit 1
+    fi
     # The remote GUI test (#168), the GUI capture tests and the two container-click tests run on the
     # servers that can open a container for their player, 1.20.6 and 1.2.5 (#1098): the other three
     # servers list them as unsupported, so these two legs must show they ran. A capture compares
