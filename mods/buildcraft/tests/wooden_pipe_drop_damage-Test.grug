@@ -1,13 +1,21 @@
 # Covers the wooden pipe preserving an item's damage when it drops the item because nothing accepts it.
 pipe_drop_source: Option[BlockEntity] = Option.new()
 pipe_drop_self: Option[BlockEntity] = Option.new()
+pipe_drop_found: Option[ItemEntity] = Option.new()
+pipe_drop_damage: number = 0
+pipe_drop_count: number = 0
+pipe_drop_sampled: bool = false
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _drop_setup(ctx)
         ctx.not_done()
-    } else if not _drop_pipe_has_moved() or ctx.current_tick() < 15 {
-        # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
+    } else if ctx.current_tick() < 15 or not pipe_drop_sampled {
+        # Same floor as wooden_pipe-Test.grug, for the same reason (#262). It is a wait only: the
+        # drop is read on the tick the pipe lets go of it, because a dedicated server advances up to
+        # ten world ticks per runner tick and a read at the end of the floor can find the sword
+        # fallen out of the radius or already picked up (#1146).
+        _drop_sample()
         ctx.not_done()
     } else {
         _drop_check(ctx)
@@ -45,23 +53,37 @@ local _drop_setup(ctx: TestTickContext) {
     pipe_drop_source.unwrap().set_item_damage_in_slot(0, 7)
 }
 
-local _drop_check(ctx: TestTickContext) {
+# Reads the dropped sword once, on the world tick the pipe has finished with it, and keeps what the
+# drop made: the entity, its damage and its count. A read taken after more ticks can see an entity
+# that has fallen out of the radius or been picked up, which is the same drop read differently
+# (#1146).
+local _drop_sample() {
+    if pipe_drop_sampled or not _drop_pipe_has_moved() {
+        return
+    }
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
-    x: number = origin.x()
-    y: number = _drop_band_y(origin)
-    z: number = origin.z()
+    # A wide radius, because the drop is made wherever the pipe was, and the sword falls from there.
+    found: Option[ItemEntity] = level.find_item_entity(origin.x(), _drop_band_y(origin), origin.z(), 10)
+    if found.has() {
+        dropped: ItemEntity = found.unwrap()
+        pipe_drop_found.set(dropped)
+        pipe_drop_damage = dropped.damage()
+        pipe_drop_count = dropped.count()
+    }
+    pipe_drop_sampled = true
+}
 
+local _drop_check(ctx: TestTickContext) {
     source_count: number = pipe_drop_source.unwrap().get_item_count_in_slot(0)
     travelling: number = pipe_drop_self.unwrap().get_saved_list_size("traveling")
     ctx.assert(source_count == 0, "The source chest should be empty.")
     ctx.assert(travelling == 0, "The pipe should have dropped its travelling item.")
 
-    # A wide radius, because the dropped item is not held in place.
-    found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
-    ctx.assert(found.has(), "The pipe should have dropped the sword.")
-    dropped: ItemEntity = found.unwrap()
-    ctx.assert(dropped.damage() == 7, "The dropped sword should keep its damage.")
+    # The values read when the pipe let go of the sword, not a read from now.
+    ctx.assert(pipe_drop_found.has(), "The pipe should have dropped the sword.")
+    ctx.assert(pipe_drop_count == 1, "The dropped sword should be the one the pipe carried.")
+    ctx.assert(pipe_drop_damage == 7, "The dropped sword should keep its damage.")
 }
 
 # The band +50 above the origin, kept inside Alpha's 128-block world height. The dedicated server
