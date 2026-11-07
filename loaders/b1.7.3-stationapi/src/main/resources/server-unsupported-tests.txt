@@ -32,12 +32,3 @@ buildcraft/tests/redstone_engine_item-Test.grug
 # 1.20.6's game mode right-click the chest, so the two tests run there.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
-#
-# The buildcraft captures #1178 promoted. Their tick_any_side export is now carried by the two
-# Ornithe server legs, which hold the camera at the room's eye, but this leg's residue #1161
-# measured still stands: cobblestone_pipe_shapes differs in 44 of 115200 pixels at a one-pixel
-# seam (#1092), and the two engine captures were never reached behind it. They wait here for that
-# work.
-buildcraft/tests/cobblestone_pipe_shapes-Test.grug
-buildcraft/tests/redstone_engine_animation-Test.grug
-buildcraft/tests/redstone_engine_facings-Test.grug

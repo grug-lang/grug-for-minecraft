@@ -11,12 +11,3 @@
 # dedicated server.
 buildcraft/tests/wooden_pipe_boxes-Test.grug
 coverage/tests/block_shape-Test.grug
-#
-# The buildcraft captures #1178 promoted. Their tick_any_side export is now carried by the two
-# Ornithe server legs, which hold the camera at the room's eye, but this leg's residue #1161
-# measured still stands: redstone_engine's animated energy phase differs (633 of 34100 pixels), and
-# that test stays client-only, so the three promoted captures were never reached behind it. They
-# wait here for #1161's own work.
-buildcraft/tests/cobblestone_pipe_shapes-Test.grug
-buildcraft/tests/redstone_engine_animation-Test.grug
-buildcraft/tests/redstone_engine_facings-Test.grug
