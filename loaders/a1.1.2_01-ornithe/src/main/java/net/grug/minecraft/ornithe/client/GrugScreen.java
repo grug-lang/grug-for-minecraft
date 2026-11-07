@@ -135,9 +135,17 @@ public class GrugScreen extends InventoryMenuScreen {
      * runs on the client and no packets are needed.
      */
     public static void open(PlayerEntity player, Inventory inventory, GrugGuiBuilder layout) {
-        if (!(player instanceof ClientPlayerEntity) || player instanceof LocalClientPlayerEntity) {
+        if (player instanceof LocalClientPlayerEntity) {
+            // A joined client runs the same use export its server does, so this client's player
+            // reaches this method on every real open; the server owns that open and its packet
+            // draws the screen, so answering here would report a failure the player never sees.
+            return;
+        }
+        if (!(player instanceof ClientPlayerEntity)) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "GUI.open: Opening a GUI in multiplayer is not supported yet.");
+                    Grug.statePtr,
+                    "GUI.open: Opening a GUI for a player that is not this client's is not"
+                            + " supported yet.");
             return;
         }
 
@@ -273,8 +281,14 @@ public class GrugScreen extends InventoryMenuScreen {
             }
             ClientGrugScreens.closed(this);
         }
-        super.removed();
-        if (textureId >= 0) {
+        // The base class drops the cursor through this.minecraft.player, and a kick or a lost
+        // connection nulls the player before the DisconnectedScreen replaces this one, so the
+        // game's own removal is skipped when there is no player to read. The cursor this client
+        // held belongs to the server's menu and is cleared above either way.
+        if (minecraft != null && minecraft.player != null) {
+            super.removed();
+        }
+        if (minecraft != null && textureId >= 0) {
             minecraft.textureManager.release(textureId);
             textureId = -1;
         }

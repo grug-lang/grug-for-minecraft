@@ -16,11 +16,18 @@ import java.nio.charset.StandardCharsets;
  * apart.
  *
  * <p>The game's own string codec is not used, so a label is not capped at its length. A length is
- * bounded here instead, so a corrupt stream cannot ask for a huge allocation.
+ * bounded here instead, so a corrupt stream cannot ask for a huge allocation, and so are the record
+ * counts, so it cannot make the reader loop until the stream ends.
  */
 public final class GrugGuiLayoutCodec {
     /** The most bytes one label or texture path may hold. */
     public static final int MAX_TEXT = 1 << 20;
+
+    /**
+     * The most grids, results or labels one layout may hold. A layout is a handful of each, and a
+     * corrupt or hostile stream must not be able to make a client loop until the stream ends.
+     */
+    public static final int MAX_ENTRIES = 64;
 
     private GrugGuiLayoutCodec() {}
 
@@ -64,25 +71,34 @@ public final class GrugGuiLayoutCodec {
         layout.hotbarX = in.readInt();
         layout.hotbarY = in.readInt();
 
-        int grids = in.readInt();
+        int grids = readCount(in, "grids");
         for (int i = 0; i < grids; i++) {
             layout.craftingGrids.add(
                     new GrugGuiBuilder.CraftingGridDef(in.readInt(), in.readInt(), in.readInt()));
         }
 
-        int results = in.readInt();
+        int results = readCount(in, "results");
         for (int i = 0; i < results; i++) {
             layout.craftingResults.add(
                     new GrugGuiBuilder.CraftingResultDef(in.readInt(), in.readInt()));
         }
 
-        int texts = in.readInt();
+        int texts = readCount(in, "texts");
         for (int i = 0; i < texts; i++) {
             layout.texts.add(
                     new GrugGuiBuilder.TextDef(
                             readText(in), in.readInt(), in.readInt(), in.readInt()));
         }
         return layout;
+    }
+
+    /** Reads a record count, refusing one no layout can hold. */
+    private static int readCount(DataInput in, String what) throws IOException {
+        int count = in.readInt();
+        if (count < 0 || count > MAX_ENTRIES) {
+            throw new IOException("a GUI layout names " + count + " " + what);
+        }
+        return count;
     }
 
     private static void writeText(DataOutput out, String text) throws IOException {

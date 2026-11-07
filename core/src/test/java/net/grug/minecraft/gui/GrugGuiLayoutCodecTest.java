@@ -106,6 +106,52 @@ class GrugGuiLayoutCodecTest {
         assertThrows(EOFException.class, () -> read(bytes.toByteArray()));
     }
 
+    @Test
+    void refusesTooManyGrids() {
+        assertThrows(
+                IOException.class,
+                () -> read(layoutHeader(GrugGuiLayoutCodec.MAX_ENTRIES + 1, 0, 0)));
+    }
+
+    @Test
+    void refusesTooManyResults() {
+        assertThrows(
+                IOException.class,
+                () -> read(layoutHeader(0, GrugGuiLayoutCodec.MAX_ENTRIES + 1, 0)));
+    }
+
+    @Test
+    void refusesTooManyTexts() {
+        assertThrows(
+                IOException.class,
+                () -> read(layoutHeader(0, 0, GrugGuiLayoutCodec.MAX_ENTRIES + 1)));
+    }
+
+    @Test
+    void refusesANegativeRecordCount() {
+        assertThrows(IOException.class, () -> read(layoutHeader(-1, 0, 0)));
+    }
+
+    /**
+     * The bytes before the first record: an empty texture, no player inventory, zero placement, and
+     * the three counts a stream declares.
+     */
+    private static byte[] layoutHeader(int grids, int results, int texts) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
+            out.writeInt(0);
+            out.writeBoolean(false);
+            out.writeInt(0);
+            out.writeInt(0);
+            out.writeInt(0);
+            out.writeInt(0);
+            out.writeInt(grids);
+            out.writeInt(results);
+            out.writeInt(texts);
+        }
+        return bytes.toByteArray();
+    }
+
     private static GrugGuiBuilder roundTrip(GrugGuiBuilder layout) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream out = new DataOutputStream(bytes)) {
