@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 
 import net.grug.minecraft.core.GrugBlockSync;
+import net.grug.minecraft.core.GrugCaptureWait;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
@@ -2073,6 +2074,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
          */
         BufferedImage image;
 
+        /**
+         * Why the wait ended without a frame, or null when one served the capture.
+         *
+         * <p>Written by the asking thread inside the wait and read by the same thread after it, so
+         * it needs no other synchronization. A null image with a message here is a wait that failed
+         * and reported, rather than one that has to be guessed at from an empty image.
+         */
+        String waitProblem;
+
         /** Counted down by the frame that read the rectangle, which is what the ask waits on. */
         final CountDownLatch done = new CountDownLatch(1);
 
@@ -2127,24 +2137,45 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * Asks for a capture and waits for the frame's end to serve it.
+     * Asks for a capture and waits for the frame's end to serve it, for at most {@link
+     * GrugCaptureWait#TIMEOUT_MILLIS}.
      *
      * <p>Runs on the thread the test captured from, releasing the grug state lock while it waits,
      * since the client has to keep drawing for a frame to serve the request. Only the client thread
      * is admitted into the state for the duration: it is the thread that draws those frames, and a
      * chunk worker that entered meanwhile and drew a block entity would fold its err into the
      * suspended call (#583, #836). See {@link #releaseStateForFrameEndWait}.
+     *
+     * <p>A wait that ends without a frame reports why, on this thread, so the test fails with the
+     * wait's own message rather than reading a null image as a pass, and a client that never draws
+     * a frame a capture may read fails the test instead of hanging the job. See #1154.
      */
     private static BufferedImage captureOnFrameEnd(int x1, int y1, int x2, int y2) {
         PendingCapture capture = new PendingCapture(x1, y1, x2, y2, RENDER_SETTLE.framesDrawn());
         pendingCapture = capture;
         try {
-            Runnable wait = () -> awaitLatch(capture.done);
+            Runnable wait = () -> capture.waitProblem = GrugCaptureWait.await(capture.done);
             releaseStateForFrameEndWait(wait);
         } finally {
             pendingCapture = null;
         }
+        reportMissingCapture(capture.waitProblem);
         return capture.image;
+    }
+
+    /**
+     * Reports a wait that ended without a frame, so the capture's call fails with the wait's own
+     * message.
+     *
+     * <p>A healthy run always serves the frame, and a CI run is not interrupted, so both the
+     * timeout arm and the interrupt arm are paths no run takes. The null arm is the one every
+     * capture takes.
+     */
+    @GrugGenerated("frame-end capture wait: a healthy run serves the frame and is not interrupted")
+    private static void reportMissingCapture(String waitProblem) {
+        if (waitProblem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, waitProblem);
+        }
     }
 
     /**
@@ -2345,8 +2376,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * Awaits the released client-thread task. The interrupt path only runs when the game shuts down
-     * mid-wait, which a CI run does not do.
+     * Awaits the released client-thread task, which always runs. The interrupt path only runs when
+     * the game shuts down mid-wait, which a CI run does not do.
+     *
+     * <p>A capture's wait is not this one: it is bounded and reports a frame that never comes, in
+     * {@link GrugCaptureWait}. See #1154.
      */
     @GrugGenerated("client-thread marshalling: an interrupted wait cannot occur in a CI run")
     private static void awaitLatch(CountDownLatch latch) {
