@@ -60,8 +60,7 @@ buildcraft/tests/redstone_engine_item-Test.grug
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
-# The camera parity #1161 added. This server's player keeps the feet in y where the client keeps
-# the eye, so the room's floor is built an eye height above the joined client's and its camera
-# never reads as the room's eye (#1178). The test is required on the three server legs that carry
-# the parity.
+# The camera parity #1161 added. This server's joined client moves with the hold now, but its camera
+# oscillates about 1.5 blocks around the room's eye instead of settling (#1190), so the test cannot
+# pass here yet. The other four server legs are required to run it (#1178).
 coverage/tests/camera-Test.grug

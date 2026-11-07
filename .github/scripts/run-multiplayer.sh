@@ -351,14 +351,15 @@ while :; do
         exit 1
       fi
     done
-    # The parity #1161 added has to be proven on the legs that carry it: Test.camera reads the
+    # The parity #1161 added has to be proven on every leg that carries it: Test.camera reads the
     # joined client's camera on a dedicated server, and coverage/tests/camera asserts it is the eye
     # the room was built around. A loader whose capture client ignored the eye would otherwise
-    # still be green. The a1.1.2_01 client's camera oscillates around the eye instead of settling,
-    # so it lists the test as unsupported until #1190 fixes that, and the proof is the other four
-    # legs.
+    # still be green, so every loader is required by default and only the a1.1.2_01 one is exempt,
+    # because its joined client's camera oscillates around the eye instead of settling (#1190).
     case "$LOADER" in
-      1.2.5-forge|1.20.6-forge|b1.7.3-ornithe|b1.7.3-stationapi)
+      a1.1.2_01-ornithe)
+        ;;
+      *)
         if ! grep -qF '[GRUG CI] PASS coverage/tests/camera-Test.grug' "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/camera-Test.grug did not run on the dedicated server." >&2
           exit 1

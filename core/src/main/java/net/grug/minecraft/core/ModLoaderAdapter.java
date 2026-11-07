@@ -443,8 +443,9 @@ public interface ModLoaderAdapter {
      * that overrides only {@code testPlayer()} is measured from the player it chose, and {@link
      * #getTestOrigin()} needs no override of its own.
      *
-     * <p>It stays per loader because the mappings differ: every version before 1.20.6 keeps the
-     * player's position at the eye, while 1.20.6 keeps it at the feet and adds {@code getEyeY()}.
+     * <p>It stays per loader because the mappings differ: 1.2.5 and a1.1.2_01 keep the player's
+     * position at the eye, while 1.20.6 and b1.7.3 keep it at the feet and add the eye height
+     * ({@code getEyeY()} on 1.20.6, and b1.7.3's override below, #1178).
      */
     Vec3 testPlayerEye(Object player);
 
