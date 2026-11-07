@@ -97,6 +97,17 @@ Execution failed for task ':loaders:fake-loader:downloadAssets'.
   Some assets failed to download or validate, try running the task again.
 """
 
+# The userdev resolution failure of #1173, as the 1.20.6-forge Windows job's log held it: one
+# download from the Forge maven came back empty inside MinecraftUserRepo.getParents, so ForgeGradle
+# threw at configuration, before the game started. Rerunning the job passed.
+FORGE_USERDEV_FAILURE_LOG = """\
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+A problem occurred configuring project ':loaders:fake-loader'.
+> Could not resolve dependency: net.minecraftforge:forge:1.20.6-50.1.0:userdev
+"""
+
 # The dependency resolution failure of #728, as the 1.2.5-forge installed job's log held it: Maven
 # Central served 404 for an artifact it serves a moment later. The retry costs one invocation.
 RESOLUTION_FAILURE_LOG = """\
@@ -592,6 +603,21 @@ class RunLoaderTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(
             "Failed to get asset: minecraft/sounds/block/smoker/smoker4.ogg", result.stderr
+        )
+        self.assertEqual(len(result.gradle_args.splitlines()), 2)
+
+    def test_a_forge_userdev_resolution_failure_is_retried(self):
+        # #1173: the 1.20.6-forge Windows job configures ForgeGradle through the game's own Gradle
+        # invocation, so a failed userdev download ends it before runClient and the script sees an
+        # exited process rather than a failed build. A rerun of the job passed, so one more
+        # invocation is the fix.
+        result = self.run_script(sequence=[(FORGE_USERDEV_FAILURE_LOG, 1), (PASSING_LOG, 0)])
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+        self.assertIn(
+            "Could not resolve dependency: net.minecraftforge:forge:1.20.6-50.1.0:userdev",
+            result.stderr,
         )
         self.assertEqual(len(result.gradle_args.splitlines()), 2)
 

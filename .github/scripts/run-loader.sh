@@ -137,7 +137,12 @@ fi
 # "Could not find" is matched only with a full coordinate, `group:artifact:version.`, because a build
 # script that names a method that does not exist says "Could not find method foo()" and that is the
 # code failing, not a host.
-RETRYABLE_FAILURE_RE='net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate|Could not find [^ :]+:[^ :]+:[^ :]+\.|Could not resolve all (files|artifacts) for configuration|Could not (GET|HEAD) .https?://'
+#
+# "Could not resolve dependency" is ForgeGradle's own message when MinecraftUserRepo's manual
+# download of the userdev artifact came back empty, which is one failed fetch from the Forge maven
+# rather than a build the code broke, so it gets the same retry (#1173). The coordinate after it
+# keeps a build script's own message from matching, as the "Could not find" pattern does.
+RETRYABLE_FAILURE_RE='net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate|Could not find [^ :]+:[^ :]+:[^ :]+\.|Could not resolve all (files|artifacts) for configuration|Could not resolve dependency: [^ :]+:[^ :]+:[^ :]+|Could not (GET|HEAD) .https?://'
 retryable_failure() {
   grep -m1 -E "$RETRYABLE_FAILURE_RE" "$1" 2>/dev/null
 }
