@@ -90,11 +90,13 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     private static int lastWindowId = 0;
 
     /**
-     * The window id the next open uses, one after another as vanilla's own counter does. It is
-     * never 0, which the client treats as the player's own inventory.
+     * The window id the next open uses, one after another as vanilla's own counter does. It stays
+     * inside 1..32767: never 0, which the client treats as the player's own inventory, and wide
+     * enough that a screen replaced long before cannot answer with an id the new menu now holds,
+     * which would let its close packet close the new menu while its screen stayed up.
      */
     private static int nextWindowId() {
-        lastWindowId = lastWindowId % 99 + 1;
+        lastWindowId = lastWindowId % Short.MAX_VALUE + 1;
         return lastWindowId;
     }
 
@@ -191,10 +193,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /**
      * Forgets the menus of players who left. A weak map cannot do this by itself, because a menu
      * holds the player's inventory, which holds the player, so a menu's value keeps its own key
-     * alive. Called from every server tick.
+     * alive. Each one is closed rather than dropped from the map, so a stack the player left on the
+     * cursor is put where they stood instead of being deleted with the menu. Called from every
+     * server tick.
      */
     public static void forgetMenusOfMissingPlayers(List<?> players) {
-        MENUS.keySet().removeIf(player -> !players.contains(player));
+        for (PlayerEntity player : new ArrayList<>(MENUS.keySet())) {
+            if (!players.contains(player)) {
+                closeMenu(player);
+            }
+        }
     }
 
     /**

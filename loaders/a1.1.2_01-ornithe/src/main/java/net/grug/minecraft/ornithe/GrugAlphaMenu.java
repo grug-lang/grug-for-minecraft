@@ -25,10 +25,12 @@ import java.util.List;
  * order, then the crafting results, then the player's main inventory and its hotbar. A server's
  * {@code PlayerInventory} has no cursor item of its own, so the cursor a server-held menu applies a
  * click to lives in {@link #cursor}; the client's cursor stays where that game keeps it.
+ *
+ * <p>{@link #build} and {@link Slot} are measured by the coverage gate, because a singleplayer GUI
+ * test reaches them through the client's screen constructor. The click algorithm, the content
+ * packet's reads and the joined-client arms below are not: they need a dedicated server or a
+ * server-opened screen, so each carries {@link GrugGenerated}.
  */
-@GrugGenerated(
-        "a server-opened GUI's slot table: the placeholder arm needs a joined client and the click"
-                + " algorithm a dedicated server, so no singleplayer coverage run reaches them")
 public final class GrugAlphaMenu {
     /**
      * The stack size a slot accepts. Every inventory a grug GUI binds a slot to is an ordinary
@@ -92,17 +94,12 @@ public final class GrugAlphaMenu {
      */
     public static GrugAlphaMenu build(
             PlayerInventory playerInventory, Inventory blockInventory, GrugGuiBuilder layout) {
-        boolean ownsInventory = blockInventory instanceof GrugBlockEntity;
-        Inventory resultInventory =
-                ownsInventory
-                        ? ((GrugBlockEntity) blockInventory).getResultInventory()
-                        : new PlaceholderInventory(1);
         GrugAlphaMenu menu =
                 new GrugAlphaMenu(
                         blockInventory,
                         playerInventory,
-                        resultInventory,
-                        ownsInventory ? (GrugBlockEntity) blockInventory : null);
+                        resultInventoryOf(blockInventory),
+                        blockEntityOf(blockInventory));
 
         for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
             for (int row = 0; row < 3; row++) {
@@ -119,7 +116,7 @@ public final class GrugAlphaMenu {
         }
 
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
-            menu.slots.add(new Slot(resultInventory, 0, res.x(), res.y(), true));
+            menu.slots.add(new Slot(menu.resultInventory, 0, res.x(), res.y(), true));
         }
 
         if (layout.hasPlayerInventory) {
@@ -148,10 +145,30 @@ public final class GrugAlphaMenu {
     }
 
     /**
+     * The result inventory a menu draws its result slots from: the block entity's own, or a
+     * placeholder for a joined client whose block entity has not arrived (#425).
+     */
+    @GrugGenerated("the placeholder arm: only a joined client whose block entity has not arrived")
+    private static Inventory resultInventoryOf(Inventory blockInventory) {
+        return blockInventory instanceof GrugBlockEntity
+                ? ((GrugBlockEntity) blockInventory).getResultInventory()
+                : new PlaceholderInventory(1);
+    }
+
+    /**
+     * The block entity behind {@code blockInventory}, or null for a joined client's placeholder.
+     */
+    @GrugGenerated("the null arm: only a joined client whose block entity has not arrived")
+    private static GrugBlockEntity blockEntityOf(Inventory blockInventory) {
+        return blockInventory instanceof GrugBlockEntity ? (GrugBlockEntity) blockInventory : null;
+    }
+
+    /**
      * Applies the contents a server sent for {@code menu}: one entry per slot, in the order {@link
      * #build} makes them. The inventory writes go through {@link GrugInventoryAccess}, which is the
      * same call on both sides.
      */
+    @GrugGenerated("only a server's content packet applies one: no singleplayer run reaches it")
     public static void applyContents(GrugAlphaMenu menu, ItemStack[] contents) {
         int count = Math.min(contents.length, menu.slots.size());
         for (int i = 0; i < count; i++) {
@@ -161,6 +178,7 @@ public final class GrugAlphaMenu {
     }
 
     /** The stack {@code stack} holds in its slot, or null when the slot is empty. */
+    @GrugGenerated("reads a slot for a server's content packet: no singleplayer run sends one")
     public static ItemStack itemOf(Slot slot) {
         return slot.inventory.getItem(slot.index);
     }
@@ -178,6 +196,7 @@ public final class GrugAlphaMenu {
      * {@code isItemAllowed} answering false, and taking from it tells its block entity, which
      * restocks the grid.
      */
+    @GrugGenerated("the server's click algorithm: a singleplayer screen uses the game's handler")
     public void click(PlayerEntity player, int index, int button) {
         if (button != 0 && button != 1) {
             return;
@@ -263,6 +282,7 @@ public final class GrugAlphaMenu {
      * Drops the carried stack where the player is, which the game's screen does for a click outside
      * the panel: a left click drops the whole stack and a right click one item (#1098).
      */
+    @GrugGenerated("the click algorithm's outside-panel arm: no singleplayer run reaches it")
     private void dropCursor(PlayerEntity player, int button) {
         if (cursor == null) {
             return;
@@ -283,6 +303,7 @@ public final class GrugAlphaMenu {
      * {@code ItemStack} declares no {@code split}, so a call to it throws a {@code
      * NoSuchMethodError} there; the fields exist on both sides.
      */
+    @GrugGenerated("the click algorithm's stack math: no singleplayer run reaches it")
     private static ItemStack split(ItemStack stack, int amount) {
         ItemStack removed = new ItemStack(stack.id, amount, stack.metadata);
         stack.size -= amount;
@@ -348,6 +369,7 @@ public final class GrugAlphaMenu {
      * The inventory a client draws a GUI over: its own copy of the block entity, or a placeholder
      * of the size the layout's grids need when that copy has not arrived yet.
      */
+    @GrugGenerated("a joined client's own copy or its placeholder: no singleplayer run reaches it")
     public static Inventory clientInventory(
             Object worldObj, int x, int y, int z, GrugGuiBuilder layout) {
         if (worldObj instanceof net.minecraft.world.World) {
