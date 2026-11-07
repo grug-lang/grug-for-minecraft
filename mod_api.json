@@ -1276,6 +1276,26 @@
 						}
 					]
 				},
+				"client_saved_number": {
+					"description": "Test only: the number saved under a name by the client's own copy of a block entity, which is the copy its render_frame pass reads. A test that saves a number and waits for its frame to change can only see that something moved, which a section being built again or a light step can do too; this says whether the save reached the copy the frame is drawn from, so a test can wait for the data itself and then ask what the frame shows. On a client that copy is its own, and a dedicated server asks the joined client of the player who started the run over the test-control channel. The answer is 0 when the client holds no block entity there or the number was never saved, which is also a number a script may have saved, so a test whose number starts at 0 cannot tell the two apart and saves a value that is not the starting one. See #1162.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"close_screen": {
 					"description": "Closes whatever screen is open. On a client that is its own screen. On a dedicated server it is forwarded to the joined client of the player who started the run (#1094), which closes its own screen, and 1.20.6's server also closes the container menu the player the test runs as has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
@@ -1930,7 +1950,7 @@
 					]
 				},
 				"set_custom_render": {
-					"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The geometry is baked into the chunk's mesh, once per rebuild, so it is the right call for a shape that only changes when a neighbouring block does; a machine whose parts move or turn every frame declares set_frame_render() instead, which draws all of its geometry from render_frame() and nothing into the chunk's mesh. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+					"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The geometry is baked into the chunk's mesh, once per rebuild, so it is the right call for a shape that only changes when a neighbouring block does; a machine whose parts move or turn every frame declares set_frame_render() instead, which draws all of its geometry from render_frame() and nothing into the chunk's mesh. A block that declares this and also exports render_frame() keeps that frame pass's state on a client's copy: a change to the block entity's saved numbers, saved lists or energy store is sent to that copy once per change, whether or not the script calls redraw(), because render_frame() may read it. render() itself reads only what the chunk mesh was built from, so a change it draws still needs redraw(). The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
 				},
 				"set_display_tick": {
 					"description": "Declares that this block gives off particles from its display_tick export, which the game then calls for blocks it samples at random around the player. A block that does not call this is never asked, since the game samples every block near the player and only a block that declared one is worth entering the VM for. A block that declares it and exports no display_tick function reports an error. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."

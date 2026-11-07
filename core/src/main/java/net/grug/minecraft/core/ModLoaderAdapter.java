@@ -407,6 +407,21 @@ public interface ModLoaderAdapter {
     Object getLevel();
 
     /**
+     * The client's own copy of the world, which its frame pass draws, or null before one is joined
+     * (#1162).
+     *
+     * <p>{@link #getLevel()} answers the world a fixture has to go into, which in singleplayer is
+     * the integrated server's: a block placed there is placed in the world that owns it. A render
+     * function reads the client's mirror of that world, and on 1.20.6 the two are not the same
+     * object, so a read of a client-owned copy asks here. The four loaders whose {@link
+     * #getLevel()} is already the client's own answer with it, and a dedicated server never asks,
+     * because it forwards the read to the joined client.
+     */
+    default Object clientLevel() {
+        return getLevel();
+    }
+
+    /**
      * The player a test anchors its fixtures to and drives {@link #openGui} with: the local player
      * on a client, or a connected player on a dedicated server. Null when this side has none yet,
      * which on a dedicated server means nobody has joined.
@@ -707,6 +722,20 @@ public interface ModLoaderAdapter {
     default Vec3 testCamera() {
         Object player = testPlayer();
         return player == null ? null : testPlayerEye(player);
+    }
+
+    /**
+     * Test only: the number saved under {@code name} by the joined client's own copy of the block
+     * entity at the position (#1162).
+     *
+     * <p>A client answers from its own copy, {@link #clientLevel()}, and a dedicated server
+     * overrides this to ask the client of the player who started the run, as it does for the screen
+     * and camera calls, because a server's own copy is the one it simulates and holds the save the
+     * moment it is written. The answer is 0 when the copy holds no such block entity or the number
+     * was never saved.
+     */
+    default double savedNumberOnClient(double x, double y, double z, String name) {
+        return GrugClientSavedNumbers.read(this, x, y, z, name);
     }
 
     /**

@@ -34,7 +34,13 @@ class GrugSavedDataSyncTest {
     /** A loader's side, remembering what it was asked about and what it sent. */
     private static final class Recorder implements GrugSavedDataSync.Transport {
         boolean onServer = true;
-        boolean frameOnly = true;
+
+        /** Whether the block's shape is in its chunk's mesh, as a pipe's is. */
+        boolean drawsChunkGeometry = false;
+
+        /** Whether its script draws per frame as well, as a pipe's does. */
+        boolean drawsFrame = true;
+
         int sends = 0;
         int redraws = 0;
         Object lastSent = null;
@@ -46,8 +52,17 @@ class GrugSavedDataSyncTest {
         }
 
         @Override
-        public boolean frameOnly(Object blockEntity) {
-            return frameOnly;
+        public boolean drawsFrame(Object blockEntity) {
+            return drawsFrame;
+        }
+
+        /**
+         * The answer the rule this replaced gave for the same block, which is what tells a
+         * both-kind block's test apart from one that would pass either way: only a block that drew
+         * per frame alone was sent, so a both-kind block was dropped.
+         */
+        boolean frameOnly() {
+            return drawsFrame && !drawsChunkGeometry;
         }
 
         @Override
@@ -189,7 +204,7 @@ class GrugSavedDataSyncTest {
     }
 
     @Test
-    void aClientCopyAndABlockWithGeometryInItsMeshAreNotSentOnAChange() {
+    void aClientCopyAndABlockEntityThatDrawsNoFrameAreNotSentOnAChange() {
         Recorder recorder = new Recorder();
         GrugSavedDataSync.install(recorder);
         Machine machine = new Machine();
@@ -200,9 +215,35 @@ class GrugSavedDataSyncTest {
         assertEquals(0, recorder.sends, "a client's copy is the one that is written to");
 
         recorder.onServer = true;
-        recorder.frameOnly = false;
+        recorder.drawsFrame = false;
+        recorder.drawsChunkGeometry = false;
         GrugSavedDataSync.changed(machine);
-        assertEquals(0, recorder.sends, "a block in its chunk's mesh is sent by its redraw");
+        assertEquals(0, recorder.sends, "nothing of this block entity is drawn between frames");
+    }
+
+    @Test
+    void aBothKindBlockSendsItsChangeOnceAndNeverRebuildsItsMesh() {
+        Recorder recorder = new Recorder();
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        // The wooden pipe's shape: its geometry is in the chunk's mesh and its contents are drawn
+        // per frame, so the rule this replaced dropped its change (#1162). This fails if `changed`
+        // goes back to asking that rule, and the send assertions fail if a loader answers
+        // `drawsFrame` the old way.
+        recorder.drawsFrame = true;
+        recorder.drawsChunkGeometry = true;
+        assertFalse(recorder.frameOnly(), "the old rule dropped a both-kind block's change");
+
+        GrugSavedNumbers.set(machine, "marker", 1);
+        GrugSavedDataSync.changed(machine);
+
+        assertEquals(1, recorder.sends, "the frame pass reads the number from the client's copy");
+        assertEquals(0, recorder.redraws, "a change send must not rebuild the block's mesh");
+
+        GrugSavedDataSync.changed(machine);
+        assertEquals(1, recorder.sends, "the client already holds that data");
+        assertEquals(0, recorder.redraws);
     }
 
     @Test

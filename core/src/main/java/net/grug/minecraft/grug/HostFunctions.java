@@ -506,6 +506,28 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: the number saved under {@code name} by the joined client's own copy of a block
+     * entity, which is the copy its frame pass reads (#1162).
+     *
+     * <p>A test that saves a number and waits for its frame to change can only see that something
+     * moved, which a light step or a section being built again can do too. This says whether the
+     * save reached the copy the frame is drawn from, so a test can wait for the data itself and
+     * then ask what the frame shows. In singleplayer the copy is this process's own, and a
+     * dedicated server asks the client of the player who started the run.
+     *
+     * <p>The answer is 0 when the client holds no block entity at the position or the number was
+     * never saved there, which is also a number a script may have saved: a test whose number starts
+     * at 0 cannot tell the two apart, so it saves a value it knows is not the starting one.
+     */
+    public static double Test_client_saved_number(long blockEntityId, String name) {
+        BlockPos pos =
+                GrugCore.getAdapter()
+                        .getBlockPosOfBlockEntity(
+                                HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+        return GrugCore.getAdapter().savedNumberOnClient(pos.x(), pos.y(), pos.z(), name);
+    }
+
+    /**
      * Test only: asks the JVM for a full garbage collection.
      *
      * <p>Host entities are weakly held, so a test that proves an entity is still rooted has to make

@@ -145,6 +145,11 @@ class GrugControlTest {
                 public void openInventory() {
                     throw new AssertionError("no screen call was expected");
                 }
+
+                @Override
+                public double savedNumber(double x, double y, double z, String name) {
+                    throw new AssertionError("no saved-number call was expected");
+                }
             };
 
     private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
@@ -217,6 +222,11 @@ class GrugControlTest {
         public void openInventory() {
             throw new AssertionError("no screen call was expected");
         }
+
+        @Override
+        public double savedNumber(double x, double y, double z, String name) {
+            throw new AssertionError("no saved-number call was expected");
+        }
     }
 
     /** A client whose settle answer the test decides, and which counts the frames it forgets. */
@@ -283,6 +293,11 @@ class GrugControlTest {
         public void openInventory() {
             throw new AssertionError("no screen call was expected");
         }
+
+        @Override
+        public double savedNumber(double x, double y, double z, String name) {
+            throw new AssertionError("no saved-number call was expected");
+        }
     }
 
     /** A client whose screen answers the test decides, and which records the calls it gets. */
@@ -293,6 +308,8 @@ class GrugControlTest {
         boolean scrollTaken = false;
         boolean clickTaken = false;
         double read = 176.0;
+        double saved = 5.0;
+        boolean savedFails;
         boolean closed;
         boolean opened;
 
@@ -364,6 +381,15 @@ class GrugControlTest {
             seen.add("openInventory");
             opened = true;
             open = true;
+        }
+
+        @Override
+        public double savedNumber(double x, double y, double z, String name) {
+            if (savedFails) {
+                throw new IllegalStateException("this client has no world");
+            }
+            seen.add("savedNumber " + x + " " + y + " " + z + " " + name);
+            return saved;
         }
     }
 
@@ -1286,11 +1312,11 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_PRESS_SCREEN_KEY));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCROLL_SCREEN));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLOSE_SCREEN));
-        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CAMERA));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLICK_SCREEN));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OPEN_INVENTORY));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SAVED_NUMBER));
         assertFalse(GrugControlWire.isCall((byte) 0));
-        assertFalse(GrugControlWire.isCall((byte) 12));
+        assertFalse(GrugControlWire.isCall((byte) 13));
 
         // Only the calls that can make the client send a packet ask the server to drain.
         assertTrue(GrugControlWire.sendsPacket(GrugControlWire.CALL_CLICK_SCREEN));
@@ -1328,7 +1354,7 @@ class GrugControlTest {
                                 GrugControlWire.captureRequest(
                                         1, 0, 0, 1, 1, 0, Double.POSITIVE_INFINITY, 0)));
 
-        byte[] unknown = GrugControlWire.callRequest(1, (byte) 12, "x", 0, 0, 0);
+        byte[] unknown = GrugControlWire.callRequest(1, (byte) 13, "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1408,6 +1434,9 @@ class GrugControlTest {
         assertTrue(caller.clickScreen(4, 5, 0));
         caller.openInventory();
         assertEquals(2.0, caller.camera(1));
+        // The stand-in adapter has no level, so the read answers the default a client without a
+        // world has and still goes through the adapter's own savedNumberOnClient.
+        assertEquals(0.0, caller.savedNumber(1, 2, 3, "frame_marker"));
         assertEquals(
                 List.of(
                         "hasSound a",
@@ -1423,7 +1452,8 @@ class GrugControlTest {
                         "clickScreen 4.0",
                         "testPlayer",
                         "openInventory null",
-                        "testCamera"),
+                        "testCamera",
+                        "savedNumberOnClient 1.0"),
                 seen);
     }
 
@@ -1500,6 +1530,57 @@ class GrugControlTest {
         assertNull(withoutStarter.camera());
         assertEquals(1, failed.size());
         assertTrue(failed.get(0).contains("No client has started a run"), failed.get(0));
+    }
+
+    @Test
+    void aForwardedSavedNumberIsAskedOfTheJoinedClientAndAnswered() {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+        GrugClientSavedNumbers.Forwarded forwarded =
+                new GrugClientSavedNumbers.Forwarded(
+                        () -> loop.server,
+                        message -> {
+                            throw new AssertionError(message);
+                        });
+
+        assertEquals(5.0, forwarded.savedNumber(10, 64, 20, "frame_marker"));
+        assertEquals(List.of("savedNumber 10.0 64.0 20.0 frame_marker"), screens.seen);
+
+        // A name the wire cannot carry, or a position that is not one, never leaves the server.
+        GrugControlServer.clearFailure();
+        assertThrows(
+                GrugControlServer.ControlException.class,
+                () ->
+                        loop.server.savedNumber(
+                                10, 64, 20, "a".repeat(GrugControlWire.MAX_NAME + 1)));
+        assertThrows(
+                GrugControlServer.ControlException.class,
+                () -> loop.server.savedNumber(10, Double.NaN, 20, "frame_marker"));
+        assertTrue(GrugControlServer.failed());
+
+        // A read the client cannot answer is reported as the host function's error, not as a 0
+        // that a test would take for a number the client holds.
+        List<String> failed = new ArrayList<>();
+        ScreenCalls broken = new ScreenCalls();
+        broken.savedFails = true;
+        Loopback failing = wireCalls(1000, broken);
+        failing.client.beginRun();
+        GrugClientSavedNumbers.Forwarded reports =
+                new GrugClientSavedNumbers.Forwarded(() -> failing.server, failed::add);
+        assertEquals(0.0, reports.savedNumber(10, 64, 20, "frame_marker"));
+        assertEquals(1, failed.size());
+        assertTrue(failed.get(0).contains("Test.client_saved_number"), failed.get(0));
+        GrugControlServer.clearFailure();
+
+        // A server nobody started a run on has no client to ask, and says so.
+        List<String> noRun = new ArrayList<>();
+        Loopback none = wireCalls(1000, screens);
+        GrugClientSavedNumbers.Forwarded withoutStarter =
+                new GrugClientSavedNumbers.Forwarded(() -> none.server, noRun::add);
+        assertEquals(0.0, withoutStarter.savedNumber(10, 64, 20, "frame_marker"));
+        assertEquals(1, noRun.size());
+        assertTrue(noRun.get(0).contains("No client has started a run"), noRun.get(0));
     }
 
     @Test
@@ -1582,7 +1663,7 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) 12,
+                        (byte) 13,
                         0,
                         0,
                         0,
@@ -1596,7 +1677,7 @@ class GrugControlTest {
         GrugControlWire.Message answer = GrugControlWire.decode(loop.toServer.get(0));
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
-        assertTrue(answer.text.contains("unknown call 12"), answer.text);
+        assertTrue(answer.text.contains("unknown call 13"), answer.text);
     }
 
     @Test
@@ -1743,6 +1824,11 @@ class GrugControlTest {
                             @Override
                             public void closeScreen() {
                                 throw new AssertionError("no screen call was expected");
+                            }
+
+                            @Override
+                            public double savedNumber(double x, double y, double z, String name) {
+                                throw new AssertionError("no saved-number call was expected");
                             }
 
                             @Override

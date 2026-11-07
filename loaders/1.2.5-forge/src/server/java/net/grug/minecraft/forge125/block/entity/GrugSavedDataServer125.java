@@ -23,7 +23,7 @@ public final class GrugSavedDataServer125 implements GrugSavedDataSync.Transport
     }
 
     @Override
-    public boolean frameOnly(Object blockEntity) {
+    public boolean drawsFrame(Object blockEntity) {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
         if (entity.worldObj == null) {
             return false;
@@ -31,9 +31,7 @@ public final class GrugSavedDataServer125 implements GrugSavedDataSync.Transport
         Block block =
                 Block.blocksList[
                         entity.worldObj.getBlockId(entity.xCoord, entity.yCoord, entity.zCoord)];
-        return block instanceof GrugBlock
-                && ((GrugBlock) block).drawsCustomGeometry()
-                && !((GrugBlock) block).drawsChunkGeometry();
+        return block instanceof GrugBlock && ((GrugBlock) block).drawsCustomGeometry();
     }
 
     @Override
