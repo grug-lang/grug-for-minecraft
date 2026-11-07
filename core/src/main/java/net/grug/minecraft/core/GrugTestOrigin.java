@@ -26,12 +26,28 @@ public final class GrugTestOrigin {
     public static final double LIFT = 3.0;
 
     /**
+     * How far the eye sits above the feet on every loader. The room a test builds is anchored at
+     * the feet, so a server whose player keeps the feet in its position has to add this to report
+     * the eye the room was built around (#1178).
+     */
+    public static final double EYE_HEIGHT = 1.62;
+
+    /**
      * The origin from the test player's eye. There is no null case here, because the one caller
      * decides it: {@link ModLoaderAdapter#getTestOrigin()} answers null for a side with no player
      * without asking a loader for an eye it cannot have.
      */
     public static Vec3 of(Vec3 eye) {
         return new Vec3(eye.x(), eye.y() + LIFT, eye.z());
+    }
+
+    /**
+     * The eye above a room's feet anchor, which is the position a capture has to be drawn from and
+     * the point {@link #of(Vec3)} lifts: a loader whose player keeps the feet in its position reads
+     * this instead of the position itself (#1178).
+     */
+    public static Vec3 eyeOfFeet(double x, double feetY, double z) {
+        return new Vec3(x, feetY + EYE_HEIGHT, z);
     }
 
     /**

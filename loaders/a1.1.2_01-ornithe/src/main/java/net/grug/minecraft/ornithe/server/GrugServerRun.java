@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe.server;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
@@ -305,7 +306,13 @@ public final class GrugServerRun {
     }
 
     /**
-     * Moves the server's copy of the player to {@code y} and tells the client.
+     * Moves the server's copy of the player's feet to {@code y} and tells the client.
+     *
+     * <p>The caller's {@code y} is a feet height, because both holds compare it with {@code
+     * shape.minY}, but this version's {@code setPositionAndAngles} takes the eye and adds no height
+     * of its own: passing the feet straight through put the server's copy one eye height below the
+     * client's and moved the room's eye with it (#1178). The eye height is added here, so both
+     * holds land on the feet they measured.
      *
      * <p>A server-side {@code setPositionAndAngles} writes the server's copy and tells no one, and
      * the camera is the client's: without the teleport the room would be built where the server's
@@ -314,7 +321,8 @@ public final class GrugServerRun {
      * makes a server's move visible, and the client's player is the entity it names.
      */
     private static void moveTo(PlayerEntity player, double y) {
-        player.setPositionAndAngles(player.x, y, player.z, player.yaw, player.pitch);
+        player.setPositionAndAngles(
+                player.x, y + GrugTestOrigin.EYE_HEIGHT, player.z, player.yaw, player.pitch);
         player.velocityY = 0.0;
         Connection connection = GrugControlAlpha.connectionFor(player);
         if (connection != null) {

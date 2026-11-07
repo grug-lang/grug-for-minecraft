@@ -11,8 +11,9 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 
 /**
- * Covers the one rule every loader's {@code Test.get_origin} answer goes through: the test player's
- * eye plus three blocks, and no origin without a player.
+ * Covers the rules every loader's {@code Test.get_origin} answer goes through: the test player's
+ * eye plus three blocks, the eye one eye height above a room's feet anchor, and no origin without a
+ * player.
  */
 class GrugTestOriginTest {
 
@@ -43,6 +44,16 @@ class GrugTestOriginTest {
         assertEquals(64.62, eye.y(), 1e-9);
         assertEquals(-3.5, eye.z(), 0.0);
         assertEquals(origin, GrugTestOrigin.of(eye));
+    }
+
+    @Test
+    void anEyeIsOneEyeHeightAboveTheFeetOfTheRoom() {
+        Vec3 eye = GrugTestOrigin.eyeOfFeet(1.5, 64.0, -3.5);
+
+        assertEquals(1.5, eye.x(), 0.0);
+        assertEquals(65.62, eye.y(), 1e-9);
+        assertEquals(-3.5, eye.z(), 0.0);
+        assertEquals(eye, GrugTestOrigin.eyeOf(GrugTestOrigin.of(eye)));
     }
 
     @Test
