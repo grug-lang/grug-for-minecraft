@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugControlWire;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -136,8 +137,10 @@ public final class GrugControlAlpha {
         public void flushWorld() {
             // The server sends queued block changes from its player manager's tick, after the
             // world's, which a frozen test's tick never reaches; the same tick sends them here
-            // (#1123).
+            // (#1123). A held saved-data change goes after them, so a block placed in this tick is
+            // on the client before the data its frame pass reads (#1191).
             GrugServerRun.flushBlockChanges();
+            GrugSavedDataSync.flush();
         }
 
         /**

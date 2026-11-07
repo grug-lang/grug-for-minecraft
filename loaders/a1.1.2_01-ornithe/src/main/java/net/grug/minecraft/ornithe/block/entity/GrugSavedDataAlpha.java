@@ -40,6 +40,18 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
         return GrugCore.getAdapter().getSide() == GrugSide.DEDICATED_SERVER;
     }
 
+    /**
+     * A test can tick the level a thousand times inside one of its own ticks (#780), and a pipe
+     * that saves a travelling item every game tick would then queue a packet per saved field per
+     * tick, which overruns this connection's megabyte and drops the player (#1191). Core holds one
+     * change per block entity until {@code GrugServerRun} flushes it, so the client is sent the
+     * state the burst ended in, which is the only one its frame pass can draw.
+     */
+    @Override
+    public boolean defersSends() {
+        return true;
+    }
+
     @Override
     public boolean drawsFrame(Object blockEntity) {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
@@ -53,6 +65,13 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
     @Override
     public void send(Object blockEntity) {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
+        // A flush after the burst can reach a block entity the burst itself broke or replaced,
+        // whose world is gone or which is no longer the one at its position by then; its data has
+        // no client copy left to reach.
+        if (entity.world == null
+                || entity.world.getBlockEntity(entity.x, entity.y, entity.z) != entity) {
+            return;
+        }
         sendPacket(entity.world, new GrugSavedDataPacket(entity));
     }
 

@@ -5,8 +5,11 @@ import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedLists;
 import net.grug.minecraft.grug.GrugSavedNumbers;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.WeakHashMap;
 
@@ -67,10 +70,33 @@ public final class GrugSavedDataSync {
 
         /** Sends the block update that makes those clients build the block's mesh again. */
         void redraw(Object blockEntity);
+
+        /**
+         * Whether {@link #send} may wait for {@link GrugSavedDataSync#flush} instead of going out
+         * on every save, which is what a loader whose connection has a small outbound queue wants.
+         *
+         * <p>A test can tick a level inside one of its own ticks (#780), a thousand times in a
+         * burst, and a script that saves a travelling item every tick would otherwise queue a
+         * packet per saved field per tick: the a1 connection drops the player when a burst crosses
+         * its megabyte, which is #1191. The client's copy only ever needs the latest state, so a
+         * loader that answers true here is sent one packet per block entity, at the flush.
+         *
+         * <p>False by default, so a loader that installs no flush keeps sending at once.
+         */
+        default boolean defersSends() {
+            return false;
+        }
     }
 
     /** What was last sent to each block entity, keyed weakly so a broken one is collected. */
     private static final Map<Object, String> LAST_SENT = new WeakHashMap<>();
+
+    /**
+     * The block entities a deferring transport is waiting to send, at most once each, in the order
+     * they first changed. Held strongly for the tick between a change and its flush, which is
+     * shorter than a broken block entity's own lifetime.
+     */
+    private static final Set<Object> DEFERRED = new LinkedHashSet<>();
 
     private static Transport transport = null;
 
@@ -112,7 +138,35 @@ public final class GrugSavedDataSync {
             return;
         }
         LAST_SENT.put(blockEntity, now);
-        installed.send(blockEntity);
+        if (installed.defersSends()) {
+            DEFERRED.add(blockEntity);
+        } else {
+            installed.send(blockEntity);
+        }
+    }
+
+    /**
+     * Sends every change a deferring transport has held, one packet per block entity carrying the
+     * data it holds now, and forgets them.
+     *
+     * <p>A loader calls this from the place that ends a burst of world ticks, and before it asks
+     * the client about anything it has to have seen, so a change the client's frame pass reads is
+     * still there before the ask. Nothing pending sends nothing, and a side that was never
+     * installed (or was taken away) only forgets what it held.
+     */
+    public static synchronized void flush() {
+        if (DEFERRED.isEmpty()) {
+            return;
+        }
+        List<Object> ready = new ArrayList<>(DEFERRED);
+        DEFERRED.clear();
+        Transport installed = transport;
+        if (installed == null) {
+            return;
+        }
+        for (Object blockEntity : ready) {
+            installed.send(blockEntity);
+        }
     }
 
     /**
@@ -133,6 +187,9 @@ public final class GrugSavedDataSync {
         if (!installed.onServer(blockEntity)) {
             return;
         }
+        // The redraw packet carries the data too, so a held change of the same block entity is
+        // what it replaces rather than something to send after it, which could be older.
+        DEFERRED.remove(blockEntity);
         installed.redraw(blockEntity);
     }
 

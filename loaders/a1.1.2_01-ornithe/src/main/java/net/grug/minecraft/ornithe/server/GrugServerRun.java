@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe.server;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
@@ -216,6 +217,9 @@ public final class GrugServerRun {
         // after this runner tick, and a test asserts on the tick after its click.
         GrugControlAlpha.server().applyClientWork();
         runner.tick(testPlayer);
+        // One packet per block entity whose saved data changed during this tick, however many
+        // world ticks a test ran inside it (#1191, see GrugSavedDataAlpha.defersSends).
+        GrugSavedDataSync.flush();
         if (runner.isFinished()) {
             stop(runner.isPassed() ? 0 : 1);
         }

@@ -41,6 +41,9 @@ class GrugSavedDataSyncTest {
         /** Whether its script draws per frame as well, as a pipe's does. */
         boolean drawsFrame = true;
 
+        /** Whether it answers {@link Transport#defersSends} true, as the a1 server does. */
+        boolean defers = false;
+
         int sends = 0;
         int redraws = 0;
         Object lastSent = null;
@@ -54,6 +57,11 @@ class GrugSavedDataSyncTest {
         @Override
         public boolean drawsFrame(Object blockEntity) {
             return drawsFrame;
+        }
+
+        @Override
+        public boolean defersSends() {
+            return defers;
         }
 
         /**
@@ -81,6 +89,8 @@ class GrugSavedDataSyncTest {
     @AfterEach
     void uninstall() {
         GrugSavedDataSync.install(null);
+        // A deferring transport's burst belongs to the test that made it, not to the next one.
+        GrugSavedDataSync.flush();
     }
 
     @Test
@@ -275,6 +285,136 @@ class GrugSavedDataSyncTest {
                 recorder.redraws,
                 "a client builds its own mesh again and sends nothing, because the data travels"
                         + " server to client only");
+    }
+
+    @Test
+    void aDeferringSideSendsOnePacketForABurstOfChanges() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        GrugSavedDataSync.install(recorder);
+        Machine pipe = new Machine();
+
+        // A pipe's tick moves its travelling item, which saves nine fields one after another, and a
+        // test may tick the level a thousand times inside one of its own (#780). A send per field
+        // per tick is what overran the a1 connection's queue and dropped the player (#1191).
+        for (int tick = 0; tick < 1000; tick++) {
+            GrugSavedNumbers.set(pipe, "x", tick);
+            GrugSavedDataSync.changed(pipe);
+        }
+
+        assertEquals(0, recorder.sends, "a deferring side holds the burst until it is flushed");
+
+        GrugSavedDataSync.flush();
+
+        assertEquals(1, recorder.sends, "the burst is one packet, carrying where it ended");
+        assertEquals(pipe, recorder.lastSent);
+
+        GrugSavedDataSync.flush();
+        assertEquals(1, recorder.sends, "a flush with nothing held sends nothing");
+    }
+
+    @Test
+    void aFlushSendsEachBlockEntityOfABurstOnce() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        GrugSavedDataSync.install(recorder);
+        Machine pipe = new Machine();
+        Machine engine = new Machine();
+
+        GrugSavedNumbers.set(pipe, "x", 1);
+        GrugSavedDataSync.changed(pipe);
+        GrugSavedNumbers.set(engine, "energy", 1);
+        GrugSavedDataSync.changed(engine);
+        GrugSavedNumbers.set(pipe, "x", 2);
+        GrugSavedDataSync.changed(pipe);
+
+        GrugSavedDataSync.flush();
+
+        assertEquals(2, recorder.sends, "one packet per block entity, however often it changed");
+    }
+
+    @Test
+    void aRedrawReplacesAChangeTheSideHeld() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedNumbers.set(machine, "marker", 1);
+        GrugSavedDataSync.changed(machine);
+        GrugSavedDataSync.redrawn(machine);
+        GrugSavedDataSync.flush();
+
+        assertEquals(1, recorder.redraws, "a redraw is not held: the client rebuilds at once");
+        assertEquals(
+                0,
+                recorder.sends,
+                "the redraw packet carries the data, so a held change would only repeat it");
+    }
+
+    @Test
+    void aHeldChangeIsForgottenWhenTheSideIsTakenAway() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedNumbers.set(machine, "marker", 1);
+        GrugSavedDataSync.changed(machine);
+        GrugSavedDataSync.install(null);
+        GrugSavedDataSync.flush();
+
+        GrugSavedDataSync.install(recorder);
+        GrugSavedDataSync.flush();
+
+        assertEquals(0, recorder.sends, "no side was installed when the held change was flushed");
+    }
+
+    @Test
+    void aSideThatSendsAtOnceHoldsNothingToFlush() {
+        Recorder recorder = new Recorder();
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedNumbers.set(machine, "marker", 1);
+        GrugSavedDataSync.changed(machine);
+        GrugSavedDataSync.flush();
+
+        assertEquals(1, recorder.sends, "the loaders that answer defersSends false are unchanged");
+    }
+
+    @Test
+    void aSideThatSaysNothingAboutDeferralSendsAtOnce() {
+        List<Object> sent = new ArrayList<>();
+        GrugSavedDataSync.install(
+                new GrugSavedDataSync.Transport() {
+                    @Override
+                    public boolean onServer(Object blockEntity) {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean drawsFrame(Object blockEntity) {
+                        return true;
+                    }
+
+                    @Override
+                    public void send(Object blockEntity) {
+                        sent.add(blockEntity);
+                    }
+
+                    @Override
+                    public void redraw(Object blockEntity) {}
+                });
+        Machine machine = new Machine();
+
+        GrugSavedNumbers.set(machine, "marker", 1);
+        GrugSavedDataSync.changed(machine);
+
+        assertEquals(
+                List.of(machine),
+                sent,
+                "a loader that does not ask to defer keeps sending on every change");
     }
 
     @Test
