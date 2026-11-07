@@ -14,6 +14,7 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
+import net.grug.minecraft.ornithe.client.GrugClientPlayer;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.mob.player.PlayerEntity;
@@ -396,7 +397,7 @@ public final class GrugControlBeta {
         }
         if (started && mc.world == null) {
             // Left the server: a run belongs to the connection that started it.
-            restoreAfterCapturePin(mc.player);
+            restoreAfterCapturePin(GrugClientPlayer.of(mc));
             pending = false;
             client().endRun();
             started = false;
@@ -411,8 +412,9 @@ public final class GrugControlBeta {
                             + " on "
                             + Thread.currentThread().getName());
         }
-        if (eye != null && mc.player != null) {
-            pinAtCaptureEye(mc.player);
+        PlayerEntity player = GrugClientPlayer.of(mc);
+        if (eye != null && player != null) {
+            pinAtCaptureEye(player);
         }
         boolean settled = GrugCore.getAdapter().isWorldSettled();
         // The frame has to show the world the server has and be drawn from the place the test's
