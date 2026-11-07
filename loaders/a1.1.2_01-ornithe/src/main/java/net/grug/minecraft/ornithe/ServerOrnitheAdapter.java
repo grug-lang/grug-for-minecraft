@@ -14,13 +14,22 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
+import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
+import net.grug.minecraft.ornithe.gui.GrugScreenContentPacket;
+import net.grug.minecraft.ornithe.gui.GrugScreenOpenPacket;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
+import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.entity.mob.player.PlayerInventory;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.network.Connection;
+import net.minecraft.network.PacketHandler;
+import net.minecraft.network.packet.Packet;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
 
@@ -30,7 +39,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 /**
  * The adapter for an Alpha a0.2.1 dedicated server, which is the same loader as {@link
@@ -39,11 +50,15 @@ import java.util.Set;
  * <p>It extends the client adapter, because everything that is not about which process this is, is
  * the same code: the block registry, the inventory and the entity host functions name no client
  * class. What a server cannot inherit is the pair of handles, the screen and the player snap, and
- * those are all this replaces. The client-only functions are inherited and not overridden: each one
- * refuses itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which turns a screenshot
- * test on a server into an err naming the function instead of an error from inside {@code
- * net.minecraft.client}. {@code useBlockForTest} is not one of them and is overridden: a click is
- * not a client-only function, so the server right-clicks in its own world, the world the test reads
+ * those are all this replaces. {@code GUI.open} is not one of them: the menu it builds belongs to
+ * the side that owns the inventory, so this server builds the block entity's own menu, sends its
+ * layout to the joined client and applies that client's clicks to it (#1098). The screen calls a
+ * test makes are still the client's and are forwarded; the cursor calls are the menu's and this
+ * server answers them itself. The other client-only functions are inherited and not overridden:
+ * each one refuses itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which turns a
+ * screenshot test on a server into an err naming the function instead of an error from inside
+ * {@code net.minecraft.client}. {@code useBlockForTest} is not one of them either: a click is not a
+ * client-only function, so the server right-clicks in its own world, the world the test reads
  * (#1090).
  *
  * <p>A dedicated server has no {@code MinecraftInstance}, so the world comes from the one the
@@ -61,6 +76,125 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public GrugSide getSide() {
         return GrugSide.DEDICATED_SERVER;
+    }
+
+    /**
+     * The menu this server has open for each player, which is the container a joined client's
+     * clicks land in (#1098). Alpha has no menu class of its own, and its server keeps no cursor,
+     * so {@link GrugAlphaMenu} holds both sides of the slot table and this map is what a click
+     * packet is looked up in.
+     */
+    private static final Map<PlayerEntity, GrugAlphaMenu> MENUS = new WeakHashMap<>();
+
+    /** The window id the next {@code GUI.open} installs its menu under, never 0. */
+    private static int lastWindowId = 0;
+
+    /**
+     * The window id the next open uses, one after another as vanilla's own counter does. It is
+     * never 0, which the client treats as the player's own inventory.
+     */
+    private static int nextWindowId() {
+        lastWindowId = lastWindowId % 99 + 1;
+        return lastWindowId;
+    }
+
+    /**
+     * Opens the block entity's GUI as this server's own menu and has the joined client show it
+     * (#1098). Alpha's {@code GUI.open} used to build the screen on the client alone, so a click
+     * from it applied to the client's copy of the block entity and this server never saw it; now
+     * both sides build the same slots from the layout this sends, and a click from the client is
+     * applied here and its result is sent back.
+     *
+     * <p>Whatever menu the player had open is closed first, so its carried stack is dropped where
+     * the player stands rather than reappearing on the new screen. The layout packet goes out
+     * before the menu's contents, because a client applies contents only to a screen already up
+     * under that window id.
+     */
+    @Override
+    public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        Inventory inventory = (Inventory) blockEntityObj;
+        GrugGuiBuilder layout = (GrugGuiBuilder) guiBuilderObj;
+        BlockEntity blockEntity = (BlockEntity) blockEntityObj;
+
+        closeMenu(player);
+
+        GrugAlphaMenu menu = GrugAlphaMenu.build(player.inventory, inventory, layout);
+        menu.windowId = nextWindowId();
+        MENUS.put(player, menu);
+
+        Connection connection = GrugControlAlpha.connectionOfPlayer(player);
+        if (connection == null) {
+            // No joined client to show it on, so a test that waits for the screen times out. There
+            // is nothing else to do here: only a client can draw a screen.
+            return;
+        }
+        connection.send(
+                new GrugScreenOpenPacket(
+                        menu.windowId, blockEntity.x, blockEntity.y, blockEntity.z, layout));
+        connection.send(GrugScreenContentPacket.of(menu));
+    }
+
+    /**
+     * Applies a click the joined client sent for the menu this server installed under {@code
+     * windowId}, then sends back what the menu holds (#1098). A packet for a menu that has since
+     * been replaced is ignored, which is what the window id is for.
+     *
+     * <p>It runs on the game thread, from the connection's own tick, so the game's own packet
+     * handling reads it too, and a forwarded click a test waits on is read by {@code
+     * applyClientWork} before the runner's next tick.
+     */
+    public static void clickFromClient(PacketHandler handler, int windowId, int slot, int button) {
+        PlayerEntity player = GrugControlAlpha.playerOf(handler);
+        Connection connection = GrugControlAlpha.connectionOf(handler);
+        if (player == null || connection == null) {
+            return;
+        }
+        GrugAlphaMenu menu = MENUS.get(player);
+        if (menu == null || menu.windowId != windowId) {
+            return;
+        }
+        menu.click(player, slot, button);
+        connection.send(GrugScreenContentPacket.of(menu));
+    }
+
+    /** Closes the menu a joined client closed, dropping the stack it carried where it stands. */
+    public static void closeFromClient(PacketHandler handler, int windowId) {
+        PlayerEntity player = GrugControlAlpha.playerOf(handler);
+        if (player == null) {
+            return;
+        }
+        GrugAlphaMenu menu = MENUS.get(player);
+        if (menu == null || menu.windowId != windowId) {
+            return;
+        }
+        closeMenu(player);
+    }
+
+    /**
+     * Closes the menu this server has open for {@code player}, as the game's own close does, and
+     * drops whatever it carried at the player's feet. A player with nothing open has nothing to
+     * close.
+     */
+    private static void closeMenu(PlayerEntity player) {
+        GrugAlphaMenu menu = MENUS.remove(player);
+        if (menu == null) {
+            return;
+        }
+        ItemStack cursor = menu.cursor;
+        menu.cursor = null;
+        if (cursor != null) {
+            player.dropItem(cursor);
+        }
+    }
+
+    /**
+     * Forgets the menus of players who left. A weak map cannot do this by itself, because a menu
+     * holds the player's inventory, which holds the player, so a menu's value keeps its own key
+     * alive. Called from every server tick.
+     */
+    public static void forgetMenusOfMissingPlayers(List<?> players) {
+        MENUS.keySet().removeIf(player -> !players.contains(player));
     }
 
     /**
@@ -254,12 +388,77 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
-     * Closes the joined client's screen (#1094): this server has no screen of its own, so the call
-     * is the client's, and the client of the player who started the run performs it.
+     * Closes this server's menu and the joined client's screen (#1094, #1098): Alpha's client
+     * closes with Escape alone and sends this server nothing, so the menu is closed here as well,
+     * which drops its carried stack where the player stands. A screen a test opened otherwise
+     * outlives it, and a capture test that follows a GUI test would take a frame of the panel
+     * rather than of the world (#418).
      */
     @Override
     public void closeOpenScreenForTest() {
+        Object playerObj = testPlayer();
+        if (playerObj instanceof PlayerEntity) {
+            closeMenu((PlayerEntity) playerObj);
+        }
         screens.closeScreen();
+    }
+
+    /**
+     * The stack on this server's menu cursor (#1098). A server's {@code PlayerInventory} keeps no
+     * cursor of its own, so it lives on the open menu, and no open menu means no cursor.
+     */
+    @Override
+    public Object carriedItem() {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) {
+            return null;
+        }
+        GrugAlphaMenu menu = MENUS.get(player);
+        return menu == null || menu.cursor == null ? null : menu.cursor.getItem();
+    }
+
+    /** Sets this server's menu cursor and sends it to the client that draws it (#1098). */
+    @Override
+    public void setCarriedItem(Object itemObj) {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.set_carried_item: There is no player to set a cursor on.");
+            return;
+        }
+        GrugAlphaMenu menu = MENUS.get(player);
+        if (menu == null) {
+            return;
+        }
+        menu.cursor = itemObj == null ? null : new ItemStack((Item) itemObj);
+        sendToPlayer(player, GrugScreenContentPacket.of(menu));
+    }
+
+    /** Clears this server's menu cursor and tells the client (#1098). */
+    @Override
+    public void deleteCarriedItem() {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
+                            + " on.");
+            return;
+        }
+        GrugAlphaMenu menu = MENUS.get(player);
+        if (menu == null) {
+            return;
+        }
+        menu.cursor = null;
+        sendToPlayer(player, GrugScreenContentPacket.of(menu));
+    }
+
+    /** Sends a packet to {@code player}'s joined client when this server knows its connection. */
+    private static void sendToPlayer(PlayerEntity player, Packet packet) {
+        Connection connection = GrugControlAlpha.connectionOfPlayer(player);
+        if (connection != null) {
+            connection.send(packet);
+        }
     }
 
     /** Whether the joined client of the player who started the run has a screen open (#1094). */
@@ -436,6 +635,24 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             inventory.setItem(slot, null);
         }
         inventory.selectedSlot = 0;
+    }
+
+    /**
+     * The recipe result of a crafting grid, which this server cannot compute. The a0.2.1 server jar
+     * has no crafting package at all: Alpha crafted on the client, so the class the client
+     * adapter's computation loads, {@code CraftingManager}, is absent here, and running the
+     * inherited method would fail with {@code NoClassDefFoundError} rather than answer. Reporting
+     * the call keeps the game running with the call's own error, which is what a mod that inserts
+     * into an autocrafting table sees; giving the server a recipe table of its own is a separate
+     * issue, and until then a test that needs a recipe result stays in this loader's unsupported
+     * list.
+     */
+    @Override
+    public void updateRecipeOutput(Object blockEntityObj, double startSlot) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "BlockEntity.update_recipe_output: the a0.2.1 server has no crafting manager, so it"
+                        + " cannot compute a recipe result.");
     }
 
     /** The tests listed in {@code server-unsupported-tests.txt}, which says why. */

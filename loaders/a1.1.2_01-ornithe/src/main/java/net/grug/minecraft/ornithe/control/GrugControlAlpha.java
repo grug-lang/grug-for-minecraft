@@ -114,6 +114,64 @@ public final class GrugControlAlpha {
         return null;
     }
 
+    /**
+     * The connection a player holds, whether or not it has started a control run (#1098). The GUI
+     * is opened for any joined player, and a player who never started a run has sent no control
+     * message, so the control channel has not met them; the player's own network handler is asked
+     * instead. That handler cannot be named here, because this layer is compiled against the
+     * client, which has no server classes; its fields are found by what they hold.
+     */
+    public static Connection connectionOfPlayer(PlayerEntity player) {
+        Connection known = connectionFor(player);
+        if (known != null) {
+            return known;
+        }
+        Connection direct = connectionIn(player);
+        return direct != null ? direct : nestedConnectionIn(player);
+    }
+
+    /** The connection a player's own network-handler field holds, or null before it has one. */
+    private static Connection nestedConnectionIn(PlayerEntity player) {
+        for (Class<?> type = player.getClass();
+                type != null && !isJdk(type);
+                type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (!PacketHandler.class.isAssignableFrom(field.getType())) continue;
+                field.setAccessible(true);
+                try {
+                    Connection connection = connectionIn(field.get(player));
+                    if (connection != null) {
+                        return connection;
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new IllegalStateException(
+                            "cannot read " + field + " to find the connection", e);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The connection an object's own field holds, by type. */
+    private static Connection connectionIn(Object holder) {
+        if (holder == null) return null;
+        for (Class<?> type = holder.getClass();
+                type != null && !isJdk(type);
+                type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (field.getType() != Connection.class) continue;
+                field.setAccessible(true);
+                try {
+                    return (Connection) field.get(holder);
+                } catch (IllegalAccessException e) {
+                    throw new IllegalStateException(
+                            "cannot read " + field + " to find the connection", e);
+                }
+            }
+        }
+        return null;
+    }
+
     @GrugGenerated(
             "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since"
                     + " only the multiplayer job runs it")
@@ -266,7 +324,7 @@ public final class GrugControlAlpha {
      * The player a server-side handler belongs to: a field of the handler that holds one, or else
      * the player in the world that holds this handler. Null before the player is in the world.
      */
-    private static PlayerEntity playerOf(PacketHandler handler) {
+    public static PlayerEntity playerOf(PacketHandler handler) {
         try {
             for (Class<?> type = handler.getClass(); !isJdk(type); type = type.getSuperclass()) {
                 for (Field field : type.getDeclaredFields()) {
@@ -298,6 +356,23 @@ public final class GrugControlAlpha {
     private static Connection clientConnection() {
         return findConnection(
                 net.ornithemc.osl.lifecycle.api.client.MinecraftInstance.get().world, 1);
+    }
+
+    /**
+     * The connection a packet handler holds, which is where a GUI click's answer goes (#1098). A
+     * server's handler keeps its connection as a field, so no world lookup is needed.
+     */
+    public static Connection connectionOf(PacketHandler handler) {
+        return findConnection(handler, 0);
+    }
+
+    /**
+     * The connection this client holds to its server, which a GUI click and close are sent on
+     * (#1098). Null when this client is not connected, so a screen nothing can reach the server
+     * from sends nothing.
+     */
+    public static Connection clientConnectionForScreens() {
+        return clientConnection();
     }
 
     private static void capture(

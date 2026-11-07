@@ -312,7 +312,7 @@ while :; do
     # settle ask's flush is for (#1123), and the screen calls (#1094), which every
     # leg that forwards them asks here: the reads and close_screen with no screen, the open
     # GUI's reads on 1.20.6, and open_inventory, which the two newer legs open and the three older
-    # ones refuse until #1098 gives them a server-side container. The pixel tests stay client-only
+    # ones refuse because that call is still only the client's there. The pixel tests stay client-only
     # until a joined client's frame matches a singleplayer one (#1092); coverage_frame_saved_number,
     # coverage_frame_saved_list_energy,
     # coverage_mesh_saved_number and coverage_mesh_saved_reinit run on every server leg now that a
@@ -361,24 +361,32 @@ while :; do
       exit 1
     fi
     # The remote GUI test (#168), the GUI capture tests and the two container-click tests run on the
-    # servers that can open a container for their player, 1.20.6, 1.2.5, b1.7.3-ornithe and
-    # b1.7.3-stationapi (#1098): a1.1.2_01's server lists them as unsupported, so these four legs
-    # must show they ran. A capture compares against the unchanged client-only golden, so a leg
+    # servers that can open a container for their player, 1.20.6, 1.2.5, b1.7.3-ornithe,
+    # b1.7.3-stationapi and a1.1.2_01 (#1098). a1.1.2_01's server has the container now but still
+    # refuses Test.click_screen, so its arm leaves out the two container-click tests: the other four
+    # legs must show they ran. A capture compares against the unchanged client-only golden, so a leg
     # whose panel draws differently fails in the test itself; this check catches the test not
     # running at all on that leg (renamed, listed as unsupported, or no longer recognised as
     # declared), which the run would otherwise pass with it silently skipped.
     # A server that stops opening the menu fails the test on its own tick budget, before this is
     # reached. The captures wait on the server's own state, so they run here; the item texture swap
-    # is the one that cannot, because it waits for a resource reload to finish on the client the
-    # frame comes from and the server cannot observe that reload. It stays client-only. The click
-    # tests are the proof that the server's slot order is the client's on the 1.2.5 leg, whose whole
-    # game-speed loop runs between two runner ticks: on 1.20.6 the next server tick's own task queue
-    # would apply the click before the runner's next tick anyway. On 1.20.6 the pair also splits the
-    # click's two halves, gui_click taking the release path (the cursor carries a stack) and
-    # gui_click_empty the press path (the cursor is empty), so a leg that runs both proves both.
+    # is the one that cannot, because it defines plain tick and waits for a resource reload to finish
+    # on the client the frame comes from and the server cannot observe that reload. It stays
+    # client-only. The click tests are the proof that the server's slot order is the client's on the
+    # 1.2.5 leg, whose whole game-speed loop runs between two runner ticks: on 1.20.6 the next
+    # server tick's own task queue would apply the click before the runner's next tick anyway. On
+    # 1.20.6 the pair also splits the click's two halves, gui_click taking the release path (the
+    # cursor carries a stack) and gui_click_empty the press path (the cursor is empty), so a leg that
+    # runs both proves both.
     case "$LOADER" in
       1.20.6-forge|1.2.5-forge|b1.7.3-ornithe|b1.7.3-stationapi)
         gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
+        ;;
+      a1.1.2_01-ornithe)
+        # Its server has no recipe manager, so the two autocrafting-table tests stay unsupported
+        # there (#1098): inserting into the table's grid asks for a recipe result the server
+        # cannot compute.
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder"
         ;;
       *)
         gui_tests=""

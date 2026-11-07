@@ -3,13 +3,18 @@
 # tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
-# Recipes and crafting. The a0.2.1 server jar has no CraftingManager (crafting was client-side
-# then), so a test that needs a recipe result fails with NoClassDefFoundError there. The set was
-# found by a grep for recipe and crafting words in the tests, not test by test, so it may be wider
-# than necessary: a later pass can remove an entry and see whether the server job still passes.
+# Recipes and crafting. The a0.2.1 server jar has no crafting package at all: Alpha crafted on the
+# client, so this server has no CraftingManager, no shaped recipe and no crafting table block
+# entity. ServerOrnitheAdapter reports update_recipe_output rather than running the client adapter's
+# computation, which would load a class the server lacks, so the call is an err instead of a crash;
+# but a test that needs a recipe result still cannot pass until the server has a recipe table of its
+# own, which is a separate issue. autocrafting_table and redstone_engine_item are here because
+# inserting into the table's grid calls it, through the block entity's item_inserted export.
+buildcraft/tests/autocrafting_table-Test.grug
 buildcraft/tests/autocrafting_table_borrow-Test.grug
 buildcraft/tests/autocrafting_table_pipe-Test.grug
 buildcraft/tests/demo_chain-Test.grug
+buildcraft/tests/redstone_engine_item-Test.grug
 buildcraft/tests/wooden_pipe_recipe-Test.grug
 coverage/tests/expect_response_extract_twice_crafting_result_consumed-Test.grug
 coverage/tests/expect_response_extract_twice_crafting_result-Test.grug
@@ -30,27 +35,18 @@ coverage/tests/update_recipe_output_on_a_chest-Test.grug
 buildcraft/tests/wooden_pipe_boxes-Test.grug
 coverage/tests/block_shape-Test.grug
 #
-# The GUI a server opens for its player. Test.screen_open is forwarded to the joined client now
-# (#1094), but a server-run GUI test needs the server to open the menu, and this server refuses
-# GUI.open until #1098 gives it a server-side container, so the menu never opens there.
-# #1094's forwarded_screen_open and forwarded_close_screen run here instead. The five GUI capture
-# tests export tick_any_side since 1.2.5's server opens a container for its player, and wait here
-# for this server to do the same (#1098). The two container-click tests press a slot of that
-# container, so they need it for the same reason: a click from this server's client names slot ids
-# this server has no menu for.
-coverage/tests/remote_gui-Test.grug
-coverage/tests/item_icon-Test.grug
-coverage/tests/gui_builder-Test.grug
-coverage/tests/hot_reload_item_texture-Test.grug
+# The GUI a server opens for its player. The three GUI capture tests run here since this server
+# builds the block entity's own menu and sends it to the joined client (#1098): remote_gui,
+# item_icon and gui_builder. hot_reload_item_texture is not listed because it defines a plain tick
+# rather than tick_any_side, so no server runs it at all. The two container-click tests still do
+# not: they press a slot through Test.click_screen, which this loader forwards to the client's
+# screen but has no server-side click from, so they wait for that half of #1098.
 coverage/tests/gui_click-Test.grug
 coverage/tests/gui_click_empty-Test.grug
-buildcraft/tests/autocrafting_table-Test.grug
-buildcraft/tests/redstone_engine_item-Test.grug
 #
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
-# client's screen, but this server can open no screen for its player: Test.use_block only
-# right-clicks a grug block, and GUI.open is refused until #1098 gives it a server-side container,
-# so the vanilla chest these tests place cannot be opened here. 1.2.5's interaction manager and
-# 1.20.6's game mode right-click the chest, so the two tests run there.
+# client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
+# block, so this server cannot open one. 1.2.5's interaction manager and 1.20.6's game mode
+# right-click the chest, so the two tests run there.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug

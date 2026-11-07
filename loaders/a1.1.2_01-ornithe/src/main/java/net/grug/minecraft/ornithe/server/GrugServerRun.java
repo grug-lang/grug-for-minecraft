@@ -102,6 +102,9 @@ public final class GrugServerRun {
         if (advancing) {
             return;
         }
+        // A menu holds the player's inventory, which holds the player, so the menu's own value
+        // keeps its key alive in the weak map; a player who left would leave the entry behind.
+        ServerOrnitheAdapter.forgetMenusOfMissingPlayers(tickedWorld.players);
         if (!done && "true".equals(System.getenv("GRUG_CI"))) {
             try {
                 tick(tickedWorld);

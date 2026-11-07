@@ -10,9 +10,10 @@
 # The cursor carries a diamond here, so on 1.20.6 the press only starts a drag and the release is
 # what sends the click packet: this test proves the release half, and the diamond landing in the
 # grid proves the click was applied. gui_click_empty proves the other half, the press path an empty
-# cursor takes. The servers that can open no container for their player, a1.1.2_01's, list this test
-# as unsupported until #1098 gives that one a server-side container too, so it runs on the other
-# four.
+# cursor takes. The a1.1.2_01 server now applies the clicks a client's screen sends, but
+# Test.click_screen, the call that presses on a screen, still refuses there, because that screen is
+# the joined client's own and carrying the press to it is the later dispatch that carries #1094
+# PR2, so the test stays unsupported on that server.
 started: bool = false
 clicked: bool = false
 
