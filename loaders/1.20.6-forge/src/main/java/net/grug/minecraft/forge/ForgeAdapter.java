@@ -1068,9 +1068,19 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run reads the screen it just opened")
     public Object carriedItem() {
-        // The screen's menu is the answer even on a single-player run: delete_carried_item clears
-        // that copy at once and only queues the server's clear behind the next tick, so the two
-        // menus disagree until the queue drains (#1094).
+        // The menu the click is applied to is the answer, which on a single-player run is the
+        // integrated server's, as it is on a dedicated server (#1094): the runner holds its next
+        // tick until the click's handler ran, so this copy is settled by then. The screen's own
+        // copy is told about the click by a packet of its own, and the hold does not order that
+        // packet, so a click that ran can leave it a tick behind and an assertion reading it would
+        // fail on a loaded machine (#1196). The screen's menu stays the answer on the client
+        // thread, where an overlay reads back the cursor it just changed, and that copy is the one
+        // delete_carried_item clears at once.
+        ServerPlayer serverPlayer = integratedServerPlayer();
+        if (serverPlayer != null) {
+            ItemStack carried = serverPlayer.containerMenu.getCarried();
+            return carried.isEmpty() ? null : carried.getItem();
+        }
         AbstractContainerScreen<?> container = openContainerScreen();
         if (container == null) return null;
         ItemStack carried = container.getMenu().getCarried();
@@ -1139,6 +1149,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // The click pass calls this on the client thread, but a test's own clear runs on the server
         // thread, so the client's menu is touched where it belongs either way.
         onClientThread(this::deleteCarriedItemOnClient);
+        // A test clears the cursor and reads it back on the same tick, and on a single-player run
+        // that read is the integrated server's menu (see carriedItem), whose clear is only queued
+        // above when this call is the client thread's. Clearing it here too keeps a clear settled
+        // for the caller that runs on the server thread.
+        ServerPlayer serverPlayer = integratedServerPlayer();
+        if (serverPlayer != null) {
+            serverPlayer.containerMenu.setCarried(ItemStack.EMPTY);
+        }
     }
 
     @GrugGenerated(
