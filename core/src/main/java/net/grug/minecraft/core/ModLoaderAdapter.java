@@ -822,13 +822,12 @@ public interface ModLoaderAdapter {
      * the room off the block grid a capture is framed against, which is #1161's 1.20.6 leg.
      */
     default void snapPlayerForTest() {
-        switch (getSide()) {
-            case CLIENT:
-                snapPlayerForTestOnClient();
-                break;
-            case DEDICATED_SERVER:
-                snapPlayerForTestOnServer();
-                break;
+        // If rather than a switch: an enum switch carries a synthetic default branch a test can
+        // never take, which the coverage gate then reports as a miss.
+        if (getSide() == GrugSide.CLIENT) {
+            snapPlayerForTestOnClient();
+        } else {
+            snapPlayerForTestOnServer();
         }
     }
 
