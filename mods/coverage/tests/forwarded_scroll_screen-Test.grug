@@ -3,10 +3,11 @@
 # box, and the answer is whether an overlay took the movement. The fixture is a vanilla chest rather
 # than grug:coverage_gui, because a loader leaves a mod's own GrugScreen out of the screens its
 # overlays are asked on, while the coverage overlay is asked on the game's own container screens.
-# This runs on 1.20.6 and on 1.2.5, the two servers that can right-click the chest for their player;
-# the other three can open no screen there until #1098, so they list this test as unsupported. The
-# overlay takes a wheel turned down, and the screen stays open. Only a multiplayer run that forwards
-# client calls runs a forwarded_ test.
+# This runs on 1.20.6 and on 1.2.5, the two servers that can right-click the chest for their
+# player; the other three cannot (Test.use_block only right-clicks a grug block there, so the
+# vanilla chest cannot be opened), and they list this test as unsupported. The overlay takes a
+# wheel turned down, and the screen stays open. Only a multiplayer run that forwards client calls
+# runs a forwarded_ test.
 started: bool = false
 
 export tick(ctx: TestTickContext) {

@@ -1,6 +1,6 @@
 # Test.gui_top asked of a dedicated server's joined client (#1094). With no container screen open
-# the client answers 0; forwarded_close_screen measures a real panel on 1.20.6. Only a multiplayer
-# run that forwards client calls runs a forwarded_ test.
+# the client answers 0; forwarded_close_screen measures a real panel on a server that opens a GUI.
+# Only a multiplayer run that forwards client calls runs a forwarded_ test.
 export tick(ctx: TestTickContext) {
     Test.close_screen()
     ctx.assert(Test.gui_top() == 0, "A client with no container screen open should answer 0.")

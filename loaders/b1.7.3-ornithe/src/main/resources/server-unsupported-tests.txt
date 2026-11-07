@@ -8,27 +8,9 @@
 buildcraft/tests/wooden_pipe_boxes-Test.grug
 coverage/tests/block_shape-Test.grug
 #
-# The GUI a server opens for its player. Test.screen_open is forwarded to the joined client now
-# (#1094), but a server-run GUI test needs the server to open the menu, and this server refuses
-# GUI.open until #1098 gives it a server-side container, so the menu never opens there.
-# #1094's forwarded_screen_open and forwarded_close_screen run here instead. The five GUI capture
-# tests export tick_any_side since 1.2.5's server opens a container for its player, and wait here
-# for this server to do the same (#1098). The two container-click tests press a slot of that
-# container, so they need it for the same reason: a click from this server's client names slot ids
-# this server has no menu for.
-coverage/tests/remote_gui-Test.grug
-coverage/tests/item_icon-Test.grug
-coverage/tests/gui_builder-Test.grug
-coverage/tests/hot_reload_item_texture-Test.grug
-coverage/tests/gui_click-Test.grug
-coverage/tests/gui_click_empty-Test.grug
-buildcraft/tests/autocrafting_table-Test.grug
-buildcraft/tests/redstone_engine_item-Test.grug
-#
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
-# client's screen, but this server can open no screen for its player: Test.use_block only
-# right-clicks a grug block, and GUI.open is refused until #1098 gives it a server-side container,
-# so the vanilla chest these tests place cannot be opened here. 1.2.5's interaction manager and
-# 1.20.6's game mode right-click the chest, so the two tests run there.
+# client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
+# block, so this server cannot open one. 1.2.5's interaction manager and 1.20.6's game mode
+# right-click the chest, so the two tests run there.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug

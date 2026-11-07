@@ -149,12 +149,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         PlayerEntity player = (PlayerEntity) playerObj;
         Inventory inventory = (Inventory) blockEntityObj;
         GrugGuiBuilder builder = (GrugGuiBuilder) guiBuilderObj;
-        if (FabricLoader.getInstance().getEnvironmentType() != EnvType.CLIENT) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "GUI.open: Opening a GUI on a dedicated server is not supported yet.");
-            return;
-        }
 
         GrugScreen.open(player, inventory, builder);
     }

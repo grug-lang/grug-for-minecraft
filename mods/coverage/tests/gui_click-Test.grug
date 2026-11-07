@@ -10,8 +10,9 @@
 # The cursor carries a diamond here, so on 1.20.6 the press only starts a drag and the release is
 # what sends the click packet: this test proves the release half, and the diamond landing in the
 # grid proves the click was applied. gui_click_empty proves the other half, the press path an empty
-# cursor takes. The servers that can open no container for their player list this test as
-# unsupported until #1098 gives them one, so it runs on 1.20.6 and 1.2.5.
+# cursor takes. The servers that can open no container for their player, a1.1.2_01's, list this test
+# as unsupported until #1098 gives that one a server-side container too, so it runs on the other
+# four.
 started: bool = false
 clicked: bool = false
 
