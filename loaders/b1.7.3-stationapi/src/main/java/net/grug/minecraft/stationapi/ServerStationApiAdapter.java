@@ -22,6 +22,7 @@ import net.grug.minecraft.stationapi.control.GrugControlStation;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
@@ -45,8 +46,10 @@ import java.util.Set;
  * has always created), so extending it adds no class a server cannot load. What a server cannot
  * inherit is the pair of handles to the level and the player, and the answers about screens and
  * frames, and those are what this replaces. The client-only functions are inherited and each one
- * refuses itself through {@code ModLoaderAdapter.refuseWithoutAClient}. {@code useBlockForTest} is
- * not one of them and is overridden: a click is not a client-only function, so the server
+ * refuses itself through {@code ModLoaderAdapter.refuseWithoutAClient}, except the ones whose
+ * subject is a screen or a cursor: those are forwarded to the joined client, or answered from this
+ * server's own screen handler, so a GUI test can run here (#1098). {@code useBlockForTest} is not a
+ * client-only function and is overridden: a click is not a client-only function, so the server
  * right-clicks in its own world, the world the test reads (#1090).
  *
  * <p>Excluded from coverage because only the dispatch-only multiplayer job launches a server (#167
@@ -275,13 +278,105 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         return true;
     }
 
+    // The screen functions a client adapter implements. The ones a test makes on a screen are
+    // forwarded to the client of the player who started the run (#1094); GUI.open builds the block
+    // entity's screen handler on this server too, so the client's screen is the one this server's
+    // slots belong to (#1098). The pointer calls are the handler's, so this server answers them
+    // itself: a click is applied to this server's own handler, and a carried stack only the client
+    // knows would not be the one the click uses.
+
     /**
-     * Closes the joined client's screen (#1094): this server has no screen of its own, so the call
-     * is the client's, and the client of the player who started the run performs it.
+     * Opens the block entity's GUI as this server's own screen handler and has the joined client
+     * show it (#1098). Whatever handler the player had open is closed first, one at a time as the
+     * game does, so the client's next screen starts from window 0.
+     */
+    @Override
+    public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
+        if (playerObj instanceof PlayerEntity) {
+            GrugServerRun.closeScreenHandler((PlayerEntity) playerObj);
+        }
+        super.openGui(playerObj, blockEntityObj, guiBuilderObj);
+    }
+
+    /**
+     * Opens the player's own inventory on the client of the player who started the run, whose own
+     * inventory it is (#1094).
+     *
+     * <p>The screen handler this server has open is closed first, so both sides are on the player's
+     * own inventory, window 0, by the time the client's screen is up: a press there carries window
+     * 0, which this server only accepts as its own player's inventory handler.
+     */
+    @Override
+    public void openInventory(Object playerObj) {
+        if (playerObj instanceof PlayerEntity) {
+            GrugServerRun.closeScreenHandler((PlayerEntity) playerObj);
+        }
+        screens.openInventory();
+    }
+
+    /**
+     * Closes the screen handler this server has open, which is this server's half of closing the
+     * joined client's screen: {@code closeHandledScreen} sends the packet that client closes it
+     * with. The client is then asked to close its own screen too (#1094), because the screen call
+     * is the client's and a client that closed its screen itself (Escape, say) has already sent
+     * this server the packet that empties the handler. One client serves the whole run, so a screen
+     * a test opened outlives it, and a capture test that follows a GUI test would otherwise take a
+     * frame of the panel rather than of the world (#418).
      */
     @Override
     public void closeOpenScreenForTest() {
+        Object playerObj = testPlayer();
+        if (playerObj instanceof PlayerEntity) {
+            GrugServerRun.closeScreenHandler((PlayerEntity) playerObj);
+        }
         screens.closeScreen();
+    }
+
+    /**
+     * Pressed on the client's screen, by the client of the player who started the run (#1094).
+     *
+     * <p>The screen is the block entity's handler, which this server built in {@code GUI.open}
+     * under the window id it sent to that client, so the click packet the press sends names this
+     * server's handler and lands in this server's slots. It is applied by {@link
+     * GrugControlServer#applyClientWork} on a later tick, never inside this call, because the
+     * server thread is frozen here and cannot read it.
+     */
+    @Override
+    public boolean clickScreen(double x, double y, double button) {
+        return screens.clickScreen(x, y, (int) button);
+    }
+
+    /**
+     * Sets the carried stack this server's next click uses, and tells the client, so a frame it
+     * draws and a click it predicts both agree with it (#1094).
+     */
+    @Override
+    public void setCarriedItem(Object itemObj) {
+        Object playerObj = testPlayer();
+        if (!(playerObj instanceof PlayerEntity)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.set_carried_item: There is no player to set a cursor on.");
+            return;
+        }
+        PlayerEntity player = (PlayerEntity) playerObj;
+        player.inventory.setCursorStack(itemObj == null ? null : new ItemStack((Item) itemObj));
+        GrugServerRun.sendCursor(player);
+    }
+
+    /** Clears the carried stack, and the client's copy of it (#1094). */
+    @Override
+    public void deleteCarriedItem() {
+        Object playerObj = testPlayer();
+        if (!(playerObj instanceof PlayerEntity)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
+                            + " on.");
+            return;
+        }
+        PlayerEntity player = (PlayerEntity) playerObj;
+        player.inventory.setCursorStack(null);
+        GrugServerRun.sendCursor(player);
     }
 
     /** Whether the joined client of the player who started the run has a screen open (#1094). */

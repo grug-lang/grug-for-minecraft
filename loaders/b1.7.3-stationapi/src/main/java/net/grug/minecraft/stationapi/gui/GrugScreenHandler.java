@@ -49,7 +49,12 @@ public class GrugScreenHandler extends ScreenHandler {
                         @Override
                         public void onTakeItem(ItemStack stack) {
                             super.onTakeItem(stack);
-                            if (blockInventory instanceof GrugBlockEntity grugBlockEntity) {
+                            // The hook consumes the taken result and restocks the grid, which only
+                            // the server owns: a client's unsynchronised neighbours would diverge
+                            // with no packet to correct them, and the server's own click already
+                            // sends the item (#1098).
+                            if (!player.world.isRemote
+                                    && blockInventory instanceof GrugBlockEntity grugBlockEntity) {
                                 grugBlockEntity.notifyOutputTaken(stack != null ? stack.count : 0);
                             }
                         }

@@ -88,6 +88,29 @@ public final class GrugServerRun {
     }
 
     /**
+     * Closes the screen handler this server has open for {@code player}, as the game's own close
+     * does, so both sides are back on the player's own inventory, window 0 (#1094). A player
+     * already on their own inventory has nothing to close.
+     */
+    public static void closeScreenHandler(PlayerEntity player) {
+        if (player instanceof ServerPlayerEntity
+                && player.currentScreenHandler != player.playerScreenHandler) {
+            ((ServerPlayerEntity) player).closeHandledScreen();
+        }
+    }
+
+    /**
+     * Tells {@code player}'s client what this server's cursor holds (#1098). The cursor is not a
+     * slot a screen handler's own update sends, so the game syncs it as window -1, which is what
+     * {@code updateCursorStack} does.
+     */
+    public static void sendCursor(PlayerEntity player) {
+        if (player instanceof ServerPlayerEntity) {
+            ((ServerPlayerEntity) player).updateCursorStack();
+        }
+    }
+
+    /**
      * The ticks the world takes for each of the runner's, which is how the server runs a test at
      * the loader's maximum game speed (#677): the server's own loop gives one, and this runs the
      * rest before the runner's tick.

@@ -3,9 +3,9 @@
 # path, the one an empty cursor takes, is gui_click_empty's to prove while gui_click proves the
 # release path. The first click here changes nothing, which is what says the call does not wait for
 # the container to change; the second clicks a grid slot that holds a diamond, so the assertions
-# after it fail unless the press's own packet was applied and the item moved. The servers that can
-# open no container for their player list this test as unsupported until #1098 gives them one, so it
-# runs on 1.20.6 and 1.2.5.
+# after it fail unless the press's own packet was applied and the item moved. The server that can
+# open no container for its player, a1.1.2_01's, lists this test as unsupported until #1098 gives
+# that one a server-side container too, so it runs on the other four.
 started: bool = false
 clicked: bool = false
 picked: bool = false

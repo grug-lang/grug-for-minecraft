@@ -367,12 +367,12 @@ while :; do
         ;;
     esac
     # The remote GUI test (#168), the GUI capture tests and the two container-click tests run on the
-    # servers that can open a container for their player, 1.20.6 and 1.2.5 (#1098): the other three
-    # servers list them as unsupported, so these two legs must show they ran. A capture compares
-    # against the unchanged client-only golden, so a leg whose panel draws differently fails in the
-    # test itself; this check catches the test not running at all on that leg (renamed, listed as
-    # unsupported, or no longer recognised as declared), which the run would otherwise pass with it
-    # silently skipped.
+    # servers that can open a container for their player, 1.20.6, 1.2.5, b1.7.3-ornithe and
+    # b1.7.3-stationapi (#1098): a1.1.2_01's server lists them as unsupported, so these four legs
+    # must show they ran. A capture compares against the unchanged client-only golden, so a leg
+    # whose panel draws differently fails in the test itself; this check catches the test not
+    # running at all on that leg (renamed, listed as unsupported, or no longer recognised as
+    # declared), which the run would otherwise pass with it silently skipped.
     # A server that stops opening the menu fails the test on its own tick budget, before this is
     # reached. The captures wait on the server's own state, so they run here; the item texture swap
     # is the one that cannot, because it waits for a resource reload to finish on the client the
@@ -383,10 +383,7 @@ while :; do
     # click's two halves, gui_click taking the release path (the cursor carries a stack) and
     # gui_click_empty the press path (the cursor is empty), so a leg that runs both proves both.
     case "$LOADER" in
-      1.20.6-forge)
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
-        ;;
-      1.2.5-forge)
+      1.20.6-forge|1.2.5-forge|b1.7.3-ornithe|b1.7.3-stationapi)
         gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
         ;;
       *)
@@ -403,8 +400,8 @@ while :; do
     fi
     # The screen input #1094 forwards needs a screen the server can open for its player, which
     # 1.2.5's interaction manager and 1.20.6's game mode do by right-clicking the chest these tests
-    # place. The other three servers can open no screen for their player until #1098, so their
-    # lists skip these two and only these legs have to show they ran.
+    # place. The other three servers cannot: Test.use_block only right-clicks a grug block, so the
+    # vanilla chest cannot be opened there, and their lists skip these two.
     if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ]; then
       for input in forwarded_press_screen_key forwarded_scroll_screen; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${input}-Test.grug" "$SERVER_LOG"; then
