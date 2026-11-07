@@ -15,11 +15,17 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
+import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
+import net.grug.minecraft.ornithe.gui.GrugMenu;
+import net.grug.minecraft.ornithe.gui.GrugScreenPacket;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
+import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
@@ -47,12 +53,16 @@ import java.util.Set;
  * keeps the feet in {@code y}, so {@link #testPlayerEye} adds the eye height above the room's floor
  * anchor (#1178).
  *
- * <p>The client-only functions are inherited too, and are not overridden here: each one refuses
- * itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot
- * test on a server into an err naming the function, rather than an exception from inside {@code
- * net.minecraft.client}. {@code useBlockForTest} is not one of them and is overridden: a click is
- * not a client-only function, so the server right-clicks in its own world, the world the test reads
- * (#1090).
+ * <p>What that leaves is the calls that are neither client-only nor server-only. {@code
+ * useBlockForTest} is one: a click is not a client-only function, so the server right-clicks in its
+ * own world, the world the test reads (#1090). {@code GUI.open} is another, since the menu it
+ * builds belongs to wherever it runs, so this server builds its own menu and sends it to the joined
+ * client (#1098). A call a test makes on a screen is the client's even when the server's menu is
+ * its subject, so {@code openInventory} and {@code clickScreen} are forwarded to that client, and
+ * the cursor calls set this server's own cursor and sync it to the screen that draws it. The other
+ * client-only functions are inherited and each refuses itself through {@code
+ * ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot test on a server into an
+ * err naming the function, rather than an exception from inside {@code net.minecraft.client}.
  *
  * <p>Excluded from coverage because only the dispatch-only multiplayer job launches a server, and
  * the coverage gate merges no server run's data (#167 stage 4). See #163.
@@ -69,6 +79,139 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public GrugSide getSide() {
         return GrugSide.DEDICATED_SERVER;
+    }
+
+    /**
+     * Opens the block entity's GUI as this server's own menu and has the joined client show it
+     * (#1098). Beta's {@code GUI.open} used to build the screen on the client alone, so a click
+     * from it carried slot ids for a menu this server did not have; now both sides build the same
+     * slots from the layout this sends, and the click lands in the server's inventory.
+     *
+     * <p>Whatever menu the player had open is closed first, one at a time as the game does, so the
+     * client's next screen starts from window 0. The layout packet goes out before the menu's own
+     * content packets, because a client applies a content packet only to a screen that is already
+     * up under that window id.
+     *
+     * <p>The window id is never 0: the client treats window 0 as the player's own inventory, so a
+     * menu opened under it would never receive its slot contents.
+     */
+    @Override
+    public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        Inventory inventory = (Inventory) blockEntityObj;
+        BlockEntity blockEntity = (BlockEntity) blockEntityObj;
+        GrugGuiBuilder layout = (GrugGuiBuilder) guiBuilderObj;
+
+        GrugServerRun.closeOpenMenu(player);
+
+        GrugMenu menu = new GrugMenu(player, inventory, layout);
+        int windowId = nextWindowId();
+        menu.networkId = windowId;
+        player.menu = menu;
+        GrugServerRun.sendToPlayer(
+                player,
+                new GrugScreenPacket(
+                        windowId, blockEntity.x, blockEntity.y, blockEntity.z, layout));
+        GrugServerRun.listenToMenu(player, menu);
+    }
+
+    /**
+     * The window id the next {@code GUI.open} installs its menu under, one after another as
+     * vanilla's own counter does. It must not be 0, which is the player's own inventory.
+     */
+    private static int nextWindowId() {
+        windowId = windowId % 99 + 1;
+        return windowId;
+    }
+
+    private static int windowId = 0;
+
+    // The screen functions a client adapter implements. The ones a test makes on a screen are
+    // forwarded to the client of the player who started the run (#1094); GUI.open builds the block
+    // entity's menu here, so the client's screen is the one this server's slots belong to (#1098).
+    // The pointer calls are the menu's, so this server answers them itself: a click is applied to
+    // this server's own menu, and a carried stack only the client knows would not be the one the
+    // click uses.
+
+    /**
+     * Opens the player's own inventory on the client of the player who started the run, whose own
+     * inventory it is (#1094).
+     *
+     * <p>The menu this server has open is closed first, so both sides are on the player's own
+     * inventory, window 0, by the time the client's screen is up: a press there carries window 0,
+     * which this server only accepts as its own player's inventory menu.
+     */
+    @Override
+    public void openInventory(Object playerObj) {
+        if (playerObj instanceof PlayerEntity) {
+            GrugServerRun.closeOpenMenu((PlayerEntity) playerObj);
+        }
+        screens.openInventory();
+    }
+
+    /**
+     * Closes the menu this server has open, which this server's half of closing the joined client's
+     * screen: {@code closeMenu} sends the packet that client closes it with. The client is then
+     * asked to close its own screen too (#1094), because the screen call is the client's and a
+     * client that closed its screen itself (Escape, say) has already sent this server the packet
+     * that empties the menu. One client serves the whole run, so a screen a test opened outlives
+     * it, and a capture test that follows a GUI test would otherwise take a frame of the panel
+     * rather than of the world (#418).
+     */
+    @Override
+    public void closeOpenScreenForTest() {
+        Object playerObj = testPlayer();
+        if (playerObj instanceof PlayerEntity) {
+            GrugServerRun.closeOpenMenu((PlayerEntity) playerObj);
+        }
+        screens.closeScreen();
+    }
+
+    /**
+     * Pressed on the client's screen, by the client of the player who started the run (#1094).
+     *
+     * <p>The screen is the block entity's menu, which this server built in {@code GUI.open} under
+     * the window id it sent to that client, so the click packet the press sends names this server's
+     * menu and lands in this server's slots. It is applied by {@link
+     * GrugControlServer#applyClientWork} on a later tick, never inside this call, because the
+     * server thread is frozen here and cannot read it.
+     */
+    @Override
+    public boolean clickScreen(double x, double y, double button) {
+        return screens.clickScreen(x, y, (int) button);
+    }
+
+    /**
+     * Sets the carried stack this server's next click uses, and tells the client, so a frame it
+     * draws and a click it predicts both agree with it (#1094).
+     */
+    @Override
+    public void setCarriedItem(Object itemObj) {
+        Object playerObj = testPlayer();
+        if (!(playerObj instanceof PlayerEntity)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.set_carried_item: There is no player to set a cursor on.");
+            return;
+        }
+        PlayerEntity player = (PlayerEntity) playerObj;
+        player.inventory.setCursorItem(itemObj == null ? null : new ItemStack((Item) itemObj));
+        GrugServerRun.sendCursor(player);
+    }
+
+    /** Clears the carried stack, and the client's copy of it (#1094). */
+    @Override
+    public void deleteCarriedItem() {
+        Object playerObj = testPlayer();
+        if (!(playerObj instanceof PlayerEntity)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
+                            + " on.");
+            return;
+        }
+        PlayerEntity player = (PlayerEntity) playerObj;
+        player.inventory.setCursorItem(null);
+        GrugServerRun.sendCursor(player);
     }
 
     /**
@@ -264,15 +407,6 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public boolean forwardsClientCalls() {
         return true;
-    }
-
-    /**
-     * Closes the joined client's screen (#1094): this server has no screen of its own, so the call
-     * is the client's, and the client of the player who started the run performs it.
-     */
-    @Override
-    public void closeOpenScreenForTest() {
-        screens.closeScreen();
     }
 
     /** Whether the joined client of the player who started the run has a screen open (#1094). */

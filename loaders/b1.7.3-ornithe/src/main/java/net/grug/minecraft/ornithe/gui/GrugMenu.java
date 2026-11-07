@@ -4,6 +4,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.inventory.menu.InventoryMenu;
 import net.minecraft.inventory.slot.InventorySlot;
 import net.minecraft.item.ItemStack;
@@ -32,8 +33,17 @@ public class GrugMenu extends InventoryMenu {
 
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
             // The result is not an inventory slot; the block entity owns a one-slot container for
-            // it. Taking from that container is the same path take_crafting_result uses.
-            Inventory resultInventory = ((GrugBlockEntity) blockInventory).getResultInventory();
+            // it. Taking from that container is the same path take_crafting_result uses. A
+            // placeholder has no block entity behind it, so its result slot is one of its own and
+            // nothing is notified when it is taken from: the server's own take sends the item. A
+            // joined client's copy does not notify either, because the hook is the block entity's
+            // own work: it consumes the taken result and restocks the grid, which only the server
+            // owns, and a client's unsynchronised neighbours would diverge with no packet to
+            // correct them (#1098).
+            Inventory resultInventory =
+                    blockInventory instanceof GrugBlockEntity
+                            ? ((GrugBlockEntity) blockInventory).getResultInventory()
+                            : new SimpleInventory("Crafting Result", 1);
             this.addSlot(
                     new InventorySlot(resultInventory, 0, res.x(), res.y()) {
                         @Override
@@ -44,8 +54,11 @@ public class GrugMenu extends InventoryMenu {
                         @Override
                         public void onItemRemoved(ItemStack stack) {
                             super.onItemRemoved(stack);
-                            ((GrugBlockEntity) blockInventory)
-                                    .notifyOutputTaken(stack != null ? stack.size : 0);
+                            if (!player.world.isMultiplayer
+                                    && blockInventory instanceof GrugBlockEntity) {
+                                ((GrugBlockEntity) blockInventory)
+                                        .notifyOutputTaken(stack != null ? stack.size : 0);
+                            }
                         }
                     });
         }

@@ -14,6 +14,7 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.stationapi.GrugClientHooks;
 import net.grug.minecraft.stationapi.StationApiAdapter;
+import net.grug.minecraft.stationapi.gui.GrugScreen;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.PlayerEntity;
@@ -360,8 +361,11 @@ public final class GrugControlStation {
         }
         if (!pending) return;
         waited++;
-        if (waited == 1 && mc.currentScreen != null) {
+        if (waited == 1 && mc.currentScreen != null && !(mc.currentScreen instanceof GrugScreen)) {
             // The runner shows no screen between tests, so the forwarded capture does the same.
+            // The GUI a server opened for its player is the capture's subject, so it stays:
+            // closing it would capture the world and close the server's screen handler with it
+            // (#1098).
             mc.setScreen(null);
         }
         if (waited == 1 || waited % 100 == 0) {
