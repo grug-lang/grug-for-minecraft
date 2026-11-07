@@ -13,7 +13,8 @@
             "net.grug.minecraft.ornithe.GrugModLoader"
         ],
         "client": [
-            "net.grug.minecraft.ornithe.ClientGrugModLoader"
+            "net.grug.minecraft.ornithe.ClientGrugModLoader",
+            "net.grug.minecraft.ornithe.client.ClientGrugScreens"
         ],
         "server": [
             "net.grug.minecraft.ornithe.ServerGrugModLoader"

@@ -152,17 +152,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("client GUI glue: the screen and render glue are excluded")
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
-        // The player and builder types cannot be wrong because of a script, so cast directly.
+        // The player and builder types cannot be wrong because of a script, so cast directly. A
+        // dedicated server overrides this with its own menu: this path is the client that owns the
+        // inventory, which is a singleplayer client (#1098).
         PlayerEntity player = (PlayerEntity) playerObj;
         Inventory inventory = (Inventory) blockEntityObj;
         GrugGuiBuilder builder = (GrugGuiBuilder) guiBuilderObj;
-        if (FabricLoader.getInstance().getEnvironmentType() != EnvType.CLIENT) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "GUI.open: Opening a GUI on a dedicated server is not supported yet.");
-            return;
-        }
-
         GrugScreen.open(player, inventory, builder);
     }
 

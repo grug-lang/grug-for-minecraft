@@ -6,6 +6,7 @@ import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
 import net.grug.minecraft.ornithe.block.entity.GrugSavedDataPacket;
+import net.grug.minecraft.ornithe.client.ClientGrugScreens;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.TickTimer;
@@ -81,6 +82,9 @@ public abstract class MinecraftMixin implements GrugClientAccess {
         // A saved-data packet arrives on the network thread, whose world lookup answers a tile the
         // frame pass does not draw, so it is applied here, on the thread that draws. See #1093.
         GrugSavedDataPacket.applyPending(((Minecraft) (Object) this).world);
+        // A GUI packet a server sent arrives on the network side too, so the screen it opens is
+        // installed here, on the thread that draws (#1098).
+        ClientGrugScreens.applyPending((Minecraft) (Object) this);
         GrugControlAlpha.onClientTick((Minecraft) (Object) this, grug$hooks);
     }
 
