@@ -68,7 +68,9 @@ export tick_any_side(ctx: TestTickContext) {
     # older four store the draw as a float, so the bound allows the float32 expansion of 0.1 rather
     # than emulating the rounding. Every version fixes y at 0.2, but those four write 0.2F, whose
     # double expansion is 0.20000000298023224, where 1.20.6 writes the double 0.2, so the y check
-    # allows 1e-6 around the reference's 0.2 and still fails a zeroed motion.
+    # allows 1e-6 around the reference's 0.2 and still fails a zeroed motion. A dedicated server
+    # rewrites a tracked item's velocity to its spawn packet's 1/128 steps, so the constructor's 0.2
+    # reads 25/128 = 0.1953125 there while a zeroed hop stays 0 (#1051).
     motion: Vec3 = stack_found.unwrap().entity().get_delta_movement()
     ctx.assert(motion.x() > -0.100001 and motion.x() < 0.100001, "The hop's x should stay within the constructor's random 0.1.")
     ctx.assert(motion.z() > -0.100001 and motion.z() < 0.100001, "The hop's z should stay within the constructor's random 0.1.")
@@ -76,7 +78,7 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(found.unwrap().pickup_delay() == 10, "A broken pipe's item should wait 10 ticks before it can be picked up.")
     ctx.assert(stack_found.unwrap().pickup_delay() == 10, "A broken pipe's stack should wait 10 ticks before it can be picked up.")
 
-    ctx.assert(motion.y() > 0.199999 and motion.y() < 0.200001, "The hop's y should be the constructor's 0.2, within a float's expansion.")
+    ctx.assert(motion.y() > 0.19 and motion.y() < 0.200001, "The hop's y should be the constructor's 0.2, within a float's expansion or a dedicated server's 1/128 step.")
 
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
     ctx.assert(stack_source.get_item_count_in_slot(0) == 0, "The second source chest should be empty.")
