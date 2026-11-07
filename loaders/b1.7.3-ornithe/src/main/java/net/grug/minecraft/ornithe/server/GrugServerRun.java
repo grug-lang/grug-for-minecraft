@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe.server;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
@@ -87,18 +88,26 @@ public final class GrugServerRun {
 
     /** Called at the end of every tick of the server. */
     public static void onServerTick(MinecraftServer server) {
-        if (done || advancing || !"true".equals(System.getenv("GRUG_CI"))) {
+        // A test's own tick may run the world again through #advance; the flush belongs after the
+        // burst, not inside it (#1191).
+        if (advancing) {
             return;
         }
-        try {
-            tick(server);
-        } catch (Throwable thrown) {
-            // The server loop would end the process without a word, which reads as a hang to
-            // whoever watches the log, so say what stopped the run.
-            System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
-            thrown.printStackTrace(System.out);
-            stop(1);
+        if (!done && "true".equals(System.getenv("GRUG_CI"))) {
+            try {
+                tick(server);
+            } catch (Throwable thrown) {
+                // The server loop would end the process without a word, which reads as a hang to
+                // whoever watches the log, so say what stopped the run.
+                System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
+                thrown.printStackTrace(System.out);
+                stop(1);
+            }
         }
+        // Every tick, in a CI run or not: the server installs the deferring transport whenever it
+        // starts, so a server outside CI would otherwise hold every change it ever made (#1191).
+        // The flush covers every world the server runs, after the tick's own block changes.
+        GrugSavedDataSync.flush();
     }
 
     /**

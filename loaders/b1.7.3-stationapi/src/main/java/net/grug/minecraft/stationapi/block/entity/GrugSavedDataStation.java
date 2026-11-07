@@ -35,9 +35,32 @@ public final class GrugSavedDataStation implements GrugSavedDataSync.Transport {
         return block instanceof GrugBlock && ((GrugBlock) block).drawsCustomGeometry();
     }
 
+    /**
+     * A test can tick the level a thousand times inside one of its own ticks (#780), and a pipe
+     * that saves a travelling item every game tick would then queue a packet per saved field per
+     * tick, which overruns this connection's megabyte and drops the player (#1191). Core holds one
+     * change per block entity until the server flushes it at the end of the tick.
+     */
+    @Override
+    public boolean defersSends() {
+        return true;
+    }
+
+    @Override
+    public Object levelOf(Object blockEntity) {
+        return ((GrugBlockEntity) blockEntity).world;
+    }
+
     @Override
     public void send(Object blockEntity) {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
+        // A flush after the burst can reach a block entity the burst itself broke or replaced,
+        // whose world is gone or which is no longer the one at its position by then; its data has
+        // no client copy left to reach.
+        if (entity.world == null
+                || entity.world.getBlockEntity(entity.x, entity.y, entity.z) != entity) {
+            return;
+        }
         GrugServerRun.sendToWorld(entity.world, new GrugSavedDataPacket(entity));
     }
 

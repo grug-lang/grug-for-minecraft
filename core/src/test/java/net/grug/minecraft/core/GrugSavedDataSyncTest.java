@@ -27,6 +27,12 @@ class GrugSavedDataSyncTest {
 
     /** Stands in for a loader's grug block entity. */
     private static final class Machine implements GrugSavedNumbers.Holder, GrugSavedLists.Holder {
+        /** The level this copy stands in, for a transport that scopes its record. */
+        Object level = null;
+
+        /** Whether this copy is the simulated one, when the recorder asks per block entity. */
+        boolean serverSide = true;
+
         @Override
         public void markSavedNumbersChanged() {}
     }
@@ -44,14 +50,27 @@ class GrugSavedDataSyncTest {
         /** Whether it answers {@link Transport#defersSends} true, as the a1 server does. */
         boolean defers = false;
 
+        /**
+         * Whether the block entity answers which side and level it is, which is what one process
+         * holding both an integrated server's copy and a client's needs.
+         */
+        boolean perEntity = false;
+
+        /** The level every block entity stands in, unless {@link #perEntity} says otherwise. */
+        Object level = new Object();
+
+        /** Whether this side names a level at all. */
+        boolean namesLevel = true;
+
         int sends = 0;
         int redraws = 0;
         Object lastSent = null;
         Object lastRedrawn = null;
+        List<Object> sent = new ArrayList<>();
 
         @Override
         public boolean onServer(Object blockEntity) {
-            return onServer;
+            return perEntity ? ((Machine) blockEntity).serverSide : onServer;
         }
 
         @Override
@@ -62,6 +81,14 @@ class GrugSavedDataSyncTest {
         @Override
         public boolean defersSends() {
             return defers;
+        }
+
+        @Override
+        public Object levelOf(Object blockEntity) {
+            if (perEntity) {
+                return ((Machine) blockEntity).level;
+            }
+            return namesLevel ? level : null;
         }
 
         /**
@@ -77,6 +104,7 @@ class GrugSavedDataSyncTest {
         public void send(Object blockEntity) {
             sends++;
             lastSent = blockEntity;
+            sent.add(blockEntity);
         }
 
         @Override
@@ -368,6 +396,121 @@ class GrugSavedDataSyncTest {
         GrugSavedDataSync.flush();
 
         assertEquals(0, recorder.sends, "no side was installed when the held change was flushed");
+    }
+
+    @Test
+    void aFlushSendsAndDropsOnlyTheLevelItNames() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        recorder.perEntity = true;
+        GrugSavedDataSync.install(recorder);
+        Object serverLevel = new Object();
+        Object otherLevel = new Object();
+        Machine inServerLevel = new Machine();
+        inServerLevel.level = serverLevel;
+        Machine inOtherLevel = new Machine();
+        inOtherLevel.level = otherLevel;
+
+        GrugSavedNumbers.set(inServerLevel, "x", 1);
+        GrugSavedDataSync.changed(inServerLevel);
+        GrugSavedNumbers.set(inOtherLevel, "x", 1);
+        GrugSavedDataSync.changed(inOtherLevel);
+
+        GrugSavedDataSync.flush(serverLevel);
+        assertEquals(
+                List.of(inServerLevel),
+                recorder.sent,
+                "a flush of one level sends that level's change and no other's");
+
+        GrugSavedDataSync.flush(serverLevel);
+        assertEquals(1, recorder.sends, "that level held nothing more");
+
+        GrugSavedDataSync.flush(otherLevel);
+        assertEquals(
+                List.of(inServerLevel, inOtherLevel),
+                recorder.sent,
+                "the other level's change was still held, not dropped by the first flush");
+    }
+
+    @Test
+    void oneProcessHoldsTheServerCopyAndNeverTheClientCopy() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        recorder.perEntity = true;
+        GrugSavedDataSync.install(recorder);
+        Object level = new Object();
+        Machine serverCopy = new Machine();
+        serverCopy.level = level;
+        Machine clientCopy = new Machine();
+        clientCopy.level = level;
+        clientCopy.serverSide = false;
+
+        GrugSavedNumbers.set(serverCopy, "x", 1);
+        GrugSavedDataSync.changed(serverCopy);
+        GrugSavedNumbers.set(clientCopy, "x", 1);
+        GrugSavedDataSync.changed(clientCopy);
+
+        assertEquals(0, recorder.sends, "the simulated copy is held until the flush");
+
+        GrugSavedDataSync.flush(level);
+        assertEquals(
+                List.of(serverCopy),
+                recorder.sent,
+                "the client's own copy is written to already, so only the server's is sent");
+    }
+
+    @Test
+    void aNewSideIsNeverHandedWhatTheOldSideHeld() {
+        Recorder server = new Recorder();
+        server.defers = true;
+        server.perEntity = true;
+        GrugSavedDataSync.install(server);
+        Object level = new Object();
+        Machine copy = new Machine();
+        copy.level = level;
+
+        GrugSavedNumbers.set(copy, "x", 1);
+        GrugSavedDataSync.changed(copy);
+
+        Recorder client = new Recorder();
+        client.perEntity = true;
+        GrugSavedDataSync.install(client);
+        GrugSavedDataSync.flush(level);
+
+        assertEquals(0, client.sends, "the new side is never handed the old side's change");
+        assertEquals(0, server.sends, "the old side's change is forgotten with it");
+    }
+
+    @Test
+    void reinstallingTheSameSideKeepsWhatItHeld() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        recorder.perEntity = true;
+        GrugSavedDataSync.install(recorder);
+        Object level = new Object();
+        Machine machine = new Machine();
+        machine.level = level;
+
+        GrugSavedNumbers.set(machine, "x", 1);
+        GrugSavedDataSync.changed(machine);
+        GrugSavedDataSync.install(recorder);
+        GrugSavedDataSync.flush(level);
+
+        assertEquals(1, recorder.sends, "the same side holds the same changes");
+    }
+
+    @Test
+    void aDeferringSideThatNamesNoLevelSendsAtOnce() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        recorder.namesLevel = false;
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedNumbers.set(machine, "marker", 1);
+        GrugSavedDataSync.changed(machine);
+
+        assertEquals(1, recorder.sends, "a change no level could flush is not held forever");
     }
 
     @Test

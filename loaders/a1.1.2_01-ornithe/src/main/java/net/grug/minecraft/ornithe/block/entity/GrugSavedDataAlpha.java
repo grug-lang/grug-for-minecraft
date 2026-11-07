@@ -53,6 +53,11 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
     }
 
     @Override
+    public Object levelOf(Object blockEntity) {
+        return ((GrugBlockEntity) blockEntity).world;
+    }
+
+    @Override
     public boolean drawsFrame(Object blockEntity) {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
         if (entity.world == null) {

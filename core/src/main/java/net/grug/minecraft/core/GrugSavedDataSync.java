@@ -6,7 +6,7 @@ import net.grug.minecraft.grug.GrugSavedLists;
 import net.grug.minecraft.grug.GrugSavedNumbers;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,26 +77,50 @@ public final class GrugSavedDataSync {
          *
          * <p>A test can tick a level inside one of its own ticks (#780), a thousand times in a
          * burst, and a script that saves a travelling item every tick would otherwise queue a
-         * packet per saved field per tick: the a1 connection drops the player when a burst crosses
-         * its megabyte, which is #1191. The client's copy only ever needs the latest state, so a
-         * loader that answers true here is sent one packet per block entity, at the flush.
+         * packet per saved field per tick: the a1 and b1.7.3 connections drop the player when a
+         * burst crosses the megabyte their outbound queue holds, which is #1191. The client's copy
+         * only ever needs the latest state, so a loader that answers true here is sent one packet
+         * per block entity, at the flush.
          *
          * <p>False by default, so a loader that installs no flush keeps sending at once.
          */
         default boolean defersSends() {
             return false;
         }
+
+        /**
+         * The level the block entity belongs to, which scopes everything held about it: a flush of
+         * one level sends and drops only that level's changes, and the level's record is held
+         * weakly so a level that goes away takes its held changes with it.
+         *
+         * <p>Null when this side does not name its levels, which keeps one record for the whole
+         * side, as every loader had before a side could defer. A side that defers and answers null
+         * here is sent its change at once rather than held for a flush no level could reach.
+         */
+        default Object levelOf(Object blockEntity) {
+            return null;
+        }
     }
 
-    /** What was last sent to each block entity, keyed weakly so a broken one is collected. */
-    private static final Map<Object, String> LAST_SENT = new WeakHashMap<>();
-
     /**
-     * The block entities a deferring transport is waiting to send, at most once each, in the order
-     * they first changed. Held strongly for the tick between a change and its flush, which is
-     * shorter than a broken block entity's own lifetime.
+     * One level's saved-data state: what was last sent to each of its block entities, and the
+     * changes a deferring side is holding for its next flush.
+     *
+     * <p>The map is keyed weakly by the level and the block entities in a record are weak too, so
+     * neither a level that went away nor one of its broken block entities is kept alive by a held
+     * change. A block entity in a loaded level is strongly reachable from its chunk, so a weak hold
+     * cannot lose a change that still has a client copy to reach; only a change whose block entity
+     * was removed from the world goes, and that one has nowhere to go.
      */
-    private static final Set<Object> DEFERRED = new LinkedHashSet<>();
+    private static final Map<Object, Pending> LEVELS = new WeakHashMap<>();
+
+    private static final class Pending {
+        /** What was last sent to each block entity, keyed weakly so a broken one is collected. */
+        private final Map<Object, String> lastSent = new WeakHashMap<>();
+
+        /** The block entities this level is waiting to send, at most once each. */
+        private final Set<Object> held = Collections.newSetFromMap(new WeakHashMap<>());
+    }
 
     private static Transport transport = null;
 
@@ -113,8 +137,16 @@ public final class GrugSavedDataSync {
         return !side.isDedicatedServer();
     }
 
-    /** Installs the side that sends, which a dedicated server does once it is up. */
+    /**
+     * Installs the side that sends, which a dedicated server does once it is up.
+     *
+     * <p>A different side starts with nothing: what the last one held was for its own client
+     * copies, and sending one of those through the new side would be a packet for the wrong world.
+     */
     public static synchronized void install(Transport installed) {
+        if (installed != transport) {
+            LEVELS.clear();
+        }
         transport = installed;
     }
 
@@ -133,39 +165,57 @@ public final class GrugSavedDataSync {
         if (!installed.drawsFrame(blockEntity)) {
             return;
         }
+        Object level = installed.levelOf(blockEntity);
+        Pending pending = LEVELS.computeIfAbsent(level, unused -> new Pending());
         String now = snapshot(blockEntity);
-        if (now.equals(LAST_SENT.get(blockEntity))) {
+        if (now.equals(pending.lastSent.get(blockEntity))) {
             return;
         }
-        LAST_SENT.put(blockEntity, now);
-        if (installed.defersSends()) {
-            DEFERRED.add(blockEntity);
-        } else {
+        pending.lastSent.put(blockEntity, now);
+        if (!installed.defersSends()) {
             installed.send(blockEntity);
+        } else if (level == null) {
+            // A deferring side that does not say which level holds the change has nowhere to
+            // flush it from, so it is sent at once rather than held forever.
+            installed.send(blockEntity);
+        } else {
+            pending.held.add(blockEntity);
         }
     }
 
     /**
-     * Sends every change a deferring transport has held, one packet per block entity carrying the
-     * data it holds now, and forgets them.
+     * Sends every change a deferring transport has held for any level, one packet per block entity
+     * carrying the data it holds now, and forgets what it sent.
      *
-     * <p>A loader calls this from the place that ends a burst of world ticks, and before it asks
-     * the client about anything it has to have seen, so a change the client's frame pass reads is
-     * still there before the ask. Nothing pending sends nothing, and a side that was never
-     * installed (or was taken away) only forgets what it held.
+     * <p>A loader calls this where a batch of world work ends, which for a server is the end of its
+     * tick: one tick covers every world it runs, so every held level is due. A loader with one
+     * world can name it with {@link #flush(Object)} instead.
+     *
+     * <p>Nothing pending sends nothing, and a side that was never installed (or was taken away)
+     * only forgets what it held. What was last sent is kept per level, so a script that saves the
+     * same value again after a flush is still not sent a second time.
      */
     public static synchronized void flush() {
-        if (DEFERRED.isEmpty()) {
+        for (Object level : new ArrayList<>(LEVELS.keySet())) {
+            flush(level);
+        }
+    }
+
+    /**
+     * Sends and forgets the changes held for one level, and leaves every other level alone: a flush
+     * of the server's world must neither send nor drop a change of a client's level, or of a second
+     * world in the same process.
+     */
+    public static synchronized void flush(Object level) {
+        Pending pending = LEVELS.get(level);
+        if (pending == null) {
             return;
         }
-        List<Object> ready = new ArrayList<>(DEFERRED);
-        DEFERRED.clear();
-        Transport installed = transport;
-        if (installed == null) {
-            return;
-        }
+        List<Object> ready = new ArrayList<>(pending.held);
+        pending.held.clear();
+        // A record only exists for the installed side: install clears them when the side changes.
         for (Object blockEntity : ready) {
-            installed.send(blockEntity);
+            transport.send(blockEntity);
         }
     }
 
@@ -189,7 +239,10 @@ public final class GrugSavedDataSync {
         }
         // The redraw packet carries the data too, so a held change of the same block entity is
         // what it replaces rather than something to send after it, which could be older.
-        DEFERRED.remove(blockEntity);
+        Pending pending = LEVELS.get(installed.levelOf(blockEntity));
+        if (pending != null) {
+            pending.held.remove(blockEntity);
+        }
         installed.redraw(blockEntity);
     }
 
