@@ -19,6 +19,17 @@ import net.grug.minecraft.grug.GrugScreenshots;
  * the answer describe the frame a capture would read: a frame that drained the work it had is one
  * the capture may read, and a frame that did not is one it may not.
  *
+ * <p>What that covers is the frames sampled up to the moment the answer is given, not the frame a
+ * capture asks for next. A capture is served by the first frame drawn after its ask (see {@link
+ * #captureable}), and the server's world keeps simulating in between: a block or light update that
+ * reaches the client after the answer is applied on its next tick and uploaded by the frame the
+ * capture reads, so it can be in the capture although no frame counted here had it. A block a test
+ * places is not that case: it calls {@link #noteBusy} and is owed by the client, so the answer
+ * waits for it (#804). Closing the rest would need a client-side version of the world that the
+ * frame hook could compare with the one the settle answer saw, which no loader keeps today; the
+ * docs of {@link #settled} and of {@code Test.world_settled} say what the answer covers instead.
+ * See #1154.
+ *
  * <p>The two calls can arrive on different threads: a capture's wait runs on the render thread
  * while a test's own wait can run on the game-tick thread. Both methods are synchronized because a
  * torn read of the two counters could let a capture through one frame early.
@@ -56,6 +67,9 @@ public final class GrugRenderSettle {
     /**
      * Whether the frame a capture would read had nothing pending, so the capture would read the
      * settled scene.
+     *
+     * <p>The frame it describes is the one the answer is about, not necessarily the one a later
+     * capture is served by: see the class doc for the update that can still land in that one.
      *
      * <p>On the loaders that read the back buffer, the frame a capture reads is one behind the last
      * one drawn: the back buffer holds what the previous swap left there. On 1.20.6 the capture is
@@ -223,8 +237,16 @@ public final class GrugRenderSettle {
      * whichever frame was on the buffer: a frame drawn in between was never checked, and a tick
      * that raised the indicator could put the text into exactly that frame. The loader now asks
      * this at the end of the frame it is about to read, so the check and the read describe one
-     * frame. The frames-drawn half is what keeps that frame from being one drawn before the ask,
-     * which is what a test's own settle wait promises the capture reads.
+     * frame. The frames-drawn half is what keeps that frame from being one drawn before the ask.
+     *
+     * <p>It deliberately does not consult {@link #settled}. A capture asked after a settle answer
+     * can read a frame that includes an update the server sent in between (see the class doc), so
+     * requiring the settle here would not make the frame one that no later update had dirtied: the
+     * client applies such an update within this frame, and by the time the frame ends it is already
+     * in the pixels. It would only delay every capture until two idle frames had passed, and the
+     * promise would still be false. What the capture can wait on is the one condition a frame's end
+     * answers, that this frame was drawn after the ask, so it waits on that and the docs say what
+     * the settle covers. See #1154.
      *
      * <p>Pure in the two values, so its unit test covers every combination instead of the loader
      * carrying a conjunction whose arms a run only meets while saving.

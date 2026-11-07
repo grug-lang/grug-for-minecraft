@@ -464,8 +464,12 @@ public interface ModLoaderAdapter {
      * reference. A loader answers this from its own frame hook through {@link #onFrameRendered},
      * because a tick is not a frame and the game draws fewer frames than it runs ticks. The answer
      * also waits for the client to hold every block a test has placed, because on 1.20.6 the
-     * client's copy arrives in a packet after the server's world already has the edit. See #253,
-     * #257 and #804.
+     * client's copy arrives in a packet after the server's world already has the edit.
+     *
+     * <p>The answer describes the world at the moment it is given, not the frame a capture is
+     * served by afterwards: a block or light update the server's own simulation sends in between is
+     * applied on the client's next tick and uploaded by that frame, so it can be in the capture
+     * even though no frame counted here had it. See {@link GrugRenderSettle} and #1154.
      */
     boolean isWorldSettled();
 
@@ -1111,7 +1115,10 @@ public interface ModLoaderAdapter {
 
     /**
      * Reads the rectangle out of the current frame, or returns null after reporting why it could
-     * not: a coordinate outside the frame, or an empty rectangle.
+     * not: a coordinate outside the frame, an empty rectangle, or a frame the loader waited for and
+     * never came. Every null is a report, because the host function that asked treats one as an
+     * error already made rather than one to make again; a null that is not reported would pass the
+     * assertion it was taken for. See #1154.
      *
      * <p>A dedicated server forwards the read to the joined client of the player who started the
      * run, so a test that compares a capture with a reference image works on both sides. Comparing

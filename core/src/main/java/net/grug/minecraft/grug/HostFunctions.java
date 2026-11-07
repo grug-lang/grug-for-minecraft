@@ -849,6 +849,12 @@ public class HostFunctions {
      * is not a frame and the game draws fewer frames than it runs ticks: the frame a capture reads
      * can be several ticks old, so a tick-based answer can pass while the frame it would read is
      * not the settled scene. See #253 and #257.
+     *
+     * <p>The answer covers the frames the client had drawn when it was given. The capture that
+     * follows is served by the first frame drawn after it asks, and a block or light update the
+     * server's own simulation sends in between is applied on the client's next tick and is in that
+     * frame, so it can be in the capture although nothing here waited for it. A block the test
+     * places is counted before this can answer. See {@link GrugRenderSettle} and #1154.
      */
     public static boolean Test_world_settled() {
         // A settle wait is about frames, so asking whether the client has a settled one means the
@@ -1978,7 +1984,9 @@ public class HostFunctions {
                     // joined client on a dedicated server, so both sides compare the same way.
                     BufferedImage capture = GrugCore.getAdapter().captureScreenshot(x1, y1, x2, y2);
                     if (capture == null) {
-                        // The adapter has already reported a capture it could not take.
+                        // The adapter has already reported a capture it could not take, which its
+                        // contract makes every null: a null with no report would let the assertion
+                        // pass. See #1154.
                         return;
                     }
                     // grug resolves a resource to "<mod name>/<path relative to the mod>", so

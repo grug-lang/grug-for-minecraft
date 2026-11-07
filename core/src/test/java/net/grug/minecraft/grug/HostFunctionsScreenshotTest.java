@@ -18,8 +18,9 @@ import java.util.function.Consumer;
 
 /**
  * Covers the capture {@code Screenshot.equals} takes before it compares (#1086): a capture the
- * adapter refused is already reported by the adapter, so the host function must not go on to read a
- * reference directory and compare a null image, and must not report a second error.
+ * adapter refused is already reported by the adapter, which its contract makes every null, so the
+ * host function must not go on to read a reference directory and compare a null image, and must not
+ * report a second error. See #1154.
  *
  * <p>No grug test can produce a refused capture on a healthy run, so the decision is driven from
  * Java with an adapter that answers null, the way {@code HostFunctionsStaleIdTest} drives its
