@@ -93,18 +93,26 @@ public final class GrugServerRun {
 
     /** Called at the end of every tick of a server world. */
     public static void onWorldTick(World tickedWorld) {
-        if (done || advancing || !"true".equals(System.getenv("GRUG_CI"))) {
+        // A test's own tick may run the world again through #advance, and the flush belongs after
+        // the whole burst, not inside it (#1191).
+        if (advancing) {
             return;
         }
-        try {
-            tick(tickedWorld);
-        } catch (Throwable thrown) {
-            // The server loop would end the process without a word, which reads as a hang to
-            // whoever watches the log, so say what stopped the run.
-            System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
-            thrown.printStackTrace(System.out);
-            stop(1);
+        if (!done && "true".equals(System.getenv("GRUG_CI"))) {
+            try {
+                tick(tickedWorld);
+            } catch (Throwable thrown) {
+                // The server loop would end the process without a word, which reads as a hang to
+                // whoever watches the log, so say what stopped the run.
+                System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
+                thrown.printStackTrace(System.out);
+                stop(1);
+            }
         }
+        // Every tick of a server world, in a CI run or not: the transport is installed whenever a
+        // dedicated server is up and holds a change until it is flushed, so a server outside CI
+        // would otherwise hold every change it ever made (#1191).
+        GrugSavedDataSync.flush(tickedWorld);
     }
 
     /**
@@ -217,9 +225,6 @@ public final class GrugServerRun {
         // after this runner tick, and a test asserts on the tick after its click.
         GrugControlAlpha.server().applyClientWork();
         runner.tick(testPlayer);
-        // One packet per block entity whose saved data changed during this tick, however many
-        // world ticks a test ran inside it (#1191, see GrugSavedDataAlpha.defersSends).
-        GrugSavedDataSync.flush();
         if (runner.isFinished()) {
             stop(runner.isPassed() ? 0 : 1);
         }

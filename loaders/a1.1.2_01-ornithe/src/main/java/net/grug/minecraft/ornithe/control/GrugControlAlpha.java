@@ -140,7 +140,7 @@ public final class GrugControlAlpha {
             // (#1123). A held saved-data change goes after them, so a block placed in this tick is
             // on the client before the data its frame pass reads (#1191).
             GrugServerRun.flushBlockChanges();
-            GrugSavedDataSync.flush();
+            GrugSavedDataSync.flush(GrugServerRun.world());
         }
 
         /**
