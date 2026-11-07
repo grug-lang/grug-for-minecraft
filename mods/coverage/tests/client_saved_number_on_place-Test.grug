@@ -1,0 +1,70 @@
+# A saved number a server writes on the tick it places a block reaches the joined client's copy.
+# A joined client is told only that a block changed, and these loaders' chunk packets carry no
+# block entity data, so its copy is made with nothing in it: a custom-rendered block whose geometry
+# or frame pass reads saved data draws nothing until the server sends the data (#1053).
+# The number is saved on the placement tick, before the client's copy of the block exists. The block
+# goes into a chunk the joined client already holds, so no chunk is sent; the send that can deliver
+# the number is the description packet the server sends with the block change itself, which carries
+# the data the block entity holds by then. The change send is made before that block change reaches
+# the client, so the client drops it as a packet for a block that is not there yet. Without the
+# description packet this number never arrives (#1053). The same description hook also runs when a
+# chunk is sent, but this test cannot force that send because the client already holds the room's
+# chunks, so the block change is the path it proves.
+# The number is 13 rather than 1, and its name is this test's own, because a client that keeps the
+# block entity of the block that was there keeps its saved numbers too: a value another test saved
+# under the same name could be there before this test saved anything.
+# A dedicated server forwards the read to the joined client; in singleplayer the copy is this
+# process's own and already holds the save, so one test covers both and the server legs are the
+# ones that prove the send.
+mesh_block: Option[BlockEntity] = Option.new()
+placed_tick: number = 0
+copy_tick: number = 0
+misses: number = 0
+
+export init(ctx: TestInitContext) {
+    # A read of the joined client's copy is one round trip, and forty of them at ten ticks apart
+    # are more than a send that works has ever needed.
+    ctx.set_max_ticks(600)
+}
+
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _place(ctx)
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    } else if ctx.current_tick() < placed_tick + 30 {
+        ctx.not_done()
+    } else if ctx.current_tick() >= copy_tick + 10 {
+        copy: number = Test.client_saved_number(mesh_block.unwrap(), "place_marker")
+        if copy != 13 {
+            misses = misses + 1
+            ctx.assert(misses < 40, "The placement's saved number never reached the joined client's copy.")
+            copy_tick = ctx.current_tick()
+            ctx.not_done()
+        }
+    } else {
+        ctx.not_done()
+    }
+}
+
+local _place(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The block coverage_mesh_saved_number places, which has a block entity so the server's own
+    # update hook has one to send.
+    level.place_block(x, y - 1.88, z + 4, "grug:coverage_mesh_saved")
+    placed_tick = ctx.current_tick()
+
+    be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    ctx.assert(be_opt.has(), "The chunk-mesh block should have a block entity.")
+    mesh_block.set(be_opt.unwrap())
+
+    # On the placement tick, so the change send is made before the client's copy of the block
+    # exists and cannot be what delivers the number.
+    mesh_block.unwrap().set_saved_number("place_marker", 13)
+}

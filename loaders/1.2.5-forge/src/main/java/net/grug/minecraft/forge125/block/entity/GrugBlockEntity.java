@@ -18,6 +18,7 @@ import net.minecraft.src.InventoryBasic;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.NBTTagList;
+import net.minecraft.src.Packet;
 import net.minecraft.src.TileEntity;
 
 import java.util.ArrayList;
@@ -139,6 +140,38 @@ public class GrugBlockEntity extends TileEntity
      */
     public void onRegistered() {
         initGrug();
+    }
+
+    /**
+     * Called when the game puts this tile into a chunk that is in a world, on both sides, which is
+     * the moment a joined client's fresh copy is made. This version's chunk packet carries no tile
+     * entity data, so that copy holds nothing until the server's updater sends the packet below.
+     * The render path waits for it (#1053). A server's own copy and a singleplayer world hold the
+     * data the script wrote, so they never wait.
+     */
+    @Override
+    public void validate() {
+        super.validate();
+        GrugSavedDataSync.clientCopyCreated(this, worldObj != null && worldObj.isRemote);
+    }
+
+    /**
+     * The packet the game sends a client that starts tracking this tile's chunk, and the one it
+     * sends on every block change (#1053), through the name 1.2.5 gives this method.
+     *
+     * <p>1.2.5's own tile entity data packet carries three ints and no NBT, so grug's packet is the
+     * only one that can carry the saved data. Without it a joined client's copy would stay empty
+     * until a script happened to save something, and a custom-rendered block would draw nothing.
+     * The redraw flag rebuilds the section, because the client may already have built its mesh from
+     * the empty copy.
+     *
+     * <p>This is declared without {@code @Override} because the game's client classes do not carry
+     * the method: only the dedicated server's copy of {@code TileEntity} has it, and a client never
+     * calls it. The server build's inheritance pass renames it to the name that copy gives the
+     * method.
+     */
+    public Packet getDescriptionPacket() {
+        return new GrugSavedDataPacket(this, true);
     }
 
     @Override
@@ -397,6 +430,8 @@ public class GrugBlockEntity extends TileEntity
         readSavedNumbers(nbt);
         readSavedLists(nbt);
         GrugPower.load(this, nbt.getDouble("GrugEnergy"));
+        // This is the first data a joined client's copy may be waiting for; it may draw now.
+        GrugSavedDataSync.clientCopyReceived(this);
     }
 
     @Override
@@ -405,6 +440,8 @@ public class GrugBlockEntity extends TileEntity
         readSavedNumbers(nbt);
         readSavedLists(nbt);
         GrugPower.load(this, nbt.getDouble("GrugEnergy"));
+        // A copy loaded from NBT has its data, so it is not waiting for an update.
+        GrugSavedDataSync.clientCopyReceived(this);
 
         // Recover the size from NBT before loading items, so a load does not depend on the world
         // being present (it is not, during a test's NBT round trip).

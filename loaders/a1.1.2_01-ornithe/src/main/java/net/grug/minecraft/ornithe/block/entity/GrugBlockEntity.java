@@ -207,6 +207,12 @@ public class GrugBlockEntity extends BlockEntity
      * first {@code tick()} so a script's one-time setup runs at the same moment on every loader.
      */
     public void onRegistered() {
+        // A client joined to a server is told only that a block changed, and this version sends a
+        // block entity's NBT in its own update packet after the change, so its copy is made with no
+        // saved data in it. The render path waits for that first update, which the game sends by
+        // itself here (#1053). A server's own copy and a singleplayer world hold the data the
+        // script wrote, so they never wait.
+        GrugSavedDataSync.clientCopyCreated(this, world != null && world.isMultiplayer);
         initGrug();
     }
 
@@ -474,6 +480,8 @@ public class GrugBlockEntity extends BlockEntity
         GrugSavedNumbersNbt.read(this, nbt);
         GrugSavedListsNbt.read(this, nbt);
         GrugPowerNbt.read(this, nbt);
+        // This is the first data a joined client's copy may be waiting for; it may draw now.
+        GrugSavedDataSync.clientCopyReceived(this);
     }
 
     @Override
@@ -482,6 +490,9 @@ public class GrugBlockEntity extends BlockEntity
         GrugSavedNumbersNbt.read(this, nbt);
         GrugSavedListsNbt.read(this, nbt);
         GrugPowerNbt.read(this, nbt);
+        // The game sends a block entity's NBT to a joined client in its own update packet, which
+        // arrives here, so the copy has its data and is not waiting for anything else.
+        GrugSavedDataSync.clientCopyReceived(this);
 
         if (nbt.contains("GrugInvSize")) {
             stacks = new ItemStack[nbt.getInt("GrugInvSize")];
