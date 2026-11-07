@@ -1679,7 +1679,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // Marshalled like the other graphics calls, because the runner advances on the server
         // thread while the screen belongs to the client. onClientThread waits for the task, so the
         // screen is gone by the time this returns and not merely by the next client tick.
-        onClientThread(() -> Minecraft.getInstance().setScreen(null));
+        onClientThread(
+                () -> {
+                    Minecraft.getInstance().setScreen(null);
+                    // A click still expected for the screen that just closed will never be handled,
+                    // so dropping it keeps a later click from waiting for this one's timeout
+                    // (#1094).
+                    GrugClientClicks.reset();
+                });
     }
 
     @Override

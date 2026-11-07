@@ -417,9 +417,14 @@ public class ServerForgeAdapter extends ForgeAdapter {
             return;
         }
         menu.setCarried(itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
+        // The cursor is not a slot the container's own update carries, so the client's screen would
+        // keep whatever it had while this server's menu carries the item the click applies. The
+        // game syncs it as window -1 slot -1, which is what broadcastChanges sends once the carried
+        // differs from the last copy it sent (#1094).
+        menu.broadcastChanges();
     }
 
-    /** Clears the cursor of this server's own menu (#1094). */
+    /** Clears the cursor of this server's own menu, and the client's copy of it (#1094). */
     @Override
     public void deleteCarriedItem() {
         AbstractContainerMenu menu = serverMenu();
@@ -431,6 +436,7 @@ public class ServerForgeAdapter extends ForgeAdapter {
             return;
         }
         menu.setCarried(ItemStack.EMPTY);
+        menu.broadcastChanges();
     }
 
     /** The menu of this server's test player, or null when no player has joined. */

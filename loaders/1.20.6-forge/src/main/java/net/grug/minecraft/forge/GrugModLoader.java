@@ -41,7 +41,6 @@ import net.minecraft.client.tutorial.TutorialSteps;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.PackLocationInfo;
 import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackSelectionConfig;
@@ -563,6 +562,13 @@ public class GrugModLoader {
         private static GrugTestRunner grug$testRunner = null;
         private static boolean grug$testRunnerFromCI = false;
 
+        /**
+         * The number of tests the runner had started when the click counts were last reset. A
+         * change means a test started, which abandons any click the previous one still expected; -1
+         * before the first tick, so a run starts from a known count (#1094).
+         */
+        private static long grug$clicksTestMark = -1;
+
         private static int grug$lastCursorX = Integer.MIN_VALUE;
         private static int grug$lastCursorY = Integer.MIN_VALUE;
         private static volatile boolean grug$testRunFinished = false;
@@ -975,6 +981,14 @@ public class GrugModLoader {
             if (runner == null || mc.getSingleplayerServer() == null || mc.player == null) {
                 return;
             }
+            if (runner.startedTests() != grug$clicksTestMark) {
+                // A test that starts leaves the previous test's click behind: one whose packet
+                // never
+                // reached the handler would otherwise hold this test's first click for the whole
+                // timeout (#1094).
+                grug$clicksTestMark = runner.startedTests();
+                GrugClientClicks.reset();
+            }
             // A client tick the lockstep did not count is one the server cannot act on yet,
             // because it is already a frame's worth of ticks behind: queueing a runner tick for it
             // is what ran the ticks the client made during a stall of the server thread back to
@@ -994,17 +1008,25 @@ public class GrugModLoader {
             // GrugTestRunner#startedTests
             // and #717.
             long startsWhenQueued = runner.startedTests();
+            // A click this client sent, whose packet the integrated server has not handled yet,
+            // holds this tick: the assertion after a click has to land behind the click (#1094).
+            // The hold is taken here, on the client thread, and the tick is simply not queued this
+            // client tick; the next one queues it once the handler ran. It cannot be taken inside
+            // the queued task, because that task runs on the integrated server's thread, where
+            // MinecraftServer.execute runs a task inline instead of queueing it, so putting the
+            // task back would recurse the server thread until it ran out of stack.
+            if (GrugClientClicks.pending()) {
+                return;
+            }
             queueRunnerTick(mc, runner, startsWhenQueued);
         }
 
         /**
-         * Queues one runner tick on the integrated server's thread.
+         * Queues one runner tick on the integrated server's thread, which is where the runner's
+         * state is only ever touched.
          *
-         * <p>A tick that reaches the server before a press this client made has been applied puts
-         * itself back on the queue instead of running: the click packet only reaches that queue
-         * through the network threads, while the client can queue a whole frame of runner ticks,
-         * and one of them would assert on a slot the server has not changed yet (#1094). Putting it
-         * back rather than dropping it keeps the runner at one tick per counted client tick.
+         * <p>The caller holds the tick back while a click packet is still unhandled, so a tick that
+         * reaches the server here has the click's effect already applied.
          */
         private static void queueRunnerTick(
                 Minecraft mc, GrugTestRunner runner, long startsWhenQueued) {
@@ -1012,9 +1034,10 @@ public class GrugModLoader {
                     new Runnable() {
                         @Override
                         public void run() {
-                            MinecraftServer server = mc.getSingleplayerServer();
                             Player serverPlayer =
-                                    server.getPlayerList().getPlayer(mc.player.getUUID());
+                                    mc.getSingleplayerServer()
+                                            .getPlayerList()
+                                            .getPlayer(mc.player.getUUID());
                             if (serverPlayer == null) {
                                 return;
                             }
@@ -1030,7 +1053,13 @@ public class GrugModLoader {
                                 return;
                             }
                             if (GrugClientClicks.pending()) {
-                                server.execute(this);
+                                // This tick was queued before the click it would read was applied;
+                                // the client queues a frame's worth at a time, so several arrive
+                                // while one is in flight. It is dropped rather than put back:
+                                // MinecraftServer.execute runs a task inline on this thread, so
+                                // putting it back would recurse, and running it later in a burst is
+                                // the back-to-back ticking #709 forbids. The client queues the next
+                                // tick, which runs once the handler applied the click (#1094).
                                 return;
                             }
                             runner.tick(serverPlayer);
@@ -1039,6 +1068,9 @@ public class GrugModLoader {
                                 grug$testRunner = null;
                                 grug$testRunnerFromCI = false;
                                 grug$testRunFinished = true;
+                                // A click the last test still expected has no test left to hold a
+                                // tick for, and the next run starts its own count (#1094).
+                                GrugClientClicks.reset();
                                 // The hotkey path leaves the game running so another R press can
                                 // start a fresh run.
                                 if (fromCI) {

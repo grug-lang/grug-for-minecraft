@@ -11,13 +11,14 @@ import net.grug.minecraft.grug.GrugGenerated;
  * packet before it answers the forwarded call, so the packet is on the server's task queue by the
  * time the call returns, and {@code applyClientWork} reads it before the next tick. In single
  * player the press is made by the same process's client thread and the click packet only reaches
- * that queue later, through the network threads; the client can queue a whole frame of runner ticks
- * meanwhile, and one of them would assert before the packet was read. A runner tick that reaches
- * the server before the click was applied puts itself back on the queue, behind the game's own
- * handler, so the assertion runs after it.
+ * the integrated server's queue later, through the network threads, so a runner tick queued for the
+ * same client tick would assert before the packet was read. The hold is taken on the client thread,
+ * before the tick is queued, because the task itself runs on the integrated server's thread where
+ * {@code MinecraftServer.execute} runs a task inline rather than queueing it; see {@code
+ * GrugModLoader#advanceTestRunner}.
  *
- * <p>The count is read on the client thread and on the server thread, while the click handler runs
- * on the server thread, so the counts are guarded by the class's monitor.
+ * <p>The count is read on the client thread, while the click handler runs on the server thread, so
+ * the counts are guarded by the class's monitor.
  */
 public final class GrugClientClicks {
     /**
@@ -44,9 +45,26 @@ public final class GrugClientClicks {
         deadline = System.currentTimeMillis() + TIMEOUT_MILLIS;
     }
 
-    /** Counts one click the server has handled. Called on the server thread. */
+    /**
+     * Counts one click the server has handled. Called on the server thread. A handler that arrives
+     * after its expectation was dropped, by a test's start, a closed screen, a timed-out packet or
+     * the end of a run, is ignored rather than counted against a later click (#1094): the count
+     * never passes the number of clicks still expected, which is why this clamps instead of adding.
+     */
     public static synchronized void applied() {
-        applied++;
+        applied = Math.min(applied + 1, expected);
+    }
+
+    /**
+     * Forgets every expectation, so a click whose packet never reached the handler cannot make a
+     * later click wait for this one's timeout, and a handler that arrives late cannot answer a
+     * later click's expectation. A test's start, a screen's close and the end of a run are the
+     * moments an expected click has been abandoned rather than merely slow (#1094).
+     */
+    public static synchronized void reset() {
+        expected = 0;
+        applied = 0;
+        deadline = 0;
     }
 
     /**
@@ -59,6 +77,16 @@ public final class GrugClientClicks {
             "the timeout arm needs a click packet the integrated server never handles, which no"
                     + " test can force")
     static synchronized boolean pending() {
-        return applied < expected && System.currentTimeMillis() < deadline;
+        if (applied >= expected) {
+            return false;
+        }
+        if (System.currentTimeMillis() >= deadline) {
+            // The packet was never handled: the expectation is dropped rather than kept, so this
+            // click's loss cannot hold the next one for a timeout of its own. The test that sent
+            // the click reports what did not happen with its own assertion.
+            expected = applied;
+            return false;
+        }
+        return true;
     }
 }

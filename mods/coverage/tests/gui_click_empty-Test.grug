@@ -1,12 +1,15 @@
-# A container click that changes nothing, forwarded to a joined client (#1094): the cursor is empty
-# and the slot it presses is empty, so the click packet moves nothing and the container answers no
-# slot update. The test still returns with not_done and asserts on the next tick, which is what says
-# the call does not wait for the click to change the container: a wait on a slot revision would pass
-# only when something moved, and a click that changes nothing would hang. The servers that can open
-# no container for their player list this test as unsupported until #1098 gives them one, so it runs
-# on 1.20.6 and 1.2.5.
+# A container click with an empty cursor, forwarded to a joined client (#1094). On 1.20.6 a press
+# whose cursor carries a stack only starts a drag and leaves the packet to the release, so the press
+# path, the one an empty cursor takes, is gui_click_empty's to prove while gui_click proves the
+# release path. The first click here changes nothing, which is what says the call does not wait for
+# the container to change; the second clicks a grid slot that holds a diamond, so the assertions
+# after it fail unless the press's own packet was applied and the item moved. The servers that can
+# open no container for their player list this test as unsupported until #1098 gives them one, so it
+# runs on 1.20.6 and 1.2.5.
 started: bool = false
 clicked: bool = false
+picked: bool = false
+moved: bool = false
 
 export tick_any_side(ctx: TestTickContext) {
     if not started {
@@ -35,12 +38,38 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    # Nothing changed, and the next tick still came: the click was applied and answered no update
-    # rather than the test waiting for one.
+    if not picked {
+        picked = true
+        # Nothing changed, and the next tick still came: the call does not wait for the container to
+        # change. The diamond is put in the grid only now, so nothing the first click did can be
+        # what moves it.
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+        ctx.assert(block_entity.get_item_count_in_slot(0) == 0, "A click with an empty cursor should leave an empty slot empty.")
+        ctx.assert(not Test.get_carried_item().has(), "A click with an empty cursor should leave the cursor empty.")
+        block_entity.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+        ctx.not_done()
+        return
+    }
+    if not moved {
+        moved = true
+        # An empty cursor over a slot that holds a stack picks the stack up, and on 1.20.6 this
+        # press is the one that sends the click packet.
+        left: number = Test.gui_left()
+        top: number = Test.gui_top()
+        ctx.assert(not Test.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+        ctx.not_done()
+        return
+    }
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
-    ctx.assert(block_entity.get_item_count_in_slot(0) == 0, "A click with an empty cursor should leave the slot empty.")
-    ctx.assert(not Test.get_carried_item().has(), "A click with an empty cursor should leave the cursor empty.")
+    ctx.assert(block_entity.get_item_count_in_slot(0) == 0, "The click should have taken the diamond out of the grid's first slot.")
+    in_hand: Option[Item] = Test.get_carried_item()
+    ctx.assert(in_hand.has(), "The click should have put the grid's diamond on the cursor.")
+    if in_hand.has() {
+        ctx.assert(equals(in_hand.unwrap(), item(resource_location("minecraft:diamond"))), "The cursor should hold the diamond the grid had.")
+    }
     Test.close_screen()
 }
