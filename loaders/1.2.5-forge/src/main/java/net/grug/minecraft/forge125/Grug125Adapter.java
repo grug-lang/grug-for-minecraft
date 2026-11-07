@@ -47,6 +47,7 @@ import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.MovingObjectPosition;
 import net.minecraft.src.NBTTagCompound;
+import net.minecraft.src.ThreadedFileIOBase;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
@@ -1526,7 +1527,27 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         Chunk chunk = world.getChunkFromBlockCoords(ox, oz);
         IChunkLoader loader = world.getSaveHandler().getChunkLoader(world.worldProvider);
         loader.saveChunk(world, chunk);
+
+        // 1.2.5's save is a queue: saveChunk hands the chunk's NBT to the file IO thread and
+        // returns before the region file holds it. While the entry is still queued loadChunk
+        // answers that NBT, so the read back is right; but once the IO thread has taken the entry
+        // off the queue it spends a while compressing and writing, and a load that lands in that
+        // window reads the chunk as it was before the write, which is how a high id once came
+        // back 0 (#1188). Wait for the queue to drain, the way the game's own save does
+        // (World.saveWorldIndirectly), so the load reads what the save wrote.
+        waitForFileIo();
+
         return loader.loadChunk(world, ox >> 4, oz >> 4);
+    }
+
+    @GrugGenerated("file IO wait: a run does not interrupt its own chunk save")
+    private static void waitForFileIo() throws IOException {
+        try {
+            ThreadedFileIOBase.threadedIOInstance.waitForFinish();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted while the test chunk was being saved", e);
+        }
     }
 
     private static int readBackId(Chunk loaded, int ox, int oy, int oz) {

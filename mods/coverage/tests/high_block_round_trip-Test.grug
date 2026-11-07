@@ -2,7 +2,19 @@
 # block id search must spill above 255 once the pack uses up its low range, and the id it then
 # hands out must come back through the save's 12-bit form, not out of a field. A loader whose
 # block ids never reach above 255 has no such id to round trip and answers -1. See #518.
+# The round trip is asked for several times because one save is one sample of the window between
+# the save being queued and the chunk reaching its file: on 1.2.5 the save hands the chunk to the
+# game's file IO thread and returns before the write, and a read landing in the middle of that
+# write once found the id from before it (#1188). Each call puts the test cell back in the world
+# and releases the stand-ins it took, so every repetition starts from the same chunk.
 export tick_any_side(ctx: TestTickContext) {
-    id: number = Test.high_block_round_trip()
-    ctx.assert(id == -1 or id >= 256, "the round trip answered an id the block id search cannot hand out")
+    rounds: number = 0
+    while rounds < 8 {
+        id: number = Test.high_block_round_trip()
+        ctx.assert(id == -1 or id >= 256, "the round trip answered an id the block id search cannot hand out")
+        if id < 0 {
+            return
+        }
+        rounds = rounds + 1
+    }
 }
