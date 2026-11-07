@@ -65,6 +65,11 @@ public class GrugSavedDataPacket extends Packet {
      * mesh again with it.
      */
     public GrugSavedDataPacket(GrugBlockEntity blockEntity, boolean redraw) {
+        // The game queues a block change as delayed data, and this packet describes that block, so
+        // it has to share the queue: a packet on the normal queue is drained first and arrives
+        // before the block exists, and the handler below drops it for a different block at the
+        // position. Vanilla's block change and chunk packets set the same field.
+        this.worldPacket = true;
         this.x = blockEntity.x;
         this.y = blockEntity.y;
         this.z = blockEntity.z;

@@ -595,4 +595,33 @@ class GrugSavedDataSyncTest {
                 GrugSavedDataSync.snapshot(four),
                 "two empty records hold the same data");
     }
+
+    @Test
+    void aJoinedClientsNewCopyWaitsForItsFirstData() {
+        Machine machine = new Machine();
+
+        GrugSavedDataSync.clientCopyCreated(machine, true);
+        assertTrue(
+                GrugSavedDataSync.awaitingFirstData(machine),
+                "a copy with no data yet is not drawn and not reported");
+
+        GrugSavedDataSync.clientCopyReceived(machine);
+        assertFalse(GrugSavedDataSync.awaitingFirstData(machine), "the first data lets it draw");
+    }
+
+    @Test
+    void aServerAndASingleplayerCopyAreNeverWaitingForData() {
+        Machine server = new Machine();
+        Machine singleplayer = new Machine();
+
+        GrugSavedDataSync.clientCopyCreated(server, false);
+        GrugSavedDataSync.clientCopyCreated(singleplayer, false);
+
+        assertFalse(
+                GrugSavedDataSync.awaitingFirstData(server),
+                "a server's own copy is not drawn at all");
+        assertFalse(
+                GrugSavedDataSync.awaitingFirstData(singleplayer),
+                "a singleplayer client holds the copy the script writes, so it has its data");
+    }
 }

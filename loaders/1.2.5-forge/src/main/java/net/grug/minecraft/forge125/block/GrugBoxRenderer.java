@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125.block;
 
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge125.client.GrugModelRenderer;
 import net.grug.minecraft.grug.GrugBlockData;
@@ -84,6 +85,14 @@ public final class GrugBoxRenderer {
         TileEntity blockEntity = world.getBlockTileEntity(x, y, z);
         if (!(blockEntity instanceof GrugBlockEntity)) return false;
         GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
+
+        // A joined client's copy has no saved data until the server's tile entity update arrives,
+        // so a block whose geometry reads that data would draw nothing and be reported as a
+        // defect. Nothing is drawn or reported until the first update arrives, which rebuilds this
+        // section (#1053).
+        if (GrugSavedDataSync.awaitingFirstData(grugBlockEntity)) {
+            return true;
+        }
 
         GrugGeometry geometry = drawGeometry(grugBlock, grugBlockEntity, x, y, z);
 

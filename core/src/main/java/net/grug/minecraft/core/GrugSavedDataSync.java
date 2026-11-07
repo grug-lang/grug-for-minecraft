@@ -122,6 +122,24 @@ public final class GrugSavedDataSync {
         private final Set<Object> held = Collections.newSetFromMap(new WeakHashMap<>());
     }
 
+    /**
+     * The joined client's copies that have not been sent their data yet, keyed weakly so a copy
+     * that is gone is collected.
+     *
+     * <p>A client joined to a server has no copy of a block entity's saved data until the server
+     * sends it: these loaders' chunk packets carry no tile entity data, and the client's copy is
+     * made from the block alone. Its render pass therefore reads empty numbers and lists for a
+     * moment, and a block whose geometry depends on them draws nothing, which {@code
+     * set_custom_render} would report as a defect. The copy is marked here when it is made, the
+     * first data, from the loader's own block entity update or from the chunk's NBT, clears it, and
+     * the render path draws nothing and reports nothing while it is set.
+     *
+     * <p>It is only set for a joined client, never for the server's own copy or a singleplayer
+     * world, where the copy the render pass reads is the one the script wrote.
+     */
+    private static final Set<Object> AWAITING_FIRST_DATA =
+            Collections.newSetFromMap(new WeakHashMap<>());
+
     private static Transport transport = null;
 
     @GrugGenerated("utility class: never instantiated")
@@ -258,6 +276,36 @@ public final class GrugSavedDataSync {
         if (clientLevel) {
             rebuild.run();
         }
+    }
+
+    /**
+     * Marks a client's copy of a block entity as made but not yet sent its data, so its render pass
+     * waits instead of drawing and reporting a block that has nothing to draw.
+     *
+     * <p>Only a joined client is marked: a client alone in a singleplayer world holds the copy the
+     * script writes, and a server's own copy is not drawn at all. The loader answers whether this
+     * world is one it joined, because only it knows how its game spells that.
+     */
+    public static synchronized void clientCopyCreated(Object blockEntity, boolean joinedClient) {
+        if (joinedClient) {
+            AWAITING_FIRST_DATA.add(blockEntity);
+        }
+    }
+
+    /**
+     * The client's copy has been given the data the server holds for it, from a block entity update
+     * or from the chunk's NBT, so its render pass may draw and report again.
+     */
+    public static synchronized void clientCopyReceived(Object blockEntity) {
+        AWAITING_FIRST_DATA.remove(blockEntity);
+    }
+
+    /**
+     * Whether a joined client's copy is still waiting for its first data, which the render path
+     * reads before it draws or reports the block.
+     */
+    public static synchronized boolean awaitingFirstData(Object blockEntity) {
+        return AWAITING_FIRST_DATA.contains(blockEntity);
     }
 
     /**

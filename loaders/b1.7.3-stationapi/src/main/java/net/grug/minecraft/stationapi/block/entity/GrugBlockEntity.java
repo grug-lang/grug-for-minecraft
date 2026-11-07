@@ -19,6 +19,7 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.network.packet.Packet;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -201,7 +202,28 @@ public class GrugBlockEntity extends BlockEntity
      * first {@code tick()} so a script's one-time setup runs at the same moment on every loader.
      */
     public void onRegistered() {
+        // A client joined to a server is told only that a block changed, and this version's chunk
+        // packets carry no block entity data, so its copy is made with no saved data in it. The
+        // render path waits for the first update, which the server sends from the game's own block
+        // entity update hook (#1053). A server's own copy and a singleplayer world hold the data
+        // the script wrote, so they never wait.
+        GrugSavedDataSync.clientCopyCreated(this, world != null && world.isRemote);
         initGrug();
+    }
+
+    /**
+     * The update the game sends a client that starts tracking this block entity's chunk, and the
+     * one it sends on every block change (#1053). This version's chunk packet carries no block
+     * entity data, so without the data here a joined client's copy would stay empty until a script
+     * happened to save something. The redraw flag rebuilds the section, because the client may
+     * already have built its mesh from the empty copy.
+     *
+     * <p>This is declared without {@code @Override} because the game's client classes do not carry
+     * the method: only the dedicated server's copy of {@code BlockEntity} has it, and a client
+     * never calls it.
+     */
+    public Packet createUpdatePacket() {
+        return new GrugSavedDataPacket(this, true);
     }
 
     @Override
@@ -474,6 +496,8 @@ public class GrugBlockEntity extends BlockEntity
         readSavedNumbers(nbt);
         readSavedLists(nbt);
         GrugPower.load(this, nbt.getDouble("GrugEnergy"));
+        // This is the first data a joined client's copy may be waiting for; it may draw now.
+        GrugSavedDataSync.clientCopyReceived(this);
     }
 
     @Override
@@ -482,6 +506,8 @@ public class GrugBlockEntity extends BlockEntity
         readSavedNumbers(nbt);
         readSavedLists(nbt);
         GrugPower.load(this, nbt.getDouble("GrugEnergy"));
+        // A copy loaded from NBT has its data, so it is not waiting for an update.
+        GrugSavedDataSync.clientCopyReceived(this);
 
         // Recover the size from NBT before attempting to load items,
         // completely bypassing the world == null issue.
