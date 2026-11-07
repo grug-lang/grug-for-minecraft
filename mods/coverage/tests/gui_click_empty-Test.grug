@@ -2,14 +2,20 @@
 # whose cursor carries a stack only starts a drag and leaves the packet to the release, so the press
 # path, the one an empty cursor takes, is gui_click_empty's to prove while gui_click proves the
 # release path. The first click here changes nothing, which is what says the call does not wait for
-# the container to change; the second clicks a grid slot that holds a diamond, so the assertions
-# after it fail unless the press's own packet was applied and the item moved. The server that can
-# open no container for its player, a1.1.2_01's, lists this test as unsupported until #1098 gives
-# that one a server-side container too, so it runs on the other four.
+# the container to change; the press is then made three times, the grid's diamond put back for each,
+# and every round asserts on the tick after its press that the grid lost the diamond and the cursor
+# has it. A round puts the diamond in on the same tick as its press, so the client's screen has not
+# been told about it yet when the press predicts, and the assertion reads the server's menu, the one
+# the click is applied to and the one the runner's hold settles (#1196). That divergent state is
+# what the installed client was in when this failed, and three rounds make it every run rather than
+# a loaded runner's accident. The server that can open no container for its player, a1.1.2_01's,
+# lists this test as unsupported until #1098 gives that one a server-side container too, so it runs
+# on the other four.
 started: bool = false
 clicked: bool = false
-picked: bool = false
-moved: bool = false
+unchanged_checked: bool = false
+pressed: bool = false
+round: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
     if not started {
@@ -38,30 +44,36 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    if not picked {
-        picked = true
+    if not unchanged_checked {
+        unchanged_checked = true
         # Nothing changed, and the next tick still came: the call does not wait for the container to
-        # change. The diamond is put in the grid only now, so nothing the first click did can be
-        # what moves it.
+        # change.
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
         ctx.assert(block_entity.get_item_count_in_slot(0) == 0, "A click with an empty cursor should leave an empty slot empty.")
         ctx.assert(not Test.get_carried_item().has(), "A click with an empty cursor should leave the cursor empty.")
-        block_entity.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+        round = 1
         ctx.not_done()
         return
     }
-    if not moved {
-        moved = true
+    if not pressed {
         # An empty cursor over a slot that holds a stack picks the stack up, and on 1.20.6 this
-        # press is the one that sends the click packet.
+        # press is the one that sends the click packet. The diamond goes in on this same tick, so
+        # the client's prediction is behind the server by construction and cannot be what moves it.
+        pressed = true
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+        block_entity.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
         left: number = Test.gui_left()
         top: number = Test.gui_top()
         ctx.assert(not Test.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
         ctx.not_done()
         return
     }
+    # The effect is the click's, so it is read on the tick after the press.
+    pressed = false
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
@@ -70,6 +82,14 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(in_hand.has(), "The click should have put the grid's diamond on the cursor.")
     if in_hand.has() {
         ctx.assert(equals(in_hand.unwrap(), item(resource_location("minecraft:diamond"))), "The cursor should hold the diamond the grid had.")
+    }
+    if round < 3 {
+        round = round + 1
+        # The next round presses the press path again, which needs an empty cursor, so this round's
+        # diamond comes off it.
+        Test.clear_carried_item()
+        ctx.not_done()
+        return
     }
     Test.close_screen()
 }
