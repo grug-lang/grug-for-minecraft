@@ -40,6 +40,14 @@ import java.util.Map;
 
 public class GrugBlockEntity extends BlockEntity
         implements Container, GrugSavedNumbers.Holder, GrugSavedLists.Holder, GrugPower.Holder {
+    /**
+     * The key a redraw's block entity packet sets in its update tag, which the client's {@code
+     * onDataPacket} reads to know it has to build the block's mesh again. A change send leaves it
+     * out, so the client only reads the data. It is written into the tag the packet carries, never
+     * into saved NBT.
+     */
+    public static final String REDRAW_TAG = "GrugRedraw";
+
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
@@ -420,36 +428,57 @@ public class GrugBlockEntity extends BlockEntity
     }
 
     /**
-     * What the client's copy of this block entity is sent when its chunk is, and on every redraw:
-     * the same data the game saves, because the saved numbers in it are what the client's render
-     * function draws from.
+     * What the client's copy of this block entity is sent when its chunk is, on every change to its
+     * saved data, and on every redraw: the same data the game saves, because the saved numbers in
+     * it are what the client's render function draws from. A change send carries it as it is and a
+     * redraw adds {@link #REDRAW_TAG}.
      */
     @Override
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         return saveWithoutMetadata(registries);
     }
 
-    /** The packet a redraw sends the client, carrying {@link #getUpdateTag}. */
+    /** The data-only packet: the update tag as it is, with no redraw flag. */
     @Override
     public Packet<ClientGamePacketListener> getUpdatePacket() {
         return ClientboundBlockEntityDataPacket.create(this);
     }
 
     /**
-     * The client's copy reads the data the server sent, then has its block meshed again, since the
-     * packet was sent because what the render function draws has changed. The block itself did not
-     * change, so nothing else would mesh it again.
+     * The packet a redraw sends the client: the same update tag as {@link #getUpdatePacket}, with
+     * {@link #REDRAW_TAG} set, so the client's {@code onDataPacket} builds the block's mesh again
+     * after it reads the data. The flag is put on the tag this call built, which the game never
+     * saves, so it does not reach NBT.
+     */
+    public Packet<ClientGamePacketListener> getRedrawPacket() {
+        return ClientboundBlockEntityDataPacket.create(
+                this,
+                (blockEntity, registries) -> {
+                    CompoundTag tag = blockEntity.getUpdateTag(registries);
+                    tag.putBoolean(REDRAW_TAG, true);
+                    return tag;
+                });
+    }
+
+    /**
+     * The client's copy reads the data the server sent, then builds the block's mesh again when the
+     * packet says the redraw asked for it: the block itself did not change, so nothing else would
+     * mesh it again. A change to saved data alone carries no redraw flag, so it never rebuilds a
+     * section; a block that draws per frame reads the data from the next frame on, and one whose
+     * geometry is in the chunk's mesh draws it when the script's {@code redraw} arrives.
      */
     @Override
     public void onDataPacket(
             Connection connection,
             ClientboundBlockEntityDataPacket packet,
             HolderLookup.Provider registries) {
+        CompoundTag tag = packet.getTag();
+        boolean redraw = tag != null && tag.getBoolean(REDRAW_TAG);
         super.onDataPacket(connection, packet, registries);
         if (level != null && level.isClientSide()) {
             // Only a block with geometry in the chunk's mesh has anything to mesh again: a block
             // that draws per frame reads this data from the next frame on.
-            if (((GrugBlock) getBlockState().getBlock()).drawsChunkGeometry()) {
+            if (redraw && ((GrugBlock) getBlockState().getBlock()).drawsChunkGeometry()) {
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 0);
             }
         }

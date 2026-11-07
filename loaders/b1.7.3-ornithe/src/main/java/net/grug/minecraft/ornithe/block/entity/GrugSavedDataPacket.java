@@ -45,8 +45,9 @@ public class GrugSavedDataPacket extends Packet {
 
     /**
      * Whether the client is also told to build the block's mesh again, which a chunk-mesh block
-     * needs before it reads the data. A frame-only block reads the data on the next frame and is
-     * sent without it.
+     * needs before it reads the data. A change to saved data is sent without it, so the client only
+     * reads the data and no section is rebuilt; a block that draws per frame reads it on the next
+     * frame.
      */
     private boolean redraw;
 

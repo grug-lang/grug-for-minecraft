@@ -41,15 +41,13 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
     }
 
     @Override
-    public boolean frameOnly(Object blockEntity) {
+    public boolean drawsFrame(Object blockEntity) {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
         if (entity.world == null) {
             return false;
         }
         Block block = Block.BY_ID[entity.world.getBlock(entity.x, entity.y, entity.z)];
-        return block instanceof GrugBlock
-                && ((GrugBlock) block).drawsCustomGeometry()
-                && !((GrugBlock) block).drawsChunkGeometry();
+        return block instanceof GrugBlock && ((GrugBlock) block).drawsCustomGeometry();
     }
 
     @Override

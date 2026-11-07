@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge;
 
+import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugScreenCalls;
@@ -91,6 +92,16 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     private final GrugTestCamera.Forwarded camera =
             new GrugTestCamera.Forwarded(
+                    GrugControlForge::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    /**
+     * The saved-number reads this server makes, which its joined client answers from its own copy
+     * of the block entity: a dedicated server holds the simulated copy, not the one the client's
+     * frame pass reads (#1162).
+     */
+    private final GrugClientSavedNumbers.Forwarded savedNumbers =
+            new GrugClientSavedNumbers.Forwarded(
                     GrugControlForge::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
@@ -283,6 +294,12 @@ public class ServerForgeAdapter extends ForgeAdapter {
     @Override
     public Vec3 testCamera() {
         return camera.camera();
+    }
+
+    /** The joined client's own copy of a saved number, which is the copy its frame pass reads. */
+    @Override
+    public double savedNumberOnClient(double x, double y, double z, String name) {
+        return savedNumbers.savedNumber(x, y, z, name);
     }
 
     /**

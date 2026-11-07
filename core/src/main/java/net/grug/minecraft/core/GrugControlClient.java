@@ -86,6 +86,13 @@ public final class GrugControlClient {
 
         /** Opens the player's own inventory screen, as {@code Test.open_inventory} asks. */
         void openInventory();
+
+        /**
+         * The number saved under {@code name} by this client's own copy of the block entity at the
+         * position, 0 when it holds none or the number was never saved there (#1162). This is the
+         * copy a frame pass reads, which is not the one a dedicated server simulates.
+         */
+        double savedNumber(double x, double y, double z, String name);
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -153,6 +160,11 @@ public final class GrugControlClient {
             @Override
             public void openInventory() {
                 adapter.get().openInventory(adapter.get().testPlayer());
+            }
+
+            @Override
+            public double savedNumber(double x, double y, double z, String name) {
+                return adapter.get().savedNumberOnClient(x, y, z, name);
             }
         };
     }
@@ -332,6 +344,15 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_OPEN_INVENTORY) {
                 caller.openInventory();
                 link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+            } else if (message.call == GrugControlWire.CALL_SAVED_NUMBER) {
+                link.send(
+                        GrugControlWire.answerNumber(
+                                message.id,
+                                caller.savedNumber(
+                                        message.volume,
+                                        message.pitch,
+                                        message.third,
+                                        message.text)));
             } else {
                 // A call this client has no arm for, which is what a call code added to the wire
                 // before its arm becomes. Answering it as an error keeps the server's mistake

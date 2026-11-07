@@ -502,6 +502,16 @@ public final class GrugControlServer {
         }
     }
 
+    /**
+     * Asks the starter's client for the number saved under {@code name} by its own copy of the
+     * block entity at the position, which is the copy a frame pass reads (#1162). A server's copy
+     * is the one it simulates, so a test that wants to know whether a change reached the client's
+     * copy has to ask the client.
+     */
+    public double savedNumber(double x, double y, double z, String name) throws ControlException {
+        return number(GrugControlWire.CALL_SAVED_NUMBER, name, x, y, z);
+    }
+
     /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
     private static boolean yesOrNo(byte result, String call) throws ControlException {
         if (result != 0 && result != 1) {
@@ -584,6 +594,8 @@ public final class GrugControlServer {
                 return null;
             case GrugControlWire.CALL_CAMERA:
                 return cameraAxisProblem(volume);
+            case GrugControlWire.CALL_SAVED_NUMBER:
+                return savedNumberProblem(name, volume, pitch, third);
             default:
                 String problem = GrugSoundArgs.pathProblem(name);
                 if (problem == null && call == GrugControlWire.CALL_PLAY_UI_SOUND) {
@@ -607,6 +619,24 @@ public final class GrugControlServer {
     private static String cameraAxisProblem(double axis) {
         if (axis != 0 && axis != 1 && axis != 2) {
             return "A camera read asks for the axis 0, 1 or 2, and was " + axis + ".";
+        }
+        return null;
+    }
+
+    /**
+     * Why a forwarded saved-number read carries what it cannot, or null. The name is the number's,
+     * which the wire has to carry whole, and the three numbers are the block entity's position.
+     */
+    private static String savedNumberProblem(String name, double x, double y, double z) {
+        if (name.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                > GrugControlWire.MAX_NAME) {
+            return "The saved number's name is over " + GrugControlWire.MAX_NAME + " bytes.";
+        }
+        for (double position : new double[] {x, y, z}) {
+            if (!Double.isFinite(position)) {
+                return "A saved-number read names a block entity's position, and one of its"
+                        + " numbers was not finite.";
+            }
         }
         return null;
     }
@@ -752,6 +782,9 @@ public final class GrugControlServer {
         }
         if (call == GrugControlWire.CALL_CAMERA) {
             return "camera axis " + (int) volume;
+        }
+        if (call == GrugControlWire.CALL_SAVED_NUMBER) {
+            return "saved number \"" + name + "\"";
         }
         return "call " + call + " \"" + name + "\"";
     }

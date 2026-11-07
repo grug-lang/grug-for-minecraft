@@ -114,6 +114,14 @@ public final class GrugControlWire {
     /** The call: open the player's own inventory screen on the client. The answer is 1 (#1094). */
     public static final byte CALL_OPEN_INVENTORY = 11;
 
+    /**
+     * The call: the number saved under the call's name by the joined client's own copy of the block
+     * entity at the position the three numbers carry, which is what {@code
+     * Test.client_saved_number} asks (#1162). The answer is an {@link #ANSWER_NUMBER}, 0 when the
+     * client holds no such block entity or the number was never saved there.
+     */
+    public static final byte CALL_SAVED_NUMBER = 12;
+
     /** The longest name a call may carry, in bytes. */
     public static final int MAX_NAME = 256;
 
@@ -250,7 +258,7 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_OPEN_INVENTORY;
+        return call >= CALL_HAS_SOUND && call <= CALL_SAVED_NUMBER;
     }
 
     /**

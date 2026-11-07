@@ -1,0 +1,76 @@
+# A saved number a chunk-mesh block's frame pass reads reaches the joined client's copy on a change.
+# A block whose geometry is in the chunk's mesh and whose frame pass reads saved data, which is the
+# wooden pipe, was sent only by redraw(), so a save with no redraw() never reached the joined
+# client and its frame pass kept drawing the state its chunk arrived with (#1162). The frame pass
+# reads the client's copy of the block entity, and a test's set_saved_number writes the copy the
+# game simulates, so on a dedicated server the number only arrives if the loader sends it.
+# This is the deterministic half of coverage_mesh_frame_saved_number: it waits on the client's copy
+# of the number rather than on a frame, so a copy that never holds it is the send failing and not a
+# capture taken a frame too early (#1179). A capture cannot tell the two apart, and a frame can
+# move for reasons of its own.
+# The number is 7 rather than 1, and its name is this test's own, because a client that keeps the
+# block entity of the block that was there keeps its saved numbers too: a value another test saved
+# under the same name could be there before this test saved anything.
+# A dedicated server forwards the read to the joined client; in singleplayer the copy is this
+# process's own and already holds the save, so one test covers both and the server legs are the
+# ones that prove the send.
+# The save waits until the joined client has the block, because the block goes in on the same
+# server tick the first test ticks run in at the loader's game speed: the server queues the block
+# change for the end of that tick and sends a saved change at once, so a save in that tick reaches
+# the client before the block it belongs to and is dropped as a packet for another block. The
+# settle wait is the one coverage_frame_saved_number uses, and it says the client has drawn a
+# frame from the world the placement changed.
+mesh_block: Option[BlockEntity] = Option.new()
+placed_tick: number = 0
+saved: bool = false
+copy_tick: number = 0
+misses: number = 0
+
+export init(ctx: TestInitContext) {
+    # A read of the joined client's copy is one round trip, and forty of them at ten ticks apart
+    # are more than a send that works has ever needed.
+    ctx.set_max_ticks(600)
+}
+
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _place(ctx)
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    } else if ctx.current_tick() < placed_tick + 30 {
+        ctx.not_done()
+    } else if not saved {
+        mesh_block.unwrap().set_saved_number("copied_marker", 7)
+        saved = true
+        copy_tick = ctx.current_tick()
+        ctx.not_done()
+    } else if ctx.current_tick() >= copy_tick + 10 {
+        copy: number = Test.client_saved_number(mesh_block.unwrap(), "copied_marker")
+        if copy != 7 {
+            misses = misses + 1
+            ctx.assert(misses < 40, "The saved number never reached the joined client's copy.")
+            copy_tick = ctx.current_tick()
+            ctx.not_done()
+        }
+    } else {
+        ctx.not_done()
+    }
+}
+
+local _place(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The block coverage_mesh_saved_number places, which has a block entity and draws into the
+    # chunk's mesh, so a change to its saved data takes the change-time send this test proves.
+    level.place_block(x, y - 1.88, z + 4, "grug:coverage_mesh_saved")
+    placed_tick = ctx.current_tick()
+
+    be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    ctx.assert(be_opt.has(), "The chunk-mesh block should have a block entity.")
+    mesh_block.set(be_opt.unwrap())
+}

@@ -1,0 +1,247 @@
+# A saved number that a both-kind block's frame pass reads reaches a joined client on a change.
+# The block draws its shape into the chunk's mesh and its contents per frame, which is the wooden
+# pipe's shape: render() draws the pipe, render_frame() draws the item travelling inside it. The
+# frame pass reads the client's copy of the block entity, and a test's set_saved_number writes the
+# copy the game simulates, so on a dedicated server the number only arrives if the loader sends it.
+# A block whose geometry is in the chunk's mesh used to be sent only by redraw(), so a save with no
+# redraw() never reached that client and its frame pass kept drawing the old state (#1162). This
+# test saves the number with no redraw() at all.
+# The coverage_mesh_saved block draws a whole block always, and its render_frame() draws twelve
+# stacks in front of that block's face once its "frame_marker" number is above 0, so the assertion
+# is that the client's frame changed after the save and changed back when the number was saved as 0
+# again, with no redraw in between.
+# Each save is waited for on the joined client's own copy of the number, not on a frame:
+# Test.client_saved_number answers what the copy the frame pass reads holds, so a capture taken after
+# it is of a frame that can show the save, and a copy that never holds the number is the send
+# failing rather than a capture taken a frame too early. #1179 is that other failure: there the copy
+# held the number and a capture read a frame from before it arrived, which this wait rules out.
+# Four captures of one session are compared, so this holds on every loader and needs no golden: the
+# room with the wall and without the block, the room with the block's pedestal drawn from the
+# chunk's mesh, the frame after the number was saved as 1, and the frame after it was saved as 0
+# again. The second has to differ from the first, which is what proves the client had the block
+# before the number was saved, so the third differing from it is the saved number arriving rather
+# than the block merely appearing. The fourth is compared against the third and against the second:
+# it has to differ from the frame with the stacks and be closer to the frame without them, so a room
+# that moved a little cannot pass the return off as the stacks going away.
+# The crop is the strip coverage_frame_saved_number compares, and the wall behind the block is
+# coverage_mesh_saved_number's: without one, drifting clouds would be a change of their own. The
+# wall is thirteen blocks high and across, so it keeps them out of the whole crop.
+# The block goes in only after the room's clearing and the wall have reached the joined client: the
+# wall's writes queue for the end of the server tick, and a capture sent in that same tick freezes
+# the server before the queue is flushed, so that capture can be of the room without the wall. Each
+# capture is one take, retried while it still looks like the frame before it, because a capture on
+# the beta client freezes it for about six seconds and the suite's dedicated runs have little room
+# beside their hang detector (build.yml's GRUG_CI_RUN_TIMEOUT).
+# It defines tick_any_side, so a dedicated server runs it too: the settle wait and the read of the
+# client's copy are forwarded to the joined client, and the captures are the client's (#1086).
+mesh_block: Option[BlockEntity] = Option.new()
+empty: Option[Screenshot] = Option.new()
+before: Option[Screenshot] = Option.new()
+after: Option[Screenshot] = Option.new()
+
+# Whether the number has been saved as 1 and as 0 again, whether the joined client's copy has been
+# seen holding each of them, and whether the frame after the 0 was seen as the pedestal again.
+saved: bool = false
+copied: bool = false
+cleared: bool = false
+cleared_copied: bool = false
+restored: bool = false
+
+# The runner tick the block went in on. The frame with the pedestal is not taken as the one the
+# rest are compared against until the placement's own section has finished arriving.
+placed_tick: number = 0
+
+# The runner tick the last capture was taken on. Up to 10 ticks run for one frame, so a capture on
+# the very next tick can be of the frame before it and show no change that has not been drawn yet.
+room_tick: number = 0
+
+# The runner tick the client's copy was last read on, and how many reads answered without the
+# number the test had just saved.
+copy_tick: number = 0
+misses: number = 0
+
+# How many captures have shown the frame from before the change being waited for.
+attempts: number = 0
+
+export init(ctx: TestInitContext) {
+    # A capture waits for the client to draw the frame it is about, which is up to about 60 ticks
+    # each, and the waits below capture a few times beside the setup's own and the reads of the
+    # client's copy, which cost one round trip each.
+    ctx.set_max_ticks(3000)
+}
+
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _wall(ctx)
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    } else if not empty.has() {
+        _settle_empty(ctx)
+        ctx.not_done()
+    } else if not before.has() {
+        _capture_before(ctx)
+        ctx.not_done()
+    } else if not saved {
+        _save(1)
+        saved = true
+        copy_tick = ctx.current_tick()
+        misses = 0
+        ctx.not_done()
+    } else if not copied {
+        _wait_copy(ctx, 1)
+        ctx.not_done()
+    } else if not after.has() {
+        _capture_after(ctx)
+        ctx.not_done()
+    } else if not cleared {
+        _save(0)
+        cleared = true
+        copy_tick = ctx.current_tick()
+        misses = 0
+        attempts = 0
+        ctx.not_done()
+    } else if not cleared_copied {
+        _wait_copy(ctx, 0)
+        ctx.not_done()
+    } else if not restored {
+        _capture_restored(ctx)
+        ctx.not_done()
+    }
+}
+
+local _wall(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    Test.set_box_radius(6)
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # A wall behind the block's spot, thirteen across and thirteen high, so it covers the whole
+    # crop and keeps drifting clouds out of it.
+    wy: number = y - 9
+    while wy < y + 4 {
+        wx: number = x - 6
+        while wx < x + 7 {
+            level.place_block(wx, wy, z + 6, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# The room without the block is the frame everything with the block is told apart from, so it is
+# captured once the client has drawn the wall the setup placed, and the block goes in after it.
+local _settle_empty(ctx: TestTickContext) {
+    if ctx.current_tick() >= room_tick + 10 {
+        empty.set(Test.screenshot().capture(500, 60, 780, 440))
+        room_tick = ctx.current_tick()
+        attempts = 0
+        _place(ctx)
+    }
+}
+
+# The frame with the pedestal is the one everything else is compared against, so it is taken only
+# once the client has drawn the placed block: `Test.world_settled` says the client's renderer has
+# nothing queued, and the wait after the placement leaves the block's own light time to arrive. A
+# frame that still looks like the room without the block is a section from a build, which draws as
+# nothing for a frame or two, so it is captured again.
+local _capture_before(ctx: TestTickContext) {
+    if ctx.current_tick() >= room_tick + 10 and ctx.current_tick() >= placed_tick + 60 and Test.world_settled() {
+        drawn: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        room_tick = ctx.current_tick()
+        if drawn.change_from(empty.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 16, "The client never drew the chunk-mesh block's pedestal.")
+        } else {
+            before.set(drawn)
+            attempts = 0
+        }
+    }
+}
+
+# Waits for the joined client's copy of the number to hold the value just saved, read over the
+# control channel: on a dedicated server the copy the frame pass reads is the client's, and the
+# server's own copy holds the number the moment it is saved, so it says nothing about the send.
+# The first read is ten ticks after the save, which is past the end of the server tick the packet
+# is sent at, and a copy that never holds the number fails here rather than in a capture.
+local _wait_copy(ctx: TestTickContext, value: number) {
+    if ctx.current_tick() >= copy_tick + 10 {
+        copy: number = Test.client_saved_number(mesh_block.unwrap(), "frame_marker")
+        copy_tick = ctx.current_tick()
+        if copy == value {
+            if value == 1 {
+                copied = true
+            } else {
+                cleared_copied = true
+            }
+            attempts = 0
+        } else {
+            misses = misses + 1
+            ctx.assert(misses < 40, "The saved number never reached the joined client's copy.")
+        }
+    }
+}
+
+# The frame after the save, which has to show the stacks. The client's copy holds the number by now
+# and `Test.world_settled` makes it draw a frame from that copy, so a frame that still matches the
+# pedestal was drawn before the save and is captured again.
+local _capture_after(ctx: TestTickContext) {
+    if ctx.current_tick() >= room_tick + 10 and Test.world_settled() {
+        shot: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        room_tick = ctx.current_tick()
+        if shot.change_from(before.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The saved number never reached the client's frame.")
+        } else {
+            after.set(shot)
+            attempts = 0
+        }
+    }
+}
+
+# The frame after the number went back to 0, which has to be the pedestal again: it differs from
+# the frame with the stacks by the stacks' own share, and it is closer to the pedestal frame than
+# to that one. The second comparison is what a room that moved a little cannot pass: the move adds
+# the same share to both distances, so the stacks' share is still between them.
+local _capture_restored(ctx: TestTickContext) {
+    if ctx.current_tick() >= room_tick + 10 and Test.world_settled() {
+        shot: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        room_tick = ctx.current_tick()
+        moved: number = shot.change_from(after.unwrap())
+        near_before: number = shot.change_from(before.unwrap())
+        if moved < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "Saving 0 did not take the stacks away again.")
+        } else {
+            ctx.assert(near_before + 0.5 < moved, "The frame after saving 0 was not the pedestal the frame before the save showed.")
+            restored = true
+            attempts = 0
+        }
+    }
+}
+
+# Saves the number with no redraw: this block's frame pass reads it, and only the data has to
+# travel, never a rebuild of the chunk mesh that draws the pedestal.
+local _save(value: number) {
+    block: BlockEntity = mesh_block.unwrap()
+    block.set_saved_number("frame_marker", value)
+}
+
+local _place(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The same place coverage_mesh_saved_number's block sits, so the crop that test proves holds the
+    # pedestal holds this one too.
+    level.place_block(x, y - 1.88, z + 4, "grug:coverage_mesh_saved")
+    placed_tick = ctx.current_tick()
+
+    be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    ctx.assert(be_opt.has(), "The chunk-mesh block should have a block entity.")
+    mesh_block.set(be_opt.unwrap())
+}

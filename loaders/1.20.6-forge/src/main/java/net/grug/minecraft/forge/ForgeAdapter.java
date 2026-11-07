@@ -422,6 +422,19 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return Minecraft.getInstance().level;
     }
 
+    /**
+     * The client's own copy of the world, which its frame pass draws.
+     *
+     * <p>In singleplayer this is the client's mirror of the integrated server's world, a different
+     * object from the world {@link #getLevel()} answers, and a saved number reaches it only when
+     * the loader sends the block entity's data to it (#1162). A dedicated server never asks: its
+     * adapter forwards the read to the joined client.
+     */
+    @Override
+    public Object clientLevel() {
+        return Minecraft.getInstance().level;
+    }
+
     @Override
     public Object testPlayer() {
         return Minecraft.getInstance().player;

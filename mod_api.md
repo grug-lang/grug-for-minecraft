@@ -78,6 +78,7 @@ Test.camera() Vec3
 Test.clear_carried_item()
 Test.clear_held_item(player: Player)
 Test.click_screen(x: number, y: number, button: number) bool
+Test.client_saved_number(block_entity: BlockEntity, name: string) number
 Test.close_screen()
 Test.display_tick(level: Level, x: number, y: number, z: number, seed: number) number
 Test.force_gc()

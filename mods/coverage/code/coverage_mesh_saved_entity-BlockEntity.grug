@@ -1,3 +1,6 @@
+# The stack the frame pass draws, hoisted so a frame does not create a new Item every frame.
+log: Item = item(resource_location("minecraft:oak_log"))
+
 # Draws the geometry the chunk's mesh holds, from the saved number the mesh is built with. A block
 # whose shape the mesh holds reads the saved data here, not in render_frame, so a number a script
 # saved only shows once the client rebuilt the mesh (#1101).
@@ -27,7 +30,30 @@ export render(ctx: RenderContext) {
 # inside the clear box the runner empties before every test, and it is a grug block no terrain puts
 # there; a stone block above the room was found in the world on some loaders and fired in the tests
 # that never place one.
+
+# The stacks in front of the block are the frame pass's own reading of the saved data, which
+# coverage_mesh_frame_saved_number watches: twelve of them, in three rows and four columns, appear
+# once "frame_marker" is above 0 and none appear at 0, and no redraw() is asked for or needed. They
+# float a fifth of a block in front of the block's face rather than inside it, because the mesh
+# draws a whole block here and would hide them. Twelve, because one stack covers under the 1 percent
+# of the crop the tests ask for, and three rows so that a room built a block off, which moves the
+# block in the joined client's frame, still leaves a row and the four columns in the crop.
 export render_frame(ctx: RenderFrameContext) {
+    if me.get_saved_number("frame_marker") > 0 {
+        ctx.draw_item(log, 0, 1, 0.125, 0.2, -0.2)
+        ctx.draw_item(log, 0, 1, 0.375, 0.2, -0.2)
+        ctx.draw_item(log, 0, 1, 0.625, 0.2, -0.2)
+        ctx.draw_item(log, 0, 1, 0.875, 0.2, -0.2)
+        ctx.draw_item(log, 0, 1, 0.125, 0.5, -0.2)
+        ctx.draw_item(log, 0, 1, 0.375, 0.5, -0.2)
+        ctx.draw_item(log, 0, 1, 0.625, 0.5, -0.2)
+        ctx.draw_item(log, 0, 1, 0.875, 0.5, -0.2)
+        ctx.draw_item(log, 0, 1, 0.125, 0.8, -0.2)
+        ctx.draw_item(log, 0, 1, 0.375, 0.8, -0.2)
+        ctx.draw_item(log, 0, 1, 0.625, 0.8, -0.2)
+        ctx.draw_item(log, 0, 1, 0.875, 0.8, -0.2)
+    }
+
     if me.get_saved_number("redraw_done") == 0 {
         center: Vec3 = me.block_pos().center()
         if me.level().get_block(center.x(), center.y(), center.z() - 9) == "grug:coverage_block" {

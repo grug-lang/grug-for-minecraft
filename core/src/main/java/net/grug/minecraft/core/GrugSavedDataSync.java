@@ -17,19 +17,18 @@ import java.util.WeakHashMap;
  *
  * <p>Every loader's grug block entity writes that data into its NBT, and the client's copy reads it
  * from the chunk when it arrives. On a dedicated server the script runs on the server's copy, so
- * nothing the client holds changes with it, and a block that draws only per frame is never meshed
+ * nothing the client holds changes with it, and data that the frame pass draws is never meshed
  * again for it: the packet has to be sent by itself. The rule is the same on every loader, so it
  * lives here and each loader only supplies the things only it can answer ({@link Transport}).
  *
- * <p>Only a block that draws all of its own geometry per frame is sent when its data changes: it
- * reads the numbers on the next frame, and nothing meshes it again for them. A block whose geometry
- * is in its chunk's mesh reads them when the mesh is built, which the script asks for with {@code
- * redraw}; a send on every change would be a packet without the mesh that shows it, and on 1.20.6
- * the game's own update packet re-meshes, so a block that also draws per frame would rebuild its
- * mesh every time that frame state changed. {@link #redrawn} is where such a block is sent: the
- * client's copy is given the data and the block update that makes it build the mesh again. On a
- * client that shares the world (singleplayer and the integrated server) {@code redraw} re-meshes
- * that one world and the number is already there.
+ * <p>A block entity that may draw per frame is sent when its data changes, because its frame pass
+ * reads the numbers on the next frame and nothing meshes the block again for them. The change send
+ * never rebuilds a mesh: on 1.20.6 it is the game's own data packet without the redraw flag, and on
+ * the four older loaders the packet's redraw boolean is false. {@link #redrawn} is the other path,
+ * for the geometry in the chunk's mesh: the client's copy is given the data and the mark that makes
+ * it build the mesh again, and a change to data that only the mesh draws therefore waits for the
+ * script's {@code redraw}. On a client that shares the world (singleplayer and the integrated
+ * server) {@code redraw} re-meshes that one world and the number is already there.
  *
  * <p>A send is left out when the data is what was last sent to that block entity, because a script
  * may save the same value every tick, and a machine's tick is not a reason for a packet. The data
@@ -49,8 +48,19 @@ public final class GrugSavedDataSync {
         /** Whether this process simulates the block entity, rather than holding a client's copy. */
         boolean onServer(Object blockEntity);
 
-        /** Whether the block draws only per frame, so nothing meshes it again for this data. */
-        boolean frameOnly(Object blockEntity);
+        /**
+         * Whether the block entity may draw per frame, so a saved change reaches the client's frame
+         * pass without the block's mesh being built again.
+         *
+         * <p>Every loader answers with whether the block draws its own geometry, which is what
+         * makes the game call {@code render_frame} at all. The {@code render_frame} export id
+         * cannot answer it: grug builds its table of export ids from {@code mod_api.json} rather
+         * than from the files that are loaded, so the id resolves for every script and a check
+         * against it has an arm no test can take. A block whose geometry is in its chunk's mesh
+         * answers yes too, so it is sent the data on a change, which arrives without a rebuild and
+         * is drawn when its mesh is next built.
+         */
+        boolean drawsFrame(Object blockEntity);
 
         /** Sends the block entity's saved data to the clients that hold it. */
         void send(Object blockEntity);
@@ -94,7 +104,7 @@ public final class GrugSavedDataSync {
         if (!installed.onServer(blockEntity)) {
             return;
         }
-        if (!installed.frameOnly(blockEntity)) {
+        if (!installed.drawsFrame(blockEntity)) {
             return;
         }
         String now = snapshot(blockEntity);
