@@ -375,7 +375,9 @@ while :; do
     # frame comes from and the server cannot observe that reload. It stays client-only. The click
     # tests are the proof that the server's slot order is the client's on the 1.2.5 leg, whose whole
     # game-speed loop runs between two runner ticks: on 1.20.6 the next server tick's own task queue
-    # would apply the click before the runner's next tick anyway.
+    # would apply the click before the runner's next tick anyway. On 1.20.6 the pair also splits the
+    # click's two halves, gui_click taking the release path (the cursor carries a stack) and
+    # gui_click_empty the press path (the cursor is empty), so a leg that runs both proves both.
     case "$LOADER" in
       1.20.6-forge)
         gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"

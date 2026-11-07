@@ -5,9 +5,13 @@
 # never in the same one, because the click's effect is the server's. On a dedicated server the drain
 # reads the packet before the next tick; on the 1.20.6 client leg the click's handler is a task on
 # the integrated server, so the runner holds its next tick until that handler ran. The cursor is set
-# on the server's menu, which is the one the click is applied to. The servers that can open no
-# container for their player list this test as unsupported until #1098 gives them one, so it runs on
-# 1.20.6 and 1.2.5.
+# on the server's menu, which is the one the click is applied to, and the game syncs it to the
+# client's screen, so the press and the release both find the diamond on the cursor.
+# The cursor carries a diamond here, so on 1.20.6 the press only starts a drag and the release is
+# what sends the click packet: this test proves the release half, and the diamond landing in the
+# grid proves the click was applied. gui_click_empty proves the other half, the press path an empty
+# cursor takes. The servers that can open no container for their player list this test as
+# unsupported until #1098 gives them one, so it runs on 1.20.6 and 1.2.5.
 started: bool = false
 clicked: bool = false
 
