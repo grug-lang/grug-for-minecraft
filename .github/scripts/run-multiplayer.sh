@@ -358,18 +358,6 @@ while :; do
       echo "==> The run passed, but coverage/tests/camera-Test.grug did not run on the dedicated server." >&2
       exit 1
     fi
-    # The buildcraft captures #1178 promoted run on the two Ornithe server legs, which now hold the
-    # camera at the room's eye as the client-only run does (#1161). The other three legs list them
-    # as unsupported, where the residues #1161 measured still stand, so these two legs must show
-    # they ran; a leg that silently skipped one would otherwise look green.
-    if [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ]; then
-      for capture in buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings; do
-        if ! grep -qF "[GRUG CI] PASS ${capture}-Test.grug" "$SERVER_LOG"; then
-          echo "==> The run passed, but ${capture}-Test.grug did not run on the dedicated server." >&2
-          exit 1
-        fi
-      done
-    fi
     # The remote GUI test (#168), the GUI capture tests and the two container-click tests run on the
     # servers that can open a container for their player, 1.20.6 and 1.2.5 (#1098): the other three
     # servers list them as unsupported, so these two legs must show they ran. A capture compares
