@@ -8,7 +8,9 @@
     "ChunkMixin",
     "ResourcePackManagerMixin"
   ],
-  "server": [],
+  "server": [
+    "ServerCloseScreenMixin"
+  ],
   "client": [
     "GrugMixin",
     "ArsenicItemRendererMixin",
