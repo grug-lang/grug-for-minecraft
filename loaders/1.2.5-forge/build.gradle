@@ -48,6 +48,7 @@ def fixToolClasses = new File(buildDirFile, 'tools/fixinherited')
 def fogToolClasses = new File(buildDirFile, 'tools/disable-fog')
 def skipFrameToolClasses = new File(buildDirFile, 'tools/skip-frame')
 def guiInputToolClasses = new File(buildDirFile, 'tools/gui-input')
+def gameDirToolClasses = new File(buildDirFile, 'tools/game-dir')
 def reobfSrgFile = new File(buildDirFile, 'reobf.srg')
 def devJar = new File(buildDirFile, 'libs/grug-1.2.5-forge-dev.jar')
 def fixedJar = new File(buildDirFile, 'grug-1.2.5-forge-fixed.jar')
@@ -56,6 +57,7 @@ def runtimeDevJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-dev.jar')
 def runtimeFogJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-fog.jar')
 def runtimeSkipFrameJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-skip-frame.jar')
 def runtimeGuiInputJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-gui-input.jar')
+def runtimeGameDirJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-game-dir.jar')
 def runtimeJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime.jar')
 def nativesDir = new File(buildDirFile, 'natives')
 def windows = System.getProperty('os.name').startsWith('Windows')
@@ -348,6 +350,15 @@ tasks.register('compilePatchGuiInputTool', JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
+tasks.register('compileGameDirTool', JavaCompile) {
+    description = 'Compiles tools/GameDir.java.'
+    source = fileTree(toolsDir) { include 'GameDir.java' }
+    classpath = configurations.fogPatchTool
+    destinationDirectory.set(gameDirToolClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
 tasks.register('fixInheritedJar', JavaExec) {
     description = 'Rewrites inherited member references before reobfuscation.'
     dependsOn tasks.named('jar'), 'compileFixInheritedTool', 'reobfSrg'
@@ -442,16 +453,33 @@ tasks.register('patchRuntimeGuiInput', JavaExec) {
     }
 }
 
+// launchwrapper 1.5 stores --gameDir in Minecraft's static directory field only in main's
+// epilogue, after the game thread has already read it, so which directory the client resolves is
+// a race (#1184). This patch lets the launch command's own property answer that read first; see
+// tools/GameDir.java for the failed boot job that lost the race.
+tasks.register('patchRuntimeGameDir', JavaExec) {
+    description = 'Rewrites Minecraft.getMinecraftDir to answer the launch command game directory.'
+    dependsOn 'patchRuntimeGuiInput', 'compileGameDirTool'
+    inputs.file runtimeGuiInputJar
+    outputs.file runtimeGameDirJar
+    classpath = files(gameDirToolClasses) + configurations.fogPatchTool
+    mainClass.set('GameDir')
+    doFirst {
+        runtimeGameDirJar.parentFile.mkdirs()
+        args = [runtimeGuiInputJar.absolutePath, runtimeGameDirJar.absolutePath]
+    }
+}
+
 tasks.register('obfuscateRuntime', Exec) {
     description = 'Reobfuscates the MCP dev classes into the pack-style runtime jar.'
-    dependsOn 'patchRuntimeGuiInput', 'reobfSrg'
-    inputs.file runtimeGuiInputJar
+    dependsOn 'patchRuntimeGameDir', 'reobfSrg'
+    inputs.file runtimeGameDirJar
     inputs.file reobfSrgFile
     outputs.file runtimeJar
     doFirst {
         runtimeJar.parentFile.mkdirs()
         commandLine 'java', '-jar', configurations.specialSourceTool.singleFile.absolutePath,
-            '--in-jar', runtimeGuiInputJar.absolutePath,
+            '--in-jar', runtimeGameDirJar.absolutePath,
             '--out-jar', runtimeJar.absolutePath,
             '--srg-in', reobfSrgFile.absolutePath
     }
@@ -608,7 +636,12 @@ def launchCommand = { Iterable<File> libraries, File gameDir, File assets, boole
     }
     command += [java8,
         "-Djava.library.path=${nativesDir.absolutePath}",
-        '-Djava.util.Arrays.useLegacyMergeSort=true']
+        '-Djava.util.Arrays.useLegacyMergeSort=true',
+        // launchwrapper 1.5 stores --gameDir in Minecraft's static directory field only in main's
+        // epilogue, after the game thread may already have read it, so the client can resolve the
+        // platform default directory instead. GameDir patches that read to prefer this property,
+        // which names the same directory as --gameDir below (#1184).
+        "-Dgrug.gameDir=${gameDir.absolutePath}"]
     if (recordCoverage) {
         command += jacocoLaunchArgs()
     }
