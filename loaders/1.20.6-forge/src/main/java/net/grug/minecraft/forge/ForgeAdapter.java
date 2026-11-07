@@ -1149,14 +1149,28 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // The click pass calls this on the client thread, but a test's own clear runs on the server
         // thread, so the client's menu is touched where it belongs either way.
         onClientThread(this::deleteCarriedItemOnClient);
-        // A test clears the cursor and reads it back on the same tick, and on a single-player run
-        // that read is the integrated server's menu (see carriedItem), whose clear is only queued
-        // above when this call is the client thread's. Clearing it here too keeps a clear settled
-        // for the caller that runs on the server thread.
-        ServerPlayer serverPlayer = integratedServerPlayer();
-        if (serverPlayer != null) {
-            serverPlayer.containerMenu.setCarried(ItemStack.EMPTY);
-        }
+        // The menu the next runner tick reads this cursor from is the integrated server's (see
+        // carriedItem), so the clear has to reach it before this call returns rather than through
+        // the queue deleteCarriedItemOnClient leaves behind. Writing it from the client thread is
+        // safe where an overlay's delete comes from, the runner's forwarded click: the runner holds
+        // the server blocked on that click until it answers, so nothing else is in the menu, and
+        // that answer orders this write before the server reads it. The same hold is what settles
+        // the tick after a press (#1094), and a dedicated server gets the same ordering from the
+        // delete packet its client sends before answering (#1094, #1196).
+        clearIntegratedServerCarried();
+    }
+
+    /**
+     * Clears the cursor of the integrated server's own menu, from whichever thread this runs on.
+     * The queue {@link #deleteCarriedItemOnClient} leaves covers the same menu a tick later, which
+     * is too late for a test that reads it on the next tick; see {@link #deleteCarriedItem}.
+     */
+    @GrugGenerated("the no-server arm: a run deletes a cursor on an integrated server")
+    private static void clearIntegratedServerCarried() {
+        Player local = Minecraft.getInstance().player;
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (local == null || server == null) return;
+        clearServerCarried(server, local);
     }
 
     @GrugGenerated(
