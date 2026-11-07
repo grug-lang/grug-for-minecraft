@@ -11,10 +11,10 @@ export tick_any_side(ctx: TestTickContext) {
         _setup(ctx)
         ctx.not_done()
     } else if not Test.screen_open() {
-        # On a server the screen is opened by a packet from the server (1.20.6 and 1.2.5), so it is
-        # not open when use_block returns and a settled world does not say the packet arrived: the
-        # world can answer settled from its first tick. Wait for the screen itself rather than
-        # counting settled answers. #418, #421.
+        # On a server the screen is opened by a packet from the server, so it is not open when
+        # use_block returns and a settled world does not say the packet arrived: the world can
+        # answer settled from its first tick. Wait for the screen itself rather than counting
+        # settled answers. #418, #421.
         ctx.not_done()
     } else if not Test.world_settled() {
         # The panel is only on screen once a frame holding it has been drawn, as in the other GUI tests.

@@ -8,6 +8,8 @@ import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.ornithe.ServerOrnitheAdapter;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.minecraft.entity.mob.player.PlayerEntity;
+import net.minecraft.inventory.menu.InventoryMenu;
+import net.minecraft.network.packet.InventoryMenuSlotContentPacket;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.entity.mob.player.ServerPlayerEntity;
@@ -74,6 +76,49 @@ public final class GrugServerRun {
         net.minecraft.server.MinecraftServer server =
                 net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get();
         return server == null ? null : server.getWorld(0);
+    }
+
+    /** Sends {@code packet} to one player, the one a server-opened GUI belongs to (#1098). */
+    public static void sendToPlayer(PlayerEntity player, Packet packet) {
+        if (player instanceof ServerPlayerEntity) {
+            ((ServerPlayerEntity) player).networkHandler.sendPacket(packet);
+        }
+    }
+
+    /**
+     * Installs {@code menu} as the open menu of {@code player}, which sends the menu's slot
+     * contents after the packet that opened it (#1098). The game's own listener is the player, and
+     * it is added only after the screen packet so the client has a menu for those slots to land in.
+     */
+    public static void listenToMenu(PlayerEntity player, InventoryMenu menu) {
+        if (player instanceof ServerPlayerEntity) {
+            menu.addListener((ServerPlayerEntity) player);
+        }
+    }
+
+    /**
+     * Closes the menu this server has open for {@code player}, as the game's own close does, so
+     * both sides are back on the player's own inventory, window 0 (#1094). A player already on
+     * their own inventory has nothing to close.
+     */
+    public static void closeOpenMenu(PlayerEntity player) {
+        if (player instanceof ServerPlayerEntity
+                && player.menu != null
+                && player.menu != player.playerMenu) {
+            ((ServerPlayerEntity) player).closeMenu();
+        }
+    }
+
+    /**
+     * Tells {@code player}'s client what this server's cursor holds (#1098). The cursor is not a
+     * slot a menu's own update sends, so the game syncs it as window -1 slot -1, which is what a
+     * click that changes it does.
+     */
+    public static void sendCursor(PlayerEntity player) {
+        if (!(player instanceof ServerPlayerEntity)) return;
+        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        serverPlayer.networkHandler.sendPacket(
+                new InventoryMenuSlotContentPacket(-1, -1, player.inventory.getCursorItem()));
     }
 
     /**
