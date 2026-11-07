@@ -10,7 +10,7 @@ import net.grug.minecraft.ornithe.ServerOrnitheAdapter;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
-import net.minecraft.network.packet.EntityTeleportPacket;
+import net.minecraft.network.packet.PlayerMovePacket;
 import net.minecraft.world.World;
 
 import java.util.List;
@@ -309,24 +309,35 @@ public final class GrugServerRun {
      * Moves the server's copy of the player's feet to {@code y} and tells the client.
      *
      * <p>The caller's {@code y} is a feet height, because both holds compare it with {@code
-     * shape.minY}, but this version's {@code setPositionAndAngles} takes the eye and adds no height
-     * of its own: passing the feet straight through put the server's copy one eye height below the
-     * client's and moved the room's eye with it (#1178). The eye height is added here, so both
-     * holds land on the feet they measured.
+     * shape.minY}. This version's {@code setPositionAndAngles} also takes the feet and adds the eye
+     * height to {@code y} itself, so the feet go through unchanged: adding the height here put the
+     * server's feet one eye above the height both holds measured, which the next hold saw and
+     * corrected every five seconds, and put the room's eye one eye above the feet it was meant to
+     * sit on (#1178).
      *
      * <p>A server-side {@code setPositionAndAngles} writes the server's copy and tells no one, and
-     * the camera is the client's: without the teleport the room would be built where the server's
+     * the camera is the client's: without a packet the room would be built where the server's
      * player now is while the frame is drawn from where the client's still is, which walks the
-     * fixture out of the band the saved-data tests capture. The game's own teleport packet is what
-     * makes a server's move visible, and the client's player is the entity it names.
+     * fixture out of the band the saved-data tests capture. The game's own player-move packet is
+     * what makes a server's move visible: its {@code minY} is the height the client's own {@code
+     * updatePositionAndAngles} writes, and the client keeps the eye there, so the packet carries
+     * the eye while {@code y} carries the feet the server's handler compares against (#1178). The
+     * entity teleport packet used before did not move the joined client's own player (#1178).
      */
     private static void moveTo(PlayerEntity player, double y) {
-        player.setPositionAndAngles(
-                player.x, y + GrugTestOrigin.EYE_HEIGHT, player.z, player.yaw, player.pitch);
+        player.setPositionAndAngles(player.x, y, player.z, player.yaw, player.pitch);
         player.velocityY = 0.0;
         Connection connection = GrugControlAlpha.connectionFor(player);
         if (connection != null) {
-            connection.send(new EntityTeleportPacket(player));
+            connection.send(
+                    new PlayerMovePacket.PositionAndAngles(
+                            player.x,
+                            y + GrugTestOrigin.EYE_HEIGHT,
+                            y,
+                            player.z,
+                            player.yaw,
+                            player.pitch,
+                            false));
         }
     }
 
