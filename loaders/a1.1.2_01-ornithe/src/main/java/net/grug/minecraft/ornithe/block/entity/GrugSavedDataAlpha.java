@@ -83,6 +83,12 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
     @Override
     public void redraw(Object blockEntity) {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
+        // Held until the flush, so like a send it can reach a block entity the tick replaced: its
+        // data and its rebuild have no client copy left to reach.
+        if (entity.world == null
+                || entity.world.getBlockEntity(entity.x, entity.y, entity.z) != entity) {
+            return;
+        }
         sendPacket(entity.world, new GrugSavedDataPacket(entity, true));
     }
 
