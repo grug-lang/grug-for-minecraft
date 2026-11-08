@@ -1,0 +1,23 @@
+# extract_item_into must refuse a slot before the start of the destination's inventory before it asks
+# the source, for the same reason it refuses a slot past the end: the write would land nowhere after
+# the take (#1205).
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_response_block")
+    level.place_block(x + 1, y, z, "grug:coverage_block")
+    source: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    destination: BlockEntity = level.get_block_entity(x + 1, y, z).unwrap()
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    source.set_item_in_slot(1, diamond, 10)
+    source.set_saved_number("extract_mode", 1)
+    source.set_saved_number("slot", 1)
+    source.set_saved_number("amount", 4)
+
+    ctx.expect_error("of the destination")
+    source.extract_item_into(destination, -1, 3)
+}
