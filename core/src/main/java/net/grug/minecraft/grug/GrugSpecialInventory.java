@@ -36,6 +36,20 @@ final class GrugSpecialInventory {
     static double extractInto(
             Object blockEntity, Object destination, double destinationSlot, double fromSide) {
         ModLoaderAdapter adapter = GrugCore.getAdapter();
+        int destinationSize = (int) adapter.getInventorySize(destination);
+        if (destinationSlot < 0 || destinationSlot >= destinationSize) {
+            // A destination with no such slot would drop the write after the source had given the
+            // stack up, which destroys it. Refuse before the source is asked, so the take costs
+            // nothing (#1205).
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "BlockEntity.extract_item_into: slot "
+                            + (int) destinationSlot
+                            + " of the destination is outside its inventory of "
+                            + destinationSize
+                            + " slots.");
+            return 0;
+        }
         if (adapter.getItemCountInSlot(destination, destinationSlot) != 0) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
