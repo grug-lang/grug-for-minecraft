@@ -92,6 +92,7 @@ class HostFunctionsItemListTest {
     @Test
     void aPressWithFiniteArgumentsAndAWholeButtonIsAccepted() {
         assertNull(HostFunctions.screenClickProblem(327, 9, 0));
+        assertNull(HostFunctions.screenClickProblem(0, 0, 1));
         assertNull(HostFunctions.screenClickProblem(0, 0, 2));
     }
 
@@ -111,5 +112,10 @@ class HostFunctionsItemListTest {
                         .contains("finite"));
         assertTrue(HostFunctions.screenClickProblem(1, 2, 0.5).contains("whole number"));
         assertTrue(HostFunctions.screenClickProblem(1, 2, -1).contains("whole number"));
+        // The first button past the range, and the two the audit found the 1.2.5 client turning
+        // into the left button and -1 (#1217).
+        assertTrue(HostFunctions.screenClickProblem(1, 2, 3).contains("0 to 2"));
+        assertTrue(HostFunctions.screenClickProblem(1, 2, 256).contains("0 to 2"));
+        assertTrue(HostFunctions.screenClickProblem(1, 2, 255).contains("0 to 2"));
     }
 }

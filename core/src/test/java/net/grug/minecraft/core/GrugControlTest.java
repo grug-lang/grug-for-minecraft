@@ -1729,9 +1729,30 @@ class GrugControlTest {
                         GrugControlServer.ControlException.class,
                         () -> server.clickScreen(0, Double.POSITIVE_INFINITY, 0));
         assertTrue(clickY.getMessage().contains("position has to be finite"), clickY.getMessage());
+        GrugControlServer.ControlException clickButton =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server.clickScreen(0, 0, 3));
+        assertTrue(clickButton.getMessage().contains("0 to 2"), clickButton.getMessage());
 
         assertTrue(loop.toClient.isEmpty());
         assertTrue(GrugControlServer.failed());
+    }
+
+    @Test
+    void aForwardedScreenPressButtonIsTheLeftRightOrMiddleOne() {
+        assertNull(GrugControlServer.callProblem(GrugControlWire.CALL_CLICK_SCREEN, "", 1, 2, 0));
+        assertNull(GrugControlServer.callProblem(GrugControlWire.CALL_CLICK_SCREEN, "", 1, 2, 1));
+        assertNull(GrugControlServer.callProblem(GrugControlWire.CALL_CLICK_SCREEN, "", 1, 2, 2));
+        assertTrue(
+                GrugControlServer.callProblem(GrugControlWire.CALL_CLICK_SCREEN, "", 1, 2, 3)
+                        .contains("0 to 2"));
+        assertTrue(
+                GrugControlServer.callProblem(GrugControlWire.CALL_CLICK_SCREEN, "", 1, 2, -1)
+                        .contains("0 to 2"));
+        assertTrue(
+                GrugControlServer.callProblem(GrugControlWire.CALL_CLICK_SCREEN, "", 1, 2, 256)
+                        .contains("0 to 2"));
     }
 
     @Test

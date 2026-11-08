@@ -32,6 +32,15 @@ export click(ctx: OverlayClickContext) {
     hotbar_x: number = ctx.gui_left() + 17
     hotbar_y: number = ctx.gui_top() + ctx.gui_height() - 15
     over_hotbar: bool = ctx.mouse_x() >= hotbar_x - 9 and ctx.mouse_x() < hotbar_x + 9 and ctx.mouse_y() >= hotbar_y - 9 and ctx.mouse_y() < hotbar_y + 9
+    # A left click on the first hotbar slot while the cursor carries an item closes the screen
+    # without taking the press, which is the fixture a test needs for a press that closes its own
+    # screen: 1.20.6 fires a synthetic release after the press, and a real mouse release follows
+    # the screen the client shows then, so the release must not reach the screen the press left
+    # (#1217). A press here with an empty cursor keeps the take below, as the earlier tests expect.
+    if inside_screen and inside_gui and over_hotbar and ctx.button() == 0 and carrying {
+        Test.close_screen()
+        return
+    }
     if inside_screen and inside_gui and over_hotbar {
         ctx.take()
         return
