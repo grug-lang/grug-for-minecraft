@@ -1,0 +1,41 @@
+# The item list draws a block item through the game's item renderer, which for a custom-rendered
+# grug block asks GrugModels.itemModel for grug:item/<block>. The coverage mod's coverage_crack and
+# coverage_frame entries had no drawable item model, so the joined client's list stopped on them
+# (#1237). This places the crack block, whose entity draws both item forms through the frame host,
+# and waits for a drawn frame: a missing item model is a mod-tree defect, which prints the
+# [GRUG CI] FAIL line the run fails on, so this test cannot pass without the two item models.
+# It defines tick, so a dedicated server skips it: the item list is the client's.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup()
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        # The block has to reach the client and a frame has to be drawn after that, which is what
+        # makes its block entity's render_frame run. See coverage_render_mining.
+        ctx.not_done()
+    } else {
+        _check(ctx)
+    }
+}
+
+local _setup() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+
+    # Four blocks in front of the player, where the block entity is in view and its frame render
+    # runs every drawn frame.
+    level.place_block(origin.x(), origin.y() - 1.88, origin.z() + 4, "grug:coverage_crack")
+}
+
+local _check(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The block entity is what draws the two item forms, so a missing one would make the defect
+    # this test exists for invisible.
+    block_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    ctx.assert(block_opt.has(), "The block whose item forms are drawn should have a block entity.")
+}
