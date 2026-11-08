@@ -1,10 +1,10 @@
 # Test.open_inventory asked of a dedicated server's joined client (#1094). On every server but
 # a1.1.2_01's, the server forwards the call, the client opens its own inventory screen, and this
 # waits for that screen and closes it: the screen is the client's, not a menu the server made up.
-# The a1.1.2_01 server has no container for its player, so the call keeps refusing with a host
-# function error naming the function instead of reaching for the client's own game class, which a
-# server refuses to load (#1064, #1098). See forwarded_screen_width-Test for why this is a
-# forwarded_ test.
+# The a1.1.2_01 server has no openInventory override that forwards the call, so the inherited
+# client method keeps refusing with a host function error naming the function instead of reaching
+# for the client's own game class, which a server refuses to load (#1064, #1098). See
+# forwarded_screen_width-Test for why this is a forwarded_ test.
 started: bool = false
 
 export tick(ctx: TestTickContext) {

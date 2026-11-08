@@ -479,7 +479,8 @@ while :; do
     # The overlay and item-list tests #1099 promoted. A joined client answers overlay_supported and
     # overlay_drawn now, and the give an overlay's click makes is named to the server, so these
     # eight tests open the client's screen and drive the overlay on it. The a1.1.2_01 leg runs none
-    # of them: its server has no container for its player, so Test.open_inventory refuses there.
+    # of them: its server has no openInventory override that forwards the call, so the inherited
+    # client method refuses with refuseWithoutAClient.
     # Three stay client-only on every leg, each in that loader's list with the reason:
     # overlay_screen_open asserts a just-opened screen has drawn no frame, which a joined client
     # cannot promise, and overlay-Test and jei-Test delete the item on the cursor, which only the
