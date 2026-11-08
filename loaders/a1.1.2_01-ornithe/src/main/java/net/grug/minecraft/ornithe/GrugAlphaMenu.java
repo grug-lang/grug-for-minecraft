@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe;
 
+import net.grug.minecraft.core.GrugMenuClick;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
@@ -29,7 +30,8 @@ import java.util.List;
  * <p>{@link #build} and {@link Slot} are measured by the coverage gate, because a singleplayer GUI
  * test reaches them through the client's screen constructor. The click algorithm, the content
  * packet's reads and the joined-client arms below are not: they need a dedicated server or a
- * server-opened screen, so each carries {@link GrugGenerated}.
+ * server-opened screen, so each carries {@link GrugGenerated}, and what the click decides from
+ * numbers and can be checked without a game is in core's {@code GrugMenuClick}.
  */
 public final class GrugAlphaMenu {
     /**
@@ -37,7 +39,7 @@ public final class GrugAlphaMenu {
      * container, whose size is this; the a0.2.1 server's {@code Inventory} interface declares no
      * {@code getMaxStackSize}, so it cannot be asked there.
      */
-    public static final int MAX_STACK_SIZE = 64;
+    public static final int MAX_STACK_SIZE = GrugMenuClick.MAX_STACK_SIZE;
 
     /** One slot of the table: which inventory and index it reads, and where the screen draws it. */
     public static final class Slot {
@@ -235,41 +237,30 @@ public final class GrugAlphaMenu {
                         GrugInventoryAccess.setItem(slot.inventory, slot.index, cursor);
                         cursor = inSlot;
                     }
-                } else if (button == 0) {
-                    int amount = cursor.size;
-                    if (amount > MAX_STACK_SIZE - inSlot.size) {
-                        amount = MAX_STACK_SIZE - inSlot.size;
-                    }
-                    if (amount > cursor.getMaxSize() - inSlot.size) {
-                        amount = cursor.getMaxSize() - inSlot.size;
-                    }
-                    split(cursor, amount);
-                    if (cursor.size == 0) {
-                        cursor = null;
-                    }
-                    inSlot.size += amount;
                 } else {
-                    int amount = 1;
-                    if (amount > MAX_STACK_SIZE - inSlot.size) {
-                        amount = MAX_STACK_SIZE - inSlot.size;
+                    int amount =
+                            GrugMenuClick.mergeAmount(
+                                    button, cursor.size, inSlot.size, cursor.getMaxSize());
+                    if (amount > 0) {
+                        split(cursor, amount);
+                        if (cursor.size == 0) {
+                            cursor = null;
+                        }
+                        inSlot.size += amount;
+                        // Written through the inventory rather than into the stack in place, so the
+                        // block entity's dirty flag and its item_inserted export both run: an
+                        // autocrafting table refreshes its result from that export, and Alpha's
+                        // save loop skips a chunk whose block entity is not dirty.
+                        GrugInventoryAccess.setItem(slot.inventory, slot.index, inSlot);
                     }
-                    if (amount > cursor.getMaxSize() - inSlot.size) {
-                        amount = cursor.getMaxSize() - inSlot.size;
-                    }
-                    split(cursor, amount);
-                    if (cursor.size == 0) {
-                        cursor = null;
-                    }
-                    inSlot.size += amount;
                 }
             } else if (inSlot.id == cursor.id && cursor.getMaxSize() > 1) {
                 int amount = inSlot.size;
                 if (amount > 0 && amount + cursor.size <= cursor.getMaxSize()) {
                     cursor.size += amount;
                     split(inSlot, amount);
-                    if (inSlot.size == 0) {
-                        GrugInventoryAccess.setItem(slot.inventory, slot.index, null);
-                    }
+                    GrugInventoryAccess.setItem(
+                            slot.inventory, slot.index, inSlot.size == 0 ? null : inSlot);
                     if (blockEntity != null) {
                         blockEntity.notifyOutputTaken(amount);
                     }

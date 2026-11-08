@@ -11,6 +11,7 @@ import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugWorldRevision;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.grug.minecraft.gui.GrugGuiLayoutCodec;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -1600,16 +1601,46 @@ public class HostFunctions {
                 (entity, world) -> GrugCore.getAdapter().spawnEntity(world, entity));
     }
 
+    /**
+     * Whether one more record of a GUI layout's kind fits, or answers false after reporting the
+     * call that would have added it.
+     *
+     * <p>A client's reader refuses a layout with more than {@link GrugGuiLayoutCodec#MAX_ENTRIES}
+     * records of a kind, and a client that refuses a layout loses the connection the server sent it
+     * over, so the call that would make one is the thing that fails. That names the grug call that
+     * asked for too many records, and leaves the connection alone.
+     */
+    private static boolean layoutRecordFits(String method, int count, String what) {
+        if (count < GrugGuiLayoutCodec.MAX_ENTRIES) {
+            return true;
+        }
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                method
+                        + ": A GUI holds at most "
+                        + GrugGuiLayoutCodec.MAX_ENTRIES
+                        + " "
+                        + what
+                        + ", so this one is not added.");
+        return false;
+    }
+
     public static void GUI_add_crafting_grid(long guiId, double startSlot, double x, double y) {
         withEntity(
                 "GUI.add_crafting_grid",
                 "GUI",
                 guiId,
-                gui ->
-                        ((GrugGuiBuilder) gui)
-                                .craftingGrids.add(
-                                        new GrugGuiBuilder.CraftingGridDef(
-                                                (int) startSlot, (int) x, (int) y)));
+                gui -> {
+                    GrugGuiBuilder builder = (GrugGuiBuilder) gui;
+                    if (!layoutRecordFits(
+                            "GUI.add_crafting_grid",
+                            builder.craftingGrids.size(),
+                            "crafting grids")) {
+                        return;
+                    }
+                    builder.craftingGrids.add(
+                            new GrugGuiBuilder.CraftingGridDef((int) startSlot, (int) x, (int) y));
+                });
     }
 
     public static void GUI_add_crafting_result(long guiId, double x, double y) {
@@ -1617,10 +1648,17 @@ public class HostFunctions {
                 "GUI.add_crafting_result",
                 "GUI",
                 guiId,
-                gui ->
-                        ((GrugGuiBuilder) gui)
-                                .craftingResults.add(
-                                        new GrugGuiBuilder.CraftingResultDef((int) x, (int) y)));
+                gui -> {
+                    GrugGuiBuilder builder = (GrugGuiBuilder) gui;
+                    if (!layoutRecordFits(
+                            "GUI.add_crafting_result",
+                            builder.craftingResults.size(),
+                            "crafting results")) {
+                        return;
+                    }
+                    builder.craftingResults.add(
+                            new GrugGuiBuilder.CraftingResultDef((int) x, (int) y));
+                });
     }
 
     public static void GUI_add_player_inventory(
@@ -1649,14 +1687,19 @@ public class HostFunctions {
                                 "GUI.add_text",
                                 "color",
                                 colorId,
-                                color ->
-                                        ((GrugGuiBuilder) gui)
-                                                .texts.add(
-                                                        new GrugGuiBuilder.TextDef(
-                                                                text,
-                                                                (int) x,
-                                                                (int) y,
-                                                                ((Color) color).getRGB()))));
+                                color -> {
+                                    GrugGuiBuilder builder = (GrugGuiBuilder) gui;
+                                    if (!layoutRecordFits(
+                                            "GUI.add_text", builder.texts.size(), "texts")) {
+                                        return;
+                                    }
+                                    builder.texts.add(
+                                            new GrugGuiBuilder.TextDef(
+                                                    text,
+                                                    (int) x,
+                                                    (int) y,
+                                                    ((Color) color).getRGB()));
+                                }));
     }
 
     public static void GUI_open(long guiId, long playerId, long blockEntityId) {

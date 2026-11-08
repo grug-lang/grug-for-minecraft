@@ -1,0 +1,16 @@
+# A GUI's layout holds at most 64 of each record, which is what a client's reader accepts. A layout
+# past that is one the client refuses, and refusing it costs the connection the server sent it over,
+# so the 65th text has to fail the call that adds it instead. See #1216.
+export tick_any_side(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    color: Color = Color.rgb(0, 0, 0)
+
+    added: number = 0
+    while added < 64 {
+        layout.add_text("text", 0, 0, color)
+        added = added + 1
+    }
+
+    ctx.expect_error("GUI.add_text: A GUI holds at most 64 texts")
+    layout.add_text("text", 0, 0, color)
+}
