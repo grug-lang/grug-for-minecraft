@@ -362,6 +362,30 @@ class GrugSavedDataSyncTest {
     }
 
     @Test
+    void aDeferringSideHoldsARedrawUntilItsFlush() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedDataSync.redrawn(machine);
+
+        assertEquals(
+                0,
+                recorder.redraws,
+                "a redraw is held like a change, so it is sent after the flush's block changes and"
+                        + " not before the block that is placed in the same tick exists (#1211)");
+
+        GrugSavedDataSync.flush();
+
+        assertEquals(1, recorder.redraws, "the flush sends the held redraw");
+        assertEquals(machine, recorder.lastRedrawn);
+
+        GrugSavedDataSync.flush();
+        assertEquals(1, recorder.redraws, "a flush with nothing held redraws nothing");
+    }
+
+    @Test
     void aRedrawReplacesAChangeTheSideHeld() {
         Recorder recorder = new Recorder();
         recorder.defers = true;
@@ -373,11 +397,72 @@ class GrugSavedDataSyncTest {
         GrugSavedDataSync.redrawn(machine);
         GrugSavedDataSync.flush();
 
-        assertEquals(1, recorder.redraws, "a redraw is not held: the client rebuilds at once");
+        assertEquals(1, recorder.redraws, "the flush rebuilds the client's mesh with the data");
         assertEquals(
                 0,
                 recorder.sends,
                 "the redraw packet carries the data, so a held change would only repeat it");
+    }
+
+    @Test
+    void aChangeAfterAHeldRedrawIsSentInTheRedrawPacket() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedDataSync.redrawn(machine);
+        GrugSavedNumbers.set(machine, "marker", 1);
+        GrugSavedDataSync.changed(machine);
+        GrugSavedDataSync.flush();
+
+        assertEquals(
+                1,
+                recorder.redraws,
+                "the redraw is built from the block entity at the flush, so it carries the number"
+                        + " the redraw was followed by");
+        assertEquals(0, recorder.sends, "a plain packet would only repeat what the redraw carries");
+    }
+
+    @Test
+    void aFlushOfOneLevelLeavesAnotherLevelsRedraw() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        recorder.perEntity = true;
+        GrugSavedDataSync.install(recorder);
+        Object serverLevel = new Object();
+        Object otherLevel = new Object();
+        Machine inServerLevel = new Machine();
+        inServerLevel.level = serverLevel;
+        Machine inOtherLevel = new Machine();
+        inOtherLevel.level = otherLevel;
+
+        GrugSavedDataSync.redrawn(inServerLevel);
+        GrugSavedDataSync.redrawn(inOtherLevel);
+
+        GrugSavedDataSync.flush(serverLevel);
+        assertEquals(1, recorder.redraws, "a flush of one level sends that level's redraw");
+        assertEquals(inServerLevel, recorder.lastRedrawn);
+
+        GrugSavedDataSync.flush(otherLevel);
+        assertEquals(2, recorder.redraws, "the other level's redraw was still held");
+        assertEquals(inOtherLevel, recorder.lastRedrawn);
+    }
+
+    @Test
+    void aDeferringSideThatNamesNoLevelRedrawsAtOnce() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        recorder.namesLevel = false;
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedDataSync.redrawn(machine);
+
+        assertEquals(
+                1,
+                recorder.redraws,
+                "a redraw no level could flush is not held forever, as a change is not");
     }
 
     @Test

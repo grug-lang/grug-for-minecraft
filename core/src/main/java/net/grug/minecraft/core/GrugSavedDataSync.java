@@ -37,6 +37,11 @@ import java.util.WeakHashMap;
  * may save the same value every tick, and a machine's tick is not a reason for a packet. The data
  * is compared as a canonical string of what the client's frame pass reads, not as the loader's NBT:
  * the older loaders' NBT has no value equality, and a copy of it is a new object every time.
+ *
+ * <p>A redraw waits for the flush on a deferring side too, not only a change. A client drops a
+ * saved-data packet whose block is not at the position yet, and a block placed in the same tick as
+ * the script's {@code redraw} reaches the client in the flush's block changes; sending the redraw
+ * first would leave the client's copy waiting for a first data packet that never comes (#1211).
  */
 public final class GrugSavedDataSync {
 
@@ -68,7 +73,13 @@ public final class GrugSavedDataSync {
         /** Sends the block entity's saved data to the clients that hold it. */
         void send(Object blockEntity);
 
-        /** Sends the block update that makes those clients build the block's mesh again. */
+        /**
+         * Sends the block update that makes those clients build the block's mesh again.
+         *
+         * <p>On a side that defers sends this waits for the flush, like {@link #send}: a block
+         * placed in the same tick reaches the client in that flush's block changes, so the redraw
+         * has to follow them or the client drops it for a block that is not there yet (#1211).
+         */
         void redraw(Object blockEntity);
 
         /**
@@ -80,7 +91,8 @@ public final class GrugSavedDataSync {
          * packet per saved field per tick: the a1 and b1.7.3 connections drop the player when a
          * burst crosses the megabyte their outbound queue holds, which is #1191. The client's copy
          * only ever needs the latest state, so a loader that answers true here is sent one packet
-         * per block entity, at the flush.
+         * per block entity, at the flush. A redraw is held the same way, so it is sent after the
+         * flush's block changes.
          *
          * <p>False by default, so a loader that installs no flush keeps sending at once.
          */
@@ -120,6 +132,13 @@ public final class GrugSavedDataSync {
 
         /** The block entities this level is waiting to send, at most once each. */
         private final Set<Object> held = Collections.newSetFromMap(new WeakHashMap<>());
+
+        /**
+         * The block entities this level is waiting to send with their mesh rebuilt, at the flush. A
+         * redraw carries the data itself, so one of these replaces a held change of the same block
+         * entity rather than being sent after it.
+         */
+        private final Set<Object> heldRedraws = Collections.newSetFromMap(new WeakHashMap<>());
     }
 
     /**
@@ -196,7 +215,9 @@ public final class GrugSavedDataSync {
             // A deferring side that does not say which level holds the change has nowhere to
             // flush it from, so it is sent at once rather than held forever.
             installed.send(blockEntity);
-        } else {
+        } else if (!pending.heldRedraws.contains(blockEntity)) {
+            // A held redraw is built from the block entity at the flush, so it carries this newer
+            // data too, and a second plain packet would only repeat it.
             pending.held.add(blockEntity);
         }
     }
@@ -223,6 +244,9 @@ public final class GrugSavedDataSync {
      * Sends and forgets the changes held for one level, and leaves every other level alone: a flush
      * of the server's world must neither send nor drop a change of a client's level, or of a second
      * world in the same process.
+     *
+     * <p>The held changes go before the held redraws, because a redraw rebuilds a mesh and the
+     * client's copy has to hold the data the mesh then reads.
      */
     public static synchronized void flush(Object level) {
         Pending pending = LEVELS.get(level);
@@ -231,9 +255,14 @@ public final class GrugSavedDataSync {
         }
         List<Object> ready = new ArrayList<>(pending.held);
         pending.held.clear();
+        List<Object> rebuilds = new ArrayList<>(pending.heldRedraws);
+        pending.heldRedraws.clear();
         // A record only exists for the installed side: install clears them when the side changes.
         for (Object blockEntity : ready) {
             transport.send(blockEntity);
+        }
+        for (Object blockEntity : rebuilds) {
+            transport.redraw(blockEntity);
         }
     }
 
@@ -246,6 +275,12 @@ public final class GrugSavedDataSync {
      * the loader's mark, and sends nothing, because the data travels server to client only. That is
      * the same side check {@link #changed} makes, so no loader's transport can turn a client's
      * redraw into a packet even if it installed one.
+     *
+     * <p>A side that defers sends is asked for the redraw at its flush, not here: the block that
+     * the redraw is for may be placed in the same tick, and its block change only reaches the
+     * client at that flush. A redraw sent now would arrive first and be dropped for a position the
+     * client still holds the previous block at, leaving its new copy waiting for data forever
+     * (#1211).
      */
     public static synchronized void redrawn(Object blockEntity) {
         Transport installed = transport;
@@ -257,7 +292,14 @@ public final class GrugSavedDataSync {
         }
         // The redraw packet carries the data too, so a held change of the same block entity is
         // what it replaces rather than something to send after it, which could be older.
-        Pending pending = LEVELS.get(installed.levelOf(blockEntity));
+        Object level = installed.levelOf(blockEntity);
+        if (installed.defersSends() && level != null) {
+            Pending pending = LEVELS.computeIfAbsent(level, unused -> new Pending());
+            pending.held.remove(blockEntity);
+            pending.heldRedraws.add(blockEntity);
+            return;
+        }
+        Pending pending = LEVELS.get(level);
         if (pending != null) {
             pending.held.remove(blockEntity);
         }
