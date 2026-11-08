@@ -512,6 +512,16 @@ public final class GrugControlServer {
         return number(GrugControlWire.CALL_SAVED_NUMBER, name, x, y, z);
     }
 
+    /**
+     * Asks the starter's client for the block light at a position in its own copy of the world,
+     * which is the light its frame pass reads there (#1207). A server's copy is the world it
+     * simulates, so a test that wants to know whether a light change reached the client's copy has
+     * to ask the client. The light is 0 to 15, so a byte carries the answer.
+     */
+    public int clientLight(double x, double y, double z) throws ControlException {
+        return call(GrugControlWire.CALL_CLIENT_LIGHT, "", x, y, z);
+    }
+
     /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
     private static boolean yesOrNo(byte result, String call) throws ControlException {
         if (result != 0 && result != 1) {
@@ -596,6 +606,8 @@ public final class GrugControlServer {
                 return cameraAxisProblem(volume);
             case GrugControlWire.CALL_SAVED_NUMBER:
                 return savedNumberProblem(name, volume, pitch, third);
+            case GrugControlWire.CALL_CLIENT_LIGHT:
+                return positionProblem(volume, pitch, third);
             default:
                 String problem = GrugSoundArgs.pathProblem(name);
                 if (problem == null && call == GrugControlWire.CALL_PLAY_UI_SOUND) {
@@ -632,10 +644,14 @@ public final class GrugControlServer {
                 > GrugControlWire.MAX_NAME) {
             return "The saved number's name is over " + GrugControlWire.MAX_NAME + " bytes.";
         }
+        return positionProblem(x, y, z);
+    }
+
+    /** Why the three numbers are not a block position, or null. */
+    private static String positionProblem(double x, double y, double z) {
         for (double position : new double[] {x, y, z}) {
             if (!Double.isFinite(position)) {
-                return "A saved-number read names a block entity's position, and one of its"
-                        + " numbers was not finite.";
+                return "The call names a block position, and one of its numbers was not finite.";
             }
         }
         return null;
@@ -782,6 +798,9 @@ public final class GrugControlServer {
         }
         if (call == GrugControlWire.CALL_SAVED_NUMBER) {
             return "saved number \"" + name + "\"";
+        }
+        if (call == GrugControlWire.CALL_CLIENT_LIGHT) {
+            return "client light";
         }
         return "call " + call + " \"" + name + "\"";
     }

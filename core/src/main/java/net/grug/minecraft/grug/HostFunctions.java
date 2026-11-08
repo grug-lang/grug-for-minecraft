@@ -862,6 +862,24 @@ public class HostFunctions {
         return GrugCore.getAdapter().isWorldSettled();
     }
 
+    /**
+     * Test only: whether the client's copy of the world holds the same block light at this position
+     * as the world the test edits, which is the light the client's frame pass draws the room with
+     * (#1207).
+     *
+     * <p>A light change reaches a 1.20.6 client in a packet after the block changes a capture
+     * settle counts, and two frames of a room drawn from the light it had before the change can
+     * agree with each other, so a capture-only settle cannot tell that room from a settled one. A
+     * test that captures a room whose light its own change touched waits for this before it
+     * captures; it is false while the world's own light engine still has work, so two copies that
+     * both still hold the old light do not compare equal. The four older loaders answer true: their
+     * light is worked out on the server tick, and their occurrences of the same late-light capture
+     * are tracked by #1207.
+     */
+    public static boolean Test_light_applied(double x, double y, double z) {
+        return GrugCore.getAdapter().lightApplied(x, y, z);
+    }
+
     public static void Test_notify_neighbors(long levelId, double x, double y, double z) {
         worldChanged();
         withEntity(

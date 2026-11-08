@@ -150,6 +150,11 @@ class GrugControlTest {
                 public double savedNumber(double x, double y, double z, String name) {
                     throw new AssertionError("no saved-number call was expected");
                 }
+
+                @Override
+                public int clientLight(double x, double y, double z) {
+                    throw new AssertionError("no light call was expected");
+                }
             };
 
     private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
@@ -227,6 +232,11 @@ class GrugControlTest {
         public double savedNumber(double x, double y, double z, String name) {
             throw new AssertionError("no saved-number call was expected");
         }
+
+        @Override
+        public int clientLight(double x, double y, double z) {
+            throw new AssertionError("no light call was expected");
+        }
     }
 
     /** A client whose settle answer the test decides, and which counts the frames it forgets. */
@@ -298,6 +308,11 @@ class GrugControlTest {
         public double savedNumber(double x, double y, double z, String name) {
             throw new AssertionError("no saved-number call was expected");
         }
+
+        @Override
+        public int clientLight(double x, double y, double z) {
+            throw new AssertionError("no light call was expected");
+        }
     }
 
     /** A client whose screen answers the test decides, and which records the calls it gets. */
@@ -310,6 +325,7 @@ class GrugControlTest {
         double read = 176.0;
         double saved = 5.0;
         boolean savedFails;
+        int light = 12;
         boolean closed;
         boolean opened;
 
@@ -390,6 +406,12 @@ class GrugControlTest {
             }
             seen.add("savedNumber " + x + " " + y + " " + z + " " + name);
             return saved;
+        }
+
+        @Override
+        public int clientLight(double x, double y, double z) {
+            seen.add("clientLight " + x + " " + y + " " + z);
+            return light;
         }
     }
 
@@ -1315,8 +1337,9 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLICK_SCREEN));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OPEN_INVENTORY));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SAVED_NUMBER));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLIENT_LIGHT));
         assertFalse(GrugControlWire.isCall((byte) 0));
-        assertFalse(GrugControlWire.isCall((byte) 13));
+        assertFalse(GrugControlWire.isCall((byte) 14));
 
         // Only the calls that can make the client send a packet ask the server to drain.
         assertTrue(GrugControlWire.sendsPacket(GrugControlWire.CALL_CLICK_SCREEN));
@@ -1354,7 +1377,7 @@ class GrugControlTest {
                                 GrugControlWire.captureRequest(
                                         1, 0, 0, 1, 1, 0, Double.POSITIVE_INFINITY, 0)));
 
-        byte[] unknown = GrugControlWire.callRequest(1, (byte) 13, "x", 0, 0, 0);
+        byte[] unknown = GrugControlWire.callRequest(1, (byte) 14, "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1414,9 +1437,11 @@ class GrugControlTest {
                                             ? Boolean.TRUE
                                             : method.getReturnType() == double.class
                                                     ? 0.0
-                                                    : method.getReturnType() == Vec3.class
-                                                            ? new Vec3(1, 2, 3)
-                                                            : null;
+                                                    : method.getReturnType() == int.class
+                                                            ? 0
+                                                            : method.getReturnType() == Vec3.class
+                                                                    ? new Vec3(1, 2, 3)
+                                                                    : null;
                                 });
         GrugControlClient.Caller caller = GrugControlClient.adapterCaller(() -> adapter);
         // The screen calls share whether a screen was already open, so start from closed.
@@ -1437,6 +1462,7 @@ class GrugControlTest {
         // The stand-in adapter has no level, so the read answers the default a client without a
         // world has and still goes through the adapter's own savedNumberOnClient.
         assertEquals(0.0, caller.savedNumber(1, 2, 3, "frame_marker"));
+        assertEquals(0, caller.clientLight(7, 8, 9));
         assertEquals(
                 List.of(
                         "hasSound a",
@@ -1453,8 +1479,22 @@ class GrugControlTest {
                         "testPlayer",
                         "openInventory null",
                         "testCamera",
-                        "savedNumberOnClient 1.0"),
+                        "savedNumberOnClient 1.0",
+                        "clientBlockLight 7.0"),
                 seen);
+
+        // The interface's own fallbacks: a loader that cannot read light answers -1, and a test's
+        // light wait is true rather than blocking on a loader that has nothing to compare.
+        ModLoaderAdapter bare =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        java.lang.reflect.InvocationHandler.invokeDefault(
+                                                proxy, method, args));
+        assertEquals(-1, bare.clientBlockLight(1, 2, 3));
+        assertTrue(bare.lightApplied(1, 2, 3));
     }
 
     @Test
@@ -1584,6 +1624,25 @@ class GrugControlTest {
     }
 
     @Test
+    void aForwardedClientLightIsAskedOfTheJoinedClientAndAnswered()
+            throws GrugControlServer.ControlException {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+
+        assertEquals(12, loop.server.clientLight(10, 68, 20));
+        assertEquals(List.of("clientLight 10.0 68.0 20.0"), screens.seen);
+
+        // A position the wire cannot carry never leaves the server.
+        GrugControlServer.clearFailure();
+        assertThrows(
+                GrugControlServer.ControlException.class,
+                () -> loop.server.clientLight(10, Double.NaN, 20));
+        assertTrue(GrugControlServer.failed());
+        GrugControlServer.clearFailure();
+    }
+
+    @Test
     void aCaptureWithoutAnEyeToDrawFromIsAnError() {
         Loopback loop = wire(1000, -1, solid(0));
         loop.client.beginRun();
@@ -1663,7 +1722,7 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) 13,
+                        (byte) 14,
                         0,
                         0,
                         0,
@@ -1677,7 +1736,7 @@ class GrugControlTest {
         GrugControlWire.Message answer = GrugControlWire.decode(loop.toServer.get(0));
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
-        assertTrue(answer.text.contains("unknown call 13"), answer.text);
+        assertTrue(answer.text.contains("unknown call 14"), answer.text);
     }
 
     @Test
@@ -1850,6 +1909,11 @@ class GrugControlTest {
                             @Override
                             public double savedNumber(double x, double y, double z, String name) {
                                 throw new AssertionError("no saved-number call was expected");
+                            }
+
+                            @Override
+                            public int clientLight(double x, double y, double z) {
+                                throw new AssertionError("no light call was expected");
                             }
 
                             @Override

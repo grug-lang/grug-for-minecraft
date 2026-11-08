@@ -123,6 +123,15 @@ public final class GrugControlWire {
      */
     public static final byte CALL_SAVED_NUMBER = 12;
 
+    /**
+     * The call: the block light at a position in the client's own copy of the world, which is the
+     * light its frame pass reads there (#1207). The answer is the light, 0 to 15. The three numbers
+     * are the position's x, y and z. A server-run test asks it to wait until the room's light has
+     * reached the client, rather than capturing a room meshed from the light it had before the
+     * change.
+     */
+    public static final byte CALL_CLIENT_LIGHT = 13;
+
     /** The longest name a call may carry, in bytes. */
     public static final int MAX_NAME = 256;
 
@@ -259,7 +268,7 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_SAVED_NUMBER;
+        return call >= CALL_HAS_SOUND && call <= CALL_CLIENT_LIGHT;
     }
 
     /**
