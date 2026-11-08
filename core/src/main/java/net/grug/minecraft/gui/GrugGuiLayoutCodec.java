@@ -1,7 +1,9 @@
 package net.grug.minecraft.gui;
 
 import java.io.DataInput;
+import java.io.DataInputStream;
 import java.io.DataOutput;
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
@@ -17,7 +19,9 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>The game's own string codec is not used, so a label is not capped at its length. A length is
  * bounded here instead, so a corrupt stream cannot ask for a huge allocation, and so are the record
- * counts, so it cannot make the reader loop until the stream ends.
+ * counts, so it cannot make the reader loop until the stream ends. A layout holding more records
+ * than the reader accepts is refused when it is written too, because the alternative is a client
+ * that refuses the packet and loses the connection the server sent it over.
  */
 public final class GrugGuiLayoutCodec {
     /** The most bytes one label or texture path may hold. */
@@ -40,20 +44,20 @@ public final class GrugGuiLayoutCodec {
         out.writeInt(layout.hotbarX);
         out.writeInt(layout.hotbarY);
 
-        out.writeInt(layout.craftingGrids.size());
+        writeCount(out, layout.craftingGrids.size(), "grids");
         for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
             out.writeInt(grid.startSlot());
             out.writeInt(grid.x());
             out.writeInt(grid.y());
         }
 
-        out.writeInt(layout.craftingResults.size());
+        writeCount(out, layout.craftingResults.size(), "results");
         for (GrugGuiBuilder.CraftingResultDef result : layout.craftingResults) {
             out.writeInt(result.x());
             out.writeInt(result.y());
         }
 
-        out.writeInt(layout.texts.size());
+        writeCount(out, layout.texts.size(), "texts");
         for (GrugGuiBuilder.TextDef text : layout.texts) {
             writeText(out, text.text());
             out.writeInt(text.x());
@@ -63,8 +67,30 @@ public final class GrugGuiLayoutCodec {
     }
 
     /** Reads what {@link #write} wrote, refusing a text length no layout can hold. */
-    public static GrugGuiBuilder read(DataInput in) throws IOException {
-        GrugGuiBuilder layout = new GrugGuiBuilder(readText(in));
+    public static GrugGuiBuilder read(DataInputStream in) throws IOException {
+        return read(in, true);
+    }
+
+    /**
+     * Consumes what {@link #write} wrote and throws it away, for the side of a connection that only
+     * has to stay in step with the stream.
+     *
+     * <p>The game reads a packet's body straight from the connection, with no length in front of
+     * it, so the side that must not decode a layout still has to read exactly as much as a decoder
+     * would. It is walked here rather than built, so a body a client sends a server is not turned
+     * into a layout of its own.
+     */
+    public static void skip(DataInputStream in) throws IOException {
+        read(in, false);
+    }
+
+    /**
+     * Reads the layout field for field, or with {@code keep} false only walks the same fields and
+     * drops what it read. One implementation, so the fields a skipped layout steps over cannot
+     * drift from the fields a decoded one reads.
+     */
+    private static GrugGuiBuilder read(DataInputStream in, boolean keep) throws IOException {
+        GrugGuiBuilder layout = new GrugGuiBuilder(readText(in, keep));
         layout.hasPlayerInventory = in.readBoolean();
         layout.playerInvX = in.readInt();
         layout.playerInvY = in.readInt();
@@ -73,23 +99,42 @@ public final class GrugGuiLayoutCodec {
 
         int grids = readCount(in, "grids");
         for (int i = 0; i < grids; i++) {
-            layout.craftingGrids.add(
-                    new GrugGuiBuilder.CraftingGridDef(in.readInt(), in.readInt(), in.readInt()));
+            int startSlot = in.readInt();
+            int x = in.readInt();
+            int y = in.readInt();
+            if (keep) {
+                layout.craftingGrids.add(new GrugGuiBuilder.CraftingGridDef(startSlot, x, y));
+            }
         }
 
         int results = readCount(in, "results");
         for (int i = 0; i < results; i++) {
-            layout.craftingResults.add(
-                    new GrugGuiBuilder.CraftingResultDef(in.readInt(), in.readInt()));
+            int x = in.readInt();
+            int y = in.readInt();
+            if (keep) {
+                layout.craftingResults.add(new GrugGuiBuilder.CraftingResultDef(x, y));
+            }
         }
 
         int texts = readCount(in, "texts");
         for (int i = 0; i < texts; i++) {
-            layout.texts.add(
-                    new GrugGuiBuilder.TextDef(
-                            readText(in), in.readInt(), in.readInt(), in.readInt()));
+            String text = readText(in, keep);
+            int x = in.readInt();
+            int y = in.readInt();
+            int color = in.readInt();
+            if (keep) {
+                layout.texts.add(new GrugGuiBuilder.TextDef(text, x, y, color));
+            }
         }
         return layout;
+    }
+
+    /** Writes a record count, refusing one no layout could have read back. */
+    private static void writeCount(DataOutput out, int count, String what) throws IOException {
+        if (count > MAX_ENTRIES) {
+            throw new IOException("a GUI layout names " + count + " " + what);
+        }
+        out.writeInt(count);
     }
 
     /** Reads a record count, refusing one no layout can hold. */
@@ -107,13 +152,36 @@ public final class GrugGuiLayoutCodec {
         out.write(bytes);
     }
 
-    private static String readText(DataInput in) throws IOException {
+    /**
+     * Reads a text, or with {@code keep} false skips its bytes and answers an empty one. A server
+     * that only consumes a client's layout reads no text at all, so the most a body can cost it is
+     * the buffer this copies into, never a text of the largest length it declares.
+     */
+    private static String readText(DataInputStream in, boolean keep) throws IOException {
         int length = in.readInt();
         if (length < 0 || length > MAX_TEXT) {
             throw new IOException("a GUI layout's text is " + length + " bytes long");
         }
+        if (!keep) {
+            skipFully(in, length);
+            return "";
+        }
         byte[] bytes = new byte[length];
         in.readFully(bytes);
         return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    /** Reads past {@code length} bytes, in pieces so no text's size becomes one allocation. */
+    private static void skipFully(DataInputStream in, int length) throws IOException {
+        byte[] scratch = new byte[Math.min(length, 1 << 13)];
+        int left = length;
+        while (left > 0) {
+            int read = in.read(scratch, 0, Math.min(scratch.length, left));
+            if (read < 0) {
+                throw new EOFException(
+                        "a GUI layout's text is shorter than its " + length + " bytes");
+            }
+            left -= read;
+        }
     }
 }
