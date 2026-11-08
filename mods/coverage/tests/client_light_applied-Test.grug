@@ -1,0 +1,49 @@
+# Test.light_applied answers whether the client's copy of the world holds the block light the world
+# the test edits has at a position, which is the light its frame pass draws that position with
+# (#1207). The room's torches light it before the first tick, so the read is true once their light
+# has reached the client's copy; a block placed over the read position puts that light out, and the
+# read is true again only once the change has reached the client too. The read is the one a capture
+# wait needs: two frames of a room drawn from the light it had before a change agree with each
+# other, so a frame count cannot tell that room from a settled one.
+# The four older loaders answer true: their light is worked out on the server tick, and their
+# occurrences of the same late-light capture are tracked by #1207 rather than closed by this test.
+# It runs on the server's tick only, so a dedicated server asks its joined client, which is the copy
+# the frames are drawn from.
+state: number = 0
+waited: number = 0
+x: number = 0
+y: number = 0
+z: number = 0
+
+export init(ctx: TestInitContext) {
+    # The room's light and then the light a block puts out, each with a client round trip.
+    ctx.set_max_ticks(600)
+}
+
+export tick(ctx: TestTickContext) {
+    if state == 0 {
+        origin: Vec3 = Test.get_origin()
+        x = origin.x() + 1
+        y = origin.y() - 1
+        z = origin.z()
+        if not Test.light_applied(x, y, z) {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The room's own light should reach the client.")
+            ctx.not_done()
+        } else {
+            Test.get_client_level().place_block(x, y, z, "minecraft:stone")
+            state = 1
+            ctx.not_done()
+        }
+    } else if state == 1 {
+        if not Test.light_applied(x, y, z) {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A block over the position should reach the client's light.")
+            ctx.not_done()
+        } else {
+            state = 2
+        }
+    } else {
+        ctx.assert(Test.light_applied(x, y, z), "The light the client holds should stay the world's own.")
+    }
+}

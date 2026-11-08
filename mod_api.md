@@ -95,6 +95,7 @@ Test.gui_width() number
 Test.high_block_round_trip() number
 Test.hot_reload_count(relative_path: string) number
 Test.is_reference() bool
+Test.light_applied(x: number, y: number, z: number) bool
 Test.load_nbt(block_entity: BlockEntity)
 Test.loader_name() string
 Test.mining_crack(level: Level, x: number, y: number, z: number) bool

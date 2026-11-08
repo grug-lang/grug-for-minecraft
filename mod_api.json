@@ -1447,6 +1447,32 @@
 						"name": "bool"
 					}
 				},
+				"light_applied": {
+					"description": "Test only: whether the client's copy of the world holds the same block light at this position as the world the test edits, which is the light the client's frame pass draws the room with. A light change reaches a 1.20.6 client in a packet after the block changes a capture settle counts, so two frames of a room drawn from the light it had before the change can agree with each other, and a capture taken then lands a light step away from the room's real light. A test that captures a room whose light a change of its own touched waits for this before it captures, which is deterministic where a frame count is not. The answer is false while the world's own light engine still has work, so two copies that both still hold the old light do not compare equal. Only 1.20.6 compares the copies; the four older loaders answer true, because their light is worked out on the server tick, and their occurrences of the same late-light capture are tracked by #1207. See #1207.",
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					],
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"load_nbt": {
 					"description": "Test only: writes a block entity's NBT, applies the edits staged for it in the order they were staged, and has the world load a block entity from the result as a chunk load does: the old block entity is removed, and a new one is created from the NBT before it enters the world, so a mod whose block entity depends on that order loads as it would from a save. The handle names the removed block entity afterwards, so get the block entity at its position again. A path that does not fit the NBT and a block entity with nothing staged are reported, and then nothing is replaced.",
 					"parameters": [

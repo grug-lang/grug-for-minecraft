@@ -474,6 +474,40 @@ public interface ModLoaderAdapter {
     boolean isWorldSettled();
 
     /**
+     * The block light at a position in the client's own copy of the world, which is the light the
+     * client's frame pass reads there, or -1 when this adapter cannot read it (#1207).
+     *
+     * <p>A dedicated server answers through {@link GrugControlServer#clientLight}: its own copy is
+     * the world it simulates, so only the joined client holds the light the pixels are drawn with.
+     */
+    default int clientBlockLight(double x, double y, double z) {
+        return -1;
+    }
+
+    /**
+     * Whether the client's copy of the world holds the same block light at this position as the
+     * world a test edits, which is what makes a capture of a room whose light just changed safe to
+     * take (#1207).
+     *
+     * <p>A test waits on this before it captures a room whose light came from a change it made,
+     * because a client that has not been told about the change draws the room from the light it had
+     * before it, and two frames of that stale room can agree with each other. A capture-only settle
+     * cannot tell that room from a settled one. A loader whose own light engine is still working
+     * answers false too, so two copies that both still hold the light from before the change cannot
+     * compare equal.
+     *
+     * <p>Only 1.20.6 answers with a real comparison, because it is the loader whose light is
+     * computed on a separate thread and reaches the client in a packet after the block changes the
+     * settle counts. The four older loaders keep the true here: their light is worked out on the
+     * server tick, and their occurrences of the same late-light capture are tracked by #1207 rather
+     * than closed by this rule. An adapter that cannot read light at all also answers true, so a
+     * loader without an implementation waits no longer than it did before.
+     */
+    default boolean lightApplied(double x, double y, double z) {
+        return true;
+    }
+
+    /**
      * One completed frame, called from the loader's own frame hook, which records whether that
      * frame still had work in it for {@link #isWorldSettled} to answer with, including whether the
      * client still owed a test's block edit.

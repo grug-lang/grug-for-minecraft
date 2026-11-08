@@ -38,6 +38,10 @@
 # joined client, and the captures are the client's (#1086). The waits end on the frame itself:
 # Screenshot.change_from reports how much of it changed, so a client that is behind is captured
 # again instead of being assumed to have caught up after a tick count.
+# The room's light reaches a 1.20.6 client in a packet after the block changes the frame waits
+# count, so each wait also requires the client's copy to hold the light the world the test edits
+# has (#1207). Two frames of a room meshed from the light it had before a change agree with each
+# other, so a frame count alone cannot tell that room from a settled one.
 mesh_block: Option[BlockEntity] = Option.new()
 empty: Option[Screenshot] = Option.new()
 empty_prev: Option[Screenshot] = Option.new()
@@ -72,10 +76,14 @@ export tick_any_side(ctx: TestTickContext) {
     } else if not Test.world_settled() {
         ctx.not_done()
     } else if not empty.has() {
-        _settle_empty(ctx)
+        if _light_applied() {
+            _settle_empty(ctx)
+        }
         ctx.not_done()
     } else if not before.has() {
-        _capture_before(ctx)
+        if _light_applied() {
+            _capture_before(ctx)
+        }
         ctx.not_done()
     } else if not saved {
         _save(1)
@@ -109,6 +117,25 @@ export tick_any_side(ctx: TestTickContext) {
             ctx.not_done()
         }
     }
+}
+
+# Whether the client's copy holds the room's light, so a capture now is drawn with the room as the
+# test built it rather than with the light it had before (#1207). The reads are the air in front of
+# the wall at the room's light height, on both sides of the wall's thirteen-block span, and the
+# pedestal between them: the wall's halves are in two chunk sections in x and the crop is mostly
+# made of them, so a section the client has not been told about is one of these reads.
+local _light_applied() bool {
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    if not Test.light_applied(x - 4, y - 1.88, z + 5) {
+        return false
+    }
+    if not Test.light_applied(x, y - 1.88, z + 4) {
+        return false
+    }
+    return Test.light_applied(x + 4, y - 1.88, z + 5)
 }
 
 local _wall(ctx: TestTickContext) {

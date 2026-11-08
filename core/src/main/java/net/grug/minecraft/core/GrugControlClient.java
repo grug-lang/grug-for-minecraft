@@ -93,6 +93,12 @@ public final class GrugControlClient {
          * copy a frame pass reads, which is not the one a dedicated server simulates.
          */
         double savedNumber(double x, double y, double z, String name);
+
+        /**
+         * The block light at the position in this client's own copy of the world, which is the
+         * light its frame pass reads there (#1207).
+         */
+        int clientLight(double x, double y, double z);
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -165,6 +171,11 @@ public final class GrugControlClient {
             @Override
             public double savedNumber(double x, double y, double z, String name) {
                 return adapter.get().savedNumberOnClient(x, y, z, name);
+            }
+
+            @Override
+            public int clientLight(double x, double y, double z) {
+                return adapter.get().clientBlockLight(x, y, z);
             }
         };
     }
@@ -353,6 +364,13 @@ public final class GrugControlClient {
                                         message.pitch,
                                         message.third,
                                         message.text)));
+            } else if (message.call == GrugControlWire.CALL_CLIENT_LIGHT) {
+                link.send(
+                        GrugControlWire.answerValue(
+                                message.id,
+                                (byte)
+                                        caller.clientLight(
+                                                message.volume, message.pitch, message.third)));
             } else {
                 // A call this client has no arm for, which is what a call code added to the wire
                 // before its arm becomes. Answering it as an error keeps the server's mistake

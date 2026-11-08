@@ -1344,6 +1344,60 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /**
+     * This client's own copy of a block's light, which is the light its frame pass draws (#1207).
+     */
+    @Override
+    public int clientBlockLight(double x, double y, double z) {
+        return blockLightAt(clientLevel(), x, y, z);
+    }
+
+    /**
+     * Whether this client's copy holds the light the simulated world has at the block (#1207). A
+     * dedicated server overrides this to ask its joined client, because there is no client here and
+     * the inherited answer would read a null level.
+     */
+    @Override
+    public boolean lightApplied(double x, double y, double z) {
+        int simulated = blockLightAt(getLevel(), x, y, z);
+        return simulated >= 0
+                && lightEngineSettled(getLevel())
+                && simulated == clientBlockLight(x, y, z);
+    }
+
+    /** One block's block light, or -1 when there is no level to read it from (#1207). */
+    static int blockLightAt(Object levelObj, double x, double y, double z) {
+        if (levelObj == null) {
+            return -1;
+        }
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        return ((Level) levelObj).getBrightness(LightLayer.BLOCK, pos);
+    }
+
+    /**
+     * Whether the light engine of a level this server simulates has no light work left, so the
+     * light it holds at every block is the light the last change asked for (#1207). Without this,
+     * two copies that both still hold the light from before a change compare equal and a wait ends
+     * before the change has even been worked out. A client level has no engine of its own here and
+     * answers true.
+     */
+    static boolean lightEngineSettled(Object levelObj) {
+        if (!(levelObj instanceof ServerLevel serverLevel)) {
+            return true;
+        }
+        ThreadedLevelLightEngine engine = serverLevel.getChunkSource().getLightEngine();
+        boolean tasksQueued = false;
+        boolean updateScheduled = false;
+        if (engine instanceof GrugLightEngineState state) {
+            tasksQueued = state.grug$hasQueuedLightTasks();
+            updateScheduled = state.grug$isUpdateScheduled();
+        }
+        return GrugRenderSettle.serverLightSettled(
+                engine.hasLightWork(), tasksQueued, updateScheduled);
+    }
+
+    /**
      * A section's block light as its 2048 bytes, or null when the level has no layer for it, which
      * is the same as a section nothing has lit.
      *

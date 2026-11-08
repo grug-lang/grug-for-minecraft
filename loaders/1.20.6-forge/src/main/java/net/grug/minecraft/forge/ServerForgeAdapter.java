@@ -527,6 +527,32 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * Whether the joined client's copy holds the light this server's world has at the block, asked
+     * of the client with the world frozen (#1207).
+     *
+     * <p>The client's light is the copy its frame pass draws, and this server cannot read it, so
+     * the answer is the client's own light compared with the server's. A server with no starter has
+     * no frame to protect and answers true, as {@link #isWorldSettled} does. The inherited answer
+     * reads a null client level here. See #167.
+     */
+    @Override
+    public boolean lightApplied(double x, double y, double z) {
+        int simulated = blockLightAt(getLevel(), x, y, z);
+        if (simulated < 0 || !GrugControlForge.server().hasStarter()) {
+            return true;
+        }
+        if (!lightEngineSettled(getLevel())) {
+            return false;
+        }
+        try {
+            return GrugControlForge.server().clientLight(x, y, z) == simulated;
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.light_applied: " + e.getMessage());
+            return true;
+        }
+    }
+
+    /**
      * Never reloading: the client's resource reload is the only thing the flag tracks, and a server
      * has no client resources. The inherited answer stays true once a test touches a watched file,
      * because nothing on a server runs the reload that would lower it, and the runner then waits
