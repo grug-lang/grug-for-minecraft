@@ -313,6 +313,16 @@ public final class GrugControlBeta {
      * client that drifted from the eye drew the room from where it had drifted to (#1178). The eye
      * is what the request names, and this version's {@code setPositionAndAngles} takes the feet and
      * adds the eye height itself, so the feet go one eye height below it.
+     *
+     * <p>It runs at the head of the client tick, before the world's own physics, and the frame a
+     * capture reads is the one the client drew after that tick. That frame is still drawn from the
+     * eye: {@code GameRenderer.transformCamera} interpolates between {@code lastY} and {@code y},
+     * {@code setPositionAndAngles} writes both, and the pin zeroes the velocity. This version's
+     * {@code MobEntity.moveRelative} moves the player by the velocity the previous tick ended with
+     * and only then applies gravity, so the physics cannot carry a pinned player off the eye in the
+     * tick the pin ran in, and that pair is the eye at every partial tick. ({@code prevX/Y/Z},
+     * which {@code World.tickEntity} and the position packets write, is not the camera's pair.) See
+     * #1193.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         player.setPositionAndAngles(
@@ -351,9 +361,15 @@ public final class GrugControlBeta {
     }
 
     /**
-     * One client tick. A client launched with GRUG_CI_CONNECT starts its run once it is in the
-     * world and the chunks around it have settled (the stand-in for the operator's hotkey), and a
-     * pending capture is taken once the client has had the frames that show what the server sent.
+     * One client tick, called from {@code Minecraft.tick}'s head. A client launched with
+     * GRUG_CI_CONNECT starts its run once it is in the world and the chunks around it have settled
+     * (the stand-in for the operator's hotkey), and a pending capture is taken once the client has
+     * had the frames that show what the server sent.
+     *
+     * <p>The head of the tick is enough for a capture (#1193): the pin runs before the world's
+     * physics, and the frame the capture reads is one a later tick drew, after a tick this same
+     * call pinned. The pin still describes that frame because it zeroes the velocity and this
+     * version applies gravity after the move; see {@link #pinAtCaptureEye}.
      */
     public static void onClientTick(Minecraft mc, GrugClientHooks hooks) {
         if (!started
