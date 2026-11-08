@@ -37,7 +37,12 @@ export tick_any_side(ctx: TestTickContext) {
     pipe = pipe_again_opt.unwrap()
     ctx.assert(pipe.get_inventory_size() == 0, "A pipe loaded with no slot should have no inventory.")
 
-    # 64 energy makes the first tick take the chest's whole stack, as wooden_pipe_drop_stack does,
+    # A tile replaced by a load has not run its init() yet on every loader, so tick it once with no
+    # energy first: that tick cannot pull, and it declares the pipe an energy receiver as a
+    # chunk-loaded one would be.
+    Test.tick_block_entity(pipe, 1)
+
+    # 64 energy makes the next tick take the chest's whole stack, as wooden_pipe_drop_stack does,
     # and Test.tick_block_entity runs the pipe's own tick without ticking entities, so the drop is
     # still exactly what the pipe made.
     pipe.receive_energy(64)
