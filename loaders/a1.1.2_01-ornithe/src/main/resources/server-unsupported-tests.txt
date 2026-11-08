@@ -56,9 +56,10 @@ coverage/tests/forwarded_scroll_screen-Test.grug
 #
 # The overlay and item-list tests. The joined client draws the overlay, so Test.overlay_supported
 # answers true here now that the answer is the client's (#1099), and each of these tests then opens
-# the player's inventory. The a0.2.1 server has no container for its player, so Test.open_inventory
-# refuses there (#1064, #1098) and the test fails before it draws anything. They run on the other
-# four legs, whose server forwards Test.open_inventory.
+# the player's inventory. This server has no openInventory override that forwards the open to the
+# joined client, so the inherited client method refuses with refuseWithoutAClient ("This needs a
+# client") and the test fails before it draws anything. They run on the other four legs, whose
+# server forwards Test.open_inventory.
 coverage/tests/overlay_click_hook-Test.grug
 coverage/tests/overlay_key-Test.grug
 coverage/tests/overlay_probe_gives_nothing-Test.grug
@@ -80,6 +81,6 @@ jei/tests/jei-Test.grug
 # never forces it on a dedicated server and Test.normalization_forced answers false there: on every
 # loader but 1.20.6 that fails the assertion that the marked loader forced it, and on 1.20.6 the
 # assertion holds without proving the client hooked anything. It stays client-only on every leg now
-# that Test.overlay_supported answers from the joined client (#1099); this leg also has no container
-# to open (#1064, #1098).
+# that Test.overlay_supported answers from the joined client (#1099); this leg's server also refuses
+# Test.open_inventory, because it has no override that forwards the open to the joined client.
 coverage/tests/hook_forced_normalization-Test.grug

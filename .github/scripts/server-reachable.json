@@ -1,5 +1,15 @@
 {
   "methods": {
+    "net/grug/minecraft/core/GrugControlClient": [
+      "runActiveHere:()Z"
+    ],
+    "net/grug/minecraft/core/GrugForcedNormalization": [
+      "capabilitiesToTurnOff:(ZZII)Ljava/util/List;",
+      "matchesFound:(ZZZZ)Z"
+    ],
+    "net/grug/minecraft/core/GrugGiveCalls": [
+      "give:(Lnet/grug/minecraft/core/ModLoaderAdapter;Ljava/lang/Object;Ljava/lang/Object;ILjava/lang/String;)V"
+    ],
     "net/grug/minecraft/core/GrugTestRunner$4": [
       "canForceNormalizationForTest:()Z",
       "forceNormalizationForTest:()Z",
@@ -16,6 +26,11 @@
     ],
     "net/grug/minecraft/forge/ForgeAdapter": [
       "getGameDirectory:()Ljava/io/File;",
+      "getItemMaxStack:(Ljava/lang/Object;)I",
+      "giveItemCountToPlayer:(Ljava/lang/Object;Ljava/lang/Object;I)V",
+      "giveItemToPlayer:(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/Item;I)V",
+      "giveOnServerThread:(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/Item;I)V",
+      "lambda$giveItemToPlayer$5:(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/Item;I)V",
       "lambda$itemsByName$4:(Lnet/minecraft/world/item/Item;Lnet/minecraft/world/item/Item;)I",
       "lambda$miningCrackForTest$21:([ZLnet/minecraft/core/BlockPos;)V",
       "lambda$redraw$3:(Lnet/minecraft/world/level/block/entity/BlockEntity;)V",
@@ -23,7 +38,10 @@
     ],
     "net/grug/minecraft/forge125/Grug125Adapter": [
       "gameDir:()Ljava/io/File;",
-      "getGameDirectory:()Ljava/io/File;"
+      "getGameDirectory:()Ljava/io/File;",
+      "getItemMaxStack:(Ljava/lang/Object;)I",
+      "giveItemCountToPlayer:(Ljava/lang/Object;Ljava/lang/Object;I)V",
+      "giveItemToPlayer:(Lnet/minecraft/src/EntityPlayer;Lnet/minecraft/src/Item;I)V"
     ],
     "net/grug/minecraft/forge125/Grug125ClientAdapter": [
       "canForceNormalizationForTest:()Z",
@@ -69,6 +87,9 @@
     "net/grug/minecraft/grug/GrugModsWatcher": [
       "loaderReloadCount:(Ljava/lang/String;)I"
     ],
+    "net/grug/minecraft/grug/GrugOverlay": [
+      "button:()D"
+    ],
     "net/grug/minecraft/grug/GrugQuad": [
       "quarterTurn:(I)Lnet/grug/minecraft/grug/GrugQuad;",
       "turnedSide:(III)I"
@@ -87,22 +108,33 @@
     ],
     "net/grug/minecraft/grug/HostFunctions": [
       "GUI_add_crafting_result:(JDD)V",
+      "OverlayClickContext_button:(J)D",
       "OverlayClickContext_delete_carried_item:(J)V",
       "Test_get_item_max_stack:(J)D",
       "Test_mining_crack:(JDDD)Z",
       "Test_normalization_forced:()Z",
       "Test_reload_count:(Ljava/lang/String;)D",
+      "giveItem:(Ljava/lang/String;Ljava/lang/Object;)V",
+      "giveItemStack:(Ljava/lang/String;Ljava/lang/Object;)V",
+      "give_item:(J)V",
+      "give_item_stack:(J)V",
       "lambda$GUI_add_crafting_result$39:(DDLjava/lang/Object;)V",
       "lambda$Screenshot_equals$62:(DDDDLjava/lang/String;Ljava/lang/Object;)V",
       "lambda$Test_get_item_max_stack$4:(Ljava/lang/Object;)Ljava/lang/Double;",
-      "lambda$Test_mining_crack$12:(DDDLjava/lang/Object;)Ljava/lang/Boolean;"
+      "lambda$Test_mining_crack$12:(DDDLjava/lang/Object;)Ljava/lang/Boolean;",
+      "lambda$give_item$76:(Ljava/lang/Object;)V",
+      "lambda$give_item_stack$77:(Ljava/lang/Object;)V",
+      "playerToGiveTo:(Ljava/lang/String;)Ljava/lang/Object;"
     ],
     "net/grug/minecraft/ornithe/OrnitheAdapter": [
       "canForceNormalizationForTest:()Z",
       "forceNormalizationForTest:()Z",
       "getGameDirectory:()Ljava/io/File;",
+      "getItemMaxStack:(Ljava/lang/Object;)I",
       "getStackCount:(Ljava/lang/Object;)D",
       "getStackDamage:(Ljava/lang/Object;)D",
+      "giveItemCountToPlayer:(Ljava/lang/Object;Ljava/lang/Object;I)V",
+      "giveItemToPlayer:(Lnet/minecraft/entity/mob/player/PlayerEntity;Lnet/minecraft/item/Item;I)V",
       "normalizationEnabledForTest:()Z",
       "registersModRecipes:()Z",
       "restoreNormalizationAfterTest:()Z",
@@ -116,6 +148,9 @@
       "canForceNormalizationForTest:()Z",
       "forceNormalizationForTest:()Z",
       "getGameDirectory:()Ljava/io/File;",
+      "getItemMaxStack:(Ljava/lang/Object;)I",
+      "giveItemCountToPlayer:(Ljava/lang/Object;Ljava/lang/Object;I)V",
+      "giveItemToPlayer:(Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/item/Item;I)V",
       "lambda$openGui$0:(Lnet/grug/minecraft/gui/GrugGuiBuilder;Lnet/minecraft/block/entity/BlockEntity;Lnet/modificationstation/stationapi/api/network/packet/MessagePacket;)V",
       "normalizationEnabledForTest:()Z",
       "restoreNormalizationAfterTest:()Z"
@@ -128,11 +163,14 @@
   },
   "recorded_from": "run 42029618358, the full dispatch of 92a1647f on 2026-11-05, and run 42079970039, the full dispatch of 031f946e on 2026-11-05; Test_normalization_forced and the adapter hooks that back it were added by #1144 before a dispatch ran them, and every server leg now lists the test that asks it as unsupported, so no dispatch reaches them, and run 42225234577, the full dispatch of 39601bcb on 2026-11-06, and #1161's Test.camera and the server adapters that answer it were added before a dispatch ran them, and run 42499323634, the full dispatch of 20b29a56 on 2026-11-08, where the 1.20.6 click test skip left the creative inventory's item-name sort lambda to the client alone",
   "why": {
+    "net/grug/minecraft/core/GrugControlClient": "runActiveHere answers whether this process is a client that started a run, which a give asks before writing to its own copy of the player. Only the give path calls it, so only overlay-Test reaches it in a coverage run, and every server leg skips that test (#882).",
+    "net/grug/minecraft/core/GrugForcedNormalization": "The decision the runner makes before a marked test's first tick: appliesTo is asked for every test, but capabilitiesToTurnOff and matchesFound run only for a test whose loader is forced, which a dedicated server never is. The one coverage test that reaches them, hook_forced_normalization-Test.grug, is skipped on every server leg because the state it proves belongs to a client's frame pass.",
+    "net/grug/minecraft/core/GrugGiveCalls": "The give path an overlay's click runs: give() is called only by give_item and give_item_stack, which only overlay-Test calls in a coverage run, and every server leg skips that test because of the cursor delete it also asserts (#882). The code that names an item to a joined server runs on that client and never in the coverage run, so it is not part of this record.",
     "net/grug/minecraft/core/GrugTestRunner$4": "The seam that forwards a test's forced autosave and its forced-normalization hooks to the adapter. The autosave hook is reached only by a test whose name asks for a save tick, and that test reads the save indicator a client draws. The normalization hooks are reached only for a marked test on a client: every server leg lists hook_forced_normalization-Test.grug as unsupported, because the runner's GrugForcedNormalization.appliesTo is false on a dedicated server, which never forces the state the test's assertion is about. No test a dedicated server runs reaches them, so the entries stay.",
     "net/grug/minecraft/core/ModLoaderAdapter": "The test hooks an adapter keeps the no-op or local default for: the forced-normalization hook (canForceNormalizationForTest, forceNormalizationForTest, restoreNormalizationAfterTest, normalizationEnabledForTest) runs only for a marked test on a client. Every server leg lists that test as unsupported, because the runner's GrugForcedNormalization.appliesTo is false on a dedicated server, which never calls the hooks there. 1.20.6 keeps all four defaults on its client too, because its item draw uses its own shader path. testCamera is the client's own eye; every dedicated server's adapter overrides it to ask the joined client for that client's camera, so a server's own call to Test.camera goes through that override and never reaches the local default, which only a client runs. The dispatch's check counts a test a dedicated server ran as reaching what that test reaches on the client, so it offers these entries for removal; they stay because the marked test is skipped on every server leg and a server's camera call goes through its own override, so no server reaches these defaults.",
-    "net/grug/minecraft/forge/ForgeAdapter": "The game directory the capture path writes under and the crack overlay a client draws, both reached only by tests that read a frame; requestAutosaveForTest saves through the client's integrated server, which a dedicated server does not have. The boot's own game directory read is in the boot segment, which the map leaves out. The redraw lambda is the client's own block update: it runs only on a client's copy of a block entity, which a dedicated server never holds, and redraw_custom_render reaches it only on the client.",
-    "net/grug/minecraft/forge125/Grug125Adapter": "The game directory and its 1.2.5 name, which the client's captures write under; a dedicated server captures nothing, and the boot's read is in the boot segment the map leaves out.",
-    "net/grug/minecraft/forge125/Grug125ClientAdapter": "The client half of the 1.2.5 loader: the mining crack overlay, the screen only a client opens, and the forced-normalization hook a marked test asks for on a client. The runner's GrugForcedNormalization.appliesTo answers false on a dedicated server, and the coverage test that reads the forced state returns at Test.overlay_supported there, so no server reaches them. The dispatch's check counts a test a dedicated server ran as reaching what that test reaches on the client, so it offers these entries for removal; they stay because the server's run of the test returns at Test.overlay_supported and never reaches them.",
+    "net/grug/minecraft/forge/ForgeAdapter": "The game directory the capture path writes under and the crack overlay a client draws, both reached only by tests that read a frame; requestAutosaveForTest saves through the client's integrated server, which a dedicated server does not have. The give helpers (giveItemCountToPlayer, giveItemToPlayer, giveOnServerThread and the queued lambda) run only from an overlay's click on a client, which overlay-Test is the only coverage test to make, and getItemMaxStack is asked only by that test's stack; every server leg skips it for the cursor delete it also asserts (#882). lambda$itemsByName$4 is the sort the item list builds once per run, which the coverage run attributes to hook_forced_normalization-Test.grug, the test that first asked the list there, and every server leg skips that test too. The boot's own game directory read is in the boot segment, which the map leaves out.",
+    "net/grug/minecraft/forge125/Grug125Adapter": "The game directory and its 1.2.5 name, which the client's captures write under; a dedicated server captures nothing, and the boot's read is in the boot segment the map leaves out. The give helpers and getItemMaxStack are reached only by overlay-Test, which every server leg skips for the cursor delete it also asserts (#882).",
+    "net/grug/minecraft/forge125/Grug125ClientAdapter": "The client half of the 1.2.5 loader: the mining crack overlay, the screen only a client opens, and the forced-normalization hook a marked test asks for on a client. Every server leg lists hook_forced_normalization-Test.grug as unsupported, because the runner's GrugForcedNormalization.appliesTo answers false on a dedicated server, which never forces the state. The dispatch's check counts a test a dedicated server ran as reaching what that test reaches on the client, so it offers these entries for removal; they stay because each of them runs only in a client process.",
     "net/grug/minecraft/grug/GrugBlockFaces": "Reads a block's model JSON from the mods directory and follows its parent chain, once per process when the loaders register their blocks. A dedicated server does that read too, through GrugBlocks' call to GrugBlockModels.resolveFaceTextures, and the map attributes it to whichever test's segment it happens to land in: run 42029618358 needed no entry for these methods because its segment was one that loader's server ran. Only the client re-reads a model on a hot reload, and the two tests that do, hot_reload_texture and hot_reload_item_texture, capture a frame, so no dedicated server runs them. 1.20.6 leaves the reading to the game's own model baking.",
     "net/grug/minecraft/grug/GrugFaceTextures": "The per-face keys a built-in model parent supplies and the texture each face key resolves to, reached through GrugBlockFaces at the same one-time block registration. A dedicated server resolves them there too, and which test's segment the map attributes that read to is what varies, as the GrugBlockFaces reason says.",
     "net/grug/minecraft/grug/GrugModFileStates": "Hot reload swaps a changed file aside on the client's watcher; a dedicated server reloads no mod file.",
@@ -140,13 +178,14 @@
     "net/grug/minecraft/grug/GrugModels$Cached": "A model built for drawing and kept for the next frame that needs it; a dedicated server builds no model.",
     "net/grug/minecraft/grug/GrugModels$Defect": "The record of a model file that could not be read, which only a client's model load produces.",
     "net/grug/minecraft/grug/GrugModsWatcher": "The reload count Test.reload_count reads after the client's watcher reloaded a file; a dedicated server reloads no mod file.",
+    "net/grug/minecraft/grug/GrugOverlay": "The overlay's own click context: button() is read only by a click that lands on the overlay's item box, and the one coverage test that clicks there is overlay-Test, which every server leg skips for the cursor delete it also asserts. Every other overlay read is reached by a test a server runs.",
     "net/grug/minecraft/grug/GrugQuad": "Rotates model geometry while a model is built for drawing; a dedicated server builds none.",
     "net/grug/minecraft/grug/GrugScreenshots": "Compares a captured frame with its reference; a dedicated server draws no frame to capture.",
     "net/grug/minecraft/grug/GrugScreenshots$Comparison": "The result of a GrugScreenshots comparison, which only a client's captured frame produces.",
-    "net/grug/minecraft/grug/HostFunctions": "Reached only by tests that open a menu or read a frame: GUI.add_crafting_result serves a slot a menu draws, Test.mining_crack reads the client's crack overlay, Test.reload_count reads the client's hot reload, Test.normalization_forced reads the runner's decision for a marked test, and Screenshot.equals compares a captured frame. Test.get_item_max_stack and OverlayClickContext.delete_carried_item are asked only by overlay-Test and jei-Test, which every server leg skips because the click they assert deletes the item on the joined client's cursor and no client-to-server cursor write exists yet (#882); lambda$Test_get_item_max_stack$4 is the adapter lookup that call makes. The forced state is asked only by hook_forced_normalization-Test.grug, which every server leg also lists, because a dedicated server never forces it. A test that runs on a dedicated server does none of that today; #1040 gives every test a server run.",
-    "net/grug/minecraft/ornithe/OrnitheAdapter": "The game directory the client's captures write under, the crafting-result path (getStackCount, getStackDamage, takeCraftingResult, updateRecipeOutput, registersModRecipes), and the forced-normalization hook a marked test asks for on a client, which GrugForcedNormalization.appliesTo turns off on a dedicated server, where the coverage test that reads the forced state also returns at Test.overlay_supported. The two Ornithe loaders compile separate copies: the Beta copy's methods are reached by tests a dedicated server runs, but the Alpha copy's only by tests the Alpha server skips, which a1.1.2_01-ornithe's server-unsupported-tests.txt names because the a0.2.1 server jar has no CraftingManager. That list goes with tick_any_side when #1040 lands. The dispatch's check counts a test a dedicated server ran as reaching what that test reaches on the client, so it offers these entries for removal; they stay because the server's run of the test returns at Test.overlay_supported and never reaches them.",
+    "net/grug/minecraft/grug/HostFunctions": "Reached only by tests that open a menu or read a frame: GUI.add_crafting_result serves a slot a menu draws, Test.mining_crack reads the client's crack overlay, Test.reload_count reads the client's hot reload, Test.normalization_forced reads the runner's decision for a marked test, and Screenshot.equals compares a captured frame. The give path and the cursor the overlay's click deletes (give_item, give_item_stack, giveItem, giveItemStack, playerToGiveTo, their lambdas, Test.get_item_max_stack and its lambda, OverlayClickContext.delete_carried_item and OverlayClickContext.button) are asked only by overlay-Test and jei-Test, which every server leg skips because the click they assert deletes the item on the joined client's cursor and no client-to-server cursor write exists yet (#882). The forced state is asked only by hook_forced_normalization-Test.grug, which every server leg also lists, because a dedicated server never forces it. A test that runs on a dedicated server does none of that today; #1040 gives every test a server run.",
+    "net/grug/minecraft/ornithe/OrnitheAdapter": "The game directory the client's captures write under, the crafting-result path (getStackCount, getStackDamage, takeCraftingResult, updateRecipeOutput, registersModRecipes), the give helpers an overlay's click runs, and the forced-normalization hook a marked test asks for on a client, which GrugForcedNormalization.appliesTo turns off on a dedicated server, so a server never forces the state either. The two Ornithe loaders compile separate copies: the Beta copy's methods are reached by tests a dedicated server runs, but the Alpha copy's only by tests the Alpha server skips, which a1.1.2_01-ornithe's server-unsupported-tests.txt names because the a0.2.1 server jar has no CraftingManager. That list goes with tick_any_side when #1040 lands. Every server leg also lists hook_forced_normalization-Test.grug, for the reason above, and skips overlay-Test, whose click deletes the item on the joined client's cursor (#882).",
     "net/grug/minecraft/ornithe/resource/GrugResourcePackProvider": "Registers the mods' resources as a resource pack for the Ornithe loaders, which only a client's pack list asks for; a dedicated server serves no resources.",
-    "net/grug/minecraft/stationapi/StationApiAdapter": "The game directory the client's captures write under, the packet that carries a GUI to the client which opened it, and the forced-normalization hook a marked test asks for on a client, which GrugForcedNormalization.appliesTo turns off on a dedicated server, where the coverage test that reads the forced state also returns at Test.overlay_supported. A dedicated server captures nothing, and the boot's own game directory read is in the boot segment the map leaves out. The dispatch's check counts a test a dedicated server ran as reaching what that test reaches on the client, so it offers these entries for removal; they stay because the server's run of the test returns at Test.overlay_supported and never reaches them.",
+    "net/grug/minecraft/stationapi/StationApiAdapter": "The game directory the client's captures write under, the packet that carries a GUI to the client which opened it, the give helpers an overlay's click runs, and the forced-normalization hook a marked test asks for on a client, which GrugForcedNormalization.appliesTo turns off on a dedicated server, so a server never forces the state. Every server leg lists hook_forced_normalization-Test.grug as unsupported for that reason, and skips overlay-Test, whose click deletes the item on the joined client's cursor (#882). A dedicated server captures nothing, and the boot's own game directory read is in the boot segment the map leaves out.",
     "net/grug/minecraft/stationapi/resource/GrugResourcePackProvider": "Registers the mods' resources as a resource pack, which only a client's pack list asks for; a dedicated server serves no resources."
   }
 }
