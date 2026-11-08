@@ -40,13 +40,14 @@ coverage/tests/hook_forced_normalization-Test.grug
 # coverage_frame ones, whose models exist only to make GrugModels report a defect: no mod ships
 # grug:item/coverage_crack and coverage_frame's item model resolves to no elements. The draw reports
 # each as a mod-tree defect, which fails the run, so a test that opens the list cannot pass on this
-# leg until those fixtures stay out of the list's view (#1099). The client-only run draws the same
-# list without the report, so this is the joined client's path. Both of these open the list.
+# leg until those fixtures stay out of the list's view (#1099, tracked as #1237). The client-only run
+# draws the same list without the report, so this is the joined client's path. Both of these open the
+# list.
 jei/tests/paging-Test.grug
 jei/tests/scroll-Test.grug
 #
-# The forced-normalization item list, which opens the same list, so the defect above fails the run
-# before its capture is compared. Its frame would also differ for the reason the other three legs
-# record: a dedicated server cannot force the state the file name asks for. The proof stopped before
-# it on this leg, so it has no number of its own here.
+# The forced-normalization item list, which opens the same list, so the defect above, tracked as
+# #1237, fails the run before its capture is compared. Its frame would also differ for the reason the
+# other three legs record: a dedicated server cannot force the state the file name asks for. The
+# proof stopped before it on this leg, so it has no number of its own here.
 jei/tests/item_list_forced_normalization-Test.grug
