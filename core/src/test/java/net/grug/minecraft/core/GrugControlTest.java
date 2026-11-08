@@ -1697,6 +1697,62 @@ class GrugControlTest {
     }
 
     @Test
+    void aForwardedGiveMovesTheRevisionSoARememberedSettleAnswerCannotOutliveIt() throws Exception {
+        Settled settled = new Settled();
+        List<String> given = new ArrayList<>();
+        ModLoaderAdapter adapter = giveAdapter(new Object(), given);
+        Loopback loop =
+                new Loopback() {
+                    @Override
+                    public void applyGive(int index, int count) {
+                        GrugGiveCalls.giveOnServer(adapter, index, count);
+                    }
+                };
+        loop.server = new GrugControlServer(loop, 1000);
+        loop.client = new GrugControlClient(loop, solid(0), settled, -1, -1);
+        loop.client.beginRun();
+        settled.settled = true;
+
+        // The world settles at this revision and the answer is remembered, so a poll reuses it.
+        assertFalse(loop.server.worldSettled());
+        assertTrue(loop.server.worldSettled());
+        int asked = loop.toClient.size();
+        assertTrue(loop.server.worldSettled());
+        assertEquals(asked, loop.toClient.size(), "the answer holds while the world does not move");
+
+        // The overlay's click names a give, and the drain applies it to the server's player. That
+        // changed inventory is what the client has yet to draw, so the remembered answer is stale.
+        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest(0, 1));
+        loop.server.applyClientWork();
+        assertEquals(1, given.size());
+        settled.settled = false;
+        assertFalse(loop.server.worldSettled());
+        assertEquals(asked + 1, loop.toClient.size(), "the stale answer is not reused");
+    }
+
+    /** An adapter a give reaches: one item by index and the test player to give it to. */
+    private static ModLoaderAdapter giveAdapter(Object item, List<String> given) {
+        return (ModLoaderAdapter)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        ModLoaderAdapter.class.getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) -> {
+                            switch (method.getName()) {
+                                case "testPlayer":
+                                    return PLAYER;
+                                case "itemByIndex":
+                                    return (Integer) args[0] == 0 ? item : null;
+                                case "giveItemCountToPlayer":
+                                    given.add("give");
+                                    return null;
+                                default:
+                                    throw new AssertionError(
+                                            "a give does not ask " + method.getName());
+                            }
+                        });
+    }
+
+    @Test
     void aClientNamesAGiveToTheServerOnlyWhileItsRunIsActive() {
         ScreenCalls screens = new ScreenCalls();
         Loopback loop = wireCalls(1000, screens);

@@ -164,6 +164,24 @@ class GrugGiveCallsTest {
     }
 
     @Test
+    void theServerGiveMovesTheWorldRevisionSoARememberedSettleAnswerCannotOutliveIt() {
+        Items items = new Items();
+        items.list.add(new Object());
+        long before = GrugWorldRevision.current();
+
+        // The give changes the player's inventory on the server, which is a world change like the
+        // local give's. A settle answer the server remembered for the old revision must not hold
+        // past it, or a capture after an overlay click takes a frame from before the sync.
+        GrugGiveCalls.giveOnServer(items.adapter(), 0, 1);
+        assertEquals(before + 1, GrugWorldRevision.current());
+
+        // A give that was dropped changed nothing, so it moves nothing either.
+        items.player = null;
+        GrugGiveCalls.giveOnServer(items.adapter(), 0, 1);
+        assertEquals(before + 1, GrugWorldRevision.current());
+    }
+
+    @Test
     void aGiveWithNoPlayerOrNoSuchItemIsDropped() {
         Items items = new Items();
         items.list.add(new Object());

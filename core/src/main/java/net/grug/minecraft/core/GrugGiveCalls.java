@@ -71,6 +71,14 @@ public final class GrugGiveCalls {
      * Applies a give the joined client sent, on the server's own copy of the test player (#1099).
      * Called on the server thread, by the drain that follows the forwarded call the give was part
      * of.
+     *
+     * <p>The give moves the world revision here, explicitly: the local give does it through {@code
+     * HostFunctions.worldChanged}, which counts only a write made while a test's own export is
+     * running, and this drain runs between two runner ticks (see {@code
+     * GrugControlServer.applyClientWork}). Without the bump a settle answer the server remembered
+     * for the old revision would outlive the give, so a test that clicks the overlay, asks for a
+     * settled world and then captures would take a frame from before the inventory sync reached the
+     * client.
      */
     public static void giveOnServer(ModLoaderAdapter adapter, int index, int count) {
         Object player = adapter.testPlayer();
@@ -87,6 +95,7 @@ public final class GrugGiveCalls {
                                     : "the item list has no such item"));
             return;
         }
+        GrugWorldRevision.bump();
         adapter.giveItemCountToPlayer(player, item, count);
     }
 }
