@@ -485,8 +485,10 @@ while :; do
     # overlay_screen_open asserts a just-opened screen has drawn no frame, which a joined client
     # cannot promise, and overlay-Test and jei-Test delete the item on the cursor, which only the
     # client's copy reaches.
-    # The five-leg proof of #1227 made four promotions client-only again, so each leg requires only
-    # what it proves. Each loader's list carries the reason and the numbers.
+    # The five-leg proof of #1227 made the forced-normalization item list client-only on every leg,
+    # because a dedicated server cannot force that GL state. Its #1237 failure on b1.7.3-ornithe's
+    # joined item list is fixed by #1238, so paging and scroll are required there again. Each loader's
+    # list carries the reason and the numbers.
     case "$LOADER" in
       1.20.6-forge|1.2.5-forge|b1.7.3-stationapi)
         overlay_tests="coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
@@ -497,11 +499,10 @@ while :; do
         ;;
       b1.7.3-ornithe)
         overlay_tests="coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
-        # Paging and scroll: the joined client's item list reports the coverage mod's deliberately
-        # undrawable coverage_crack and coverage_frame item models as defects, which fails the run.
-        # The forced-normalization item list: it draws the same list, and would also differ for the
-        # state reason above.
-        excluded="jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        # Only the forced-normalization item list is client-only here: a dedicated server cannot
+        # force that GL state. paging and scroll are back after #1238 gave the coverage mod's two
+        # fixtures drawable item models, and this leg runs both.
+        excluded="jei/tests/item_list_forced_normalization"
         ;;
       *)
         overlay_tests=""
