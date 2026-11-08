@@ -476,6 +476,30 @@ while :; do
         fi
       done
     fi
+    # The overlay and item-list tests #1099 promoted. A joined client answers overlay_supported and
+    # overlay_drawn now, and the give an overlay's click makes is named to the server, so these
+    # eight tests open the client's screen and drive the overlay on it. The a1.1.2_01 leg runs none
+    # of them: its server has no container for its player, so Test.open_inventory refuses there.
+    # Three stay client-only on every leg, each in that loader's list with the reason:
+    # overlay_screen_open asserts a just-opened screen has drawn no frame, which a joined client
+    # cannot promise, and overlay-Test and jei-Test delete the item on the cursor, which only the
+    # client's copy reaches.
+    case "$LOADER" in
+      1.20.6-forge|1.2.5-forge|b1.7.3-ornithe|b1.7.3-stationapi)
+        overlay_tests="coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        ;;
+      *)
+        overlay_tests=""
+        ;;
+    esac
+    if [ -n "$overlay_tests" ]; then
+      for overlay in $overlay_tests; do
+        if ! grep -qF "[GRUG CI] PASS ${overlay}-Test.grug" "$SERVER_LOG"; then
+          echo "==> The run passed, but ${overlay}-Test.grug did not run on the dedicated server." >&2
+          exit 1
+        fi
+      done
+    fi
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0
   fi

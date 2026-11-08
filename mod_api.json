@@ -1575,13 +1575,13 @@
 					]
 				},
 				"overlay_drawn": {
-					"description": "Whether a frame has drawn the running test's own overlay on the eligible screen that is open now, which a test waits for after it opens the screen and before it clicks. The mark is cleared when an eligible screen opens, so a test waits for a frame of its own screen rather than for one another mod drew on an earlier one. Asking also asks the client for a frame, the way `Test.world_settled` does, because the runner skips the frames of a test that never captures. The answer is set on the render thread, so waiting for it is how a test tells a screen that was really drawn from one the game closed before a frame, which a run at maximum speed can otherwise hide. Test only.",
+					"description": "Whether a frame has drawn the running test's own overlay on the eligible screen that is open now, which a test waits for after it opens the screen and before it clicks. The mark is cleared when an eligible screen opens, so a test waits for a frame of its own screen rather than for one another mod drew on an earlier one. Asking also asks the client for a frame, the way `Test.world_settled` does, because the runner skips the frames of a test that never captures. The answer is set on the render thread, so waiting for it is how a test tells a screen that was really drawn from one the game closed before a frame, which a run at maximum speed can otherwise hide. On a dedicated server the frame is the joined client's, and the overlay is the one of the mod whose test is running, which the server names to the client. Test only.",
 					"return_type": {
 						"name": "bool"
 					}
 				},
 				"overlay_supported": {
-					"description": "Whether this loader draws overlays on the inventory and container screens at all, which a test asks before it opens a screen: a loader that does not cannot open the inventory either, so a test that needs an overlay returns early there instead of driving a screen the loader cannot show. It is a property of the loader, answered from the start of a run, and a loader that draws overlays answers true whether or not a screen has been open yet.",
+					"description": "Whether this loader draws overlays on the inventory and container screens at all, which a test asks before it opens a screen: a loader that does not cannot open the inventory either, so a test that needs an overlay returns early there instead of driving a screen the loader cannot show. It is a property of the loader, answered from the start of a run, and a loader that draws overlays answers true whether or not a screen has been open yet. On a dedicated server this is the joined client's own answer, which the server asks the client of the player who started the run.",
 					"return_type": {
 						"name": "bool"
 					}
@@ -3601,7 +3601,7 @@
 			]
 		},
 		"give_item": {
-			"description": "Gives the player one of the item, the way the game gives an item to a player: into their inventory, and dropped at their feet if it is full. This is what an overlay's click() gives, so a click on the overlay's list of items hands one of them to the player. A loader that does not draw overlays never gets this called from one, and a click on a loader that does not draw the overlay gives nothing.",
+			"description": "Gives the player one of the item, the way the game gives an item to a player: into their inventory, and dropped at their feet if it is full. This is what an overlay's click() gives, so a click on the overlay's list of items hands one of them to the player. A loader that does not draw overlays never gets this called from one, and a click on a loader that does not draw the overlay gives nothing. On a client joined to a server that drives the run, the client names the item to the server, which gives it to the player's inventory there, so a test gives the same way on a dedicated-server leg as on a client that runs the game's own server. It needs a player, and a give on a joined client whose item list does not hold the item is an error.",
 			"parameters": [
 				{
 					"name": "item",
@@ -3612,7 +3612,7 @@
 			]
 		},
 		"give_item_stack": {
-			"description": "Gives the player a full stack of the item, the way give_item gives one: into their inventory, and dropped at their feet if it is full. The stack holds the item's maximum stack size, so a tool still comes as one item and a block as 64, which is the amount the reference's stack binding gives. Like give_item, it needs a player, takes effect only where the client runs the game's own server, and a loader that does not draw overlays never gets it called from one.",
+			"description": "Gives the player a full stack of the item, the way give_item gives one: into their inventory, and dropped at their feet if it is full. The stack holds the item's maximum stack size, so a tool still comes as one item and a block as 64, which is the amount the reference's stack binding gives. Like give_item, it needs a player, and a client joined to a server names the item to the server that holds the player. A loader that does not draw overlays never gets it called from one.",
 			"parameters": [
 				{
 					"name": "item",

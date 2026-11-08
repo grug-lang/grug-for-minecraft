@@ -15,7 +15,7 @@ import java.util.List;
  * packet its game has; nothing here knows about a packet, so every loader can reuse the format and
  * a unit test can run both ends in one process.
  *
- * <p>Eight messages exist. {@link #RUN_START} goes from the client to the server and says this
+ * <p>Nine messages exist. {@link #RUN_START} goes from the client to the server and says this
  * player started a run, which is the consent the client later relies on. {@link #CAPTURE_REQUEST}
  * goes the other way and names a screenshot rectangle. The client answers with either {@link
  * #ANSWER_ERROR} or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound
@@ -23,7 +23,9 @@ import java.util.List;
  * so a capture is cut into {@link #MAX_CHUNK}-byte pieces. {@link #CALL_REQUEST} carries one of the
  * client-only host functions a server may forward, which the client answers with a {@link
  * #ANSWER_VALUE}, or with an {@link #ANSWER_NUMBER} when the call's answer is a measurement such as
- * a screen's width.
+ * a screen's width. {@link #GIVE_REQUEST} goes from the client to the server and asks it to give
+ * the player an item, which is the one host function whose effect belongs to the server rather than
+ * to the client that ran it (#1099).
  */
 public final class GrugControlWire {
     public static final byte RUN_START = 1;
@@ -46,6 +48,15 @@ public final class GrugControlWire {
 
     /** Client to server: the call was performed; it carries the number it measured. */
     public static final byte ANSWER_NUMBER = 8;
+
+    /**
+     * Client to server: give the player {@code count} of the item at {@code index} in the loader's
+     * item list (#1099). The client sends it while its run is active, from the give an overlay's
+     * click performs, and the server applies it to its own copy of the test player: a write to the
+     * client's copy would be overwritten by the next inventory packet, and a test reads the
+     * server's copy. It has no answer, because the test asserts on the world the server changed.
+     */
+    public static final byte GIVE_REQUEST = 9;
 
     /** The call: does the game have the sound under the name. The answer is 1 or 0. */
     public static final byte CALL_HAS_SOUND = 1;
@@ -133,8 +144,32 @@ public final class GrugControlWire {
      */
     public static final byte CALL_CLIENT_LIGHT = 13;
 
+    /**
+     * The call: whether the joined client draws overlays on the inventory and container screens at
+     * all, which is {@code Test.overlay_supported} (#1099). The answer is 1 or 0 and is a property
+     * of that client, so a server that never asks it would answer false for a loader that draws
+     * them.
+     */
+    public static final byte CALL_OVERLAY_SUPPORTED = 14;
+
+    /**
+     * The call: whether a frame has drawn the running test's own overlay on the screen that client
+     * has open now, which is {@code Test.overlay_drawn} (#1099). The call's name is the mod that
+     * owns the test, because the client is not running the test itself and so has to be told whose
+     * overlay it waits for: the answer is about a frame of that mod's overlay, and the client drops
+     * the mark it held when the mod changes. The answer is 1 or 0.
+     */
+    public static final byte CALL_OVERLAY_DRAWN = 15;
+
     /** The longest name a call may carry, in bytes. */
     public static final int MAX_NAME = 256;
+
+    /**
+     * The most items a {@link #GIVE_REQUEST} may give. A give is one item or the item's full stack,
+     * which every version caps well below this, so a larger count is a message that is not one of
+     * the two host functions.
+     */
+    public static final int MAX_GIVE_COUNT = 4096;
 
     /** Well under the 32767 bytes a serverbound payload may hold, leaving room for the header. */
     public static final int MAX_CHUNK = 20_000;
@@ -181,7 +216,13 @@ public final class GrugControlWire {
     public static final class Message {
         public final byte type;
         public final long id;
+
+        /**
+         * The x of a capture's rectangle. A {@link #GIVE_REQUEST} puts the item's index in this
+         * field and its count in {@link #y1}.
+         */
         public final int x1;
+
         public final int y1;
         public final int x2;
         public final int y2;
@@ -269,7 +310,7 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_CLIENT_LIGHT;
+        return call >= CALL_HAS_SOUND && call <= CALL_OVERLAY_DRAWN;
     }
 
     /**
@@ -305,6 +346,11 @@ public final class GrugControlWire {
 
     public static byte[] answerValue(long id, byte value) {
         return ByteBuffer.allocate(1 + 8 + 1).put(ANSWER_VALUE).putLong(id).put(value).array();
+    }
+
+    /** The give {@code count} of the item at {@code index} in the loader's item list (#1099). */
+    public static byte[] giveRequest(int index, int count) {
+        return ByteBuffer.allocate(1 + 4 + 4).put(GIVE_REQUEST).putInt(index).putInt(count).array();
     }
 
     /** The answer to a call whose result is a measurement, such as a screen's width. */
@@ -400,6 +446,30 @@ public final class GrugControlWire {
                 case RUN_START:
                 case RUN_END:
                     message = new Message(type, 0, none, 0, 0, null, null);
+                    break;
+                case GIVE_REQUEST:
+                    int giveIndex = in.getInt();
+                    int giveCount = in.getInt();
+                    if (giveIndex < 0) {
+                        throw new IllegalArgumentException(
+                                "a given item's index " + giveIndex + " is below 0");
+                    }
+                    if (giveCount < 1 || giveCount > MAX_GIVE_COUNT) {
+                        throw new IllegalArgumentException(
+                                "a give of "
+                                        + giveCount
+                                        + " items is outside 1 to "
+                                        + MAX_GIVE_COUNT);
+                    }
+                    message =
+                            new Message(
+                                    type,
+                                    0,
+                                    new int[] {giveIndex, giveCount, 0, 0},
+                                    0,
+                                    0,
+                                    null,
+                                    null);
                     break;
                 case CAPTURE_REQUEST:
                     long id = in.getLong();

@@ -1,5 +1,7 @@
 package net.grug.minecraft.grug;
 
+import net.grug.minecraft.core.GrugFrameRequest;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -143,6 +145,26 @@ public final class GrugOverlay {
 
     /** Whether a frame drew the running test's overlay on the screen that is open now. */
     public static boolean overlayDrawn() {
+        return overlayDrawn;
+    }
+
+    /**
+     * Whether a frame has drawn the overlay of {@code mod}, the mod that owns the running test, on
+     * the screen that is open now: what {@code Test.overlay_drawn} answers on a client that runs
+     * the test itself, and what the client of a server-driven run answers when the server asks it
+     * (#1099).
+     *
+     * <p>The ask is also what makes the client draw, so a test that never captures still gets the
+     * frames its wait is about, as the local call always did. A mod that is not the one the last
+     * ask was about starts from a clean mark, because the frame that set it belonged to another
+     * mod's overlay and says nothing about this one.
+     */
+    public static boolean drawnForTest(String mod) {
+        if (!java.util.Objects.equals(mod, GrugTestState.currentTestMod)) {
+            GrugTestState.currentTestMod = mod;
+            screenOpened();
+        }
+        GrugFrameRequest.request();
         return overlayDrawn;
     }
 

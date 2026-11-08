@@ -113,8 +113,8 @@
 					"tracking_issue": 870
 				},
 				{
-					"what": "On 1.20.6 a give, and the server-side half of a cursor delete, take effect only where the client runs the game's own server, which is singleplayer or a LAN host; on a client of a remote server the overlay takes the press and nothing is given. On 1.2.5, Beta and Alpha the give writes the client's copy of the player directly, so it shows in the hand but is not sent to a remote server, and a delete clears the client's cursor only.",
-					"why": "The 1.20.6 give and cursor delete add or clear the integrated server's player directly, as calls inside the same process, instead of sending the server a packet the way JEI does. The older versions write the client player because that is the copy the screen and the test hold.",
+					"what": "The item on the cursor is deleted where the reference deletes it, but on a client of a remote server the delete clears only that client's copy of the cursor, while the reference's packet removes the stack the server holds. The give is the half that does reach the server: a client joined to one names the item to it, which puts it in the player's inventory there (#1099).",
+					"why": "The cursor a click reads and the delete it makes are calls of the overlay host on the client that draws it, and that client sends the server no cursor write, where the reference's delete packet does. The give had the same gap and now names the item to the server over the test-control channel.",
 					"tracking_issue": 882
 				}
 			]

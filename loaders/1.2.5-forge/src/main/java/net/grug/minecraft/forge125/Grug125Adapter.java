@@ -1128,14 +1128,8 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    public void giveItemToPlayer(Object playerObj, Object itemObj) {
-        giveItemToPlayer((EntityPlayer) playerObj, (Item) itemObj, 1);
-    }
-
-    @Override
-    public void giveItemStackToPlayer(Object playerObj, Object itemObj) {
-        Item item = (Item) itemObj;
-        giveItemToPlayer((EntityPlayer) playerObj, item, item.getItemStackLimit());
+    public void giveItemCountToPlayer(Object playerObj, Object itemObj, int count) {
+        giveItemToPlayer((EntityPlayer) playerObj, (Item) itemObj, count);
     }
 
     /**

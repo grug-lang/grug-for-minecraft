@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugLightSync;
+import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
@@ -96,6 +97,16 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private final GrugClientLight.Forwarded clientLight =
             new GrugClientLight.Forwarded(
+                    GrugControlServer125::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    /**
+     * The overlay reads this server makes, which its joined client answers about the frame it
+     * draws: an overlay belongs to a client's frame pass, so a server never records one (#1099). A
+     * failure is a host function error, which fails the test.
+     */
+    private final GrugOverlayCalls.Forwarded overlays =
+            new GrugOverlayCalls.Forwarded(
                     GrugControlServer125::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
@@ -631,6 +642,24 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                                 world.getSavedLightValue(
                                         EnumSkyBlock.Block, lightX, lightY, lightZ));
         return clientLight.lightApplied(x, y, z, simulated);
+    }
+
+    /**
+     * Whether the joined client draws overlays at all, which a server's own answer would deny
+     * (#1099): the loader marks support where it registers the screen hooks, and a server has none.
+     */
+    @Override
+    public boolean overlaySupportedForTest() {
+        return overlays.supported();
+    }
+
+    /**
+     * Whether a frame of the joined client drew the overlay of the running test's mod on the screen
+     * it has open (#1099): the mark belongs to that client's frame pass, not to this server's.
+     */
+    @Override
+    public boolean overlayDrawnForTest(String mod) {
+        return overlays.drawn(mod);
     }
 
     /** This server forwards a test's client-only calls to the player who started the run. */

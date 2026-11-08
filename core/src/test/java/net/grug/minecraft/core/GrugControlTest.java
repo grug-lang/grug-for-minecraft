@@ -59,6 +59,14 @@ class GrugControlTest {
             drained++;
         }
 
+        /** The gives the server applied, as {@code index x count}, in the order it applied them. */
+        final List<String> given = new ArrayList<>();
+
+        @Override
+        public void applyGive(int index, int count) {
+            given.add(index + "x" + count);
+        }
+
         @Override
         public boolean mayStartRun(Object sender) {
             return mayStart;
@@ -155,6 +163,16 @@ class GrugControlTest {
                 public long clientLightFingerprint(double x, double y, double z) {
                     throw new AssertionError("no light call was expected");
                 }
+
+                @Override
+                public boolean overlaySupported() {
+                    throw new AssertionError("no overlay call was expected");
+                }
+
+                @Override
+                public boolean overlayDrawn(String mod) {
+                    throw new AssertionError("no overlay call was expected");
+                }
             };
 
     private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
@@ -237,6 +255,16 @@ class GrugControlTest {
         public long clientLightFingerprint(double x, double y, double z) {
             throw new AssertionError("no light call was expected");
         }
+
+        @Override
+        public boolean overlaySupported() {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
+        public boolean overlayDrawn(String mod) {
+            throw new AssertionError("no overlay call was expected");
+        }
     }
 
     /** A client whose settle answer the test decides, and which counts the frames it forgets. */
@@ -313,6 +341,16 @@ class GrugControlTest {
         public long clientLightFingerprint(double x, double y, double z) {
             throw new AssertionError("no light call was expected");
         }
+
+        @Override
+        public boolean overlaySupported() {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
+        public boolean overlayDrawn(String mod) {
+            throw new AssertionError("no overlay call was expected");
+        }
     }
 
     /** A client whose screen answers the test decides, and which records the calls it gets. */
@@ -326,6 +364,9 @@ class GrugControlTest {
         double saved = 5.0;
         boolean savedFails;
         long light = 12;
+        boolean overlaySupported = true;
+        boolean overlayDrawn = true;
+        boolean overlayFails;
         boolean closed;
         boolean opened;
 
@@ -412,6 +453,24 @@ class GrugControlTest {
         public long clientLightFingerprint(double x, double y, double z) {
             seen.add("clientLightFingerprint " + x + " " + y + " " + z);
             return light;
+        }
+
+        @Override
+        public boolean overlaySupported() {
+            seen.add("overlaySupported");
+            if (overlayFails) {
+                throw new IllegalStateException("this client has no overlay host");
+            }
+            return overlaySupported;
+        }
+
+        @Override
+        public boolean overlayDrawn(String mod) {
+            seen.add("overlayDrawn " + mod);
+            if (overlayFails) {
+                throw new IllegalStateException("this client has no overlay host");
+            }
+            return overlayDrawn;
         }
     }
 
@@ -1338,8 +1397,33 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OPEN_INVENTORY));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SAVED_NUMBER));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLIENT_LIGHT));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_SUPPORTED));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_DRAWN));
         assertFalse(GrugControlWire.isCall((byte) 0));
-        assertFalse(GrugControlWire.isCall((byte) 14));
+        // Above the last call the wire carries, so a code added there is not silently accepted as
+        // one of these.
+        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_OVERLAY_DRAWN + 1)));
+
+        // A give names its item by the loader's list index and the count the client computed, and
+        // a count no host function can ask for is refused rather than applied.
+        GrugControlWire.Message give = GrugControlWire.decode(GrugControlWire.giveRequest(12, 64));
+        assertEquals(GrugControlWire.GIVE_REQUEST, give.type);
+        assertEquals(12, give.x1);
+        assertEquals(64, give.y1);
+        assertFalse(GrugControlWire.isAnswer(GrugControlWire.GIVE_REQUEST));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_OVERLAY_DRAWN));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(GrugControlWire.giveRequest(-1, 1)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(GrugControlWire.giveRequest(1, 0)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        GrugControlWire.decode(
+                                GrugControlWire.giveRequest(
+                                        1, GrugControlWire.MAX_GIVE_COUNT + 1)));
 
         // Only the calls that can make the client send a packet ask the server to drain.
         assertTrue(GrugControlWire.sendsPacket(GrugControlWire.CALL_CLICK_SCREEN));
@@ -1466,6 +1550,8 @@ class GrugControlTest {
         // world has and still goes through the adapter's own savedNumberOnClient.
         assertEquals(0.0, caller.savedNumber(1, 2, 3, "frame_marker"));
         assertEquals(0L, caller.clientLightFingerprint(7, 8, 9));
+        assertTrue(caller.overlaySupported());
+        assertTrue(caller.overlayDrawn("coverage"));
         assertEquals(
                 List.of(
                         "hasSound a",
@@ -1483,7 +1569,9 @@ class GrugControlTest {
                         "openInventory null",
                         "testCamera",
                         "savedNumberOnClient 1.0",
-                        "clientLightFingerprint 7.0"),
+                        "clientLightFingerprint 7.0",
+                        "overlaySupportedForTest",
+                        "overlayDrawnForTest coverage"),
                 seen);
 
         // The interface's own fallbacks: a loader that cannot read light answers -1, and a test's
@@ -1498,6 +1586,137 @@ class GrugControlTest {
                                                 proxy, method, args));
         assertEquals(GrugClientLight.CANNOT_VERIFY, bare.clientLightFingerprint(1, 2, 3));
         assertTrue(bare.lightApplied(1, 2, 3));
+    }
+
+    @Test
+    void aForwardedOverlayReadIsAskedOfTheJoinedClientAndAnswered() {
+        ScreenCalls overlays = new ScreenCalls();
+        Loopback loop = wireCalls(1000, overlays);
+        loop.client.beginRun();
+        GrugOverlayCalls.Forwarded forwarded =
+                new GrugOverlayCalls.Forwarded(
+                        () -> loop.server,
+                        message -> {
+                            throw new AssertionError(message);
+                        });
+
+        assertTrue(forwarded.supported());
+        assertTrue(forwarded.drawn("coverage"));
+        // The other side of each answer, so a loader without the overlay and a frame that has not
+        // drawn it yet are both answered rather than assumed.
+        overlays.overlaySupported = false;
+        overlays.overlayDrawn = false;
+        assertFalse(forwarded.supported());
+        assertFalse(forwarded.drawn("jei"));
+        assertEquals(
+                List.of(
+                        "overlaySupported",
+                        "overlayDrawn coverage",
+                        "overlaySupported",
+                        "overlayDrawn jei"),
+                overlays.seen);
+
+        // A read the client cannot answer is reported as the host function's error, not as a false
+        // a test would take for a loader without the overlay.
+        List<String> failed = new ArrayList<>();
+        ScreenCalls broken = new ScreenCalls();
+        broken.overlayFails = true;
+        Loopback failing = wireCalls(1000, broken);
+        failing.client.beginRun();
+        GrugOverlayCalls.Forwarded reports =
+                new GrugOverlayCalls.Forwarded(() -> failing.server, failed::add);
+        assertFalse(reports.supported());
+        assertFalse(reports.drawn("coverage"));
+        assertEquals(2, failed.size());
+        assertTrue(failed.get(0).contains("Test.overlay_supported"), failed.get(0));
+        assertTrue(failed.get(1).contains("Test.overlay_drawn"), failed.get(1));
+
+        // A server nobody started a run on has no client to ask, and says so.
+        List<String> noStarter = new ArrayList<>();
+        GrugOverlayCalls.Forwarded without =
+                new GrugOverlayCalls.Forwarded(
+                        () -> wireCalls(1000, overlays).server, noStarter::add);
+        assertFalse(without.supported());
+        assertEquals(1, noStarter.size());
+        assertTrue(noStarter.get(0).contains("No client has started a run"), noStarter.get(0));
+        GrugControlServer.clearFailure();
+    }
+
+    @Test
+    void aForwardedOverlayReadSaysWhatItCannotCarry() {
+        assertEquals(
+                null,
+                GrugControlServer.callProblem(GrugControlWire.CALL_OVERLAY_SUPPORTED, "", 0, 0, 0),
+                "the support read carries no name");
+        assertEquals(
+                null,
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_OVERLAY_DRAWN, "coverage", 0, 0, 0));
+
+        // The drawn read names the mod whose overlay the test waits for, so a call with no name is
+        // refused rather than answered about whichever overlay the client last drew.
+        String missing =
+                GrugControlServer.callProblem(GrugControlWire.CALL_OVERLAY_DRAWN, null, 0, 0, 0);
+        assertTrue(missing.contains("names no test mod"), missing);
+        String tooLong =
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_OVERLAY_DRAWN,
+                        "x".repeat(GrugControlWire.MAX_NAME + 1),
+                        0,
+                        0,
+                        0);
+        assertTrue(tooLong.contains("over " + GrugControlWire.MAX_NAME + " bytes"), tooLong);
+    }
+
+    @Test
+    void aGiveTheJoinedClientSendsIsAppliedOnTheNextDrain() {
+        Loopback loop = wireCalls(1000, new ScreenCalls());
+        loop.server.onMessage(PLAYER, GrugControlWire.runStart());
+        // Nothing is queued and nothing waits on a give, so the drain before it does not run.
+        loop.server.applyClientWork();
+        assertEquals(0, loop.drained);
+
+        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest(12, 1));
+        assertTrue(loop.given.isEmpty());
+        loop.server.applyClientWork();
+        assertEquals(1, loop.drained);
+        assertEquals(List.of("12x1"), loop.given);
+
+        // A run that ended drops what its client asked for and does not apply it later.
+        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest(3, 64));
+        loop.server.endRun();
+        loop.server.applyClientWork();
+        assertEquals(List.of("12x1"), loop.given);
+
+        // A give from a player who is not the starter is ignored, the way every other message is.
+        Loopback other = wireCalls(1000, new ScreenCalls());
+        other.server.onMessage(PLAYER, GrugControlWire.runStart());
+        other.server.onMessage("bob", GrugControlWire.giveRequest(1, 1));
+        other.server.applyClientWork();
+        assertTrue(other.given.isEmpty());
+    }
+
+    @Test
+    void aClientNamesAGiveToTheServerOnlyWhileItsRunIsActive() {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        assertFalse(GrugControlClient.runActiveHere());
+        assertThrows(IllegalStateException.class, () -> GrugControlClient.giveToServer(4, 1));
+        assertTrue(loop.toServer.isEmpty());
+
+        loop.client.beginRun();
+        assertTrue(GrugControlClient.runActiveHere());
+        GrugControlClient.giveToServer(4, 1);
+        assertEquals(
+                GrugControlWire.GIVE_REQUEST,
+                GrugControlWire.decode(loop.toServer.get(loop.toServer.size() - 1)).type);
+        GrugControlWire.Message give =
+                GrugControlWire.decode(loop.toServer.get(loop.toServer.size() - 1));
+        assertEquals(4, give.x1);
+        assertEquals(1, give.y1);
+
+        loop.client.endRun();
+        assertFalse(GrugControlClient.runActiveHere());
     }
 
     @Test
@@ -1984,6 +2203,16 @@ class GrugControlTest {
                             @Override
                             public void openInventory() {
                                 throw new AssertionError("no screen call was expected");
+                            }
+
+                            @Override
+                            public boolean overlaySupported() {
+                                throw new AssertionError("no overlay call was expected");
+                            }
+
+                            @Override
+                            public boolean overlayDrawn(String mod) {
+                                throw new AssertionError("no overlay call was expected");
                             }
                         });
         loop.client.beginRun();

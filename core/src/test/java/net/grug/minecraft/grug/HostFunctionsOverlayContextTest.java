@@ -4,10 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.ModLoaderAdapter;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +28,47 @@ import java.util.List;
 class HostFunctionsOverlayContextTest {
 
     private static final Object ITEM = new Object();
+
+    private Object savedAdapter;
+
+    /**
+     * Installs a fake adapter for the two overlay reads, which go through it because a dedicated
+     * server asks the joined client instead of answering for itself (#1099). Every default method
+     * runs its own body here, so the marks a loader keeps locally are the ones a test reads, and
+     * any other call fails rather than quietly answering null.
+     */
+    @BeforeEach
+    void installAdapter() throws Exception {
+        Field field = GrugCore.class.getDeclaredField("adapter");
+        field.setAccessible(true);
+        savedAdapter = field.get(null);
+        field.set(
+                null,
+                Proxy.newProxyInstance(
+                        getClass().getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) -> {
+                            if (method.isDefault()) {
+                                return InvocationHandler.invokeDefault(proxy, method, args);
+                            }
+                            // A refused call is reported to the loader's log, which a Java test
+                            // has nowhere to put; every other question fails the test.
+                            if (method.getName().equals("logError")) {
+                                return null;
+                            }
+                            throw new AssertionError(
+                                    "an overlay context test does not ask "
+                                            + method.getName()
+                                            + " of the adapter");
+                        }));
+    }
+
+    @AfterEach
+    void restoreAdapter() throws Exception {
+        Field field = GrugCore.class.getDeclaredField("adapter");
+        field.setAccessible(true);
+        field.set(null, savedAdapter);
+    }
 
     @BeforeEach
     @AfterEach
@@ -207,6 +254,18 @@ class HostFunctionsOverlayContextTest {
         assertFalse(HostFunctions.Test_overlay_drawn());
         GrugOverlay.noteDrawn();
         assertTrue(HostFunctions.Test_overlay_drawn());
+    }
+
+    @Test
+    void aDrawnMarkIsClearedWhenAnotherModsOverlayIsAskedFor() {
+        // The client of a server-driven run is asked about one mod's overlay after another, and a
+        // frame that drew the first mod's overlay says nothing about the second one's.
+        GrugTestState.currentTestMod = "coverage";
+        GrugOverlay.noteDrawn();
+        assertTrue(GrugOverlay.drawnForTest("coverage"), "the same mod keeps its mark");
+        assertFalse(GrugOverlay.drawnForTest("jei"), "another mod starts from a clean mark");
+        assertEquals("jei", GrugTestState.currentTestMod);
+        GrugTestState.currentTestMod = null;
     }
 
     @Test
