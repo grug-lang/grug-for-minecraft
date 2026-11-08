@@ -221,15 +221,71 @@ class GrugChatTest {
     }
 
     @Test
+    void noPieceEndsInASectionSignEvenWhenSeveralRunTogether() {
+        // The older chat reads the character after every space and every section sign it reaches,
+        // so only the piece's last character decides whether it throws: a piece ending in two
+        // signs throws as one ending in a lone sign does. A run of signs ends no piece, then: it
+        // moves whole to the next piece, or is dropped when a line or the text ends there (#1224).
+        String tail = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+
+        assertEquals(Collections.singletonList("a"), GrugChat.wrap("a §§"));
+        assertEquals(Collections.singletonList("§ca"), GrugChat.wrap("§ca §§"));
+        assertEquals(Collections.emptyList(), GrugChat.wrap("§"));
+        assertEquals(Collections.emptyList(), GrugChat.wrap("§§"));
+        assertEquals(Collections.emptyList(), GrugChat.wrap(" §§"));
+        assertEquals(Arrays.asList("a", "b"), GrugChat.wrap("a\n§\nb"));
+        assertEquals(Collections.emptyList(), GrugChat.wrap(repeat("§", 60)));
+        // A run longer than a piece goes and what follows it stays, which is what the run shows
+        // as whole codes anyway.
+        assertEquals(Collections.singletonList("hello"), GrugChat.wrap(repeat("§", 60) + "hello"));
+
+        // A word gap inside the width right after "§§" used to put the pair at the end of the
+        // piece. The pair moves whole to the head of the next piece instead.
+        String line = repeat("a", 47) + " §§ " + tail;
+        List<String> pieces = GrugChat.wrap(line);
+        assertEquals(repeat("a", 47), pieces.get(0));
+        int pairs = 0;
+        for (String piece : pieces) {
+            assertFalse(piece.isEmpty(), "a piece is empty");
+            assertFalse(piece.endsWith("§"), "a piece ends in a section sign: '" + piece + "'");
+            for (int at = piece.indexOf("§§"); at >= 0; at = piece.indexOf("§§", at + 1)) {
+                pairs++;
+            }
+        }
+        assertEquals(1, pairs, "the pair was cut apart: " + pieces);
+
+        // A lone sign at every distance from the line's start meets every cut position as well.
+        for (int offset = 0; offset <= 60; offset++) {
+            String withSign = repeat("a", offset) + "§" + tail;
+            for (String piece : GrugChat.wrap(withSign)) {
+                assertFalse(piece.endsWith("§"), "a piece ends in a section sign: '" + piece + "'");
+            }
+        }
+    }
+
+    @Test
+    void noPieceIsEmptyBecauseAChatWouldShowItAsABlankLine() {
+        // An empty line is nothing to show, and neither is an empty piece: every caller sends each
+        // piece as a chat line, so each empty one would be a blank line.
+        assertEquals(Collections.emptyList(), GrugChat.wrap("§"));
+        assertEquals(Collections.emptyList(), GrugChat.wrap("   "));
+        assertEquals(Arrays.asList("a", "b"), GrugChat.wrap("a\n\n§\nb"));
+        // The space is the last one inside the width, so the piece before it is empty; dropping it
+        // leaves the line whole, which both sides wrap the same way.
+        assertEquals(Collections.singletonList(FIFTY), GrugChat.wrap(" " + FIFTY));
+    }
+
+    @Test
     void aTrailingSpaceAtTheEndOfTheLastLineIsNotPartOfIt() {
         assertEquals(Collections.singletonList("short"), GrugChat.wrap("short "));
     }
 
-    @Test
-    void aSpaceAtTheStartOfALongLineLeavesAnEmptyFirstPieceAndTrimsTheRest() {
-        // The space is the last one inside the width, so the piece before it is empty and the rest
-        // loses the space it was split at. A client has always sent it that way, and the server
-        // wraps with the same helper so both read the same.
-        assertEquals(Arrays.asList("", FIFTY), GrugChat.wrap(" " + FIFTY));
+    /** {@code text} repeated {@code times} times. */
+    private static String repeat(String text, int times) {
+        StringBuilder repeated = new StringBuilder();
+        for (int at = 0; at < times; at++) {
+            repeated.append(text);
+        }
+        return repeated.toString();
     }
 }

@@ -75,19 +75,17 @@ public final class GrugChat {
     /**
      * One report in the pieces a chat window can show: one line per newline, each whole when it
      * fits and otherwise wrapped at its last space inside {@link #LINE_WIDTH} characters, or cut
-     * there when it holds no space. An empty line is nothing to show rather than an empty message.
+     * there when it holds no space. An empty line is nothing to show rather than an empty message,
+     * and no piece is empty either, since every caller sends each one as a chat line.
      *
-     * <p>A piece never ends in a space, even where a doubled space would put one at the cut. 1.2.5
-     * hands this list straight to its chat, and its {@code FontRenderer.sizeStringToWidth} has no
-     * break in its space case, so it falls into its colour-code case, steps one character past the
-     * end of a piece that ends in a space and throws. See #1215.
-     *
-     * <p>A piece never ends in a section sign either, for that same fallthrough: the colour-code
-     * case reads the character after the sign without checking the piece's end, so a sign whose
-     * character is in the next piece, or in none at all, throws the same way. A colour code is two
-     * characters, so a piece that would end between them ends before its sign instead, leaving the
-     * code whole at the start of the next piece, and a sign with no character after it is dropped.
-     * See #1224.
+     * <p>A piece never ends in a space or in a section sign. 1.2.5 hands this list straight to its
+     * chat, and its {@code FontRenderer.sizeStringToWidth} has no break in its space case: a space
+     * falls into its colour-code case, which reads the character after every space and every sign
+     * it reaches without checking the piece's end, so a piece whose last character is either one
+     * throws. A colour code is the sign and the character after it, so a piece that would end in a
+     * sign ends before the run of signs instead, leaving the code whole at the start of the next
+     * piece, and a run at the end of a line or of the text is dropped, since a piece ending in two
+     * signs throws exactly as one ending in a lone sign does. See #1215 and #1224.
      */
     public static List<String> wrap(String text) {
         List<String> pieces = new ArrayList<>();
@@ -99,26 +97,45 @@ public final class GrugChat {
                     split = LINE_WIDTH;
                 }
                 split = cutAtOrBefore(rest, split);
-                if (split == 0 && rest.charAt(0) != ' ') {
-                    // The last space that fits is a colour code's own character, so it is not a
-                    // word gap and cutting before it would take nothing out of the line. Cut at
-                    // the width instead, where the sign takes at most one character off.
+                if (split == 0) {
+                    if (rest.charAt(0) == ' ') {
+                        // A word gap at the line's head leaves a piece with nothing in it, which a
+                        // chat is never handed, so the gap is not part of the line.
+                        rest = rest.trim();
+                        continue;
+                    }
+                    // The head is a run of signs that no piece may end in and that the next gap
+                    // does not reach past. The run moves to the head of the piece cut at the
+                    // width, and a run longer than a whole piece goes, as one at a piece's end
+                    // does.
                     split = cutAtOrBefore(rest, LINE_WIDTH);
+                    if (split == 0) {
+                        rest = withoutLeadingSectionSigns(rest);
+                        continue;
+                    }
                 }
-                pieces.add(piece(rest.substring(0, split)));
+                addPiece(pieces, rest.substring(0, split));
                 rest = rest.substring(split).trim();
             }
             if (!rest.isEmpty()) {
-                pieces.add(piece(rest));
+                addPiece(pieces, rest);
             }
         }
         return pieces;
     }
 
+    /** Adds {@code text} as the piece a chat gets, unless nothing of it is left to show. */
+    private static void addPiece(List<String> pieces, String text) {
+        String piece = piece(text);
+        if (!piece.isEmpty()) {
+            pieces.add(piece);
+        }
+    }
+
     /**
-     * {@code text} as the piece a chat is handed: no space it ends in and no section sign it ends
-     * in that names no character. A space can be a section sign's character and dropping a sign can
-     * uncover a space, so both are applied until neither leaves anything to fix.
+     * {@code text} as the piece a chat is handed: no space it ends in and no run of section signs
+     * it ends in. A space can be a sign's character and dropping a sign can uncover a space, so
+     * both are applied until neither leaves anything to fix.
      */
     private static String piece(String text) {
         String piece = text;
@@ -133,23 +150,14 @@ public final class GrugChat {
     }
 
     /**
-     * The last offset at or before {@code limit} that a chat may cut {@code text} at: after a whole
-     * colour code, never between its section sign and the character that names it, and never after
-     * a section sign that names no character at all.
+     * The last offset at or before {@code limit} that a chat may cut {@code text} at: never the one
+     * right after a section sign, whose run of signs would end the piece before it. The run moves
+     * whole to the next piece, so its code stays with it.
      */
     private static int cutAtOrBefore(String text, int limit) {
-        int cut = 0;
-        int at = 0;
-        while (at < text.length()) {
-            boolean code = text.charAt(at) == SECTION_SIGN && at + 1 < text.length();
-            int next = code ? at + 2 : at + 1;
-            if (next > limit) {
-                break;
-            }
-            at = next;
-            if (code || text.charAt(next - 1) != SECTION_SIGN) {
-                cut = next;
-            }
+        int cut = Math.min(limit, text.length());
+        while (cut > 0 && text.charAt(cut - 1) == SECTION_SIGN) {
+            cut--;
         }
         return cut;
     }
@@ -161,5 +169,14 @@ public final class GrugChat {
             end--;
         }
         return piece.substring(0, end);
+    }
+
+    /** {@code text} from its first character that is not a section sign. */
+    private static String withoutLeadingSectionSigns(String text) {
+        int at = 0;
+        while (at < text.length() && text.charAt(at) == SECTION_SIGN) {
+            at++;
+        }
+        return text.substring(at);
     }
 }
