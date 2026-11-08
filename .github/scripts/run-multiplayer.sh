@@ -498,6 +498,14 @@ while :; do
           echo "==> The run passed, but ${overlay}-Test.grug did not run on the dedicated server." >&2
           exit 1
         fi
+        # A PASS alone does not prove the overlay was drawn: a test that finds overlay_supported
+        # false returns on its first tick and prints the same PASS line. The line below is written
+        # only when the joined client answered that it drew the running test's overlay, so a leg
+        # whose forwarding failed the guard fails here instead of passing with the suite skipped.
+        if ! grep -qF "[GRUG MULTIPLAYER] ${overlay}-Test.grug drew the overlay" "$SERVER_LOG"; then
+          echo "==> The run passed, but ${overlay}-Test.grug never saw its overlay drawn on the joined client, so that leg skipped it instead of running it." >&2
+          exit 1
+        fi
       done
     fi
     echo "==> ${line}, run on the dedicated server with a client connected."

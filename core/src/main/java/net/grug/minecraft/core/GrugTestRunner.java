@@ -1329,6 +1329,7 @@ public class GrugTestRunner {
         GrugTestState.currentTestTick = currentTick;
         GrugTestState.testNotDone = false;
         GrugTestState.currentTestMod = owningMod(path);
+        GrugTestState.currentTestPath = path;
         // The engine clears its error flag at the start of every export function call and stops the
         // script at the first error, so the errors this call raises are the only ones that can
         // answer this call's expect_error. Anything an earlier tick left behind goes here rather

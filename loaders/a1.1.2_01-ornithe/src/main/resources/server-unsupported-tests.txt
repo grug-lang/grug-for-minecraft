@@ -75,3 +75,11 @@ jei/tests/scroll-Test.grug
 # yet (#882). These two stay out on every leg, this one included.
 coverage/tests/overlay-Test.grug
 jei/tests/jei-Test.grug
+#
+# The forced-normalization probe. The state it reads is a client's GL capability, so the runner
+# never forces it on a dedicated server and Test.normalization_forced answers false there: on every
+# loader but 1.20.6 that fails the assertion that the marked loader forced it, and on 1.20.6 the
+# assertion holds without proving the client hooked anything. It stays client-only on every leg now
+# that Test.overlay_supported answers from the joined client (#1099); this leg also has no container
+# to open (#1064, #1098).
+coverage/tests/hook_forced_normalization-Test.grug

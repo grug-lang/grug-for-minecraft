@@ -7,6 +7,9 @@
 # loader whose item draw inherits the state really forced it: the pin makes the capture identical
 # either way, so without this assertion a loader that lost its hook would stay green and unproven
 # (#1144). See #1137.
+# A dedicated server never runs this test: every loader's list of unsupported tests names it,
+# because the state it reads belongs to a client's frame pass and the runner never forces it on a
+# server, where the assertion either fails or holds without proving anything (#1099).
 started: bool = false
 opened: bool = false
 waited: number = 0

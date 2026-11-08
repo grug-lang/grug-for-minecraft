@@ -1,5 +1,7 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.GrugTestState;
+
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -49,7 +51,20 @@ public final class GrugOverlayCalls {
          */
         public boolean drawn(String mod) {
             try {
-                return server.get().overlayDrawn(mod);
+                boolean drawn = server.get().overlayDrawn(mod);
+                if (drawn) {
+                    // The multiplayer job requires this line from every overlay test it promotes
+                    // (#1099). A test whose forwarding answers unsupported returns on its first
+                    // tick and still prints the runner's PASS line, so the drawing itself is the
+                    // only evidence that the leg ran the test instead of skipping its suite.
+                    System.out.println(
+                            "[GRUG MULTIPLAYER] "
+                                    + GrugTestState.currentTestPath
+                                    + " drew the overlay of "
+                                    + mod
+                                    + ".");
+                }
+                return drawn;
             } catch (GrugControlServer.ControlException e) {
                 failed.accept("Test.overlay_drawn: " + e.getMessage());
                 return false;
