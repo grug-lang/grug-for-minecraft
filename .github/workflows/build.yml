@@ -1331,7 +1331,21 @@ jobs:
           MESA_SHA256: 351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695
         run: |
           $archive = "$env:RUNNER_TEMP\mesa.7z"
-          Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z" -OutFile $archive
+          $url = "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z"
+          $failure = $null
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+              Remove-Item $archive -ErrorAction SilentlyContinue
+              Invoke-WebRequest $url -OutFile $archive -ErrorAction Stop
+              $failure = $null
+              break
+            } catch {
+              $failure = $_
+              Write-Host "Downloading mesa3d failed on attempt $attempt of 3: $_"
+              if ($attempt -lt 3) { Start-Sleep -Seconds (10 * $attempt) }
+            }
+          }
+          if ($null -ne $failure) { throw "mesa3d download failed after 3 attempts: $failure" }
           if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $env:MESA_SHA256.ToUpper()) { throw "mesa3d archive does not match its pinned checksum" }
           7z x $archive "-o$env:RUNNER_TEMP\mesa" -y | Out-Null
           Push-Location "$env:RUNNER_TEMP\mesa"
@@ -1443,7 +1457,21 @@ jobs:
           MESA_SHA256: 351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695
         run: |
           $archive = "$env:RUNNER_TEMP\mesa.7z"
-          Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z" -OutFile $archive
+          $url = "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z"
+          $failure = $null
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+              Remove-Item $archive -ErrorAction SilentlyContinue
+              Invoke-WebRequest $url -OutFile $archive -ErrorAction Stop
+              $failure = $null
+              break
+            } catch {
+              $failure = $_
+              Write-Host "Downloading mesa3d failed on attempt $attempt of 3: $_"
+              if ($attempt -lt 3) { Start-Sleep -Seconds (10 * $attempt) }
+            }
+          }
+          if ($null -ne $failure) { throw "mesa3d download failed after 3 attempts: $failure" }
           if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $env:MESA_SHA256.ToUpper()) { throw "mesa3d archive does not match its pinned checksum" }
           7z x $archive "-o$env:RUNNER_TEMP\mesa" -y | Out-Null
           Push-Location "$env:RUNNER_TEMP\mesa"
