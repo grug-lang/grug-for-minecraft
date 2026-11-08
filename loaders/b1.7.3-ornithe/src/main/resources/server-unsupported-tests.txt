@@ -43,3 +43,13 @@ coverage/tests/hook_forced_normalization-Test.grug
 # before this test on this leg, so it has no number of its own here. It stays client-only unless a
 # proof shows this leg's frame matching the client-only golden.
 jei/tests/item_list_forced_normalization-Test.grug
+# The four wall-backed buildcraft captures #1161 promoted to tick_any_side. Their joined client
+# still draws a different picture from the flat golden here, so they stay client-only on this loader
+# until #1193 pins the capture after the client's fall: dispatch 42430865929 stopped at
+# cobblestone_pipe_shapes' cobblestone_pipe_straight, 44926 of 115200 pixels, and the leg reaches no
+# test after its first promoted failure, so the other three are unmeasured and listed with it. The
+# client-only run of this loader still runs all four, which is where their goldens are checked.
+buildcraft/tests/cobblestone_pipe_shapes-Test.grug
+buildcraft/tests/redstone_engine-Test.grug
+buildcraft/tests/redstone_engine_animation-Test.grug
+buildcraft/tests/redstone_engine_facings-Test.grug
