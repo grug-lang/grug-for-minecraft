@@ -1,0 +1,129 @@
+# The frame a joined b1.7.3 client's capture reads is drawn from the eye the capture names, even
+# when the client's own player is not standing on the room's floor (#1178, #1193).
+# The capture client pins its player at that eye while a capture is pending (#1178). The pin writes
+# the position and zeroes the velocity, and b1.7.3's MobEntity.moveRelative moves the player by the
+# velocity the previous tick ended with and only then applies gravity, so the client's own physics
+# cannot move it off the eye in the tick a head-of-tick pin ran in: that tick ends with `y` still at
+# the eye. GameRenderer.transformCamera interpolates from `lastY` to `y` by the frame's partial
+# tick, and `setPositionAndAngles` writes both, so every frame a pinned capture window draws is
+# drawn from the eye at every partial tick.
+# That also answers #1193, which expected a pin at the head of the client tick to draw the frame one
+# fall step low: the pin's place in the tick does not change the frame, because the velocity it
+# zeroes is the only thing that could move the player within the tick, so a pin at the head draws the
+# same frame as a pin at its end. The pin stays at the head, and this test records that it cannot
+# tell the two places apart rather than claiming a partial-tick difference the game does not make.
+# What the pin is for is the time between capture windows, when nothing pins: the server is frozen
+# while it waits for a frame, so it cannot hold its own player, and the joined client's own physics
+# drops it off the eye, onto the room's floor or three blocks further down once that floor is gone.
+# The pin puts it back for the next window.
+# This test proves the pin from the frames alone, and proves its own premise first. It captures a
+# cobblestone wall one block in front from the room's floor, removes the block the player stands on,
+# and requires the joined client's own camera to drop more than a block below the room's eye: that
+# is the client's physics carrying it off the floor, so a removal that missed the block, or a run
+# with no client to pin, fails here rather than passing a comparison of frames drawn from the eye
+# anyway. It then captures the same wall twice more, a capture window apart, and requires each frame
+# off the floor to agree with the standing one and with the other one, so the pin has to hold the
+# eye for two windows and not only the one. The wall fills the window at that distance, so an off
+# eye frame moves its texels by far more than the 1 percent the comparison allows for the removed
+# block's lighting.
+# Only b1.7.3-ornithe pins a joined client (#1178). The other loaders' capture clients hold nothing,
+# so a player off the floor there is drawn from wherever they fell to and this comparison is not
+# about them. run-multiplayer.sh asks for this test on the b1.7.3-ornithe leg only, and the runner
+# runs a forwarded_ test on a dedicated server alone.
+
+room: Option[Screenshot] = Option.new()
+
+# The first capture of the client off the room's floor.
+falling: Option[Screenshot] = Option.new()
+
+# The step the next tick runs: 0 builds the wall, captures it from the floor and removes the block
+# the player stands on, 1 waits for the client to leave the floor and captures the wall from the
+# air, 2 captures the wall from the air again and compares all three frames.
+step: number = 0
+
+export tick(ctx: TestTickContext) {
+    if Test.loader_name() != "b1.7.3-ornithe" {
+        return
+    }
+    if step == 0 {
+        origin: Vec3 = Test.get_origin()
+        _wall_in_front_of(origin, "minecraft:cobblestone")
+        _wait_for_the_wall(ctx)
+        room.set(Test.screenshot().capture(200, 120, 1080, 320))
+        _remove_floor_under(origin)
+        step = 1
+        ctx.not_done()
+        return
+    }
+    if step == 1 {
+        # The room's eye is the origin less the runner's 3 block lift (GrugTestOrigin.LIFT).
+        eye: number = Test.get_origin().y() - 3.0
+        # The removed block reaches the client only through a settle ask's flush, which a frozen
+        # test's tick never reaches itself (#1123).
+        Test.world_settled()
+        camera: Vec3 = Test.camera()
+        # A whole block, not the capture-eye tolerance: a pinned client sits at the eye, and a
+        # client that has lost the block it stood on falls three blocks to the room's torch floor,
+        # so only its own physics over the missing block takes its camera this far down.
+        if camera.y() > eye - 1.0 {
+            ctx.assert(ctx.current_tick() < 120, "The joined client's own camera should drop below the room's eye once the block it stands on is removed, so the captures that follow are of a client that left the floor.")
+            ctx.not_done()
+            return
+        }
+        falling.set(Test.screenshot().capture(200, 120, 1080, 320))
+        step = 2
+        ctx.not_done()
+        return
+    }
+    again: Screenshot = Test.screenshot().capture(200, 120, 1080, 320)
+    changed: number = falling.unwrap().change_from(room.unwrap())
+    ctx.assert(changed < 1.0, "The client's first frame off the floor should be drawn from the room's eye, so it should show the wall as the capture from the floor does.")
+    changed = again.change_from(room.unwrap())
+    ctx.assert(changed < 1.0, "The client's second frame off the floor should be drawn from the room's eye, so it should show the wall as the capture from the floor does.")
+    changed = again.change_from(falling.unwrap())
+    ctx.assert(changed < 1.0, "Two frames the client drew off the floor should both be drawn from the room's eye, so they should show the same wall as each other.")
+}
+
+# Asks the joined client whether it has drawn the wall the placement made. A loader sends its
+# queued block changes from its player manager's tick, so a frozen test never reaches the send; the
+# capture flushes before it asks, and this wait does the same so the first frame is the wall.
+local _wait_for_the_wall(ctx: TestTickContext) {
+    settled: bool = Test.world_settled()
+    asks: number = 1
+    while not settled and asks < 60 {
+        settled = Test.world_settled()
+        asks = asks + 1
+    }
+    ctx.assert(settled, "The client should have drawn the wall the same tick placed it.")
+}
+
+local _wall_in_front_of(origin: Vec3, block_name: string) {
+    level: Level = Test.get_client_level()
+    z: number = origin.z() + 1
+    across: number = -2
+    while across <= 2 {
+        x: number = origin.x() + across
+        up: number = -4
+        while up <= 0 {
+            level.place_block(x, origin.y() + up, z, block_name)
+            up = up + 1
+        }
+        across = across + 1
+    }
+}
+
+# Removes the block the joined client stands on, so its own physics leaves it in the air. The
+# block holding the eye and the one the rest of the body is in are air, so the first block below
+# the eye is the block the room put under the feet; its top is where the feet stand. The room's
+# torch floor is three blocks further down, so the client lands there.
+local _remove_floor_under(origin: Vec3) {
+    level: Level = Test.get_client_level()
+    x: number = Math.floor(origin.x())
+    z: number = Math.floor(origin.z())
+    y: number = Math.floor(origin.y() - 3.0)
+    bottom: number = origin.y() - 8.0
+    while level.is_air(x, y, z) and y > bottom {
+        y = y - 1
+    }
+    level.place_block(x, y, z, "minecraft:air")
+}

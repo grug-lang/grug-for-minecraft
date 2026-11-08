@@ -360,6 +360,17 @@ while :; do
       echo "==> The run passed, but coverage/tests/camera-Test.grug did not run on the dedicated server." >&2
       exit 1
     fi
+    # The b1.7.3-ornithe capture client pins its own player at the eye a capture names (#1178), and
+    # forwarded_capture_pinned_eye proves the frame a capture reads is drawn from that pin while the
+    # client is off the room's floor, and that it keeps holding it across a second capture window
+    # (#1193). No other loader's capture client pins, so the test returns early there and only this
+    # leg is asked for it.
+    if [ "$LOADER" = "b1.7.3-ornithe" ]; then
+      if ! grep -qF '[GRUG CI] PASS coverage/tests/forwarded_capture_pinned_eye-Test.grug' "$SERVER_LOG"; then
+        echo "==> The run passed, but coverage/tests/forwarded_capture_pinned_eye-Test.grug did not run on the dedicated server." >&2
+        exit 1
+      fi
+    fi
     # The remote GUI test (#168), the GUI capture tests and the two container-click tests run on the
     # servers that can open a container for their player, 1.20.6, 1.2.5, b1.7.3-ornithe and
     # b1.7.3-stationapi (#1098): a1.1.2_01's server lists them as unsupported, so these four legs
