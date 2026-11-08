@@ -265,25 +265,6 @@ public final class GrugServerRun {
     }
 
     /**
-     * Puts the player back on the ground the server's own world has under them.
-     *
-     * <p>A client that fell through the terrain while its chunks were arriving reports a position a
-     * fraction of a block inside the ground, and the server accepts it because the box its
-     * collision check tests is contracted by 0.0625. The client's own collision then never reports
-     * support, so the wait for {@code onGround} never ended (#1136). The ground is in the server's
-     * world, so the server teleports the player to the top of the collision column under them
-     * whenever they are below it, and zeroes {@code velocityY} so the fall does not continue. The
-     * top is the block's collision shape, not its full cube, so a player on a slab is put on the
-     * slab's top at 70.5 rather than half a block above it (#1102). Once the feet are exactly on
-     * the floor the client lands on it and reports support again.
-     *
-     * <p>The same hold runs before each runner tick, so a player who ends a tick below the room's
-     * floor is put back on it before the tests see them. It does nothing while a rebuild has
-     * cleared the floor and the player is falling, because there is no floor to put them on yet. No
-     * host function moves the player down, so holding the feet at the floor cannot hide a test's
-     * own movement.
-     */
-    /**
      * Snaps the server's copy of the test player to the centre of the block they stand in on x and
      * z, before the runner builds the room (#1161).
      *
@@ -306,6 +287,25 @@ public final class GrugServerRun {
                 serverPlayer.pitch);
     }
 
+    /**
+     * Puts the player back on the ground the server's own world has under them.
+     *
+     * <p>A client that fell through the terrain while its chunks were arriving reports a position a
+     * fraction of a block inside the ground, and the server accepts it because the box its
+     * collision check tests is contracted by 0.0625. The client's own collision then never reports
+     * support, so the wait for {@code onGround} never ended (#1136). The ground is in the server's
+     * world, so the server teleports the player to the top of the collision column under them
+     * whenever they are below it, and zeroes {@code velocityY} so the fall does not continue. The
+     * top is the block's collision shape, not its full cube, so a player on a slab is put on the
+     * slab's top at 70.5 rather than half a block above it (#1102). Once the feet are exactly on
+     * the floor the client lands on it and reports support again.
+     *
+     * <p>The same hold runs before each runner tick, so a player who ends a tick below the room's
+     * floor is put back on it before the tests see them. It does nothing while a rebuild has
+     * cleared the floor and the player is falling, because there is no floor to put them on yet. No
+     * host function moves the player down, so holding the feet at the floor cannot hide a test's
+     * own movement.
+     */
     private static void holdPlayer(PlayerEntity player) {
         World world = world();
         if (world == null) {
