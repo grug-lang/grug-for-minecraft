@@ -68,6 +68,9 @@ class GrugSavedDataSyncTest {
         Object lastRedrawn = null;
         List<Object> sent = new ArrayList<>();
 
+        /** What the transport was asked to do, in order, so a flush's order can be checked. */
+        List<String> events = new ArrayList<>();
+
         @Override
         public boolean onServer(Object blockEntity) {
             return perEntity ? ((Machine) blockEntity).serverSide : onServer;
@@ -105,12 +108,14 @@ class GrugSavedDataSyncTest {
             sends++;
             lastSent = blockEntity;
             sent.add(blockEntity);
+            events.add("send");
         }
 
         @Override
         public void redraw(Object blockEntity) {
             redraws++;
             lastRedrawn = blockEntity;
+            events.add("redraw");
         }
     }
 
@@ -383,6 +388,55 @@ class GrugSavedDataSyncTest {
 
         GrugSavedDataSync.flush();
         assertEquals(1, recorder.redraws, "a flush with nothing held redraws nothing");
+    }
+
+    @Test
+    void aFlushSendsAChangeBeforeARedraw() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        GrugSavedDataSync.install(recorder);
+        Machine changed = new Machine();
+        Machine redrawn = new Machine();
+        Object level = recorder.level;
+
+        GrugSavedNumbers.set(changed, "x", 1);
+        GrugSavedDataSync.changed(changed);
+        GrugSavedDataSync.redrawn(redrawn);
+        recorder.events.clear();
+
+        GrugSavedDataSync.flush(level);
+
+        assertEquals(
+                List.of("send", "redraw"),
+                recorder.events,
+                "the client's copy must hold the data before the redraw rebuilds a mesh from it");
+    }
+
+    @Test
+    void aHeldRedrawIsReportedSoTheLoaderCanFlushTheBlockChangesFirst() {
+        Recorder recorder = new Recorder();
+        recorder.defers = true;
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        assertFalse(
+                GrugSavedDataSync.hasHeldRedraws(),
+                "a side that was just installed holds nothing to send");
+
+        GrugSavedNumbers.set(machine, "x", 1);
+        GrugSavedDataSync.changed(machine);
+        assertFalse(
+                GrugSavedDataSync.hasHeldRedraws(),
+                "a change alone does not need the block changes sent before it");
+
+        GrugSavedDataSync.redrawn(machine);
+        assertTrue(
+                GrugSavedDataSync.hasHeldRedraws(),
+                "the per-tick flush would send this redraw, so the loader has to send the block"
+                        + " changes first");
+
+        GrugSavedDataSync.flush();
+        assertFalse(GrugSavedDataSync.hasHeldRedraws(), "the flush sent the held redraw");
     }
 
     @Test

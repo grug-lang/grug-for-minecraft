@@ -151,7 +151,12 @@ public final class GrugServerRun {
         }
         // Every tick, in a CI run or not: the server installs the deferring transport whenever it
         // starts, so a server outside CI would otherwise hold every change it ever made (#1191).
-        // The flush covers every world the server runs, after the tick's own block changes.
+        // The flush covers every world the server runs, after the tick's own block changes. A
+        // redraw this flush sends goes after those block changes, because the client drops a
+        // redraw for a position whose block it has not seen change yet (#1211).
+        if (GrugSavedDataSync.hasHeldRedraws()) {
+            flushBlockChanges();
+        }
         GrugSavedDataSync.flush();
     }
 

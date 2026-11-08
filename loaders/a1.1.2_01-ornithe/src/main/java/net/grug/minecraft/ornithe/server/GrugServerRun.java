@@ -118,7 +118,12 @@ public final class GrugServerRun {
         }
         // Every tick of a server world, in a CI run or not: the transport is installed whenever a
         // dedicated server is up and holds a change until it is flushed, so a server outside CI
-        // would otherwise hold every change it ever made (#1191).
+        // would otherwise hold every change it ever made (#1191). A redraw this flush sends goes
+        // after the block changes the tick queued, because the client drops a redraw for a
+        // position whose block it has not seen change yet (#1211).
+        if (GrugSavedDataSync.hasHeldRedraws()) {
+            flushBlockChanges();
+        }
         GrugSavedDataSync.flush(tickedWorld);
     }
 
