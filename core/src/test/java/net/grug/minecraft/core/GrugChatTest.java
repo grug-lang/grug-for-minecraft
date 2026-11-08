@@ -175,6 +175,52 @@ class GrugChatTest {
     }
 
     @Test
+    void noPieceEndsInASectionSignBecauseTheOlderChatReadsPastOne() {
+        // 1.2.5's FontRenderer.sizeStringToWidth falls from its space case into its colour-code
+        // case, which reads the character after a section sign without checking the piece's end,
+        // so a piece that ends in one throws StringIndexOutOfBoundsException. A colour code is its
+        // sign and the character it names, so a cut never lands between them, and a sign with no
+        // character after it is dropped (#1224).
+        String tail = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+
+        // The code is placed at every distance from the line's start, so every cut position from 0
+        // to 60 meets it, the sign at LINE_WIDTH - 1 landing on the cut included.
+        for (int offset = 0; offset <= 60; offset++) {
+            StringBuilder line = new StringBuilder();
+            for (int at = 0; at < offset; at++) {
+                line.append('a');
+            }
+            line.append("§c").append(tail);
+
+            List<String> pieces = GrugChat.wrap(line.toString());
+            int whole = 0;
+            for (String piece : pieces) {
+                assertFalse(piece.endsWith("§"), "a piece ends in a section sign: '" + piece + "'");
+                for (int at = piece.indexOf("§c"); at >= 0; at = piece.indexOf("§c", at + 1)) {
+                    whole++;
+                }
+            }
+            // The code is whole in one piece, so no cut took its sign from the character it names.
+            assertEquals(1, whole, "the code lost its character: " + pieces);
+        }
+
+        // A sign at the end of the text names no character, so it is dropped instead of handed on.
+        assertEquals(Arrays.asList("first", "second"), GrugChat.wrap("first\nsecond§"));
+        // Dropping it must not leave the space before it at the end of the piece.
+        assertEquals(Collections.singletonList("short"), GrugChat.wrap("short §"));
+        // A space that is a code's own character is not a word gap, so it never ends a piece
+        // either.
+        StringBuilder spaceCode = new StringBuilder();
+        for (int at = 0; at < GrugChat.LINE_WIDTH - 2; at++) {
+            spaceCode.append('a');
+        }
+        spaceCode.append("§ ").append(tail);
+        for (String piece : GrugChat.wrap(spaceCode.toString())) {
+            assertFalse(piece.endsWith("§"), "a piece ends in a section sign: '" + piece + "'");
+        }
+    }
+
+    @Test
     void aTrailingSpaceAtTheEndOfTheLastLineIsNotPartOfIt() {
         assertEquals(Collections.singletonList("short"), GrugChat.wrap("short "));
     }
