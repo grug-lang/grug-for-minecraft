@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import com.mojang.logging.LogUtils;
 
+import net.grug.minecraft.core.GrugChat;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugSavedDataSync;
@@ -1143,26 +1144,16 @@ public class GrugModLoader {
             String[] lines = text.split("\n");
             for (String line : lines) {
                 LOGGER.info(prefix + line);
+            }
 
-                // A CI run is not watched, and the readout is drawn into every capture that reaches
-                // down to it, so the log is all it gets. See #412.
-                if (GrugReference.isCiRun()) {
-                    continue;
-                }
+            // A CI run is not watched, and the readout is drawn into every capture that reaches
+            // down to it, so the log is all it gets. See #412.
+            if (GrugReference.isCiRun()) return;
 
-                int maxLength = 50;
-                while (line.length() > maxLength) {
-                    int splitIndex = line.lastIndexOf(' ', maxLength);
-                    if (splitIndex == -1) {
-                        splitIndex = maxLength;
-                    }
-                    player.sendSystemMessage(
-                            Component.literal(prefix + line.substring(0, splitIndex)));
-                    line = line.substring(splitIndex).trim();
-                }
-                if (!line.isEmpty()) {
-                    player.sendSystemMessage(Component.literal(prefix + line));
-                }
+            // The wrapping every loader shares, so a line wraps the same whichever process said it
+            // and a piece never ends in a space, which 1.2.5's chat cannot read (#1215).
+            for (String piece : GrugChat.wrap(text)) {
+                player.sendSystemMessage(Component.literal(prefix + piece));
             }
         }
     }
