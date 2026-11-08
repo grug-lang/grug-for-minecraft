@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugFrameRequest;
+import net.grug.minecraft.core.GrugGiveCalls;
 import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSoundArgs;
@@ -695,9 +696,13 @@ public class HostFunctions {
      * loader that draws overlays on the inventory and container screens from one that does not. The
      * answer stays false on a loader with no overlay, so a test that needs the overlay to have
      * drawn skips there rather than failing for a missing feature.
+     *
+     * <p>An overlay is drawn by a client's frame pass, so on a dedicated server this is the joined
+     * client's answer, asked of the client of the player who started the run (#1099). See {@link
+     * ModLoaderAdapter#overlaySupportedForTest}.
      */
     public static boolean Test_overlay_supported() {
-        return GrugOverlay.overlaySupported();
+        return GrugCore.getAdapter().overlaySupportedForTest();
     }
 
     /**
@@ -709,10 +714,13 @@ public class HostFunctions {
      * skipped and would otherwise wait for a frame that no test asked for. The answer is set on the
      * render thread, so waiting for it is how a test tells a screen that was really drawn from one
      * the game closed before a frame.
+     *
+     * <p>On a dedicated server the mark belongs to the joined client's frame pass, so the answer
+     * comes from the client of the player who started the run, which is told which mod's overlay
+     * the running test waits for (#1099). See {@link ModLoaderAdapter#overlayDrawnForTest}.
      */
     public static boolean Test_overlay_drawn() {
-        GrugFrameRequest.request();
-        return GrugOverlay.overlayDrawn();
+        return GrugCore.getAdapter().overlayDrawnForTest(GrugTestState.currentTestMod);
     }
 
     /**
@@ -2388,12 +2396,14 @@ public class HostFunctions {
      * inventory, and dropped at their feet if it is full. This is what the overlay's click() calls,
      * so a click on its list hands the clicked item to the player.
      *
-     * <p>The item is added to the integrated server's copy of the player, not the client's, because
-     * that is the copy the game saves and the one a test reads back; see the adapter's own method.
+     * <p>The item reaches the player a test reads. In singleplayer and on a dedicated server's own
+     * test that is this process's copy; on a client joined to a server that drives the run, the
+     * overlay's click runs here but the player is the server's, so the give is named to the server
+     * and applied to its copy (#1099, #882). See {@link GrugGiveCalls}.
      */
     public static void give_item(long itemId) {
         worldChanged();
-        withEntity("give_item", "item", itemId, HostFunctions::giveItem);
+        withEntity("give_item", "item", itemId, item -> HostFunctions.giveItem("give_item", item));
     }
 
     /**
@@ -2404,10 +2414,10 @@ public class HostFunctions {
      * stale item it reports.
      */
     @GrugGenerated("gives through the adapter's player: a unit test has no game")
-    private static void giveItem(Object item) {
-        Object player = playerToGiveTo("give_item");
+    private static void giveItem(String method, Object item) {
+        Object player = playerToGiveTo(method);
         if (player != null) {
-            GrugCore.getAdapter().giveItemToPlayer(player, item);
+            GrugGiveCalls.give(GrugCore.getAdapter(), player, item, 1, method);
         }
     }
 
@@ -2417,21 +2427,29 @@ public class HostFunctions {
      * stack size, which is the amount the reference's stack binding gives, so a tool still comes as
      * one item and a block as 64.
      *
-     * <p>Added to the integrated server's copy of the player for the same reason as {@code
-     * give_item}.
+     * <p>It reaches the player through the same path as {@code give_item}, the joined client's
+     * server included (#1099).
      */
     public static void give_item_stack(long itemId) {
         worldChanged();
-        withEntity("give_item_stack", "item", itemId, HostFunctions::giveItemStack);
+        withEntity(
+                "give_item_stack",
+                "item",
+                itemId,
+                item -> HostFunctions.giveItemStack("give_item_stack", item));
     }
 
-    /** Gives a full stack of {@code item} to the player a test runs as. */
+    /**
+     * Gives a full stack of {@code item} to the player a test runs as. The count is the item's own
+     * maximum stack, which the client sends with the give and the server applies as it is, so both
+     * sides agree on the size of the stack the test asserts on.
+     */
     @GrugGenerated("gives through the adapter's player: a unit test has no game")
-    private static void giveItemStack(Object item) {
-        Object player = playerToGiveTo("give_item_stack");
-        if (player != null) {
-            GrugCore.getAdapter().giveItemStackToPlayer(player, item);
-        }
+    private static void giveItemStack(String method, Object item) {
+        Object player = playerToGiveTo(method);
+        if (player == null) return;
+        int count = Math.max(1, GrugCore.getAdapter().getItemMaxStack(item));
+        GrugGiveCalls.give(GrugCore.getAdapter(), player, item, count, method);
     }
 
     /**

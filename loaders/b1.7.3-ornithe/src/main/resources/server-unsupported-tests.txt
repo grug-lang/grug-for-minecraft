@@ -14,3 +14,17 @@ coverage/tests/block_shape-Test.grug
 # right-click the chest, so the two tests run there.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
+#
+# The overlay's click and the cursor it deletes. Test.overlay_supported and Test.overlay_drawn
+# answer from the joined client (#1099), so the overlay tests do run on this server now, but these
+# two still cannot. An overlay's click export runs on that client, so its carried_item read and
+# delete_carried_item call touch the client's copy of the cursor while the test sets and reads the
+# server's, and no client-to-server cursor write exists yet (#882).
+coverage/tests/overlay-Test.grug
+jei/tests/jei-Test.grug
+#
+# The screen-open hook. The test asserts that a screen which has just opened has drawn no frame
+# yet, which a joined client cannot promise: it draws frames of its own between the server's open
+# and the server's read, so the mark can be set by the time the answer is asked for. The hook it
+# proves is the client's own, so the test stays client-only.
+coverage/tests/overlay_screen_open-Test.grug

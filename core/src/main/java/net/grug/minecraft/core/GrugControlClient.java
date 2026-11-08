@@ -99,6 +99,19 @@ public final class GrugControlClient {
          * own copy of the world, which is the copy its mesher bakes the room from (#1207).
          */
         long clientLightFingerprint(double x, double y, double z);
+
+        /**
+         * Whether this client draws overlays on the inventory and container screens at all, which a
+         * server-run {@code Test.overlay_supported} asks the client that draws them (#1099).
+         */
+        boolean overlaySupported();
+
+        /**
+         * Whether a frame has drawn the overlay of the mod named {@code mod} on the screen this
+         * client has open now, which is a server-run {@code Test.overlay_drawn} (#1099). The mod is
+         * the one that owns the running test, which only the server knows.
+         */
+        boolean overlayDrawn(String mod);
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -177,6 +190,16 @@ public final class GrugControlClient {
             public long clientLightFingerprint(double x, double y, double z) {
                 return adapter.get().clientLightFingerprint(x, y, z);
             }
+
+            @Override
+            public boolean overlaySupported() {
+                return adapter.get().overlaySupportedForTest();
+            }
+
+            @Override
+            public boolean overlayDrawn(String mod) {
+                return adapter.get().overlayDrawnForTest(mod);
+            }
         };
     }
 
@@ -187,6 +210,16 @@ public final class GrugControlClient {
     private final int lateWidth;
     private final AtomicReference<Runnable> held = new AtomicReference<>();
     private volatile boolean runActive = false;
+
+    /**
+     * The control client of this process, or null when this process is not one: a dedicated server
+     * never makes one, and a client makes one when it joins a server or answers one (#1099).
+     *
+     * <p>It is static because a give a host function performs has to know whether the player it
+     * must reach is the server's, and the host functions are core code with no client of their own
+     * to ask. One client serves a process's run, so this is the only one there is.
+     */
+    private static volatile GrugControlClient current;
 
     /**
      * The world revision this client last answered a settle ask for (#1086). A revision it has not
@@ -210,10 +243,34 @@ public final class GrugControlClient {
         this.caller = caller;
         this.dropWidth = dropWidth;
         this.lateWidth = lateWidth;
+        current = this;
     }
 
     public boolean runActive() {
         return runActive;
+    }
+
+    /**
+     * Whether this process is a client that has started a run, so a host function that changes the
+     * player has to reach the server that holds the player rather than its own copy (#1099).
+     */
+    public static boolean runActiveHere() {
+        GrugControlClient client = current;
+        return client != null && client.runActive;
+    }
+
+    /**
+     * Sends a give of {@code count} of the item at {@code index} in the loader's item list to the
+     * server that drives this client's run (#1099), which gives it to its own copy of the test
+     * player. Only legal while {@link #runActiveHere}, which its caller checks.
+     */
+    public static void giveToServer(int index, int count) {
+        GrugControlClient client = current;
+        if (!runActiveHere()) {
+            throw new IllegalStateException(
+                    "a give named an item to the server with no run started on this client");
+        }
+        client.link.send(GrugControlWire.giveRequest(index, count));
     }
 
     /** The player started a run: the flag first, then the message that tells the server. */
@@ -371,6 +428,12 @@ public final class GrugControlClient {
                                 (double)
                                         caller.clientLightFingerprint(
                                                 message.volume, message.pitch, message.third)));
+            } else if (message.call == GrugControlWire.CALL_OVERLAY_SUPPORTED) {
+                boolean supported = caller.overlaySupported();
+                link.send(GrugControlWire.answerValue(message.id, (byte) (supported ? 1 : 0)));
+            } else if (message.call == GrugControlWire.CALL_OVERLAY_DRAWN) {
+                boolean drawn = caller.overlayDrawn(message.text);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (drawn ? 1 : 0)));
             } else {
                 // A call this client has no arm for, which is what a call code added to the wire
                 // before its arm becomes. Answering it as an error keeps the server's mistake

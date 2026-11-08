@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.Vec3;
 
 import java.awt.image.BufferedImage;
@@ -180,27 +181,16 @@ public interface ModLoaderAdapter {
     }
 
     /**
-     * Gives one of the item to the player, the way the game gives a player an item: into their
-     * inventory, and dropped at their feet if it is full. A loader that cannot give items keeps
-     * this default, which reports the call rather than dropping the item silently, so a mod hears
-     * which loader has no give yet.
+     * Gives {@code count} of the item to the player, the way the game gives a player an item: into
+     * their inventory, and dropped at their feet if it is full. {@code give_item} gives one and
+     * {@code give_item_stack} the item's full stack, and a give forwarded from a client joined to a
+     * dedicated server carries the count the client computed, so those two are one call here
+     * (#1099).
+     *
+     * <p>It has no default on purpose: every loader in this repository gives, and one that cannot
+     * would rather fail to compile than drop the item silently.
      */
-    @GrugGenerated("no give: a new loader that cannot give items keeps this default")
-    default void giveItemToPlayer(Object playerObj, Object itemObj) {
-        Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "give_item: This loader cannot give an item yet.");
-    }
-
-    /**
-     * Gives a full stack of the item to the player, the way {@link #giveItemToPlayer} gives one. A
-     * loader that cannot give items keeps this default, which reports the call rather than dropping
-     * the stack silently.
-     */
-    @GrugGenerated("no give: a new loader that cannot give items keeps this default")
-    default void giveItemStackToPlayer(Object playerObj, Object itemObj) {
-        Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "give_item_stack: This loader cannot give an item yet.");
-    }
+    void giveItemCountToPlayer(Object playerObj, Object itemObj, int count);
 
     Object createItemEntity(Object levelObj, double x, double y, double z, Object itemStackObj);
 
@@ -869,6 +859,30 @@ public interface ModLoaderAdapter {
      * client of the player who started the run (#1094).
      */
     boolean isScreenOpenForTest();
+
+    /**
+     * Whether this loader draws overlays on the inventory and container screens at all, which is
+     * what {@code Test.overlay_supported} answers.
+     *
+     * <p>On a dedicated server this is the joined client's own answer, which every server asks the
+     * client of the player who started the run (#1099): the loader marks support when it registers
+     * the screen hooks, and a server has none.
+     */
+    default boolean overlaySupportedForTest() {
+        return GrugOverlay.overlaySupported();
+    }
+
+    /**
+     * Whether a frame has drawn the overlay of the mod named {@code mod}, which owns the running
+     * test, on the screen open now, which is what {@code Test.overlay_drawn} answers.
+     *
+     * <p>On a dedicated server the mark belongs to the joined client's frame pass, so every server
+     * asks the client of the player who started the run, naming the mod the client is not itself
+     * running a test of (#1099).
+     */
+    default boolean overlayDrawnForTest(String mod) {
+        return GrugOverlay.drawnForTest(mod);
+    }
 
     /**
      * Opens the player's own inventory screen, for a test that drives an overlay which only appears

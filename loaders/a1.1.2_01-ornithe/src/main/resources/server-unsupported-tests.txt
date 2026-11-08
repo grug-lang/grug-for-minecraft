@@ -53,3 +53,25 @@ coverage/tests/gui_click_empty-Test.grug
 # right-click the chest, so the two tests run there.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
+#
+# The overlay and item-list tests. The joined client draws the overlay, so Test.overlay_supported
+# answers true here now that the answer is the client's (#1099), and each of these tests then opens
+# the player's inventory. The a0.2.1 server has no container for its player, so Test.open_inventory
+# refuses there (#1064, #1098) and the test fails before it draws anything. They run on the other
+# four legs, whose server forwards Test.open_inventory.
+coverage/tests/overlay_click_hook-Test.grug
+coverage/tests/overlay_key-Test.grug
+coverage/tests/overlay_probe_gives_nothing-Test.grug
+coverage/tests/overlay_screen_open-Test.grug
+coverage/tests/overlay_scroll-Test.grug
+jei/tests/hotkey-Test.grug
+jei/tests/item_list_forced_normalization-Test.grug
+jei/tests/paging-Test.grug
+jei/tests/scroll-Test.grug
+#
+# The overlay's click and the cursor it deletes. An overlay's click export runs on the joined
+# client, so its carried_item read and delete_carried_item call touch the client's copy of the
+# cursor while the test sets and reads the server's, and no client-to-server cursor write exists
+# yet (#882). These two stay out on every leg, this one included.
+coverage/tests/overlay-Test.grug
+jei/tests/jei-Test.grug

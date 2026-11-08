@@ -720,14 +720,8 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public void giveItemToPlayer(Object playerObj, Object itemObj) {
-        giveItemToPlayer((Player) playerObj, (Item) itemObj, 1);
-    }
-
-    @Override
-    public void giveItemStackToPlayer(Object playerObj, Object itemObj) {
-        Item item = (Item) itemObj;
-        giveItemToPlayer((Player) playerObj, item, new ItemStack(item).getMaxStackSize());
+    public void giveItemCountToPlayer(Object playerObj, Object itemObj, int count) {
+        giveItemToPlayer((Player) playerObj, (Item) itemObj, count);
     }
 
     @GrugGenerated(

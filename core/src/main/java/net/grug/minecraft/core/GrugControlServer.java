@@ -1,5 +1,6 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.Vec3;
 
 import java.awt.image.BufferedImage;
@@ -7,8 +8,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -76,6 +79,19 @@ public final class GrugControlServer {
          * a call that could have sent a packet.
          */
         void applyClientWork();
+
+        /**
+         * Gives {@code count} of the item at {@code index} in the loader's item list to this
+         * server's own copy of the test player, which is the give the starter's client sent
+         * (#1099). The default hands it to the game's adapter, which every loader's link shares,
+         * and a unit test overrides it to see what was queued.
+         */
+        @GrugGenerated(
+                "only a dedicated server applies a forwarded give, and no counted coverage run"
+                        + " launches one")
+        default void applyGive(int index, int count) {
+            GrugGiveCalls.giveOnServer(GrugCore.getAdapter(), index, count);
+        }
     }
 
     /** A request that cannot be answered; its message is what the test's error says. */
@@ -130,6 +146,13 @@ public final class GrugControlServer {
      */
     private volatile boolean clientWorkPending;
 
+    /**
+     * The gives the starter's client sent and this server has not applied yet (#1099), in the order
+     * they arrived. Written on the network thread, drained by {@link #applyClientWork} on the
+     * server thread, because a give changes the world and only that thread may.
+     */
+    private final Queue<int[]> gives = new ConcurrentLinkedQueue<>();
+
     public GrugControlServer(Link link, long timeoutMillis) {
         this.link = link;
         this.timeoutMillis = timeoutMillis;
@@ -157,6 +180,12 @@ public final class GrugControlServer {
         }
         clientWorkPending = false;
         link.applyClientWork();
+        // After the game's own packets, so a give sees the inventory a click of the same tick
+        // already changed: the client sends both in that order, and this is the order it sees.
+        int[] give;
+        while ((give = gives.poll()) != null) {
+            link.applyGive(give[0], give[1]);
+        }
     }
 
     /** The player who started the run, or null when none has. */
@@ -197,6 +226,15 @@ public final class GrugControlServer {
             return;
         }
         if (!fromStarter) {
+            return;
+        }
+        if (message.type == GrugControlWire.GIVE_REQUEST) {
+            // The client's half of a give its overlay's click performed (#1099): the client has the
+            // item list and this server has the player, so the client names the item and this
+            // server gives it to its own copy. Applied by the next applyClientWork, on the server
+            // thread, because it changes the world.
+            gives.add(new int[] {message.x1, message.y1});
+            clientWorkPending = true;
             return;
         }
         if (!GrugControlWire.isAnswer(message.type)) {
@@ -251,6 +289,7 @@ public final class GrugControlServer {
             link.sendToStarter(to, GrugControlWire.runEnd());
         }
         settled.forget();
+        gives.clear();
         failAll("The run ended while the call was waiting.");
     }
 
@@ -260,6 +299,7 @@ public final class GrugControlServer {
             // The client that answered is gone, so an answer remembered for its revision says
             // nothing about the client a later starter uses.
             settled.forget();
+            gives.clear();
             failAll("The player who started the run disconnected.");
         }
     }
@@ -522,6 +562,26 @@ public final class GrugControlServer {
         return number(GrugControlWire.CALL_CLIENT_LIGHT, "", x, y, z);
     }
 
+    /**
+     * Asks the starter's client whether it draws overlays at all, which is what {@code
+     * Test.overlay_supported} answers (#1099): a server's own answer is always false, because the
+     * loader marks support when it registers the screen hooks it only has on a client.
+     */
+    public boolean overlaySupported() throws ControlException {
+        byte result = call(GrugControlWire.CALL_OVERLAY_SUPPORTED, "", 0, 0, 0);
+        return yesOrNo(result, "overlay_supported");
+    }
+
+    /**
+     * Asks the starter's client whether a frame has drawn the overlay of the mod named {@code mod},
+     * which is the mod that owns the running test, on the screen it has open now (#1099). The
+     * client keeps the mark per mod, so a later test of another mod does not read this one's frame.
+     */
+    public boolean overlayDrawn(String mod) throws ControlException {
+        byte result = call(GrugControlWire.CALL_OVERLAY_DRAWN, mod, 0, 0, 0);
+        return yesOrNo(result, "overlay_drawn");
+    }
+
     /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
     private static boolean yesOrNo(byte result, String call) throws ControlException {
         if (result != 0 && result != 1) {
@@ -608,6 +668,10 @@ public final class GrugControlServer {
                 return savedNumberProblem(name, volume, pitch, third);
             case GrugControlWire.CALL_CLIENT_LIGHT:
                 return positionProblem(volume, pitch, third);
+            case GrugControlWire.CALL_OVERLAY_SUPPORTED:
+                return null;
+            case GrugControlWire.CALL_OVERLAY_DRAWN:
+                return overlayModProblem(name);
             default:
                 String problem = GrugSoundArgs.pathProblem(name);
                 if (problem == null && call == GrugControlWire.CALL_PLAY_UI_SOUND) {
@@ -653,6 +717,19 @@ public final class GrugControlServer {
             if (!Double.isFinite(position)) {
                 return "The call names a block position, and one of its numbers was not finite.";
             }
+        }
+        return null;
+    }
+
+    /**
+     * Why a forwarded drawn-overlay read carries what it cannot, or null. The name is the mod that
+     * owns the running test, which the wire has to carry whole.
+     */
+    private static String overlayModProblem(String mod) {
+        if (mod == null) return "The overlay read names no test mod.";
+        if (mod.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                > GrugControlWire.MAX_NAME) {
+            return "The test mod's name is over " + GrugControlWire.MAX_NAME + " bytes.";
         }
         return null;
     }
@@ -801,6 +878,10 @@ public final class GrugControlServer {
         }
         if (call == GrugControlWire.CALL_CLIENT_LIGHT) {
             return "client light section";
+        }
+        if (call == GrugControlWire.CALL_OVERLAY_DRAWN) {
+            return "overlay drawn of \"" + name + "\"";
+        }
         }
         return "call " + call + " \"" + name + "\"";
     }

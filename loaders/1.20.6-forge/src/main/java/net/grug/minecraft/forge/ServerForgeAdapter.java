@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugLightSync;
+import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
@@ -110,6 +111,16 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     private final GrugClientSavedNumbers.Forwarded savedNumbers =
             new GrugClientSavedNumbers.Forwarded(
+                    GrugControlForge::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    /**
+     * The overlay reads this server makes, which its joined client answers about the frame it
+     * draws: an overlay belongs to a client's frame pass, so a server never records one (#1099). A
+     * failure is a host function error, which fails the test.
+     */
+    private final GrugOverlayCalls.Forwarded overlays =
+            new GrugOverlayCalls.Forwarded(
                     GrugControlForge::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
@@ -311,6 +322,24 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * Whether the joined client draws overlays at all, which a server's own answer would deny
+     * (#1099): the loader marks support where it registers the screen hooks, and a server has none.
+     */
+    @Override
+    public boolean overlaySupportedForTest() {
+        return overlays.supported();
+    }
+
+    /**
+     * Whether a frame of the joined client drew the overlay of the running test's mod on the screen
+     * it has open (#1099): the mark belongs to that client's frame pass, not to this server's.
+     */
+    @Override
+    public boolean overlayDrawnForTest(String mod) {
+        return overlays.drawn(mod);
+    }
+
+    /**
      * This server forwards a test's client-only calls to the player who started the run (#1040).
      */
     @Override
@@ -416,6 +445,31 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * The tests listed in {@code forge-1.20.6-server-unsupported-tests.txt}, which says why. The
+     * name carries the loader because this layer is at the universal jar's root, and a root file of
+     * the bare name would shadow the nested layers' own lists on the class path.
+     */
+    @Override
+    public Set<String> serverUnsupportedTests() {
+        String name = "/forge-1.20.6-server-unsupported-tests.txt";
+        try (InputStream in = ServerForgeAdapter.class.getResourceAsStream(name)) {
+            if (in == null) {
+                throw new IllegalStateException(name + " is not in the jar.");
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int n;
+            while ((n = in.read(buffer)) > 0) {
+                out.write(buffer, 0, n);
+            }
+            return GrugTestRunner.parseTestList(
+                    new String(out.toByteArray(), StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read " + name + ".", e);
+        }
+    }
+
+    /**
      * The item on the mouse cursor of this server's own menu, which is the menu the joined client's
      * screen is built from (#1094). The inherited answer reads {@code Minecraft.getInstance()} and
      * the client's screen, which a dedicated server refuses to load.
@@ -469,32 +523,6 @@ public class ServerForgeAdapter extends ForgeAdapter {
     private AbstractContainerMenu serverMenu() {
         Object playerObj = testPlayer();
         return playerObj instanceof ServerPlayer ? ((ServerPlayer) playerObj).containerMenu : null;
-    }
-
-    /**
-     * The tests listed in {@code forge-1.20.6-server-unsupported-tests.txt}, which says why. The
-     * name carries the loader because this layer sits at the universal jar's root and the
-     * Fabric-family layers are read from the class path by their bare name, so a root
-     * server-unsupported-tests.txt would shadow theirs in the nested layers.
-     */
-    @Override
-    public Set<String> serverUnsupportedTests() {
-        String name = "/forge-1.20.6-server-unsupported-tests.txt";
-        try (InputStream in = ServerForgeAdapter.class.getResourceAsStream(name)) {
-            if (in == null) {
-                throw new IllegalStateException(name + " is not in the jar.");
-            }
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
-            int n;
-            while ((n = in.read(buffer)) > 0) {
-                out.write(buffer, 0, n);
-            }
-            return GrugTestRunner.parseTestList(
-                    new String(out.toByteArray(), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not read " + name + ".", e);
-        }
     }
 
     /**

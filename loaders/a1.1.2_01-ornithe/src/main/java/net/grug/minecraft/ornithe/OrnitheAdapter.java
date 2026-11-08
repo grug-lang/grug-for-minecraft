@@ -658,14 +658,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public void giveItemToPlayer(Object playerObj, Object itemObj) {
-        giveItemToPlayer((PlayerEntity) playerObj, (Item) itemObj, 1);
-    }
-
-    @Override
-    public void giveItemStackToPlayer(Object playerObj, Object itemObj) {
-        giveItemToPlayer(
-                (PlayerEntity) playerObj, (Item) itemObj, ((Item) itemObj).getMaxStackSize());
+    public void giveItemCountToPlayer(Object playerObj, Object itemObj, int count) {
+        giveItemToPlayer((PlayerEntity) playerObj, (Item) itemObj, count);
     }
 
     /**
