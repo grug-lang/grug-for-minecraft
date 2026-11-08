@@ -241,6 +241,25 @@ public final class GrugSavedDataSync {
     }
 
     /**
+     * Whether a deferring side holds a redraw that its next flush would send.
+     *
+     * <p>A loader asks this before its per-tick flush to decide whether it has to send the block
+     * changes that tick queued first: the flush sends the redraw, and a client that has not seen
+     * the block change yet drops the redraw for a position it still holds the previous block at
+     * (#1211). The changes a flush sends are not a reason to send block changes early, because a
+     * client that receives a saved number outside its frame pass does not need the block to have
+     * changed first.
+     */
+    public static synchronized boolean hasHeldRedraws() {
+        for (Pending pending : LEVELS.values()) {
+            if (!pending.heldRedraws.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Sends and forgets the changes held for one level, and leaves every other level alone: a flush
      * of the server's world must neither send nor drop a change of a client's level, or of a second
      * world in the same process.
