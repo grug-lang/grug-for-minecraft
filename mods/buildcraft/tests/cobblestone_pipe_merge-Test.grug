@@ -9,9 +9,11 @@
 # #1205: the a1 dedicated server's leg failed this assertion once under load, and only the failing
 # sample can say whether an item was lost or stands where no sum looks. A sample with a wrong total
 # therefore prints every container, each pipe's travelling records (a record whose item is not
-# written yet is counted by no sum) and the item entities beside the fixture before it fails. The
-# sums themselves are not widened to cover an inbox or a dropped item: neither is a state this pipe
-# leaves at a tick boundary, so each is a defect the assertion has to keep reporting.
+# written yet is counted by no sum), the held hotbar slot and the item entities beside the fixture
+# before it fails. Every sample looks the six block entities up again, since a chunk loaded again
+# makes new objects, and counts the held slot, since the a1 pickup is live. The sums themselves are
+# not widened to cover an inbox or a dropped item: neither is a state this pipe leaves at a tick
+# boundary, so each is a defect the assertion has to keep reporting.
 source_a: Option[BlockEntity] = Option.new()
 source_b: Option[BlockEntity] = Option.new()
 target: Option[BlockEntity] = Option.new()
@@ -25,6 +27,16 @@ test_level: Option[Level] = Option.new()
 # The game ticks this test has asked the level to run so far, which bounds the advance as a whole
 # rather than one call of it.
 advanced: number = 0
+
+# The fixture's origin at the band, so a sample can look the six block entities up again by
+# position instead of trusting the handles _setup took.
+base_x: number = 0
+base_y: number = 0
+base_z: number = 0
+
+# How many of the six the last sample found again at their positions. Fewer than six means a chunk
+# was not readable that sample, and the report says so.
+refetched: number = 0
 
 # #1014: the pick is the level's own random, as PipeTransportItems.resolveDestination draws it in
 # singleplayer (worldObj.r.nextInt(size)), and nothing in the API seeds that random, so the route
@@ -81,6 +93,9 @@ local _setup(ctx: TestTickContext) {
     # Band 12, clear of the bands the other pipe tests use.
     y: number = origin.y() + 12
     z: number = origin.z()
+    base_x = x
+    base_y = y
+    base_z = z
 
     # The cobblestone pipe at (x, y, z), a wooden pipe to its west and one to its north, the output
     # chest to its east, and a source chest behind each wooden pipe.
@@ -124,6 +139,7 @@ local _done() bool {
 }
 
 local _sample(ctx: TestTickContext) {
+    _refetch(test_level.unwrap())
     diamond: Item = item(resource_location("minecraft:diamond"))
     ingot: Item = item(resource_location("minecraft:iron_ingot"))
     diamonds: number = _total(diamond)
@@ -133,6 +149,30 @@ local _sample(ctx: TestTickContext) {
     }
     ctx.assert(diamonds == 4, "The diamonds should exist exactly once at every sample.")
     ctx.assert(ingots == 4, "The iron ingots should exist exactly once at every sample.")
+}
+
+# #1205: a chunk can be dropped to storage and loaded again between two samples, which makes new
+# block entity objects, so a sample that reused the handles _setup took would read a frozen
+# snapshot of the old ones and could not see the new pipes run. Every sample therefore looks the
+# six up again by position. A position that answers nothing keeps the handle it had, because the
+# sample must still print a total, and refetched reports that it is not live.
+local _refetch(level: Level) {
+    refetched = 0
+    source_a.set(_refetch_one(level, source_a, base_x - 2, base_y, base_z))
+    wooden_a.set(_refetch_one(level, wooden_a, base_x - 1, base_y, base_z))
+    source_b.set(_refetch_one(level, source_b, base_x, base_y, base_z - 2))
+    wooden_b.set(_refetch_one(level, wooden_b, base_x, base_y, base_z - 1))
+    cobblestone.set(_refetch_one(level, cobblestone, base_x, base_y, base_z))
+    target.set(_refetch_one(level, target, base_x + 1, base_y, base_z))
+}
+
+local _refetch_one(level: Level, previous: Option[BlockEntity], x: number, y: number, z: number) BlockEntity {
+    live: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    if live.has() {
+        refetched = refetched + 1
+        return live.unwrap()
+    }
+    return previous.unwrap()
 }
 
 # #1205: a sample with a wrong total names where every item is, because the failing run's log is the
@@ -159,15 +199,31 @@ local _report(diamonds: number, ingots: number) {
     print2("wooden_a travelling records", _records(wooden_a.unwrap()))
     print2("wooden_b travelling records", _records(wooden_b.unwrap()))
     print2("cobblestone travelling records", _records(cobblestone.unwrap()))
+    print3("held slot", _held(diamond), _held(ingot))
+    print2("block entities found again", refetched)
     print2("item entities near the fixture", level.count_item_entities(origin.x(), origin.y() + 12, origin.z(), 16))
 }
 
 # Every item of the wanted kind the containers the fixture can hand an item to hold: the three
-# chests and the three pipes' travelling records. A wooden pipe's extraction inbox and a dropped item
-# entity are deliberately not read, because the pipe leaves neither behind at a tick boundary, so a
-# sample that finds one short has found a defect and says where everything is with _report (#1205).
+# chests, the three pipes' travelling records and the player's selected hotbar slot. A wooden pipe's
+# extraction inbox and a dropped item entity are deliberately not read, because the pipe leaves
+# neither behind at a tick boundary, so a sample that finds one short has found a defect and says
+# where everything is with _report (#1205). The player's other slots cannot be read through the
+# API, so this covers a pickup into the held slot and nothing more.
 local _total(wanted: Item) number {
-    return _in_inventory(source_a.unwrap(), wanted) + _in_inventory(source_b.unwrap(), wanted) + _in_inventory(target.unwrap(), wanted) + _in_pipe(wooden_a.unwrap(), wanted) + _in_pipe(wooden_b.unwrap(), wanted) + _in_pipe(cobblestone.unwrap(), wanted)
+    return _in_inventory(source_a.unwrap(), wanted) + _in_inventory(source_b.unwrap(), wanted) + _in_inventory(target.unwrap(), wanted) + _in_pipe(wooden_a.unwrap(), wanted) + _in_pipe(wooden_b.unwrap(), wanted) + _in_pipe(cobblestone.unwrap(), wanted) + _held(wanted)
+}
+
+# The items of the wanted kind in the player's selected hotbar slot. The a1 dedicated server's
+# pickup is live, unlike the newer versions', so an item the player walked over would otherwise
+# look lost (#1205).
+local _held(wanted: Item) number {
+    player: Player = Test.get_player()
+    held: Option[Item] = player.get_held_item()
+    if held.has() and equals(held.unwrap(), wanted) {
+        return Test.get_held_count(player)
+    }
+    return 0
 }
 
 local _in_inventory(block: BlockEntity, wanted: Item) number {

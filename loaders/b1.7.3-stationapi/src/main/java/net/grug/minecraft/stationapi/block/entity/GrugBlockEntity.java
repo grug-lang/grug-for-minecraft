@@ -385,7 +385,20 @@ public class GrugBlockEntity extends BlockEntity
     @Override
     public void setStack(int slot, ItemStack stack) {
         ensureSized();
-        if (slot < 0 || slot >= stacks.length) return;
+        if (slot < 0 || slot >= stacks.length) {
+            // A write outside the inventory is a bounded defect in the caller, not something to
+            // drop silently: the caller has usually taken the stack from its source already, so a
+            // no-op here destroys it. The report fails the scope that asked and the game carries
+            // on (#1205).
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Grug block entity write: slot "
+                            + slot
+                            + " is outside the inventory of "
+                            + stacks.length
+                            + " slots.");
+            return;
+        }
 
         stacks[slot] = stack;
         if (stack != null && stack.count > getMaxCountPerStack()) {
