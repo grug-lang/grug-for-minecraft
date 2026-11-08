@@ -6,6 +6,12 @@
 # be pulled out again; the test therefore asserts what does not depend on the random pick: that
 # both kinds of item reach the output chest, and that every item exists exactly once at every sample.
 # The level is advanced inside the test's own tick (#780).
+# #1205: the a1 dedicated server's leg failed this assertion once under load, and only the failing
+# sample can say whether an item was lost or stands where no sum looks. A sample with a wrong total
+# therefore prints every container, each pipe's travelling records (a record whose item is not
+# written yet is counted by no sum) and the item entities beside the fixture before it fails. The
+# sums themselves are not widened to cover an inbox or a dropped item: neither is a state this pipe
+# leaves at a tick boundary, so each is a defect the assertion has to keep reporting.
 source_a: Option[BlockEntity] = Option.new()
 source_b: Option[BlockEntity] = Option.new()
 target: Option[BlockEntity] = Option.new()
@@ -51,10 +57,11 @@ export tick_any_side(ctx: TestTickContext) {
 
 # #780: the pipes need the world's own ticks, so the test asks the level to run them inside this
 # tick, and a loader that cannot advance its level answers 0 and is carried by the wait in tick()
-# instead. A grug call may not run past the engine's 100 ms limit: the temporary repeat's whole-round
-# drain reached it on 1.2.5, while this test stops at the first delivery and has not. The 200-tick
-# chunk keeps a detour-heavy first delivery inside the limit as well, the 6000 cap bounds the test as
-# a whole, and a route that needs more is carried by the tick budget.
+# instead. The 200-tick chunk keeps one call from holding the server's tick for long, and the 6000
+# cap bounds the test as a whole; a route that needs more is carried by the tick budget. #1205: a
+# grug call has no time limit of its own (the state lock's 60 s gate is for a wait that hands the
+# world back), so a slower runner lengthens the call rather than dropping anything, and the sample
+# still lands on a world-tick boundary.
 local _advance(ctx: TestTickContext) {
     chunk: number = 0
     ran: number = 5
@@ -113,26 +120,64 @@ local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: numbe
 
 # Both kinds have been delivered when the output chest holds one of each.
 local _done() bool {
-    return _in_chest(target.unwrap(), item(resource_location("minecraft:diamond"))) > 0 and _in_chest(target.unwrap(), item(resource_location("minecraft:iron_ingot"))) > 0
+    return _in_inventory(target.unwrap(), item(resource_location("minecraft:diamond"))) > 0 and _in_inventory(target.unwrap(), item(resource_location("minecraft:iron_ingot"))) > 0
 }
 
 local _sample(ctx: TestTickContext) {
-    ctx.assert(_total(item(resource_location("minecraft:diamond"))) == 4, "The diamonds should exist exactly once at every sample.")
-    ctx.assert(_total(item(resource_location("minecraft:iron_ingot"))) == 4, "The iron ingots should exist exactly once at every sample.")
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    ingot: Item = item(resource_location("minecraft:iron_ingot"))
+    diamonds: number = _total(diamond)
+    ingots: number = _total(ingot)
+    if diamonds != 4 or ingots != 4 {
+        _report(diamonds, ingots)
+    }
+    ctx.assert(diamonds == 4, "The diamonds should exist exactly once at every sample.")
+    ctx.assert(ingots == 4, "The iron ingots should exist exactly once at every sample.")
 }
 
+# #1205: a sample with a wrong total names where every item is, because the failing run's log is the
+# only evidence there is from the leg that fails. The records are printed too, since a record whose
+# item is not written yet is counted by no sum, and the item entities beside the fixture, since a
+# drop is the other place an item can stand unread.
+local _report(diamonds: number, ingots: number) {
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    ingot: Item = item(resource_location("minecraft:iron_ingot"))
+    level: Level = test_level.unwrap()
+    origin: Vec3 = Test.get_origin()
+    print2("A sample found the wrong total: diamonds", diamonds)
+    print2("A sample found the wrong total: ingots", ingots)
+    print2("world ticks advanced", advanced)
+    print("counts by container follow, each line diamonds then ingots:")
+    print3("source_a chest", _in_inventory(source_a.unwrap(), diamond), _in_inventory(source_a.unwrap(), ingot))
+    print3("source_b chest", _in_inventory(source_b.unwrap(), diamond), _in_inventory(source_b.unwrap(), ingot))
+    print3("target chest", _in_inventory(target.unwrap(), diamond), _in_inventory(target.unwrap(), ingot))
+    print3("wooden_a travelling", _in_pipe(wooden_a.unwrap(), diamond), _in_pipe(wooden_a.unwrap(), ingot))
+    print3("wooden_b travelling", _in_pipe(wooden_b.unwrap(), diamond), _in_pipe(wooden_b.unwrap(), ingot))
+    print3("cobblestone travelling", _in_pipe(cobblestone.unwrap(), diamond), _in_pipe(cobblestone.unwrap(), ingot))
+    print2("wooden_a inbox items", _inbox(wooden_a.unwrap()))
+    print2("wooden_b inbox items", _inbox(wooden_b.unwrap()))
+    print2("wooden_a travelling records", _records(wooden_a.unwrap()))
+    print2("wooden_b travelling records", _records(wooden_b.unwrap()))
+    print2("cobblestone travelling records", _records(cobblestone.unwrap()))
+    print2("item entities near the fixture", level.count_item_entities(origin.x(), origin.y() + 12, origin.z(), 16))
+}
+
+# Every item of the wanted kind the containers the fixture can hand an item to hold: the three
+# chests and the three pipes' travelling records. A wooden pipe's extraction inbox and a dropped item
+# entity are deliberately not read, because the pipe leaves neither behind at a tick boundary, so a
+# sample that finds one short has found a defect and says where everything is with _report (#1205).
 local _total(wanted: Item) number {
-    return _in_chest(source_a.unwrap(), wanted) + _in_chest(source_b.unwrap(), wanted) + _in_chest(target.unwrap(), wanted) + _in_pipe(wooden_a.unwrap(), wanted) + _in_pipe(wooden_b.unwrap(), wanted) + _in_pipe(cobblestone.unwrap(), wanted)
+    return _in_inventory(source_a.unwrap(), wanted) + _in_inventory(source_b.unwrap(), wanted) + _in_inventory(target.unwrap(), wanted) + _in_pipe(wooden_a.unwrap(), wanted) + _in_pipe(wooden_b.unwrap(), wanted) + _in_pipe(cobblestone.unwrap(), wanted)
 }
 
-local _in_chest(chest: BlockEntity, wanted: Item) number {
+local _in_inventory(block: BlockEntity, wanted: Item) number {
     found: number = 0
     slot: number = 0
-    size: number = chest.get_inventory_size()
+    size: number = block.get_inventory_size()
     while slot < size {
-        held: Option[Item] = chest.get_item_in_slot(slot)
-        if held.has() and chest.get_item_count_in_slot(slot) > 0 and equals(held.unwrap(), wanted) {
-            found = found + chest.get_item_count_in_slot(slot)
+        held: Option[Item] = block.get_item_in_slot(slot)
+        if held.has() and block.get_item_count_in_slot(slot) > 0 and equals(held.unwrap(), wanted) {
+            found = found + block.get_item_count_in_slot(slot)
         }
         slot = slot + 1
     }
@@ -151,4 +196,17 @@ local _in_pipe(pipe: BlockEntity, wanted: Item) number {
         index = index + 1
     }
     return found
+}
+
+# The items a wooden pipe's extraction inbox holds, whatever kind they are.
+local _inbox(pipe: BlockEntity) number {
+    if not pipe.get_item_in_slot(0).has() {
+        return 0
+    }
+    return pipe.get_item_count_in_slot(0)
+}
+
+# A pipe's travelling records, one of which is counted by _in_pipe only once its item is written.
+local _records(pipe: BlockEntity) number {
+    return pipe.get_saved_list_size("traveling")
 }
