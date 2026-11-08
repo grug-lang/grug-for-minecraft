@@ -6,11 +6,12 @@
 # the carried item with the hotbar item. The coverage overlay closes the inventory on a left click
 # of the first hotbar slot while the cursor carries an item, without taking the press. Only 1.20.6
 # fires that release, so the other loaders end before they open a screen.
-# A dedicated server runs this tick with no screen of its own: the screen calls are forwarded to the
-# joined client, and only a forwarded call can be waited on there. Test.overlay_drawn is not one of
-# them, since the client's render thread alone sets it, so this test does not wait for a drawn
-# frame. The screen's open answer is forwarded, and the click's outcome is read from the server's
-# own menu on the next tick.
+# The 1.20.6 dedicated server skips this test (see forge-1.20.6-server-unsupported-tests.txt): its
+# test player is in creative, so the inventory screen the test opens becomes the creative one, and
+# that client ignores the cursor sync, leaving the overlay with no carried item to close the screen
+# with. The client-only 1.20.6 run still proves the release behaviour. The test keeps no drawn
+# frame wait: the screen's open answer is forwarded, and the click's outcome is read from the
+# server's own menu on the next tick.
 started: bool = false
 waited: number = 0
 clicked: bool = false

@@ -1,0 +1,17 @@
+# Tests the 1.20.6 dedicated server cannot run although they define tick_any_side or are
+# forwarded_ tests, one path per line. Interim (#167): this mechanism is removed together with
+# tick_any_side when #1040 lands.
+# Each group below says why its tests cannot run on that server.
+#
+# The file is named after the loader because this layer sits at the universal jar's root and the
+# Fabric-family layers are read from the class path by their bare name: a root
+# server-unsupported-tests.txt would shadow theirs in the nested layers.
+#
+# The click release. The test save's player is in creative, so the inventory screen
+# Test.open_inventory opens becomes the CreativeModeInventoryScreen. That client ignores the cursor
+# sync (ClientPacketListener.handleContainerSetSlot skips container -1 for it), so the carried item
+# the server sets never reaches the overlay, and the overlay takes the hotbar press instead of
+# closing the screen. The client-only 1.20.6 run also sets the cursor on the client's open screen,
+# so it still proves the release behaviour. This entry goes when the server can set the client's
+# cursor on a creative screen, or the fixture opens a screen whose menu takes the sync.
+coverage/tests/click_screen_release-Test.grug
