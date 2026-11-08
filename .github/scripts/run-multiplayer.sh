@@ -484,7 +484,8 @@ while :; do
     # Three stay client-only on every leg, each in that loader's list with the reason:
     # overlay_screen_open asserts a just-opened screen has drawn no frame, which a joined client
     # cannot promise, and overlay-Test and jei-Test delete the item on the cursor, which only the
-    # client's copy reaches.
+    # client's copy reaches. 1.20.6 keeps a fourth, the forced-normalization item list, in its list:
+    # a dedicated server cannot force that GL state and the joined client's capture differs.
     case "$LOADER" in
       1.20.6-forge|1.2.5-forge|b1.7.3-ornithe|b1.7.3-stationapi)
         overlay_tests="coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
@@ -495,6 +496,13 @@ while :; do
     esac
     if [ -n "$overlay_tests" ]; then
       for overlay in $overlay_tests; do
+        # 1.20.6's unsupported list keeps the forced-normalization item list client-only, because
+        # a dedicated server cannot force the GL state its file name asks for and the joined
+        # client's capture differs from the golden (#1099, #1137). A skipped test prints no PASS
+        # line, so that leg requires only the other seven.
+        if [ "$LOADER" = "1.20.6-forge" ] && [ "$overlay" = "jei/tests/item_list_forced_normalization" ]; then
+          continue
+        fi
         if ! grep -qF "[GRUG CI] PASS ${overlay}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but ${overlay}-Test.grug did not run on the dedicated server." >&2
           exit 1
