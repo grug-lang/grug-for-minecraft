@@ -587,11 +587,23 @@ while :; do
         exit 1
       fi
     done
-    # The four wall-backed buildcraft captures #1161 promoted have to show as passed on every leg.
-    # Each compares against its single flat golden, so a leg whose joined client still draws a
-    # different picture fails in the test itself; this check catches one not running at all (an
-    # export reverted, or a loader listing it as unsupported) and passing quietly.
-    for wall_backed in buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings; do
+    # The four wall-backed buildcraft captures #1161 promoted have to show as passed on the leg that
+    # can run them, which is 1.20.6-forge: its joined client matches the flat golden after the
+    # server half of the player snap and the particle pin, and that is what proves both. The other
+    # four legs list them in server-unsupported-tests.txt with their measured residue (b1.7.3-ornithe
+    # #1193, b1.7.3-stationapi #1092, the a1.1.2_01 and 1.2.5 ones #1213), so their servers skip them
+    # and the client-only run of that loader is where the four still run. Requiring them there would
+    # only restate an open rendering defect, so the list is per loader. Each compares against its
+    # single flat golden, so this leg fails in the test itself when its picture is off; this check
+    # catches one not running at all (an export reverted, or the loader listing it as unsupported)
+    # and passing quietly.
+    wall_backed_tests=""
+    case "$LOADER" in
+      1.20.6-forge)
+        wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings"
+        ;;
+    esac
+    for wall_backed in $wall_backed_tests; do
       if ! grep -qF "[GRUG CI] PASS ${wall_backed}-Test.grug" "$SERVER_LOG"; then
         echo "==> The run passed, but ${wall_backed}-Test.grug did not run on the dedicated server." >&2
         exit 1

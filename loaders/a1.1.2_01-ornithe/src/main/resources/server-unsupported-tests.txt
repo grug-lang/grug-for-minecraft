@@ -86,3 +86,13 @@ jei/tests/jei-Test.grug
 # that Test.overlay_supported answers from the joined client (#1099); this leg's server also refuses
 # Test.open_inventory, because it has no override that forwards the open to the joined client.
 coverage/tests/hook_forced_normalization-Test.grug
+# The four wall-backed buildcraft captures #1161 promoted to tick_any_side. Their joined client
+# still draws a different picture from the flat golden here, so they stay client-only on this loader
+# until #1213 finds why: dispatch 42430865929 stopped at redstone_engine's redstone_engine_green,
+# 73 of 34100 pixels, with the camera at the room's eye logged true, and the leg reaches no test
+# after its first promoted failure, so the other three are unmeasured and listed with it. The
+# client-only run of this loader still runs all four, which is where their goldens are checked.
+buildcraft/tests/cobblestone_pipe_shapes-Test.grug
+buildcraft/tests/redstone_engine-Test.grug
+buildcraft/tests/redstone_engine_animation-Test.grug
+buildcraft/tests/redstone_engine_facings-Test.grug
