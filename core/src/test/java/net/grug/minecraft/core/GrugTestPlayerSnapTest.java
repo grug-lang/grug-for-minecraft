@@ -1,6 +1,8 @@
 package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -57,6 +59,59 @@ class GrugTestPlayerSnapTest {
         adapter(GrugSide.DEDICATED_SERVER, clientSnaps).snapPlayerForTest();
 
         assertEquals(0, clientSnaps.get());
+    }
+
+    /**
+     * The server half's snap writes the block centre and a level view, and the y the floor hold
+     * owns rather than a height of its own. A dedicated server has no client player object in the
+     * adapter, so this state is the only record of where the player was (#1161).
+     */
+    @Test
+    void serverSnapWritesTheBlockCentreAndALevelView() {
+        GrugTestPlayerSnap.ServerSave save = new GrugTestPlayerSnap.ServerSave();
+        save.save(12.3, 64.0, -7.8, 90.0F, -12.5F);
+
+        assertEquals(12.5, save.snappedX());
+        assertEquals(64.0, save.snappedY());
+        assertEquals(-7.5, save.snappedZ());
+        assertEquals(0.0F, save.snappedYaw());
+        assertEquals(0.0F, save.snappedPitch());
+    }
+
+    /**
+     * Every test end asks every loader to restore, whether the test passed, failed or aborted, so
+     * the server's saved copy is what the next test inherits: exactly the position and view the
+     * snap found, not the snapped half block or a view a test turned (#1161).
+     */
+    @Test
+    void serverRestorePutsBackExactlyWhatTheSnapFound() {
+        GrugTestPlayerSnap.ServerSave save = new GrugTestPlayerSnap.ServerSave();
+        save.save(12.3, 64.0, -7.8, 90.0F, -12.5F);
+
+        assertEquals(12.3, save.savedX());
+        assertEquals(64.0, save.savedY());
+        assertEquals(-7.8, save.savedZ());
+        assertEquals(90.0F, save.savedYaw());
+        assertEquals(-12.5F, save.savedPitch());
+
+        save.clear();
+
+        assertFalse(save.isSaved());
+    }
+
+    /** A server that has not snapped yet, or has already restored, has nothing to put back. */
+    @Test
+    void serverRestoreKnowsNothingBeforeASnap() {
+        GrugTestPlayerSnap.ServerSave save = new GrugTestPlayerSnap.ServerSave();
+
+        assertFalse(save.isSaved());
+
+        save.save(0.0, 64.0, 0.0, 0.0F, 0.0F);
+        save.clear();
+        assertFalse(save.isSaved());
+
+        save.save(0.0, 64.0, 0.0, 0.0F, 0.0F);
+        assertTrue(save.isSaved());
     }
 
     @Test

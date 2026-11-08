@@ -819,7 +819,8 @@ public interface ModLoaderAdapter {
      * answer is captured, and calls {@link #restorePlayerAfterTest} when the test ends. Each side
      * snaps the player it has: a client its own local player, and a dedicated server its copy of
      * the joined player, which the room is then built from. A server that skipped its half built
-     * the room off the block grid a capture is framed against, which is #1161's 1.20.6 leg.
+     * the room off the block grid a capture is framed against, which is #1161's 1.20.6 leg. Either
+     * side saves what it found first, so the end of the test puts the same player back.
      */
     default void snapPlayerForTest() {
         // If rather than a switch: an enum switch carries a synthetic default branch a test can
@@ -836,15 +837,20 @@ public interface ModLoaderAdapter {
 
     /**
      * The server half of {@link #snapPlayerForTest}: moves the server's copy of the test player to
-     * the centre of the block in x and z, so the room, the origin and the fixtures land on the same
-     * block grid a client-only run's snapped player puts them on. The height is left alone, as the
-     * floor hold owns it, and the player is not moved again after the build.
+     * the centre of the block in x and z, with yaw and pitch at 0, so the room, the origin and the
+     * fixtures land on the same block grid and the same view a client-only run's snapped player
+     * puts them on. The height is left alone, as the floor hold owns it, and the player is not
+     * moved again after the build.
      *
      * <p>The move goes through the same teleport the server run's floor hold uses, because a
      * server-side write tells no one: without the packet the joined client's camera would stay
-     * where it was and the capture would be drawn from a point the room was not built around. A
-     * server that has not been given a player copy leaves the default answer alone, which moves
-     * nothing and moves no camera with it.
+     * where it was and the capture would be drawn from a point the room was not built around, from
+     * a view the client-only run never had.
+     *
+     * <p>The loader saves what it found in a {@link GrugTestPlayerSnap.ServerSave} before it moves
+     * the player, and {@link #restorePlayerAfterTest} puts those values back. A server that has not
+     * been given a player copy leaves the default answer alone, which moves nothing, moves no
+     * camera with it and saves nothing to restore.
      */
     default void snapPlayerForTestOnServer() {}
 
@@ -868,6 +874,7 @@ public interface ModLoaderAdapter {
     void clearInventoryOf(Object playerObj);
 
     /**
+    /**
      * Test only: drops the gives the starter's client sent that this server has not applied yet,
      * when the runner resets the state a test starts from (#1144).
      *
@@ -880,9 +887,11 @@ public interface ModLoaderAdapter {
     default void forgetQueuedGivesForTest() {}
 
     /**
-     * Puts the player back where {@link #snapPlayerForTest} found them, so a test's change to the
-     * camera does not outlive it. A no-op on a dedicated server, where the snap never ran. See #393
-     * and #408.
+     * Puts the player back where {@link #snapPlayerForTest} found them, and puts their view back to
+     * the yaw and pitch it had, so a test's change to the player or the camera does not outlive it.
+     * A client restores its own local player; a dedicated server restores its copy of the joined
+     * player through the same teleport the snap used, so the joined client's camera goes back with
+     * it. Either side restores nothing when its snap did not run. See #393 and #408.
      */
     void restorePlayerAfterTest();
 

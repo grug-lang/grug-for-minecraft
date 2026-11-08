@@ -1520,8 +1520,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restorePlayerAfterTest() {
-        // A no-op on a dedicated server, where there is no client player to snap. The runner calls
-        // this for every test that ends, so it must not report an error for those.
+        // This is the client half; a dedicated server restores its own copy of the joined player
+        // in its server adapter. The runner calls this for every test that ends, so a client whose
+        // snap never ran must not report an error for those.
         if (!testPlayerSnapped) return;
         testPlayerSnapped = false;
 

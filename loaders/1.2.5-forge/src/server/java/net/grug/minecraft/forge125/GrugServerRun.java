@@ -43,6 +43,9 @@ public final class GrugServerRun implements ITickHandler {
 
     private static final EnumSet<TickType> TICKS = EnumSet.of(TickType.GAME);
 
+    /** The player as the snap found them, so the end of the test can put them back (#1161). */
+    private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
+
     private static GrugTestRunner runner = null;
     private static long waitStartMillis = 0;
     private static long lastReportMillis = 0;
@@ -265,25 +268,45 @@ public final class GrugServerRun implements ITickHandler {
 
     /**
      * Snaps the server's copy of the test player to the centre of the block they stand in on x and
-     * z, before the runner builds the room (#1161).
+     * z, with yaw and pitch at 0, before the runner builds the room (#1161).
      *
      * <p>A client-only run's player is snapped by the adapter, so its room, origin and fixtures sit
-     * on the block grid; a dedicated server skipped that and built from wherever the joined client
-     * stood. The height is left to {@link #holdPlayer}, which owns the floor, and the player is not
-     * moved again after the build. This version's teleport takes the entity position, which is what
-     * {@code posX}/{@code posY}/{@code posZ} hold here, and it sends the packet that carries the
-     * joined client's camera with the player.
+     * on the block grid with a level view; a dedicated server skipped that and built from wherever
+     * the joined client stood. The height is left to {@link #holdPlayer}, which owns the floor, and
+     * the player is not moved again after the build. This version's teleport takes the entity
+     * position, which is what {@code posX}/{@code posY}/{@code posZ} hold here, and it sends the
+     * packet that carries the joined client's camera and view with the player. The player as they
+     * were is saved first, so {@link #restoreTestPlayer} can put them back.
      */
     public static void snapToBlockCentre(EntityPlayerMP player) {
         if (player == null) {
             return;
         }
+        SNAP.save(player.posX, player.posY, player.posZ, player.rotationYaw, player.rotationPitch);
         player.playerNetServerHandler.teleportTo(
-                GrugTestPlayerSnap.blockCentre(player.posX),
-                player.posY,
-                GrugTestPlayerSnap.blockCentre(player.posZ),
-                player.rotationYaw,
-                player.rotationPitch);
+                SNAP.snappedX(),
+                SNAP.snappedY(),
+                SNAP.snappedZ(),
+                SNAP.snappedYaw(),
+                SNAP.snappedPitch());
+    }
+
+    /**
+     * Puts the server's copy of the test player back where {@link #snapToBlockCentre} found them,
+     * with the view they had, so a test that moved the player leaves nothing behind for the next
+     * one to inherit. The runner calls this when every test ends, whether it passed, failed or
+     * aborted.
+     *
+     * <p>The teleport sends the packet, so the joined client's camera and view go back with the
+     * player. A server whose snap did not run, because it had no player copy yet, restores nothing.
+     */
+    public static void restoreTestPlayer(EntityPlayerMP player) {
+        if (player == null || !SNAP.isSaved()) {
+            return;
+        }
+        player.playerNetServerHandler.teleportTo(
+                SNAP.savedX(), SNAP.savedY(), SNAP.savedZ(), SNAP.savedYaw(), SNAP.savedPitch());
+        SNAP.clear();
     }
 
     /**

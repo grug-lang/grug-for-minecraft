@@ -34,6 +34,9 @@ public final class GrugServerRun {
     /** How long to wait for a client to join before failing the run. */
     static final long PLAYER_JOIN_TIMEOUT_MILLIS = 240_000;
 
+    /** The player as the snap found them, so the end of the test can put them back (#1161). */
+    private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
+
     private static GrugTestRunner runner = null;
     private static long waitStartMillis = 0;
     private static long lastReportMillis = 0;
@@ -280,25 +283,52 @@ public final class GrugServerRun {
 
     /**
      * Snaps the server's copy of the test player to the centre of the block they stand in on x and
-     * z, before the runner builds the room (#1161).
+     * z, with yaw and pitch at 0, before the runner builds the room (#1161).
      *
      * <p>A client-only run's player is snapped by the adapter, so its room, origin and fixtures sit
-     * on the block grid; a dedicated server skipped that and built from wherever the joined client
-     * stood. The feet are the bottom of the box, as {@link #holdPlayer} reads them, and the height
-     * is left to that hold; the player is not moved again after the build. The teleport is the same
-     * server move the floor hold uses, so it carries the joined client's camera with the player.
+     * on the block grid with a level view; a dedicated server skipped that and built from wherever
+     * the joined client stood. The feet are the bottom of the box, as {@link #holdPlayer} reads
+     * them, and the height is left to that hold; the player is not moved again after the build. The
+     * teleport is the same server move the floor hold uses, so it carries the joined client's
+     * camera and view with the player. The player as they were is saved first, so {@link
+     * #restoreTestPlayer} can put them back.
      */
     public static void snapToBlockCentre(PlayerEntity player) {
         if (!(player instanceof ServerPlayerEntity)) {
             return;
         }
         ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
-        serverPlayer.networkHandler.teleport(
-                GrugTestPlayerSnap.blockCentre(serverPlayer.x),
+        SNAP.save(
+                serverPlayer.x,
                 serverPlayer.shape.minY,
-                GrugTestPlayerSnap.blockCentre(serverPlayer.z),
+                serverPlayer.z,
                 serverPlayer.yaw,
                 serverPlayer.pitch);
+        serverPlayer.networkHandler.teleport(
+                SNAP.snappedX(),
+                SNAP.snappedY(),
+                SNAP.snappedZ(),
+                SNAP.snappedYaw(),
+                SNAP.snappedPitch());
+    }
+
+    /**
+     * Puts the server's copy of the test player back where {@link #snapToBlockCentre} found them,
+     * with the view they had, so a test that moved the player leaves nothing behind for the next
+     * one to inherit. The runner calls this when every test ends, whether it passed, failed or
+     * aborted.
+     *
+     * <p>The teleport sends the packet, so the joined client's camera and view go back with the
+     * player. A player this server does not own, or a snap that did not run, restores nothing.
+     */
+    public static void restoreTestPlayer(PlayerEntity player) {
+        if (!(player instanceof ServerPlayerEntity) || !SNAP.isSaved()) {
+            return;
+        }
+        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        serverPlayer.networkHandler.teleport(
+                SNAP.savedX(), SNAP.savedY(), SNAP.savedZ(), SNAP.savedYaw(), SNAP.savedPitch());
+        SNAP.clear();
     }
 
     /**

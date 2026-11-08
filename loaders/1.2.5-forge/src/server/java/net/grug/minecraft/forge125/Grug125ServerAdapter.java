@@ -494,7 +494,9 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     }
 
     @Override
-    public void restorePlayerAfterTest() {}
+    public void restorePlayerAfterTest() {
+        GrugServerRun.restoreTestPlayer((EntityPlayerMP) testPlayer());
+    }
 
     /**
      * The tests listed in {@code forge125-server-unsupported-tests.txt}, which says why. The name
