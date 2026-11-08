@@ -237,11 +237,21 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     /**
      * Snaps this server's copy of the test player to their block centre, so the room, origin and
      * fixtures land on the grid a client-only run's snap puts them on (#1161). The teleport is the
-     * one the server run's floor hold uses, so the joined client's camera follows it.
+     * one the server run's floor hold uses, so the joined client's camera and view follow it.
      */
     @Override
     public void snapPlayerForTestOnServer() {
         GrugServerRun.snapToBlockCentre((PlayerEntity) testPlayer());
+    }
+
+    /**
+     * Puts this server's copy of the test player back where the snap found them, through the
+     * teleport that carries the joined client's camera back too. The inherited answer restores a
+     * client's own player and has none here, so a dedicated server has to restore its own copy.
+     */
+    @Override
+    public void restorePlayerAfterTest() {
+        GrugServerRun.restoreTestPlayer((PlayerEntity) testPlayer());
     }
 
     /** Asked of the client of the player who started the run, with the world frozen (#1040). */

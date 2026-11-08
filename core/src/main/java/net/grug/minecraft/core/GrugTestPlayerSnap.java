@@ -11,11 +11,19 @@ package net.grug.minecraft.core;
  *
  * <p>Both sides snap, but not the same player: a client moves its own local player, while a
  * dedicated server moves its copy of the joined player and lets the teleport packet carry the
- * joined client's camera with it. A server that skipped the snap built its room from wherever the
- * client happened to stand, off the block grid a capture is framed against (#1161).
+ * joined client's camera and view with it. The levelling therefore reaches a joined client as a
+ * rotation in that packet rather than as a local write. A server that skipped its half built its
+ * room from wherever the client happened to stand, off the block grid a capture is framed against
+ * (#1161).
  *
- * <p>The arithmetic lives here rather than in each loader so the five adapters cannot drift apart,
- * and so a unit test can reach it without a game.
+ * <p>Each side saves what it found before it moves the player and puts it back when the test ends,
+ * so a test that moved the player, including one that failed, leaves the next test the same player
+ * it inherited. A client keeps that state in its adapter, beside its own player; a dedicated server
+ * keeps it in {@link ServerSave}, because the adapter's half of the restore has no player object to
+ * save into when the snap runs.
+ *
+ * <p>The arithmetic and the server's saved state live here rather than in each loader so the five
+ * adapters cannot drift apart, and so a unit test can reach them without a game.
  */
 public final class GrugTestPlayerSnap {
     private GrugTestPlayerSnap() {}
@@ -26,5 +34,102 @@ public final class GrugTestPlayerSnap {
      */
     public static double blockCentre(double coordinate) {
         return Math.floor(coordinate) + 0.5;
+    }
+
+    /**
+     * A dedicated server's copy of the test player as they were before the snap, so the server can
+     * put them back after the test.
+     *
+     * <p>It holds what the snap writes as well as what it found, so every loader's server half asks
+     * the same object for both and the values cannot drift apart: the centre of the saved block on
+     * x and z, the saved height (the floor hold owns that), and a level view.
+     */
+    public static final class ServerSave {
+        private boolean saved;
+        private double x;
+        private double y;
+        private double z;
+        private float yaw;
+        private float pitch;
+
+        /** Saves the player as the game reports them, before the snap moves them. */
+        public void save(double x, double y, double z, float yaw, float pitch) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.yaw = yaw;
+            this.pitch = pitch;
+            this.saved = true;
+        }
+
+        /**
+         * Whether a snap happened since the last restore, so a restore before any snap is a no-op.
+         */
+        public boolean isSaved() {
+            return saved;
+        }
+
+        /** The x the snap writes: the centre of the block the player was saved in. */
+        public double snappedX() {
+            return blockCentre(x);
+        }
+
+        /**
+         * The y the snap writes: the saved height, because the floor hold owns the player's height.
+         */
+        public double snappedY() {
+            return y;
+        }
+
+        /** The z the snap writes: the centre of the block the player was saved in. */
+        public double snappedZ() {
+            return blockCentre(z);
+        }
+
+        /**
+         * The yaw the snap writes, level like a client's half, so every loader frames a fixture
+         * alike.
+         */
+        public float snappedYaw() {
+            return 0.0F;
+        }
+
+        /**
+         * The pitch the snap writes, level like a client's half, so every loader frames a fixture
+         * alike.
+         */
+        public float snappedPitch() {
+            return 0.0F;
+        }
+
+        /** The x the restore writes: exactly where the player stood before the snap. */
+        public double savedX() {
+            return x;
+        }
+
+        /** The y the restore writes: exactly the height the player stood at before the snap. */
+        public double savedY() {
+            return y;
+        }
+
+        /** The z the restore writes: exactly where the player stood before the snap. */
+        public double savedZ() {
+            return z;
+        }
+
+        /** The yaw the restore writes: exactly the view the player had before the snap. */
+        public float savedYaw() {
+            return yaw;
+        }
+
+        /** The pitch the restore writes: exactly the view the player had before the snap. */
+        public float savedPitch() {
+            return pitch;
+        }
+
+        /** Forgets the saved state, so the next restore is a no-op until another snap saves it. */
+        public void clear() {
+            this.saved = false;
+        }
     }
 }

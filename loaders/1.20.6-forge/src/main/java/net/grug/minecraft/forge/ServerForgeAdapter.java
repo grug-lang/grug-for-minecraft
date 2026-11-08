@@ -161,11 +161,21 @@ public class ServerForgeAdapter extends ForgeAdapter {
     /**
      * Snaps this server's copy of the test player to their block centre through the same teleport
      * its floor hold uses, so the room, origin and fixtures land on the grid a client-only run's
-     * snap puts them on (#1161). The joined client's camera follows the packet.
+     * snap puts them on (#1161). The joined client's camera and view follow the packet.
      */
     @Override
     public void snapPlayerForTestOnServer() {
         GrugServerRun.snapToBlockCentre((ServerPlayer) testPlayer());
+    }
+
+    /**
+     * Puts this server's copy of the test player back where the snap found them, through the
+     * teleport that carries the joined client's camera back too. The inherited answer restores a
+     * client's own player and has none here, so a dedicated server has to restore its own copy.
+     */
+    @Override
+    public void restorePlayerAfterTest() {
+        GrugServerRun.restoreTestPlayer((ServerPlayer) testPlayer());
     }
 
     /**

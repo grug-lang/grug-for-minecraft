@@ -33,6 +33,9 @@ public final class GrugServerRun {
     /** How long to wait for a client to join before failing the run. */
     static final long PLAYER_JOIN_TIMEOUT_MILLIS = 240_000;
 
+    /** The player as the snap found them, so the end of the test can put them back (#1161). */
+    private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
+
     private static World world = null;
     private static long waitStartMillis = 0;
     private static GrugTestRunner runner = null;
@@ -353,41 +356,67 @@ public final class GrugServerRun {
     }
 
     private static void moveTo(PlayerEntity player, double feetY, double x, double z) {
-        player.updatePositionAndAngles(x, feetY, z, player.yaw, player.pitch);
+        moveTo(player, feetY, x, z, player.yaw, player.pitch);
+    }
+
+    private static void moveTo(
+            PlayerEntity player, double feetY, double x, double z, float yaw, float pitch) {
+        player.updatePositionAndAngles(x, feetY, z, yaw, pitch);
         player.velocityY = 0.0;
         Connection connection = GrugControlAlpha.connectionFor(player);
         if (connection != null) {
             connection.send(
                     new PlayerMovePacket.PositionAndAngles(
-                            x,
-                            feetY + GrugTestOrigin.EYE_HEIGHT,
-                            feetY,
-                            z,
-                            player.yaw,
-                            player.pitch,
-                            false));
+                            x, feetY + GrugTestOrigin.EYE_HEIGHT, feetY, z, yaw, pitch, false));
         }
     }
 
     /**
      * Snaps the server's copy of the test player to the centre of the block they stand in on x and
-     * z, before the runner builds the room (#1161).
+     * z, with yaw and pitch at 0, before the runner builds the room (#1161).
      *
      * <p>A client-only run's player is snapped by the adapter, so its room, origin and fixtures sit
-     * on the block grid; a dedicated server skipped that and built from wherever the joined client
-     * stood. The height is the feet, which this server keeps in {@code y}, and is left to the holds
-     * above; the player is not moved again after the build. {@link #moveTo} sends the packet that
-     * carries the joined client's camera with the player.
+     * on the block grid with a level view; a dedicated server skipped that and built from wherever
+     * the joined client stood. The height is the feet, which this server keeps in {@code y}, and is
+     * left to the holds above; the player is not moved again after the build. {@link #moveTo} sends
+     * the packet that carries the joined client's camera and view with the player. The player as
+     * they were is saved first, so {@link #restoreTestPlayer} can put them back.
      */
     public static void snapToBlockCentre(PlayerEntity player) {
         if (player == null) {
             return;
         }
+        SNAP.save(player.x, player.y, player.z, player.yaw, player.pitch);
         moveTo(
                 player,
-                player.y,
-                GrugTestPlayerSnap.blockCentre(player.x),
-                GrugTestPlayerSnap.blockCentre(player.z));
+                SNAP.snappedY(),
+                SNAP.snappedX(),
+                SNAP.snappedZ(),
+                SNAP.snappedYaw(),
+                SNAP.snappedPitch());
+    }
+
+    /**
+     * Puts the server's copy of the test player back where {@link #snapToBlockCentre} found them,
+     * with the view they had, so a test that moved the player leaves nothing behind for the next
+     * one to inherit. The runner calls this when every test ends, whether it passed, failed or
+     * aborted.
+     *
+     * <p>The move sends the packet, so the joined client's camera and view go back with the player.
+     * A server whose snap did not run, because it had no player copy yet, restores nothing.
+     */
+    public static void restoreTestPlayer(PlayerEntity player) {
+        if (player == null || !SNAP.isSaved()) {
+            return;
+        }
+        moveTo(
+                player,
+                SNAP.savedY(),
+                SNAP.savedX(),
+                SNAP.savedZ(),
+                SNAP.savedYaw(),
+                SNAP.savedPitch());
+        SNAP.clear();
     }
 
     /** Ends the server process; a non-zero status says the run did not pass. */
