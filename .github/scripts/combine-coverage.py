@@ -82,6 +82,7 @@ EXCLUDED_CLASSES = {
     "MinecraftTimerMixin",
     "MinecraftServerTickMixin",
     "ThreadedLevelLightEngineMixin",
+    "LayerLightSectionStorageMixin",
     "TitleScreenMixin",
     "ResourcePackManagerMixin",
     "CraftingManagerMixin",
