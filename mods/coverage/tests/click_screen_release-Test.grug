@@ -6,6 +6,11 @@
 # the carried item with the hotbar item. The coverage overlay closes the inventory on a left click
 # of the first hotbar slot while the cursor carries an item, without taking the press. Only 1.20.6
 # fires that release, so the other loaders end before they open a screen.
+# A dedicated server runs this tick with no screen of its own: the screen calls are forwarded to the
+# joined client, and only a forwarded call can be waited on there. Test.overlay_drawn is not one of
+# them, since the client's render thread alone sets it, so this test does not wait for a drawn
+# frame. The screen's open answer is forwarded, and the click's outcome is read from the server's
+# own menu on the next tick.
 started: bool = false
 waited: number = 0
 clicked: bool = false
@@ -27,12 +32,6 @@ export tick_any_side(ctx: TestTickContext) {
         if not Test.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 100, "The player's inventory screen should open.")
-            ctx.not_done()
-            return
-        }
-        if not Test.overlay_drawn() {
-            waited = waited + 1
-            ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
             ctx.not_done()
             return
         }
