@@ -591,7 +591,7 @@ while :; do
     # can run them, which is 1.20.6-forge: its joined client matches the flat golden after the
     # server half of the player snap and the particle pin, and that is what proves both. The other
     # four legs list them in server-unsupported-tests.txt with their measured residue (b1.7.3-ornithe
-    # #1193, b1.7.3-stationapi #1092, the a1.1.2_01 and 1.2.5 ones #1213), so their servers skip them
+    # and the a1.1.2_01 and 1.2.5 ones #1213, b1.7.3-stationapi #1092), so their servers skip them
     # and the client-only run of that loader is where the four still run. Requiring them there would
     # only restate an open rendering defect, so the list is per loader. Each compares against its
     # single flat golden, so this leg fails in the test itself when its picture is off; this check
