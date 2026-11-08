@@ -1,6 +1,23 @@
 # A core with one arm, both valid boxes, so the geometry the mining crack has to follow is not a
 # cube and there is nothing for a render pass to report. See coverage_crack-Block.grug.
+
+# The two block items the joined client's item list draws, hoisted so a frame does not create a new
+# Item every frame. See item_model-Test.grug.
+crack_item: Item = item(resource_location("grug:coverage_crack"))
+frame_item: Item = item(resource_location("grug:coverage_frame"))
+
 export render(ctx: RenderContext) {
     ctx.draw_box(0.3, 0.3, 0.3, 0.7, 0.7, 0.7)
     ctx.draw_box(0.7, 0.375, 0.375, 1.0, 0.625, 0.625)
+}
+
+# Draws both items the way the item list draws them: a block item goes through the game's item
+# renderer, which for a custom-rendered grug block asks GrugModels.itemModel for
+# grug:item/<block>. A block whose item model cannot be drawn is a mod-tree defect, which prints the
+# [GRUG CI] FAIL line the run fails on, so item_model-Test.grug cannot pass without the two item
+# models. Drawn above the block, where no capture is taken, so the mining-crack test stays a test of
+# the crack.
+export render_frame(ctx: RenderFrameContext) {
+    ctx.draw_item(crack_item, 0, 1, 0.25, 1.2, 0.5)
+    ctx.draw_item(frame_item, 0, 1, 0.75, 1.2, 0.5)
 }
