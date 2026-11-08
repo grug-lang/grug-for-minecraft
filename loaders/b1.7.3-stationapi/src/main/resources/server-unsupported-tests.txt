@@ -35,3 +35,10 @@ coverage/tests/overlay_screen_open-Test.grug
 # assertion holds without proving the client hooked anything. It stays client-only on every leg now
 # that Test.overlay_supported answers from the joined client (#1099).
 coverage/tests/hook_forced_normalization-Test.grug
+#
+# The forced-normalization item list. The state the test's file name makes the runner turn on is a
+# client's GL capability, so a dedicated server cannot force it, and the joined client's frame draws
+# the list with different normals: on this leg the jei_item_list capture differs from the client-only
+# golden in 11614 of 12672 pixels (#1099, #1137). coverage/tests/hook_forced_normalization-Test.grug
+# stays the client-only proof that this loader's item draw pins the state off.
+jei/tests/item_list_forced_normalization-Test.grug

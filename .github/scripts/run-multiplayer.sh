@@ -484,25 +484,39 @@ while :; do
     # Three stay client-only on every leg, each in that loader's list with the reason:
     # overlay_screen_open asserts a just-opened screen has drawn no frame, which a joined client
     # cannot promise, and overlay-Test and jei-Test delete the item on the cursor, which only the
-    # client's copy reaches. 1.20.6 keeps a fourth, the forced-normalization item list, in its list:
-    # a dedicated server cannot force that GL state and the joined client's capture differs.
+    # client's copy reaches.
+    # The five-leg proof of #1227 made four promotions client-only again, so each leg requires only
+    # what it proves. Each loader's list carries the reason and the numbers.
     case "$LOADER" in
-      1.20.6-forge|1.2.5-forge|b1.7.3-ornithe|b1.7.3-stationapi)
+      1.20.6-forge|1.2.5-forge|b1.7.3-stationapi)
         overlay_tests="coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        # The forced-normalization item list: a dedicated server cannot force that GL state, and
+        # the joined client's capture differs from the golden in 5967, all 12672 and 11614 of 12672
+        # pixels (1.20.6, 1.2.5, stationapi).
+        excluded="jei/tests/item_list_forced_normalization"
+        ;;
+      b1.7.3-ornithe)
+        overlay_tests="coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        # Paging and scroll: the joined client's item list reports the coverage mod's deliberately
+        # undrawable coverage_crack and coverage_frame item models as defects, which fails the run.
+        # The forced-normalization item list: it draws the same list, and would also differ for the
+        # state reason above.
+        excluded="jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
         ;;
       *)
         overlay_tests=""
+        excluded=""
         ;;
     esac
     if [ -n "$overlay_tests" ]; then
       for overlay in $overlay_tests; do
-        # 1.20.6's unsupported list keeps the forced-normalization item list client-only, because
-        # a dedicated server cannot force the GL state its file name asks for and the joined
-        # client's capture differs from the golden (#1099, #1137). A skipped test prints no PASS
-        # line, so that leg requires only the other seven.
-        if [ "$LOADER" = "1.20.6-forge" ] && [ "$overlay" = "jei/tests/item_list_forced_normalization" ]; then
-          continue
-        fi
+        # A skipped test prints no PASS line and no marker line, so a promotion its loader's
+        # unsupported list keeps client-only is not required here.
+        case " $excluded " in
+          *" $overlay "*)
+            continue
+            ;;
+        esac
         if ! grep -qF "[GRUG CI] PASS ${overlay}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but ${overlay}-Test.grug did not run on the dedicated server." >&2
           exit 1
