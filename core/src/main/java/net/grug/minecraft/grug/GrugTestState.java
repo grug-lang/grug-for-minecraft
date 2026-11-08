@@ -224,6 +224,12 @@ public final class GrugTestState {
     // because the render thread reads it to tell whether the running test's own overlay drew.
     public static volatile String currentTestMod = null;
 
+    // Set by GrugTestRunner to the path of the running *-Test.grug, so a report a forwarded call
+    // writes into the log names the test that made it: the multiplayer job requires that line from
+    // the overlay tests it promotes, and a test that returns on its first tick never writes one
+    // (#1099). Volatile for the same reason as the mod above.
+    public static volatile String currentTestPath = null;
+
     // The origin Test.get_origin() captured first for the running test, so every later call in the
     // same test returns the same position while the player settles. The runner snaps the player to
     // their block centre before the first call and clears this when a test starts and when it ends,
