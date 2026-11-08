@@ -1,0 +1,55 @@
+# #1205: the wooden pipe's inbox is one slot wide, and the game's inventory interface drops a write
+# outside the inventory without a word. A block entity whose saved GrugInvSize is smaller than the
+# pipe's slot, which a save taken while the tile was sized 0 leaves behind, therefore loses the stack
+# a pull already took from its chest: the chest is debited and the stack exists nowhere. The pipe
+# checks its inbox before writing and reads the write back, and hands whatever did not land to the
+# normal drop path, where it is an item entity rather than a silent destruction. This test loads the
+# pipe back with no slots through Test.load_nbt, the same route a save takes, and asserts the stack is
+# dropped.
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # Band 32, clear of the bands the other pipe tests use and below the +45 and +50 bands that
+    # Alpha's 128-block world clamps to 120.
+    y: number = origin.y() + 32
+    z: number = origin.z()
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+
+    source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(source_opt.has(), "The source chest should have a block entity.")
+    ctx.assert(pipe_opt.has(), "The pipe should have a block entity.")
+    source: BlockEntity = source_opt.unwrap()
+    pipe: BlockEntity = pipe_opt.unwrap()
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    source.set_item_in_slot(0, diamond, 4)
+
+    # Load the pipe back with no inventory slots, as a block entity saved while it had none does.
+    # The load replaces the tile, so the handle names the old one afterwards.
+    Test.set_nbt_number(pipe, "GrugInvSize", "int", 0)
+    Test.load_nbt(pipe)
+    pipe_again_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(pipe_again_opt.has(), "The reloaded pipe should have a block entity.")
+    pipe = pipe_again_opt.unwrap()
+    ctx.assert(pipe.get_inventory_size() == 0, "A pipe loaded with no slot should have no inventory.")
+
+    # 64 energy makes the first tick take the chest's whole stack, as wooden_pipe_drop_stack does,
+    # and Test.tick_block_entity runs the pipe's own tick without ticking entities, so the drop is
+    # still exactly what the pipe made.
+    pipe.receive_energy(64)
+    Test.tick_block_entity(pipe, 1)
+
+    ctx.assert(source.get_item_count_in_slot(0) == 0, "The pull should have taken the source stack.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 0, "A stack the inbox cannot hold should not start travelling.")
+
+    # PipeTransportItems drops at the pipe, and no game tick has merged anything yet, so the whole
+    # stack is one item entity holding all four.
+    ctx.assert(level.count_item_entities(x, y, z, 10) == 1, "The pipe should have dropped the stack its inbox could not hold.")
+    found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
+    ctx.assert(found.has(), "The dropped stack should be on the ground.")
+    ctx.assert(found.unwrap().count() == 4, "The dropped stack should hold the whole stack.")
+}

@@ -609,9 +609,26 @@ local _take_crafting_result(neighbor: BlockEntity) bool {
     return true
 }
 
+# Puts the stack a pull took into the pipe's inbox, and keeps it if the inbox cannot hold it. The
+# game's inventory interface drops a write outside the inventory without a word, and the chest has
+# been debited by then, so the stack would exist nowhere. The pipe therefore checks the size before
+# writing and reads the write back afterwards, and hands any part that did not land to the normal
+# drop path, where it is an item entity rather than a silent destruction (#1205).
 local _store(item: Item, damage: number, count: number) {
+    if me.get_inventory_size() < 1 {
+        _drop_moving(x, y - 0.25, z, 0, item, count, damage, 0.01)
+        return
+    }
     me.set_item_in_slot(0, item, count)
     me.set_item_damage_in_slot(0, damage)
+    stored: number = 0
+    held: Option[Item] = me.get_item_in_slot(0)
+    if held.has() and equals(held.unwrap(), item) {
+        stored = me.get_item_count_in_slot(0)
+    }
+    if stored < count {
+        _drop_moving(x, y - 0.25, z, 0, item, count - stored, damage, 0.01)
+    }
 }
 
 # Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe and 2 for a cobblestone pipe.

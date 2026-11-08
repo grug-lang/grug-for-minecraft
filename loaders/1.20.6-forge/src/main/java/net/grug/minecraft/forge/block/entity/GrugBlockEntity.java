@@ -303,18 +303,30 @@ public class GrugBlockEntity extends BlockEntity
     @Override
     public void setItem(int slot, ItemStack stack) {
         ensureSized();
-        if (slot >= 0 && slot < stacks.size()) {
-            stacks.set(slot, stack);
-            if (stack.getCount() > getMaxStackSize()) {
-                stack.setCount(getMaxStackSize());
-            }
-            setChanged();
-            initGrug();
-            if (entityHandle != 0) {
-                long fnId = Grug.getExportFnId("BlockEntity", "item_inserted");
-                if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                    ExportFns.BlockEntity_item_inserted(entityHandle, slot, stack.getCount());
-                }
+        if (slot < 0 || slot >= stacks.size()) {
+            // A write outside the inventory is a bounded defect in the caller, not something to
+            // drop silently: the caller has usually taken the stack from its source already, so a
+            // no-op here destroys it. The report fails the scope that asked and the game carries
+            // on (#1205).
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Grug block entity write: slot "
+                            + slot
+                            + " is outside the inventory of "
+                            + stacks.size()
+                            + " slots.");
+            return;
+        }
+        stacks.set(slot, stack);
+        if (stack.getCount() > getMaxStackSize()) {
+            stack.setCount(getMaxStackSize());
+        }
+        setChanged();
+        initGrug();
+        if (entityHandle != 0) {
+            long fnId = Grug.getExportFnId("BlockEntity", "item_inserted");
+            if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                ExportFns.BlockEntity_item_inserted(entityHandle, slot, stack.getCount());
             }
         }
     }

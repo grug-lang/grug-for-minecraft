@@ -1,0 +1,21 @@
+# A write one slot past a block entity's inventory is an err, not a silent no-op: the caller has
+# usually taken the stack from its source already, so a write that lands nowhere destroys it. The
+# a1 pipe lost items this way when its inbox was shorter than the slot it wrote (#1205).
+# coverage_init_block declares a one-slot inventory, so slot 1 is one past it.
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_init_block")
+    be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(be_opt.has(), "The coverage init block should have a block entity.")
+    be: BlockEntity = be_opt.unwrap()
+    ctx.assert(be.get_inventory_size() == 1, "The coverage init block should have a one-slot inventory.")
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    ctx.expect_error("slot")
+    be.set_item_in_slot(1, diamond, 1)
+}

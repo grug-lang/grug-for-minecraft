@@ -49,12 +49,16 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.assert(block.extract_item_from_inventory(diamond, 0, 2) == 2, "Expected to extract 2.")
         ctx.assert(block.count_item_in_inventory(diamond, 0) == 2, "Expected 2 diamonds left.")
 
-        # Out-of-range slots must be ignored rather than crash.
+        # Out-of-range slots read as empty, and taking from one removes nothing. A write is the one
+        # operation that cannot be ignored: the caller has usually taken the stack from its source
+        # already, so a silent no-op destroys it, which is how the a1 pipe lost items (#1205). The
+        # write is therefore a reported defect, and the test expects it.
         ctx.assert(block.get_item_count_in_slot(999) == 0, "An out-of-range slot should read as empty.")
         ctx.assert(not block.get_item_in_slot(999).has(), "An out-of-range slot should have no item.")
         ctx.assert(block.take_item_from_slot(999, 1) == 0, "Taking from an out-of-range slot should remove nothing.")
         block.set_item_count_in_slot(999, 1)
-        block.set_item_in_slot(999, diamond, 1)
         block.set_item_damage_in_slot(999, 1)
+        ctx.expect_error("slot")
+        block.set_item_in_slot(999, diamond, 1)
     }
 }
