@@ -765,13 +765,9 @@ public class HostFunctions {
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
             return "Test.click_screen: The position has to be finite.";
         }
-        if (!Double.isFinite(button)) {
-            return "Test.click_screen: The button has to be finite.";
-        }
-        if (button != Math.floor(button) || button < 0) {
-            return "Test.click_screen: The button has to be a whole number from 0 up, and was "
-                    + button
-                    + ".";
+        String problem = GrugScreenCalls.buttonProblem(button);
+        if (problem != null) {
+            return "Test.click_screen: " + problem;
         }
         return null;
     }

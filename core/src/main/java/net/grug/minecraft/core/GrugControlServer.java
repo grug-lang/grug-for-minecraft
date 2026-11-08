@@ -667,10 +667,7 @@ public final class GrugControlServer {
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
             return "The position has to be finite.";
         }
-        if (!Double.isFinite(button) || button != Math.floor(button) || button < 0) {
-            return "The button has to be a whole number from 0 up, and was " + button + ".";
-        }
-        return null;
+        return GrugScreenCalls.buttonProblem(button);
     }
 
     /**

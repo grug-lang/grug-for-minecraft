@@ -1,0 +1,73 @@
+# The release a press gets when the press itself closes the screen (#1217). On 1.20.6 the loader
+# sends a release after every press it synthesizes, and a real mouse release reaches the screen the
+# client shows at that moment. A press that closes its screen therefore has no screen to release
+# on, and the loader skips it; a loader that kept the screen the press was made on would deliver
+# the release to the closed inventory, whose menu is still the player's, and its click would swap
+# the carried item with the hotbar item. The coverage overlay closes the inventory on a left click
+# of the first hotbar slot while the cursor carries an item, without taking the press. Only 1.20.6
+# fires that release, so the other loaders end before they open a screen.
+started: bool = false
+waited: number = 0
+clicked: bool = false
+
+export tick_any_side(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if Test.loader_name() != "1.20.6-forge" {
+            return
+        }
+        Test.close_screen()
+        Test.clear_carried_item()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not clicked {
+        if not Test.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 100, "The player's inventory screen should open.")
+            ctx.not_done()
+            return
+        }
+        if not Test.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+            ctx.not_done()
+            return
+        }
+        # The hotbar slot holds an item the release's click could swap the cursor with, and the
+        # cursor carries another one, which is what makes the press start a drag whose release
+        # sends the click.
+        Test.clear_carried_item()
+        Test.set_held_item(Test.get_player(), item_at(0))
+        ctx.assert(Test.get_player().get_held_item().has(), "The player should hold the item the hotbar press lands on.")
+        Test.set_carried_item(item(resource_location("minecraft:diamond")))
+        ctx.assert(Test.get_carried_item().has(), "The cursor should carry the item the press swaps.")
+        hotbar_x: number = Test.gui_left() + 17
+        hotbar_y: number = Test.gui_top() + Test.gui_height() - 15
+        taken: bool = Test.click_screen(hotbar_x, hotbar_y, 0)
+        ctx.assert(not taken, "The overlay should close the screen without taking the press.")
+        ctx.assert(not Test.screen_open(), "The press should have closed the inventory.")
+        clicked = true
+        ctx.not_done()
+        return
+    }
+
+    # The click packet a release sends is the server's to apply, so the next tick reads it. A
+    # release sent to the closed inventory would have swapped the carried diamond with the hotbar
+    # item, which puts the hotbar item on the cursor and the diamond in the hand; the fixed loader
+    # skips the release, so the cursor still carries the diamond and the hand keeps the hotbar item.
+    carried: Option[Item] = Test.get_carried_item()
+    ctx.assert(carried.has(), "A press that closed its screen should not deliver a release that moves the cursor.")
+    if carried.has() {
+        ctx.assert(equals(carried.unwrap(), item(resource_location("minecraft:diamond"))), "The cursor should still carry the item the test put there.")
+    }
+    held: Option[Item] = Test.get_player().get_held_item()
+    ctx.assert(held.has(), "The hotbar slot should still hold the item the press landed on.")
+    if held.has() {
+        ctx.assert(equals(held.unwrap(), item_at(0)), "The release should not have swapped the hotbar item into the cursor.")
+    }
+    Test.clear_carried_item()
+    Test.close_screen()
+}

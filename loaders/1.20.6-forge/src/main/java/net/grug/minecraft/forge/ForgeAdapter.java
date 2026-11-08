@@ -1793,9 +1793,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // A click is a press and a release. A container screen sends the click packet from the
         // release when the cursor carries a stack, and from the press when the cursor is empty
         // (that press marks the release as already handled), so a carried click reaches the
-        // server only when both halves are delivered (#1094).
+        // server only when both halves are delivered (#1094). The release follows the screen the
+        // client shows now, as a real mouse release does: the press may have closed or replaced
+        // the screen it was made on, so releasing on that one would reach a dead container and
+        // leave the current screen's own release unhandled (#1217).
+        Screen releasedScreen = Minecraft.getInstance().screen;
+        if (releasedScreen == null) {
+            return;
+        }
         boolean[] released = new boolean[] {false};
-        ForgeEventFactoryClient.onScreenMouseReleased(released, screen, x, y, button);
+        ForgeEventFactoryClient.onScreenMouseReleased(released, releasedScreen, x, y, button);
     }
 
     @Override

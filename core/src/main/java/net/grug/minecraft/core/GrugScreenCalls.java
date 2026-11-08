@@ -24,6 +24,32 @@ public final class GrugScreenCalls {
     public static final String GUI_HEIGHT = "gui_height";
 
     /**
+     * The highest mouse button a screen press may carry: 0 is the left button, 1 the right and 2
+     * the middle, which are the three a click means on every loader. The 1.2.5 client writes the
+     * button as one byte, so a 256 arrived as the left button and a 255 as -1 (#1217).
+     */
+    public static final int MAX_BUTTON = 2;
+
+    /**
+     * Why a screen press cannot carry this button, or null when it can. The client that makes the
+     * press and the server that forwards one check it through this answer, so the two cannot
+     * disagree about the range a button may have (#1217).
+     */
+    public static String buttonProblem(double button) {
+        if (!Double.isFinite(button)) {
+            return "The button has to be finite.";
+        }
+        if (button != Math.floor(button) || button < 0 || button > MAX_BUTTON) {
+            return "The button has to be a whole number from 0 to "
+                    + MAX_BUTTON
+                    + ", where 0 is the left button, 1 the right and 2 the middle, and was "
+                    + button
+                    + ".";
+        }
+        return null;
+    }
+
+    /**
      * Whether the last {@link #screenOpen} saw a screen open, so the call can tell a screen that
      * has just appeared from one that was already up.
      */

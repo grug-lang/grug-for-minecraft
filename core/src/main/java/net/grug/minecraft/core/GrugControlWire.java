@@ -102,8 +102,9 @@ public final class GrugControlWire {
 
     /**
      * The call: press a mouse button on the open screen. The numbers are the position's x and y in
-     * the scaled pixels a screen's own handlers use, then the button. The answer is 1 when an
-     * overlay took the press and 0 when it was left to the screen (#1094).
+     * the scaled pixels a screen's own handlers use, then the button, which is 0 for the left, 1
+     * for the right and 2 for the middle. The answer is 1 when an overlay took the press and 0 when
+     * it was left to the screen (#1094).
      *
      * <p>The press is the client's half of a container click: the client's own press path sends the
      * click packet the game has always sent, which the server applies on its next tick (see {@link

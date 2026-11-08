@@ -120,6 +120,23 @@ class GrugScreenCallsTest {
     }
 
     @Test
+    void aScreenPressButtonIsTheLeftRightOrMiddleOne() {
+        assertNull(GrugScreenCalls.buttonProblem(0));
+        assertNull(GrugScreenCalls.buttonProblem(1));
+        assertNull(GrugScreenCalls.buttonProblem(GrugScreenCalls.MAX_BUTTON));
+        assertEquals(2, GrugScreenCalls.MAX_BUTTON);
+        // The first button past the range, the two the audit found the 1.2.5 client turning into
+        // other presses, and one below it (#1217).
+        assertTrue(GrugScreenCalls.buttonProblem(3).contains("0 to 2"));
+        assertTrue(GrugScreenCalls.buttonProblem(256).contains("0 to 2"));
+        assertTrue(GrugScreenCalls.buttonProblem(255).contains("0 to 2"));
+        assertTrue(GrugScreenCalls.buttonProblem(-1).contains("0 to 2"));
+        assertTrue(GrugScreenCalls.buttonProblem(0.5).contains("whole number"));
+        assertTrue(GrugScreenCalls.buttonProblem(Double.NaN).contains("finite"));
+        assertTrue(GrugScreenCalls.buttonProblem(Double.POSITIVE_INFINITY).contains("finite"));
+    }
+
+    @Test
     void aForwardedScreenCallWithoutAStarterFailsAsTheHostFunctionsError() {
         GrugControlServer server =
                 new GrugControlServer(
