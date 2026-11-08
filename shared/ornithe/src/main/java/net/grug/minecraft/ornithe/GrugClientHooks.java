@@ -168,11 +168,21 @@ public class GrugClientHooks {
     private int savedViewDistance = -1;
 
     /**
+     * Whether a run has turned particles off. Alpha and Beta have no particle setting to lower, so
+     * a run's "minimal" is this switch: {@code ParticleManagerMixin} adds no particle while it is
+     * set, which is the picture the later loaders' minimal setting gives, and the run clears it
+     * when it ends (#1213).
+     */
+    private boolean particlesMinimised;
+
+    /**
      * Shrinks the view to the smallest the game allows before a run starts, remembering the old
      * distance. A run's room is at most 17 blocks across, so a default view only streams in far
      * chunks whose light and mesh rebuilds the runner then has to work through, which both slows
      * the run down and, on Beta, makes the frame cost grow across repeats as the world streams in
      * (#422). The run puts the old distance back when it ends. See #444.
+     *
+     * <p>Particles are turned off for the run too, by {@link #minimiseParticlesForRun()}.
      */
     @GrugGenerated("dev-only: the view is shrunk for a run")
     private void shrinkViewForRun() {
@@ -181,6 +191,7 @@ public class GrugClientHooks {
         }
         savedViewDistance = minecraft.options.viewDistance;
         minecraft.options.viewDistance = TINY_VIEW_DISTANCE;
+        minimiseParticlesForRun();
         if (minecraft.worldRenderer != null) {
             minecraft.worldRenderer.reload();
         }
@@ -194,9 +205,43 @@ public class GrugClientHooks {
         }
         minecraft.options.viewDistance = savedViewDistance;
         savedViewDistance = -1;
+        restoreParticlesAfterRun();
         if (minecraft.worldRenderer != null) {
             minecraft.worldRenderer.reload();
         }
+    }
+
+    /**
+     * Turns particles off for the duration of a run, whether this client drives the run or a server
+     * it joined does.
+     *
+     * <p>A particle comes from the world's random, so a capture with one in it is a different
+     * picture on every run, and a reference mod's particles, such as the redstone engine's (#581),
+     * would fail its screenshots at random. The adapters skip the particle a grug block spawns
+     * while {@code GRUG_CI} is set, but a joined client is launched with {@code GRUG_CI_CONNECT}
+     * alone, so the engine's dust reached a promoted capture there (#1213). Alpha and Beta have no
+     * particle setting to put at minimal, so a run drops every particle at the manager instead,
+     * which is the picture the other loaders' minimal setting gives.
+     */
+    @GrugGenerated("dev-only: particles are turned off for a run")
+    private void minimiseParticlesForRun() {
+        particlesMinimised = true;
+    }
+
+    /** Turns particles back on when the run ends, whether this client drove it or joined it. */
+    @GrugGenerated("dev-only: particles are turned off for a run")
+    private void restoreParticlesAfterRun() {
+        particlesMinimised = false;
+    }
+
+    /**
+     * Whether a run has turned particles off, which {@code ParticleManagerMixin} reads. Off between
+     * runs, so ordinary play is unaffected.
+     */
+    @GrugGenerated(
+            "dev-only: the particle switch a run sets, read from the game's particle manager")
+    public static boolean isParticleMinimised() {
+        return instance != null && instance.particlesMinimised;
     }
 
     public GrugClientHooks(Minecraft minecraft, GrugClientAccess access, String title) {
@@ -259,19 +304,24 @@ public class GrugClientHooks {
 
     /**
      * What a run's start does to the window, for a joined client that starts its own run on a
-     * server (#1040): the screenshot size.
+     * server (#1040): the screenshot size. The view is left alone: the joined client overflowed its
+     * stack in Alpha's recursive light update after it shrank the view, which a client that keeps
+     * the default view did not. Particles are turned off as a client-only run turns them off,
+     * because a capture taken on the server has to be the same picture (#1213).
      */
     public void beginControlRun() {
         controlRunStarted = true;
-        // The view is left alone: the joined client overflowed its stack in Alpha's recursive light
-        // update after it shrank the view, which a client that keeps the default view did not.
         window.beginRun();
+        minimiseParticlesForRun();
     }
 
-    /** Puts the window back when this client has left the server whose run it started. */
+    /**
+     * Puts the window back and turns particles back on when this client has left the server's run.
+     */
     public void endControlRun() {
         controlRunStarted = false;
         window.endRun();
+        restoreParticlesAfterRun();
     }
 
     /**
