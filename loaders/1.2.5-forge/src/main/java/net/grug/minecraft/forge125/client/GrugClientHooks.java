@@ -3,6 +3,7 @@ package net.grug.minecraft.forge125.client;
 import cpw.mods.fml.common.ITickHandler;
 import cpw.mods.fml.common.TickType;
 
+import net.grug.minecraft.core.GrugChat;
 import net.grug.minecraft.core.GrugConnectAddress;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugFrameRequest;
@@ -680,7 +681,11 @@ public class GrugClientHooks implements ITickHandler {
         sendChat(text, prefix);
     }
 
-    /** Mirrors a grug message into the in-game chat, wrapped at 50 characters per line. */
+    /**
+     * Mirrors a grug message into the in-game chat, in the pieces {@link GrugChat#wrap} cuts. The
+     * wrapping is shared rather than repeated here because this game's chat throws on a piece that
+     * ends in a space, and the shared helper is where that is ruled out (#1215).
+     */
     private static void sendChat(String text, String prefix) {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         if (minecraft.thePlayer == null || text == null) return;
@@ -689,20 +694,8 @@ public class GrugClientHooks implements ITickHandler {
         // down to it, so the log is all it gets. See #412.
         if (GrugReference.isCiRun()) return;
 
-        for (String rawLine : text.split("\n")) {
-            String line = rawLine;
-            int maxLength = 50;
-            while (line.length() > maxLength) {
-                int splitIndex = line.lastIndexOf(' ', maxLength);
-                if (splitIndex == -1) {
-                    splitIndex = maxLength;
-                }
-                minecraft.ingameGUI.addChatMessage(prefix + line.substring(0, splitIndex));
-                line = line.substring(splitIndex).trim();
-            }
-            if (!line.isEmpty()) {
-                minecraft.ingameGUI.addChatMessage(prefix + line);
-            }
+        for (String piece : GrugChat.wrap(text)) {
+            minecraft.ingameGUI.addChatMessage(prefix + piece);
         }
     }
 

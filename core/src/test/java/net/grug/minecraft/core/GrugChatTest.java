@@ -145,6 +145,41 @@ class GrugChatTest {
     }
 
     @Test
+    void noPieceEndsInASpaceBecauseTheOlderChatReadsPastOne() {
+        // 1.2.5's FontRenderer.sizeStringToWidth has no break in its space case, so it falls into
+        // its colour-code case, steps one character past the end of a piece that ends in a space
+        // and throws StringIndexOutOfBoundsException. That crashed the 1.2.5 dedicated leg's
+        // client on the compiler's "$  " source echo (#1215), which reached chat as the piece "$ "
+        // with the error prefix in front of it.
+        String path = "coverage/code/coverage_fixture_entity-BlockEntity.grug";
+        String report =
+                "Failed to hot-reload coverage_fixture_entity-BlockEntity.grug:\n"
+                        + "Error: File is empty\n$  "
+                        + path;
+        for (String piece : GrugChat.wrap(report)) {
+            assertFalse(piece.endsWith(" "), "a piece ends in a space: '" + piece + "'");
+        }
+
+        // The doubled space is what leaves a piece ending in one, and its distance from the start
+        // is what decides whether the cut lands on it, so every count of spaces is tried.
+        for (int spaces = 2; spaces <= 100; spaces++) {
+            StringBuilder line = new StringBuilder("$");
+            for (int space = 0; space < spaces; space++) {
+                line.append(' ');
+            }
+            line.append(path);
+            for (String piece : GrugChat.wrap(line.toString())) {
+                assertFalse(piece.endsWith(" "), "a piece ends in a space: '" + piece + "'");
+            }
+        }
+    }
+
+    @Test
+    void aTrailingSpaceAtTheEndOfTheLastLineIsNotPartOfIt() {
+        assertEquals(Collections.singletonList("short"), GrugChat.wrap("short "));
+    }
+
+    @Test
     void aSpaceAtTheStartOfALongLineLeavesAnEmptyFirstPieceAndTrimsTheRest() {
         // The space is the last one inside the width, so the piece before it is empty and the rest
         // loses the space it was split at. A client has always sent it that way, and the server

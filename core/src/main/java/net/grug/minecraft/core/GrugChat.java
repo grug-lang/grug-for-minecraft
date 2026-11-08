@@ -73,6 +73,11 @@ public final class GrugChat {
      * One report in the pieces a chat window can show: one line per newline, each whole when it
      * fits and otherwise wrapped at its last space inside {@link #LINE_WIDTH} characters, or cut
      * there when it holds no space. An empty line is nothing to show rather than an empty message.
+     *
+     * <p>A piece never ends in a space, even where a doubled space would put one at the cut. 1.2.5
+     * hands this list straight to its chat, and its {@code FontRenderer.sizeStringToWidth} has no
+     * break in its space case, so it falls into its colour-code case, steps one character past the
+     * end of a piece that ends in a space and throws. See #1215.
      */
     public static List<String> wrap(String text) {
         List<String> pieces = new ArrayList<>();
@@ -83,13 +88,22 @@ public final class GrugChat {
                 if (split < 0) {
                     split = LINE_WIDTH;
                 }
-                pieces.add(rest.substring(0, split));
+                pieces.add(withoutTrailingSpaces(rest.substring(0, split)));
                 rest = rest.substring(split).trim();
             }
             if (!rest.isEmpty()) {
-                pieces.add(rest);
+                pieces.add(withoutTrailingSpaces(rest));
             }
         }
         return pieces;
+    }
+
+    /** {@code piece} without the spaces it ends in, which a chat must never be handed. */
+    private static String withoutTrailingSpaces(String piece) {
+        int end = piece.length();
+        while (end > 0 && piece.charAt(end - 1) == ' ') {
+            end--;
+        }
+        return piece.substring(0, end);
     }
 }
