@@ -612,8 +612,10 @@ local _take_crafting_result(neighbor: BlockEntity) bool {
 # Puts the stack a pull took into the pipe's inbox, and keeps it if the inbox cannot hold it. The
 # game's inventory interface drops a write outside the inventory without a word, and the chest has
 # been debited by then, so the stack would exist nowhere. The pipe therefore checks the size before
-# writing and reads the write back afterwards, and hands any part that did not land to the normal
-# drop path, where it is an item entity rather than a silent destruction (#1205).
+# writing, which is what wooden_pipe_short_inventory proves, and reads the write back afterwards, a
+# safety net for a write that lands fewer items than asked, such as one the inventory clamps to its
+# stack limit. Whatever did not land goes to the normal drop path, where it is an item entity rather
+# than a silent destruction (#1205).
 local _store(item: Item, damage: number, count: number) {
     if me.get_inventory_size() < 1 {
         _drop_moving(x, y - 0.25, z, 0, item, count, damage, 0.01)
