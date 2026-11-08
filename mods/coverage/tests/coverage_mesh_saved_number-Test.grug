@@ -120,10 +120,10 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 # Whether the client's copy holds the room's light, so a capture now is drawn with the room as the
-# test built it rather than with the light it had before (#1207). The reads are the air in front of
-# the wall at the room's light height, on both sides of the wall's thirteen-block span, and the
-# pedestal between them: the wall's halves are in two chunk sections in x and the crop is mostly
-# made of them, so a section the client has not been told about is one of these reads.
+# test built it rather than with the light it had before (#1207). The reads are air blocks at the
+# room's light height: in front of the wall on both sides of its thirteen-block span, whose halves
+# are in two chunk sections in x, and in front of the pedestal, which is the face the crop mostly
+# shows. A section the client has not been told about is one of these reads.
 local _light_applied() bool {
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -132,7 +132,7 @@ local _light_applied() bool {
     if not Test.light_applied(x - 4, y - 1.88, z + 5) {
         return false
     }
-    if not Test.light_applied(x, y - 1.88, z + 4) {
+    if not Test.light_applied(x, y - 1.88, z + 3) {
         return false
     }
     return Test.light_applied(x + 4, y - 1.88, z + 5)
