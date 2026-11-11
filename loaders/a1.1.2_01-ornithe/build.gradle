@@ -83,7 +83,28 @@ dependencies {
     // and fabric.mod.json depends on the modules grug uses. That dependency is also what keeps this
     // layer off a Babric b1.7.3 game, which reports the same Minecraft version but names its classes
     // by another intermediary: OSL is built against Ornithe's, so no Babric instance has it.
-    ploceus.dependOsl(project.osl_version)
+    //
+    // The modules are asked for one by one rather than through dependOsl, which asks for every module
+    // of OSL 0.20.3. `config` is the one module with no a1.1.2_01 build: its cached answer is an empty
+    // object, Ploceus reads that as a miss rather than as the answer, and it asks the meta on every
+    // configure, which fails the whole build while the meta refuses connections (#1241). Each name
+    // below is a key of the cached base-versions list, the version stays project.osl_version alone,
+    // and each module's per-game version comes from the cached a1.1.2_01 answer, so no meta call is
+    // needed. Note that dependOslModule takes the version first, unlike dependOsl. The modules left
+    // out are neither imported here nor depended on by the ones below.
+    //
+    // keybinds and resource-loader are compiled against by the client hooks, and resource-loader's
+    // own fabric.mod.json depends on executors and text-components. None of those four is in this
+    // layer's fabric.mod.json: it once held keybinds and resource-loader as recommends, and a nested
+    // layer carrying that block was skipped on the Alpha server (788312b52).
+    ploceus.dependOslModule(project.osl_version, "blocks")
+    ploceus.dependOslModule(project.osl_version, "core")
+    ploceus.dependOslModule(project.osl_version, "entrypoints")
+    ploceus.dependOslModule(project.osl_version, "executors")
+    ploceus.dependOslModule(project.osl_version, "keybinds")
+    ploceus.dependOslModule(project.osl_version, "lifecycle-events")
+    ploceus.dependOslModule(project.osl_version, "resource-loader")
+    ploceus.dependOslModule(project.osl_version, "text-components")
 
     // Alpha's screen packet reaches a joined client only from the dispatch-only multiplayer job, so
     // the side it decides from is pinned here instead (#1216). JUnit 5 is the line that still runs
