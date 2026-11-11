@@ -11,6 +11,7 @@ import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
 import net.minecraft.client.Minecraft;
+import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
 
 import java.awt.image.BufferedImage;
@@ -104,6 +105,49 @@ public final class GrugControlAlphaClient {
     }
 
     /**
+     * Holds the client's own player at the eye the capture named. The server cannot: it is frozen
+     * inside the call that asked for the frame, so nothing there ticks to hold its player, and a
+     * client that drifted from the eye drew the room from where it had drifted to (#1178). The
+     * Alpha client's {@code y} is its eye, the same field its position packet carries and its own
+     * move then rewrites from the shape, so the pin is a move to the eye itself, the call the
+     * position packet handler makes with the packet's {@code minY}.
+     *
+     * <p>It runs at the head of the client tick, before the world's physics, and the frame a
+     * capture reads is one the client drew after that tick. That frame is still drawn from the eye:
+     * {@code GameRenderer} interpolates between {@code lastY} and {@code y}, {@code
+     * updatePositionAndAngles} writes both and {@code setPosition} moves the shape with them, the
+     * pin zeroes the velocity, and this version's {@code MobEntity.moveRelative} moves the player
+     * by the velocity the previous tick ended with and only then applies gravity, so the physics
+     * cannot carry a pinned player off the eye in the tick the pin ran in. See #1161 and #1193.
+     */
+    private static void pinAtCaptureEye(PlayerEntity player) {
+        if (waited == 1 && (player.x != eye.x() || player.y != eye.y() || player.z != eye.z())) {
+            // The measurement that fails without the pin: the request arrived with the client off
+            // the eye. #1161's a1 dedicated leg logged 28 of 82 captures false against 0 on the
+            // base, and forwarded_capture_late_then's two frames were identical, so neither was
+            // drawn from the eye the room was built around.
+            System.out.println(
+                    "[GRUG CONTROL] the client's camera is at ("
+                            + player.x
+                            + ","
+                            + player.y
+                            + ","
+                            + player.z
+                            + "), not the room's eye ("
+                            + eye.x()
+                            + ","
+                            + eye.y()
+                            + ","
+                            + eye.z()
+                            + "); pinning it for the capture");
+        }
+        player.updatePositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
+        player.velocityX = 0.0;
+        player.velocityY = 0.0;
+        player.velocityZ = 0.0;
+    }
+
+    /**
      * The client starts its run only once the chunks around its player have stopped arriving: the
      * count of loaded chunks in a square of {@link #SETTLE_RADIUS} chunks has held for {@link
      * #SETTLE_QUIET_TICKS} ticks, with the 3x3 around the player at least. The server freezes at
@@ -190,6 +234,10 @@ public final class GrugControlAlphaClient {
                             + waited
                             + " on "
                             + Thread.currentThread().getName());
+        }
+        PlayerEntity player = mc.player;
+        if (eye != null && player != null) {
+            pinAtCaptureEye(player);
         }
         boolean settled = GrugCore.getAdapter().isWorldSettled();
         // The frame has to show the world the server has and be drawn from the place the test's
