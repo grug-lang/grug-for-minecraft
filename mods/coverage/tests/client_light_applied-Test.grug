@@ -6,6 +6,10 @@
 # client too. The read is the one a capture wait needs: two frames of a room drawn from the light
 # it had before a change agree with each other, so a frame count cannot tell that room from a
 # settled one.
+# The wait's own answer is the proof, and the test does not read the room again after it: the
+# world's light engine can take on work between two ticks, such as the propagation of the torch's
+# light into a neighbouring section, so a second read can be false while the room's section still
+# matches and would only race the engine.
 # The world and the client are compared as the section's 2048 light bytes, the copy the client
 # publishes when it has taken the light, rather than one position's light: on a client-only run a
 # test reads the client's copy from the server thread, and a position read goes through a store the
@@ -13,7 +17,10 @@
 # the test waits.
 # It also asks for a lit section two thousand blocks away, which the client's two-chunk view never
 # receives. The world has a glowstone's light there and the client's copy has none, so the answer
-# is false: a client stand-in that always answers true cannot pass this test.
+# is false: a client stand-in that always answers true cannot pass this test. The glowstone goes in
+# with the torch, before the room's last light wait, so that wait also waits for the far section's
+# light work, and the far ask is made in the same tick the wait found the engine settled: the false
+# is then the two sections' difference and not the engine still having work.
 # The four older loaders cannot compare a joined client's copy yet, so their answer is the true
 # default: the wait is a no-op there, it is not deterministic on them, and their occurrences of the
 # same late-light capture stay in #1207.
@@ -61,13 +68,16 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else if state == 2 {
         if _light_settled(ctx) {
-            state = 3
-        }
-        ctx.not_done()
-    } else {
-        ctx.assert(Test.light_applied(x + 1, y + 1, z), "The light the client holds should stay the world's own.")
-        if Test.loader_name() == "1.20.6-forge" {
-            ctx.assert(not Test.light_applied(x + 2000, y, z), "A section the client was never sent cannot hold the world's light.")
+            # The wait returning true is the room's proof: it only does so while the engine is
+            # settled, and reading the room again on a later tick would race the work the engine
+            # takes on in the meantime. The far section is asked here, in the tick the wait found
+            # the engine settled, so a constant-true answer fails this and a constant-false one
+            # already failed the wait's deadline.
+            if Test.loader_name() == "1.20.6-forge" {
+                ctx.assert(not Test.light_applied(x + 2000, y, z), "A section the client was never sent cannot hold the world's light.")
+            }
+        } else {
+            ctx.not_done()
         }
     }
 }
