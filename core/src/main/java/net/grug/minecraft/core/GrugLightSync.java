@@ -141,6 +141,31 @@ public final class GrugLightSync {
         return Arrays.equals(simulated, client);
     }
 
+    /**
+     * A fingerprint of one section's block light, the same for two sections that hold the same
+     * light, with a missing layer and an all-zero one both giving 0.
+     *
+     * <p>This is {@link #lightsMatch} for a copy that is not in this process: a run on a dedicated
+     * server compares its own section with the one its joined client answers, and 2048 bytes do not
+     * fit a control message's number. The fingerprint is 53 bits, which a double carries exactly,
+     * and two sections of a room differ in many bytes, so a stale copy does not collide with the
+     * copy the world holds. A caller that wants whole bytes compares them with {@link #lightsMatch}
+     * instead.
+     */
+    public static long lightFingerprint(byte[] layer) {
+        if (allZero(layer)) {
+            return 0;
+        }
+        // FNV-1a, whose 64-bit form is simple enough to read and whose low 53 bits vary with every
+        // byte, unlike a sum or a polynomial that a uniform light step can leave unchanged.
+        long hash = 0xcbf29ce484222325L;
+        for (byte value : layer) {
+            hash ^= value & 0xFF;
+            hash *= 0x100000001b3L;
+        }
+        return hash & 0x1FFFFFFFFFFFFFL;
+    }
+
     /** Whether a layer is missing or holds no light at all. */
     private static boolean allZero(byte[] layer) {
         if (layer == null) {

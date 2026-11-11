@@ -95,10 +95,10 @@ public final class GrugControlClient {
         double savedNumber(double x, double y, double z, String name);
 
         /**
-         * The block light at the position in this client's own copy of the world, which is the
-         * light its frame pass reads there (#1207).
+         * The fingerprint of the block light of the section the position falls in, in this client's
+         * own copy of the world, which is the copy its mesher bakes the room from (#1207).
          */
-        int clientLight(double x, double y, double z);
+        long clientLightFingerprint(double x, double y, double z);
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -174,8 +174,8 @@ public final class GrugControlClient {
             }
 
             @Override
-            public int clientLight(double x, double y, double z) {
-                return adapter.get().clientBlockLight(x, y, z);
+            public long clientLightFingerprint(double x, double y, double z) {
+                return adapter.get().clientLightFingerprint(x, y, z);
             }
         };
     }
@@ -366,10 +366,10 @@ public final class GrugControlClient {
                                         message.text)));
             } else if (message.call == GrugControlWire.CALL_CLIENT_LIGHT) {
                 link.send(
-                        GrugControlWire.answerValue(
+                        GrugControlWire.answerNumber(
                                 message.id,
-                                (byte)
-                                        caller.clientLight(
+                                (double)
+                                        caller.clientLightFingerprint(
                                                 message.volume, message.pitch, message.third)));
             } else {
                 // A call this client has no arm for, which is what a call code added to the wire

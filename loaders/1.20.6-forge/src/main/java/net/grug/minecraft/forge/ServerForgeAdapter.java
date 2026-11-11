@@ -527,17 +527,20 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
-     * Whether the joined client's copy holds the light this server's world has at the block, asked
-     * of the client with the world frozen (#1207).
+     * Whether the joined client's copy holds the light this server's world has in the section the
+     * position falls in, asked of the client with the world frozen (#1207).
      *
      * <p>The client's light is the copy its frame pass draws, and this server cannot read it, so
-     * the answer is the client's own light compared with the server's. A server with no starter has
-     * no frame to protect and answers true, as {@link #isWorldSettled} does. The inherited answer
-     * reads a null client level here. See #167.
+     * the answer is the client's own section compared with the server's. A section's bytes rather
+     * than one position's light, both so this answers the same thing as a client-only run and
+     * because the capture shows the room, not one block: a section whose light has arrived in part
+     * is one the next frame can still draw with the older light elsewhere. A server with no starter
+     * has no frame to protect and answers true, as {@link #isWorldSettled} does. The inherited
+     * answer reads a null client level here. See #167.
      */
     @Override
     public boolean lightApplied(double x, double y, double z) {
-        int simulated = blockLightAt(getLevel(), x, y, z);
+        long simulated = sectionLightFingerprint(getLevel(), x, y, z);
         if (simulated < 0 || !GrugControlForge.server().hasStarter()) {
             return true;
         }
@@ -545,7 +548,7 @@ public class ServerForgeAdapter extends ForgeAdapter {
             return false;
         }
         try {
-            return GrugControlForge.server().clientLight(x, y, z) == simulated;
+            return (long) GrugControlForge.server().clientLightFingerprint(x, y, z) == simulated;
         } catch (GrugControlServer.ControlException e) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.light_applied: " + e.getMessage());
             return true;

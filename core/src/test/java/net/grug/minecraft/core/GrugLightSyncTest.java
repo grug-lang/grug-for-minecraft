@@ -45,6 +45,35 @@ class GrugLightSyncTest {
     }
 
     @Test
+    void aFingerprintIsTheSameForTheSameLightAndZeroForNoLight() {
+        byte[] lit = layer(13);
+        byte[] dim = layer(4);
+        byte[] dark = layer(0);
+        byte[] other = new byte[2048];
+        other[777] = 12;
+        other[2047] = 3;
+
+        // No layer and a layer that holds no light are the same answer, as lightsMatch says.
+        assertEquals(0, GrugLightSync.lightFingerprint(null));
+        assertEquals(0, GrugLightSync.lightFingerprint(dark));
+        // The same light gives the same fingerprint, including for two copies of one layer.
+        assertEquals(
+                GrugLightSync.lightFingerprint(lit), GrugLightSync.lightFingerprint(lit.clone()));
+        assertEquals(
+                GrugLightSync.lightFingerprint(other),
+                GrugLightSync.lightFingerprint(other.clone()));
+        // A different light gives a different one, so a stale copy does not match by accident.
+        assertFalse(GrugLightSync.lightFingerprint(lit) == GrugLightSync.lightFingerprint(dim));
+        assertFalse(GrugLightSync.lightFingerprint(other) == GrugLightSync.lightFingerprint(lit));
+        assertFalse(GrugLightSync.lightFingerprint(other) == 0);
+        // It fits a double exactly, which is how a control message carries it.
+        assertTrue(GrugLightSync.lightFingerprint(other) >>> 53 == 0);
+        assertEquals(
+                GrugLightSync.lightFingerprint(other),
+                (long) (double) GrugLightSync.lightFingerprint(other));
+    }
+
+    @Test
     void aBoxOwesEverySectionItCoversIncludingTheOnesBeforeZero() {
         GrugLightSync sync = new GrugLightSync();
         // A box from -3 to 3 in x and z and from 62 to 79 in y: one section each way in x and z

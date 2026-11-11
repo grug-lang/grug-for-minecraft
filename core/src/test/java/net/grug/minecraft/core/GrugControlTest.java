@@ -152,7 +152,7 @@ class GrugControlTest {
                 }
 
                 @Override
-                public int clientLight(double x, double y, double z) {
+                public long clientLightFingerprint(double x, double y, double z) {
                     throw new AssertionError("no light call was expected");
                 }
             };
@@ -234,7 +234,7 @@ class GrugControlTest {
         }
 
         @Override
-        public int clientLight(double x, double y, double z) {
+        public long clientLightFingerprint(double x, double y, double z) {
             throw new AssertionError("no light call was expected");
         }
     }
@@ -310,7 +310,7 @@ class GrugControlTest {
         }
 
         @Override
-        public int clientLight(double x, double y, double z) {
+        public long clientLightFingerprint(double x, double y, double z) {
             throw new AssertionError("no light call was expected");
         }
     }
@@ -325,7 +325,7 @@ class GrugControlTest {
         double read = 176.0;
         double saved = 5.0;
         boolean savedFails;
-        int light = 12;
+        long light = 12;
         boolean closed;
         boolean opened;
 
@@ -409,8 +409,8 @@ class GrugControlTest {
         }
 
         @Override
-        public int clientLight(double x, double y, double z) {
-            seen.add("clientLight " + x + " " + y + " " + z);
+        public long clientLightFingerprint(double x, double y, double z) {
+            seen.add("clientLightFingerprint " + x + " " + y + " " + z);
             return light;
         }
     }
@@ -1439,9 +1439,12 @@ class GrugControlTest {
                                                     ? 0.0
                                                     : method.getReturnType() == int.class
                                                             ? 0
-                                                            : method.getReturnType() == Vec3.class
-                                                                    ? new Vec3(1, 2, 3)
-                                                                    : null;
+                                                            : method.getReturnType() == long.class
+                                                                    ? 0L
+                                                                    : method.getReturnType()
+                                                                                    == Vec3.class
+                                                                            ? new Vec3(1, 2, 3)
+                                                                            : null;
                                 });
         GrugControlClient.Caller caller = GrugControlClient.adapterCaller(() -> adapter);
         // The screen calls share whether a screen was already open, so start from closed.
@@ -1462,7 +1465,7 @@ class GrugControlTest {
         // The stand-in adapter has no level, so the read answers the default a client without a
         // world has and still goes through the adapter's own savedNumberOnClient.
         assertEquals(0.0, caller.savedNumber(1, 2, 3, "frame_marker"));
-        assertEquals(0, caller.clientLight(7, 8, 9));
+        assertEquals(0L, caller.clientLightFingerprint(7, 8, 9));
         assertEquals(
                 List.of(
                         "hasSound a",
@@ -1480,7 +1483,7 @@ class GrugControlTest {
                         "openInventory null",
                         "testCamera",
                         "savedNumberOnClient 1.0",
-                        "clientBlockLight 7.0"),
+                        "clientLightFingerprint 7.0"),
                 seen);
 
         // The interface's own fallbacks: a loader that cannot read light answers -1, and a test's
@@ -1493,7 +1496,7 @@ class GrugControlTest {
                                 (proxy, method, args) ->
                                         java.lang.reflect.InvocationHandler.invokeDefault(
                                                 proxy, method, args));
-        assertEquals(-1, bare.clientBlockLight(1, 2, 3));
+        assertEquals(-1L, bare.clientLightFingerprint(1, 2, 3));
         assertTrue(bare.lightApplied(1, 2, 3));
     }
 
@@ -1630,14 +1633,14 @@ class GrugControlTest {
         Loopback loop = wireCalls(1000, screens);
         loop.client.beginRun();
 
-        assertEquals(12, loop.server.clientLight(10, 68, 20));
-        assertEquals(List.of("clientLight 10.0 68.0 20.0"), screens.seen);
+        assertEquals(12.0, loop.server.clientLightFingerprint(10, 68, 20));
+        assertEquals(List.of("clientLightFingerprint 10.0 68.0 20.0"), screens.seen);
 
         // A position the wire cannot carry never leaves the server.
         GrugControlServer.clearFailure();
         assertThrows(
                 GrugControlServer.ControlException.class,
-                () -> loop.server.clientLight(10, Double.NaN, 20));
+                () -> loop.server.clientLightFingerprint(10, Double.NaN, 20));
         assertTrue(GrugControlServer.failed());
         GrugControlServer.clearFailure();
     }
@@ -1912,7 +1915,7 @@ class GrugControlTest {
                             }
 
                             @Override
-                            public int clientLight(double x, double y, double z) {
+                            public long clientLightFingerprint(double x, double y, double z) {
                                 throw new AssertionError("no light call was expected");
                             }
 

@@ -474,34 +474,54 @@ public interface ModLoaderAdapter {
     boolean isWorldSettled();
 
     /**
-     * The block light at a position in the client's own copy of the world, which is the light the
-     * client's frame pass reads there, or -1 when this adapter cannot read it (#1207).
+     * The block light of the section a position falls in, in the client's own copy of the world, as
+     * {@link GrugLightSync#lightFingerprint}, or -1 when this adapter cannot read it (#1207).
      *
-     * <p>A dedicated server answers through {@link GrugControlServer#clientLight}: its own copy is
-     * the world it simulates, so only the joined client holds the light the pixels are drawn with.
+     * <p>A fingerprint of the whole section rather than one position's light. On the leg where the
+     * client and the server run in one process, the test asks a client's copy it can only read from
+     * the server thread: the client publishes a finished section through a volatile field, which
+     * this goes through, while a position's {@code getBrightness} reads the light engine's working
+     * store, whose update has no such publication and whose two-entry section cache the reading
+     * thread can keep, so a position read taken there can report the light from before the change
+     * for as long as a test waits. The whole section is also the stronger claim: the capture shows
+     * the room, not one block, and two frames that agree can still be a room whose light arrived
+     * only in part.
+     *
+     * <p>A dedicated server answers through {@link GrugControlServer#clientLightFingerprint}: its
+     * own copy is the world it simulates, so only the joined client holds the light the pixels are
+     * drawn with.
      */
-    default int clientBlockLight(double x, double y, double z) {
+    default long clientLightFingerprint(double x, double y, double z) {
         return -1;
     }
 
     /**
-     * Whether the client's copy of the world holds the same block light at this position as the
-     * world a test edits, which is what makes a capture of a room whose light just changed safe to
-     * take (#1207).
+     * Whether the client's copy of the world holds the same block light in the section this
+     * position falls in as the world a test edits, which is what makes a capture of a room whose
+     * light just changed safe to take (#1207).
      *
      * <p>A test waits on this before it captures a room whose light came from a change it made,
      * because a client that has not been told about the change draws the room from the light it had
      * before it, and two frames of that stale room can agree with each other. A capture-only settle
-     * cannot tell that room from a settled one. A loader whose own light engine is still working
-     * answers false too, so two copies that both still hold the light from before the change cannot
-     * compare equal.
+     * cannot tell that room from a settled one. A loader whose own light engine still has work also
+     * answers false, so the copies are not compared before the change has been worked out.
      *
-     * <p>Only 1.20.6 answers with a real comparison, because it is the loader whose light is
-     * computed on a separate thread and reaches the client in a packet after the block changes the
-     * settle counts. The four older loaders keep the true here: their light is worked out on the
-     * server tick, and their occurrences of the same late-light capture are tracked by #1207 rather
-     * than closed by this rule. An adapter that cannot read light at all also answers true, so a
-     * loader without an implementation waits no longer than it did before.
+     * <p>That gate covers the engine's own propagation queues, the checks waiting in its task list
+     * and the batch it has scheduled. A check that is still waiting in the chunk sorter's queue
+     * before it reaches that task list is not visible to it, so a call made between the change and
+     * the engine's first sight of it could compare two copies that both still hold the old light.
+     * The sorter is shared with worldgen, and a test's call is at least a server tick after its
+     * change, so the answer is not built on that window; it is not a claim that no such window can
+     * exist (#1207).
+     *
+     * <p>Only 1.20.6 compares two copies, because it is the loader whose light is computed on a
+     * separate thread and reaches the client in a packet after the block changes the settle counts.
+     * The four older loaders cannot compare a joined client's copy yet, so their answer is the true
+     * default here: the wait is a no-op on them, it is not deterministic there, and their
+     * occurrences of the same late-light capture stay in #1207. Reading the client's copy on a
+     * loader whose client and server share one world is the follow-up. An adapter that cannot read
+     * light at all also answers true, so a loader without an implementation waits no longer than it
+     * did before.
      */
     default boolean lightApplied(double x, double y, double z) {
         return true;

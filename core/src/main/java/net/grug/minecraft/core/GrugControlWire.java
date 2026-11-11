@@ -124,11 +124,12 @@ public final class GrugControlWire {
     public static final byte CALL_SAVED_NUMBER = 12;
 
     /**
-     * The call: the block light at a position in the client's own copy of the world, which is the
-     * light its frame pass reads there (#1207). The answer is the light, 0 to 15. The three numbers
-     * are the position's x, y and z. A server-run test asks it to wait until the room's light has
-     * reached the client, rather than capturing a room meshed from the light it had before the
-     * change.
+     * The call: the block light of the section a position falls in, in the client's own copy of the
+     * world, which is the copy its mesher bakes a room from (#1207). The answer is the section's
+     * 53-bit {@link GrugLightSync#lightFingerprint} as a number, because 2048 bytes do not fit a
+     * message; the three numbers are the position's x, y and z. A server-run test asks it to wait
+     * until the room's light has reached the client, rather than capturing a room meshed from the
+     * light it had before the change.
      */
     public static final byte CALL_CLIENT_LIGHT = 13;
 
