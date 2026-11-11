@@ -154,17 +154,28 @@ public final class GrugControlStationClient {
                 && mc.isWorldRemote()
                 && GrugCore.getAdapter().isWorldReady(mc.player)
                 && chunksQuiet.tick(loadedChunksAround(mc))) {
-            started = true;
-            hooks.beginControlRun();
-            client().beginRun();
-            System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
+            // A run this client started by hand owns the window until it ends, so this start is
+            // refused and the client tries again on its next tick (#1213).
+            if (hooks.beginControlRun()) {
+                started = true;
+                client().beginRun();
+                System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
+            }
         }
-        if (started && mc.world == null) {
-            // Left the server: a run belongs to the connection that started it.
+        if (started && (mc.world == null || !client().runActive())) {
+            // The run is over: this client left the server it ran on, or the server ended the run
+            // while the client stays in its world, which is a joined client's ordinary state
+            // outside a run (#1040). Its window goes back to ordinary play either way, and the
+            // gate stays set while the client is still in that world so the same connection
+            // starts no second run. Both calls are idempotent on the ticks after.
             pending = false;
             client().endRun();
-            started = false;
             hooks.endControlRun();
+            if (mc.world == null) {
+                // A run belongs to the connection that started it, and a fresh connection starts
+                // its own.
+                started = false;
+            }
         }
         if (!pending) return;
         waited++;

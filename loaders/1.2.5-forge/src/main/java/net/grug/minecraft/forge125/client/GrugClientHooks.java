@@ -318,14 +318,24 @@ public class GrugClientHooks implements ITickHandler {
     /**
      * What a run's start does to the window, for a joined client that starts its own run on a
      * server (#1040): the screenshot size. The view is left alone, as on the other loaders.
+     *
+     * <p>Answers whether the run started. One run owns the window at a time, so a client-only run
+     * this client started by hand refuses this one (#1213): nothing is taken, and the joined client
+     * tries again on its next tick.
      */
-    public void beginControlRun() {
-        controlRun = true;
-        window.beginRun();
+    public boolean beginControlRun() {
+        controlRun = window.beginRun();
+        return controlRun;
     }
 
-    /** Puts the window back when this client has left the server whose run it started. */
+    /**
+     * Puts the window back when the run this client started on a server is over, whether it ended,
+     * failed or the client left. Nothing happens for a run the window refused, which owns nothing.
+     */
     public void endControlRun() {
+        if (!controlRun) {
+            return;
+        }
         controlRun = false;
         window.endRun();
     }
