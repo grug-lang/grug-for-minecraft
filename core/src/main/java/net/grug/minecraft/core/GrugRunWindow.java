@@ -6,13 +6,14 @@ import net.grug.minecraft.grug.GrugScreenshots;
  * The window and GL state a screenshot test run takes over, and who puts it back.
  *
  * <p>Every loader's client tick hook (the {@code GrugClientHooks} classes and 1.20.6's {@code
- * ClientForgeEvents}) owns the same three save/restore contracts: the window is held at the
- * screenshot resolution by whoever forced it, and only that one restores it; the run switched off
- * GL dithering, and only that run switches it back on; the run parked the cursor in a corner, and
- * only that run puts it back. Each of those is a small state machine that until now lived inside a
- * class a headless CI cannot drive. The loader hooks now keep only the loader-specific half of each
- * call (which LWJGL, GLFW or Forge window call does the resize, and how a key poll reads) and drive
- * this class, so the transitions are measured from core's JUnit tests.
+ * ClientForgeEvents}) owns the same save/restore contracts: the window is held at the screenshot
+ * resolution by whoever forced it, and only that one restores it; the run switched off GL
+ * dithering, and only that run switches it back on; the run turned particles off, and only that run
+ * turns them back on; the run parked the cursor in a corner, and only that run puts it back. Each
+ * of those is a small state machine that until now lived inside a class a headless CI cannot drive.
+ * The loader hooks now keep only the loader-specific half of each call (which LWJGL, GLFW or Forge
+ * window call does the resize, and how a key poll reads) and drive this class, so the transitions
+ * are measured from core's JUnit tests.
  *
  * <p>{@link Display} is the seam: a loader implements it against its own window and GL API, a test
  * implements it with a recording fake. The run always happens at the resolution the references were
@@ -91,6 +92,15 @@ public final class GrugRunWindow {
     /** Whether GL dithering was on before a run turned it off, so it can be put back. */
     private boolean ditherWasEnabled = false;
 
+    /**
+     * True only while a run has particles switched off, so that run and no other turns them back
+     * on. Alpha and Beta have no particle setting to put at minimal, so their run's "minimal" is
+     * this switch, read by the particle manager mixin of those two loaders (#1213). It belongs to
+     * the run that took the window, like the dither and the cursor, so a run the window refused
+     * takes nothing and a run that ends gives it back.
+     */
+    private boolean particlesMinimised = false;
+
     /** True only while a run has the cursor parked, so only that run restores it. */
     private boolean cursorParked = false;
 
@@ -148,6 +158,7 @@ public final class GrugRunWindow {
         display.setDither(false);
 
         runActive = true;
+        particlesMinimised = true;
         return true;
     }
 
@@ -157,6 +168,7 @@ public final class GrugRunWindow {
      */
     public void endRun() {
         runActive = false;
+        particlesMinimised = false;
 
         if (resolutionForcedByTestRun) {
             resolutionForced = false;
@@ -201,6 +213,18 @@ public final class GrugRunWindow {
      */
     public boolean resolutionForced() {
         return resolutionForced;
+    }
+
+    /**
+     * Whether the run has particles switched off. A particle comes from the world's random, so a
+     * capture with one in it is a different picture on every run, and a reference mod's particles,
+     * such as the redstone engine's (#581), would fail its screenshots at random. Alpha and Beta
+     * have no particle setting to put at minimal, so a run drops every particle at the game's
+     * particle manager instead, which is the picture the other loaders' minimal setting gives
+     * (#1213). Off between runs, so ordinary play is unaffected.
+     */
+    public boolean particlesMinimised() {
+        return particlesMinimised;
     }
 
     /**
