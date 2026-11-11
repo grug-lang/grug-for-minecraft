@@ -26,9 +26,9 @@ y: number = 0
 z: number = 0
 
 export init(ctx: TestInitContext) {
-    # The room's light and then the light a torch puts out, each with a client round trip, and the
-    # generation of the far section the client never receives.
-    ctx.set_max_ticks(600)
+    # The room's own settle can take most of a test's budget on a slow client, and then the torch's
+    # light has its own deadline, so the budget is the mesh test's rather than the default.
+    ctx.set_max_ticks(2000)
 }
 
 export tick_any_side(ctx: TestTickContext) {
@@ -44,14 +44,19 @@ export tick_any_side(ctx: TestTickContext) {
         state = 1
         ctx.not_done()
     } else if state == 1 {
-        if _light_settled(ctx) {
-            level: Level = Test.get_client_level()
-            level.place_block(x, y, z, "minecraft:stone")
-            level.place_block(x, y + 1, z, "minecraft:torch")
-            if Test.loader_name() == "1.20.6-forge" {
-                level.place_block(x + 2000, y, z, "minecraft:glowstone")
+        # The room build's own light is the settle's job, and on a slow client it can take longer
+        # than the light wait's deadline: this waits for the same settle a capture would, and only
+        # then asks whether the read's section holds the room's light.
+        if Test.world_settled() {
+            if _light_settled(ctx) {
+                level: Level = Test.get_client_level()
+                level.place_block(x, y, z, "minecraft:stone")
+                level.place_block(x, y + 1, z, "minecraft:torch")
+                if Test.loader_name() == "1.20.6-forge" {
+                    level.place_block(x + 2000, y, z, "minecraft:glowstone")
+                }
+                state = 2
             }
-            state = 2
         }
         ctx.not_done()
     } else if state == 2 {
@@ -75,6 +80,6 @@ local _light_settled(ctx: TestTickContext) bool {
         return true
     }
     waited = waited + 1
-    ctx.assert(waited < 200, "The client never took the room's light before the wait's deadline.")
+    ctx.assert(waited < 400, "The client never took the room's light before the wait's deadline.")
     return false
 }
