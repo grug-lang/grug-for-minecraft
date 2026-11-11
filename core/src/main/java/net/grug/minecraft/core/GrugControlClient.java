@@ -260,17 +260,17 @@ public final class GrugControlClient {
     }
 
     /**
-     * Sends a give of {@code count} of the item at {@code index} in the loader's item list to the
-     * server that drives this client's run (#1099), which gives it to its own copy of the test
-     * player. Only legal while {@link #runActiveHere}, which its caller checks.
+     * Sends a give of {@code count} of the item named {@code item} to the server that drives this
+     * client's run (#1099), which gives the item its own list names that way to its own copy of the
+     * test player. Only legal while {@link #runActiveHere}, which its caller checks.
      */
-    public static void giveToServer(int index, int count) {
+    public static void giveToServer(String item, int count) {
         GrugControlClient client = current;
         if (!runActiveHere()) {
             throw new IllegalStateException(
                     "a give named an item to the server with no run started on this client");
         }
-        client.link.send(GrugControlWire.giveRequest(index, count));
+        client.link.send(GrugControlWire.giveRequest(item, count));
     }
 
     /** The player started a run: the flag first, then the message that tells the server. */

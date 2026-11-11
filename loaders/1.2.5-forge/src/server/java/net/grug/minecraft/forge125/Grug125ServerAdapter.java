@@ -444,6 +444,16 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     public void forgetSettledFrames() {}
 
     /**
+     * Drops a give the joined client sent for the test that just ended, so the next test starts
+     * with the inventory its reset cleared rather than an item that give added (#1144). The queue
+     * lives in core's server, and only this loader holds that server.
+     */
+    @Override
+    public void forgetQueuedGivesForTest() {
+        GrugControlServer125.server().forgetQueuedGives();
+    }
+
+    /**
      * Closes the joined client's screen (#1094). This server has no screen of its own: 1.2.5's GUI
      * is a client-only object, so the call is the client's, and the client of the player who
      * started the run performs it.

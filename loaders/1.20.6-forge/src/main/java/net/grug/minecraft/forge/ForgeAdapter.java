@@ -715,6 +715,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public String itemName(Object itemObj) {
+        ResourceLocation key = ForgeRegistries.ITEMS.getKey((Item) itemObj);
+        return key == null ? null : key.toString();
+    }
+
+    @Override
     public int getItemMaxStack(Object itemObj) {
         return new ItemStack((Item) itemObj).getMaxStackSize();
     }

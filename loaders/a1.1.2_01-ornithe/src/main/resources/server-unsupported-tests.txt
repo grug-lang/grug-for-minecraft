@@ -65,6 +65,8 @@ coverage/tests/overlay_key-Test.grug
 coverage/tests/overlay_probe_gives_nothing-Test.grug
 coverage/tests/overlay_screen_open-Test.grug
 coverage/tests/overlay_scroll-Test.grug
+coverage/tests/give_queue_a_ends_with_a_give-Test.grug
+coverage/tests/give_queue_b_starts_clean-Test.grug
 jei/tests/hotkey-Test.grug
 jei/tests/item_list_forced_normalization-Test.grug
 jei/tests/paging-Test.grug

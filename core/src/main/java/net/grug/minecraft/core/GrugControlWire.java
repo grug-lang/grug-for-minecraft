@@ -25,7 +25,8 @@ import java.util.List;
  * #ANSWER_VALUE}, or with an {@link #ANSWER_NUMBER} when the call's answer is a measurement such as
  * a screen's width. {@link #GIVE_REQUEST} goes from the client to the server and asks it to give
  * the player an item, which is the one host function whose effect belongs to the server rather than
- * to the client that ran it (#1099).
+ * to the client that ran it (#1099). It names the item, because two processes whose item lists
+ * differ give different items under the same index.
  */
 public final class GrugControlWire {
     public static final byte RUN_START = 1;
@@ -50,11 +51,12 @@ public final class GrugControlWire {
     public static final byte ANSWER_NUMBER = 8;
 
     /**
-     * Client to server: give the player {@code count} of the item at {@code index} in the loader's
-     * item list (#1099). The client sends it while its run is active, from the give an overlay's
-     * click performs, and the server applies it to its own copy of the test player: a write to the
-     * client's copy would be overwritten by the next inventory packet, and a test reads the
-     * server's copy. It has no answer, because the test asserts on the world the server changed.
+     * Client to server: give the player {@code count} of the item named in the message (#1099). The
+     * client sends it while its run is active, from the give an overlay's click performs, and the
+     * server gives that item to its own copy of the test player: a write to the client's copy would
+     * be overwritten by the next inventory packet, and a test reads the server's copy. The server
+     * finds the item by its name, never by a list index, because the two processes can list
+     * different items. It has no answer, because the test asserts on the world the server changed.
      */
     public static final byte GIVE_REQUEST = 9;
 
@@ -161,7 +163,7 @@ public final class GrugControlWire {
      */
     public static final byte CALL_OVERLAY_DRAWN = 15;
 
-    /** The longest name a call may carry, in bytes. */
+    /** The longest name a call or a give may carry, in bytes. */
     public static final int MAX_NAME = 256;
 
     /**
@@ -218,8 +220,8 @@ public final class GrugControlWire {
         public final long id;
 
         /**
-         * The x of a capture's rectangle. A {@link #GIVE_REQUEST} puts the item's index in this
-         * field and its count in {@link #y1}.
+         * The x of a capture's rectangle. A {@link #GIVE_REQUEST} puts its item count here, and the
+         * item's name in {@link #text}.
          */
         public final int x1;
 
@@ -229,6 +231,8 @@ public final class GrugControlWire {
         public final int index;
         public final int total;
         public final byte[] data;
+
+        /** The name of a call request, or of the item a {@link #GIVE_REQUEST} names. */
         public final String text;
 
         /** The {@code CALL_} code of a call request. */
@@ -348,9 +352,20 @@ public final class GrugControlWire {
         return ByteBuffer.allocate(1 + 8 + 1).put(ANSWER_VALUE).putLong(id).put(value).array();
     }
 
-    /** The give {@code count} of the item at {@code index} in the loader's item list (#1099). */
-    public static byte[] giveRequest(int index, int count) {
-        return ByteBuffer.allocate(1 + 4 + 4).put(GIVE_REQUEST).putInt(index).putInt(count).array();
+    /**
+     * The give {@code count} of the item named {@code item} (#1099). The name is what the loader
+     * uses to identify it, such as {@code minecraft:stone}, and the server gives the item its own
+     * list names that way rather than whatever sits at an index: the two processes' lists can
+     * differ, and an index would then quietly give the wrong item.
+     */
+    public static byte[] giveRequest(String item, int count) {
+        byte[] bytes = item.getBytes(StandardCharsets.UTF_8);
+        return ByteBuffer.allocate(1 + 4 + bytes.length + 4)
+                .put(GIVE_REQUEST)
+                .putInt(bytes.length)
+                .put(bytes)
+                .putInt(count)
+                .array();
     }
 
     /** The answer to a call whose result is a measurement, such as a screen's width. */
@@ -448,12 +463,12 @@ public final class GrugControlWire {
                     message = new Message(type, 0, none, 0, 0, null, null);
                     break;
                 case GIVE_REQUEST:
-                    int giveIndex = in.getInt();
-                    int giveCount = in.getInt();
-                    if (giveIndex < 0) {
-                        throw new IllegalArgumentException(
-                                "a given item's index " + giveIndex + " is below 0");
+                    byte[] given = new byte[checkedLength(in, MAX_NAME, "give name")];
+                    if (given.length == 0) {
+                        throw new IllegalArgumentException("a give names no item");
                     }
+                    in.get(given);
+                    int giveCount = in.getInt();
                     if (giveCount < 1 || giveCount > MAX_GIVE_COUNT) {
                         throw new IllegalArgumentException(
                                 "a give of "
@@ -465,11 +480,11 @@ public final class GrugControlWire {
                             new Message(
                                     type,
                                     0,
-                                    new int[] {giveIndex, giveCount, 0, 0},
+                                    new int[] {giveCount, 0, 0, 0},
                                     0,
                                     0,
                                     null,
-                                    null);
+                                    new String(given, StandardCharsets.UTF_8));
                     break;
                 case CAPTURE_REQUEST:
                     long id = in.getLong();

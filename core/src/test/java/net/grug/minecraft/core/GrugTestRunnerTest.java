@@ -357,6 +357,52 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void theResetBeforeATestDropsTheGivesTheLastTestLeftQueued() {
+        // A give a joined client sent as a test ended is applied by the drain before the next
+        // test's first tick, so the reset between the two has to drop it (#1144). The reset is the
+        // runner's own, so this pins the seam it asks and the order it asks in: after the
+        // inventory reset, so the player's inventory is clean before the give queue is dropped.
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        List<String> reset = new ArrayList<>();
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        new FakeOps(),
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void resetPlayerInventory() {
+                                reset.add("inventory");
+                            }
+
+                            @Override
+                            public void forgetQueuedGivesForTest() {
+                                reset.add("gives");
+                            }
+
+                            @Override
+                            public void build(int radius) {
+                                reset.add("room");
+                            }
+
+                            @Override
+                            public void sweepItems() {}
+                        },
+                        1);
+
+        runner.tick(null);
+        assertEquals(List.of("inventory", "gives", "room"), reset);
+        runner.tick(null);
+        assertEquals(
+                List.of("inventory", "gives", "room", "inventory", "gives", "room"),
+                reset,
+                "every test starts with its own reset, not only the first");
+    }
+
+    @Test
     void aQueuedTickIsStaleOnlyOnceALaterTestHasStarted() {
         // The loader reads the count when it queues the task and asks this when the task runs, so a
         // count that did not move is the same test and the tick belongs to it (#717).

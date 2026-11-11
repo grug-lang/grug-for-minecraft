@@ -81,16 +81,17 @@ public final class GrugControlServer {
         void applyClientWork();
 
         /**
-         * Gives {@code count} of the item at {@code index} in the loader's item list to this
-         * server's own copy of the test player, which is the give the starter's client sent
-         * (#1099). The default hands it to the game's adapter, which every loader's link shares,
-         * and a unit test overrides it to see what was queued.
+         * Gives {@code count} of the item named {@code item} to this server's own copy of the test
+         * player, which is the give the starter's client sent (#1099). The name is how the server
+         * finds its own item, so a client's item list that differs from this server's cannot make
+         * it give a different item. The default hands it to the game's adapter, which every
+         * loader's link shares, and a unit test overrides it to see what was queued.
          */
         @GrugGenerated(
                 "only a dedicated server applies a forwarded give, and no counted coverage run"
                         + " launches one")
-        default void applyGive(int index, int count) {
-            GrugGiveCalls.giveOnServer(GrugCore.getAdapter(), index, count);
+        default void applyGive(String item, int count) {
+            GrugGiveCalls.giveOnServer(GrugCore.getAdapter(), item, count);
         }
     }
 
@@ -151,7 +152,18 @@ public final class GrugControlServer {
      * they arrived. Written on the network thread, drained by {@link #applyClientWork} on the
      * server thread, because a give changes the world and only that thread may.
      */
-    private final Queue<int[]> gives = new ConcurrentLinkedQueue<>();
+    private final Queue<Give> gives = new ConcurrentLinkedQueue<>();
+
+    /** One give a joined client asked for: the item's name and how many of it. */
+    private static final class Give {
+        final String item;
+        final int count;
+
+        Give(String item, int count) {
+            this.item = item;
+            this.count = count;
+        }
+    }
 
     public GrugControlServer(Link link, long timeoutMillis) {
         this.link = link;
@@ -182,10 +194,22 @@ public final class GrugControlServer {
         link.applyClientWork();
         // After the game's own packets, so a give sees the inventory a click of the same tick
         // already changed: the client sends both in that order, and this is the order it sees.
-        int[] give;
+        Give give;
         while ((give = gives.poll()) != null) {
-            link.applyGive(give[0], give[1]);
+            link.applyGive(give.item, give.count);
         }
+    }
+
+    /**
+     * Drops the gives the starter's client sent that this server has not applied yet (#1144).
+     *
+     * <p>The runner calls this when it resets the state a test starts from, between two tests. A
+     * give sent as one test ended is applied by the drain that follows it, which is the next test's
+     * first drain: without this drop, the give lands after the reset and the new test starts with
+     * an item it never asked for, which is the leak the promoted tests exist to catch.
+     */
+    public void forgetQueuedGives() {
+        gives.clear();
     }
 
     /** The player who started the run, or null when none has. */
@@ -231,9 +255,9 @@ public final class GrugControlServer {
         if (message.type == GrugControlWire.GIVE_REQUEST) {
             // The client's half of a give its overlay's click performed (#1099): the client has the
             // item list and this server has the player, so the client names the item and this
-            // server gives it to its own copy. Applied by the next applyClientWork, on the server
-            // thread, because it changes the world.
-            gives.add(new int[] {message.x1, message.y1});
+            // server gives its own item of that name to its own copy. Applied by the next
+            // applyClientWork, on the server thread, because it changes the world.
+            gives.add(new Give(message.text, message.x1));
             clientWorkPending = true;
             return;
         }
@@ -881,7 +905,6 @@ public final class GrugControlServer {
         }
         if (call == GrugControlWire.CALL_OVERLAY_DRAWN) {
             return "overlay drawn of \"" + name + "\"";
-        }
         }
         return "call " + call + " \"" + name + "\"";
     }

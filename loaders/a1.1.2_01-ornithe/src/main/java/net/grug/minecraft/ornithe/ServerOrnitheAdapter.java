@@ -702,6 +702,17 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     public void forgetSettledFrames() {}
 
     /**
+     * Drops a give the joined client sent for the test that just ended, so the next test starts
+     * with the inventory its reset cleared rather than an item that give added (#1144). The queue
+     * lives in core's server, and only this loader holds that server. Alpha's adapter cannot name
+     * an item, so a give from a joined client is reported by the client instead of reaching here.
+     */
+    @Override
+    public void forgetQueuedGivesForTest() {
+        GrugControlAlpha.server().forgetQueuedGives();
+    }
+
+    /**
      * The server's {@code Inventory} interface has no {@code setItem}, which the client's has, so
      * the call is made on {@code PlayerInventory} itself, which declares it on both.
      */

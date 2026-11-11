@@ -634,6 +634,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return index >= 0 && index < items.size() ? items.get(index) : null;
     }
 
+    /**
+     * The item's translation key, which is this version's name for it: Beta predates registry keys,
+     * and the item's own name is what the item list and the name lookup here already match on. Both
+     * sides of a give compute it with this method, so the names match even though the two item
+     * lists can index the same item differently.
+     */
+    @Override
+    public String itemName(Object itemObj) {
+        return ((Item) itemObj).getTranslationKey();
+    }
+
     @Override
     public int getItemMaxStack(Object itemObj) {
         return ((Item) itemObj).getMaxStackSize();
