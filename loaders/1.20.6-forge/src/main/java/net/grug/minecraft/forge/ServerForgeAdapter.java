@@ -611,10 +611,12 @@ public class ServerForgeAdapter extends ForgeAdapter {
     /**
      * Drops a give the joined client sent for the test that just ended, so the next test starts
      * with the inventory its reset cleared rather than an item that give added (#1144). The queue
-     * lives in core's server, and only this loader holds that server.
+     * lives in core's server, and only this loader holds that server. The superclass also bumps the
+     * count that drops a give the game queued for the server thread.
      */
     @Override
     public void forgetQueuedGivesForTest() {
+        super.forgetQueuedGivesForTest();
         GrugControlForge.server().forgetQueuedGives();
     }
 }

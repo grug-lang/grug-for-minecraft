@@ -730,6 +730,18 @@ public class ForgeAdapter implements ModLoaderAdapter {
         giveItemToPlayer((Player) playerObj, (Item) itemObj, count);
     }
 
+    /**
+     * Counts the runner's resets between tests, which is how a give the game queued for its server
+     * thread by the test that just ended is dropped instead of landing in the next test's inventory
+     * (#1144). See {@link #giveItemToPlayer}.
+     */
+    private volatile long giveResets;
+
+    @Override
+    public void forgetQueuedGivesForTest() {
+        giveResets++;
+    }
+
     @GrugGenerated(
             "the no-server and server-thread arms: a run clicks from the client of an"
                     + " integrated server, so the give is always queued")
@@ -750,7 +762,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
             giveOnServerThread(player, item, count);
             return;
         }
-        server.execute(() -> giveOnServerThread(player, item, count));
+        long resets = giveResets;
+        server.execute(
+                () -> {
+                    // A give the client asked for as its test ended belongs to no test's inventory:
+                    // the reset that starts the next test has run since it was queued, so applying
+                    // it now would leak an item into that test (#1144).
+                    if (resets != giveResets) return;
+                    giveOnServerThread(player, item, count);
+                });
     }
 
     @GrugGenerated(
