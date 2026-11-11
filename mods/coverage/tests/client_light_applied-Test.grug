@@ -1,16 +1,24 @@
-# Test.light_applied answers whether the client's copy of the world holds the block light the world
-# the test edits has at a position, which is the light its frame pass draws that position with
-# (#1207). The room's torches light it before the first tick, so the read is true once their light
-# has reached the client's copy; a torch the test puts beside the read raises that block's light,
-# and the read is true again only once the change has reached the client too. The read is the one a
-# capture wait needs: two frames of a room drawn from the light it had before a change agree with
-# each other, so a frame count cannot tell that room from a settled one.
-# Both reads are of an air block, whose light both copies store the same way. An opaque block's
-# stored light is not: a copy can keep the value the position had before the block went in.
-# The four older loaders answer true: their light is worked out on the server tick, and their
-# occurrences of the same late-light capture are tracked by #1207 rather than closed by this test.
-# It runs on the server's tick only, so a dedicated server asks its joined client, which is the copy
-# the frames are drawn from.
+# Test.light_applied answers whether the client's copy of the world holds the block light of the
+# section a position falls in that the world the test edits has, which is the light its frame pass
+# draws that section with (#1207). The room's torches light it before the first tick, so the read
+# is true once their light has reached the client's copy; a torch the test puts beside the read
+# raises that section's light, and the read is true again only once the change has reached the
+# client too. The read is the one a capture wait needs: two frames of a room drawn from the light
+# it had before a change agree with each other, so a frame count cannot tell that room from a
+# settled one.
+# The world and the client are compared as the section's 2048 light bytes, the copy the client
+# publishes when it has taken the light, rather than one position's light: on a client-only run a
+# test reads the client's copy from the server thread, and a position read goes through a store the
+# client thread does not publish, so it can report the light from before a change for as long as
+# the test waits.
+# It also asks for a lit section two thousand blocks away, which the client's two-chunk view never
+# receives. The world has a glowstone's light there and the client's copy has none, so the answer
+# is false: a client stand-in that always answers true cannot pass this test.
+# The four older loaders cannot compare a joined client's copy yet, so their answer is the true
+# default: the wait is a no-op there, it is not deterministic on them, and their occurrences of the
+# same late-light capture stay in #1207.
+# It defines tick_any_side, so a dedicated server runs it too: the wait is forwarded to the joined
+# client, which is the copy the frames are drawn from.
 state: number = 0
 waited: number = 0
 x: number = 0
@@ -18,11 +26,12 @@ y: number = 0
 z: number = 0
 
 export init(ctx: TestInitContext) {
-    # The room's light and then the light a torch puts out, each with a client round trip.
+    # The room's light and then the light a torch puts out, each with a client round trip, and the
+    # generation of the far section the client never receives.
     ctx.set_max_ticks(600)
 }
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if state == 0 {
         # The read is inside the room the runner builds, so its light is the room's and not the
         # sky's. The radius is set once, before anything waits, so the waits are not about a room
@@ -35,26 +44,37 @@ export tick(ctx: TestTickContext) {
         state = 1
         ctx.not_done()
     } else if state == 1 {
-        if not Test.light_applied(x + 1, y + 1, z) {
-            waited = waited + 1
-            ctx.assert(waited < 200, "The room's own light should reach the client.")
-            ctx.not_done()
-        } else {
+        if _light_settled(ctx) {
             level: Level = Test.get_client_level()
             level.place_block(x, y, z, "minecraft:stone")
             level.place_block(x, y + 1, z, "minecraft:torch")
+            if Test.loader_name() == "1.20.6-forge" {
+                level.place_block(x + 2000, y, z, "minecraft:glowstone")
+            }
             state = 2
-            ctx.not_done()
         }
+        ctx.not_done()
     } else if state == 2 {
-        if not Test.light_applied(x + 1, y + 1, z) {
-            waited = waited + 1
-            ctx.assert(waited < 200, "A torch beside the position should reach the client's light.")
-            ctx.not_done()
-        } else {
+        if _light_settled(ctx) {
             state = 3
         }
+        ctx.not_done()
     } else {
         ctx.assert(Test.light_applied(x + 1, y + 1, z), "The light the client holds should stay the world's own.")
+        if Test.loader_name() == "1.20.6-forge" {
+            ctx.assert(not Test.light_applied(x + 2000, y, z), "A section the client was never sent cannot hold the world's light.")
+        }
     }
+}
+
+# Whether the client's copy holds the world's light at the read, with its own deadline so a client
+# that never takes the light fails with this message rather than with the tick budget.
+local _light_settled(ctx: TestTickContext) bool {
+    if Test.light_applied(x + 1, y + 1, z) {
+        waited = 0
+        return true
+    }
+    waited = waited + 1
+    ctx.assert(waited < 200, "The client never took the room's light before the wait's deadline.")
+    return false
 }

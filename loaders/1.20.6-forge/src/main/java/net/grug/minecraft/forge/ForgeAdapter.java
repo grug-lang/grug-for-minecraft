@@ -1344,44 +1344,74 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * This client's own copy of a block's light, which is the light its frame pass draws (#1207).
+     * This client's own copy of the light of the section the position falls in, which is the copy
+     * its frame pass bakes the room from (#1207).
      */
+    @GrugGenerated(
+            "client light: a client process with no level has no section to read, which a CI"
+                    + " client run never is")
     @Override
-    public int clientBlockLight(double x, double y, double z) {
-        return blockLightAt(clientLevel(), x, y, z);
+    public long clientLightFingerprint(double x, double y, double z) {
+        return sectionLightFingerprint(clientLevel(), x, y, z);
     }
 
     /**
-     * Whether this client's copy holds the light the simulated world has at the block (#1207). A
-     * dedicated server overrides this to ask its joined client, because there is no client here and
-     * the inherited answer would read a null level.
+     * Whether this client's copy holds the light the simulated world has in the section the
+     * position falls in (#1207). A dedicated server overrides this to ask its joined client,
+     * because there is no client here and the inherited answer would read a null level.
+     *
+     * <p>The section's bytes, not the position's light. A test reads the client's copy from the
+     * server thread on the leg where both run in one process, and the position read goes through
+     * the light engine's working store, which the client thread does not publish: its update is
+     * preceded by no memory barrier, and its two-entry section cache can hand the server thread the
+     * layer from before the change for as long as the test waits. The client thread does publish
+     * the finished section through {@code visibleSectionData}, which is volatile, and that is what
+     * {@link #blockLightLayer} reads and what the settle already compares. So the section bytes are
+     * the copy the server thread can see arrive, and the copy the client draws from once it has.
      */
+    @GrugGenerated(
+            "client light: the simulated world is always there on a CI client run, so the arm"
+                    + " with no level has no test")
     @Override
     public boolean lightApplied(double x, double y, double z) {
-        int simulated = blockLightAt(getLevel(), x, y, z);
+        long simulated = sectionLightFingerprint(getLevel(), x, y, z);
         return simulated >= 0
                 && lightEngineSettled(getLevel())
-                && simulated == clientBlockLight(x, y, z);
+                && simulated == clientLightFingerprint(x, y, z);
     }
 
-    /** One block's block light, or -1 when there is no level to read it from (#1207). */
-    static int blockLightAt(Object levelObj, double x, double y, double z) {
+    /**
+     * The light of the section a position falls in, as {@link GrugLightSync#lightFingerprint}, or
+     * -1 when there is no level to read it from (#1207).
+     */
+    @GrugGenerated("client light: a level that does not exist has no section to read")
+    static long sectionLightFingerprint(Object levelObj, double x, double y, double z) {
         if (levelObj == null) {
             return -1;
         }
-        net.minecraft.core.BlockPos pos =
-                new net.minecraft.core.BlockPos(
-                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
-        return ((Level) levelObj).getBrightness(LightLayer.BLOCK, pos);
+        return GrugLightSync.lightFingerprint(
+                blockLightLayer(
+                        levelObj,
+                        ((int) Math.floor(x)) >> 4,
+                        ((int) Math.floor(y)) >> 4,
+                        ((int) Math.floor(z)) >> 4));
     }
 
     /**
-     * Whether the light engine of a level this server simulates has no light work left, so the
-     * light it holds at every block is the light the last change asked for (#1207). Without this,
-     * two copies that both still hold the light from before a change compare equal and a wait ends
-     * before the change has even been worked out. A client level has no engine of its own here and
-     * answers true.
+     * Whether the light engine of a level this server simulates has no light work left in its own
+     * queues, so the light it holds at every block is the light the last change asked for (#1207).
+     * Without this, the two copies are compared before the change has been worked out. A client
+     * level has no engine of its own here and answers true.
+     *
+     * <p>This reads the engine's propagation queues, the checks in its task list and whether it has
+     * a batch scheduled. A check still waiting in the chunk sorter's queue before it reaches that
+     * task list is not visible here, which is why this is not a claim that two copies can never
+     * agree while both are stale, only that they are not compared while the engine itself has work
+     * (#1207).
      */
+    @GrugGenerated(
+            "client light: a client level never reaches this (the simulated side is the integrated"
+                    + " server), and every 1.20.6 engine is the threaded one this reads")
     static boolean lightEngineSettled(Object levelObj) {
         if (!(levelObj instanceof ServerLevel serverLevel)) {
             return true;
@@ -1405,9 +1435,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * client thread, so a read taken from the server thread can see a section's layer before or
      * after an update. A read that lands before it reports the older light, which makes the settle
      * answer wait another tick; what is compared is the bytes the client holds, so the light it has
-     * not been sent compares unequal rather than passing early. {@code DataLayer.getData} allocates
-     * the array of a layer that holds its default value instead of one, which for block light is no
-     * light at all.
+     * not been sent compares unequal rather than passing early. This is also the read that is safe
+     * across the two threads: the client publishes its finished sections through a volatile field,
+     * which this goes through, while a position's {@code getBrightness} reads the working store
+     * with no such publication (#1207). {@code DataLayer.getData} allocates the array of a layer
+     * that holds its default value instead of one, which for block light is no light at all.
      */
     @GrugGenerated(
             "settle: a level that does not exist and a section outside the light engine's height"

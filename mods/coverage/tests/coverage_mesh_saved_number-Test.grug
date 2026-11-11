@@ -41,7 +41,10 @@
 # The room's light reaches a 1.20.6 client in a packet after the block changes the frame waits
 # count, so each wait also requires the client's copy to hold the light the world the test edits
 # has (#1207). Two frames of a room meshed from the light it had before a change agree with each
-# other, so a frame count alone cannot tell that room from a settled one.
+# other, so a frame count alone cannot tell that room from a settled one. The wait has its own
+# deadline, so a client that never takes the light fails with that message. The four older loaders
+# answer true, since they cannot compare a joined client's copy yet: their occurrences of the same
+# late-light capture stay in #1207.
 mesh_block: Option[BlockEntity] = Option.new()
 empty: Option[Screenshot] = Option.new()
 empty_prev: Option[Screenshot] = Option.new()
@@ -58,6 +61,10 @@ cleared_tick: number = 0
 
 # How many captures have already shown the frame from before the change being waited for.
 attempts: number = 0
+
+# How many ticks the current wait for the client's light has been going, so a client that never
+# takes it fails with its own message rather than with the test's tick budget.
+light_waits: number = 0
 
 # The runner tick the last capture was taken on. Up to 10 ticks run for one frame, so a capture on
 # the very next tick can be of the frame before it and show no change that has not been drawn yet.
@@ -76,12 +83,12 @@ export tick_any_side(ctx: TestTickContext) {
     } else if not Test.world_settled() {
         ctx.not_done()
     } else if not empty.has() {
-        if _light_applied() {
+        if _light_settled(ctx) {
             _settle_empty(ctx)
         }
         ctx.not_done()
     } else if not before.has() {
-        if _light_applied() {
+        if _light_settled(ctx) {
             _capture_before(ctx)
         }
         ctx.not_done()
@@ -124,6 +131,18 @@ export tick_any_side(ctx: TestTickContext) {
 # room's light height: in front of the wall on both sides of its thirteen-block span, whose halves
 # are in two chunk sections in x, and in front of the pedestal, which is the face the crop mostly
 # shows. A section the client has not been told about is one of these reads.
+# Whether the client's copy holds the room's light, with its own deadline so the wait names the
+# light rather than only running the test's tick budget out.
+local _light_settled(ctx: TestTickContext) bool {
+    if _light_applied() {
+        light_waits = 0
+        return true
+    }
+    light_waits = light_waits + 1
+    ctx.assert(light_waits < 200, "The client never took the room's light before its capture.")
+    return false
+}
+
 local _light_applied() bool {
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
