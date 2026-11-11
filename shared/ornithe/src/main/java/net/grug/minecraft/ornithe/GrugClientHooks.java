@@ -277,7 +277,9 @@ public class GrugClientHooks {
      *
      * <p>Answers whether the run started. One run owns the window and the switch at a time, so a
      * client-only run this client started by hand refuses this one (#1213): nothing is taken, and
-     * the caller waits for that run to end rather than sharing what it owns.
+     * the joined client tries again on its next tick. A server request that arrives while that
+     * local run still owns the window is answered {@code refused: no run was started by this player
+     * on this client}, which fails the server's test rather than making it wait.
      */
     public boolean beginControlRun() {
         controlRunStarted = window.beginRun();
