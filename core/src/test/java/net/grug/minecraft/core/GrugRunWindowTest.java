@@ -219,6 +219,31 @@ class GrugRunWindowTest {
         assertEquals(4, display.calls.size());
     }
 
+    /**
+     * The particle switch a run turns off goes to the run that won the window, and back when that
+     * run ends. A run the window refused must not take it, or its end would leave the switch on
+     * while the run that owns the window is still going (#1213).
+     */
+    @Test
+    void theParticleSwitchBelongsToTheRunThatWonTheWindow() {
+        FakeDisplay display = new FakeDisplay();
+        FakeKeys keys = new FakeKeys();
+        GrugRunWindow window = new GrugRunWindow(display);
+
+        assertFalse(window.particlesMinimised(), "off before any run");
+
+        keys.pressRun();
+        assertTrue(window.tick(keys));
+        assertTrue(window.particlesMinimised(), "a run captures with every particle off");
+
+        // A joined client's control run asks for the window while this run holds it.
+        assertFalse(window.beginRun());
+        assertTrue(window.particlesMinimised(), "the refused run takes nothing");
+
+        window.endRun();
+        assertFalse(window.particlesMinimised(), "the run that took it gives it back");
+    }
+
     @Test
     void aPressEventIsNotLostAcrossASkippedTick() {
         FakeDisplay display = new FakeDisplay();

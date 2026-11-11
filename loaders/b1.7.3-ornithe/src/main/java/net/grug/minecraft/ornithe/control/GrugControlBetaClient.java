@@ -49,7 +49,14 @@ public final class GrugControlBetaClient {
     static final int MAX_TICKS = 300;
 
     private static GrugControlClient client;
+
+    /**
+     * Whether this client has started its one run on the connection it is on. It stays set after
+     * that run ends while the client is still in the same world, so the connection starts no second
+     * run, and it is cleared when the client leaves so a fresh connection starts its own.
+     */
     private static boolean started = false;
+
     private static Vec3 eye;
 
     private static int x1;
@@ -185,17 +192,29 @@ public final class GrugControlBetaClient {
                 && mc.isMultiplayer()
                 && GrugCore.getAdapter().isWorldReady(mc.player)
                 && chunksQuiet.tick(loadedChunksAround(mc))) {
-            started = true;
-            hooks.beginControlRun();
-            client().beginRun();
-            System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
+            // A run this client started by hand owns the window and its particle switch until it
+            // ends, so the joined run waits for it rather than sharing them (#1213).
+            if (hooks.beginControlRun()) {
+                started = true;
+                client().beginRun();
+                System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
+            }
         }
-        if (started && mc.world == null) {
-            // Left the server: a run belongs to the connection that started it.
+        if (started && (mc.world == null || !client().runActive())) {
+            // The run is over: this client left the server it ran on, or the server ended the run
+            // while the client stays in its world, which is a joined client's ordinary state
+            // outside a run (#1040). Its window and particle switch go back to ordinary play
+            // either way, and the gate stays set while the client is still in that world so the
+            // same connection starts no second run. Both calls are idempotent on the ticks
+            // after.
             pending = false;
             client().endRun();
-            started = false;
             hooks.endControlRun();
+            if (mc.world == null) {
+                // A run belongs to the connection that started it, and a fresh connection starts
+                // its own.
+                started = false;
+            }
         }
         if (!pending) return;
         waited++;
