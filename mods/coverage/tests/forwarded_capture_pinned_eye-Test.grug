@@ -1,12 +1,13 @@
-# The frame a joined b1.7.3 client's capture reads is drawn from the eye the capture names, even
-# when the client's own player is not standing on the room's floor (#1178, #1193).
-# The capture client pins its player at that eye while a capture is pending (#1178). The pin writes
-# the position and zeroes the velocity, and b1.7.3's MobEntity.moveRelative moves the player by the
-# velocity the previous tick ended with and only then applies gravity, so the client's own physics
-# cannot move it off the eye in the tick a head-of-tick pin ran in: that tick ends with `y` still at
-# the eye. GameRenderer.transformCamera interpolates from `lastY` to `y` by the frame's partial
-# tick, and `setPositionAndAngles` writes both, so every frame a pinned capture window draws is
-# drawn from the eye at every partial tick.
+# The frame a joined client's capture reads is drawn from the eye the capture names, even when the
+# client's own player is not standing on the room's floor (#1178, #1193, #1161).
+# The b1.7.3-ornithe and a1.1.2_01-ornithe capture clients pin their player at that eye while a
+# capture is pending (#1178, #1161). The pin writes the position and zeroes the velocity, and those
+# versions' MobEntity.moveRelative moves the player by the velocity the previous tick ended with and
+# only then applies gravity, so the client's own physics cannot move it off the eye in the tick a
+# head-of-tick pin ran in: that tick ends with `y` still at the eye.
+# GameRenderer.transformCamera interpolates from `lastY` to `y` by the frame's partial tick, and the
+# position call writes both (`setPositionAndAngles` on b1.7.3, `updatePositionAndAngles` on Alpha),
+# so every frame a pinned capture window draws is drawn from the eye at every partial tick.
 # That also answers #1193, which expected a pin at the head of the client tick to draw the frame one
 # fall step low: the pin's place in the tick does not change the frame, because the velocity it
 # zeroes is the only thing that could move the player within the tick, so a pin at the head draws the
@@ -21,15 +22,18 @@
 # and requires the joined client's own camera to drop more than a block below the room's eye: that
 # is the client's physics carrying it off the floor, so a removal that missed the block, or a run
 # with no client to pin, fails here rather than passing a comparison of frames drawn from the eye
-# anyway. It then captures the same wall twice more, a capture window apart, and requires each frame
+# anyway. Alpha's server holds its copy at the run's start height (#1134), so there the premise is
+# the capture window itself: a frozen server cannot run that hold, so a client that lost the block
+# falls below the eye inside the window, and the frame comparison fails without the pin. It then
+# captures the same wall twice more, a capture window apart, and requires each frame
 # off the floor to agree with the standing one and with the other one, so the pin has to hold the
 # eye for two windows and not only the one. The wall fills the window at that distance, so an off
 # eye frame moves its texels by far more than the 1 percent the comparison allows for the removed
 # block's lighting.
-# Only b1.7.3-ornithe pins a joined client (#1178). The other loaders' capture clients hold nothing,
-# so a player off the floor there is drawn from wherever they fell to and this comparison is not
-# about them. run-multiplayer.sh asks for this test on the b1.7.3-ornithe leg only, and the runner
-# runs a forwarded_ test on a dedicated server alone.
+# Only b1.7.3-ornithe and a1.1.2_01-ornithe pin a joined client (#1178, #1161). The other loaders'
+# capture clients hold nothing, so a player off the floor there is drawn from wherever they fell to
+# and this comparison is not about them. run-multiplayer.sh asks for this test on those two legs,
+# and the runner runs a forwarded_ test on a dedicated server alone.
 
 room: Option[Screenshot] = Option.new()
 
@@ -42,7 +46,7 @@ falling: Option[Screenshot] = Option.new()
 step: number = 0
 
 export tick(ctx: TestTickContext) {
-    if Test.loader_name() != "b1.7.3-ornithe" {
+    if Test.loader_name() != "b1.7.3-ornithe" and Test.loader_name() != "a1.1.2_01-ornithe" {
         return
     }
     if step == 0 {
@@ -61,14 +65,21 @@ export tick(ctx: TestTickContext) {
         # The removed block reaches the client only through a settle ask's flush, which a frozen
         # test's tick never reaches itself (#1123).
         Test.world_settled()
-        camera: Vec3 = Test.camera()
-        # A whole block, not the capture-eye tolerance: a pinned client sits at the eye, and a
-        # client that has lost the block it stood on falls three blocks to the room's torch floor,
-        # so only its own physics over the missing block takes its camera this far down.
-        if camera.y() > eye - 1.0 {
-            ctx.assert(ctx.current_tick() < 120, "The joined client's own camera should drop below the room's eye once the block it stands on is removed, so the captures that follow are of a client that left the floor.")
-            ctx.not_done()
-            return
+        # Alpha's server holds its copy at the height the run started at (#1134), so a camera ask
+        # between ticks sees the fall only up to that hold's tolerance and never a whole block.
+        # The capture window that follows freezes the server, so the hold cannot run while the
+        # client falls there, and the frames are what prove the pin on this loader. b1.7.3-ornithe
+        # has no such hold and proves its premise first.
+        if Test.loader_name() != "a1.1.2_01-ornithe" {
+            camera: Vec3 = Test.camera()
+            # A whole block, not the capture-eye tolerance: a pinned client sits at the eye, and a
+            # client that has lost the block it stood on falls three blocks to the room's torch
+            # floor, so only its own physics over the missing block takes its camera this far down.
+            if camera.y() > eye - 1.0 {
+                ctx.assert(ctx.current_tick() < 120, "The joined client's own camera should drop below the room's eye once the block it stands on is removed, so the captures that follow are of a client that left the floor.")
+                ctx.not_done()
+                return
+            }
         }
         falling.set(Test.screenshot().capture(200, 120, 1080, 320))
         step = 2
