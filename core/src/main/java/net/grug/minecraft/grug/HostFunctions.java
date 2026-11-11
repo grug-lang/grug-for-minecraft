@@ -575,6 +575,21 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: whether this run is a dedicated server process rather than a client, which is the
+     * side a test asks when the answer depends on whether there is a second copy of the world.
+     *
+     * <p>A dedicated run has a joined client whose world is a copy the server does not share, so a
+     * wait that compares the client's copy with the server's is real there. A client-only run of a
+     * loader whose client and server share one world has no second copy, so the same wait is true
+     * by construction and an assertion about a difference between the copies has nothing to check.
+     * {@code client_light_applied} uses this to assert its far section only where the joined
+     * client's copy is the one that lacks it. See #1240.
+     */
+    public static boolean Test_on_dedicated_server() {
+        return GrugCore.getAdapter().getSide().isDedicatedServer();
+    }
+
+    /**
      * Test only: whether the loader forced the normalizing GL capabilities for the running test,
      * which the runner does before the first tick of a test whose file name ends with {@link
      * GrugForcedNormalization#MARKER}, on the loaders whose item draw inherits the state.
@@ -872,9 +887,10 @@ public class HostFunctions {
      * agree with each other, so a capture-only settle cannot tell that room from a settled one. A
      * test that captures a room whose light its own change touched waits for this before it
      * captures; it is false while the world's own light engine still has work, so two copies that
-     * both still hold the old light do not compare equal. The four older loaders answer true: their
-     * light is worked out on the server tick, and their occurrences of the same late-light capture
-     * are tracked by #1207.
+     * both still hold the old light do not compare equal. A dedicated server asks the joined client
+     * for its copy, and a client-only run of the four older loaders has one shared world, so its
+     * answer is true there. 1.2.5's incremental light is history-dependent, so its server cannot
+     * verify the room's client copy and answers true for those sections (#1240).
      */
     public static boolean Test_light_applied(double x, double y, double z) {
         return GrugCore.getAdapter().lightApplied(x, y, z);

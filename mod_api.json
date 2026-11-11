@@ -1448,7 +1448,7 @@
 					}
 				},
 				"light_applied": {
-					"description": "Test only: whether the client's copy of the world holds the same block light in the section this position falls in as the world the test edits, which is the light the client's frame pass draws that section with. A light change reaches a 1.20.6 client in a packet after the block changes a capture settle counts, so two frames of a room drawn from the light it had before the change can agree with each other, and a capture taken then lands a light step away from the room's real light. A test that captures a room whose light a change of its own touched waits for this before it captures, which is deterministic where a frame count is not. The answer is false while the world's own light engine still has work in its own queues, so the copies are not compared before the change has been worked out; a check still waiting in the chunk sorter's queue is not visible to that gate. The section's bytes are compared, not one position's light, because a client-only run reads the client's copy from the server thread and only the section is published for another thread to read. Only 1.20.6 compares two copies. The four older loaders cannot compare a joined client's copy yet, so they answer true: the wait is a no-op there, it is not deterministic on them, and their occurrences of the same late-light capture stay in #1207. See #1207.",
+					"description": "Test only: whether the client's copy of the world holds the same block light in the section this position falls in as the world the test edits, which is the light the client's frame pass draws that section with. A light change reaches a 1.20.6 client in a packet after the block changes a capture settle counts, so two frames of a room drawn from the light it had before the change can agree with each other, and a capture taken then lands a light step away from the room's real light. A test that captures a room whose light a change of its own touched waits for this before it captures, which is deterministic where a frame count is not. The answer is false while the world's own light engine still has work in its own queues, so the copies are not compared before the change has been worked out; a check still waiting in the chunk sorter's queue is not visible to that gate. The section is compared as a 53-bit fingerprint of its light, not one position's light, because a client-only run reads the client's copy from the server thread and only the section is published for another thread to read. A dedicated server asks the joined client for its own copy, and a client-only run of the four older loaders shares one world, so its answer is true there. 1.2.5's incremental light is history-dependent, so its server cannot verify the room's client copy and answers true for those sections. See #1207 and #1240.",
 					"parameters": [
 						{
 							"name": "x",
@@ -1556,6 +1556,12 @@
 							}
 						}
 					]
+				},
+				"on_dedicated_server": {
+					"description": "Test only: whether this run is a dedicated server process rather than a client. A dedicated run has a joined client whose world is a copy the server does not share, so a wait that compares the client's copy with the server's is real there; a client-only run of a loader whose client and server share one world has no second copy, so the same wait is true by construction. `client_light_applied` asks this to assert the far section only where the joined client's copy is the one that lacks it. See #1240.",
+					"return_type": {
+						"name": "bool"
+					}
 				},
 				"open_inventory": {
 					"description": "Opens the player's own inventory screen, the way the inventory key does, so a test can drive an overlay that only appears there. The screen appears on the next frame, so a test waits for `screen_open` before it clicks. Test only: no mod needs to open the vanilla inventory.",

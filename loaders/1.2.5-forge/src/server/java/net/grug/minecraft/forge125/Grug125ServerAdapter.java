@@ -1,8 +1,10 @@
 package net.grug.minecraft.forge125;
 
+import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
+import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
@@ -22,6 +24,7 @@ import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerMP;
+import net.minecraft.src.EnumSkyBlock;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
@@ -83,6 +86,16 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private final GrugClientSavedNumbers.Forwarded savedNumbers =
             new GrugClientSavedNumbers.Forwarded(
+                    GrugControlServer125::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    /**
+     * The light comparisons this server makes, which its joined client answers from its own copy of
+     * the section: a dedicated server holds the simulated copy, not the one the client's frame pass
+     * bakes the room from (#1240).
+     */
+    private final GrugClientLight.Forwarded clientLight =
+            new GrugClientLight.Forwarded(
                     GrugControlServer125::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
@@ -582,6 +595,42 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public double savedNumberOnClient(double x, double y, double z, String name) {
         return savedNumbers.savedNumber(x, y, z, name);
+    }
+
+    /**
+     * Whether the joined client's copy holds the light this server's world has in the section the
+     * position falls in (#1240), or true where this server cannot verify it.
+     *
+     * <p>A position in a section the last room relight swept answers true, which is the
+     * cannot-verify answer: this version's incremental engine leaves the client's copy of those
+     * sections at a field that depends on the changes it saw, while this server's {@link
+     * #relightRoom} ends at the one stable field the blocks define, so the two copies are not
+     * expected to agree there. The test's wait therefore stays a no-op for the room on this loader,
+     * and #1207 records that deviation. A position in a section outside the box, such as one two
+     * thousand blocks away that the joined client was never sent, is compared normally.
+     *
+     * <p>A server with no starter has no client frame to protect and answers true, as {@link
+     * #isWorldSettled} does. No light-engine gate is needed: this version computes its light on the
+     * server tick, so the tick that placed the test's blocks has already worked it out.
+     */
+    @Override
+    public boolean lightApplied(double x, double y, double z) {
+        Object level = getLevel();
+        if (level == null
+                || !GrugControlServer125.server().hasStarter()
+                || relitSections.covers(x, y, z)) {
+            return true;
+        }
+        World world = (World) level;
+        long simulated =
+                GrugLightSync.lightFingerprint(
+                        ((int) Math.floor(x)) >> 4,
+                        ((int) Math.floor(y)) >> 4,
+                        ((int) Math.floor(z)) >> 4,
+                        (lightX, lightY, lightZ) ->
+                                world.getSavedLightValue(
+                                        EnumSkyBlock.Block, lightX, lightY, lightZ));
+        return clientLight.lightApplied(x, y, z, simulated);
     }
 
     /** This server forwards a test's client-only calls to the player who started the run. */

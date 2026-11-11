@@ -1,8 +1,10 @@
 package net.grug.minecraft.stationapi;
 
+import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
+import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugScreenCalls;
@@ -25,6 +27,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.Box;
+import net.minecraft.world.LightType;
 import net.minecraft.world.World;
 
 import java.awt.image.BufferedImage;
@@ -88,6 +91,16 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     private final GrugClientSavedNumbers.Forwarded savedNumbers =
             new GrugClientSavedNumbers.Forwarded(
+                    GrugControlStation::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    /**
+     * The light comparisons this server makes, which its joined client answers from its own copy of
+     * the section: a dedicated server holds the simulated copy, not the one the client's frame pass
+     * bakes the room from (#1240).
+     */
+    private final GrugClientLight.Forwarded clientLight =
+            new GrugClientLight.Forwarded(
                     GrugControlStation::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
@@ -270,6 +283,34 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     @Override
     public double savedNumberOnClient(double x, double y, double z, String name) {
         return savedNumbers.savedNumber(x, y, z, name);
+    }
+
+    /**
+     * Whether the joined client's copy holds the light this server's world has in the section the
+     * position falls in (#1240). The client's light is the copy its frame pass draws, and this
+     * server cannot read it, so the answer is the client's own fingerprint compared with this
+     * server's. A server with no starter has no client frame to protect and answers true, as {@link
+     * #isWorldSettled} does.
+     *
+     * <p>No light-engine gate is needed here: this version computes its light on the server tick,
+     * so the tick that placed the test's blocks has already worked it out, and the client's own
+     * frame settles its copy.
+     */
+    @Override
+    public boolean lightApplied(double x, double y, double z) {
+        Object level = getLevel();
+        if (level == null || !GrugControlStation.server().hasStarter()) {
+            return true;
+        }
+        World world = (World) level;
+        long simulated =
+                GrugLightSync.lightFingerprint(
+                        ((int) Math.floor(x)) >> 4,
+                        ((int) Math.floor(y)) >> 4,
+                        ((int) Math.floor(z)) >> 4,
+                        (lightX, lightY, lightZ) ->
+                                world.getBrightness(LightType.BLOCK, lightX, lightY, lightZ));
+        return clientLight.lightApplied(x, y, z, simulated);
     }
 
     /** This server forwards a test's client-only calls to the player who started the run. */

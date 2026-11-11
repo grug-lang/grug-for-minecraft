@@ -1,0 +1,9 @@
+# Test.on_dedicated_server says which process the run is in. The coverage suite runs on a client
+# and, in the dispatch-only multiplayer job, on a dedicated server. This file defines tick only,
+# so it is a client-only test and the answer here is false; the dedicated leg is where
+# client_light_applied reads the true answer to decide whether its far section is a second copy.
+# A client is never the dedicated server, and a test that took the two for each other would wait
+# for a second copy on a leg where the client and server share one world (#1240).
+export tick(ctx: TestTickContext) {
+    ctx.assert(not Test.on_dedicated_server(), "A client-only run is not a dedicated server.")
+}
