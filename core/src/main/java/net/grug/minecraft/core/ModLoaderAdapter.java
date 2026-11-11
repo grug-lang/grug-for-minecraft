@@ -477,6 +477,10 @@ public interface ModLoaderAdapter {
      * The block light of the section a position falls in, in the client's own copy of the world, as
      * {@link GrugLightSync#lightFingerprint}, or -1 when this adapter cannot read it (#1207).
      *
+     * <p>A loader whose light query answers a level per block uses {@link
+     * GrugLightSync#lightFingerprint(int, int, int, GrugLightSync.BlockLight)} instead of handing
+     * over a stored layer, so no adapter has to reimplement the game's nibble layout.
+     *
      * <p>A fingerprint of the whole section rather than one position's light. On the leg where the
      * client and the server run in one process, the test asks a client's copy it can only read from
      * the server thread: the client publishes a finished section through a volatile field, which
@@ -514,14 +518,15 @@ public interface ModLoaderAdapter {
      * change, so the answer is not built on that window; it is not a claim that no such window can
      * exist (#1207).
      *
-     * <p>Only 1.20.6 compares two copies, because it is the loader whose light is computed on a
-     * separate thread and reaches the client in a packet after the block changes the settle counts.
-     * The four older loaders cannot compare a joined client's copy yet, so their answer is the true
-     * default here: the wait is a no-op on them, it is not deterministic there, and their
-     * occurrences of the same late-light capture stay in #1207. Reading the client's copy on a
-     * loader whose client and server share one world is the follow-up. An adapter that cannot read
-     * light at all also answers true, so a loader without an implementation waits no longer than it
-     * did before.
+     * <p>A client-only run compares the world it simulates with its own copy of it: on 1.20.6 the
+     * two are separate objects, and on the four older loaders they are one world, so that answer is
+     * true once the tick has finished. A dedicated server overrides this and forwards the read to
+     * the joined client, whose copy is a second one there. An adapter whose client answers -1 (it
+     * cannot verify a section) treats that answer as true rather than as a mismatch, and an adapter
+     * that cannot read light at all also answers true, so a loader without an implementation waits
+     * no longer than it did before. 1.2.5's incremental engine is history-dependent, so its room
+     * sections cannot be reproduced on the client and its server adapter answers cannot-verify for
+     * those (#1240).
      */
     default boolean lightApplied(double x, double y, double z) {
         return true;

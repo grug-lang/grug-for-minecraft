@@ -4,8 +4,10 @@ import cpw.mods.fml.common.FMLCommonHandler;
 
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugItemStacks;
+import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugRegistryNames;
 import net.grug.minecraft.core.GrugRelight;
+import net.grug.minecraft.core.GrugRelitSections;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
@@ -871,6 +873,7 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     public void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         World world = (World) levelObj;
+        relitSections.record(minX, minY, minZ, maxX, maxY, maxZ);
         GrugRelight.sweepUntilStable(
                 () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), RELIGHT_SWEEP_LIMIT);
     }
@@ -1300,6 +1303,62 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public Object getBlockEntityLevel(Object blockEntityObj) {
         return ((TileEntity) blockEntityObj).worldObj;
+    }
+
+    /**
+     * The sections the last room relight swept, in blocks, for the read that asks whether this
+     * server can verify a section against its joined client (#1240).
+     *
+     * <p>1.2.5's incremental light engine leaves the client's copy of those sections at a field
+     * that depends on the changes it saw, while the server's {@link #relightRoom} sweeps its own
+     * copy until it reaches the one stable field the blocks define, so the two copies are not
+     * expected to agree there. {@link GrugRelitSections} holds the box and the section comparison,
+     * because a unit test can cover every arm of it and a client-only run cannot.
+     */
+    final GrugRelitSections relitSections = new GrugRelitSections();
+
+    /**
+     * This client's own copy of the light of the section the position falls in, read one block at a
+     * time (#1240). The dedicated server asks its joined client for this, because its own world is
+     * the copy it simulates rather than the one the client's frame pass bakes the room from.
+     *
+     * <p>Excluded from coverage because only the dispatch-only multiplayer job reads a joined
+     * client's section: a client-only run of this loader shares one world, so its light answer is
+     * the true default and never asks this.
+     */
+    @GrugGenerated(
+            "client light: only the dispatch-only multiplayer job reads a joined client's section")
+    @Override
+    public long clientLightFingerprint(double x, double y, double z) {
+        Object level = clientLevel();
+        if (level == null) {
+            return -1;
+        }
+        return GrugLightSync.lightFingerprint(
+                ((int) Math.floor(x)) >> 4,
+                ((int) Math.floor(y)) >> 4,
+                ((int) Math.floor(z)) >> 4,
+                new ClientBlockLight((World) level));
+    }
+
+    /**
+     * The section reader {@link #clientLightFingerprint} passes to the fold, as a class rather than
+     * a lambda so the exclusion above covers its body too: JaCoCo drops an annotated method and an
+     * annotated class, not the synthetic method a lambda inside one compiles to.
+     */
+    @GrugGenerated(
+            "client light: only the dispatch-only multiplayer job reads a joined client's section")
+    private static final class ClientBlockLight implements GrugLightSync.BlockLight {
+        private final World world;
+
+        ClientBlockLight(World world) {
+            this.world = world;
+        }
+
+        @Override
+        public int levelAt(int x, int y, int z) {
+            return world.getSavedLightValue(EnumSkyBlock.Block, x, y, z);
+        }
     }
 
     @Override

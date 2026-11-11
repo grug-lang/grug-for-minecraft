@@ -10,20 +10,22 @@
 # world's light engine can take on work between two ticks, such as the propagation of the torch's
 # light into a neighbouring section, so a second read can be false while the room's section still
 # matches and would only race the engine.
-# The world and the client are compared as the section's 2048 light bytes, the copy the client
-# publishes when it has taken the light, rather than one position's light: on a client-only run a
-# test reads the client's copy from the server thread, and a position read goes through a store the
-# client thread does not publish, so it can report the light from before a change for as long as
-# the test waits.
+# The world and the client are compared as a fingerprint of the whole section, not one position's
+# light: on a client-only run a test reads the client's copy from the server thread, and a position
+# read goes through a store the client thread does not publish, so it can report the light from
+# before a change for as long as the test waits. 1.20.6 uses the section's published bytes and the
+# four older loaders read their light query's level for each of the section's 4096 blocks.
 # It also asks for a lit section two thousand blocks away, which the client's two-chunk view never
 # receives. The world has a glowstone's light there and the client's copy has none, so the answer
 # is false: a client stand-in that always answers true cannot pass this test. The glowstone goes in
 # with the torch, before the room's last light wait, so that wait also waits for the far section's
 # light work, and the far ask is made in the same tick the wait found the engine settled: the false
 # is then the two sections' difference and not the engine still having work.
-# The four older loaders cannot compare a joined client's copy yet, so their answer is the true
-# default: the wait is a no-op there, it is not deterministic on them, and their occurrences of the
-# same late-light capture stay in #1207.
+# That far section is asserted only where the client's copy is a second one: on a dedicated leg, and
+# on a client-only 1.20.6 run. A client-only run of the four older loaders shares one world, so its
+# far ask is true by construction, and Test.on_dedicated_server is what tells the two apart. Those
+# loaders' dedicated legs compare their joined client's section with the server's now, and 1.2.5's
+# room is the one cannot-verify case its adapter records (#1240).
 # It defines tick_any_side, so a dedicated server runs it too: the wait is forwarded to the joined
 # client, which is the copy the frames are drawn from.
 state: number = 0
@@ -32,10 +34,17 @@ x: number = 0
 y: number = 0
 z: number = 0
 
+# Whether the client's copy of the world is a second one, which is where the far section can lack
+# the world's light: every dedicated leg, and a client-only 1.20.6 run, whose client receives its
+# world from its own integrated server. A client-only run of the four older loaders shares one
+# world, so the far section holds the same light there and there is nothing to assert.
+second_copy: bool = false
+
 export init(ctx: TestInitContext) {
     # The room's own settle can take most of a test's budget on a slow client, and then the torch's
     # light has its own deadline, so the budget is the mesh test's rather than the default.
     ctx.set_max_ticks(2000)
+    second_copy = Test.on_dedicated_server() or Test.loader_name() == "1.20.6-forge"
 }
 
 export tick_any_side(ctx: TestTickContext) {
@@ -59,7 +68,10 @@ export tick_any_side(ctx: TestTickContext) {
                 level: Level = Test.get_client_level()
                 level.place_block(x, y, z, "minecraft:stone")
                 level.place_block(x, y + 1, z, "minecraft:torch")
-                if Test.loader_name() == "1.20.6-forge" {
+                # Only where a second copy exists: the world's light for this section is what the
+                # read compares, and a client-only run of an older loader would have to generate
+                # it for nothing.
+                if second_copy {
                     level.place_block(x + 2000, y, z, "minecraft:glowstone")
                 }
                 state = 2
@@ -73,7 +85,7 @@ export tick_any_side(ctx: TestTickContext) {
             # takes on in the meantime. The far section is asked here, in the tick the wait found
             # the engine settled, so a constant-true answer fails this and a constant-false one
             # already failed the wait's deadline.
-            if Test.loader_name() == "1.20.6-forge" {
+            if second_copy {
                 ctx.assert(not Test.light_applied(x + 2000, y, z), "A section the client was never sent cannot hold the world's light.")
             }
         } else {

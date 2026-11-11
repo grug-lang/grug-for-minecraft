@@ -4,6 +4,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugForcedNormalization;
+import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
@@ -50,6 +51,7 @@ import net.minecraft.recipe.CraftingRecipeManager;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.LightType;
 import net.minecraft.world.World;
 import net.modificationstation.stationapi.api.gui.screen.container.GuiHelper;
 import net.modificationstation.stationapi.api.network.packet.MessagePacket;
@@ -400,6 +402,50 @@ public class StationApiAdapter implements ModLoaderAdapter {
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         return mc.world;
+    }
+
+    /**
+     * This client's own copy of the light of the section the position falls in, read one block at a
+     * time (#1240). The dedicated server asks its joined client for this, because its own world is
+     * the copy it simulates rather than the one the client's frame pass bakes the room from.
+     *
+     * <p>Excluded from coverage because only the dispatch-only multiplayer job reads a joined
+     * client's section: a client-only run of this loader shares one world, so its light answer is
+     * the true default and never asks this.
+     */
+    @GrugGenerated(
+            "client light: only the dispatch-only multiplayer job reads a joined client's section")
+    @Override
+    public long clientLightFingerprint(double x, double y, double z) {
+        Object level = clientLevel();
+        if (level == null) {
+            return -1;
+        }
+        return GrugLightSync.lightFingerprint(
+                ((int) Math.floor(x)) >> 4,
+                ((int) Math.floor(y)) >> 4,
+                ((int) Math.floor(z)) >> 4,
+                new ClientBlockLight((World) level));
+    }
+
+    /**
+     * The section reader {@link #clientLightFingerprint} passes to the fold, as a class rather than
+     * a lambda so the exclusion above covers its body too: JaCoCo drops an annotated method and an
+     * annotated class, not the synthetic method a lambda inside one compiles to.
+     */
+    @GrugGenerated(
+            "client light: only the dispatch-only multiplayer job reads a joined client's section")
+    private static final class ClientBlockLight implements GrugLightSync.BlockLight {
+        private final World world;
+
+        ClientBlockLight(World world) {
+            this.world = world;
+        }
+
+        @Override
+        public int levelAt(int x, int y, int z) {
+            return world.getBrightness(LightType.BLOCK, x, y, z);
+        }
     }
 
     @Override

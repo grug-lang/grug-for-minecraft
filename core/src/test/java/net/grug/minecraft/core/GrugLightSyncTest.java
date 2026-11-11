@@ -115,6 +115,45 @@ class GrugLightSyncTest {
     }
 
     @Test
+    void aLevelFingerprintIsTheSameForTheSameLightAndZeroForNoLight() {
+        // One section read level by level, as the four older loaders answer it: a section whose
+        // levels are all the same, one that is dark, and one with two lit cells.
+        GrugLightSync.BlockLight lit = (x, y, z) -> 13;
+        GrugLightSync.BlockLight dim = (x, y, z) -> 4;
+        GrugLightSync.BlockLight dark = (x, y, z) -> 0;
+        GrugLightSync.BlockLight other =
+                (x, y, z) ->
+                        x == 3 && y == 4 && z == 5 ? 12 : (x == 15 && y == 0 && z == 1 ? 3 : 0);
+
+        // No light at all is 0, as the byte fingerprint says of a missing and of a zero layer.
+        assertEquals(0, GrugLightSync.lightFingerprint(0, 0, 0, dark));
+        // The same light gives the same fingerprint, whatever the section is.
+        assertEquals(
+                GrugLightSync.lightFingerprint(0, 0, 0, lit),
+                GrugLightSync.lightFingerprint(7, -3, 11, lit));
+        assertEquals(
+                GrugLightSync.lightFingerprint(0, 0, 0, other),
+                GrugLightSync.lightFingerprint(0, 0, 0, other));
+        // A different light gives a different one.
+        assertFalse(
+                GrugLightSync.lightFingerprint(0, 0, 0, lit)
+                        == GrugLightSync.lightFingerprint(0, 0, 0, dim));
+        assertFalse(
+                GrugLightSync.lightFingerprint(0, 0, 0, other)
+                        == GrugLightSync.lightFingerprint(0, 0, 0, lit));
+        assertFalse(GrugLightSync.lightFingerprint(0, 0, 0, other) == 0);
+        // The same section read one block over is a different section, so its origin is used.
+        assertFalse(
+                GrugLightSync.lightFingerprint(0, 0, 0, other)
+                        == GrugLightSync.lightFingerprint(0, 0, 1, other));
+        // It fits a double exactly, which is how a control message carries it.
+        assertTrue(GrugLightSync.lightFingerprint(0, 0, 0, other) >>> 53 == 0);
+        assertEquals(
+                GrugLightSync.lightFingerprint(0, 0, 0, other),
+                (long) (double) GrugLightSync.lightFingerprint(0, 0, 0, other));
+    }
+
+    @Test
     void aBoxOwesEverySectionItCoversIncludingTheOnesBeforeZero() {
         GrugLightSync sync = new GrugLightSync();
         // A box from -3 to 3 in x and z and from 62 to 79 in y: one section each way in x and z

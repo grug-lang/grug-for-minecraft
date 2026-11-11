@@ -208,6 +208,45 @@ public final class GrugLightSync {
         return hash & 0x1FFFFFFFFFFFFFL;
     }
 
+    /** One block's block-light level, read from a loader's own light query. */
+    @FunctionalInterface
+    public interface BlockLight {
+        int levelAt(int x, int y, int z);
+    }
+
+    /**
+     * A fingerprint of one section's block light read one level at a time, for a loader whose light
+     * query answers an integer level rather than a stored layer (#1240).
+     *
+     * <p>The byte fingerprint above assumes a loader hands over the section's own nibble layout.
+     * Every older loader answers light at a block position instead, so this fold takes the level
+     * the loader returns and hashes it, which keeps each adapter from reimplementing a nibble
+     * layout it does not own. The result has the same properties as {@link
+     * #lightFingerprint(byte[])}: it is 53 bits, it is the same for two sections that hold the same
+     * light, and a section with no light at all is 0.
+     */
+    public static long lightFingerprint(
+            int sectionX, int sectionY, int sectionZ, BlockLight light) {
+        long hash = 0xcbf29ce484222325L;
+        int originX = sectionX << 4;
+        int originY = sectionY << 4;
+        int originZ = sectionZ << 4;
+        boolean lit = false;
+        for (int y = 0; y < 16; y++) {
+            for (int z = 0; z < 16; z++) {
+                for (int x = 0; x < 16; x++) {
+                    int level = light.levelAt(originX + x, originY + y, originZ + z) & 0xF;
+                    if (level != 0) {
+                        lit = true;
+                    }
+                    hash ^= level;
+                    hash *= 0x100000001b3L;
+                }
+            }
+        }
+        return lit ? hash & 0x1FFFFFFFFFFFFFL : 0;
+    }
+
     /** Whether a layer is missing or holds no light at all. */
     private static boolean allZero(byte[] layer) {
         if (layer == null) {

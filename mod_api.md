@@ -101,6 +101,7 @@ Test.loader_name() string
 Test.mining_crack(level: Level, x: number, y: number, z: number) bool
 Test.normalization_forced() bool
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
+Test.on_dedicated_server() bool
 Test.open_inventory(player: Player)
 Test.overlay_drawn() bool
 Test.overlay_supported() bool

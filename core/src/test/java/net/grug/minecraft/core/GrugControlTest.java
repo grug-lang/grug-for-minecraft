@@ -1646,6 +1646,39 @@ class GrugControlTest {
     }
 
     @Test
+    void aForwardedLightCompareTreatsAMatchingSectionAsAppliedAndCannotVerifyAsTrue() {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+        GrugClientLight.Forwarded light =
+                new GrugClientLight.Forwarded(
+                        () -> loop.server,
+                        message -> {
+                            throw new AssertionError(message);
+                        });
+
+        // The client holds the section the server asked about, so the copies agree.
+        assertTrue(light.lightApplied(10, 68, 20, 12));
+        // A different section is not applied yet.
+        assertFalse(light.lightApplied(10, 68, 20, 13));
+
+        // -1 is the client saying it cannot verify its copy, which a loader whose client cannot
+        // reproduce the server's light answers; the wait must not block on it forever.
+        screens.light = -1;
+        assertTrue(light.lightApplied(10, 68, 20, 12));
+
+        // An ask that cannot be answered is reported as the host function's error and treated as
+        // applied, as the other forwarded reads do.
+        List<String> failed = new ArrayList<>();
+        Loopback none = wireCalls(1000, screens);
+        GrugClientLight.Forwarded withoutStarter =
+                new GrugClientLight.Forwarded(() -> none.server, failed::add);
+        assertTrue(withoutStarter.lightApplied(10, 68, 20, 12));
+        assertEquals(1, failed.size());
+        assertTrue(failed.get(0).contains("Test.light_applied"), failed.get(0));
+    }
+
+    @Test
     void aCaptureWithoutAnEyeToDrawFromIsAnError() {
         Loopback loop = wire(1000, -1, solid(0));
         loop.client.beginRun();
