@@ -618,6 +618,15 @@ while :; do
       echo "==> The run passed, but coverage/tests/camera-Test.grug did not run on the dedicated server." >&2
       exit 1
     fi
+    # The runner snaps the server's copy of the joined player to the centre of its block (#1161),
+    # and test_origin_follows_the_test_player asserts the origin the room was built from is that
+    # centre. A loader whose server adapter lost its snapPlayerForTestOnServer override answers
+    # from the joined position and fails it, so requiring its PASS also catches a leg that skipped
+    # the test instead.
+    if ! grep -qF '[GRUG CI] PASS coverage/tests/test_origin_follows_the_test_player-Test.grug' "$SERVER_LOG"; then
+      echo "==> The run passed, but coverage/tests/test_origin_follows_the_test_player-Test.grug did not run on the dedicated server." >&2
+      exit 1
+    fi
     # The b1.7.3-ornithe and a1.1.2_01-ornithe capture clients pin their own player at the eye a
     # capture names (#1178, #1161), and forwarded_capture_pinned_eye proves the frame a capture
     # reads is drawn from that pin while the client is off the room's floor, and that it keeps
