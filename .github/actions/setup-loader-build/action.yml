@@ -365,3 +365,93 @@ runs:
       with:
         path: loaders/1.2.5-forge/mcp125
         key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('loaders/1.2.5-forge/build.gradle') }}
+
+    # Ploceus resolves OSL's module base versions, each module's version for the game, and the
+    # game's library upgrades from the Ornithe meta at configure time, and keeps the answers in
+    # ~/.gradle/caches/fabric-loom, which the toolchain entry above holds once a run has filled it.
+    # A fresh key holds none of them, so the build asks the meta, and every configure that needs an
+    # answer fails while the meta refuses connections (#1241). The fixture under a loader's
+    # ci/osl-cache/ records what the pinned OSL version and game resolve to. Regenerate it after
+    # bumping osl_version or minecraft_version by letting a build with the meta reachable fill an
+    # empty ~/.gradle/caches/fabric-loom (or run with --refresh-dependencies), then copying
+    # osl-base-versions.json, <minecraft_version>/osl-versions.json and
+    # <minecraft_version>/library-upgrades.json into that directory, restricted to the entries the
+    # loader asks for. Only an answer the restored cache lacks is filled in, so a complete restored
+    # entry stays byte-for-byte untouched. A loader with no ci/osl-cache/ directory gets nothing.
+    - name: Seed the Ploceus meta answers
+      shell: bash
+      env:
+        LOADER: ${{ inputs.loader }}
+      run: |
+        set -euo pipefail
+
+        fixture="loaders/${LOADER}/ci/osl-cache"
+        if [ ! -d "${fixture}" ]; then
+          echo "No Ploceus meta fixture for ${LOADER}; nothing to seed."
+          exit 0
+        fi
+
+        for name in osl-base-versions.json osl-versions.json library-upgrades.json; do
+          if [ ! -f "${fixture}/${name}" ]; then
+            echo "::error::${fixture}/${name} is missing, so this loader cannot be seeded."
+            exit 1
+          fi
+        done
+
+        minecraft_version="$(
+          sed -n 's/^[[:space:]]*minecraft_version[[:space:]]*=[[:space:]]*//p' \
+            "loaders/${LOADER}/gradle.properties" | tail -n 1 | tr -d '\r' |
+            sed 's/[[:space:]]*$//'
+        )"
+        if [ -z "${minecraft_version}" ]; then
+          echo "::error::loaders/${LOADER}/gradle.properties declares no minecraft_version."
+          exit 1
+        fi
+
+        python3 - "${fixture}" "${HOME}/.gradle/caches/fabric-loom" "${minecraft_version}" <<'PY'
+        import json
+        import pathlib
+        import sys
+
+        fixture = pathlib.Path(sys.argv[1])
+        loom = pathlib.Path(sys.argv[2])
+        minecraft = sys.argv[3]
+
+
+        def filled(value):
+            """Whether value is an answer rather than a gap Ploceus reads as a cache miss."""
+            return value not in (None, {}, [])
+
+
+        def merge(restored, wanted):
+            """Keep every answer the restored cache holds and fill only what it lacks."""
+            if isinstance(restored, dict) and isinstance(wanted, dict):
+                out = dict(restored)
+                for key, value in wanted.items():
+                    if key not in out or not filled(out[key]):
+                        out[key] = value
+                    else:
+                        out[key] = merge(out[key], value)
+                return out
+            return restored if filled(restored) else wanted
+
+
+        def seed(name, destination):
+            wanted = json.loads((fixture / name).read_text())
+            try:
+                restored = json.loads(destination.read_text())
+            except (OSError, json.JSONDecodeError):
+                restored = {}
+            merged = merge(restored, wanted)
+            if merged != restored:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(json.dumps(merged, indent=2) + "\n")
+                print(f"Seeded {name} for {minecraft}.")
+            else:
+                print(f"Kept the restored {name} for {minecraft}.")
+
+
+        seed("osl-base-versions.json", loom / "osl-base-versions.json")
+        seed("osl-versions.json", loom / minecraft / "osl-versions.json")
+        seed("library-upgrades.json", loom / minecraft / "library-upgrades.json")
+        PY

@@ -1,0 +1,74 @@
+{
+  "gen2": {
+    "core": {
+      "0.9.0": {
+        "merged": "0.9.0+mca1.0.1_01-mc14w26c"
+      }
+    },
+    "blocks": {
+      "0.1.1": {
+        "merged": "0.1.1+mca1.0.1_01-mc1.6.4"
+      }
+    },
+    "branding": {
+      "0.4.3": {
+        "merged": "0.4.3+mca1.2.2-mc14w29b"
+      }
+    },
+    "config": {
+      "0.6.2": {
+        "merged": "0.6.2+mcb1.3-mcb1.7.3"
+      }
+    },
+    "entrypoints": {
+      "0.6.1": {
+        "merged": "0.6.1+mca1.0.1_01-mc1.5.2"
+      }
+    },
+    "executors": {
+      "0.1.0": {
+        "merged": "0.1.0+mcin-20100128-2304-mcb1.9-pre2"
+      }
+    },
+    "items": {
+      "0.1.0": {
+        "merged": "0.1.0+mca1.0.1_01-mc1.6.4"
+      }
+    },
+    "keybinds": {
+      "0.3.0": {
+        "merged": "0.3.0+mca1.0.1_01-mcb1.7.3"
+      }
+    },
+    "lifecycle-events": {
+      "0.6.1": {
+        "merged": "0.6.1+mcb1.3-mc12w17a"
+      }
+    },
+    "localization": {
+      "0.1.0": {
+        "merged": "0.1.0+mcb1.0-mc11w48a"
+      }
+    },
+    "networking": {
+      "0.9.0": {
+        "merged": "0.9.0+mcb1.0-mc13w39b"
+      }
+    },
+    "networking-impl": {
+      "0.1.1": {
+        "merged": "0.1.1+mcb1.5-mc11w48a"
+      }
+    },
+    "resource-loader": {
+      "0.7.4": {
+        "merged": "0.7.4+mca1.2.2-mc1.2.5"
+      }
+    },
+    "text-components": {
+      "0.1.0-alpha.3": {
+        "merged": "0.1.0-alpha.3+mca0.1.0-mc1.14.4"
+      }
+    }
+  }
+}
