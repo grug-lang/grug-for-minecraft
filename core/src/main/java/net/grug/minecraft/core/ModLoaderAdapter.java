@@ -172,6 +172,22 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * The name a give carries to identify this item, or null when this loader cannot name it.
+     *
+     * <p>A client joined to a server that drives a run names the item to the server this way, and
+     * the server compares the name with its own names to find its own item (#1099). The name is
+     * whatever this loader identifies an item by: the registry key where the version has one, and
+     * the item's own name where it does not. Both processes compute it with this same method from
+     * the same game and mods, so a matching name is the same item even when the two item lists
+     * index it differently. A loader that cannot name an item answers null, and its give from a
+     * joined client is reported rather than given as some other item.
+     */
+    @GrugGenerated("no item names: a loader that cannot enumerate items names none")
+    default String itemName(Object itemObj) {
+        return null;
+    }
+
+    /**
      * The largest stack the item can come in, which the overlay's give and a test that checks a
      * full stack need. A loader with no item list answers 0.
      */
@@ -831,6 +847,18 @@ public interface ModLoaderAdapter {
      * loader's half of {@link #resetPlayerInventoryForTest}, which needs a game's own player.
      */
     void clearInventoryOf(Object playerObj);
+
+    /**
+     * Test only: drops the gives the starter's client sent that this server has not applied yet,
+     * when the runner resets the state a test starts from (#1144).
+     *
+     * <p>A give is applied by the drain that follows the call that named it, which can be the next
+     * test's first drain: the packet a client sent as a test ended can arrive after that test's
+     * last drain. Dropped here, it cannot reach the next test's player, which starts with the
+     * inventory the reset just cleared. Only a dedicated server whose {@link #itemName} and give
+     * forwarding are live keeps such a queue, so every other side keeps this no-op.
+     */
+    default void forgetQueuedGivesForTest() {}
 
     /**
      * Puts the player back where {@link #snapPlayerForTest} found them, so a test's change to the

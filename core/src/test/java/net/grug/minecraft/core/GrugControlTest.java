@@ -59,12 +59,12 @@ class GrugControlTest {
             drained++;
         }
 
-        /** The gives the server applied, as {@code index x count}, in the order it applied them. */
+        /** The gives the server applied, as {@code item x count}, in the order it applied them. */
         final List<String> given = new ArrayList<>();
 
         @Override
-        public void applyGive(int index, int count) {
-            given.add(index + "x" + count);
+        public void applyGive(String item, int count) {
+            given.add(item + "x" + count);
         }
 
         @Override
@@ -1404,26 +1404,27 @@ class GrugControlTest {
         // one of these.
         assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_OVERLAY_DRAWN + 1)));
 
-        // A give names its item by the loader's list index and the count the client computed, and
-        // a count no host function can ask for is refused rather than applied.
-        GrugControlWire.Message give = GrugControlWire.decode(GrugControlWire.giveRequest(12, 64));
+        // A give names its item and the count the client computed, and a count no host function
+        // can ask for, or a message that names no item, is refused rather than applied.
+        GrugControlWire.Message give =
+                GrugControlWire.decode(GrugControlWire.giveRequest("minecraft:stone", 64));
         assertEquals(GrugControlWire.GIVE_REQUEST, give.type);
-        assertEquals(12, give.x1);
-        assertEquals(64, give.y1);
+        assertEquals("minecraft:stone", give.text);
+        assertEquals(64, give.x1);
         assertFalse(GrugControlWire.isAnswer(GrugControlWire.GIVE_REQUEST));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_OVERLAY_DRAWN));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> GrugControlWire.decode(GrugControlWire.giveRequest(-1, 1)));
+                () -> GrugControlWire.decode(GrugControlWire.giveRequest("", 1)));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> GrugControlWire.decode(GrugControlWire.giveRequest(1, 0)));
+                () -> GrugControlWire.decode(GrugControlWire.giveRequest("minecraft:stone", 0)));
         assertThrows(
                 IllegalArgumentException.class,
                 () ->
                         GrugControlWire.decode(
                                 GrugControlWire.giveRequest(
-                                        1, GrugControlWire.MAX_GIVE_COUNT + 1)));
+                                        "minecraft:stone", GrugControlWire.MAX_GIVE_COUNT + 1)));
 
         // Only the calls that can make the client send a packet ask the server to drain.
         assertTrue(GrugControlWire.sendsPacket(GrugControlWire.CALL_CLICK_SCREEN));
@@ -1461,7 +1462,9 @@ class GrugControlTest {
                                 GrugControlWire.captureRequest(
                                         1, 0, 0, 1, 1, 0, Double.POSITIVE_INFINITY, 0)));
 
-        byte[] unknown = GrugControlWire.callRequest(1, (byte) 14, "x", 0, 0, 0);
+        byte[] unknown =
+                GrugControlWire.callRequest(
+                        1, (byte) (GrugControlWire.CALL_OVERLAY_DRAWN + 1), "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1676,24 +1679,37 @@ class GrugControlTest {
         loop.server.applyClientWork();
         assertEquals(0, loop.drained);
 
-        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest(12, 1));
+        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest("minecraft:stone", 1));
         assertTrue(loop.given.isEmpty());
         loop.server.applyClientWork();
         assertEquals(1, loop.drained);
-        assertEquals(List.of("12x1"), loop.given);
+        assertEquals(List.of("minecraft:stonex1"), loop.given);
 
         // A run that ended drops what its client asked for and does not apply it later.
-        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest(3, 64));
+        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest("minecraft:dirt", 64));
         loop.server.endRun();
         loop.server.applyClientWork();
-        assertEquals(List.of("12x1"), loop.given);
+        assertEquals(List.of("minecraft:stonex1"), loop.given);
 
         // A give from a player who is not the starter is ignored, the way every other message is.
         Loopback other = wireCalls(1000, new ScreenCalls());
         other.server.onMessage(PLAYER, GrugControlWire.runStart());
-        other.server.onMessage("bob", GrugControlWire.giveRequest(1, 1));
+        other.server.onMessage("bob", GrugControlWire.giveRequest("minecraft:stone", 1));
         other.server.applyClientWork();
         assertTrue(other.given.isEmpty());
+    }
+
+    @Test
+    void aGiveQueuedAsATestEndedIsDroppedWhenTheRunnerResetsBetweenTests() {
+        // The drain that follows a give can be the next test's first one, which runs after the
+        // runner reset the state that test starts from. The reset drops the queue, so the item the
+        // last test left in flight cannot become the next test's starting inventory (#1144).
+        Loopback loop = wireCalls(1000, new ScreenCalls());
+        loop.server.onMessage(PLAYER, GrugControlWire.runStart());
+        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest("minecraft:stone", 64));
+        loop.server.forgetQueuedGives();
+        loop.server.applyClientWork();
+        assertTrue(loop.given.isEmpty());
     }
 
     @Test
@@ -1704,8 +1720,8 @@ class GrugControlTest {
         Loopback loop =
                 new Loopback() {
                     @Override
-                    public void applyGive(int index, int count) {
-                        GrugGiveCalls.giveOnServer(adapter, index, count);
+                    public void applyGive(String item, int count) {
+                        GrugGiveCalls.giveOnServer(adapter, item, count);
                     }
                 };
         loop.server = new GrugControlServer(loop, 1000);
@@ -1722,7 +1738,7 @@ class GrugControlTest {
 
         // The overlay's click names a give, and the drain applies it to the server's player. That
         // changed inventory is what the client has yet to draw, so the remembered answer is stale.
-        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest(0, 1));
+        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest("grug:test", 1));
         loop.server.applyClientWork();
         assertEquals(1, given.size());
         settled.settled = false;
@@ -1730,7 +1746,7 @@ class GrugControlTest {
         assertEquals(asked + 1, loop.toClient.size(), "the stale answer is not reused");
     }
 
-    /** An adapter a give reaches: one item by index and the test player to give it to. */
+    /** An adapter a give reaches: one named item by index and the test player to give it to. */
     private static ModLoaderAdapter giveAdapter(Object item, List<String> given) {
         return (ModLoaderAdapter)
                 java.lang.reflect.Proxy.newProxyInstance(
@@ -1740,8 +1756,12 @@ class GrugControlTest {
                             switch (method.getName()) {
                                 case "testPlayer":
                                     return PLAYER;
+                                case "itemCount":
+                                    return 1;
                                 case "itemByIndex":
                                     return (Integer) args[0] == 0 ? item : null;
+                                case "itemName":
+                                    return "grug:test";
                                 case "giveItemCountToPlayer":
                                     given.add("give");
                                     return null;
@@ -1757,19 +1777,20 @@ class GrugControlTest {
         ScreenCalls screens = new ScreenCalls();
         Loopback loop = wireCalls(1000, screens);
         assertFalse(GrugControlClient.runActiveHere());
-        assertThrows(IllegalStateException.class, () -> GrugControlClient.giveToServer(4, 1));
+        assertThrows(
+                IllegalStateException.class, () -> GrugControlClient.giveToServer("grug:test", 1));
         assertTrue(loop.toServer.isEmpty());
 
         loop.client.beginRun();
         assertTrue(GrugControlClient.runActiveHere());
-        GrugControlClient.giveToServer(4, 1);
+        GrugControlClient.giveToServer("grug:test", 1);
         assertEquals(
                 GrugControlWire.GIVE_REQUEST,
                 GrugControlWire.decode(loop.toServer.get(loop.toServer.size() - 1)).type);
         GrugControlWire.Message give =
                 GrugControlWire.decode(loop.toServer.get(loop.toServer.size() - 1));
-        assertEquals(4, give.x1);
-        assertEquals(1, give.y1);
+        assertEquals("grug:test", give.text);
+        assertEquals(1, give.x1);
 
         loop.client.endRun();
         assertFalse(GrugControlClient.runActiveHere());
@@ -2052,7 +2073,7 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) 14,
+                        (byte) (GrugControlWire.CALL_OVERLAY_DRAWN + 1),
                         0,
                         0,
                         0,
@@ -2066,7 +2087,9 @@ class GrugControlTest {
         GrugControlWire.Message answer = GrugControlWire.decode(loop.toServer.get(0));
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
-        assertTrue(answer.text.contains("unknown call 14"), answer.text);
+        assertTrue(
+                answer.text.contains("unknown call " + (GrugControlWire.CALL_OVERLAY_DRAWN + 1)),
+                answer.text);
     }
 
     @Test

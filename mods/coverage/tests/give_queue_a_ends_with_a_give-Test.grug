@@ -1,0 +1,52 @@
+# The first half of a pair that covers what the runner does between two tests with a give in flight
+# (#1144). It ends in the same tick as the press that gives an item, so the give the joined client
+# sends is queued on the server with no later drain of this test's to apply it. The next test,
+# give_queue_b_starts_clean, runs straight after this one by its name and asserts the inventory and
+# the hand that the runner reset for it are still clean.
+
+# The press is the one overlay-Test makes: a left click in the middle of the screen, where the
+# coverage overlay draws its one item and gives one of it. The inventory screen is the one this test
+# opens, and it stays open, because a close after the give would be another forwarded call whose
+# freeze lets the server read the give, which is the drain the pair exists to move past. The next
+# test closes it, as the test that meets a screen closes it.
+started: bool = false
+waited: number = 0
+
+export tick_any_side(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.overlay_supported() {
+            # This loader draws no overlays; the deviation is in about.json.
+            return
+        }
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    # An earlier test may have left something on the cursor, which the overlay would delete instead
+    # of giving.
+    Test.clear_carried_item()
+    ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the give.")
+    # Read the middle of the panel from the panel itself rather than assuming a window position, as
+    # the other overlay tests do: the screen this opens differs by loader and by game mode, and the
+    # inventory panel is centred, so its middle is the place the overlay's own box is drawn at.
+    box_x: number = Test.gui_left() + Math.floor(Test.gui_width() / 2)
+    box_y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
+    ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take a left click on its item.")
+}

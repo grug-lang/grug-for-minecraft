@@ -9,12 +9,13 @@ import net.grug.minecraft.grug.Grug;
  * <p>A give runs where the script's call runs. In singleplayer, and on a dedicated server's own
  * test, that process holds the player and the adapter gives there. A client joined to a server that
  * drives a run is the case that differs: the overlay's {@code click()} is the caller, and the
- * player the test asserts on is the server's copy, so the client names the item to the server by
- * its index in the loader's item list and the server gives it. A write to the client's copy would
- * be overwritten by the next inventory packet and the test would never see it (#882).
+ * player the test asserts on is the server's copy, so the client names the item to the server and
+ * the server gives it. A write to the client's copy would be overwritten by the next inventory
+ * packet and the test would never see it (#882).
  *
- * <p>The index is the loader's own {@code item_at} order, which both processes enumerate from the
- * same game and mods, so the index names the same item on either side.
+ * <p>The item is named by {@link ModLoaderAdapter#itemName}, which both processes compute from the
+ * same game and mods, so the give names an item rather than a place in a list: two lists can index
+ * the same item differently, and an index would then give the wrong item with no error.
  */
 public final class GrugGiveCalls {
     @net.grug.minecraft.grug.GrugGenerated("utility class: never instantiated")
@@ -25,52 +26,38 @@ public final class GrugGiveCalls {
      * runs on. A client that has started a run names the item to the server instead, so the give
      * lands in the copy of the player the test reads.
      *
-     * <p>{@code method} is the host function's name, which the report of an item the list cannot
+     * <p>{@code method} is the host function's name, which the report of an item the client cannot
      * name has to carry: it is what tells a mod which of its calls did not give.
      */
     public static void give(
             ModLoaderAdapter adapter, Object player, Object item, int count, String method) {
         if (GrugControlClient.runActiveHere()) {
-            int index = indexOf(adapter, item);
-            if (index < 0) {
-                // A joined client can only name an item its list holds, and a give it cannot name
-                // is reported rather than written to a copy the server would overwrite.
+            String name = adapter.itemName(item);
+            if (name == null || name.isEmpty()) {
+                // A joined client can only name an item its own loader can name, and a give it
+                // cannot name is reported rather than written to a copy the server would overwrite.
                 Grug.hostFunctionErrorHappened(
                         Grug.statePtr,
                         method
-                                + ": The item is not in this loader's item list, so a client joined"
-                                + " to a server cannot name it to the server that holds the"
-                                + " player.");
+                                + ": This loader cannot name the item, so a client joined to a"
+                                + " server cannot ask the server that holds the player to give"
+                                + " it.");
                 return;
             }
-            GrugControlClient.giveToServer(index, count);
+            GrugControlClient.giveToServer(name, count);
             return;
         }
         adapter.giveItemCountToPlayer(player, item, count);
     }
 
     /**
-     * The index {@link ModLoaderAdapter#itemByIndex} answers with for {@code itemObj}, or -1 when
-     * the list does not hold it.
-     *
-     * <p>A client joined to a server names an item to the server this way (#1099): the item object
-     * lives in one process, so the client sends the index the server resolves in its own list. Both
-     * processes enumerate the same game and mods, so the index names the same item there. The scan
-     * compares objects and not values, because an item is the game's singleton and two items that
-     * compare equal are still one entry of the list.
-     */
-    static int indexOf(ModLoaderAdapter adapter, Object itemObj) {
-        int count = adapter.itemCount();
-        for (int index = 0; index < count; index++) {
-            if (adapter.itemByIndex(index) == itemObj) return index;
-        }
-        return -1;
-    }
-
-    /**
      * Applies a give the joined client sent, on the server's own copy of the test player (#1099).
      * Called on the server thread, by the drain that follows the forwarded call the give was part
      * of.
+     *
+     * <p>The item is found by the name the client sent, not by an index, so a client and a server
+     * whose item lists differ still give the same item: the client's name is compared with each of
+     * the server's own names. A name no item has is reported rather than given as some other item.
      *
      * <p>The give moves the world revision here, explicitly: the local give does it through {@code
      * HostFunctions.worldChanged}, which counts only a write made while a test's own export is
@@ -80,22 +67,47 @@ public final class GrugGiveCalls {
      * settled world and then captures would take a frame from before the inventory sync reached the
      * client.
      */
-    public static void giveOnServer(ModLoaderAdapter adapter, int index, int count) {
+    public static void giveOnServer(ModLoaderAdapter adapter, String itemName, int count) {
         Object player = adapter.testPlayer();
-        Object item = adapter.itemByIndex(index);
-        if (player == null || item == null) {
-            System.out.println(
-                    "[GRUG CONTROL] a give of "
-                            + count
-                            + " of item "
-                            + index
-                            + " was dropped: "
-                            + (player == null
-                                    ? "no player has joined yet"
-                                    : "the item list has no such item"));
+        if (player == null) {
+            report(itemName, count, "no player has joined yet");
+            return;
+        }
+        Object item = itemNamed(adapter, itemName);
+        if (item == null) {
+            report(itemName, count, "the item list has no item with that name");
             return;
         }
         GrugWorldRevision.bump();
         adapter.giveItemCountToPlayer(player, item, count);
+    }
+
+    /**
+     * The item this loader lists under {@code itemName}, or null when it lists none. The scan
+     * compares names, not objects, because the name is the whole of what a client can send: the
+     * item object lives in one process and the server's copy is its own.
+     */
+    static Object itemNamed(ModLoaderAdapter adapter, String itemName) {
+        int count = adapter.itemCount();
+        for (int index = 0; index < count; index++) {
+            Object candidate = adapter.itemByIndex(index);
+            if (candidate != null && itemName.equals(adapter.itemName(candidate))) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Says which give was dropped, and why, so an item that never arrived has a line in the log.
+     */
+    private static void report(String itemName, int count, String reason) {
+        System.out.println(
+                "[GRUG CONTROL] a give of "
+                        + count
+                        + " of "
+                        + itemName
+                        + " was dropped: "
+                        + reason);
     }
 }

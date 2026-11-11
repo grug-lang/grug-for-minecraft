@@ -1122,6 +1122,17 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         return index >= 0 && index < items.size() ? items.get(index) : null;
     }
 
+    /**
+     * The item's own name, which is this version's name for it: 1.2.5 predates registry keys, and
+     * an item calls itself {@code item.wrenchItem} or, as a block's item, {@code tile.engineWood}.
+     * Both sides of a give compute it with this method, so the names match even though the two item
+     * lists can index the same item differently.
+     */
+    @Override
+    public String itemName(Object itemObj) {
+        return ((Item) itemObj).getItemName();
+    }
+
     @Override
     public int getItemMaxStack(Object itemObj) {
         return ((Item) itemObj).getItemStackLimit();

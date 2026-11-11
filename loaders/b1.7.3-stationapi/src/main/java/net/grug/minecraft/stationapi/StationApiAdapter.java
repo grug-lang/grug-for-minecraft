@@ -992,6 +992,18 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return index >= 0 && index < items.size() ? items.get(index) : null;
     }
 
+    /**
+     * The item's registry key, which StationAPI registers every item under, so a give names an item
+     * rather than a place in a list. Both sides of a give compute it with this method and the same
+     * registry, so the names match even though the two item lists can index the same item
+     * differently. An item the registry does not hold answers null, which the give reports.
+     */
+    @Override
+    public String itemName(Object itemObj) {
+        Identifier id = ItemRegistry.INSTANCE.getId((Item) itemObj);
+        return id == null ? null : id.toString();
+    }
+
     @Override
     public int getItemMaxStack(Object itemObj) {
         return ((Item) itemObj).getMaxCount();

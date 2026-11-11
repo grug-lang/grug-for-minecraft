@@ -126,6 +126,13 @@ public class GrugTestRunner {
          */
         default void resetPlayerInventory() {}
 
+        /**
+         * Drops the gives a joined client sent for the test that just ended, before the next test
+         * starts, so a give which outlived its test cannot change what the next one starts with.
+         * See #1144.
+         */
+        default void forgetQueuedGivesForTest() {}
+
         void build(int radius);
 
         /** Sweeps the dropped items out of the test area, in the tick a test ends. See #323. */
@@ -468,6 +475,11 @@ public class GrugTestRunner {
                     @Override
                     public void resetPlayerInventory() {
                         GrugCore.getAdapter().resetPlayerInventoryForTest();
+                    }
+
+                    @Override
+                    public void forgetQueuedGivesForTest() {
+                        GrugCore.getAdapter().forgetQueuedGivesForTest();
                     }
 
                     @Override
@@ -1813,6 +1825,10 @@ public class GrugTestRunner {
         // the centre of their block with a level view when any of them looks. See #609.
         boxBuilder.snapPlayer();
         boxBuilder.resetPlayerInventory();
+        // After the inventory reset, so a give the client sent as the previous test ended cannot
+        // land in the fresh inventory and the test that starts here reads its own starting state.
+        // See #1144.
+        boxBuilder.forgetQueuedGivesForTest();
 
         // Before the first tick, so the budget it sets is the one the whole test runs under.
         long initFnId = ops.getExportFnId("Test", "init");

@@ -636,6 +636,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     public void forgetSettledFrames() {}
 
     /**
+     * Drops a give the joined client sent for the test that just ended, so the next test starts
+     * with the inventory its reset cleared rather than an item that give added (#1144). The queue
+     * lives in core's server, and only this loader holds that server.
+     */
+    @Override
+    public void forgetQueuedGivesForTest() {
+        GrugControlBeta.server().forgetQueuedGives();
+    }
+
+    /**
      * The feet are the bottom of the bounding box, rounded to a millionth to shed the arithmetic's
      * last bits: the server's player keeps the feet in {@code y}, so the client's eye offset built
      * the test room's floor a block and a half too low and dropped the player out of the world
