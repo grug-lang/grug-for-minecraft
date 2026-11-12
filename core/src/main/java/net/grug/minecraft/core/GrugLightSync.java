@@ -142,6 +142,35 @@ public final class GrugLightSync {
     }
 
     /**
+     * Whether a client's copy of a section holds the world's light, from the world's light sampled
+     * either side of a check that its light engine has no work left.
+     *
+     * <p>One sample is not enough, and taking it before the settled check is wrong in a way a
+     * single sample after the check only narrows: on 1.20.6 the light is computed on a thread of
+     * its own, so a batch can finish at any moment of the query. A sample taken before the check
+     * holds the light from before a batch the check then reports finished, and the client, which
+     * learns of the batch from a packet, still holds that older light too, so the comparison
+     * answers true for a room the next frame draws one light step brighter. That is the capture the
+     * wait exists to prevent (#1248). Two samples with the check between them make a batch that
+     * lands around the check show up as two different fingerprints, and the answer waits another
+     * tick instead of comparing either. The engine is asked once more after both samples, so a
+     * batch that starts before the comparison is not read as idle.
+     *
+     * <p>Pure, and unit-tested in every combination, because the moment the light thread publishes
+     * a batch is not one a test can force: a game test can place a block and wait, but it cannot
+     * make the batch land between two reads of the same tick.
+     *
+     * @param engineSettled whether the engine had no work left after both samples
+     * @param before the world's light sampled before the settled check
+     * @param after the world's light sampled after it
+     * @param client the client's copy of the same section
+     */
+    public static boolean lightApplied(
+            boolean engineSettled, long before, long after, long client) {
+        return engineSettled && before >= 0 && before == after && before == client;
+    }
+
+    /**
      * A fingerprint of one section's block light, the same for two sections that hold the same
      * light, with a missing layer and an all-zero one both giving 0.
      *

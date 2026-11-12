@@ -1368,6 +1368,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * the finished section through {@code visibleSectionData}, which is volatile, and that is what
      * {@link #blockLightLayer} reads and what the settle already compares. So the section bytes are
      * the copy the server thread can see arrive, and the copy the client draws from once it has.
+     *
+     * <p>The world's light is sampled before and after the settled check, and the client's copy is
+     * read between the second sample and a last settled check, so a light batch that finishes in
+     * the wait makes the two samples differ rather than passing the pre-batch light for the room's.
+     * See {@link GrugLightSync#lightApplied} and #1248.
      */
     @GrugGenerated(
             "client light: the simulated world is always there on a CI client run, so the arm"
@@ -1375,9 +1380,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public boolean lightApplied(double x, double y, double z) {
         long simulated = sectionLightFingerprint(getLevel(), x, y, z);
-        return simulated >= 0
-                && lightEngineSettled(getLevel())
-                && simulated == clientLightFingerprint(x, y, z);
+        if (!lightEngineSettled(getLevel())) {
+            return false;
+        }
+        long settled = sectionLightFingerprint(getLevel(), x, y, z);
+        long client = clientLightFingerprint(x, y, z);
+        boolean idle = lightEngineSettled(getLevel());
+        return GrugLightSync.lightApplied(idle, simulated, settled, client);
     }
 
     /**

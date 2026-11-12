@@ -20,6 +20,44 @@ class GrugLightSyncTest {
     }
 
     @Test
+    void aBatchThatPublishesAroundTheSettledCheckIsNotTheRoomsLight() {
+        // The section the room's light is read for: its light before the light thread's batch, its
+        // light once the batch has published, and the copy the client holds while the packet has
+        // not reached it. Only the batch changes the section, so the two fingerprints differ.
+        long beforeBatch = GrugLightSync.lightFingerprint(layer(4));
+        long afterBatch = GrugLightSync.lightFingerprint(layer(12));
+        long clientCopy = beforeBatch;
+
+        // The trigger: the batch publishes between the sample and the settled check that follows
+        // it, so the check answers that the engine is done while the sample holds the light from
+        // before the batch, and the client holds it too. A comparison built on that one sample
+        // answered true for a room the next frame draws a light step brighter (#1248).
+        long sampledBeforeTheCheck = beforeBatch;
+        assertTrue(
+                GrugLightSync.lightApplied(
+                        true, sampledBeforeTheCheck, sampledBeforeTheCheck, clientCopy),
+                "The pre-batch light on both sides is what the old order compared.");
+
+        // The wait's order takes the sample after the check, and a second one after that, so a
+        // batch that publishes anywhere around the check leaves the two samples different and the
+        // answer stays false.
+        assertFalse(
+                GrugLightSync.lightApplied(true, beforeBatch, afterBatch, clientCopy),
+                "A batch that published between the samples is not a settled room.");
+        // The samples agree once the batch is in both of them, and the client has not been sent it.
+        assertFalse(
+                GrugLightSync.lightApplied(true, afterBatch, afterBatch, clientCopy),
+                "A client that was not sent the batch's light does not hold the room's.");
+        // Both samples and the client holding the batch's light is the room's settled light.
+        assertTrue(GrugLightSync.lightApplied(true, afterBatch, afterBatch, afterBatch));
+        // The engine taking on work after the samples leaves the answer false however they agree,
+        // because a second batch can still change the section before a frame is drawn.
+        assertFalse(GrugLightSync.lightApplied(false, afterBatch, afterBatch, afterBatch));
+        // A client with no level has no section to read, and a missing section is not a light.
+        assertFalse(GrugLightSync.lightApplied(true, -1, -1, -1));
+    }
+
+    @Test
     void everyCombinationOfTwoSectionAnswersIsComparedByWhatItHolds() {
         byte[] lit = layer(13);
         byte[] dim = layer(4);
