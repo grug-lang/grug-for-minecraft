@@ -19,6 +19,26 @@ import java.util.function.Supplier;
  */
 public final class GrugClientLight {
 
+    /**
+     * The client's answer for a position in a chunk column it was never sent, in place of a
+     * fingerprint.
+     *
+     * <p>A client that holds no copy of a section cannot hold the world's light there, so a
+     * comparison must answer false however empty the world's own section is: two empty sections
+     * agree, and a wait that took that agreement for an arrival would call a room the client has
+     * never seen settled. This is not {@link #CANNOT_VERIFY}: the section was never sent, so the
+     * client is not unable to reproduce it, and waiting on it would wait forever.
+     */
+    public static final long NOT_RECEIVED = -2;
+
+    /**
+     * The client's answer for a section it holds but cannot reproduce, such as 1.2.5's
+     * history-dependent copy, in place of a fingerprint. The comparison treats it as applied rather
+     * than as a mismatch, because an answer that is not the client's fault must not hold a run
+     * until its deadline. See #1240.
+     */
+    public static final long CANNOT_VERIFY = -1;
+
     private GrugClientLight() {}
 
     /**
@@ -42,15 +62,19 @@ public final class GrugClientLight {
          * The joined client's light for the section the position falls in compared with {@code
          * simulated}, which is the same fingerprint the server read from its own world.
          *
-         * <p>A client that answers -1 cannot verify its copy, and that answer is treated as true
-         * rather than as a mismatch: a loader whose client cannot reproduce the server's light
-         * (1.2.5's incremental engine is history-dependent) would otherwise wait forever on a
-         * comparison that is not the client's fault. An ask that could not be answered is also
-         * true, which the failure reports as the host function's error.
+         * <p>{@link #NOT_RECEIVED} is false: a section the client was never sent cannot hold the
+         * world's light, and the two copies would otherwise agree on an empty section. {@link
+         * #CANNOT_VERIFY} is true rather than a mismatch: a loader whose client cannot reproduce
+         * the server's light (1.2.5's incremental engine is history-dependent) would otherwise wait
+         * forever on a comparison that is not the client's fault. An ask that could not be answered
+         * is also true, which the failure reports as the host function's error.
          */
         public boolean lightApplied(double x, double y, double z, long simulated) {
             try {
                 long client = (long) server.get().clientLightFingerprint(x, y, z);
+                if (client == NOT_RECEIVED) {
+                    return false;
+                }
                 return client < 0 || client == simulated;
             } catch (GrugControlServer.ControlException e) {
                 failed.accept("Test.light_applied: " + e.getMessage());

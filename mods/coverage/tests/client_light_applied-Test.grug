@@ -20,10 +20,12 @@
 # false: a client stand-in that always answers true cannot pass this test. The far block is a torch
 # because it emits level 14 and is in every loader's block set, while glowstone arrives in Alpha
 # 1.2.0 and so cannot light the a1.1.2_01 dedicated leg this test runs on. A stone under it holds it
-# up, because a torch needs support on every loader. The far torch goes in with the room's torch,
-# before the room's last light wait, so that wait also waits for the far section's light work, and
-# the far ask is made in the same tick the wait found the engine settled: the false is then the two
-# sections' difference and not the engine still having work.
+# up, because a torch needs support on every loader. On 1.20.6 the answer does not depend on the
+# world's own far light having been worked out by the tick of the ask: a client that was never sent
+# that chunk column answers that it holds no copy of the section, which cannot be taken for the
+# world's light however empty the world's section still is (#1242). The far torch goes in with the
+# room's torch, before the room's last light wait, so that the world really holds a light there and
+# this is not a comparison of two empty sections.
 # That far section is asserted only where the client's copy is a second one: on a dedicated leg, and
 # on a client-only 1.20.6 run. A client-only run of the four older loaders shares one world, so its
 # far ask is true by construction, and Test.on_dedicated_server is what tells the two apart. Those
@@ -88,8 +90,10 @@ export tick_any_side(ctx: TestTickContext) {
             # The wait returning true is the room's proof: it only does so while the engine is
             # settled, and reading the room again on a later tick would race the work the engine
             # takes on in the meantime. The far section is asked here, in the tick the wait found
-            # the engine settled, so a constant-true answer fails this and a constant-false one
-            # already failed the wait's deadline.
+            # the engine settled. A constant-true answer fails this, and a constant-false one
+            # already failed the wait's deadline. The far section is false because the client never
+            # received that chunk column, which the 1.20.6 client answers as no copy at all rather
+            # than as an empty section (#1242).
             if second_copy {
                 ctx.assert(not Test.light_applied(x + 2000, y, z), "A section the client was never sent cannot hold the world's light.")
             }

@@ -475,7 +475,9 @@ public interface ModLoaderAdapter {
 
     /**
      * The block light of the section a position falls in, in the client's own copy of the world, as
-     * {@link GrugLightSync#lightFingerprint}, or -1 when this adapter cannot read it (#1207).
+     * {@link GrugLightSync#lightFingerprint}, {@link GrugClientLight#CANNOT_VERIFY} when this
+     * adapter holds a section it cannot reproduce, or {@link GrugClientLight#NOT_RECEIVED} when the
+     * client was never sent the position's chunk column (#1207, #1242).
      *
      * <p>A loader whose light query answers a level per block uses {@link
      * GrugLightSync#lightFingerprint(int, int, int, GrugLightSync.BlockLight)} instead of handing
@@ -496,7 +498,7 @@ public interface ModLoaderAdapter {
      * drawn with.
      */
     default long clientLightFingerprint(double x, double y, double z) {
-        return -1;
+        return GrugClientLight.CANNOT_VERIFY;
     }
 
     /**
