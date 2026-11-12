@@ -10,11 +10,14 @@
 # but a test that needs a recipe result still cannot pass until the server has a recipe table of its
 # own, which is a separate issue. autocrafting_table and redstone_engine_item are here because
 # inserting into the table's grid calls it, through the block entity's item_inserted export.
+# wooden_pipe_no_inbox_machine needs the table to have a crafted result to answer its pipe with,
+# which takes the same call.
 buildcraft/tests/autocrafting_table-Test.grug
 buildcraft/tests/autocrafting_table_borrow-Test.grug
 buildcraft/tests/autocrafting_table_pipe-Test.grug
 buildcraft/tests/demo_chain-Test.grug
 buildcraft/tests/redstone_engine_item-Test.grug
+buildcraft/tests/wooden_pipe_no_inbox_machine-Test.grug
 buildcraft/tests/wooden_pipe_recipe-Test.grug
 coverage/tests/expect_response_extract_twice_crafting_result_consumed-Test.grug
 coverage/tests/expect_response_extract_twice_crafting_result-Test.grug
