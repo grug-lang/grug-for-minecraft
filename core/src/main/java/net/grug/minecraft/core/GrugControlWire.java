@@ -312,6 +312,23 @@ public final class GrugControlWire {
                 || type == ANSWER_NUMBER;
     }
 
+    /**
+     * Whether a message from the client changes no world state when the server takes it on the
+     * connection's reader thread: an answer completes a call the server thread is waiting on, and a
+     * give only joins the queue the server thread drains (#1280). A start is not one of them,
+     * because the server learns the player of a connection on its game thread and refuses a start
+     * from a connection whose player it has not learnt yet.
+     *
+     * <p>A give read on the game thread waits for the connection's own drain, which a frozen server
+     * only reaches between two calls: on b1.7.3 that drain reads at most 101 packets, so a give
+     * behind the client's own packets arrived many ticks late, and behind enough of them not at all
+     * (#1280). Read here, it waits for the next runner tick instead, as a give on 1.20.6 does,
+     * whose channel hands every message to the server on its network thread.
+     */
+    public static boolean handledOnRead(byte type) {
+        return isAnswer(type) || type == GIVE_REQUEST;
+    }
+
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
         return call >= CALL_HAS_SOUND && call <= CALL_OVERLAY_DRAWN;

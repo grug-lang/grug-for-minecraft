@@ -138,12 +138,14 @@ public final class GrugControlStation {
      */
     static boolean onRead(byte[] bytes) {
         if (!onServer() || bytes.length == 0) return false;
-        if (!GrugControlWire.isAnswer(bytes[0])) {
+        if (!GrugControlWire.handledOnRead(bytes[0])) {
             return false;
         }
         // The reader thread of a Connection is a Thread subclass that holds it, so the sender of
-        // this answer is the connection it was read from, which the server compares with the
-        // starter's.
+        // this message is the connection it was read from, which the server compares with the
+        // starter's. An answer completes the call the frozen game thread waits on, and a give only
+        // joins the queue that thread drains, so neither waits for a game tick to reach the queue
+        // (#1280).
         // A null sender (no connection found) is passed on: the server fails what waits on it.
         server().onMessage(findConnection(Thread.currentThread(), 0), bytes);
         return true;

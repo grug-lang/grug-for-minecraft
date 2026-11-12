@@ -15,7 +15,7 @@ import java.io.IOException;
  * bytes of one {@code GrugControlWire} message. It is a packet of its own and not a custom payload
  * (250), because a payload is handled on the game thread, which is the thread frozen while the
  * server waits for the client's answer: this one's {@link #readPacketData} runs on the connection's
- * reader thread, which stays alive.
+ * reader thread, which stays alive, and hands an answer or a give on from there.
  *
  * <p>Both ends register it under {@link #ID} ({@link #register}), because a packet id the receiver
  * does not know closes the connection.

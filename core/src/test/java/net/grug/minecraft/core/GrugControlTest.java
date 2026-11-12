@@ -1412,6 +1412,17 @@ class GrugControlTest {
         assertEquals("minecraft:stone", give.text);
         assertEquals(64, give.x1);
         assertFalse(GrugControlWire.isAnswer(GrugControlWire.GIVE_REQUEST));
+        // A give and an answer are taken on the connection's reader thread, so neither waits for
+        // the game thread to reach its connection drain; everything else waits for the game thread,
+        // and a start must, because the player of a connection is learnt there (#1280).
+        assertTrue(GrugControlWire.handledOnRead(GrugControlWire.GIVE_REQUEST));
+        assertTrue(GrugControlWire.handledOnRead(GrugControlWire.ANSWER_ERROR));
+        assertTrue(GrugControlWire.handledOnRead(GrugControlWire.ANSWER_CHUNK));
+        assertTrue(GrugControlWire.handledOnRead(GrugControlWire.ANSWER_VALUE));
+        assertTrue(GrugControlWire.handledOnRead(GrugControlWire.ANSWER_NUMBER));
+        assertFalse(GrugControlWire.handledOnRead(GrugControlWire.RUN_START));
+        assertFalse(GrugControlWire.handledOnRead(GrugControlWire.RUN_END));
+        assertFalse(GrugControlWire.handledOnRead(GrugControlWire.CALL_REQUEST));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_OVERLAY_DRAWN));
         assertThrows(
                 IllegalArgumentException.class,

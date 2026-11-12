@@ -124,12 +124,14 @@ public final class GrugControlServer125 implements GrugControlRouter {
     @Override
     public boolean onRead(Thread reader, byte[] bytes) {
         if (bytes.length == 0) return false;
-        if (!GrugControlWire.isAnswer(bytes[0])) {
+        if (!GrugControlWire.handledOnRead(bytes[0])) {
             return false;
         }
-        // An answer goes to the waiting capture from here, because the game thread that would
-        // handle it is the one frozen. The reader thread holds the connection it reads, which core
-        // compares with the starter's; a null sender is passed on and fails what waits on it.
+        // An answer and a give go in from here, because the game thread that would handle them is
+        // the one frozen: the answer completes what waits on it, and the give only joins the queue
+        // that thread drains, so neither waits for a game tick to reach the queue (#1280). The
+        // reader thread holds the connection it reads, which core compares with the starter's; a
+        // null sender is passed on and fails what waits on it.
         server().onMessage(GrugControlFind.byType(reader, NetworkManager.class), bytes);
         return true;
     }
