@@ -535,6 +535,7 @@ jobs:
         run: |
           python3 .github/scripts/parallel_test_runner.py \
             .github/scripts/run_loader_test.py \
+            .github/scripts/run_multiplayer_test.py \
             .github/scripts/report_native_abort_test.py \
             .github/scripts/parallel_test_runner_test.py \
             .github/scripts/ci_timing_test.py \
@@ -556,7 +557,8 @@ jobs:
             .github/scripts/sweep_caches_test.py \
             .github/scripts/markdown_columns_test.py \
             .github/scripts/windows_needed_test.py \
-            .github/scripts/dispatch_base_test.py
+            .github/scripts/dispatch_base_test.py \
+            .github/scripts/seed_ploceus_meta_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory
