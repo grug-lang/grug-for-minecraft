@@ -48,10 +48,14 @@ def seed(fixture, minecraft, name, destination):
     wanted = json.loads((fixture / name).read_text())
     try:
         restored = json.loads(destination.read_text())
+        valid = True
     except (OSError, json.JSONDecodeError):
         restored = {}
+        valid = False
     merged = merge(restored, wanted)
-    if merged != restored or not destination.exists():
+    # A file that is not JSON is rewritten even when there is nothing to fill in: touching it would
+    # leave Ploceus a cache file it cannot read. A missing one reads as invalid too.
+    if not valid or merged != restored:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(json.dumps(merged, indent=2) + "\n")
         print(f"Seeded {name} for {minecraft}.")

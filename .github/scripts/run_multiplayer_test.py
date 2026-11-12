@@ -27,8 +27,9 @@ LOADER = "b1.7.3-ornithe"
 SERVER_VERSION = "b1.7.3"
 
 # The fake installer reproduces the installer's failure shape: the launch jar is written before the
-# download that fails, and the exit status is 0 either way. FAKE_INSTALL_SERVER_JAR=0 is the failed
-# download, and the sentinel says the installer ran at all.
+# download that fails, and the exit status is 0 either way. FAKE_INSTALL_SERVER_JAR is `none` for a
+# download that never wrote the jar and `empty` for a write that failed partway, and the sentinel
+# says the installer ran at all.
 INSTALLER = """\
 #!/usr/bin/env bash
 dir=""
@@ -40,9 +41,12 @@ done
 [ -n "${FAKE_INSTALL_SENTINEL:-}" ] && printf 'ran\\n' > "$FAKE_INSTALL_SENTINEL"
 mkdir -p "$dir"
 printf 'launch\\n' > "$dir/fabric-server-launch.jar"
-if [ "${FAKE_INSTALL_SERVER_JAR:-1}" = 1 ]; then
-  printf 'server\\n' > "$dir/server.jar"
-fi
+case "${FAKE_INSTALL_SERVER_JAR:-full}" in
+  none) ;;
+  # A write that failed partway leaves the jar the installer opened before it exited 0.
+  empty) : > "$dir/server.jar" ;;
+  *) printf 'server\\n' > "$dir/server.jar" ;;
+esac
 exit 0
 """
 
@@ -138,7 +142,7 @@ class RunMultiplayerTest(unittest.TestCase):
         path.write_text(content)
         path.chmod(0o755)
 
-    def run_script(self, server_jar=True):
+    def run_script(self, server_jar="full"):
         env = dict(os.environ)
         env.update(
             {
@@ -147,7 +151,7 @@ class RunMultiplayerTest(unittest.TestCase):
                 "FAKE_REAL_PYTHON": sys.executable,
                 "FAKE_CURL_SOURCE": str(self.installer),
                 "FAKE_INSTALL_SENTINEL": str(self.sentinel),
-                "FAKE_INSTALL_SERVER_JAR": "1" if server_jar else "0",
+                "FAKE_INSTALL_SERVER_JAR": server_jar,
                 # A launch that never becomes ready ends the case once the loop looks.
                 "GRUG_CI_BUILD_TIMEOUT": "1",
             }
@@ -170,7 +174,7 @@ class RunMultiplayerTest(unittest.TestCase):
         return self.installed() / ".grug-server-install"
 
     def test_an_installer_that_exits_zero_without_server_jar_writes_no_marker(self):
-        result = self.run_script(server_jar=False)
+        result = self.run_script(server_jar="none")
 
         self.assertNotEqual(result.returncode, 0)
         self.assertTrue(self.sentinel.is_file(), "the fake installer did not run")
@@ -178,7 +182,17 @@ class RunMultiplayerTest(unittest.TestCase):
         # The directory is gone rather than left with a launch jar, so the next run has nothing to
         # trust and installs again.
         self.assertFalse(self.installed().exists())
-        self.assertIn("left no server.jar", result.stderr)
+        self.assertIn("left no usable server.jar", result.stderr)
+
+    def test_an_installer_that_leaves_an_empty_server_jar_writes_no_marker(self):
+        # A write that failed partway (ENOSPC, say) leaves the jar the installer opened, and the
+        # installer still exits 0. A jar that cannot launch must not be marked complete either.
+        result = self.run_script(server_jar="empty")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.marker().exists(), "an install was marked complete with an empty jar")
+        self.assertFalse(self.installed().exists())
+        self.assertIn("left no usable server.jar", result.stderr)
 
     def test_a_complete_install_writes_the_marker(self):
         result = self.run_script()
@@ -204,6 +218,19 @@ class RunMultiplayerTest(unittest.TestCase):
         log = (self.loader / "run-server-ci.log").read_text()
         self.assertNotIn("Using the installed Ornithe server", log)
         self.assertNotEqual(result.returncode, 0)
+
+    def test_a_restored_install_with_an_empty_server_jar_is_reinstalled(self):
+        # The acceptance check reads the jar's size, not only its name, so a truncated jar does not
+        # count as an install.
+        self.installed().mkdir(parents=True)
+        self.marker().write_text(SERVER_VERSION + "\n")
+        (self.installed() / "fabric-server-launch.jar").write_text("launch\n")
+        (self.installed() / "server.jar").write_text("")
+
+        self.run_script()
+
+        self.assertTrue(self.sentinel.is_file(), "an install with an empty server.jar was used")
+        self.assertGreater((self.installed() / "server.jar").stat().st_size, 0)
 
     def test_a_complete_restored_install_skips_the_installer(self):
         self.installed().mkdir(parents=True)

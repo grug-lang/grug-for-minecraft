@@ -116,6 +116,21 @@ class SeedPloceusMetaTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(destination.read_text()), FIXTURE["osl-base-versions.json"])
 
+    def test_a_corrupt_file_is_rewritten_even_when_the_fixture_fills_nothing_in(self):
+        # An answer the fixture holds as empty merges to nothing, so "the merged answer equals the
+        # restored one" cannot tell a kept valid file from one that failed to parse. Touching the
+        # latter would leave Ploceus a file it cannot read.
+        (self.fixture / "osl-versions.json").write_text("{}")
+        destination = self.loom / MINECRAFT / "osl-versions.json"
+        destination.parent.mkdir(parents=True)
+        destination.write_text("[] trailing")
+
+        result = self.run_seeder()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(destination.read_text()), {})
+        self.assertIn("Seeded osl-versions.json", result.stdout)
+
     def test_a_missing_fixture_file_is_named(self):
         (self.fixture / "library-upgrades.json").unlink()
 
