@@ -84,6 +84,26 @@ public final class GrugGiveCalls {
     }
 
     /**
+     * Applies a give that was queued for another thread, unless a test's reset has run since it was
+     * queued (#1144).
+     *
+     * <p>A give the client asked for as its test ended belongs to no test's inventory: the reset
+     * that starts the next test clears the player's inventory and bumps the count before the queued
+     * give lands, so applying it now would leak an item into a test that never asked for it. A give
+     * queued while its own test runs still applies, because no reset runs between the two reads.
+     * {@code resets} is the count the give captured when it was queued and {@code current} the
+     * count read where the give would land.
+     *
+     * <p>The decision lives here rather than in the loader's queue lambda so it is a pure function
+     * of the two counts: the unit tests enter both arms, whereas a loader's game run reaches the
+     * drop only when the give-queue tests happen to run in one order.
+     */
+    public static void applyQueuedGiveIfCurrent(long resets, long current, Runnable apply) {
+        if (resets != current) return;
+        apply.run();
+    }
+
+    /**
      * The item this loader lists under {@code itemName}, or null when it lists none. The scan
      * compares names, not objects, because the name is the whole of what a client can send: the
      * item object lives in one process and the server's copy is its own.
