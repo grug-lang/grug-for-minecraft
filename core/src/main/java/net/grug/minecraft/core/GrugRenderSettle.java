@@ -54,7 +54,8 @@ public final class GrugRenderSettle {
      * so it counts as busy like a frame that still had work in it. See #804.
      *
      * @param frameHadPendingWork whether that frame still had work in it: rebuilds it did not get
-     *     to, light it had not propagated, or a window that was not at the size a capture reads.
+     *     to, light it had not propagated, a window that was not at the size a capture reads, or a
+     *     first-person hand that was still moving (see {@link #handMoved}).
      * @param blocksPending whether the client was still owed a block a test had placed.
      */
     public synchronized void onFrame(boolean frameHadPendingWork, boolean blocksPending) {
@@ -284,6 +285,41 @@ public final class GrugRenderSettle {
                 || renderGlobal == null
                 || player == null
                 || chunkPending;
+    }
+
+    /**
+     * Whether the first-person hand moved since the previous tick: the equip height it eases toward
+     * 1 when the held item changes, or the swing progress it interpolates with.
+     *
+     * <p>The hand is drawn in the world pass, before the screen is drawn over it, so it is part of
+     * the frame every capture of an open screen shows behind the screen (#961). The renderer draws
+     * it at a pose interpolated between the value the last tick left and the one this tick set, so
+     * a tick that eases the height or advances the swing leaves a frame whose hand differs from the
+     * frame before it. How many frames pass between the item change and a test's capture depends on
+     * how the run's ticks and frames fall, so two runs of one test can capture the hand at
+     * different points of its rise, which is the difference between their frames. A frame whose two
+     * pairs are equal draws the hand at rest, the pose every golden was accepted with.
+     *
+     * <p>A version with one hand passes zeros for the off hand's pair. The values are passed in
+     * rather than compared by the loader, so the disjunction is a pure function its unit test
+     * covers in every combination, instead of five loaders carrying the same comparison and a run
+     * only meeting one of its arms. See #961.
+     *
+     * @param mainHeight the main hand's equip height the renderer interpolates from
+     * @param lastMainHeight the height the tick before left
+     * @param offHeight the off hand's equip height, or 0 where the version draws one hand
+     * @param lastOffHeight the off hand's height the tick before, or 0 where it draws one hand
+     * @param swing the swing progress the hand renderer interpolates with
+     * @param lastSwing the progress the tick before left
+     */
+    public static boolean handMoved(
+            float mainHeight,
+            float lastMainHeight,
+            float offHeight,
+            float lastOffHeight,
+            float swing,
+            float lastSwing) {
+        return mainHeight != lastMainHeight || offHeight != lastOffHeight || swing != lastSwing;
     }
 
     /**

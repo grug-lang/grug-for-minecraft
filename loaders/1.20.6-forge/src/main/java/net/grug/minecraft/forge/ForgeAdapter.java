@@ -24,6 +24,7 @@ import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.forge.mixin.GuiSavingIndicatorAccessor;
+import net.grug.minecraft.forge.mixin.ItemInHandRendererAccessor;
 import net.grug.minecraft.forge.mixin.LayerLightSectionStorageAccessor;
 import net.grug.minecraft.forge.mixin.LightEngineStorageAccessor;
 import net.grug.minecraft.grug.BlockPos;
@@ -1366,6 +1367,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 (x, y, z) -> blockLightLayer(level, x, y, z))) {
             return false;
         }
+        // A hand that is moving now is work no frame sampled so far has seen: the sample runs at
+        // the end of a frame, and the runner runs up to 10 ticks of a test for one frame, so the
+        // item change that starts a rise can be several ticks old with no frame drawn since it.
+        // Counting it now keeps the two idle-frame wait from passing on frames drawn before the
+        // change. The gate is here rather than in clientSettled because that method takes the
+        // frames' answer as a value, and this is the one part of the frame read at the question.
+        if (handMoved(minecraft)) {
+            RENDER_SETTLE.noteBusy();
+            return false;
+        }
         return clientSettled(minecraft, simulated);
     }
 
@@ -1586,7 +1597,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // the control-run answer.
         RENDER_SETTLE.onFrame(
                 GrugTestCamera.frameBusy(
-                        !rendererIdle(minecraft),
+                        !rendererIdle(minecraft) | handMoved(minecraft),
                         testPlayerSnapped | GrugModLoader.isControlRunActive(),
                         testPlayer(),
                         CAMERA_VIEW),
@@ -1780,6 +1791,33 @@ public class ForgeAdapter implements ModLoaderAdapter {
         }
         return minecraft.levelRenderer.getSectionRenderDispatcher().getFreeBufferCount()
                 == GrugModLoader.getSectionBufferPoolSize();
+    }
+
+    /**
+     * Whether the client's first-person hand is still moving, so the frame it just drew is not one
+     * a capture may read.
+     *
+     * <p>The hand is drawn in the world pass, before the screen is drawn over it, so an open screen
+     * shows it behind its panel. Its equip height eases from 0 to 1 after the held item changes,
+     * which the runner does before every test, and the number of frames between that change and a
+     * capture varies with how the run's ticks fall, so two runs captured the hand at different
+     * points of its rise (#961). A frame whose pairs are equal draws the hand at rest, which is the
+     * pose every golden was accepted with. See {@link GrugRenderSettle#handMoved}.
+     */
+    private static boolean handMoved(Minecraft minecraft) {
+        Player player = minecraft.player;
+        if (player == null) {
+            return false;
+        }
+        ItemInHandRendererAccessor hand =
+                (ItemInHandRendererAccessor) minecraft.gameRenderer.itemInHandRenderer;
+        return GrugRenderSettle.handMoved(
+                hand.grug$mainHandHeight(),
+                hand.grug$lastMainHandHeight(),
+                hand.grug$offHandHeight(),
+                hand.grug$lastOffHandHeight(),
+                player.attackAnim,
+                player.oAttackAnim);
     }
 
     /**

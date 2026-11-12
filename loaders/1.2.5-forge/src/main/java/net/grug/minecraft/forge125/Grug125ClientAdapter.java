@@ -337,7 +337,8 @@ public class Grug125ClientAdapter extends Grug125Adapter {
 
     /**
      * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
-     * to, or a window that was not yet at the size a capture reads.
+     * to, a window that was not yet at the size a capture reads, or a first-person hand that was
+     * still moving.
      *
      * <p>This runs from the render tick, after the frame was drawn, so the renderer's list is what
      * that frame left behind: a chunk still in it and in view was not drawn, and the frame a
@@ -350,11 +351,39 @@ public class Grug125ClientAdapter extends Grug125Adapter {
      */
     private boolean frameHadPendingWork(Minecraft minecraft) {
         return GrugRenderSettle.frameHadPendingWork(
-                minecraft.displayWidth,
-                minecraft.displayHeight,
-                minecraft.renderGlobal,
-                minecraft.thePlayer,
-                chunkPending(minecraft));
+                        minecraft.displayWidth,
+                        minecraft.displayHeight,
+                        minecraft.renderGlobal,
+                        minecraft.thePlayer,
+                        chunkPending(minecraft))
+                | handMoved(minecraft);
+    }
+
+    /**
+     * Whether the client's first-person hand is still easing into place, so the frame it just drew
+     * is not one a capture may read.
+     *
+     * <p>The hand is drawn in the world pass, before the screen is drawn over it, so an open screen
+     * shows it behind its panel. Its height eases from 0 to 1 after the held item changes, which
+     * the runner does before every test, and the number of frames between that change and a capture
+     * varies with how the run's ticks fall, so two runs captured the hand at different points of
+     * its rise (#961). A frame whose pair is equal draws the hand at rest, which is the pose every
+     * golden was accepted with. See {@link GrugRenderSettle#handMoved}.
+     */
+    private boolean handMoved(Minecraft minecraft) {
+        EntityPlayer player = minecraft.thePlayer;
+        if (player == null
+                || minecraft.entityRenderer == null
+                || minecraft.entityRenderer.itemRenderer == null) {
+            return false;
+        }
+        return GrugRenderSettle.handMoved(
+                GrugHandAccess.equippedProgress(minecraft.entityRenderer.itemRenderer),
+                GrugHandAccess.prevEquippedProgress(minecraft.entityRenderer.itemRenderer),
+                0.0F,
+                0.0F,
+                player.getSwingProgress(1.0F),
+                player.getSwingProgress(0.0F));
     }
 
     /**

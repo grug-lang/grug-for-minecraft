@@ -34,6 +34,7 @@ import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.grug.minecraft.stationapi.grug.DummyCraftingInventory;
 import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
 import net.grug.minecraft.stationapi.gui.StationGuiHelper;
+import net.grug.minecraft.stationapi.mixin.HeldItemRendererAccess;
 import net.grug.minecraft.stationapi.mixin.SoundManagerAccess;
 import net.grug.minecraft.stationapi.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
@@ -1258,8 +1259,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     /**
      * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
-     * to, a window that was not yet at the size a capture reads, or a frame drawn before the world
-     * exists (a hotkey run's title screen).
+     * to, a window that was not yet at the size a capture reads, a frame drawn before the world
+     * exists (a hotkey run's title screen), or a first-person hand that was still moving.
      *
      * <p>This runs from the render path, after the frame was drawn, so the renderer's list is what
      * that frame left behind: a chunk still in it and in view was not drawn, and a frame drawn
@@ -1312,7 +1313,36 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 return true;
             }
         }
-        return false;
+        return handMoved(minecraft);
+    }
+
+    /**
+     * Whether the client's first-person hand is still easing into place, so the frame it just drew
+     * is not one a capture may read.
+     *
+     * <p>The hand is drawn in the world pass, before the screen is drawn over it, so an open screen
+     * shows it behind its panel. Its height eases from 0 to 1 after the held item changes, which
+     * the runner does before every test, and the number of frames between that change and a capture
+     * varies with how the run's ticks fall, so two runs captured the hand at different points of
+     * its rise (#961). A frame whose pair is equal draws the hand at rest, which is the pose every
+     * golden was accepted with. See {@link GrugRenderSettle#handMoved}.
+     */
+    private static boolean handMoved(Minecraft minecraft) {
+        PlayerEntity player = GrugClientPlayer.of(minecraft);
+        if (player == null
+                || minecraft.gameRenderer == null
+                || minecraft.gameRenderer.heldItemRenderer == null) {
+            return false;
+        }
+        HeldItemRendererAccess hand =
+                (HeldItemRendererAccess) minecraft.gameRenderer.heldItemRenderer;
+        return GrugRenderSettle.handMoved(
+                hand.grug$height(),
+                hand.grug$prevHeight(),
+                0.0F,
+                0.0F,
+                player.getHandSwingProgress(1.0F),
+                player.getHandSwingProgress(0.0F));
     }
 
     /**

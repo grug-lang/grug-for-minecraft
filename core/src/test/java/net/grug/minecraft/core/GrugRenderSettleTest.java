@@ -248,6 +248,36 @@ class GrugRenderSettleTest {
     }
 
     @Test
+    void theHandMovedWhileEitherEquipPairOrTheSwingPairDiffers() {
+        // Every combination, because the three pairs come from different fields of the hand
+        // renderer, and only the frame hook can say which of them last changed (#961).
+        for (boolean mainMoved : new boolean[] {false, true}) {
+            for (boolean offMoved : new boolean[] {false, true}) {
+                for (boolean swingMoved : new boolean[] {false, true}) {
+                    assertEquals(
+                            mainMoved || offMoved || swingMoved,
+                            GrugRenderSettle.handMoved(
+                                    mainMoved ? 0.6F : 1.0F,
+                                    1.0F,
+                                    offMoved ? 0.6F : 1.0F,
+                                    1.0F,
+                                    swingMoved ? 0.2F : 0.0F,
+                                    0.0F),
+                            "mainMoved="
+                                    + mainMoved
+                                    + " offMoved="
+                                    + offMoved
+                                    + " swingMoved="
+                                    + swingMoved);
+                }
+            }
+        }
+        // A hand that reached its target reports itself at rest even when the target is not 1,
+        // which is the frame after the last tick of a rise.
+        assertFalse(GrugRenderSettle.handMoved(0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F));
+    }
+
+    @Test
     void theSavingIndicatorIsShownOnlyWhileItsAlphaIsDrawn() {
         // The text is drawn while floor(255 * value) is above 8, so 8/255 is the last value that is
         // not drawn and the next whole step of alpha is.
