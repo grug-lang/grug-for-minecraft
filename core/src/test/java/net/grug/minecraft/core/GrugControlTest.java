@@ -1496,7 +1496,7 @@ class GrugControlTest {
                                 (proxy, method, args) ->
                                         java.lang.reflect.InvocationHandler.invokeDefault(
                                                 proxy, method, args));
-        assertEquals(-1L, bare.clientLightFingerprint(1, 2, 3));
+        assertEquals(GrugClientLight.CANNOT_VERIFY, bare.clientLightFingerprint(1, 2, 3));
         assertTrue(bare.lightApplied(1, 2, 3));
     }
 
@@ -1646,7 +1646,7 @@ class GrugControlTest {
     }
 
     @Test
-    void aForwardedLightCompareTreatsAMatchingSectionAsAppliedAndCannotVerifyAsTrue() {
+    void aForwardedLightCompareSeparatesAMatchingSectionFromNeverSentAndCannotVerify() {
         ScreenCalls screens = new ScreenCalls();
         Loopback loop = wireCalls(1000, screens);
         loop.client.beginRun();
@@ -1672,12 +1672,17 @@ class GrugControlTest {
 
         // -1 is the client saying it cannot verify its copy, which a loader whose client cannot
         // reproduce the server's light answers; the wait must not block on it forever.
-        screens.light = -1;
+        screens.light = GrugClientLight.CANNOT_VERIFY;
         assertTrue(light.lightApplied(12, 70, 22, 12));
+        // -2 is a section the client was never sent, which cannot hold the world's light even when
+        // the world's own section is empty and both copies would otherwise agree on 0.
+        screens.light = GrugClientLight.NOT_RECEIVED;
+        assertFalse(light.lightApplied(12, 70, 22, 0));
         assertEquals(
                 List.of(
                         "clientLightFingerprint 10.0 68.0 20.0",
                         "clientLightFingerprint 11.0 69.0 21.0",
+                        "clientLightFingerprint 12.0 70.0 22.0",
                         "clientLightFingerprint 12.0 70.0 22.0"),
                 screens.seen);
 

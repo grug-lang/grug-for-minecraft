@@ -6,6 +6,7 @@ import com.mojang.logging.LogUtils;
 
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugCaptureWait;
+import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
@@ -1346,13 +1347,30 @@ public class ForgeAdapter implements ModLoaderAdapter {
     /**
      * This client's own copy of the light of the section the position falls in, which is the copy
      * its frame pass bakes the room from (#1207).
+     *
+     * <p>{@link GrugClientLight#NOT_RECEIVED} for a position in a chunk column this client was
+     * never sent: it holds no copy of that section at all, which is not the same answer as a
+     * section whose light is still zero. A section the client was never sent cannot hold the
+     * world's light, and a fingerprint of 0 would agree with a world section the light engine has
+     * not reached yet, so the comparison would call a room the client has never seen settled
+     * (#1242). The light a client holds for a column it has is the section's published layer, which
+     * is the copy the server thread can read (#1207).
      */
     @GrugGenerated(
             "client light: a client process with no level has no section to read, which a CI"
                     + " client run never is")
     @Override
     public long clientLightFingerprint(double x, double y, double z) {
-        return sectionLightFingerprint(clientLevel(), x, y, z);
+        Object levelObj = clientLevel();
+        if (levelObj == null) {
+            return GrugClientLight.CANNOT_VERIFY;
+        }
+        Level level = (Level) levelObj;
+        if (!level.getChunkSource()
+                .hasChunk(((int) Math.floor(x)) >> 4, ((int) Math.floor(z)) >> 4)) {
+            return GrugClientLight.NOT_RECEIVED;
+        }
+        return sectionLightFingerprint(level, x, y, z);
     }
 
     /**
@@ -1372,13 +1390,19 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * <p>The world's light is sampled after the settled check and again after the client's copy is
      * read, so a light batch that the engine had already scheduled and that publishes between the
      * samples makes them differ rather than passing the pre-batch light for the room's, and the
-     * engine is asked once more after both. See {@link GrugLightSync#lightApplied} and #1248.
+     * engine is asked once more after both. A client answer of {@link
+     * GrugClientLight#NOT_RECEIVED} is false because a column the client was never sent cannot hold
+     * the world's light, while {@link GrugClientLight#CANNOT_VERIFY} is true. See {@link
+     * GrugLightSync#lightApplied}, #1240 and #1248.
      */
     @GrugGenerated(
             "client light: the simulated world is always there on a CI client run, so the arm"
                     + " with no level has no test")
     @Override
     public boolean lightApplied(double x, double y, double z) {
+        if (!lightEngineSettled(getLevel())) {
+            return false;
+        }
         long simulated = sectionLightFingerprint(getLevel(), x, y, z);
         if (!lightEngineSettled(getLevel())) {
             return false;
