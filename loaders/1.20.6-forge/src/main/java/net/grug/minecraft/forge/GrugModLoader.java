@@ -5,6 +5,7 @@ import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.GrugChat;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugDevHotkey;
+import net.grug.minecraft.core.GrugLocalRun;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestRunner;
@@ -576,6 +577,17 @@ public class GrugModLoader {
         private static volatile boolean grug$testRunFinished = false;
 
         /**
+         * Guards the two places that clear a run, so a check and its clear happen together and a
+         * run ended on one thread is not ended again on the other.
+         *
+         * <p>Not a guard against a tick in flight: {@code Minecraft.disconnect} waits in {@code
+         * runTick(false)}, which skips the client tick until the integrated server is shut down, so
+         * by the time the client thread sees no server, no queued runner tick can still be running.
+         * The monitor is what keeps the normal finish and the lost-server end in one place (#1276).
+         */
+        private static final Object grug$runnerLock = new Object();
+
+        /**
          * Whether {@link GrugReloadListener} has been registered with the client's resource
          * manager. Registered on the first client tick, once the manager exists, so every reload
          * this loader starts from then on reports its finish to {@link Grug}.
@@ -756,6 +768,21 @@ public class GrugModLoader {
                 // The runner does one Test.tick() call per real tick, so that real ticks (and real
                 // rendered frames) elapse between a test's own invocations.
                 advanceTestRunner(mc);
+
+                // A local run advances against the integrated server, so a server that goes away
+                // mid-run, by quitting to title for example, cannot advance it again: the runner
+                // would stay set and the end below would never be reached, leaving the window, the
+                // dither, the particles, the tutorial, the view and the parked cursor behind for
+                // the client's life (#1276). Ending it here routes it through the same restore a
+                // finished run uses.
+                GrugTestRunner localRunner = grug$testRunner;
+                if (GrugLocalRun.endsOnLostServer(
+                        mc.getSingleplayerServer() != null, localRunner != null)) {
+                    // The run will never tick again, so it lets go of what a live run owns before
+                    // the end below clears it.
+                    localRunner.abandon();
+                    noteRunnerEnded(mc, localRunner);
+                }
 
                 // The run finishes on the server thread; restoring the window has to happen here on
                 // the client thread.
@@ -1079,22 +1106,49 @@ public class GrugModLoader {
                             }
                             runner.tick(serverPlayer);
                             if (runner.isFinished()) {
-                                boolean fromCI = grug$testRunnerFromCI;
-                                grug$testRunner = null;
-                                grug$testRunnerFromCI = false;
-                                grug$testRunFinished = true;
-                                // A click the last test still expected has no test left to hold a
-                                // tick for, and the next run starts its own count (#1094).
-                                GrugClientClicks.reset();
-                                // The hotkey path leaves the game running so another R press can
-                                // start a fresh run.
-                                if (fromCI) {
-                                    mc.stop();
-                                }
+                                noteRunnerEnded(mc, runner);
                             }
                         }
                     };
             mc.getSingleplayerServer().execute(tick);
+        }
+
+        /**
+         * Clears a run that is over, whether its tests finished or its integrated server went away,
+         * and asks the client tick to put back what the run took.
+         *
+         * <p>Called on the server thread by the run's own last tick, and on the client thread when
+         * the server it advances against is gone, so both ends go through the one restore the
+         * client tick performs. The disconnect does not run beside a queued tick: {@code
+         * Minecraft.disconnect} waits in {@code runTick(false)}, which skips the client tick, until
+         * the integrated server is shut down. The monitor keeps the check and the clear together
+         * with the finish path's, so the run is ended once whichever thread reaches it first, and a
+         * fresh run that has taken its place is left alone.
+         *
+         * <p>Clearing the runner is what the stale-tick check in {@link #queueRunnerTick} reads, so
+         * a tick still queued when the server went away finds no runner and drops itself.
+         */
+        private static void noteRunnerEnded(Minecraft mc, GrugTestRunner runner) {
+            boolean stopClient;
+            synchronized (grug$runnerLock) {
+                if (grug$testRunner != runner) {
+                    return;
+                }
+                stopClient = grug$testRunnerFromCI;
+                grug$testRunner = null;
+                grug$testRunnerFromCI = false;
+                grug$testRunFinished = true;
+                // A click the last test still expected has no test left to hold a tick for, and the
+                // next run starts its own count (#1094).
+                GrugClientClicks.reset();
+            }
+            // Outside the monitor because stopping the client fires a Forge event, and a handler
+            // must not run with the runner's monitor held. The hotkey path leaves the game running
+            // so another R press can start a fresh run. A CI run whose server is gone cannot
+            // finish, so the client stops rather than hangs.
+            if (stopClient) {
+                mc.stop();
+            }
         }
 
         private static void applyWindowSize(Minecraft mc, int width, int height) {

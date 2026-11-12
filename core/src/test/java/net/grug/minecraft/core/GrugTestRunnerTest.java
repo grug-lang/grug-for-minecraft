@@ -233,6 +233,25 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void abandoningARunStopsItOwningHostFunctionErrorReports() {
+        // A local run whose client quits to the title screen ends without its tests finishing
+        // (#1276). It must stop owning reports, or a later error is recorded for a runner that
+        // will never tick again and is left for the next run's first test to inherit. The runner
+        // a loader builds takes the ownership in its no-argument constructor, which a test cannot
+        // call, so it is taken here the same way.
+        GrugTestRunner runner = runner(new FakeOps(), Map.of("mymod/code/a-Test.grug", 1L));
+        GrugTestState.runStarting(false);
+        assertTrue(GrugTestState.testRunActive, "a run owns reports while it is live");
+
+        runner.abandon();
+
+        assertTrue(runner.isFinished(), "an abandoned run is over");
+        assertFalse(
+                GrugTestState.testRunActive,
+                "an abandoned run no longer owns the reports a live run would");
+    }
+
+    @Test
     void passesACompletedTest() {
         FakeOps ops = new FakeOps();
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));

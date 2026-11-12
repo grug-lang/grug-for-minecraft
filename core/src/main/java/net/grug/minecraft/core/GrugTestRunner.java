@@ -2204,6 +2204,22 @@ public class GrugTestRunner {
     }
 
     /**
+     * Ends a run whose world goes away before its tests finish, such as a local run on a client
+     * that quits to the title screen (#1276).
+     *
+     * <p>Nothing of a finished run happens here: no test is failed or passed, no times are written
+     * and the room is not destroyed, because the world it was built in is gone. What it does is
+     * stop the run from owning anything a live run owns, so a host function error that arrives
+     * afterwards is reported to the log and chat instead of being recorded for a run that will
+     * never tick again and left for the next run's first test to inherit. See {@link
+     * GrugTestState#testRunActive}.
+     */
+    public void abandon() {
+        finished = true;
+        GrugTestState.testRunActive = false;
+    }
+
+    /**
      * Whether the run finished with every test passed, which a dedicated server's process turns
      * into its exit status (#1021).
      */
