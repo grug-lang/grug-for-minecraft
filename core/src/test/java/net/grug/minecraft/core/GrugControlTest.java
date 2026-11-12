@@ -1657,15 +1657,29 @@ class GrugControlTest {
                             throw new AssertionError(message);
                         });
 
-        // The client holds the section the server asked about, so the copies agree.
+        // The client holds the section the server asked about, so the copies agree. The ask names
+        // the caller's own position rather than a section that happens to hold the same light, so
+        // a forward that sent the wrong one would still be caught.
         assertTrue(light.lightApplied(10, 68, 20, 12));
-        // A different section is not applied yet.
-        assertFalse(light.lightApplied(10, 68, 20, 13));
+        assertEquals(List.of("clientLightFingerprint 10.0 68.0 20.0"), screens.seen);
+        // A different section is not applied yet, and the ask carries that position too.
+        assertFalse(light.lightApplied(11, 69, 21, 13));
+        assertEquals(
+                List.of(
+                        "clientLightFingerprint 10.0 68.0 20.0",
+                        "clientLightFingerprint 11.0 69.0 21.0"),
+                screens.seen);
 
         // -1 is the client saying it cannot verify its copy, which a loader whose client cannot
         // reproduce the server's light answers; the wait must not block on it forever.
         screens.light = -1;
-        assertTrue(light.lightApplied(10, 68, 20, 12));
+        assertTrue(light.lightApplied(12, 70, 22, 12));
+        assertEquals(
+                List.of(
+                        "clientLightFingerprint 10.0 68.0 20.0",
+                        "clientLightFingerprint 11.0 69.0 21.0",
+                        "clientLightFingerprint 12.0 70.0 22.0"),
+                screens.seen);
 
         // An ask that cannot be answered is reported as the host function's error and treated as
         // applied, as the other forwarded reads do.

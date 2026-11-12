@@ -4,6 +4,9 @@
 # client_light_applied reads the true answer to decide whether its far section is a second copy.
 # A client is never the dedicated server, and a test that took the two for each other would wait
 # for a second copy on a leg where the client and server share one world (#1240).
+# The true leg cannot be asserted here, because this file also runs on a client where the answer is
+# false. A core test installs an adapter whose side is the dedicated server and asserts the true
+# answer instead: HostFunctionsTestOnDedicatedServerTest.
 export tick(ctx: TestTickContext) {
     ctx.assert(not Test.on_dedicated_server(), "A client-only run is not a dedicated server.")
 }

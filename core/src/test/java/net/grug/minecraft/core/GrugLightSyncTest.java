@@ -154,6 +154,35 @@ class GrugLightSyncTest {
     }
 
     @Test
+    void theHighestLevelIsLitInBothFormsAndALevelAboveItMasksToNothing() {
+        GrugLightSync.BlockLight highest = (x, y, z) -> 15;
+        long fifteen = GrugLightSync.lightFingerprint(0, 0, 0, highest);
+
+        // 15 is the highest level a nibble holds, so the level form calls the section lit and keeps
+        // it apart from the level below, as the byte form does for the layer that holds it. Both
+        // forms answer the same question about the same section even though they hash different
+        // numbers: 4096 levels here, 2048 packed bytes there.
+        assertFalse(fifteen == 0);
+        assertEquals(fifteen, GrugLightSync.lightFingerprint(0, 0, 0, highest));
+        assertFalse(fifteen == GrugLightSync.lightFingerprint(0, 0, 0, (x, y, z) -> 14));
+        assertFalse(GrugLightSync.lightFingerprint(layer(15)) == 0);
+        assertFalse(
+                GrugLightSync.lightFingerprint(layer(15))
+                        == GrugLightSync.lightFingerprint(layer(14)));
+        assertTrue(fifteen >>> 53 == 0);
+
+        // 16 is one above what a nibble holds, and the fold keeps a level's low four bits, so a
+        // section of it is dark rather than lit with a sixteenth light.
+        assertEquals(0, GrugLightSync.lightFingerprint(0, 0, 0, (x, y, z) -> 16));
+        // The same mask on a lit section drops the stray bit instead of adding a different light.
+        assertEquals(
+                GrugLightSync.lightFingerprint(
+                        0, 0, 0, (x, y, z) -> x == 3 && y == 4 && z == 5 ? 19 : 0),
+                GrugLightSync.lightFingerprint(
+                        0, 0, 0, (x, y, z) -> x == 3 && y == 4 && z == 5 ? 3 : 0));
+    }
+
+    @Test
     void aBoxOwesEverySectionItCoversIncludingTheOnesBeforeZero() {
         GrugLightSync sync = new GrugLightSync();
         // A box from -3 to 3 in x and z and from 62 to 79 in y: one section each way in x and z

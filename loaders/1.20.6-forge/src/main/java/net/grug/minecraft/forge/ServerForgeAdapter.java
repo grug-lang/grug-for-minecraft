@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge;
 
+import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugLightSync;
@@ -542,8 +543,11 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * <p>The server's light is sampled after the settled check and again after the joined client
      * answers, so a light batch that the engine had already scheduled and that publishes during the
      * client round trip makes the samples differ rather than passing the pre-batch light for the
-     * room's, on the joined client's answer too, and the engine is asked once more after both. See
-     * {@link GrugLightSync#lightApplied} and #1248.
+     * room's, on the joined client's answer too, and the engine is asked once more after both. A
+     * client answer of {@link GrugClientLight#CANNOT_VERIFY} is true, because an answer that is not
+     * the client's fault must not hold a run until its deadline, while {@link
+     * GrugClientLight#NOT_RECEIVED} is false, because a section the client was never sent cannot
+     * hold the world's light. See {@link GrugLightSync#lightApplied}, #1240 and #1248.
      */
     @Override
     public boolean lightApplied(double x, double y, double z) {
