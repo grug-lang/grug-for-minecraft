@@ -16,11 +16,14 @@
 # before a change for as long as the test waits. 1.20.6 uses the section's published bytes and the
 # four older loaders read their light query's level for each of the section's 4096 blocks.
 # It also asks for a lit section two thousand blocks away, which the client's two-chunk view never
-# receives. The world has a glowstone's light there and the client's copy has none, so the answer
-# is false: a client stand-in that always answers true cannot pass this test. The glowstone goes in
-# with the torch, before the room's last light wait, so that wait also waits for the far section's
-# light work, and the far ask is made in the same tick the wait found the engine settled: the false
-# is then the two sections' difference and not the engine still having work.
+# receives. The world has a torch's light there and the client's copy has none, so the answer is
+# false: a client stand-in that always answers true cannot pass this test. The far block is a torch
+# because it emits level 14 and is in every loader's block set, while glowstone arrives in Alpha
+# 1.2.0 and so cannot light the a1.1.2_01 dedicated leg this test runs on. A stone under it holds it
+# up, because a torch needs support on every loader. The far torch goes in with the room's torch,
+# before the room's last light wait, so that wait also waits for the far section's light work, and
+# the far ask is made in the same tick the wait found the engine settled: the false is then the two
+# sections' difference and not the engine still having work.
 # That far section is asserted only where the client's copy is a second one: on a dedicated leg, and
 # on a client-only 1.20.6 run. A client-only run of the four older loaders shares one world, so its
 # far ask is true by construction, and Test.on_dedicated_server is what tells the two apart. Those
@@ -70,9 +73,11 @@ export tick_any_side(ctx: TestTickContext) {
                 level.place_block(x, y + 1, z, "minecraft:torch")
                 # Only where a second copy exists: the world's light for this section is what the
                 # read compares, and a client-only run of an older loader would have to generate
-                # it for nothing.
+                # it for nothing. The stone is the torch's support, and the read's position is
+                # the torch itself, whose light is 14.
                 if second_copy {
-                    level.place_block(x + 2000, y, z, "minecraft:glowstone")
+                    level.place_block(x + 2000, y - 1, z, "minecraft:stone")
+                    level.place_block(x + 2000, y, z, "minecraft:torch")
                 }
                 state = 2
             }
