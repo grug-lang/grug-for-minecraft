@@ -869,7 +869,8 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(len(launches.read_text().splitlines()), 2)
         self.assertIn(
-            "Timed out after 8s installing fake-loader, before its game started", result.stderr
+            "The install of fake-loader used its 8s limit without reporting a game start",
+            result.stderr,
         )
 
     def write_production_launcher(
@@ -921,7 +922,8 @@ class RunLoaderTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "Timed out after 2s installing fake-loader, before its game started", result.stderr
+            "The install of fake-loader used its 2s limit without reporting a game start",
+            result.stderr,
         )
         self.assertIn("raise GRUG_CI_INSTALL_TIMEOUT", result.stderr)
         self.assertNotIn("waiting for fake-loader to reach the title screen", result.stderr)
@@ -940,7 +942,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertIn(
             "Timed out after 2s waiting for fake-loader to reach the title screen", result.stderr
         )
-        self.assertNotIn("installing fake-loader", result.stderr)
+        self.assertNotIn("without reporting a game start", result.stderr)
 
     def test_a_retry_that_fails_again_fails_the_job_with_its_own_output(self):
         compile_log = (

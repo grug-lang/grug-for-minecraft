@@ -154,7 +154,8 @@ retryable_failure() {
 }
 
 # The first attempt and one retry. Never a third: an outage longer than this is not a flake for a
-# single job to ride out, and each attempt costs the job its whole build again.
+# single job to ride out, and each attempt repeats the job's whole build or, in a production launch,
+# its whole install.
 MAX_GRADLE_ATTEMPTS=2
 
 # Runs a Gradle invocation whose output nothing else reads, and once more when it failed fetching
@@ -509,22 +510,22 @@ game_start_re="^> Task ${task_prefix:-:}runClient( |\$)"
 production_game_start_re='Launched|\[GRUG CI\] GAME LAUNCHING'
 
 # The launcher's own account of a failed install: portablemc's [ ERRO ] lines name the URL and the
-# reason, which its batch summary alone does not. Falls back to the log's last lines when it wrote
-# none, so an install that ended before reporting still says something (#1149).
+# reason, which its batch summary alone does not. Prints a fixed ten-line window from the first
+# [ ERRO ] line, so the URL and the reason lines that carry no prefix are included and a second
+# failed entry can be too. Falls back to the log's last ten lines when the launcher wrote no [ ERRO ]
+# line; an empty log leaves only the caller's exit line and the line naming the log (#1149).
 launcher_errors() {
   if grep -q -F '[ ERRO ]' "$LOG_FILE"; then
-    # The first error's block: the summary, then the URL and the reason lines, which carry no
-    # prefix of their own. -A covers one entry of a batch, which is what a summary of one names.
     grep -m1 -A10 -F '[ ERRO ]' "$LOG_FILE" >&2
   else
     tail -n 10 "$LOG_FILE" >&2
   fi
 }
 
-# One attempt, and one more when the first failed fetching what the build needs rather than on the
-# code. The game
-# never started in that case, so repeating the whole invocation repeats nothing the game did; any
-# other outcome ends the job here, with the log of the attempt that decided it.
+# One attempt, and one more when the first failed fetching what the build or the install needs
+# rather than on the code. The game never started in that case, so repeating the whole invocation
+# repeats nothing the game did; any other outcome ends the job here, with the log of the attempt
+# that decided it.
 #
 # The install's limit runs from the first attempt and a retry spends what is left of it rather than
 # asking for a second window. A cold-cache install that is merely slow is never restarted, and the
@@ -790,8 +791,9 @@ case "$status" in
     if [ "$PHASE" = production ] && [ "$game_started" = false ]; then
       # The install never reported a launch, so the game has not started and its own limit has not
       # been spent. Saying it timed out "waiting to reach the title screen" would blame the game
-      # for the installer's network.
-      echo "==> Timed out after ${install_timeout_secs}s installing $LOADER, before its game started." >&2
+      # for the installer's network, and naming the seconds would overstate a retry that spent only
+      # what was left of the first attempt's window, so the line names the shared limit.
+      echo "==> The install of $LOADER used its ${install_timeout_secs}s limit without reporting a game start." >&2
       echo "==> The game's own ${timeout_secs}s limit had not started." >&2
       echo "==> Check $LOG_FILE, and raise GRUG_CI_INSTALL_TIMEOUT if the installer was still making progress." >&2
     elif [ "$game_started" = false ]; then
