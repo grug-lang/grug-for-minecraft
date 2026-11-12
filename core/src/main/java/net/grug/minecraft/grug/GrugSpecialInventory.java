@@ -31,12 +31,27 @@ final class GrugSpecialInventory {
 
     /**
      * Takes what the block entity gives a pipe on {@code fromSide} and puts it in the destination's
-     * slot, which has to be empty. Returns how many items moved.
+     * slot, which has to be empty. Returns how many items the destination holds afterwards, which
+     * is how many moved unless it clamped the write.
      */
     static double extractInto(
             Object blockEntity, Object destination, double destinationSlot, double fromSide) {
         ModLoaderAdapter adapter = GrugCore.getAdapter();
         int destinationSize = (int) adapter.getInventorySize(destination);
+        if (destinationSlot != Math.floor(destinationSlot)) {
+            // Every adapter truncates a slot to an int, so a fraction would write the slot below it
+            // and NaN would write slot 0, neither of which is the slot the caller named. Refuse it
+            // as the host's other slot checks do, before the source is asked, for the same reason
+            // the range is refused (#1205).
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "BlockEntity.extract_item_into: slot "
+                            + destinationSlot
+                            + " of the destination is not a whole slot number of its inventory of "
+                            + destinationSize
+                            + " slots.");
+            return 0;
+        }
         if (destinationSlot < 0 || destinationSlot >= destinationSize) {
             // A destination with no such slot would drop the write after the source had given the
             // stack up, which destroys it. Refuse before the source is asked, so the take costs
@@ -90,7 +105,10 @@ final class GrugSpecialInventory {
         }
         adapter.setItemInSlot(destination, destinationSlot, item, taken);
         adapter.setItemDamageInSlot(destination, destinationSlot, damage);
-        return taken;
+        // A destination clamps a write to its stack limit and reports nothing, so what it holds is
+        // not always what was taken. Answer with the slot's own count rather than the take, as the
+        // pipe's store reads its write back, so the caller acts on what really landed (#1205).
+        return adapter.getItemCountInSlot(destination, destinationSlot);
     }
 
     /**

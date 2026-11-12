@@ -1,0 +1,69 @@
+# #1205: a pipe saved while it had no inbox slot, beside a machine that answers the extract_item
+# export, has no slot to hand the machine's stack to. Asking anyway makes extract_item_into report a
+# destination slot that does not exist, and that error stops the pipe's tick before its last line
+# spends the 64 energy it holds, so the report would repeat on every powered tick for ever and the
+# pipe would never empty. The machine branch therefore stays quiet for such a pipe, as the store path
+# does, and this test proves both halves: the table keeps its result, and the tick still spends the
+# energy it was given.
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # Band 33, clear of the bands the other pipe tests use and below the +45 and +50 bands that
+    # Alpha's 128-block world clamps to 120.
+    y: number = origin.y() + 33
+    z: number = origin.z()
+
+    # Three wheat in the top row craft one bread, so the table has something to answer the pipe with.
+    level.place_block(x - 1, y, z, "grug:autocrafting_table")
+    table_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    ctx.assert(table_opt.has(), "The autocrafting table should have a block entity.")
+    table: BlockEntity = table_opt.unwrap()
+    wheat: Item = item(resource_location("minecraft:wheat"))
+    slot: number = 0
+    while slot < 3 {
+        table.set_item_in_slot(slot, wheat, 2)
+        slot = slot + 1
+    }
+    table.update_recipe_output(0)
+    ctx.assert(table.get_crafting_result_item().has(), "The three wheat should have crafted a result.")
+    ctx.assert(table.ask_extract_item(5) == 1, "The table should offer the pipe its one bread.")
+
+    # The pipe sits east of the table, which is where the source search finds it.
+    level.place_block(x, y, z, "grug:wooden_pipe")
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(pipe_opt.has(), "The pipe should have a block entity.")
+    pipe: BlockEntity = pipe_opt.unwrap()
+
+    # Load the pipe back with no inventory slots, as a block entity saved while it had none does.
+    # The load replaces the tile, so the handle names the old one afterwards.
+    Test.set_nbt_number(pipe, "GrugInvSize", "int", 0)
+    Test.load_nbt(pipe)
+    pipe_again_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(pipe_again_opt.has(), "The reloaded pipe should have a block entity.")
+    pipe = pipe_again_opt.unwrap()
+    ctx.assert(pipe.get_inventory_size() == 0, "A pipe loaded with no slot should have no inventory.")
+
+    # A tile replaced by a load has not run its init() yet on every loader, so tick it once with no
+    # energy first: that tick cannot pull, and it declares the pipe an energy receiver as a
+    # chunk-loaded one would be.
+    Test.tick_block_entity(pipe, 1)
+
+    pipe.receive_energy(64)
+    ctx.assert(pipe.get_energy_stored() == 64, "The pipe should hold the 64 energy it was given.")
+
+    Test.tick_block_entity(pipe, 1)
+
+    # The tick ran to its end, so its power loss spent the energy. An aborted tick would still hold
+    # all 64, which is what a pipe reporting the destination slot every tick does.
+    ctx.assert(pipe.get_energy_stored() == 0, "The pipe should have spent its energy on the tick.")
+    ctx.assert(table.get_crafting_result_item().has(), "The pipe should not have taken the table's result.")
+    slot = 0
+    while slot < 3 {
+        count: number = table.get_item_count_in_slot(slot)
+        ctx.assert(count == 2, "The pipe should not have taken a wheat from the table's grid.")
+        slot = slot + 1
+    }
+    ctx.assert(pipe.get_saved_list_size("traveling") == 0, "A pipe with no inbox should not start an item travelling.")
+    ctx.assert(level.count_item_entities(x, y, z, 10) == 0, "The pipe should not have dropped anything.")
+}
