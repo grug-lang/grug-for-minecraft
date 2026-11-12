@@ -2,6 +2,7 @@ package net.grug.minecraft.core;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.function.ToDoubleFunction;
 
 /**
  * The screen calls a test makes, in one place, so the client that performs them itself and the
@@ -22,6 +23,19 @@ public final class GrugScreenCalls {
     public static final String GUI_TOP = "gui_top";
     public static final String GUI_WIDTH = "gui_width";
     public static final String GUI_HEIGHT = "gui_height";
+
+    /**
+     * Where a {@link GrugControlWire#CALL_SCREEN_GEOMETRY} answer holds each measurement. The last
+     * is the screen's height, which no read names: the screen has no height measurement, and a test
+     * derives it from the centered container GUI as {@link #geometry} does.
+     */
+    static final int AT_LEFT = 0;
+
+    static final int AT_TOP = 1;
+    static final int AT_WIDTH = 2;
+    static final int AT_HEIGHT = 3;
+    static final int AT_SCREEN_WIDTH = 4;
+    static final int AT_SCREEN_HEIGHT = 5;
 
     /**
      * The highest mouse button a screen press may carry: 0 is the left button, 1 the right and 2
@@ -102,6 +116,46 @@ public final class GrugScreenCalls {
                 return adapter.guiWidthForTest();
             case GUI_HEIGHT:
                 return adapter.guiHeightForTest();
+            default:
+                throw new IllegalArgumentException("unknown screen read " + read);
+        }
+    }
+
+    /**
+     * Every measurement a {@link GrugControlWire#CALL_SCREEN_GEOMETRY} answer carries, each read
+     * through {@code source} on the side that owns the screen, so a batch and a single read can
+     * never disagree about a value. The screen's height is derived from the centered container GUI
+     * the way a test without a height read derives it (#1277).
+     */
+    public static double[] geometry(ToDoubleFunction<String> source) {
+        double left = source.applyAsDouble(GUI_LEFT);
+        double top = source.applyAsDouble(GUI_TOP);
+        double width = source.applyAsDouble(GUI_WIDTH);
+        double height = source.applyAsDouble(GUI_HEIGHT);
+        double screenWidth = source.applyAsDouble(SCREEN_WIDTH);
+        double[] values = new double[GrugControlWire.GEOMETRY_COUNT];
+        values[AT_LEFT] = left;
+        values[AT_TOP] = top;
+        values[AT_WIDTH] = width;
+        values[AT_HEIGHT] = height;
+        values[AT_SCREEN_WIDTH] = screenWidth;
+        values[AT_SCREEN_HEIGHT] = top * 2 + height;
+        return values;
+    }
+
+    /** One measurement out of a {@link #geometry} answer, named as {@link #read} names it. */
+    static double fromGeometry(double[] geometry, String read) {
+        switch (read) {
+            case SCREEN_WIDTH:
+                return geometry[AT_SCREEN_WIDTH];
+            case GUI_LEFT:
+                return geometry[AT_LEFT];
+            case GUI_TOP:
+                return geometry[AT_TOP];
+            case GUI_WIDTH:
+                return geometry[AT_WIDTH];
+            case GUI_HEIGHT:
+                return geometry[AT_HEIGHT];
             default:
                 throw new IllegalArgumentException("unknown screen read " + read);
         }

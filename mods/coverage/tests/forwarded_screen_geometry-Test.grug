@@ -1,0 +1,63 @@
+# The five screen measurements a forwarded test reads, asked of a dedicated server's joined client
+# (#1277). One forwarded call answers all five, so a test that works a screen out through helpers
+# pays one round trip per step rather than one per read. This proves the batch answers the values
+# the single reads did, that they describe one screen, and that a screen which closes under the
+# answer makes the next read ask again instead of answering from the panel that is gone. Only a
+# multiplayer run that forwards client calls runs a forwarded_ test.
+started: bool = false
+
+export tick(ctx: TestTickContext) {
+    loader: string = Test.loader_name()
+    if not started {
+        started = true
+        Test.close_screen()
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_gui")
+        Test.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.not_done()
+        return
+    }
+    if not Test.screen_open() {
+        ctx.not_done()
+        return
+    }
+    # The first group of reads is what a step of a test makes: every value must be the one the
+    # single reads answered, and together they must describe the one panel the client has open.
+    left: number = Test.gui_left()
+    top: number = Test.gui_top()
+    width: number = Test.gui_width()
+    height: number = Test.gui_height()
+    screen_width: number = Test.screen_width()
+    ctx.assert(Test.gui_left() == left, "A second gui_left read should answer the same x.")
+    ctx.assert(Test.gui_top() == top, "A second gui_top read should answer the same y.")
+    ctx.assert(Test.gui_width() == width, "A second gui_width read should answer the same width.")
+    ctx.assert(Test.gui_height() == height, "A second gui_height read should answer the same height.")
+    ctx.assert(Test.screen_width() == screen_width, "A second screen_width read should answer the same width.")
+    ctx.assert(width == 176, "The client's coverage_gui panel is 176 pixels wide.")
+    ctx.assert(left == Math.floor((screen_width - width) / 2), "A centered panel's left is half the window left of it.")
+    # The screen's height is not a read: a test derives it from the centered GUI, and the batch
+    # carries the same derivation. A window that is not taller than the panel it centers would
+    # mean the two halves disagree.
+    screen_height: number = top * 2 + height
+    ctx.assert(screen_height > height, "The window has to be taller than the panel it centers.")
+    # The panel closed under the answer: 1.20.6's key path has Escape, which its screen handles by
+    # closing itself. The older games map a character code to a key and have none for Escape, so
+    # there the close is asked for directly (#1094), and the Java test of the control channel proves
+    # the press's own invalidation.
+    if loader == "1.20.6-forge" {
+        ctx.assert(not Test.press_screen_key(256, false, true), "Escape should be left to the client's screen.")
+    } else {
+        Test.close_screen()
+    }
+    # The answer the closed panel gave is gone with it, so this read has to ask the client again
+    # and answer about the screen that is open now. Nothing asks screen_open first: that question
+    # would drop the answer by itself and hide a press or a close that forgot to.
+    ctx.assert(Test.gui_left() == 0, "A read after the panel closed should answer 0.")
+    ctx.assert(Test.gui_width() == 0, "A read after the panel closed should answer 0 wide.")
+    ctx.assert(Test.gui_height() == 0, "A read after the panel closed should answer 0 high.")
+    ctx.assert(not Test.screen_open(), "The panel should have closed, and reading it should not reopen it.")
+    # Escape closes the client's screen only, so this closes the server's menu too and the panel
+    # this test opened does not outlive it, as forwarded_press_screen_key-Test does.
+    Test.close_screen()
+}

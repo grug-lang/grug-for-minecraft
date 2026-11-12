@@ -399,7 +399,20 @@ class GrugControlTest {
         @Override
         public double screenRead(String read) {
             seen.add("read " + read);
-            return this.read;
+            // Each measurement answers its own value, so a batch's order can be told from a
+            // single read's, and the panel's width stays the 176 its tests assert.
+            switch (read) {
+                case GrugScreenCalls.GUI_LEFT:
+                    return 71;
+                case GrugScreenCalls.GUI_TOP:
+                    return 40;
+                case GrugScreenCalls.GUI_HEIGHT:
+                    return 166;
+                case GrugScreenCalls.SCREEN_WIDTH:
+                    return 320;
+                default:
+                    return this.read;
+            }
         }
 
         @Override
@@ -1330,6 +1343,68 @@ class GrugControlTest {
         assertTrue(
                 wrongNumber.getMessage().contains("wrong kind of answer"),
                 wrongNumber.getMessage());
+
+        // One number answering the geometry batch, and a batch answering a one-number call, are
+        // each the wrong kind too.
+        GrugControlServer batched = new GrugControlServer(link, 5000);
+        batched.onMessage(PLAYER, GrugControlWire.runStart());
+        int batchedBefore = sent.size();
+        Thread batcher =
+                new Thread(
+                        () -> {
+                            awaitSent(sent, batchedBefore + 1);
+                            long id = GrugControlWire.decode(sent.get(sent.size() - 1)).id;
+                            batched.onMessage(PLAYER, GrugControlWire.answerNumber(id, 176.0));
+                        });
+        batcher.start();
+        GrugControlServer.ControlException wrongGeometry =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> batched.screenRead(GrugScreenCalls.GUI_WIDTH));
+        assertTrue(
+                wrongGeometry.getMessage().contains("wrong kind of answer"),
+                wrongGeometry.getMessage());
+
+        GrugControlServer answeredWithGeometry = new GrugControlServer(link, 5000);
+        answeredWithGeometry.onMessage(PLAYER, GrugControlWire.runStart());
+        int geometryBefore = sent.size();
+        Thread geometryAnswerer =
+                new Thread(
+                        () -> {
+                            awaitSent(sent, geometryBefore + 1);
+                            long id = GrugControlWire.decode(sent.get(sent.size() - 1)).id;
+                            answeredWithGeometry.onMessage(
+                                    PLAYER,
+                                    GrugControlWire.answerNumbers(
+                                            id, new double[] {71, 40, 176, 166, 320, 246}));
+                        });
+        geometryAnswerer.start();
+        GrugControlServer.ControlException wrongValueAgain =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> answeredWithGeometry.hasSound("random.click"));
+        assertTrue(
+                wrongValueAgain.getMessage().contains("wrong kind of answer"),
+                wrongValueAgain.getMessage());
+
+        // A one-number call answered with a value is the wrong kind, as a screen read used to
+        // prove before it became a batch.
+        GrugControlServer oneNumber = new GrugControlServer(link, 5000);
+        oneNumber.onMessage(PLAYER, GrugControlWire.runStart());
+        int oneBefore = sent.size();
+        Thread oneValuer =
+                new Thread(
+                        () -> {
+                            awaitSent(sent, oneBefore + 1);
+                            long id = GrugControlWire.decode(sent.get(sent.size() - 1)).id;
+                            oneNumber.onMessage(PLAYER, GrugControlWire.answerValue(id, (byte) 1));
+                        });
+        oneValuer.start();
+        GrugControlServer.ControlException wrongSingleNumber =
+                assertThrows(GrugControlServer.ControlException.class, () -> oneNumber.camera(0));
+        assertTrue(
+                wrongSingleNumber.getMessage().contains("wrong kind of answer"),
+                wrongSingleNumber.getMessage());
     }
 
     private static void awaitSent(List<byte[]> sent, int count) {
@@ -1373,6 +1448,25 @@ class GrugControlTest {
         assertEquals(7, number.id);
         assertEquals(123.5, number.number);
 
+        // A whole screen comes back in one message, its six measurements in the order the calls
+        // name them, so a server can answer a dozen reads from one round trip (#1277).
+        GrugControlWire.Message geometry =
+                GrugControlWire.decode(
+                        GrugControlWire.answerNumbers(
+                                9, new double[] {71, 40, 176, 166, 320, 246}));
+        assertEquals(GrugControlWire.ANSWER_NUMBERS, geometry.type);
+        assertEquals(9, geometry.id);
+        assertArrayEquals(new double[] {71, 40, 176, 166, 320, 246}, geometry.numbers);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.answerNumbers(9, new double[] {1, 2, 3, 4, 5}));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        GrugControlWire.decode(
+                                GrugControlWire.answerNumbers(
+                                        9, new double[] {1, 2, 3, 4, 5, Double.NaN})));
+
         // A screen call carries its arguments in the call's three number slots.
         GrugControlWire.Message press =
                 GrugControlWire.decode(
@@ -1386,6 +1480,7 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_CHUNK));
         assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_VALUE));
         assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_NUMBER));
+        assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_NUMBERS));
         assertFalse(GrugControlWire.isAnswer(GrugControlWire.CALL_REQUEST));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_HAS_SOUND));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCREEN_OPEN));
@@ -1399,10 +1494,11 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_CLIENT_LIGHT));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_SUPPORTED));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_DRAWN));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCREEN_GEOMETRY));
         assertFalse(GrugControlWire.isCall((byte) 0));
         // Above the last call the wire carries, so a code added there is not silently accepted as
         // one of these.
-        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_OVERLAY_DRAWN + 1)));
+        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_SCREEN_GEOMETRY + 1)));
 
         // A give names its item and the count the client computed, and a count no host function
         // can ask for, or a message that names no item, is refused rather than applied.
@@ -1444,6 +1540,7 @@ class GrugControlTest {
         assertTrue(GrugControlWire.sendsPacket(GrugControlWire.CALL_OPEN_INVENTORY));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_SCREEN_OPEN));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_SCREEN_READ));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_SCREEN_GEOMETRY));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_SCROLL_SCREEN));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_HAS_SOUND));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_WORLD_SETTLED));
@@ -1475,7 +1572,7 @@ class GrugControlTest {
 
         byte[] unknown =
                 GrugControlWire.callRequest(
-                        1, (byte) (GrugControlWire.CALL_OVERLAY_DRAWN + 1), "x", 0, 0, 0);
+                        1, (byte) (GrugControlWire.CALL_SCREEN_GEOMETRY + 1), "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1839,7 +1936,13 @@ class GrugControlTest {
         assertEquals(
                 List.of(
                         "screenOpen",
+                        // One geometry batch answers the read: the client makes all five adapter
+                        // reads once, in the order the answer carries them.
+                        "read gui_left",
+                        "read gui_top",
                         "read gui_width",
+                        "read gui_height",
+                        "read screen_width",
                         "key 75 true false",
                         "scroll 10.0 20.0 -1.0",
                         "click 12.0 34.0 0",
@@ -1850,6 +1953,104 @@ class GrugControlTest {
                         "click 12.0 34.0 1",
                         "close"),
                 screens.seen);
+    }
+
+    @Test
+    void oneScreenGeometryBatchAnswersEveryReadUntilSomethingCanMoveTheScreen() throws Exception {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+        GrugControlServer server = loop.server;
+        int sentBefore = loop.toClient.size();
+
+        // The five reads are answered by one message, and every value is the one its own read
+        // would have made.
+        assertEquals(71.0, server.screenRead(GrugScreenCalls.GUI_LEFT));
+        assertEquals(40.0, server.screenRead(GrugScreenCalls.GUI_TOP));
+        assertEquals(176.0, server.screenRead(GrugScreenCalls.GUI_WIDTH));
+        assertEquals(166.0, server.screenRead(GrugScreenCalls.GUI_HEIGHT));
+        assertEquals(320.0, server.screenRead(GrugScreenCalls.SCREEN_WIDTH));
+
+        assertEquals(sentBefore + 1, loop.toClient.size(), "five reads, one round trip");
+        assertEquals(
+                GrugControlWire.CALL_SCREEN_GEOMETRY,
+                GrugControlWire.decode(loop.toClient.get(sentBefore)).call);
+        assertEquals(
+                List.of(
+                        "read gui_left",
+                        "read gui_top",
+                        "read gui_width",
+                        "read gui_height",
+                        "read screen_width"),
+                screens.seen);
+
+        // The batch derives the screen's height from the centered GUI, which is how a test without
+        // a height read derives it: on a 320 pixel screen the 40 and the 166 put its bottom at 206
+        // and a symmetric top above it.
+        assertArrayEquals(
+                new double[] {71, 40, 176, 166, 320, 246},
+                GrugScreenCalls.geometry(screens::screenRead));
+
+        // Nothing moved, so the next read costs no message at all.
+        assertEquals(176.0, server.screenRead(GrugScreenCalls.GUI_WIDTH));
+        assertEquals(sentBefore + 1, loop.toClient.size());
+    }
+
+    @Test
+    void everyCallThatCanMoveTheScreenMakesTheNextReadAskAgain() throws Exception {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+        GrugControlServer server = loop.server;
+
+        // Each call that can move or replace the screen drops the batch before it sends, so the
+        // read after it asks the client again and the read after that one does not.
+        server.pressScreenKey(75, true, false);
+        assertReasked(server, loop);
+        server.scrollScreen(10, 20, 1);
+        assertReasked(server, loop);
+        server.clickScreen(12, 34, 0);
+        assertReasked(server, loop);
+        server.openInventory();
+        assertReasked(server, loop);
+        server.closeScreen();
+        assertReasked(server, loop);
+
+        // A world change can open or close the screen: bending a block opens its menu, and
+        // removing a container's block closes one, so the next read asks again. This is also what
+        // drops the answer at each test's start, because the runner rebuilds the room there.
+        GrugWorldRevision.bump();
+        assertReasked(server, loop);
+
+        // The client that answered is gone when its run ends, so a later starter's screen is never
+        // this one's.
+        server.endRun();
+        loop.client.beginRun();
+        assertReasked(server, loop);
+
+        // A screen that opened or closed since the last ask drops it, so a test that waits for the
+        // screen it just opened cannot read the one before it.
+        screens.open = true;
+        assertTrue(server.screenOpen());
+        assertReasked(server, loop);
+        screens.open = false;
+        assertFalse(server.screenOpen());
+        assertReasked(server, loop);
+
+        // A screen that is still there after a second ask changes nothing, so the answer stands.
+        assertFalse(server.screenOpen());
+        int stable = loop.toClient.size();
+        assertEquals(176.0, server.screenRead(GrugScreenCalls.GUI_WIDTH));
+        assertEquals(stable, loop.toClient.size(), "an unchanged screen keeps its answer");
+    }
+
+    /** A read after a screen change asks the client once, and the read after that one does not. */
+    private static void assertReasked(GrugControlServer server, Loopback loop) throws Exception {
+        int before = loop.toClient.size();
+        assertEquals(176.0, server.screenRead(GrugScreenCalls.GUI_WIDTH));
+        assertEquals(before + 1, loop.toClient.size(), "a read after a screen change asks again");
+        assertEquals(176.0, server.screenRead(GrugScreenCalls.GUI_WIDTH));
+        assertEquals(before + 1, loop.toClient.size(), "the answer is remembered");
     }
 
     @Test
@@ -2084,12 +2285,13 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) (GrugControlWire.CALL_OVERLAY_DRAWN + 1),
+                        (byte) (GrugControlWire.CALL_SCREEN_GEOMETRY + 1),
                         0,
                         0,
                         0,
                         (byte) 0,
-                        0);
+                        0,
+                        null);
 
         loop.client.perform(unknown);
 
@@ -2099,8 +2301,40 @@ class GrugControlTest {
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
         assertTrue(
-                answer.text.contains("unknown call " + (GrugControlWire.CALL_OVERLAY_DRAWN + 1)),
+                answer.text.contains("unknown call " + (GrugControlWire.CALL_SCREEN_GEOMETRY + 1)),
                 answer.text);
+    }
+
+    @Test
+    void aClientStillAnswersASingleScreenReadItIsAsked() {
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        GrugControlWire.Message read =
+                new GrugControlWire.Message(
+                        GrugControlWire.CALL_REQUEST,
+                        4,
+                        new int[] {0, 0, 0, 0},
+                        0,
+                        0,
+                        new byte[0],
+                        GrugScreenCalls.GUI_WIDTH,
+                        GrugControlWire.CALL_SCREEN_READ,
+                        0,
+                        0,
+                        0,
+                        (byte) 0,
+                        0,
+                        null);
+
+        // A server reads a whole screen in one batch (#1277), and the wire still carries a single
+        // read: a client answers it with the one measurement it names.
+        loop.client.perform(read);
+
+        GrugControlWire.Message answer = GrugControlWire.decode(loop.toServer.get(0));
+        assertEquals(GrugControlWire.ANSWER_NUMBER, answer.type);
+        assertEquals(4, answer.id);
+        assertEquals(176.0, answer.number);
+        assertEquals(List.of("read gui_width"), screens.seen);
     }
 
     @Test
