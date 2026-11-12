@@ -53,7 +53,10 @@ class GrugLightSyncTest {
         // The engine taking on work after the samples leaves the answer false however they agree,
         // because a second batch can still change the section before a frame is drawn.
         assertFalse(GrugLightSync.lightApplied(false, afterBatch, afterBatch, afterBatch));
-        // A client with no level has no section to read, and a missing section is not a light.
+        // A client that cannot verify its copy answers -1, which is read as applied so a loader
+        // whose client cannot reproduce the world's light does not wait until its deadline (#1240).
+        assertTrue(GrugLightSync.lightApplied(true, afterBatch, afterBatch, -1));
+        // A world with no level to sample holds no section, so -1 there is still false.
         assertFalse(GrugLightSync.lightApplied(true, -1, -1, -1));
     }
 
