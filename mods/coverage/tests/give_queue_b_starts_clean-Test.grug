@@ -1,18 +1,18 @@
-# The second half of the pair give_queue_a_ends_with_a_give (#1144). The test before this one made
-# the press that gives an item in its last tick, so the give was still queued on the server when the
-# runner reset the state this test starts from. The reset drops that queue, so this test meets the
-# inventory it was given: the item the give named is not in the player's hand. A give fills the
-# first empty slot, which is the selected hotbar slot the runner empties, so the hand is the slot
-# the dropped give would have filled.
+# The second half of the pair give_queue_a_ends_with_a_give (#1144). That test made its last press
+# in its last tick, so the give was still queued on the server when the runner reset the state this
+# test starts from. The reset drops that queue, so this test meets the inventory it was reset to: the
+# item the give named is not in the player's hand. A give fills the first empty slot, which is the
+# selected hotbar slot the runner empties, so the hand is the slot the dropped give would have
+# filled.
 
-# The screen is still the one the last test opened, because that test ended in its click rather
-# than making the call that closes a screen after its give. This test closes it.
+# The test before this one closes its own screen now, so this test opens nothing and closes
+# nothing. The pair only bites when give_queue_a ran first, because a client-only run orders tests by
+# their measured time rather than by name; the unit tests over the queue are the deterministic proof.
 started: bool = false
 
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        Test.close_screen()
         # One more tick, so the drain that would apply a queued give has run: the leak the pair
         # guards against is a give applied by the first drain after this test's reset.
         ctx.not_done()

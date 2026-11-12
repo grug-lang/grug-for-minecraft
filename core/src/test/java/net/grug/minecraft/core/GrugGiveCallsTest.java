@@ -5,7 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.grug.GrugErrors;
+import net.grug.minecraft.grug.GrugTestState;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -66,6 +69,29 @@ class GrugGiveCallsTest {
                                                 "a give does not ask " + method.getName());
                                 }
                             });
+        }
+    }
+
+    /**
+     * Whether a run was active before this test, put back afterwards. A dropped give is reported as
+     * the running test's error, so the tests here choose the run state instead of inheriting
+     * whatever the last test class left.
+     */
+    private boolean savedRunActive;
+
+    @BeforeEach
+    void startWithNoRunActive() {
+        savedRunActive = GrugTestState.testRunActive;
+        GrugTestState.testRunActive = false;
+        GrugErrors.takeHostFunctionException();
+    }
+
+    @AfterEach
+    void restoreTheRunAndWhatWasReported() {
+        GrugTestState.testRunActive = savedRunActive;
+        GrugErrors.takeHostFunctionException();
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.clear();
         }
     }
 
@@ -189,23 +215,43 @@ class GrugGiveCallsTest {
 
         // A give that was dropped changed nothing, so it moves nothing either.
         items.player = null;
-        GrugGiveCalls.giveOnServer(items.adapter(), "minecraft:stone", 1);
+        String dropped = giveOnServerAndReadReport(items, "minecraft:stone", 1);
+        assertTrue(dropped.contains("no player has joined yet"), dropped);
         assertEquals(before + 1, GrugWorldRevision.current());
     }
 
     @Test
-    void aGiveWithNoPlayerOrNoSuchItemIsDropped() {
+    void aGiveWithNoPlayerOrNoSuchItemIsReportedAsTheAskingTestsError() {
         Items items = new Items();
         items.add("minecraft:stone");
 
         // No player has joined yet, and a name the list does not hold, each drop the give rather
-        // than fail a test that has already asserted on something else.
+        // than give some other item. A test that clicked for an item would only see an empty hand,
+        // so each drop is the error of that test, which is the bounded defect that fails its scope.
         items.player = null;
-        GrugGiveCalls.giveOnServer(items.adapter(), "minecraft:stone", 1);
+        String noPlayer = giveOnServerAndReadReport(items, "minecraft:stone", 1);
         items.player = "the player";
-        GrugGiveCalls.giveOnServer(items.adapter(), "minecraft:gravel", 1);
+        String noItem = giveOnServerAndReadReport(items, "minecraft:gravel", 1);
 
         assertTrue(items.given.isEmpty());
+        assertTrue(noPlayer.contains("no player has joined yet"), noPlayer);
+        assertTrue(noItem.contains("minecraft:gravel"), noItem);
+        assertTrue(noItem.contains("item list has no item"), noItem);
+    }
+
+    /**
+     * Runs a server give as a test that is asking for it, and answers the error it reported. The
+     * run has to be active for the record path: this drain runs between two of the test's calls,
+     * with no call of its own to fail.
+     */
+    private static String giveOnServerAndReadReport(Items items, String name, int count) {
+        GrugTestState.testRunActive = true;
+        try {
+            GrugGiveCalls.giveOnServer(items.adapter(), name, count);
+        } finally {
+            GrugTestState.testRunActive = false;
+        }
+        return GrugErrors.takeHostFunctionException();
     }
 
     /**
