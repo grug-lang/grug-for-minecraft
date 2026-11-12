@@ -998,8 +998,13 @@ jobs:
           # stopped it before its last tests while it was still passing them. The cap is the hang
           # detector rather than a second budget, so it leaves room for the suite's growth; the
           # suite grew again, and the 228 tests of the b1.7.3-ornithe leg now take 399 to 430 s
-          # (#1094's dispatch), so 420 s stopped that leg 0.65 s before its last line.
-          GRUG_CI_RUN_TIMEOUT: '600'
+          # (#1094's dispatch), so 420 s stopped that leg 0.65 s before its last line. The overlay
+          # forwarding (#1227) then made the jei tests a round trip per read, and dispatch
+          # 43245283483 was cut at 645 s: every coverage test had passed by 15:19:35, the jei
+          # hotkey took 46 s, and paging was still going when the cap fired, while a1, 1.2.5 and
+          # 1.20.6 finished in 334, 308 and 324 s (#1277). 900 s leaves room for that growth and
+          # still catches a hang.
+          GRUG_CI_RUN_TIMEOUT: '900'
           # An update-goldens dispatch accepts each unmatched capture into its own side's reference
           # directory, which is the only way the server goldens are generated (#1092). core reads
           # this, and run-multiplayer.sh prints which mode the leg is in.
