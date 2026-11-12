@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
@@ -537,6 +538,11 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * is one the next frame can still draw with the older light elsewhere. A server with no starter
      * has no frame to protect and answers true, as {@link #isWorldSettled} does. The inherited
      * answer reads a null client level here. See #167.
+     *
+     * <p>The server's light is sampled before and after the settled check, and the client is asked
+     * between the second sample and a last settled check, so a light batch that finishes in the
+     * wait makes the two samples differ rather than passing the pre-batch light for the room's, on
+     * the joined client's answer too. See {@link GrugLightSync#lightApplied} and #1248.
      */
     @Override
     public boolean lightApplied(double x, double y, double z) {
@@ -547,8 +553,11 @@ public class ServerForgeAdapter extends ForgeAdapter {
         if (!lightEngineSettled(getLevel())) {
             return false;
         }
+        long settled = sectionLightFingerprint(getLevel(), x, y, z);
         try {
-            return (long) GrugControlForge.server().clientLightFingerprint(x, y, z) == simulated;
+            long client = (long) GrugControlForge.server().clientLightFingerprint(x, y, z);
+            return GrugLightSync.lightApplied(
+                    lightEngineSettled(getLevel()), simulated, settled, client);
         } catch (GrugControlServer.ControlException e) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.light_applied: " + e.getMessage());
             return true;
