@@ -54,17 +54,15 @@ public interface ModLoaderAdapter {
      * {@code HostFunctions} would have had to be excluded instead, which would have taken the
      * delegation that surrounds it out of measurement with it.
      *
-     * <p>It is excluded from the coverage gate as a whole, not only its refusal: a core test can
-     * reach the client answer through a stand-in adapter, but the refusal is what a dedicated
-     * server does, and no core test has one. The client answer is still exercised by every loader's
-     * game run, where {@code Test.use_block}, {@code Test.mining_crack} and {@code
-     * Screenshot.equals} ask it, but it is not counted; the refusal waits for the dedicated-server
-     * run of #163, which is when the exclusion can come off. See #188.
+     * <p>A core test reaches both answers through a stand-in adapter that says which side it is on,
+     * so the whole method is counted by the core test job without a game: {@code
+     * HostFunctionsOnADedicatedServerWithNothingJoinedTest}. Every loader's game run also exercises
+     * the client answer, where {@code Test.use_block}, {@code Test.mining_crack} and {@code
+     * Screenshot.equals} ask it. See #169 and #188.
      *
      * <p>A refusal is a host function error rather than a fatal: it names the function, it fails
      * the test that called it, and the game keeps running, which is what a mod's mistake deserves.
      */
-    @GrugGenerated("the refusal arm needs a dedicated server, which no CI run launches until #163")
     default boolean refuseWithoutAClient(String function) {
         GrugSide side = getSide();
         if (side == GrugSide.CLIENT) return false;
