@@ -1689,6 +1689,31 @@ public class HostFunctions {
         return false;
     }
 
+    /**
+     * Whether a label of {@code text}'s length fits a GUI layout, or answers false after reporting
+     * the call that would have added it.
+     *
+     * <p>A client's reader refuses a layout whose text is longer than {@link
+     * GrugGuiLayoutCodec#MAX_TEXT} bytes, and a client that refuses a layout loses the connection
+     * the server sent it over, so the call that would add one is the thing that fails. That names
+     * the grug call that asked for the text, and leaves the connection alone.
+     */
+    private static boolean layoutTextFits(String method, String text) {
+        int bytes = GrugGuiLayoutCodec.textBytes(text);
+        if (bytes <= GrugGuiLayoutCodec.MAX_TEXT) {
+            return true;
+        }
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                method
+                        + ": A GUI's text is at most "
+                        + GrugGuiLayoutCodec.MAX_TEXT
+                        + " bytes long, so this one of "
+                        + bytes
+                        + " bytes is not added.");
+        return false;
+    }
+
     public static void GUI_add_crafting_grid(long guiId, double startSlot, double x, double y) {
         withEntity(
                 "GUI.add_crafting_grid",
@@ -1755,6 +1780,9 @@ public class HostFunctions {
                                     GrugGuiBuilder builder = (GrugGuiBuilder) gui;
                                     if (!layoutRecordFits(
                                             "GUI.add_text", builder.texts.size(), "texts")) {
+                                        return;
+                                    }
+                                    if (!layoutTextFits("GUI.add_text", text)) {
                                         return;
                                     }
                                     builder.texts.add(

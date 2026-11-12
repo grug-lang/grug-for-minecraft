@@ -19,9 +19,9 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>The game's own string codec is not used, so a label is not capped at its length. A length is
  * bounded here instead, so a corrupt stream cannot ask for a huge allocation, and so are the record
- * counts, so it cannot make the reader loop until the stream ends. A layout holding more records
- * than the reader accepts is refused when it is written too, because the alternative is a client
- * that refuses the packet and loses the connection the server sent it over.
+ * counts, so it cannot make the reader loop until the stream ends. A layout holding more records or
+ * a longer text than the reader accepts is refused when it is written too, because the alternative
+ * is a client that refuses the packet and loses the connection the server sent it over.
  */
 public final class GrugGuiLayoutCodec {
     /** The most bytes one label or texture path may hold. */
@@ -34,6 +34,15 @@ public final class GrugGuiLayoutCodec {
     public static final int MAX_ENTRIES = 64;
 
     private GrugGuiLayoutCodec() {}
+
+    /**
+     * The bytes {@code text} takes in a layout, which is the measure {@link #MAX_TEXT} bounds. A
+     * caller that adds a label asks this before it adds one, so the layout a script builds is one
+     * the reader accepts and the call that would not fit is the thing that fails.
+     */
+    public static int textBytes(String text) {
+        return text.getBytes(StandardCharsets.UTF_8).length;
+    }
 
     /** Writes {@code layout} field for field, in the order {@link #read} reads it. */
     public static void write(DataOutput out, GrugGuiBuilder layout) throws IOException {
@@ -146,8 +155,16 @@ public final class GrugGuiLayoutCodec {
         return count;
     }
 
+    /**
+     * Writes a text, refusing one longer than {@link #MAX_TEXT}, which is the length the reader
+     * refuses. A text no reader accepts is not written, so no caller can send a client a layout it
+     * would refuse and lose the connection over.
+     */
     private static void writeText(DataOutput out, String text) throws IOException {
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > MAX_TEXT) {
+            throw new IOException("a GUI layout's text is " + bytes.length + " bytes long");
+        }
         out.writeInt(bytes.length);
         out.write(bytes);
     }

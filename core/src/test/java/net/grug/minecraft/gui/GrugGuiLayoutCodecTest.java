@@ -165,6 +165,41 @@ class GrugGuiLayoutCodecTest {
     }
 
     @Test
+    void refusesToWriteALabelLongerThanTheReaderAccepts() {
+        GrugGuiBuilder layout = new GrugGuiBuilder("");
+        layout.texts.add(
+                new GrugGuiBuilder.TextDef("a".repeat(GrugGuiLayoutCodec.MAX_TEXT + 1), 0, 0, 0));
+
+        assertThrows(
+                IOException.class,
+                () -> write(layout),
+                "a label the client's reader refuses must not be sent, or the client loses the"
+                        + " connection the layout travelled over");
+    }
+
+    @Test
+    void refusesToWriteATexturePathLongerThanTheReaderAccepts() {
+        GrugGuiBuilder layout = new GrugGuiBuilder("a".repeat(GrugGuiLayoutCodec.MAX_TEXT + 1));
+
+        assertThrows(IOException.class, () -> write(layout));
+    }
+
+    @Test
+    void countsALabelsBytesRatherThanItsCharacters() throws IOException {
+        GrugGuiBuilder layout = new GrugGuiBuilder("");
+        // Two bytes each, so this label is exactly the most bytes a layout may hold.
+        String longest = "\u00e9".repeat(GrugGuiLayoutCodec.MAX_TEXT / 2);
+        layout.texts.add(new GrugGuiBuilder.TextDef(longest, 0, 0, 0));
+
+        GrugGuiBuilder read = roundTrip(layout);
+        assertEquals(longest, read.texts.get(0).text());
+
+        layout.texts.clear();
+        layout.texts.add(new GrugGuiBuilder.TextDef(longest + "\u00e9", 0, 0, 0));
+        assertThrows(IOException.class, () -> write(layout));
+    }
+
+    @Test
     void writesTheMostRecordsTheReaderAccepts() throws IOException {
         GrugGuiBuilder layout = new GrugGuiBuilder("");
         for (int i = 0; i < GrugGuiLayoutCodec.MAX_ENTRIES; i++) {
