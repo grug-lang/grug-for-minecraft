@@ -6,9 +6,21 @@
 # first entry, or moved to another player when the starter left, would build the room around one
 # player while forwarding the calls to another, and the camera would be somewhere else.
 
+# The two players have to be told apart for that comparison to fail a wrong pick, so the 1.20.6
+# server puts the second player eight blocks from the starter before the run (GrugServerRun). Both
+# would otherwise join at the world spawn, and the wrong player's eye would sit inside the capture
+# tolerance just as the right one's does. Eight blocks is far outside it, so a run that reads the
+# second player's origin fails the x and z assertions below even though its held item and cursor
+# assertions would pass on whichever player it picked.
+
+# The camera waits below are the ones a capture waits on, not tick counts: the room is built and its
+# first frame drawn before the camera follows the teleport that built it, so a camera still moving
+# is a wait. The camera-Test.grug bound fails a camera that never arrives.
+
 # The held item and the cursor are then read back on the same test player, so an adapter that chose
-# another player cannot pass: its origin is that other player's, and the camera above already said
-# so. The item is put on the cursor of the menu the click opened, which is the starter's own menu.
+# the right origin but another player would still pass those two; the camera above is the check that
+# the player is the starter. The item is put on the cursor of the menu the click opened, which is the
+# starter's own menu.
 
 # run-multiplayer.sh requires this test in the log of the 1.20.6 leg, the only one that launches a
 # second client, so a leg that skipped it cannot report the two-player property as proven.
@@ -19,17 +31,30 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
+    # The client draws the room after the runner built it, and Test.camera reads the client's own
+    # camera, so this waits for that frame before reading either value.
+    if not Test.world_settled() {
+        ctx.not_done()
+        return
+    }
+    origin: Vec3 = Test.get_origin()
+    camera: Vec3 = Test.camera()
+    if not _at_eye(camera, origin) and ctx.current_tick() < 100 {
+        # The camera follows the teleport that put the test player at the room's start, so a camera
+        # still moving is a wait here too. The bound fails a camera that never arrives, which is
+        # what a run reading another player's origin leaves, rather than waiting out the budget.
+        ctx.not_done()
+        return
+    }
     if not Test.screen_open() {
         # The menu the click opened reaches the client a frame later, and the test reads the
         # client's screen, so this waits rather than assuming a tick count.
         ctx.not_done()
         return
     }
-    origin: Vec3 = Test.get_origin()
-    camera: Vec3 = Test.camera()
-    ctx.assert(_near(camera.x(), origin.x()), "The room's eye should be the starter's x.")
-    ctx.assert(_near(camera.y(), origin.y() - 3.0), "The room's eye should be the starter's y, the origin less its 3 block lift.")
-    ctx.assert(_near(camera.z(), origin.z()), "The room's eye should be the starter's z.")
+    ctx.assert(_near(camera.x(), origin.x()), "The camera should be the starter's x, not another player's.")
+    ctx.assert(_near(camera.y(), origin.y() - 3.0), "The camera should be the starter's y, the origin less its 3 block lift.")
+    ctx.assert(_near(camera.z(), origin.z()), "The camera should be the starter's z, not another player's.")
 
     player: Player = Test.get_player()
     diamond: Item = item(resource_location("minecraft:diamond"))
@@ -62,6 +87,12 @@ local _setup() {
     origin: Vec3 = Test.get_origin()
     level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_gui")
     Test.use_block(level, origin.x(), origin.y(), origin.z())
+}
+
+# Whether the camera is the room's eye, the origin less its 3 block lift, as camera-Test.grug
+# asks it.
+local _at_eye(camera: Vec3, origin: Vec3) bool {
+    return _near(camera.x(), origin.x()) and _near(camera.y(), origin.y() - 3.0) and _near(camera.z(), origin.z())
 }
 
 # The tolerance is the wire's own capture-eye tolerance, a block in 1024 (GrugTestCamera's

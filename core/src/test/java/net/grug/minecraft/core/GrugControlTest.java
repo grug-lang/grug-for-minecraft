@@ -745,10 +745,15 @@ class GrugControlTest {
                             loop.server.onMessage("mallory", GrugControlWire.answerError(1, "x"));
                             loop.server.onMessage("mallory", new byte[] {99});
                             loop.server.onMessage(PLAYER, GrugControlWire.answerError(99, "x"));
-                            loop.server.onMessage("mallory", GrugControlWire.runStart());
                         });
 
         assertEquals("", printed);
+        // A START is the one exception to the silence: the client says it sent its start whether or
+        // not the server accepted it, so the run script reads this line to know a second real START
+        // arrived and was refused (#1027). It never moves the run to that sender.
+        String ignored =
+                capture(() -> loop.server.onMessage("mallory", GrugControlWire.runStart()));
+        assertEquals("[GRUG CONTROL] mallory sent a start, which was ignored\n", ignored);
         assertEquals(PLAYER, loop.server.starter());
     }
 

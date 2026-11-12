@@ -125,6 +125,15 @@ printf '%s\\n' "$*" >> "${FAKE_GRADLE_LOG:?}"
 case "$*" in
   *runServer*)
     printf 'Done (1.2s)! For help, type "help"\\n'
+    if [ "${FAKE_RUN_PASSES:-0}" = "1" ]; then
+      # A run that passes, which is what require_second_player reads: the suite is declared passed
+      # after both clients have had time to start, so their logs exist when the script checks them.
+      mkdir -p loaders/1.20.6-forge/build/jacoco-server
+      printf 'segment\\n' > loaders/1.20.6-forge/build/jacoco-server/run.exec
+      sleep 6
+      cat "${FAKE_SERVER_LINES_FILE:?}"
+      exit 0
+    fi
     exec sleep 600
     ;;
   *runClient*)
@@ -139,12 +148,24 @@ exit 0
 """
 
 # A client that records the directory it was launched in. The second one says it is in the world, so
-# the wrapper starts the client Gradle asked for; the first one only stays up.
+# the wrapper starts the client Gradle asked for; the first one only stays up. In a passing run both
+# say they sent their START, which the client cannot know the server accepted, and only the first
+# receives a control request.
 SECOND_JAVA = """\
 #!/usr/bin/env bash
 printf 'cwd=%s\\n' "$PWD" >> "${FAKE_JAVA_LOG:?}"
-if [ "${PWD##*/}" = "run-second" ] && [ "${FAKE_SECOND_JOINS:-1}" = "1" ]; then
-  printf '[GRUG MULTIPLAYER] the second client is in the world and waits for its start file\\n'
+if [ "${PWD##*/}" = "run-second" ]; then
+  if [ "${FAKE_SECOND_JOINS:-1}" = "1" ]; then
+    printf '[GRUG MULTIPLAYER] the second client is in the world and waits for its start file\\n'
+  fi
+  if [ "${FAKE_RUN_PASSES:-0}" = "1" ]; then
+    printf '[GRUG CONTROL] this client started a run, and sent the start\\n'
+  fi
+else
+  if [ "${FAKE_RUN_PASSES:-0}" = "1" ]; then
+    printf '[GRUG CONTROL] this client started a run, and sent the start\\n'
+    printf '[GRUG CONTROL] request 7\\n'
+  fi
 fi
 exec sleep 600
 """
@@ -155,6 +176,13 @@ SECOND_XVFB = """\
 #!/usr/bin/env bash
 printf '%s\\n' "$*" >> "${FAKE_XVFB_LOG:?}"
 exec sleep 600
+"""
+
+# The readiness probe the script runs before starting the second client. The fake Xvfb is up as
+# soon as it is started, so the first probe is the one that passes.
+SECOND_XSET = """\
+#!/usr/bin/env bash
+exit 0
 """
 
 
@@ -375,6 +403,7 @@ class SecondPlayerTest(unittest.TestCase):
         self.bin.mkdir()
         self.set_executable(self.bin / "java", SECOND_JAVA)
         self.set_executable(self.bin / "Xvfb", SECOND_XVFB)
+        self.set_executable(self.bin / "xset", SECOND_XSET)
         self.java_log = self.tmp / "java-launches.log"
         self.gradle_log = self.tmp / "gradle-invocations.log"
         self.xvfb_log = self.tmp / "xvfb.log"
@@ -416,6 +445,136 @@ class SecondPlayerTest(unittest.TestCase):
 
     def second_log(self):
         return self.loader / "run-second" / "second-client-launch.log"
+
+    # The PASS lines the success branch of run-multiplayer.sh requires of the 1.20.6 server before
+    # it reaches require_second_player, so a fake passing run gets to the checks this case is about.
+    REQUIRED_PASSES = [
+        "coverage/tests/forwarded_capture",
+        "coverage/tests/forwarded_capture_dropped",
+        "coverage/tests/forwarded_capture_late",
+        "coverage/tests/forwarded_capture_late_then",
+        "coverage/tests/forwarded_capture_same_tick",
+        "coverage/tests/forwarded_world_settled",
+        "coverage/tests/forwarded_screen_open",
+        "coverage/tests/forwarded_screen_width",
+        "coverage/tests/forwarded_gui_left",
+        "coverage/tests/forwarded_gui_top",
+        "coverage/tests/forwarded_gui_width",
+        "coverage/tests/forwarded_gui_height",
+        "coverage/tests/forwarded_close_screen",
+        "coverage/tests/forwarded_open_inventory",
+        "coverage/tests/client_saved_number",
+        "coverage/tests/coverage_frame_saved_number",
+        "coverage/tests/coverage_frame_saved_list_energy",
+        "coverage/tests/coverage_mesh_saved_number",
+        "coverage/tests/coverage_mesh_saved_reinit",
+        "coverage/tests/coverage_mesh_frame_saved_number",
+        "coverage/tests/use_block_effects",
+        "coverage/tests/use_block_faces",
+        "buildcraft/tests/redstone_engine_wrench",
+        "buildcraft/tests/wooden_pipe_wrench",
+        "coverage/tests/decline_use_places",
+        "coverage/tests/decline_use",
+        "coverage/tests/sound",
+        "coverage/tests/camera",
+        "coverage/tests/remote_gui",
+        "coverage/tests/item_icon",
+        "coverage/tests/gui_builder",
+        "coverage/tests/gui_click",
+        "coverage/tests/gui_click_empty",
+        "buildcraft/tests/autocrafting_table",
+        "buildcraft/tests/redstone_engine_item",
+        "coverage/tests/forwarded_press_screen_key",
+        "coverage/tests/forwarded_scroll_screen",
+        "coverage/tests/overlay_click_hook",
+        "coverage/tests/overlay_key",
+        "coverage/tests/overlay_probe_gives_nothing",
+        "coverage/tests/overlay_scroll",
+        "jei/tests/hotkey",
+        "jei/tests/paging",
+        "jei/tests/scroll",
+        "coverage/tests/second_player",
+    ]
+
+    # The overlay tests are required twice: the PASS line and the line only a test whose overlay
+    # was drawn on the joined client writes.
+    OVERLAY_PASSES = [
+        "coverage/tests/overlay_click_hook",
+        "coverage/tests/overlay_key",
+        "coverage/tests/overlay_probe_gives_nothing",
+        "coverage/tests/overlay_scroll",
+        "jei/tests/hotkey",
+        "jei/tests/paging",
+        "jei/tests/scroll",
+    ]
+
+    def passing_server_lines(self, ignored_start=True, moved_stranger=True):
+        lines = ["[GRUG CONTROL] Dev started the run"]
+        if ignored_start:
+            lines.append("[GRUG CONTROL] SecondPlayer sent a start, which was ignored")
+        if moved_stranger:
+            lines.append(
+                "[GRUG CI] Moved a second player 8 blocks from the starter, so a run that"
+                " picked it would read another player's eye."
+            )
+        for path in self.REQUIRED_PASSES:
+            lines.append(f"[GRUG CI] PASS {path}-Test.grug")
+        for path in self.OVERLAY_PASSES:
+            lines.append(f"[GRUG MULTIPLAYER] {path}-Test.grug drew the overlay")
+        lines.append("[GRUG CI] The run ended with 2 player(s) connected.")
+        lines.append("[GRUG CI] ALL 42 TESTS PASSED")
+        return "\n".join(lines) + "\n"
+
+    def test_a_passing_two_client_run_proves_the_second_player_property(self):
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines())
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(
+            "Two real clients: exactly one starter, its answers, and both connections survived",
+            result.stdout,
+        )
+
+    def test_a_run_without_an_ignored_second_start_fails_closed(self):
+        # The two clients say they sent a START whether or not the server saw the second one, so the
+        # server's ignored line is the only proof it arrived and was refused. A leg missing it must
+        # fail rather than pass on the one accepted start.
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines(ignored_start=False))
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "The server logged no second START to ignore",
+            result.stderr,
+        )
+
+    def test_a_run_without_the_second_player_moved_away_fails_closed(self):
+        # Both players join at the world spawn, so without the move a wrong pick reads an origin
+        # inside the camera's tolerance and the test cannot fail for it. The line proves the
+        # discriminator was armed for this leg.
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines(moved_stranger=False))
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "The server did not move the second player away",
+            result.stderr,
+        )
 
     def test_the_second_client_runs_before_the_client_gradle_asked_for(self):
         result = self.run_script()
