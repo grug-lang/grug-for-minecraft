@@ -16,6 +16,11 @@
 # started with GRUG_CI, so it opens no world of its own and runs no tests: it is only the player the
 # server's tests are built around.
 #
+# The 1.20.6 leg is the one with a second player (#1027): run-client-with-second.sh starts it on its
+# own X display and its own game directory before the client Gradle asked for, so the two real START
+# messages, the room and the held item and cursor have a second real connection to be told apart
+# from. Every other loader launches exactly one client.
+#
 # A loader whose directory holds server-version.txt has no runServer: its dedicated server is a
 # game of its own that Ornithe's native installer sets up (a1.1.2_01-ornithe, whose Alpha server
 # a0.2.1 is numbered apart from the 1.1.2_01 client, #1021, and b1.7.3-ornithe, #163). The script then builds core's release
@@ -58,6 +63,9 @@ ORNITHE_SERVER_DIR="${REPO_ROOT}/${LOADER_DIR}/ornithe-server"
 CLIENT_DIR="${REPO_ROOT}/${LOADER_DIR}/run"
 SERVER_LOG="${REPO_ROOT}/${LOADER_DIR}/run-server-ci.log"
 CLIENT_LOG="${REPO_ROOT}/${LOADER_DIR}/run-client-ci.log"
+SECOND_CLIENT_DIR="${REPO_ROOT}/${LOADER_DIR}/run-second"
+SECOND_CLIENT_LOG="${SECOND_CLIENT_DIR}/second-client-launch.log"
+SECOND_CLIENT_START_FILE="${SECOND_CLIENT_DIR}/start-now"
 PORT=25565
 SUCCESS_RE='\[GRUG CI\] ALL [1-9][0-9]* TESTS PASSED'
 # Forge prints `Done (1.2s)! For help`, Alpha prints `Done! For help`.
@@ -72,6 +80,13 @@ STANDALONE=false
 
 # The same crash lines run-loader.sh watches, and a Rust abort, which kills the process.
 crash_re='Uncaught exception in thread "Server thread"|Exception in thread "main"|Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to|Broken grug invariant|Failed to start the minecraft server|panicked at .*\.rs:[0-9]+:[0-9]+'
+
+# The second client is 1.20.6's alone (#1027): that is the leg the second-player test runs on, and
+# another client would cost every other leg a boot for a property only this one proves.
+SECOND_CLIENT=false
+if [ "$LOADER" = "1.20.6-forge" ]; then
+  SECOND_CLIENT=true
+fi
 
 export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Djava.util.Arrays.useLegacyMergeSort=true"
 export RUST_BACKTRACE="${RUST_BACKTRACE:-full}"
@@ -151,10 +166,23 @@ rm -rf "${CLIENT_DIR}/saves"
 mkdir -p "$CLIENT_DIR"
 printf 'onboardAccessibility:false\nnarrator:0\n' > "${CLIENT_DIR}/options.txt"
 
+# The second client of the 1.20.6 leg gets a game directory of its own, so two clients cannot write
+# the same log, options file or capture directory. It is wiped like the server's world, so a
+# restored build cannot leave a previous run's files in it.
+if [ "$SECOND_CLIENT" = true ]; then
+  rm -rf "$SECOND_CLIENT_DIR"
+  mkdir -p "${SECOND_CLIENT_DIR}/config"
+  printf 'onboardAccessibility:false\nnarrator:0\n' > "${SECOND_CLIENT_DIR}/options.txt"
+  printf '#Disable the cosmetic early load window (CI has no desktop to fall back to).\nearlyWindowControl = false\n' > "${SECOND_CLIENT_DIR}/config/fml.toml"
+  rm -f "$SECOND_CLIENT_START_FILE"
+fi
+
 server_pid=""
 client_pid=""
 tail_pid=""
 client_tail_pid=""
+second_tail_pid=""
+xvfb_pid=""
 cleanup() {
   local status=$?
   # A run that did not pass leaves the stacks of both game JVMs next to the logs, which is the only
@@ -165,14 +193,20 @@ cleanup() {
       timeout 20 jcmd "$pid" Thread.print >> "${REPO_ROOT}/${LOADER_DIR}/run-threads-ci.log" 2>&1 || true
     done
   fi
-  for pid in "$tail_pid" "$client_tail_pid"; do
+  for pid in "$tail_pid" "$client_tail_pid" "$second_tail_pid"; do
     [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
   done
-  for pid in "$client_pid" "$server_pid"; do
+  [ -n "$xvfb_pid" ] && kill "$xvfb_pid" 2>/dev/null || true
+  # The second client runs in a session of its own, so the client's process group does not reach it.
+  local second_pid=""
+  if [ "$SECOND_CLIENT" = true ] && [ -f "${SECOND_CLIENT_DIR}/second-client.pid" ]; then
+    second_pid=$(cat "${SECOND_CLIENT_DIR}/second-client.pid" 2>/dev/null || true)
+  fi
+  for pid in "$client_pid" "$server_pid" "$second_pid"; do
     [ -n "$pid" ] && kill -TERM -- "-${pid}" 2>/dev/null || true
   done
   sleep 3
-  for pid in "$client_pid" "$server_pid"; do
+  for pid in "$client_pid" "$server_pid" "$second_pid"; do
     [ -n "$pid" ] && kill -KILL -- "-${pid}" 2>/dev/null || true
   done
 }
@@ -303,6 +337,50 @@ require_server_coverage() {
   echo "==> The dedicated server of ${LOADER} recorded ${segments} coverage segment(s) in ${LOADER_DIR}/build/jacoco-server."
 }
 
+# The second player (#1027), asserted from the logs both clients and the server wrote, because those
+# are the only record of a real connection: exactly one starter from two real START messages, the
+# second player's answer ignored, its connection still there after the freezes, and the control
+# channel's own test passed on the room the starter owns.
+require_second_player() {
+  local starts
+  starts=$(grep -cF ' started the run' "$SERVER_LOG" || true)
+  if [ "$starts" -ne 1 ]; then
+    echo "==> Two real START messages must leave exactly one starter, but the server logged ${starts} start(s)." >&2
+    grep -F '[GRUG CONTROL]' "$SERVER_LOG" >&2 || true
+    exit 1
+  fi
+  for log in "$CLIENT_LOG" "$SECOND_CLIENT_LOG"; do
+    if ! grep -qF '[GRUG CONTROL] this client started a run, and sent the start' "$log"; then
+      echo "==> A client never sent its real START: ${log#"$REPO_ROOT"/}" >&2
+      exit 1
+    fi
+  done
+  # A request only ever goes to the starter's connection, so the second client receiving none is
+  # what makes its answer a stranger's: it answers the first request ids on every tick, and the
+  # server must ignore them while the starter's answer completes the call.
+  if grep -qF '[GRUG CONTROL] request ' "$SECOND_CLIENT_LOG"; then
+    echo "==> The second client received a control request, so it is not only a second player." >&2
+    exit 1
+  fi
+  if ! grep -qF '[GRUG CONTROL] request ' "$CLIENT_LOG"; then
+    echo "==> The starter's client received no control request, so the channel never ran there." >&2
+    exit 1
+  fi
+  # The count is printed after the last forwarded call, so two players still connected is the
+  # freeze not having dropped the second one. The server halts right after printing it, so this
+  # waits for the line rather than for the process.
+  local deadline=$((SECONDS + 30))
+  until grep -qF '[GRUG CI] The run ended with 2 player(s) connected.' "$SERVER_LOG"; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "==> The run did not end with both players still connected." >&2
+      grep -F '[GRUG CI] The run ended with' "$SERVER_LOG" >&2 || true
+      exit 1
+    fi
+    sleep 1
+  done
+  echo "==> Two real clients: exactly one starter, its answers, and both connections survived the freezes."
+}
+
 # setsid gives each process its own group, so the cleanup ends Gradle and the game together.
 echo "==> Building and starting the dedicated server of ${LOADER}"
 if [ -n "$SERVER_VERSION" ]; then
@@ -368,13 +446,45 @@ if [ -f "${LOADER_DIR}/root.gradle" ]; then
   client_task=runClient
   client_dir="${REPO_ROOT}/${LOADER_DIR}"
 fi
-(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS GRUG_CI_CONTROL_DROP_WIDTH=7 GRUG_CI_CONTROL_LATE_WIDTH=9 GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
+
+# The 1.20.6 leg's second player (#1027) gets an X display of its own, since two GL clients cannot
+# share one and killing the job's xvfb-run server would take the first client with it. A free
+# display number is picked so a leftover lock from a re-run does not stop the leg.
+second_client_env=()
+if [ "$SECOND_CLIENT" = true ]; then
+  display_num=97
+  while [ -e "/tmp/.X${display_num}-lock" ]; do
+    display_num=$((display_num + 1))
+  done
+  export GRUG_SECOND_CLIENT_DISPLAY=":${display_num}"
+  # -ac because the job's xvfb-run leaves XAUTHORITY pointing at its own display's cookie, which this
+  # server would not know; the display only ever accepts local connections.
+  Xvfb "${GRUG_SECOND_CLIENT_DISPLAY}" -screen 0 1280x720x24 +extension RANDR +extension GLX -ac >/dev/null 2>&1 &
+  xvfb_pid=$!
+  second_client_env=(
+    "GRUG_CI_CLIENT_WRAPPER=${REPO_ROOT}/.github/scripts/run-client-with-second.sh"
+    "GRUG_SECOND_CLIENT_DIR=${SECOND_CLIENT_DIR}"
+    "GRUG_SECOND_CLIENT_DISPLAY=${GRUG_SECOND_CLIENT_DISPLAY}"
+    "GRUG_SECOND_CLIENT_START_FILE=${SECOND_CLIENT_START_FILE}"
+  )
+fi
+(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS GRUG_CI_CONTROL_DROP_WIDTH=7 GRUG_CI_CONTROL_LATE_WIDTH=9 GRUG_CI_CONNECT="127.0.0.1:${PORT}" "${second_client_env[@]}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
 client_pid=$!
 tail -n +1 -F "$CLIENT_LOG" 2>/dev/null | sed -u 's/^/[client] /' &
 client_tail_pid=$!
+if [ "$SECOND_CLIENT" = true ]; then
+  tail -n +1 -F "$SECOND_CLIENT_LOG" 2>/dev/null | sed -u 's/^/[second] /' &
+  second_tail_pid=$!
+fi
 
 deadline=$((SECONDS + ${GRUG_CI_RUN_TIMEOUT:-300}))
 while :; do
+  # The second player holds its real START until the server has accepted the first one (#1027), so
+  # the file it watches is written here. That keeps the two starts in the order the test asserts:
+  # exactly one starter, and the second start arriving while a starter exists.
+  if [ "$SECOND_CLIENT" = true ] && [ ! -e "$SECOND_CLIENT_START_FILE" ] && grep -qF ' started the run' "$SERVER_LOG"; then
+    touch "$SECOND_CLIENT_START_FILE"
+  fi
   # A failure is checked before the success line, so a log holding both is a failure.
   if grep -qF '[GRUG CI] FAIL' "$SERVER_LOG"; then
     echo "==> A test failed on the dedicated server." >&2
@@ -566,6 +676,15 @@ while :; do
       done
     fi
     require_server_coverage
+    if [ "$SECOND_CLIENT" = true ]; then
+      # The second-player test's assertions are about the starter, and this is the only leg with a
+      # second real player, so a leg that skipped it would pass with the property unproven.
+      if ! grep -qF '[GRUG CI] PASS coverage/tests/second_player-Test.grug' "$SERVER_LOG"; then
+        echo "==> The run passed, but coverage/tests/second_player-Test.grug did not run." >&2
+        exit 1
+      fi
+      require_second_player
+    fi
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0
   fi

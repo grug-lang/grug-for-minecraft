@@ -59,8 +59,18 @@ minecraft {
     }
 }
 
-sourceSets.main.resources { srcDir 'src/generated/resources' }
+// The second player of the dedicated-server leg (#1027): Gradle runs one runClient, so
+// run-multiplayer.sh hands in a wrapper that is given exactly the command this task would have run.
+// The wrapper starts the second client on its own display and game directory first, and then runs
+// this client, so one Gradle invocation still launches exactly one build. The variable is set only
+// on the 1.20.6 leg, and no other loader's runClient sees it.
+tasks.matching { it.name == 'runClient' }.configureEach {
+    if (System.getenv('GRUG_CI_CLIENT_WRAPPER')) {
+        executable System.getenv('GRUG_CI_CLIENT_WRAPPER')
+    }
+}
 
+sourceSets.main.resources { srcDir 'src/generated/resources' }
 repositories {
     mavenCentral()
 }
