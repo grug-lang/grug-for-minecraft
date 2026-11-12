@@ -7,7 +7,10 @@
 // classes, since instrumenting all of Minecraft would produce a huge exec for no benefit.
 //
 // The agent is attached in doFirst so that resolving grugJacocoAgent does not happen at
-// configuration time, and only when GRUG_CI is set, so a plain local run stays uninstrumented.
+// configuration time, and only when GRUG_CI is set, so a plain local Gradle run stays
+// uninstrumented. run-multiplayer.sh's Ornithe legs are the exception: they launch the server from
+// a jar rather than through Gradle and put the agent on that command line themselves, and that
+// script is CI's path.
 //
 // The agent writes nothing itself (output=none): run-loader.sh terminates the game as soon as the
 // tests pass, which can interrupt a shutdown-hook write. Instead GrugCoverage cuts the data from

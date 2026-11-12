@@ -77,7 +77,9 @@ ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 # - Mixin classes can never be measured: Mixin copies a mixin's methods into its target without
 #   defining the mixin class, so JaCoCo never instruments them. The logic they used to hold lives in
 #   measured net.grug.* helpers instead.
-# - ServerGrugModLoader only runs on a dedicated server, which CI does not launch.
+# - ServerGrugModLoader runs only on a dedicated server. That server's exec data reaches the report
+#   now (#1027), but the class is promoted only once that data shows which of its lines the server
+#   leaves missed, so it stays excluded here.
 # - GrugRecipeHelper is a shim around the package-private CraftingManager.registerShaped, and
 #   GrugRecipeParser is the part of it that needs a running game's registries to answer: whether an id
 #   names an item or a tag is that answer. Both are per-loader, and the rules they apply are measured
@@ -235,9 +237,22 @@ def discover_runners(artifacts: Path) -> dict[str, dict]:
     # which adds missed counts, so the loader's misses would be counted twice and fail the gate for
     # a line the server covered. A run with no multiplayer job, or a leg that recorded nothing, has
     # no artifact here at all, which is no server data rather than an error.
+    #
+    # What the server adds is not every class of the leg. JaCoCo matches a class by its ID, so it
+    # analyses only exec data recorded against the very bytes staged for that runner. Core is those
+    # bytes on every leg, since the server loads the same core classes the client does. A loader's
+    # own server-only classes count on 1.20.6-forge and b1.7.3-stationapi, whose runServer launches
+    # the staged dev classes. They do not count on the three Ornithe legs or on 1.2.5-forge, whose
+    # servers run a remapped or reobfuscated jar instead, so every one of their loader classes is
+    # dropped with a per-class "[WARN] ... does not match" and only core's contributes: counting
+    # those would need a per-class-set analysis with a line-level union over the two sets of bytes,
+    # never a second report summed by sum_csvs (#1027).
     for runner, execs in server_execs.items():
         info = runners.setdefault(runner, {})
         info["exec"] = [*info.get("exec", []), *execs]
+        # Loud enough to tell a coverage job that held the artifacts from one that never got them,
+        # since a leg that recorded nothing and a job that downloaded nothing look the same.
+        print(f"appending {len(execs)} dedicated-server exec file(s) to {runner}'s report")
     return runners
 
 
