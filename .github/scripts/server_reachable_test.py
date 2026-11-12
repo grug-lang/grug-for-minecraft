@@ -616,6 +616,60 @@ class ServerReachableTest(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertNotIn("read the coverage map of attempt", out)
 
+    # A full dispatch selects no mod, so the gate judges it as it always has: the same unrecorded
+    # method that fails without --mods fails when the selection is empty.
+    def testAnEmptySelectionRunsTheCheck(self):
+        self.write_map({"1.20.6-forge": {CLIENT_TEST: {"pkg/Client": ["render:()V"]}}})
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST])
+        code, out, err = self.run_script("--mods", "")
+        self.assertEqual(code, 1)
+        self.assertIn("pkg/Client render:()V", out)
+        self.assertNotIn("skipping the check", out)
+
+    # A dispatch that selected mods builds its coverage map from only their tests, while the
+    # multiplayer job runs every mod's tests, so a method another mod's test reaches on a server looks
+    # client-only and a recorded entry whose test the map no longer holds looks removable. Neither is
+    # about the repository, so the gate says it cannot judge and passes (#1261).
+    def testASelectionCannotJudgeReachabilityAndPasses(self):
+        self.write_map(
+            {
+                "1.20.6-forge": {CLIENT_TEST: {"pkg/Client": ["render:()V"]}},
+                "1.2.5-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}},
+            }
+        )
+        self.write_tests("1.20.6-forge", [UNRELATED_TEST])
+        self.write_baseline({"pkg/Server": ["tick:()V"]}, {"pkg/Server": "used to need a client."})
+        code, out, err = self.run_script("--mods", "coverage")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(out.splitlines()), 1, out)
+        self.assertIn("skipping the check", out)
+        self.assertIn("selected the mods coverage", out)
+        self.assertIn("only a dispatch that selects no mod can judge reachability", out)
+        self.assertNotIn("pkg/Client", out)
+        self.assertNotIn("can be removed", out)
+
+    # A record taken from a narrowed map would describe one selection and drop every entry the rest
+    # of the suite reaches, so --record with a selection is an error rather than a silent pass.
+    def testRecordFromASelectionIsAnError(self):
+        self.write_map({"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests("1.20.6-forge", [SERVER_TEST])
+        self.write_baseline({"pkg/Server": ["tick:()V"]}, {"pkg/Server": "used to need a client."})
+        before = self.baseline.read_text()
+        code, out, err = self.run_script(
+            "--record",
+            "--recorded-from",
+            "run 1",
+            "--mods",
+            "coverage",
+            "--out",
+            str(self.baseline),
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("cannot take a record", err)
+        self.assertIn("selects no mod", err)
+        self.assertNotIn("skipping the check", out)
+        self.assertEqual(self.baseline.read_text(), before)
+
 
 class RepositoryBaselineTest(unittest.TestCase):
     """The committed record has to explain every class it names, or it records nothing."""

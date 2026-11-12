@@ -2,8 +2,8 @@
 """Fail when code only a client test reaches has no recorded reason (#1033).
 
     server-reachable.py [--map <dir-or-coverage-map.json>] [--server-tests <dir>]
-                        [--baseline <file>] [--record --recorded-from <text> [--prune]]
-                        [--out <file>]
+                        [--baseline <file>] [--mods <selection>]
+                        [--record --recorded-from <text> [--prune]] [--out <file>]
 
 The multiplayer job runs only the tests that define ``tick_any_side``, plus the ``forwarded_``
 tests on a loader whose server forwards client calls, and its server log says which tests it
@@ -49,6 +49,16 @@ artifact, so a loader's newest attempt is the list its leg wrote last (#1142).
 ``--record`` writes the file, and it needs ``--recorded-from`` so the record says which run it came
 from. It refuses to drop a recorded method unless ``--prune`` says so, because a dispatch narrowed
 with ``-f mods=`` runs a subset of the tests and would otherwise shrink the record silently.
+
+``--mods`` is the selection a dispatch was given, as the workflow's ``mods`` input holds it: the mod
+directories whose tests the coverage job runs, comma separated, empty for a full run. The multiplayer
+job runs every mod's tests whatever the selection says, so the server lists are whole; what the
+selection narrows is the coverage map, which then holds only the selected mods' tests. That cannot
+judge reachability: a method another mod's test reaches on a server is absent from the map, so it
+looks client-only, and a recorded entry whose test the map no longer holds looks removable. So a
+non-empty selection says that in this log and passes, and only a full dispatch checks anything
+(#1261). ``--record`` refuses a selection for the same reason: a record taken from a narrowed map
+would describe one selection and drop every entry the rest of the suite reaches.
 """
 
 from __future__ import annotations
@@ -431,6 +441,16 @@ def main(argv: list[str] | None = None) -> int:
         help="the recorded client-only code (default: the file next to this script)",
     )
     parser.add_argument(
+        "--mods",
+        default="",
+        help=(
+            "the mods a dispatch selected, comma separated, as its mods input holds them; empty"
+            " (the default) means the coverage job ran every mod's tests, and any other value"
+            " narrowed its map to the selected mods' tests, which cannot judge reachability, so the"
+            " check is skipped"
+        ),
+    )
+    parser.add_argument(
         "--record",
         action="store_true",
         help="write the baseline that makes this run pass instead of checking it",
@@ -447,6 +467,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--out", type=Path, help="where --record writes (default: stdout)")
     args = parser.parse_args(argv)
+
+    # The coverage job of a selected dispatch builds its map from only the selected mods' tests,
+    # while the multiplayer job runs every mod's tests: a method another mod's test reaches on a
+    # server is absent from the map, so it looks client-only, and a recorded entry whose test the map
+    # no longer holds looks removable. Neither says anything about the repository, so the only run
+    # that can judge is a full one, and a record from a narrowed map would describe one selection
+    # (#1261).
+    selection = args.mods.strip()
+    if selection:
+        if args.record:
+            print(
+                "error: --record cannot take a record from a dispatch that selected mods, because"
+                f" its map holds only the tests of {selection} and the record would describe that"
+                f" selection instead of the suite. Take the record from a dispatch that selects no"
+                f" mod.",
+                file=sys.stderr,
+            )
+            return 1
+        print(
+            f"server-reachable: skipping the check: this dispatch selected the mods {selection}, so"
+            f" its coverage map holds only their tests and a method another mod's test reaches on a"
+            f" server looks client-only; only a dispatch that selects no mod can judge reachability"
+        )
+        return 0
 
     lists = server_tests(args.server_tests) if args.server_tests.is_dir() else {}
     map_path, map_attempt = coverage_map(args.map)
