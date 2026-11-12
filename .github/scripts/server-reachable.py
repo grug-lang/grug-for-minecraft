@@ -139,8 +139,15 @@ def counted(name: str) -> bool:
 
 
 def test_name(line: str) -> str:
-    """A path the runner printed, without the note that says the test was meant to fail."""
+    """A path the runner printed, ending at the test's own .grug.
+
+    A log line can run on after the path without a newline, a PASS line followed by a game
+    warning, so the name ends at the first .grug rather than at the line's end (#1293).
+    """
     line = line.strip()
+    end = line.find(".grug")
+    if end >= 0:
+        return line[: end + len(".grug")]
     return line[: -len(EXPECTED_ERROR)] if line.endswith(EXPECTED_ERROR) else line
 
 

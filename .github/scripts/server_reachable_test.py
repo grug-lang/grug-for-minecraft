@@ -104,6 +104,18 @@ class ServerReachableTest(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("0 class method(s)", out)
 
+    # A log line that ran on after the path must not become part of the test's name: the server
+    # ran that test and reaches its method (#1293).
+    def testATestWhoseLogLineRanOnStillMatches(self):
+        self.write_map({"1.20.6-forge": {SERVER_TEST: {"pkg/Server": ["tick:()V"]}}})
+        self.write_tests(
+            "1.20.6-forge",
+            [SERVER_TEST + "2026-11-12 22:03:40 [WARNING] Can't keep up!"],
+        )
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("0 class method(s)", out)
+
     # A method one loader's server reaches is server-reachable even where another loader's server
     # skipped the test, because a loader's own skip list is not a second copy of this file. This is
     # core code, which the map lists under no loader, so every loader runs the same class.
