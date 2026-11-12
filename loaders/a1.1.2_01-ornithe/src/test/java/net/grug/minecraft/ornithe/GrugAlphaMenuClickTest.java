@@ -81,7 +81,11 @@ class GrugAlphaMenuClickTest {
                 "a merge has to write the slot, or the block entity is never marked dirty and its"
                         + " item_inserted export never runs");
         assertEquals(0, inventory.writes.get(0).slot);
-        assertEquals(24, inventory.writes.get(0).stack.size);
+        assertEquals(
+                24,
+                inventory.writes.get(0).size,
+                "the write has to hold the merged stack at the moment it is made, not the stack"
+                        + " before the merge");
         assertNull(menu.cursor, "the whole carried stack moved into the slot");
     }
 
@@ -111,7 +115,7 @@ class GrugAlphaMenuClickTest {
         menu.click(null, 0, 1);
 
         assertEquals(1, inventory.writes.size());
-        assertEquals(9, inventory.getItem(0).size);
+        assertEquals(9, inventory.writes.get(0).size);
         assertEquals(15, menu.cursor.size);
     }
 
@@ -125,11 +129,13 @@ class GrugAlphaMenuClickTest {
     /** One slot write a click made through {@link GrugInventoryAccess#setItem}. */
     private static final class Write {
         private final int slot;
-        private final ItemStack stack;
 
-        Write(int slot, ItemStack stack) {
+        /** The size the written stack held when the write was made. */
+        private final int size;
+
+        Write(int slot, int size) {
             this.slot = slot;
-            this.stack = stack;
+            this.size = size;
         }
     }
 
@@ -160,7 +166,10 @@ class GrugAlphaMenuClickTest {
 
         @Override
         public void setItem(int slot, ItemStack stack) {
-            writes.add(new Write(slot, stack));
+            // The size is read here and not from the stack later: the click keeps mutating the
+            // same stack after this call, so a write made before the merge would still read the
+            // merged size afterwards.
+            writes.add(new Write(slot, stack != null ? stack.size : 0));
             slots[slot] = stack;
         }
 
