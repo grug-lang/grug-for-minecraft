@@ -71,7 +71,7 @@ light_waits: number = 0
 room_tick: number = 0
 
 export init(ctx: TestInitContext) {
-    # A capture waits for the client to draw the frames it is about, which is up to about 60 ticks
+    # A capture waits for the client to draw the frames it is about, which is up to about 20 ticks
     # each, and each of the four waits below may capture eight times beside the setup's own.
     ctx.set_max_ticks(2000)
 }

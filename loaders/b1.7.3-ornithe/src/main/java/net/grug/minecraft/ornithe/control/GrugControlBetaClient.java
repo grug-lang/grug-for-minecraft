@@ -34,13 +34,13 @@ import java.util.function.Consumer;
                 + " job launches one")
 public final class GrugControlBetaClient {
     /**
-     * Client ticks to wait for the frames that show what the server sent, at the least. The capture
-     * reads the frame drawn before this tick, and the pin in it has to be followed by one frame
-     * drawn from the eye, so this is the margin for those frames: the two conditions in front of
-     * the capture already cover the world and the camera, and 4 is the floor 1.20.6 has run on
-     * every multiplayer leg of every dispatch (#1199).
+     * Client ticks to wait for the frames that show what the server sent, at the least: one full
+     * game-loop iteration plus margin, because a frame is drawn once per iteration after up to ten
+     * ticks, and the capture reads the back buffer drawn before its own tick. Shorter than an
+     * iteration and the capture could read the frame drawn before the pin at the head of the tick;
+     * 20 is two iterations at the most, and what the a1 client uses (#1199).
      */
-    static final int MIN_TICKS = 4;
+    static final int MIN_TICKS = 20;
 
     /**
      * Client ticks after which the frame the client has is captured even if not settled: 15 s at 20

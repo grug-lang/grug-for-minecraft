@@ -30,7 +30,7 @@ room_tick: number = 0
 
 export init(ctx: TestInitContext) {
     # The setup's empty room captures up to eight times and the plate up to eight more, and one
-    # capture waits about 60 ticks for the client to draw the frame it is about.
+    # capture waits about 20 ticks for the client to draw the frame it is about.
     ctx.set_max_ticks(2000)
 }
 

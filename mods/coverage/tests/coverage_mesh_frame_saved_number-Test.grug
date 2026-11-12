@@ -64,7 +64,7 @@ misses: number = 0
 attempts: number = 0
 
 export init(ctx: TestInitContext) {
-    # A capture waits for the client to draw the frame it is about, which is up to about 60 ticks
+    # A capture waits for the client to draw the frame it is about, which is up to about 20 ticks
     # each, and the waits below capture a few times beside the setup's own and the reads of the
     # client's copy, which cost one round trip each.
     ctx.set_max_ticks(3000)
