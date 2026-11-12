@@ -142,7 +142,13 @@ fi
 # download of the userdev artifact came back empty, which is one failed fetch from the Forge maven
 # rather than a build the code broke, so it gets the same retry (#1173). The coordinate after it
 # keeps a build script's own message from matching, as the "Could not find" pattern does.
-RETRYABLE_FAILURE_RE='net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate|Could not find [^ :]+:[^ :]+:[^ :]+\.|Could not resolve all (files|artifacts) for configuration|Could not resolve dependency: [^ :]+:[^ :]+:[^ :]+|Could not (GET|HEAD) .https?://'
+#
+# portablemc, which installs the game in a production launch, prints its own batch failure as
+# "[ ERRO ] Failed to download 1 out of 3934 entries" and then the URL and reason on the following
+# lines. It retries a timeout or a decode error but not a connection reset, so one reset anywhere in
+# the batch ends the install. The line is the retryable part; the exited case prints the URL beside
+# it (#1149).
+RETRYABLE_FAILURE_RE='\[ ERRO \] Failed to download|net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate|Could not find [^ :]+:[^ :]+:[^ :]+\.|Could not resolve all (files|artifacts) for configuration|Could not resolve dependency: [^ :]+:[^ :]+:[^ :]+|Could not (GET|HEAD) .https?://'
 retryable_failure() {
   grep -m1 -E "$RETRYABLE_FAILURE_RE" "$1" 2>/dev/null
 }
@@ -502,10 +508,28 @@ game_start_re="^> Task ${task_prefix:-:}runClient( |\$)"
 # the harness line instead, in launch-production.sh, so its limit starts at the launch as before.
 production_game_start_re='Launched|\[GRUG CI\] GAME LAUNCHING'
 
+# The launcher's own account of a failed install: portablemc's [ ERRO ] lines name the URL and the
+# reason, which its batch summary alone does not. Falls back to the log's last lines when it wrote
+# none, so an install that ended before reporting still says something (#1149).
+launcher_errors() {
+  if grep -q -F '[ ERRO ]' "$LOG_FILE"; then
+    # The first error's block: the summary, then the URL and the reason lines, which carry no
+    # prefix of their own. -A covers one entry of a batch, which is what a summary of one names.
+    grep -m1 -A10 -F '[ ERRO ]' "$LOG_FILE" >&2
+  else
+    tail -n 10 "$LOG_FILE" >&2
+  fi
+}
+
 # One attempt, and one more when the first failed fetching what the build needs rather than on the
 # code. The game
 # never started in that case, so repeating the whole invocation repeats nothing the game did; any
 # other outcome ends the job here, with the log of the attempt that decided it.
+#
+# The install's limit runs from the first attempt and a retry spends what is left of it rather than
+# asking for a second window. A cold-cache install that is merely slow is never restarted, and the
+# two attempts cannot outlast the job's own 25 minutes (#1149).
+production_deadline=$((SECONDS + install_timeout_secs))
 attempt=1
 while :; do
   : > "$LOG_FILE"
@@ -539,7 +563,7 @@ while :; do
     deadline=$((SECONDS + ${GRUG_CI_BUILD_TIMEOUT:-600}))
   elif [ "$PHASE" = production ]; then
     game_started=false
-    deadline=$((SECONDS + install_timeout_secs))
+    deadline=$production_deadline
   fi
 
   # grep over the game's part of the log.
@@ -628,24 +652,34 @@ while :; do
   fi
   # Only a failure before the game started can be a download: buildfailed is Gradle ending before
   # runClient, and exited is the same in a run phase, which has no build to tell it from a game that
-  # exited. A test failure, a crash, an abort and a timeout are never retried. The production phase
-  # never retries either: its launcher downloads with curl's own retries, its log holds no Gradle
-  # runClient line to tell a failed install from a game that ran, and a second installed launch is
-  # the most expensive thing this script could repeat.
-  if [ "$PHASE" = production ] || { [ "$status" != buildfailed ] && [ "$status" != exited ]; }; then
+  # exited. A test failure, a crash, an abort and a timeout are never retried. A production install
+  # is retried too, because its launcher gives up on a single bad connection and the install before
+  # the launch repeats nothing the game did (#1149).
+  if [ "$status" != buildfailed ] && [ "$status" != exited ]; then
     break
   fi
   # The run phase reads the whole log as the game's, so a line in it that looks like a download
   # failure could be the game's own. Gradle's runClient line is what says the game started, and a
-  # game that ran is never repeated.
-  if [ "$status" = exited ] && grep -q -E "$game_start_re" "$LOG_FILE"; then
+  # game that ran is never repeated; a production launch's equivalent is the line its launcher
+  # prints when the game is spawned, so an install that failed before it can be retried but a game
+  # that reached the title screen and then failed cannot (#1149).
+  started_re="$game_start_re"
+  if [ "$PHASE" = production ]; then
+    started_re="$production_game_start_re"
+  fi
+  if [ "$status" = exited ] && grep -q -E "$started_re" "$LOG_FILE"; then
     break
   fi
   if ! reason=$(retryable_failure "$LOG_FILE"); then
     break
   fi
   cp "$LOG_FILE" "${LOG_FILE}.attempt-${attempt}"
-  echo "==> Gradle failed fetching what it needs, not on the code: $reason" >&2
+  if [ "$PHASE" = production ]; then
+    echo "==> The launcher failed fetching what it needs, not on the code:" >&2
+    launcher_errors
+  else
+    echo "==> Gradle failed fetching what it needs, not on the code: $reason" >&2
+  fi
   echo "==> Retrying $LOADER, attempt $((attempt + 1)) of ${MAX_GRADLE_ATTEMPTS}." >&2
   echo "==> The failed attempt's log is ${LOG_FILE#"${REPO_ROOT}/"}.attempt-${attempt}" >&2
   attempt=$((attempt + 1))
@@ -735,7 +769,14 @@ case "$status" in
   exited)
     wait "$gradle_pid"
     exit_code=$?
-    if [ "$reached_title" = true ]; then
+    if [ "$PHASE" = production ] && [ "$game_started" = false ]; then
+      # Only the launcher ran, and its own account of why it stopped is its [ ERRO ] lines: the
+      # batch summary says one entry failed without naming it, so the lines after it say which
+      # download failed and why. Without this they reach only the artifact, which the job log does
+      # not hold (#1149).
+      echo "==> The install of $LOADER exited (exit code $exit_code) before it reported a launch." >&2
+      launcher_errors
+    elif [ "$reached_title" = true ]; then
       echo "==> $LOADER's build/game process exited (exit code $exit_code) after reaching the title screen but before passing tests." >&2
     else
       echo "==> $LOADER's build/game process exited (exit code $exit_code) before reaching the title screen." >&2

@@ -728,15 +728,56 @@ class RunLoaderTest(unittest.TestCase):
         self.assertEqual(len(result.gradle_args.splitlines()), 1)
         self.assertNotIn("failed fetching what it needs", result.stderr)
 
-    def test_a_production_launch_is_not_retried_for_a_download_like_line(self):
-        # The installed run's launcher retries its own downloads with curl, its log has no Gradle
-        # runClient line to tell a failed install from a game that ran, and repeating a 480 s
-        # installed launch is the most expensive thing this script could do twice: never retry it.
+    def test_a_production_install_that_fails_a_download_is_retried_once(self):
+        # portablemc exits 1 when one entry of its asset batch resets the connection, and it does
+        # not retry that class itself, so the install gets one more launch (#1149). The launcher's
+        # own failure lines are printed, URL and reason included, so the job log holds them rather
+        # than only the artifact of the run that failed.
         launcher = self.tmp / ".github" / "scripts" / "launch-production.sh"
         launcher.write_text(
             "#!/usr/bin/env bash\n"
             'echo launch >> "$FAKE_PRODUCTION_LAUNCHES"\n'
-            "echo 'Some assets failed to download or validate, try running the task again.'\n"
+            'if [ "$(wc -l < "$FAKE_PRODUCTION_LAUNCHES")" -eq 1 ]; then\n'
+            "  echo '         [ ERRO ] Failed to download 1 out of 3934 entries...'\n"
+            "  echo '         [ ERRO ] https://piston-data.mojang.com/v1/objects/bd65/client-1.12.xml'\n"
+            "  echo '                  I/O error: connection reset'\n"
+            "  exit 1\n"
+            "fi\n"
+            "echo '         [  OK  ] Launched'\n"
+            f"printf %s {shlex.quote(PASSING_LOG)}\n"
+            "sleep 1\n"
+        )
+        launcher.chmod(0o755)
+        universal = self.tmp / "universal.jar"
+        universal.write_text("jar\n")
+        launches = self.tmp / "production-launches.txt"
+
+        result = self.run_script(
+            phase="production",
+            extra_env={
+                "GRUG_UNIVERSAL_JAR": str(universal),
+                "FAKE_PRODUCTION_LAUNCHES": str(launches),
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+        self.assertEqual(len(launches.read_text().splitlines()), 2)
+        self.assertIn("The launcher failed fetching what it needs", result.stderr)
+        self.assertIn("client-1.12.xml", result.stderr)
+        self.assertIn("I/O error: connection reset", result.stderr)
+        self.assertIn("Retrying fake-loader, attempt 2 of 2", result.stderr)
+
+    def test_a_production_install_that_fails_again_reports_the_launcher_lines(self):
+        # A retry that fails the same way is the job's failure: one more attempt is all the script
+        # gives it, and the launcher's own lines put the URL and reason in the job log (#1149).
+        launcher = self.tmp / ".github" / "scripts" / "launch-production.sh"
+        launcher.write_text(
+            "#!/usr/bin/env bash\n"
+            'echo launch >> "$FAKE_PRODUCTION_LAUNCHES"\n'
+            "echo '         [ ERRO ] Failed to download 1 out of 3934 entries...'\n"
+            "echo '         [ ERRO ] https://piston-data.mojang.com/v1/objects/bd65/client-1.12.xml'\n"
+            "echo '                  I/O error: connection reset'\n"
             "exit 1\n"
         )
         launcher.chmod(0o755)
@@ -753,13 +794,82 @@ class RunLoaderTest(unittest.TestCase):
         )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(len(launches.read_text().splitlines()), 1)
-        self.assertNotIn("failed fetching what it needs", result.stderr)
-        # A launcher that exits before reporting a launch is a failed install, reported at once as
-        # the exit it was, never as an install that sat until its limit.
+        self.assertEqual(len(launches.read_text().splitlines()), 2)
+        self.assertIn("Retrying fake-loader, attempt 2 of 2", result.stderr)
         self.assertIn(
-            "build/game process exited (exit code 1) before reaching the title screen",
+            "The install of fake-loader exited (exit code 1) before it reported a launch",
             result.stderr,
+        )
+        self.assertIn("client-1.12.xml", result.stderr)
+        self.assertIn("I/O error: connection reset", result.stderr)
+
+    def test_a_game_after_a_production_launch_is_not_restarted(self):
+        # A game that reached the title screen is never repeated, even when the log it leaves holds
+        # a line that looks like a download failure: only the install before the launch is retried.
+        launcher = self.tmp / ".github" / "scripts" / "launch-production.sh"
+        launcher.write_text(
+            "#!/usr/bin/env bash\n"
+            'echo launch >> "$FAKE_PRODUCTION_LAUNCHES"\n'
+            "echo '         [  OK  ] Launched'\n"
+            "echo '[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL'\n"
+            "echo '         [ ERRO ] Failed to download 1 out of 3934 entries...'\n"
+            "exit 3\n"
+        )
+        launcher.chmod(0o755)
+        universal = self.tmp / "universal.jar"
+        universal.write_text("jar\n")
+        launches = self.tmp / "production-launches.txt"
+
+        result = self.run_script(
+            phase="production",
+            extra_env={
+                "GRUG_UNIVERSAL_JAR": str(universal),
+                "FAKE_PRODUCTION_LAUNCHES": str(launches),
+            },
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len(launches.read_text().splitlines()), 1)
+        self.assertNotIn("Retrying", result.stderr)
+        self.assertIn("after reaching the title screen but before passing tests", result.stderr)
+
+    def test_a_production_retry_spends_what_is_left_of_the_install_limit(self):
+        # The install limit starts at the first attempt and the retry gets what is left of it, never
+        # a second window: a cold-cache install that is merely slow is not restarted with a fresh
+        # 600 s, and two attempts cannot outlast the job's own 25 minutes (#1149).
+        launcher = self.tmp / ".github" / "scripts" / "launch-production.sh"
+        launcher.write_text(
+            "#!/usr/bin/env bash\n"
+            'echo launch >> "$FAKE_PRODUCTION_LAUNCHES"\n'
+            'if [ "$(wc -l < "$FAKE_PRODUCTION_LAUNCHES")" -eq 1 ]; then\n'
+            "  sleep 5\n"
+            "  echo '         [ ERRO ] Failed to download 1 out of 3934 entries...'\n"
+            "  exit 1\n"
+            "fi\n"
+            "sleep 5\n"
+            "echo '         [  OK  ] Launched'\n"
+            f"printf %s {shlex.quote(PASSING_LOG)}\n"
+            "sleep 1\n"
+        )
+        launcher.chmod(0o755)
+        universal = self.tmp / "universal.jar"
+        universal.write_text("jar\n")
+        launches = self.tmp / "production-launches.txt"
+
+        result = self.run_script(
+            phase="production",
+            extra_env={
+                "GRUG_UNIVERSAL_JAR": str(universal),
+                "FAKE_PRODUCTION_LAUNCHES": str(launches),
+                "GRUG_CI_INSTALL_TIMEOUT": "8",
+                "GRUG_CI_RUN_TIMEOUT": "20",
+            },
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len(launches.read_text().splitlines()), 2)
+        self.assertIn(
+            "Timed out after 8s installing fake-loader, before its game started", result.stderr
         )
 
     def write_production_launcher(
