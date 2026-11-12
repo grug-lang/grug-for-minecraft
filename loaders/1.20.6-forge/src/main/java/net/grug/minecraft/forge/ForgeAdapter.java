@@ -1390,19 +1390,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * <p>The world's light is sampled after the settled check and again after the client's copy is
      * read, so a light batch that the engine had already scheduled and that publishes between the
      * samples makes them differ rather than passing the pre-batch light for the room's, and the
-     * engine is asked once more after both. A client answer of {@link
-     * GrugClientLight#NOT_RECEIVED} is false because a column the client was never sent cannot hold
-     * the world's light, while {@link GrugClientLight#CANNOT_VERIFY} is true. See {@link
-     * GrugLightSync#lightApplied}, #1240 and #1248.
+     * engine is asked once more after both. A client answer of {@link GrugClientLight#NOT_RECEIVED}
+     * is false because a column the client was never sent cannot hold the world's light, while
+     * {@link GrugClientLight#CANNOT_VERIFY} is true. See {@link GrugLightSync#lightApplied}, #1240
+     * and #1248.
      */
     @GrugGenerated(
             "client light: the simulated world is always there on a CI client run, so the arm"
                     + " with no level has no test")
     @Override
     public boolean lightApplied(double x, double y, double z) {
-        if (!lightEngineSettled(getLevel())) {
-            return false;
-        }
         long simulated = sectionLightFingerprint(getLevel(), x, y, z);
         if (!lightEngineSettled(getLevel())) {
             return false;
