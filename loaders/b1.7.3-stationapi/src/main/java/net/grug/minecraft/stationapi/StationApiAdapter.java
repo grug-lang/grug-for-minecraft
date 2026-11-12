@@ -999,6 +999,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * differently. An item the registry does not hold answers null, which the give reports.
      */
     @Override
+    @GrugGenerated(
+            "the joined-client give (#1099): only the multiplayer job launches a client joined to a"
+                    + " server, and the server that applies its give, so a run the coverage"
+                    + " gate counts never names an item and gives it to its own player")
     public String itemName(Object itemObj) {
         Identifier id = ItemRegistry.INSTANCE.getId((Item) itemObj);
         return id == null ? null : id.toString();
