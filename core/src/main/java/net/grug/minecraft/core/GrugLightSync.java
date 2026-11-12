@@ -143,31 +143,44 @@ public final class GrugLightSync {
 
     /**
      * Whether a client's copy of a section holds the world's light, from the world's light sampled
-     * either side of a check that its light engine has no work left.
+     * either side of the client's answer, with a check that the light engine has no work left
+     * before and after them.
      *
-     * <p>One sample is not enough, and taking it before the settled check is wrong in a way a
-     * single sample after the check only narrows: on 1.20.6 the light is computed on a thread of
-     * its own, so a batch can finish at any moment of the query. A sample taken before the check
-     * holds the light from before a batch the check then reports finished, and the client, which
-     * learns of the batch from a packet, still holds that older light too, so the comparison
-     * answers true for a room the next frame draws one light step brighter. That is the capture the
-     * wait exists to prevent (#1248). Two samples with the check between them make a batch that
-     * lands around the check show up as two different fingerprints, and the answer waits another
-     * tick instead of comparing either. The engine is asked once more after both samples, so a
-     * batch that starts before the comparison is not read as idle.
+     * <p>A single sample is not enough, and taking it before the settled check is wrong: on 1.20.6
+     * the light is computed on a thread of its own, so a batch the engine had already scheduled can
+     * publish between two reads of the query. The wait that sampled the world before asking the
+     * engine answered true when that happened: its sample held the light from before the batch, the
+     * check after it reported the batch finished, and the client, which learns of the batch from a
+     * packet, still held those same older bytes. That is the capture the wait exists to prevent
+     * (#1248). The settled check therefore comes first, so a batch already scheduled when the wait
+     * began answers false rather than being sampled.
+     *
+     * <p>The two samples cover the batch that was scheduled when the first was taken and published
+     * between them: they differ, and the answer waits another tick instead of comparing either.
+     * They do not cover a change the engine takes on after the check, which is one that arrived
+     * during this wait rather than light the world already owed: one that publishes before the
+     * second sample makes the samples differ, and one that publishes after it is in neither. The
+     * engine is asked once more after both samples, so a batch still pending then is not read as
+     * idle either.
+     *
+     * <p>A client answer of -1 means the client cannot verify its copy, which is read as applied
+     * rather than as a mismatch, the same way {@code GrugClientLight.Forwarded} reads it: a client
+     * whose light engine cannot reproduce the world's would otherwise wait until its deadline over
+     * a difference that is not its fault (#1240). A world with no level to sample holds no section,
+     * so -1 there still answers false.
      *
      * <p>Pure, and unit-tested in every combination, because the moment the light thread publishes
      * a batch is not one a test can force: a game test can place a block and wait, but it cannot
      * make the batch land between two reads of the same tick.
      *
      * @param engineSettled whether the engine had no work left after both samples
-     * @param before the world's light sampled before the settled check
-     * @param after the world's light sampled after it
-     * @param client the client's copy of the same section
+     * @param before the world's light sampled after the first settled check
+     * @param after the world's light sampled after the client's answer
+     * @param client the client's copy of the same section, or -1 where it cannot verify it
      */
     public static boolean lightApplied(
             boolean engineSettled, long before, long after, long client) {
-        return engineSettled && before >= 0 && before == after && before == client;
+        return engineSettled && before >= 0 && before == after && (client < 0 || before == client);
     }
 
     /**

@@ -539,10 +539,11 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * has no frame to protect and answers true, as {@link #isWorldSettled} does. The inherited
      * answer reads a null client level here. See #167.
      *
-     * <p>The server's light is sampled before and after the settled check, and the client is asked
-     * between the second sample and a last settled check, so a light batch that finishes in the
-     * wait makes the two samples differ rather than passing the pre-batch light for the room's, on
-     * the joined client's answer too. See {@link GrugLightSync#lightApplied} and #1248.
+     * <p>The server's light is sampled after the settled check and again after the joined client
+     * answers, so a light batch that the engine had already scheduled and that publishes during the
+     * client round trip makes the samples differ rather than passing the pre-batch light for the
+     * room's, on the joined client's answer too, and the engine is asked once more after both. See
+     * {@link GrugLightSync#lightApplied} and #1248.
      */
     @Override
     public boolean lightApplied(double x, double y, double z) {
@@ -553,9 +554,9 @@ public class ServerForgeAdapter extends ForgeAdapter {
         if (!lightEngineSettled(getLevel())) {
             return false;
         }
-        long settled = sectionLightFingerprint(getLevel(), x, y, z);
         try {
             long client = (long) GrugControlForge.server().clientLightFingerprint(x, y, z);
+            long settled = sectionLightFingerprint(getLevel(), x, y, z);
             return GrugLightSync.lightApplied(
                     lightEngineSettled(getLevel()), simulated, settled, client);
         } catch (GrugControlServer.ControlException e) {
