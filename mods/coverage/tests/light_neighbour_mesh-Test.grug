@@ -1,0 +1,176 @@
+# A wall's face in one section reads the light of the air in the section before it.
+# The renderer bakes a section's face light from the section the face is in and from the sections
+# its vertices touch, so a wall whose face sits on a section boundary reads the light on the other
+# side of that boundary live while its own mesh is baked. A light that reaches that air after the
+# wall's mesh was built marks the air's section, and the wall's section is only a neighbour of it:
+# on 1.20.6 the light packet marks the changed section before the engine swaps it into the data the
+# renderer reads, and that mark can be lost to a compile already in flight, so the wall's face keeps
+# the old light while the data the light wait compares is final (#1207).
+
+# The room's shell is the wall: its radius is the distance to the next section boundary ahead of the
+# player, so the shell's inner face is the wall's face, the air in front of it is inside the room,
+# and the wall's own block is the first block of the next section, outside the room. The wall's face
+# therefore reads the light of the last block of the player's section while its own mesh is in the
+# next section.
+# The wall is built first and the room settles, then the test captures the face. It puts a torch in
+# the air section in front of the wall, waits for Test.light_applied at that air (which passes on
+# the data), and captures the face again without any later block change in the wall's section and
+# without redraw(): the only thing that can make the second capture differ from the first is the
+# wall's mesh being marked when the light swap applied the torch's light. The torch's own block is
+# three blocks to the side, outside the crop, and its support is below it, also outside.
+# It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
+# joined client, and the captures are the client's (#1086). The four older loaders compute their
+# light on the client's own tick from the block updates it already has, and their renderer marks the
+# neighbour's chunk after the light is in the world, so the wall's mesh is rebuilt with the torch's
+# light and the test passes there as it does after the fix.
+before: Option[Screenshot] = Option.new()
+placed: bool = false
+attempts: number = 0
+light_waits: number = 0
+room_tick: number = 0
+
+# The section boundary the wall's face sits on, and the wall's own block coordinates.
+boundary_z: number = 0
+area_z: number = 0
+wall_x: number = 0
+wall_y: number = 0
+
+export init(ctx: TestInitContext) {
+    # The room is built at the radius the first section boundary ahead needs, which can be as wide
+    # as the test area, and each capture waits for the client to draw it.
+    ctx.set_max_ticks(2000)
+}
+
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _build(ctx)
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    } else if not before.has() {
+        if _light_settled(ctx) {
+            _capture_before(ctx)
+        }
+        ctx.not_done()
+    } else if not placed {
+        _place_light(ctx)
+        placed = true
+        light_waits = 0
+        ctx.not_done()
+    } else if not _light_settled(ctx) {
+        ctx.not_done()
+    } else if ctx.current_tick() >= room_tick + 10 {
+        _capture_after(ctx)
+    } else {
+        ctx.not_done()
+    }
+}
+
+# Builds the room wide enough to hold the next section boundary and a wall at that boundary, with
+# the wall's face in the next section and the air in front of it in the player's section.
+local _build(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The room's shell is the wall: its radius is the distance to the next section boundary, so the
+    # shell's inner face is the wall's face and the wall's own block is outside the room.
+    boundary_z = (Math.floor(z / 16) + 1) * 16
+    distance: number = boundary_z - Math.floor(z)
+    Test.set_box_radius(distance)
+
+    area_z = Math.floor(z) + 16
+    wall_x = Math.floor(x)
+    wall_y = Math.floor(y)
+
+    # A stone wall at the first block of the next section, thirteen across and thirteen high, so
+    # the crop is wall at every distance the camera can be from the boundary. Its front face is the
+    # -z face, whose light is the air block at boundary_z - 1, in the player's section.
+    wy: number = wall_y - 4
+    while wy < wall_y + 9 {
+        wx: number = wall_x - 6
+        while wx < wall_x + 7 {
+            level.place_block(wx, wy, boundary_z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+
+    # Hidden fence layers behind the stone, outside the room but inside the test area, keep the
+    # 1.20.6 wall's section mesh heavy enough that its compile can still be running when the light
+    # packet is applied. They start one block past the shell so the room stays sealed. A stone face alone compiles in well under a frame, and a compile that has
+    # finished before the swap has already read the new light, so the pre-swap neighbour mark is
+    # enough and the test would not reach the defect. The older loaders put the light in the world
+    # before they mark the neighbour, so the stone wall is enough there and their section compile
+    # stays light. The fences are behind the stone and do not show in the crop.
+    if Test.loader_name() == "1.20.6-forge" {
+        wz: number = boundary_z + 2
+        while wz <= area_z {
+            wy2: number = wall_y - 4
+            while wy2 < wall_y + 9 {
+                wx2: number = wall_x - 6
+                while wx2 < wall_x + 7 {
+                    level.place_block(wx2, wy2, wz, "minecraft:oak_fence")
+                    wx2 = wx2 + 1
+                }
+                wy2 = wy2 + 1
+            }
+            wz = wz + 1
+        }
+    }
+}
+
+# The crop is the middle of the wall's face, away from the torch's own block at x + 3 and from the
+# support below it. The face is six blocks either side of the player, so the middle is wall at every
+# distance the boundary can be from the camera.
+local _capture_before(ctx: TestTickContext) {
+    before.set(Test.screenshot().capture(600, 300, 680, 420))
+    room_tick = ctx.current_tick()
+}
+
+# Puts a torch on a stone block in the air section, one block in front of the wall and three to the
+# side of the crop, at the crop's row so its light at the crop is brighter than the room's floor
+# torches, and its block and support stay outside the crop. The origin is the camera plus three, so
+# wall_y - 3 is the camera's block.
+local _place_light(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    level.place_block(wall_x + 3, wall_y - 4, boundary_z - 1, "minecraft:stone")
+    level.place_block(wall_x + 3, wall_y - 3, boundary_z - 1, "minecraft:torch")
+}
+
+# Whether the client's copy holds the room's light in the air section in front of the wall, with its
+# own deadline so a client that never takes it fails with that message rather than the tick budget.
+local _light_settled(ctx: TestTickContext) bool {
+    if _light_applied() {
+        light_waits = 0
+        return true
+    }
+    light_waits = light_waits + 1
+    ctx.assert(light_waits < 200, "The client never took the air section's light before its capture.")
+    return false
+}
+
+local _light_applied() bool {
+    if not Test.light_applied(wall_x - 2, wall_y - 3, boundary_z - 1) {
+        return false
+    }
+    if not Test.light_applied(wall_x, wall_y - 3, boundary_z - 1) {
+        return false
+    }
+    return Test.light_applied(wall_x + 2, wall_y - 3, boundary_z - 1)
+}
+
+# The light data is final now, so a difference from the first capture is the wall's mesh being
+# rebuilt from it. A retry only lets the client draw the rebuild; it makes no block change and no
+# redraw, so a wall whose section was never marked cannot pass by drawing its old light again.
+local _capture_after(ctx: TestTickContext) {
+    shot: Screenshot = Test.screenshot().capture(600, 300, 680, 420)
+    room_tick = ctx.current_tick()
+    if shot.change_from(before.unwrap()) < 1 {
+        attempts = attempts + 1
+        ctx.assert(attempts < 12, "The wall's face in the next section never took the torch's light.")
+        ctx.not_done()
+    }
+}
