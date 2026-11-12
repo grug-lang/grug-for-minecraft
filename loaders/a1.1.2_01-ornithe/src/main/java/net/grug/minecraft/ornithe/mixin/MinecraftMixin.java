@@ -7,7 +7,7 @@ import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
 import net.grug.minecraft.ornithe.block.entity.GrugSavedDataPacket;
 import net.grug.minecraft.ornithe.client.ClientGrugScreens;
-import net.grug.minecraft.ornithe.control.GrugControlAlpha;
+import net.grug.minecraft.ornithe.control.GrugControlAlphaClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.TickTimer;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
@@ -85,7 +85,7 @@ public abstract class MinecraftMixin implements GrugClientAccess {
         // A GUI packet a server sent arrives on the network side too, so the screen it opens is
         // installed here, on the thread that draws (#1098).
         ClientGrugScreens.applyPending((Minecraft) (Object) this);
-        GrugControlAlpha.onClientTick((Minecraft) (Object) this, grug$hooks);
+        GrugControlAlphaClient.onClientTick((Minecraft) (Object) this, grug$hooks);
     }
 
     @Override
