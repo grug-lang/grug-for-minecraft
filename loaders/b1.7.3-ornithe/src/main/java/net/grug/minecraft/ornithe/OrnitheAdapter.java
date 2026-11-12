@@ -641,6 +641,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * lists can index the same item differently.
      */
     @Override
+    @GrugGenerated(
+            "the joined-client give (#1099): only the multiplayer job launches a client joined to a"
+                    + " server, and the server that applies its give, so a run the coverage"
+                    + " gate counts never names an item and gives it to its own player")
     public String itemName(Object itemObj) {
         return ((Item) itemObj).getTranslationKey();
     }

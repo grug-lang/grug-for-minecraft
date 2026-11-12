@@ -124,36 +124,31 @@ class GrugGiveCallsTest {
     @Test
     void anItemTheClientCannotNameIsReportedAndNothingIsGiven() {
         Items items = new Items();
-        List<byte[]> sent = new ArrayList<>();
-        GrugControlClient client =
-                new GrugControlClient(
-                        sent::add,
-                        noCapture(),
-                        GrugControlClient.adapterCaller(items::adapter),
-                        -1,
-                        -1);
-        client.beginRun();
-        sent.clear();
+        List<byte[]> sent = joinedClient(items);
+        Object nameless = new Object();
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        PrintStream saved = System.out;
-        try {
-            System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8));
-            GrugGiveCalls.give(items.adapter(), items.player, new Object(), 1, "give_item");
-        } finally {
-            System.setOut(saved);
-            synchronized (GrugErrors.runtimeErrorQueue) {
-                GrugErrors.runtimeErrorQueue.clear();
-            }
-        }
+        String report = giveAndReadReport(items, nameless);
 
         // No name identifies the item, so no give is sent and nothing is written to a copy the
         // server would overwrite; the call is an err instead, which is what the printed report is.
         assertTrue(sent.isEmpty());
         assertTrue(items.given.isEmpty());
-        assertTrue(
-                out.toString(StandardCharsets.UTF_8).contains("cannot name the item"),
-                out.toString(StandardCharsets.UTF_8));
+        assertTrue(report.contains("cannot name the item"), report);
+    }
+
+    @Test
+    void anItemTheClientNamesAsTheEmptyStringIsReportedAndNothingIsGiven() {
+        Items items = new Items();
+        List<byte[]> sent = joinedClient(items);
+        Object emptyNamed = items.add("");
+
+        String report = giveAndReadReport(items, emptyNamed);
+
+        // A loader whose item names itself as nothing has not named it either: the server would
+        // find no item under the empty name, so this is the same report as an item with no name.
+        assertTrue(sent.isEmpty());
+        assertTrue(items.given.isEmpty());
+        assertTrue(report.contains("cannot name the item"), report);
     }
 
     @Test
@@ -166,6 +161,17 @@ class GrugGiveCallsTest {
 
         assertEquals(List.of("the player minecraft:dirtx64"), items.given);
         assertNull(GrugGiveCalls.itemNamed(items.adapter(), "minecraft:gravel"));
+        assertEquals(dirt, GrugGiveCalls.itemNamed(items.adapter(), "minecraft:dirt"));
+    }
+
+    @Test
+    void theServerScanSkipsASlotItsListHoldsNoItemIn() {
+        Items items = new Items();
+        items.list.add(null);
+        Object dirt = items.add("minecraft:dirt");
+
+        // A list can hold an empty slot, which names nothing: the scan goes past it rather than
+        // treating it as an item or stopping at it, so the give still finds the item after it.
         assertEquals(dirt, GrugGiveCalls.itemNamed(items.adapter(), "minecraft:dirt"));
     }
 
@@ -200,6 +206,43 @@ class GrugGiveCallsTest {
         GrugGiveCalls.giveOnServer(items.adapter(), "minecraft:gravel", 1);
 
         assertTrue(items.given.isEmpty());
+    }
+
+    /**
+     * Makes this test's process a client that started a run, so a give names its item to the
+     * server, and answers the list its messages are recorded in.
+     */
+    private static List<byte[]> joinedClient(Items items) {
+        List<byte[]> sent = new ArrayList<>();
+        GrugControlClient client =
+                new GrugControlClient(
+                        sent::add,
+                        noCapture(),
+                        GrugControlClient.adapterCaller(items::adapter),
+                        -1,
+                        -1);
+        client.beginRun();
+        sent.clear();
+        return sent;
+    }
+
+    /**
+     * Runs a give with {@code System.out} captured, and answers the report it printed. The err a
+     * reported give queues is dropped afterwards, so it cannot fail the test after this one.
+     */
+    private static String giveAndReadReport(Items items, Object item) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PrintStream saved = System.out;
+        try {
+            System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8));
+            GrugGiveCalls.give(items.adapter(), items.player, item, 1, "give_item");
+        } finally {
+            System.setOut(saved);
+            synchronized (GrugErrors.runtimeErrorQueue) {
+                GrugErrors.runtimeErrorQueue.clear();
+            }
+        }
+        return out.toString(StandardCharsets.UTF_8);
     }
 
     private static GrugControlClient.Link noLink() {
