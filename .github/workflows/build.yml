@@ -1987,11 +1987,16 @@ jobs:
     name: coverage report
     # The test jobs produce what it reads, so it skips with them (#785): a diff of prose alone
     # cannot change coverage, and main's next full run restores the global guarantee.
-    if: needs.discover.outputs.no-tests != 'true'
+    # The dedicated servers' exec data is downloaded here (#1027), so on a dispatch this job waits
+    # for those legs rather than downloading artifacts that do not exist yet. A pull request runs no
+    # multiplayer job, and !cancelled() keeps this job running when a need was skipped or failed:
+    # its own verdict is what the gate reports, and a failed leg already fails the run.
+    if: ${{ !cancelled() && needs.discover.outputs.no-tests != 'true' }}
     # discover is a need because this job reads its carry-over: the two outputs are what names
     # the base run and the tests the loader jobs skipped (#786).
-    needs: [discover, core, build]
+    needs: [discover, core, build, multiplayer]
     runs-on: ubuntu-24.04
+    # Its own steps only: a job's timeout does not count the time it waits for the jobs it needs.
     timeout-minutes: 5
     steps:
       - name: Check out repository

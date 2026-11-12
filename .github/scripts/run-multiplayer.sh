@@ -288,6 +288,21 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({"mods": {name: {"on": True} for
 PY
 }
 
+# A CI run that could not record its coverage must not report success, which is GrugCoverage's own
+# rule. The segments are written by the game itself, so an agent that never attached, or a directory
+# the upload cannot see, would otherwise look exactly like a leg that recorded everything and let the
+# coverage report count less without a word (#1027). A leg whose server never starts its tests fails
+# earlier, so reaching the pass line means the server ran and has to have cut at least the boot.
+require_server_coverage() {
+  local segments
+  segments=$(find "${REPO_ROOT}/${LOADER_DIR}/build/jacoco-server" -maxdepth 1 -name '*.exec' 2>/dev/null | wc -l)
+  if [ "$segments" -eq 0 ]; then
+    echo "==> ${LOADER}'s dedicated server recorded no coverage: ${LOADER_DIR}/build/jacoco-server holds no .exec." >&2
+    exit 1
+  fi
+  echo "==> The dedicated server of ${LOADER} recorded ${segments} coverage segment(s) in ${LOADER_DIR}/build/jacoco-server."
+}
+
 # setsid gives each process its own group, so the cleanup ends Gradle and the game together.
 echo "==> Building and starting the dedicated server of ${LOADER}"
 if [ -n "$SERVER_VERSION" ]; then
@@ -550,6 +565,7 @@ while :; do
         fi
       done
     fi
+    require_server_coverage
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0
   fi
