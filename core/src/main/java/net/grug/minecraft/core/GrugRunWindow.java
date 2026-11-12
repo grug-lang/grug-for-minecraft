@@ -125,7 +125,19 @@ public final class GrugRunWindow {
      * skipped tick from losing a press, and a poll from acting on an old one.
      */
     public boolean tick(Keys keys) {
-        boolean started = keys.runPressed() && beginRun();
+        return tick(keys, true);
+    }
+
+    /**
+     * One tick of hotkey input for a client that may not be able to run a local run at all.
+     *
+     * <p>A run press is refused before {@link #beginRun()}, so the client that cannot finish the
+     * run it would start takes nothing: no window, no dither, no particles, no cursor. The press is
+     * still consumed, so it cannot fire later when the client can run, and M still works, because
+     * the resolution toggle never starts a run. See {@link GrugDevHotkey#startsLocalRun(boolean)}.
+     */
+    public boolean tick(Keys keys, boolean localRunAllowed) {
+        boolean started = keys.runPressed() && localRunAllowed && beginRun();
         if (keys.forceResolutionPressed()) {
             toggleResolution();
         }

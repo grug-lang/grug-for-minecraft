@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 
 import net.grug.minecraft.core.GrugChat;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugDevHotkey;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestRunner;
@@ -882,7 +883,13 @@ public class GrugModLoader {
         private static void handleDevHotkeys(Minecraft mc) {
             // The polls consume the presses they report, so this has to run every tick a press is
             // meant to count. The tick it reports a run press in is the one that starts the run.
-            if (WINDOW.tick(KEYS)) {
+            // A client joined to a server has no integrated server to advance the run on, so the
+            // press is refused before the window is taken: a run started there would never finish,
+            // and the test-sized window, the dither, the particles, the tutorial, the view and the
+            // parked cursor would stay for the client's life (#1271). A joined client's run is the
+            // control run the server asks it for, which has its own checked start.
+            boolean integratedServer = mc.getSingleplayerServer() != null;
+            if (WINDOW.tick(KEYS, GrugDevHotkey.startsLocalRun(integratedServer))) {
                 stopTutorialForRun(mc);
                 shrinkViewForRun(mc);
                 minimiseParticlesForRun(mc);

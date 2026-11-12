@@ -244,6 +244,34 @@ class GrugRunWindowTest {
         assertFalse(window.particlesMinimised(), "the run that took it gives it back");
     }
 
+    /**
+     * A run press the client cannot act on takes nothing, because a client joined to a server has
+     * no integrated server to advance the run on: the window, the dither, the particles and the
+     * cursor stay as ordinary play left them (#1271). The press is still consumed, and M still
+     * works.
+     */
+    @Test
+    void aRefusedRunPressTakesNothingAndMStillWorks() {
+        FakeDisplay display = new FakeDisplay();
+        FakeKeys keys = new FakeKeys();
+        GrugRunWindow window = new GrugRunWindow(display);
+
+        keys.pressRun();
+        assertFalse(window.tick(keys, false));
+        assertTrue(display.calls.isEmpty(), "a refused press touches nothing");
+        assertFalse(window.particlesMinimised());
+        assertFalse(window.resolutionForced());
+
+        // The press was consumed, so it does not fire on the next tick, when a run could start.
+        assertFalse(window.tick(keys, true));
+        assertTrue(display.calls.isEmpty());
+
+        // M is the other poll of the same tick, and forcing the resolution starts no run.
+        keys.pressForce();
+        assertFalse(window.tick(keys, false));
+        assertEquals(calls(FORCE_SIZE), display.calls);
+    }
+
     @Test
     void aPressEventIsNotLostAcrossASkippedTick() {
         FakeDisplay display = new FakeDisplay();
