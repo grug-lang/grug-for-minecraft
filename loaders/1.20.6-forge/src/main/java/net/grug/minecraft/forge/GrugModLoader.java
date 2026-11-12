@@ -871,6 +871,24 @@ public class GrugModLoader {
                     || !GrugCore.getAdapter().isWorldReady(mc.player)) {
                 return;
             }
+            // The second player of the 1.20.6 leg (#1027) joins before the starting client and
+            // waits
+            // for a file the run script writes once the server has accepted the first start. That
+            // ordering is what makes the two real starts deterministic: the second player's start
+            // arrives while a starter exists, so the server ignores it, and the player list's first
+            // entry is not the starter the room is built for. It is set only on that client.
+            String startFile = System.getenv("GRUG_CI_CONTROL_START_FILE");
+            if (startFile != null) {
+                if (!grug$controlRunWaited) {
+                    grug$controlRunWaited = true;
+                    System.out.println(
+                            "[GRUG MULTIPLAYER] the second client is in the world and waits for"
+                                    + " its start file");
+                }
+                if (!new java.io.File(startFile).isFile()) {
+                    return;
+                }
+            }
             // A run this client started by hand owns the window until it ends, so this start is
             // refused and the client tries again on its next tick (#1213). Nothing is claimed for
             // a run the window refused: it owns no settings to put back, and the local run still
@@ -886,6 +904,9 @@ public class GrugModLoader {
         }
 
         private static boolean grug$controlRunStarted = false;
+
+        /** Whether the second player already said it is waiting for the run script's start file. */
+        private static boolean grug$controlRunWaited = false;
 
         /**
          * Ends the run a joined client started, when the server ends it or the client leaves its

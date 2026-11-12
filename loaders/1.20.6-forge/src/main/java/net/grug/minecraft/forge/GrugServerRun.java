@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
+import net.grug.minecraft.core.GrugRunPlayers;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.server.MinecraftServer;
@@ -9,7 +10,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Drives the test runner on a dedicated server, from the server's own tick. The client drives it
@@ -92,7 +95,19 @@ public final class GrugServerRun {
             return;
         }
 
-        ServerPlayer testPlayer = (ServerPlayer) GrugCore.getAdapter().testPlayer();
+        // The run belongs to the player who started it, so the question is whether that player is
+        // still here, not whether anyone is (#1027). A second player who stays connected must not
+        // hide the starter leaving, and must not become the test player the room is built for.
+        ServerPlayer testPlayer = starterPlayer(server);
+        if (testPlayer == null) {
+            System.out.println("[GRUG CI] FAIL the test player left");
+            System.out.println(
+                    "[GRUG CI] The player who started the run disconnected while "
+                            + players.size()
+                            + " player(s) were still on the dedicated server.");
+            stop(server);
+            return;
+        }
         holdPlayer(testPlayer);
         // Applies what the joined client sent during the previous tick's calls, which here is a
         // forwarded click's packet (#1094). The server's own tick would run it too, but only after
@@ -102,6 +117,25 @@ public final class GrugServerRun {
         if (runner.isFinished()) {
             stop(server);
         }
+    }
+
+    /**
+     * The player who started the run, or null when they have left.
+     *
+     * <p>1.20.6's control channel names its starter by UUID, so the connected players are asked
+     * about that UUID rather than about the list being non-empty (#1027).
+     */
+    private static ServerPlayer starterPlayer(MinecraftServer server) {
+        Object starter = GrugControlForge.server().starter();
+        List<ServerPlayer> players = server.getPlayerList().getPlayers();
+        List<UUID> connected = new ArrayList<>(players.size());
+        for (ServerPlayer player : players) {
+            connected.add(player.getUUID());
+        }
+        if (GrugRunPlayers.starterLeft(connected, starter)) {
+            return null;
+        }
+        return server.getPlayerList().getPlayer((UUID) starter);
     }
 
     /**
@@ -155,6 +189,13 @@ public final class GrugServerRun {
             System.out.println(
                     "[GRUG CI] The test player was held on the floor " + holds + " times.");
         }
+        // The run's players are read after the last forwarded call, so a second player who is
+        // still here proves the freeze did not drop its connection (#1027). run-multiplayer.sh
+        // asserts this line on the 1.20.6 leg, which is the one that launches a second client.
+        System.out.println(
+                "[GRUG CI] The run ended with "
+                        + server.getPlayerList().getPlayers().size()
+                        + " player(s) connected.");
         server.halt(false);
     }
 }

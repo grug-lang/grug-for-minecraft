@@ -1060,6 +1060,8 @@ jobs:
           name: multiplayer-${{ matrix.loader }}-logs
           # The server's unmatched captures are here too: a GUI test on a dedicated server
           # compares the joined client's frame, and its diff is what says why it failed (#1098).
+          # The second player of the 1.20.6 leg (#1027) writes its own game directory, and
+          # run-second/second-client-launch.log is where its client's stdout goes.
           path: |
             loaders/${{ matrix.loader }}/run-server/logs
             loaders/${{ matrix.loader }}/run-server/crash-reports
@@ -1072,6 +1074,10 @@ jobs:
             loaders/${{ matrix.loader }}/run/control-captures
             loaders/${{ matrix.loader }}/run-server/hs_err_pid*.log
             loaders/${{ matrix.loader }}/run/hs_err_pid*.log
+            loaders/${{ matrix.loader }}/run-second/logs
+            loaders/${{ matrix.loader }}/run-second/crash-reports
+            loaders/${{ matrix.loader }}/run-second/second-client-launch.log
+            loaders/${{ matrix.loader }}/run-second/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
 

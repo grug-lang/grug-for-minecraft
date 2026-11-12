@@ -146,11 +146,13 @@ public class ServerForgeAdapter extends ForgeAdapter {
     @Override
     public Object testPlayer() {
         var server = ServerLifecycleHooks.getCurrentServer();
-        // The player who started the run, when one has: it is their screen the forwarded calls use.
+        // The player who started the run, when one has: it is their screen the forwarded calls use,
+        // and the room, the held item and the cursor are built for them. Once a run started, that
+        // player is the only answer: when they have left there is no test player, and picking
+        // another would move the run to a player who never started it (#1027).
         Object starter = GrugControlForge.server().starter();
         if (starter != null) {
-            ServerPlayer player = server.getPlayerList().getPlayer((UUID) starter);
-            if (player != null) return player;
+            return server.getPlayerList().getPlayer((UUID) starter);
         }
         var players = server.getPlayerList().getPlayers();
         return players.isEmpty() ? null : (ServerPlayer) players.get(0);

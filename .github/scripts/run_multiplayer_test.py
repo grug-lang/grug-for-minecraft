@@ -11,6 +11,11 @@ install touches the network or launches a game.
 
 What the tests can reach ends where the server launch begins: the run then waits for a game that
 never starts, which is why a case that installs successfully still ends non-zero.
+
+The second player of the 1.20.6 leg (#1027) is tested the same way, from the other side: a fake
+Gradle stands in for the build.gradle hook that makes runClient the wrapper, the real wrapper starts
+a fake java as the second client in its own game directory, and the test reads where each client was
+launched. The wrapper and the run script are the real files; only the game and its Gradle are fakes.
 """
 
 import os
@@ -25,6 +30,7 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent
 LOADER = "b1.7.3-ornithe"
 SERVER_VERSION = "b1.7.3"
+SECOND_LOADER = "1.20.6-forge"
 
 # The fake installer reproduces the installer's failure shape: the launch jar is written before the
 # download that fails, and the exit status is 0 either way. FAKE_INSTALL_SERVER_JAR is `none` for a
@@ -108,6 +114,47 @@ JAVA = """\
 #!/usr/bin/env bash
 [ -n "${FAKE_JAVA_ARGV:-}" ] && printf '%s\\n' "$@" > "$FAKE_JAVA_ARGV"
 exit 0
+"""
+
+# The fake Gradle of the 1.20.6 fixture: the server prints the ready line and stays up, and the
+# client run is handed to the wrapper the build.gradle hook would have made runClient, with the args
+# a real runClient would carry.
+SECOND_GRADLEW = """\
+#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "${FAKE_GRADLE_LOG:?}"
+case "$*" in
+  *runServer*)
+    printf 'Done (1.2s)! For help, type "help"\\n'
+    exec sleep 600
+    ;;
+  *runClient*)
+    # Gradle's runClient runs in the loader's run directory; the wrapper then starts the second
+    # client in run-second and runs this one where Gradle put it.
+    mkdir -p loaders/1.20.6-forge/run
+    cd loaders/1.20.6-forge/run
+    exec env -u JAVA_HOME "${GRUG_CI_CLIENT_WRAPPER:?}" -Dfake.client=true FakeMain
+    ;;
+esac
+exit 0
+"""
+
+# A client that records the directory it was launched in. The second one says it is in the world, so
+# the wrapper starts the client Gradle asked for; the first one only stays up.
+SECOND_JAVA = """\
+#!/usr/bin/env bash
+printf 'cwd=%s\\n' "$PWD" >> "${FAKE_JAVA_LOG:?}"
+if [ "${PWD##*/}" = "run-second" ] && [ "${FAKE_SECOND_JOINS:-1}" = "1" ]; then
+  printf '[GRUG MULTIPLAYER] the second client is in the world and waits for its start file\\n'
+fi
+exec sleep 600
+"""
+
+# The job's xvfb-run server provides the first display, so the script starts one of its own for the
+# second client. The fixture only needs it to stay up and to record the display it was given.
+SECOND_XVFB = """\
+#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "${FAKE_XVFB_LOG:?}"
+exec sleep 600
 """
 
 
@@ -299,6 +346,114 @@ class RunMultiplayerTest(unittest.TestCase):
 
         self.assertTrue(self.sentinel.is_file(), "a stale install was used")
         self.assertEqual(self.marker().read_text().strip(), SERVER_VERSION)
+
+
+class SecondPlayerTest(unittest.TestCase):
+    """The 1.20.6 leg's second client, from the wrapper the run script hands to Gradle."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        scripts = self.tmp / ".github" / "scripts"
+        scripts.mkdir(parents=True)
+        for name in ("run-multiplayer.sh", "run-client-with-second.sh"):
+            shutil.copy(SCRIPTS / name, scripts / name)
+
+        self.loader = self.tmp / "loaders" / SECOND_LOADER
+        self.loader.mkdir(parents=True)
+        (self.loader / "test-save.txt").write_text("fake.zip\n")
+        saves = self.tmp / "test-saves"
+        saves.mkdir()
+        with zipfile.ZipFile(saves / "fake.zip", "w") as archive:
+            archive.writestr("world/level.dat", b"")
+
+        for mod in ("coverage", "fake"):
+            (self.tmp / "mods" / mod).mkdir(parents=True)
+
+        self.set_executable(self.tmp / "gradlew", SECOND_GRADLEW)
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        self.set_executable(self.bin / "java", SECOND_JAVA)
+        self.set_executable(self.bin / "Xvfb", SECOND_XVFB)
+        self.java_log = self.tmp / "java-launches.log"
+        self.gradle_log = self.tmp / "gradle-invocations.log"
+        self.xvfb_log = self.tmp / "xvfb.log"
+
+    def set_executable(self, path, content):
+        path.write_text(content)
+        path.chmod(0o755)
+
+    def run_script(self, **env_overrides):
+        env = dict(os.environ)
+        env.update(
+            {
+                "PATH": f"{self.bin}{os.pathsep}{env['PATH']}",
+                "DISPLAY": ":0",
+                "FAKE_JAVA_LOG": str(self.java_log),
+                "FAKE_GRADLE_LOG": str(self.gradle_log),
+                "FAKE_XVFB_LOG": str(self.xvfb_log),
+                # The run is stopped by its own deadline shortly after both clients are up, which is
+                # what this fixture is about; the game itself never passes anything. A case that
+                # needs the client to die first sets a wider deadline.
+                "GRUG_CI_BUILD_TIMEOUT": "30",
+                "GRUG_CI_RUN_TIMEOUT": "1",
+                "GRUG_CI_SECOND_JOIN_TIMEOUT": "2",
+            }
+        )
+        # The wrapper prefers JAVA_HOME's java, which on a developer's machine is the real one.
+        env.pop("JAVA_HOME", None)
+        env.pop("GRUG_ORNITHE_SERVER_HASH", None)
+        env.update(env_overrides)
+        return subprocess.run(
+            [str(self.tmp / ".github" / "scripts" / "run-multiplayer.sh"), SECOND_LOADER],
+            cwd=self.tmp,
+            env=env,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=120,
+        )
+
+    def second_log(self):
+        return self.loader / "run-second" / "second-client-launch.log"
+
+    def test_the_second_client_runs_before_the_client_gradle_asked_for(self):
+        result = self.run_script()
+
+        # The run ends on its own deadline rather than on a passing suite, which this fixture cannot
+        # reach; what matters is that both clients were launched where the test says.
+        self.assertIn("Timed out after", result.stderr)
+        launches = self.java_log.read_text().splitlines()
+        self.assertEqual(
+            [f"cwd={self.loader}/run-second", f"cwd={self.loader}/run"],
+            launches,
+            "the second client must start first, in its own game directory, then the runClient one",
+        )
+        # The second client's own log is the one the run script reads and the job uploads, and the
+        # join line the wrapper waits for is in it.
+        self.assertIn(
+            "[GRUG MULTIPLAYER] the second client is in the world",
+            self.second_log().read_text(),
+        )
+        # The wrapper was launched as runClient's executable, with the command Gradle would have run.
+        self.assertIn(":loaders:1.20.6-forge:runClient", self.gradle_log.read_text())
+        self.assertTrue(self.xvfb_log.is_file(), "the second client got no display of its own")
+        self.assertIn(":97", self.xvfb_log.read_text())
+
+    def test_a_second_client_that_never_joins_does_not_launch_the_first(self):
+        result = self.run_script(FAKE_SECOND_JOINS="0", GRUG_CI_RUN_TIMEOUT="10")
+
+        self.assertNotEqual(result.returncode, 0)
+        # The wrapper's own message goes to the client log the run script writes, and the run
+        # script's verdict is on its stderr.
+        self.assertIn(
+            "The second client was not in the world after 2s",
+            (self.loader / "run-client-ci.log").read_text(),
+        )
+        self.assertIn("The client exited before the server started the tests", result.stderr)
+        # Only the second client ran: the client Gradle asked for must not start without the player
+        # the two-player test is built around, and the leg must fail rather than pass with one.
+        self.assertEqual([f"cwd={self.loader}/run-second"], self.java_log.read_text().splitlines())
 
 
 if __name__ == "__main__":

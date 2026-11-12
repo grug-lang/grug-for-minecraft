@@ -1,0 +1,72 @@
+# The starter owns the run (#1027). A dedicated server builds its room around the player who started
+# the run, and the room, the held item and the cursor are that player's: the camera the captures and
+# this test read is the joined client's, asked for over the control channel, so comparing it with
+# the origin proves the client the server drives is the player the room was built around. That is the
+# fact the two-client leg adds a second real player to check: a server that picked the player list's
+# first entry, or moved to another player when the starter left, would build the room around one
+# player while forwarding the calls to another, and the camera would be somewhere else.
+
+# The held item and the cursor are then read back on the same test player, so an adapter that chose
+# another player cannot pass: its origin is that other player's, and the camera above already said
+# so. The item is put on the cursor of the menu the click opened, which is the starter's own menu.
+
+# run-multiplayer.sh requires this test in the log of the 1.20.6 leg, the only one that launches a
+# second client, so a leg that skipped it cannot report the two-player property as proven.
+
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup()
+        ctx.not_done()
+        return
+    }
+    if not Test.screen_open() {
+        # The menu the click opened reaches the client a frame later, and the test reads the
+        # client's screen, so this waits rather than assuming a tick count.
+        ctx.not_done()
+        return
+    }
+    origin: Vec3 = Test.get_origin()
+    camera: Vec3 = Test.camera()
+    ctx.assert(_near(camera.x(), origin.x()), "The room's eye should be the starter's x.")
+    ctx.assert(_near(camera.y(), origin.y() - 3.0), "The room's eye should be the starter's y, the origin less its 3 block lift.")
+    ctx.assert(_near(camera.z(), origin.z()), "The room's eye should be the starter's z.")
+
+    player: Player = Test.get_player()
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    Test.set_held_item(player, diamond)
+    ctx.assert(Test.get_held_count(player) == 1, "The starter's hand should hold the item the test put there.")
+    held: Option[Item] = player.get_held_item()
+    ctx.assert(held.has(), "The starter's hand should hold the item the test put there.")
+    if held.has() {
+        ctx.assert(equals(held.unwrap(), diamond), "The starter's hand should hold the diamond, not another item.")
+    }
+
+    level: Level = Test.get_client_level()
+    ctx.assert(level.get_block(origin.x(), origin.y(), origin.z()) == "grug:coverage_gui", "The room's block should be the one the test placed for the starter.")
+
+    Test.set_carried_item(diamond)
+    carried: Option[Item] = Test.get_carried_item()
+    ctx.assert(carried.has(), "The starter's cursor should carry the item the test put on it.")
+    if carried.has() {
+        ctx.assert(equals(carried.unwrap(), diamond), "The starter's cursor should carry the diamond, not another item.")
+    }
+    Test.clear_carried_item()
+    ctx.assert(not Test.get_carried_item().has(), "The starter's cursor should be empty after it is cleared.")
+
+    Test.close_screen()
+    ctx.assert(not Test.screen_open(), "Test.close_screen should leave no screen or menu open.")
+}
+
+local _setup() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_gui")
+    Test.use_block(level, origin.x(), origin.y(), origin.z())
+}
+
+# The tolerance is the wire's own capture-eye tolerance, a block in 1024 (GrugTestCamera's
+# CAPTURE_EYE_TOLERANCE), as camera-Test.grug uses it, so a camera this test accepts is one a
+# capture client would count as being at the room's eye.
+local _near(a: number, b: number) bool {
+    return a > b - 0.0009765625 and a < b + 0.0009765625
+}

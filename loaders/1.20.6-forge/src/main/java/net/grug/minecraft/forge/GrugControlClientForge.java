@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugControlClient;
 import net.grug.minecraft.core.GrugControlFaults;
+import net.grug.minecraft.core.GrugControlWire;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -116,6 +117,17 @@ public final class GrugControlClientForge {
             GrugModLoader.endControlRun(mc);
             started = false;
             return;
+        }
+        // The second player of the 1.20.6 leg (#1027) answers the first request ids on every tick,
+        // which it was never asked. run-multiplayer.sh asserts that the starter's answer is the one
+        // that completes its calls and that this client never received a request of its own, so a
+        // server that counted a stranger's answer would fail the first call it hit rather than pass
+        // quietly. The variable is set only on that client.
+        if (System.getenv("GRUG_CI_CONTROL_STRANGER_ANSWER") != null) {
+            for (long id = 1; id <= 16; id++) {
+                GrugControlForge.sendToServer(
+                        GrugControlWire.answerError(id, "a second player answered"));
+            }
         }
         if (started && client != null && !client.runActive()) {
             // The run is over while the client is still in its world, which is a joined client's
