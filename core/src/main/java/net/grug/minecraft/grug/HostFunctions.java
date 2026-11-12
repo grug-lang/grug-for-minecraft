@@ -908,14 +908,16 @@ public class HostFunctions {
 
     /** Why Test.light_applied refuses this position, or null when it can read the light there. */
     static String lightAppliedProblem(double x, double y, double z) {
-        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
-            return "Test.light_applied: The position has to be finite, and was ("
-                    + x
-                    + ", "
-                    + y
-                    + ", "
-                    + z
-                    + ").";
+        for (double position : new double[] {x, y, z}) {
+            if (!Double.isFinite(position)) {
+                return "Test.light_applied: The position has to be finite, and was ("
+                        + x
+                        + ", "
+                        + y
+                        + ", "
+                        + z
+                        + ").";
+            }
         }
         return null;
     }
