@@ -1,6 +1,5 @@
 package net.grug.minecraft.core;
 
-import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.Vec3;
 
 import java.awt.image.BufferedImage;
@@ -85,11 +84,9 @@ public final class GrugControlServer {
          * player, which is the give the starter's client sent (#1099). The name is how the server
          * finds its own item, so a client's item list that differs from this server's cannot make
          * it give a different item. The default hands it to the game's adapter, which every
-         * loader's link shares, and a unit test overrides it to see what was queued.
+         * loader's link shares, and a unit test covers it while another overrides it to see what
+         * was queued.
          */
-        @GrugGenerated(
-                "only a dedicated server applies a forwarded give, and no counted coverage run"
-                        + " launches one")
         default void applyGive(String item, int count) {
             GrugGiveCalls.giveOnServer(GrugCore.getAdapter(), item, count);
         }

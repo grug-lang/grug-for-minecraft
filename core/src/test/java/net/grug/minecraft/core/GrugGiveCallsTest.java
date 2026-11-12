@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -223,6 +224,51 @@ class GrugGiveCallsTest {
         // A list can hold an empty slot, which names nothing: the scan goes past it rather than
         // treating it as an item or stopping at it, so the give still finds the item after it.
         assertEquals(dirt, GrugGiveCalls.itemNamed(items.adapter(), "minecraft:dirt"));
+    }
+
+    @Test
+    void theDefaultLinkGiveGivesTheNamedItemToTheServersOwnPlayer() throws Exception {
+        Items items = new Items();
+        items.add("minecraft:stone");
+        items.add("minecraft:dirt");
+
+        // Every loader's link leaves applyGive inherited, so this is the give a joined client's
+        // click performs: the server finds the item its own list names and gives it to its own
+        // copy of the test player, in the count the client sent.
+        GrugControlServer.Link link =
+                new GrugControlServer.Link() {
+                    @Override
+                    public boolean sendToStarter(Object starter, byte[] message) {
+                        throw new AssertionError("a give does not send");
+                    }
+
+                    @Override
+                    public void flushWorld() {
+                        throw new AssertionError("a give does not flush");
+                    }
+
+                    @Override
+                    public boolean mayStartRun(Object sender) {
+                        throw new AssertionError("a give does not start a run");
+                    }
+
+                    @Override
+                    public void applyClientWork() {
+                        throw new AssertionError("a give does not drain");
+                    }
+                };
+
+        Field adapter = GrugCore.class.getDeclaredField("adapter");
+        adapter.setAccessible(true);
+        ModLoaderAdapter saved = (ModLoaderAdapter) adapter.get(null);
+        adapter.set(null, items.adapter());
+        try {
+            link.applyGive("minecraft:dirt", 64);
+        } finally {
+            adapter.set(null, saved);
+        }
+
+        assertEquals(List.of("the player minecraft:dirtx64"), items.given);
     }
 
     @Test
