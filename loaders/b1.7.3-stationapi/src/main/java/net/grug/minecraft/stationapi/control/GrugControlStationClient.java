@@ -32,12 +32,13 @@ import java.util.function.Consumer;
                 + " job launches one")
 public final class GrugControlStationClient {
     /**
-     * Client ticks to wait for the frames that show what the server sent, at the least. The two
-     * conditions in front of the capture already cover the world and the camera, so this is the
-     * margin for the frames drawn after the change, and 4 is the floor 1.20.6 has run on every
-     * multiplayer leg of every dispatch (#1199).
+     * Client ticks to wait for the frames that show what the server sent, at the least: one full
+     * game-loop iteration plus margin, because a frame is drawn once per iteration after up to ten
+     * ticks. The two conditions in front of the capture cover the world and the camera, so what the
+     * floor adds is a rendered iteration, and 20 is two iterations at the most and the value the a1
+     * client uses (#1199).
      */
-    static final int MIN_TICKS = 4;
+    static final int MIN_TICKS = 20;
 
     /**
      * Client ticks after which the frame the client has is captured even if not settled: 15 s at 20
