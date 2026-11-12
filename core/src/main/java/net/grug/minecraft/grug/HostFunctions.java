@@ -70,7 +70,6 @@ public class HostFunctions {
         return addLevel(GrugCore.getAdapter().getLevel());
     }
 
-    @GrugGenerated("no level yet: only a dedicated server reaches it, and CI launches none")
     private static long addLevel(Object level) {
         if (level == null) {
             // Which side it is matters to whoever reads this: a client has a world the moment one
@@ -302,7 +301,6 @@ public class HostFunctions {
         return addPlayer(GrugCore.getAdapter().testPlayer());
     }
 
-    @GrugGenerated("no player yet: only a dedicated server reaches it, and CI launches none")
     private static long addPlayer(Object player) {
         if (player == null) {
             // Which side it is matters to whoever reads this: on a client there is a local player
@@ -458,7 +456,6 @@ public class HostFunctions {
                 GrugTestState.captureTestOrigin(() -> GrugCore.getAdapter().getTestOrigin()));
     }
 
-    @GrugGenerated("no origin yet: only a dedicated server reaches it, and CI launches none")
     private static long addOrigin(Vec3 origin) {
         if (origin == null) {
             // Which side it is matters to whoever reads this: a client has a player the moment a
