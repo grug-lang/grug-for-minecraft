@@ -6,11 +6,13 @@
 # This is the guard that none of them starts reading another player again. See #188 and #609.
 
 # It runs on both sides (#1208): a dedicated server's suite runs it on the server, whose copy of the
-# joined player the runner now snaps, so the assertion is the guard that every server adapter keeps
-# its snapPlayerForTestOnServer override. The saved world starts the player off the block centre
-# (0.8897, 52.1), so a loader that lost the override builds the room and answers the origin from
-# that offset and this test fails. The client-only run still proves the client's snap. #1161
-# promoted it to guard the whole rule, and it is the only test that reads the server's own copy.
+# joined player the runner snaps, so the assertion reads the copy each server adapter chooses to
+# answer from. Only 1.20.6-forge's save starts the player off the block centre (0.8897, 52.1): there
+# a loader that lost its snapPlayerForTestOnServer override builds the room from that offset and
+# this test fails. The 1.2.5, a1.1.2_01 and b1.7.3 saves already start the player at a block centre
+# in x and z, so on those legs this is the guard that the origin still comes from the test player,
+# not that the snap ran. The client-only run still proves the client's snap. #1161 promoted it to
+# prove the server side too, and it is the only test that reads the server's own copy.
 
 # Read in init rather than in the first tick, because the first call captures the origin for the
 # whole test and init is the earliest point after the snap.

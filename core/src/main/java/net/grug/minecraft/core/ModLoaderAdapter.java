@@ -874,7 +874,6 @@ public interface ModLoaderAdapter {
     void clearInventoryOf(Object playerObj);
 
     /**
-    /**
      * Test only: drops the gives the starter's client sent that this server has not applied yet,
      * when the runner resets the state a test starts from (#1144).
      *
