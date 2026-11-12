@@ -220,15 +220,16 @@ install_ornithe_server() {
   # in for it. The installer records nothing like this, so the install writes it once complete.
   # server.jar is part of what makes it complete: ornithe-installer-rs writes
   # fabric-server-launch.jar before it downloads server.jar, and exits 0 after a download it could
-  # not make, so neither the exit status nor the launch jar says the server is there (#1251).
+  # not make, so neither the exit status nor the launch jar says the server is there (#1251). A
+  # write that failed partway leaves the jar empty, so its size is checked rather than its name.
   local install_marker="${GRUG_ORNITHE_SERVER_HASH:-$SERVER_VERSION}"
   local installed=""
   if [ -f "${ORNITHE_SERVER_DIR}/.grug-server-install" ]; then
     installed=$(tr -d ' \n\r' < "${ORNITHE_SERVER_DIR}/.grug-server-install")
   fi
   if [ "$installed" = "$install_marker" ] &&
-    [ -f "${ORNITHE_SERVER_DIR}/fabric-server-launch.jar" ] &&
-    [ -f "${ORNITHE_SERVER_DIR}/server.jar" ]; then
+    [ -s "${ORNITHE_SERVER_DIR}/fabric-server-launch.jar" ] &&
+    [ -s "${ORNITHE_SERVER_DIR}/server.jar" ]; then
     echo "==> Using the installed Ornithe server ${SERVER_VERSION} in ${ORNITHE_SERVER_DIR}"
   else
     rm -rf "$ORNITHE_SERVER_DIR"
@@ -239,11 +240,12 @@ install_ornithe_server() {
     echo "==> Installing the Ornithe server ${SERVER_VERSION} with loader ${loader_version} into ${ORNITHE_SERVER_DIR}"
     "$installer" server -m "$SERVER_VERSION" --loader-version "$loader_version" \
       -d "$ORNITHE_SERVER_DIR" || return 1
-    if [ ! -f "${ORNITHE_SERVER_DIR}/server.jar" ]; then
-      # The installer exits 0 after a download it could not make, so the missing jar is the only
-      # sign the install failed. Removing the directory keeps its launch jar from being taken for
-      # a complete install, so the next run installs again rather than failing at launch.
-      echo "==> The Ornithe installer left no server.jar in ${ORNITHE_SERVER_DIR}, so the install failed; removing it so the next run tries again." >&2
+    if [ ! -s "${ORNITHE_SERVER_DIR}/server.jar" ]; then
+      # The installer exits 0 after a download it could not make, and a write that failed partway
+      # leaves an empty jar, so an absent or empty server.jar is the only sign the install failed.
+      # Removing the directory keeps its launch jar from being taken for a complete install, so the
+      # next run installs again rather than failing at launch.
+      echo "==> The Ornithe installer left no usable server.jar in ${ORNITHE_SERVER_DIR}, so the install failed; removing it so the next run tries again." >&2
       rm -rf "$ORNITHE_SERVER_DIR"
       return 1
     fi
