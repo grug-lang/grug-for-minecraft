@@ -84,8 +84,10 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
 - **Orchestrator.** Reads the issue, writes the subagent a self-contained brief, reviews the
   subagent's diff against the issue, watches CI, merges, and keeps its own context small. Its brief
   opens with the worktree and the repository's configured commit identity, then holds the issue and
-  its acceptance points, the rules of this file that apply, the exact steps, that Minecraft runs
-  only in CI, and how to report. Every subagent runs at its default thinking level, as the review
+  its acceptance points, the rules of this file that apply, the exact steps, that the change's own
+  unit tests and grug compile pass before the first dispatch, that Minecraft runs only in CI, and
+  how to report. A dispatch whose new tests fail is a local failure found late, not a measurement.
+  Every subagent runs at its default thinking level, as the review
   subagent below does: the orchestrator sets no reasoning-effort override, whatever the task. A
   measurement arm's brief says its instrumentation must not land or must be excluded from the
   coverage gate; the pull request names the reds that are by design.
