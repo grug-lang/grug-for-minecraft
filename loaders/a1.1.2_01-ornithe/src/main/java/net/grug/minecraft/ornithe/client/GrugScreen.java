@@ -3,7 +3,7 @@ package net.grug.minecraft.ornithe.client;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.GrugAlphaMenu;
-import net.grug.minecraft.ornithe.control.GrugControlAlpha;
+import net.grug.minecraft.ornithe.control.GrugControlAlphaClient;
 import net.grug.minecraft.ornithe.gui.GrugScreenClickPacket;
 import net.grug.minecraft.ornithe.gui.GrugScreenClosePacket;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
@@ -180,7 +180,7 @@ public class GrugScreen extends InventoryMenuScreen {
             // the panel's background but on no slot does nothing, so this sends nothing either.
             return;
         }
-        Connection connection = GrugControlAlpha.clientConnectionForScreens();
+        Connection connection = GrugControlAlphaClient.clientConnectionForScreens();
         if (connection != null) {
             connection.send(new GrugScreenClickPacket(windowId, slot, button));
         }
@@ -275,7 +275,7 @@ public class GrugScreen extends InventoryMenuScreen {
             if (minecraft != null && minecraft.player != null) {
                 minecraft.player.inventory.cursorItem = null;
             }
-            Connection connection = GrugControlAlpha.clientConnectionForScreens();
+            Connection connection = GrugControlAlphaClient.clientConnectionForScreens();
             if (connection != null) {
                 connection.send(new GrugScreenClosePacket(windowId));
             }
