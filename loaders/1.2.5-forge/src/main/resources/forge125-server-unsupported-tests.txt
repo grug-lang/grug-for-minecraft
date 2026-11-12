@@ -39,16 +39,16 @@ coverage/tests/hook_forced_normalization-Test.grug
 # golden in all 12672 pixels (#1099, #1137). coverage/tests/hook_forced_normalization-Test.grug
 # stays the client-only proof that this loader's item draw pins the state off.
 jei/tests/item_list_forced_normalization-Test.grug
-# The four wall-backed buildcraft captures #1161 promoted to tick_any_side. Their joined client
-# still draws a different picture from the flat golden here, so three stay client-only on this
-# loader until #1213 finds why: dispatch 42430865929 stopped at redstone_engine_animation's
+#
+# The four wall-backed buildcraft captures #1161 promoted to tick_any_side. Two stay client-only on
+# this loader until #1213 finds why: dispatch 42430865929 stopped at redstone_engine_animation's
 # redstone_engine_stroke_facings, 1 of 62400 pixels, after the particle pin cleared the 633-pixel
-# redstone_engine_yellow difference. redstone_engine itself runs here, and passed on that dispatch,
-# because it is the proof that the joined client pins the particles the way its client-only run
-# does, so a capture taken on the server is the same picture (#1161). The leg reaches no test after
-# its first promoted failure, so the other three are listed with it, measured or already passing
-# here. The client-only run of this loader still runs all four, which is where their goldens are
-# checked.
-buildcraft/tests/cobblestone_pipe_shapes-Test.grug
+# redstone_engine_yellow difference. That dispatch also ran the two before it, and both passed:
+# redstone_engine is the proof that the joined client pins the particles the way its client-only
+# run does (#1161), and cobblestone_pipe_shapes passed at 00:45:41, before the leg's first promoted
+# failure at 00:46:07. Neither is listed, so both keep their captures on this server.
+# redstone_engine_facings comes after that failure, so it is unmeasured and listed until a dispatch
+# reaches it. The client-only run of this loader still runs all four, which is where their goldens
+# are checked.
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug

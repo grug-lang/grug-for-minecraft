@@ -22,14 +22,17 @@
 # and requires the joined client's own camera to drop more than a block below the room's eye: that
 # is the client's physics carrying it off the floor, so a removal that missed the block, or a run
 # with no client to pin, fails here rather than passing a comparison of frames drawn from the eye
-# anyway. Alpha's server holds its copy at the run's start height (#1134), so there the premise is
-# the capture window itself: a frozen server cannot run that hold, so a client that lost the block
-# falls below the eye inside the window, and the frame comparison fails without the pin. It then
-# captures the same wall twice more, a capture window apart, and requires each frame
-# off the floor to agree with the standing one and with the other one, so the pin has to hold the
-# eye for two windows and not only the one. The wall fills the window at that distance, so an off
-# eye frame moves its texels by far more than the 1 percent the comparison allows for the removed
-# block's lighting.
+# anyway. Alpha's server holds its copy at the run's start height (#1134), so it teleports the
+# client back on every tick and only a window where it cannot tick lets the fall show; the premise
+# there is a stall, which is such a window without a capture. That leg also reads the client's own
+# camera back after the capture window, because all three frames would agree if every one of them
+# were pinned one eye height off: Alpha keeps the eye in the player's y, so a pin that wrote the
+# feet leaves that read one eye height low, and a missing pin leaves it three blocks down on the
+# room's torch floor, while the frames still match each other. It then captures the same wall twice
+# more, a capture window apart, and requires each frame off the floor to agree with the standing one
+# and with the other one, so the pin has to hold the eye for two windows and not only the one. The
+# wall fills the window at that distance, so an off eye frame moves its texels by far more than the
+# 1 percent the comparison allows for the removed block's lighting.
 # Only b1.7.3-ornithe and a1.1.2_01-ornithe pin a joined client (#1178, #1161). The other loaders'
 # capture clients hold nothing, so a player off the floor there is drawn from wherever they fell to
 # and this comparison is not about them. run-multiplayer.sh asks for this test on those two legs,
@@ -63,25 +66,43 @@ export tick(ctx: TestTickContext) {
         # The room's eye is the origin less the runner's 3 block lift (GrugTestOrigin.LIFT).
         eye: number = Test.get_origin().y() - 3.0
         # The removed block reaches the client only through a settle ask's flush, which a frozen
-        # test's tick never reaches itself (#1123).
-        Test.world_settled()
-        # Alpha's server holds its copy at the height the run started at (#1134), so a camera ask
-        # between ticks sees the fall only up to that hold's tolerance and never a whole block.
-        # The capture window that follows freezes the server, so the hold cannot run while the
-        # client falls there, and the frames are what prove the pin on this loader. b1.7.3-ornithe
-        # has no such hold and proves its premise first.
-        if Test.loader_name() != "a1.1.2_01-ornithe" {
-            camera: Vec3 = Test.camera()
+        # test's tick never reaches itself (#1123). The ask travels after that flush on the same
+        # connection and counts only frames drawn after it, so a true answer is the client having
+        # the removal in its world, not only the server having queued it.
+        settled: bool = Test.world_settled()
+        if not settled and ctx.current_tick() < 120 {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(settled, "The client should have drawn the block the removed floor took out of its world.")
+        camera: Vec3 = Test.camera()
+        if Test.loader_name() == "a1.1.2_01-ornithe" {
+            # Alpha's server holds its copy at the height the run started at (#1134), so a camera ask
+            # between ticks sees the fall only up to that hold's tolerance and never a whole block:
+            # every server tick teleports the client back. A stall keeps the server from ticking, as
+            # a capture window does, so the client's own physics drops it three blocks to the room's
+            # torch floor, while a removal that never reached the client leaves it standing at the
+            # eye.
+            Test.stall(1000)
+            camera = Test.camera()
+            ctx.assert(camera.y() < eye - 1.0, "The joined client's own camera should drop below the room's eye once the block it stands on is removed, so the captures that follow are of a client that left the floor.")
+        } else if camera.y() > eye - 1.0 {
             # A whole block, not the capture-eye tolerance: a pinned client sits at the eye, and a
             # client that has lost the block it stood on falls three blocks to the room's torch
             # floor, so only its own physics over the missing block takes its camera this far down.
-            if camera.y() > eye - 1.0 {
-                ctx.assert(ctx.current_tick() < 120, "The joined client's own camera should drop below the room's eye once the block it stands on is removed, so the captures that follow are of a client that left the floor.")
-                ctx.not_done()
-                return
-            }
+            ctx.assert(ctx.current_tick() < 120, "The joined client's own camera should drop below the room's eye once the block it stands on is removed, so the captures that follow are of a client that left the floor.")
+            ctx.not_done()
+            return
         }
         falling.set(Test.screenshot().capture(200, 120, 1080, 320))
+        if Test.loader_name() == "a1.1.2_01-ornithe" {
+            # The pin writes the eye on every pending tick, so this read, taken once the capture has
+            # returned, is the client's own camera where the pin left it. A pin one eye height off,
+            # or no pin, moves it by more than a block, while the frame comparisons cannot see a
+            # shift every frame shares.
+            pinned: Vec3 = Test.camera()
+            ctx.assert(pinned.y() > eye - 1.0 and pinned.y() < eye + 1.0, "The pin should leave the client's camera at the room's eye when the capture is taken, not one eye height away from it.")
+        }
         step = 2
         ctx.not_done()
         return

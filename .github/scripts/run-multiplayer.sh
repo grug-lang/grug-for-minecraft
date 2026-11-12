@@ -590,13 +590,13 @@ while :; do
     # The four wall-backed buildcraft captures #1161 promoted have to show as passed on the leg that
     # can run them, which is 1.20.6-forge: its joined client matches the flat golden after the
     # server half of the player snap and the particle pin, and that is what proves both. The other
-    # four legs list them in server-unsupported-tests.txt with their measured residue (b1.7.3-ornithe
-    # and the a1.1.2_01 and 1.2.5 ones #1213, b1.7.3-stationapi #1092), so their servers skip them
-    # and the client-only run of that loader is where the four still run. Requiring them there would
-    # only restate an open rendering defect, so the list is per loader. Each compares against its
-    # single flat golden, so this leg fails in the test itself when its picture is off; this check
-    # catches one not running at all (an export reverted, or the loader listing it as unsupported)
-    # and passing quietly.
+    # four legs list the ones their measured residue reaches in server-unsupported-tests.txt
+    # (b1.7.3-ornithe and the a1.1.2_01 and 1.2.5 ones #1213, b1.7.3-stationapi #1092), so their
+    # servers skip those and run the rest; the client-only run of every loader is where all four
+    # goldens are checked. Requiring them on the four legs would only restate an open rendering
+    # defect, so the list is per loader. Each compares against its single flat golden, so this leg
+    # fails in the test itself when its picture is off; this check catches one not running at all
+    # (an export reverted, or the loader listing it as unsupported) and passing quietly.
     wall_backed_tests=""
     case "$LOADER" in
       1.20.6-forge)
@@ -620,9 +620,11 @@ while :; do
     fi
     # The runner snaps the server's copy of the joined player to the centre of its block (#1161),
     # and test_origin_follows_the_test_player asserts the origin the room was built from is that
-    # centre. A loader whose server adapter lost its snapPlayerForTestOnServer override answers
-    # from the joined position and fails it, so requiring its PASS also catches a leg that skipped
-    # the test instead.
+    # centre. Only 1.20.6-forge's save starts the player off the centre, so only there does a
+    # loader that lost its snapPlayerForTestOnServer override answer from the joined position and
+    # fail it; the 1.2.5, a1.1.2_01 and b1.7.3 saves already start centred, so their PASS is the
+    # guard that the origin still comes from the test player. Requiring it also catches a leg that
+    # skipped the test instead.
     if ! grep -qF '[GRUG CI] PASS coverage/tests/test_origin_follows_the_test_player-Test.grug' "$SERVER_LOG"; then
       echo "==> The run passed, but coverage/tests/test_origin_follows_the_test_player-Test.grug did not run on the dedicated server." >&2
       exit 1

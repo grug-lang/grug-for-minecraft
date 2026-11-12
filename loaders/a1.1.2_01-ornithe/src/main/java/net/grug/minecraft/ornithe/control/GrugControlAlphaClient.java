@@ -236,6 +236,11 @@ public final class GrugControlAlphaClient {
                             + Thread.currentThread().getName());
         }
         PlayerEntity player = mc.player;
+        // Read before the pin: the pin writes this client's own eye, so a read after it reports
+        // that write rather than where the client's camera was when the request arrived. This is
+        // the count the capture log's "camera at the room's eye" now gives, the mirror of the
+        // drift line the first pin prints (#1161).
+        boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
         if (eye != null && player != null) {
             pinAtCaptureEye(player);
         }
@@ -243,7 +248,6 @@ public final class GrugControlAlphaClient {
         // The frame has to show the world the server has and be drawn from the place the test's
         // room was built around, so a capture names the eye and the client waits for its own camera
         // to reach it (#1161).
-        boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
         if (GrugTestCamera.waitsForCapture(waited, MIN_TICKS, MAX_TICKS, settled, cameraHere))
             return;
         pending = false;
