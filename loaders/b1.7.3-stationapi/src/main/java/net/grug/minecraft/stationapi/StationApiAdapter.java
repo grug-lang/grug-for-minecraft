@@ -961,13 +961,17 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return stack == null ? 0.0 : stack.count;
     }
 
-    /** The items this loader lists, in item id order, built once because the list never changes. */
+    /**
+     * The items this loader lists, in item id order, built once because the list never changes.
+     * Item id 0 is the air block item StationAPI registers for its air block, and no item list
+     * offers air (1.20.6 skips Items.AIR), so the list starts at the first real item.
+     */
     private List<Item> itemsByIdCache = null;
 
     private List<Item> itemsById() {
         if (itemsByIdCache == null) {
             List<Item> items = new ArrayList<>();
-            for (int id = 0; id < Item.ITEMS.length; id++) {
+            for (int id = 1; id < Item.ITEMS.length; id++) {
                 Item item = Item.ITEMS[id];
                 if (item != null) {
                     items.add(item);
