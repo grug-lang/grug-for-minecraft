@@ -952,6 +952,9 @@ jobs:
         with:
           loader: ${{ matrix.loader }}
           save: 'false'
+          # The two Ornithe legs install their server with Ornithe's installer, which the action's
+          # cache entry restores and this job populates (#1244); the other three have no such install.
+          server-install: ${{ matrix.loader == 'b1.7.3-ornithe' || matrix.loader == 'a1.1.2_01-ornithe' }}
 
       # The 1.2.5 server and client both boot on Java 8, as the loader jobs do (#166).
       - name: Set up JDK 8 (1.2.5-forge only)

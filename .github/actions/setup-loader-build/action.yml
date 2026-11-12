@@ -14,6 +14,14 @@ inputs:
       first, so a job that stops after the build would write one without what the game resolves.
     required: false
     default: 'true'
+  server-install:
+    description: >-
+      Whether this job installs and runs the loader's dedicated server, which only the multiplayer
+      job does, and only for a loader whose server Ornithe's installer sets up. It is what tells the
+      Ornithe server install entry below that this job has the directory, because that job passes
+      save false to keep the Gradle entries to the build job and so cannot be told by save.
+    required: false
+    default: 'false'
 outputs:
   java21-path:
     description: JAVA_HOME of the JDK 21 this action installed.
@@ -103,9 +111,16 @@ runs:
       shell: bash
       env:
         LOADER: ${{ inputs.loader }}
+        SERVER_INSTALL: ${{ inputs.server-install }}
         GRADLE_HASH: ${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', inputs.loader), format('loaders/{0}/settings.gradle', inputs.loader), format('loaders/{0}/settings.gradle.kts', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
         MINECRAFT_HASH: ${{ hashFiles('.github/actions/setup-loader-build/action.yml', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
         DISTS_HASH: ${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties') }}
+        # The inputs of the Ornithe dedicated server install, which Gradle never makes: the game
+        # version the installer is told, the loader version from gradle.properties, and the OSL
+        # version in the same file, whose jar is fetched beside the install into mods/ rather than
+        # into it, and the script that runs the installer, which holds the installer's version and
+        # what the install writes. Not this file, so an edit of it cannot orphan the entry (#196).
+        ORNITHE_SERVER_HASH: ${{ hashFiles(format('loaders/{0}/server-version.txt', inputs.loader), format('loaders/{0}/gradle.properties', inputs.loader), '.github/scripts/run-multiplayer.sh') }}
       run: |
         # The root gradle.properties without its mod_version line: the weekly release bump (#499)
         # changes only that line, resolves nothing and used to rekey every entry below (#1002).
@@ -125,7 +140,14 @@ runs:
           echo "own-state=grug-own-state-${RUNNER_OS}-${LOADER}-${GRADLE_HASH}"
           echo "own-state-prefix=grug-own-state-${RUNNER_OS}-${LOADER}-"
           echo "minecraft=grug-minecraft-${RUNNER_OS}-${LOADER}-${MINECRAFT_HASH}"
+          echo "ornithe-server=grug-ornithe-server-${RUNNER_OS}-${LOADER}-${ORNITHE_SERVER_HASH}"
+          echo "ornithe-server-prefix=grug-ornithe-server-${RUNNER_OS}-${LOADER}-"
         } >> "$GITHUB_OUTPUT"
+        # run-multiplayer.sh writes an install's marker from this, so the prefix fallback below
+        # reinstalls an entry the key no longer matches instead of starting it.
+        if [ "${SERVER_INSTALL}" = 'true' ]; then
+          echo "GRUG_ORNITHE_SERVER_HASH=${ORNITHE_SERVER_HASH}" >> "$GITHUB_ENV"
+        fi
 
     # The Gradle distributions themselves, in one entry per OS rather than in every loader's
     # dependency entry. ~/.gradle/wrapper holds the two every loader job unpacks: 8.14 for the root
@@ -365,6 +387,46 @@ runs:
       with:
         path: loaders/1.2.5-forge/mcp125
         key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('loaders/1.2.5-forge/build.gradle') }}
+
+    # The a1.1.2_01-ornithe and b1.7.3-ornithe dedicated servers are games of their own, which no
+    # Gradle build provisions: run-multiplayer.sh installs each with Ornithe's installer, into
+    # loaders/<loader>/ornithe-server, beside the run-server it wipes for a pristine save (#1244).
+    # That install is the server's whole toolchain, its libraries, the game jar and the launch jar,
+    # and it came from maven.ornithemc.net on every dedicated run: when the host refused connections,
+    # the leg died before its first test (job 130704369547 of run 43072620899), so a restored entry
+    # has to be enough to start the server. It is cached here the way the snapshot above is, and it
+    # holds no world, because the install directory never receives one.
+    #
+    # Only the multiplayer job runs that install, so only it has the directory. The step is gated by
+    # server-install rather than by save, because that job passes save false to keep the Gradle
+    # entries to the build job and this entry is written by no other job. The restore is this step's
+    # main action, before the install the job runs next, and the save is its post action, at the
+    # job's end, after the install; a job whose install never completed, and whose leg therefore
+    # failed, saves nothing.
+    #
+    # Keyed on what decides what the install holds: the game version the installer is told (`-m`,
+    # server-version.txt), the loader version passed to it and the OSL version, both from
+    # gradle.properties, and run-multiplayer.sh, which holds the installer's version and the install
+    # it writes. The OSL jar itself is fetched beside the install into mods/, so its version is an
+    # input of the layer rather than something the entry holds. Not this file: an edit of it must
+    # not orphan the entry, because a key can only be written by a job whose leg went green, which
+    # needs the host, and during an outage the entry is the only thing that starts the server (#196).
+    # The prefix without the hash keeps the loader's previous entry reachable for the runs between a
+    # rekey and the job that writes the new key. run-multiplayer.sh starts an entry only when its
+    # marker is the hash this job computed, so a change to any input above is a miss that installs
+    # and saves anew, whether or not the resulting files differ, and an edit of this file changes
+    # none of those inputs and installs nothing.
+    #
+    # It stays hot: the multiplayer job runs on a dispatch only (not on the Monday schedule, whose
+    # event is a schedule), and the four-hourly main dispatch and the Sunday release dispatch both
+    # run it, inside GitHub's seven-day unused cutoff.
+    - name: Cache the Ornithe dedicated server install
+      if: inputs.server-install == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: loaders/${{ inputs.loader }}/ornithe-server
+        key: ${{ steps.keys.outputs.ornithe-server }}
+        restore-keys: ${{ steps.keys.outputs.ornithe-server-prefix }}
 
     # Ploceus resolves OSL's module base versions, each module's version for the game, and the
     # game's library upgrades from the Ornithe meta at configure time, and keeps the answers in
