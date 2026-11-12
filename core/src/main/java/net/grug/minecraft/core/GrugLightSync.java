@@ -163,11 +163,14 @@ public final class GrugLightSync {
      * engine is asked once more after both samples, so a batch still pending then is not read as
      * idle either.
      *
-     * <p>A client answer of -1 means the client cannot verify its copy, which is read as applied
-     * rather than as a mismatch, the same way {@code GrugClientLight.Forwarded} reads it: a client
-     * whose light engine cannot reproduce the world's would otherwise wait until its deadline over
-     * a difference that is not its fault (#1240). A world with no level to sample holds no section,
-     * so -1 there still answers false.
+     * <p>A client answer of {@link GrugClientLight#CANNOT_VERIFY} means the client cannot verify
+     * its copy, which is read as applied rather than as a mismatch, the same way {@code
+     * GrugClientLight.Forwarded} reads it: a client whose light engine cannot reproduce the world's
+     * would otherwise wait until its deadline over a difference that is not its fault (#1240). A
+     * client answer of {@link GrugClientLight#NOT_RECEIVED} is the opposite case and answers false,
+     * because a column the client was never sent cannot hold the world's light: two empty sections
+     * would otherwise agree and call a room the client has never seen settled (#1242). A world with
+     * no level to sample holds no section, so -1 there still answers false.
      *
      * <p>Pure, and unit-tested in every combination, because the moment the light thread publishes
      * a batch is not one a test can force: a game test can place a block and wait, but it cannot
@@ -176,11 +179,18 @@ public final class GrugLightSync {
      * @param engineSettled whether the engine had no work left after both samples
      * @param before the world's light sampled after the first settled check
      * @param after the world's light sampled after the client's answer
-     * @param client the client's copy of the same section, or -1 where it cannot verify it
+     * @param client the client's copy of the same section, or {@link GrugClientLight#CANNOT_VERIFY}
+     *     or {@link GrugClientLight#NOT_RECEIVED} where it has no fingerprint to give
      */
     public static boolean lightApplied(
             boolean engineSettled, long before, long after, long client) {
-        return engineSettled && before >= 0 && before == after && (client < 0 || before == client);
+        if (!engineSettled || before < 0 || before != after) {
+            return false;
+        }
+        if (client == GrugClientLight.NOT_RECEIVED) {
+            return false;
+        }
+        return client == GrugClientLight.CANNOT_VERIFY || client == before;
     }
 
     /**

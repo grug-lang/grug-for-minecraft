@@ -56,6 +56,14 @@ class GrugLightSyncTest {
         // A client that cannot verify its copy answers -1, which is read as applied so a loader
         // whose client cannot reproduce the world's light does not wait until its deadline (#1240).
         assertTrue(GrugLightSync.lightApplied(true, afterBatch, afterBatch, -1));
+        // A column the client was never sent answers -2, which is not applied even when both
+        // samples agree: two empty sections are not a room the client can draw (#1242).
+        assertFalse(
+                GrugLightSync.lightApplied(
+                        true, afterBatch, afterBatch, GrugClientLight.NOT_RECEIVED));
+        assertFalse(
+                GrugLightSync.lightApplied(true, 0, 0, GrugClientLight.NOT_RECEIVED),
+                "An unlit world section the client was never sent still has no client copy.");
         // A world with no level to sample holds no section, so -1 there is still false.
         assertFalse(GrugLightSync.lightApplied(true, -1, -1, -1));
     }
