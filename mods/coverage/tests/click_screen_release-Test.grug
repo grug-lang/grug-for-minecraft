@@ -9,10 +9,11 @@
 # The 1.20.6 dedicated server skips this test (see forge-1.20.6-server-unsupported-tests.txt): its
 # test player is in creative, so the inventory screen the test opens becomes the creative one, and
 # that client ignores the cursor sync, leaving the overlay with no carried item to close the screen
-# with. The client-only 1.20.6 run still proves the release behaviour. The test keeps no drawn
-# frame wait: the screen's open answer is forwarded, and the click's outcome is read from the
-# server's own menu on the next tick.
+# with. The client-only 1.20.6 run still proves the release behaviour. The test keeps no wait for
+# the overlay to be drawn: the screen's open answer is forwarded, and the click's outcome is read
+# from the server's own menu on the next tick.
 started: bool = false
+opened: bool = false
 waited: number = 0
 clicked: bool = false
 
@@ -24,7 +25,27 @@ export tick_any_side(ctx: TestTickContext) {
         }
         Test.close_screen()
         Test.clear_carried_item()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens: the inventory
+    # draws the player with the entity renderer, whose texture manager and camera the world's own
+    # entity pass fills in, and a `-f mods=coverage` dispatch can run this test first, before any
+    # frame has drawn (#1287). The runner puts the test that failed last first and then the
+    # slowest, so any test of the mod can be that one. The test box's light is queued before the
+    # test's own clock starts and the game runs ten ticks for one frame, so the first settle can
+    # take a few hundred of the test's ticks; the failure bound is what says it never came.
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not Test.world_settled() {
+            ctx.not_done()
+            return
+        }
         Test.open_inventory(Test.get_player())
+        opened = true
+        waited = 0
         ctx.not_done()
         return
     }
