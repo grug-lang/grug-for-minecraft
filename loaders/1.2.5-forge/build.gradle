@@ -573,13 +573,14 @@ def findJava8 = {
 }
 
 // The JaCoCo agent's arguments for the game JVM. gradle/jacoco-loader.gradle attaches the agent to
-// the other loaders' runClient tasks, which are JavaExecs; this loader launches the game itself on
-// Java 8 (an Exec), so the same arguments go on the command line it builds. Only CI records: a plain
-// local runClient stays uninstrumented. The agent writes nothing itself (output=none): run-loader.sh
-// terminates the game as soon as the tests pass, which can interrupt a shutdown-hook write, so
-// GrugCoverage cuts the segments from inside the game, as it does for every loader. Instrumentation
-// is limited to this project's classes, since instrumenting Minecraft would produce a huge exec for
-// no benefit.
+// the other loaders' runClient and runServer tasks, which are JavaExecs; this loader launches the
+// game itself on Java 8 (Exec tasks), so the same arguments go on the command line it builds. Only
+// CI records: a plain local run stays uninstrumented. The agent writes nothing itself
+// (output=none): run-loader.sh terminates the game as soon as the tests pass, which can interrupt
+// a shutdown-hook write, so GrugCoverage cuts the segments from inside the game, as it does for
+// every loader. Instrumentation is limited to this project's classes, since instrumenting Minecraft
+// would produce a huge exec for no benefit. Each run names its own directory: the dedicated server's
+// segments go to jacoco-server rather than over the client's (#1027).
 //
 // The classes this project puts in the game's own package have to be named one by one, because the
 // agent's include list also covers the game's dev classes in that package. The srg reobfuscates
@@ -599,11 +600,11 @@ def defaultPackageClassNames = {
     return names
 }
 
-def jacocoLaunchArgs = {
+def jacocoLaunchArgs = { String directoryName ->
     if (System.getenv('GRUG_CI') != 'true') {
         return []
     }
-    def execDir = new File(buildDirFile, 'jacoco')
+    def execDir = new File(buildDirFile, directoryName)
     // Start clean, so a segment of an earlier run cannot be combined with this one's.
     project.delete(execDir)
     def agent = project.configurations.grugJacocoAgent.singleFile
@@ -643,7 +644,7 @@ def launchCommand = { Iterable<File> libraries, File gameDir, File assets, boole
         // which names the same directory as --gameDir below (#1184).
         "-Dgrug.gameDir=${gameDir.absolutePath}"]
     if (recordCoverage) {
-        command += jacocoLaunchArgs()
+        command += jacocoLaunchArgs('jacoco')
     }
     command += ['-cp', classpath.join(File.pathSeparator),
         'net.minecraft.launchwrapper.Launch',
@@ -946,9 +947,12 @@ tasks.register('runServer', Exec) {
         def classpath = []
         classpath.addAll(configurations.runtimeLibs.files.collect { it.absolutePath })
         classpath << serverRuntimeJar.absolutePath
-        commandLine([java8,
-            '-Djava.util.Arrays.useLegacyMergeSort=true',
-            '-cp', classpath.join(File.pathSeparator),
-            'net.minecraft.server.MinecraftServer', 'nogui'])
+        def command = [java8, '-Djava.util.Arrays.useLegacyMergeSort=true']
+        // The dedicated server records beside the client rather than over it (#1027): two JVMs
+        // cutting their segments into one directory would overwrite each other's files.
+        command += jacocoLaunchArgs('jacoco-server')
+        command += ['-cp', classpath.join(File.pathSeparator),
+            'net.minecraft.server.MinecraftServer', 'nogui']
+        commandLine(command)
     }
 }

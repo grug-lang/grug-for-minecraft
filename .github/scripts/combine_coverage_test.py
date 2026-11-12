@@ -704,5 +704,100 @@ class CarryOverTest(unittest.TestCase):
         )
 
 
+class ServerExecTest(unittest.TestCase):
+    """The dedicated server's exec data (#1027): a server-exec-<loader> artifact is appended to that
+    loader's exec list, so the one report over that loader's classes unions the client run and the
+    server run. A separate report would be summed with the client's by sum_csvs, which adds the
+    missed counts, so the same class would be counted twice and its misses twice over."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.artifacts = self.root / "artifacts"
+        for runner in ("core", "1.20.6-forge"):
+            (self.artifacts / f"coverage-exec-{runner}").mkdir(parents=True)
+            (self.artifacts / f"coverage-exec-{runner}" / "000-boot.exec").write_bytes(b"")
+            (self.artifacts / f"coverage-classes-{runner}").mkdir(parents=True)
+            (self.artifacts / f"coverage-classes-{runner}" / "C.class").write_bytes(b"")
+        self.output = self.root / "output"
+        self.report_calls = []
+        self.orig_report = combine.jacoco_report
+        self.orig_argv = sys.argv
+        self.addCleanup(setattr, sys, "argv", self.orig_argv)
+
+    def fake_report(self, cli, execs, classes, sources, csv_path, xml_path):
+        self.report_calls.append((tuple(execs), csv_path))
+        # A distinct class per runner, so a runner reported twice shows up as a doubled row in the
+        # combined CSV rather than as a row two runners' coverage of one class would also give.
+        name, cls = "core", "CoreReached"
+        if csv_path.name != "core.csv":
+            name, cls = "1.20.6-forge", "ServerReached"
+        csv_path.write_text(HEADER + f"{name},net.grug,{cls},4,0,0,0,1,0,1,0,1,0\n")
+        xml_path.write_text('<report name="r"></report>')
+
+    def run_main(self):
+        sys.argv = [
+            "combine-coverage.py",
+            "--artifacts",
+            str(self.artifacts),
+            "--jacoco-cli",
+            str(self.root / "cli.jar"),
+            "--output",
+            str(self.output),
+        ]
+        # Patched for this run only: this module's other classes use the real report.
+        combine.jacoco_report = self.fake_report
+        try:
+            return combine.main()
+        finally:
+            combine.jacoco_report = self.orig_report
+
+    def report_execs(self, name):
+        return next(execs for execs, csv_path in self.report_calls if csv_path.name == name)
+
+    def combined_rows(self):
+        with (self.output / "combined.csv").open(newline="") as handle:
+            return {row["CLASS"]: row for row in csv.DictReader(handle)}
+
+    def server_exec(self):
+        directory = self.artifacts / "server-exec-1.20.6-forge"
+        directory.mkdir(parents=True)
+        exec_file = directory / "004-coverage.tests.use_block_effects-Test.grug.exec"
+        exec_file.write_bytes(b"")
+        return exec_file
+
+    def test_without_a_server_artifact_the_client_run_is_all_there_is(self):
+        self.assertEqual(self.run_main(), 0)
+        self.assertEqual(
+            [path.name for path in self.report_execs("1.20.6-forge.csv")], ["000-boot.exec"]
+        )
+        # No multiplayer job and a leg that recorded nothing look the same, and neither is an error.
+        self.assertEqual(len(self.report_calls), 2)
+        self.assertEqual(self.combined_rows()["ServerReached"]["INSTRUCTION_MISSED"], "4")
+
+    def test_a_server_exec_is_appended_to_its_loader_and_to_core(self):
+        exec_file = self.server_exec()
+        self.assertEqual(self.run_main(), 0)
+        # The loader's own report reads its classes against both runs, which is what makes a
+        # server-only class of that loader measurable at all.
+        self.assertEqual(
+            self.report_execs("1.20.6-forge.csv"),
+            (self.artifacts / "coverage-exec-1.20.6-forge" / "000-boot.exec", exec_file),
+        )
+        # Core unions every runner's exec data, so the server's coverage of core's classes counts
+        # there too, as the client's does.
+        self.assertIn(exec_file, self.report_execs("core.csv"))
+
+    def test_a_server_exec_does_not_report_the_loaders_classes_a_second_time(self):
+        self.server_exec()
+        self.assertEqual(self.run_main(), 0)
+        # One report per runner: a second, parallel one summed by sum_csvs would add its miss to the
+        # first's, so this class would read as 8 missed instead of 4 and the gate would fail for a
+        # line the server covered.
+        self.assertEqual(len(self.report_calls), 2)
+        self.assertEqual(self.combined_rows()["ServerReached"]["INSTRUCTION_MISSED"], "4")
+
+
 if __name__ == "__main__":
     unittest.main()
