@@ -591,12 +591,12 @@ while :; do
     # can run them, which is 1.20.6-forge: its joined client matches the flat golden after the
     # server half of the player snap and the particle pin, and that is what proves both. The other
     # four legs list the ones their measured residue reaches in server-unsupported-tests.txt
-    # (b1.7.3-ornithe and the a1.1.2_01 and 1.2.5 ones #1213, b1.7.3-stationapi #1092), so their
-    # servers skip those and run the rest; the client-only run of every loader is where all four
-    # goldens are checked. Requiring them on the four legs would only restate an open rendering
-    # defect, so the list is per loader. Each compares against its single flat golden, so this leg
-    # fails in the test itself when its picture is off; this check catches one not running at all
-    # (an export reverted, or the loader listing it as unsupported) and passing quietly.
+    # (b1.7.3-ornithe and a1.1.2_01 all four and 1.2.5-forge two of them, #1213 and #1092), so
+    # their servers skip those; the client-only run of every loader is where all four goldens are
+    # checked. Requiring them on the four legs would only restate an open rendering defect, so the
+    # list is per loader. Each compares against its single flat golden, so this leg fails in the
+    # test itself when its picture is off; this check catches one not running at all (an export
+    # reverted, or the loader listing it as unsupported) and passing quietly.
     wall_backed_tests=""
     case "$LOADER" in
       1.20.6-forge)

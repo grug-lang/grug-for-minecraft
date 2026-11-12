@@ -14,7 +14,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
 
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.GL11;
+
 import java.awt.image.BufferedImage;
+import java.nio.IntBuffer;
 import java.util.function.Consumer;
 
 /**
@@ -148,6 +153,28 @@ public final class GrugControlAlphaClient {
     }
 
     /**
+     * The GL viewport the frame was drawn into, as {@code x,y,width x height}.
+     *
+     * <p>It is the measurement #1213 needs for the joined capture that draws its world 2 px higher
+     * than the flat golden. A capture's rectangle is converted from the window's top with {@code
+     * Minecraft.height}, while the world is projected into whatever viewport GL holds, and a
+     * perspective projection's centre is the viewport's middle: a viewport 4 px shorter than the
+     * crop assumes would put the world's centre 2 px off the crop's, which is the measured shift.
+     * Printing it names that rather than leaving it to be guessed from the picture.
+     */
+    private static String glViewport() {
+        IntBuffer viewport = BufferUtils.createIntBuffer(16);
+        GL11.glGetInteger(GL11.GL_VIEWPORT, viewport);
+        return viewport.get(0)
+                + ","
+                + viewport.get(1)
+                + ","
+                + viewport.get(2)
+                + "x"
+                + viewport.get(3);
+    }
+
+    /**
      * The client starts its run only once the chunks around its player have stopped arriving: the
      * count of loaded chunks in a square of {@link #SETTLE_RADIUS} chunks has held for {@link
      * #SETTLE_QUIET_TICKS} ticks, with the 3x3 around the player at least. The server freezes at
@@ -275,6 +302,16 @@ public final class GrugControlAlphaClient {
                         + settled
                         + ", camera at the room's eye: "
                         + cameraHere
+                        + ", window "
+                        + mc.width
+                        + "x"
+                        + mc.height
+                        + ", display "
+                        + Display.getWidth()
+                        + "x"
+                        + Display.getHeight()
+                        + ", viewport "
+                        + glViewport()
                         + ")");
         done.accept(((OrnitheAdapter) GrugCore.getAdapter()).captureForControl(x1, y1, x2, y2, mc));
     }
