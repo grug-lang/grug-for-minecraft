@@ -49,6 +49,12 @@ if [ -z "${DISPLAY:-}" ]; then
   exit 2
 fi
 SERVER_DIR="${REPO_ROOT}/${LOADER_DIR}/run-server"
+# The installed Ornithe server, which is the server's toolchain and not its world (#1244). The script
+# below wipes run-server and extracts a pristine save into it before every launch, so the install
+# lives beside it, in a directory of its own that setup-loader-build caches. A restored job whose
+# install matches the key this job computed asks maven.ornithemc.net for neither the installer nor the
+# libraries.
+ORNITHE_SERVER_DIR="${REPO_ROOT}/${LOADER_DIR}/ornithe-server"
 CLIENT_DIR="${REPO_ROOT}/${LOADER_DIR}/run"
 SERVER_LOG="${REPO_ROOT}/${LOADER_DIR}/run-server-ci.log"
 CLIENT_LOG="${REPO_ROOT}/${LOADER_DIR}/run-client-ci.log"
@@ -184,8 +190,13 @@ tail_pid=$!
 # Ornithe's native installer set up (#1021). The mods the suite tests are put where a player puts a
 # mod they downloaded, and the bundled ones are turned on by their state, as launch-production.sh
 # does. Everything it prints goes to the server's log, which the watch below reads.
+#
+# The installer's output, its libraries, the game jar and the launch jar, is a toolchain a cache entry
+# can hold: it never reaches the world, which run-server extracts from the test save (#1244). A run
+# that already has it under ORNITHE_SERVER_DIR therefore skips the installer and every download it
+# makes, and the world is still a pristine copy.
 install_ornithe_server() {
-  local installer="${SERVER_DIR}/../ornithe-installer-cli"
+  local installer="${REPO_ROOT}/${LOADER_DIR}/ornithe-installer-cli"
   echo "==> Building the layer and core's release jar for ${LOADER}"
   GRUG_CI=true ./gradlew :core:shadowJar :core:publishMavenJavaPublicationToGrugBuildRepository \
     "${gradle_args[@]}" -x test || return 1
@@ -195,12 +206,39 @@ install_ornithe_server() {
   # A restored build/ keeps the jars of every earlier commit, so the newest one is this build's.
   core=$(ls -t core/build/libs/*-release.jar | head -n1)
   version=$(basename "$core" | sed -E 's/^core-(.+)-release\.jar$/\1/')
-  curl --fail --silent --show-error --location \
-    "https://maven.ornithemc.net/releases/net/ornithemc/ornithe-installer-rs/ornithe-installer-rs-linux-x86_64/${ORNITHE_INSTALLER_VERSION}/ornithe-installer-rs-linux-x86_64-${ORNITHE_INSTALLER_VERSION}-cli" \
-    -o "$installer" || return 1
-  chmod +x "$installer"
-  echo "==> Installing the Ornithe server ${SERVER_VERSION}"
-  "$installer" server -m "$SERVER_VERSION" -d "$SERVER_DIR" || return 1
+  # The loader the client is built with is also the one the server gets: without this the installer
+  # picks its own `latest`, which the cache entry could then never notice had moved.
+  local loader_version
+  loader_version=$(sed -n 's/^[[:space:]]*loader_version[[:space:]]*=[[:space:]]*//p' "${LOADER_DIR}/gradle.properties" | tr -d '\r' | head -n1)
+  if [ -z "$loader_version" ]; then
+    echo "==> ${LOADER_DIR}/gradle.properties declares no loader_version, so the server cannot be pinned." >&2
+    return 1
+  fi
+  # A restored entry can be one the prefix matched for the same loader but a different key, so what
+  # the install was built for is read rather than assumed. The action's hash covers the game, loader
+  # and OSL versions and this script, and a local run has no action, so the game version alone stands
+  # in for it. The installer records nothing like this, so the install writes it once complete.
+  local install_marker="${GRUG_ORNITHE_SERVER_HASH:-$SERVER_VERSION}"
+  local installed=""
+  if [ -f "${ORNITHE_SERVER_DIR}/.grug-server-install" ]; then
+    installed=$(tr -d ' \n\r' < "${ORNITHE_SERVER_DIR}/.grug-server-install")
+  fi
+  if [ "$installed" = "$install_marker" ] && [ -f "${ORNITHE_SERVER_DIR}/fabric-server-launch.jar" ]; then
+    echo "==> Using the installed Ornithe server ${SERVER_VERSION} in ${ORNITHE_SERVER_DIR}"
+  else
+    rm -rf "$ORNITHE_SERVER_DIR"
+    curl --fail --silent --show-error --location \
+      "https://maven.ornithemc.net/releases/net/ornithemc/ornithe-installer-rs/ornithe-installer-rs-linux-x86_64/${ORNITHE_INSTALLER_VERSION}/ornithe-installer-rs-linux-x86_64-${ORNITHE_INSTALLER_VERSION}-cli" \
+      -o "$installer" || return 1
+    chmod +x "$installer"
+    echo "==> Installing the Ornithe server ${SERVER_VERSION} with loader ${loader_version} into ${ORNITHE_SERVER_DIR}"
+    "$installer" server -m "$SERVER_VERSION" --loader-version "$loader_version" \
+      -d "$ORNITHE_SERVER_DIR" || return 1
+    printf '%s\n' "$install_marker" > "${ORNITHE_SERVER_DIR}/.grug-server-install"
+  fi
+  # The game opens its world from run-server, so the toolchain is copied beside the extracted save
+  # after it is there and before the server starts.
+  cp -a "${ORNITHE_SERVER_DIR}/." "$SERVER_DIR/" || return 1
   mkdir -p "${SERVER_DIR}/mods" "${SERVER_DIR}/grug_mods"
   python3 .github/scripts/universal_jar.py assemble --core "$core" --version "$version" \
     --out "${SERVER_DIR}/mods/grug.jar" "${LOADER_DIR}/build/layer/grug-${LOADER}.jar" || return 1
