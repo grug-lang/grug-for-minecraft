@@ -57,7 +57,8 @@ public final class GrugGiveCalls {
      *
      * <p>The item is found by the name the client sent, not by an index, so a client and a server
      * whose item lists differ still give the same item: the client's name is compared with each of
-     * the server's own names. A name no item has is reported rather than given as some other item.
+     * the server's own names. A name no item has is reported as the error of the test that asked,
+     * rather than given as some other item.
      *
      * <p>The give moves the world revision here, explicitly: the local give does it through {@code
      * HostFunctions.worldChanged}, which counts only a write made while a test's own export is
@@ -99,15 +100,21 @@ public final class GrugGiveCalls {
     }
 
     /**
-     * Says which give was dropped, and why, so an item that never arrived has a line in the log.
+     * Reports a give that was dropped, so the test that clicked for an item fails rather than
+     * passing with an empty hand. This drain runs between two calls of the test that sent the give
+     * and can see no call to fail, so it reports the bounded defect that fails that test, the way
+     * the joined client's half does when its loader cannot name the item: the give did not happen,
+     * and the test's own process cannot tell.
      */
     private static void report(String itemName, int count, String reason) {
-        System.out.println(
-                "[GRUG CONTROL] a give of "
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "A give of "
                         + count
                         + " of "
                         + itemName
-                        + " was dropped: "
-                        + reason);
+                        + " that the run's client named was dropped: "
+                        + reason
+                        + ".");
     }
 }

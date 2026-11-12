@@ -1,16 +1,19 @@
 # The first half of a pair that covers what the runner does between two tests with a give in flight
-# (#1144). It ends in the same tick as the press that gives an item, so the give the joined client
-# sends is queued on the server with no later drain of this test's to apply it. The next test,
-# give_queue_b_starts_clean, runs straight after this one by its name and asserts the inventory and
-# the hand that the runner reset for it are still clean.
+# (#1144). It first presses for an item and waits for it to arrive, so the press is proven to give
+# rather than delete the item the client's cursor may carry. Then it empties the hand and presses
+# again in the same tick it ends on, so that give is queued on the server with no later drain of this
+# test's to apply it. A later test, give_queue_b_starts_clean, asserts the inventory and the hand the
+# runner reset for it are still clean. The pair only bites when the two run in that order, which the
+# measured test order of a client-only run does not guarantee, so the unit tests over the queue are
+# its deterministic proof.
 
 # The press is the one overlay-Test makes: a left click in the middle of the screen, where the
 # coverage overlay draws its one item and gives one of it. The inventory screen is the one this test
-# opens, and it stays open, because a close after the give would be another forwarded call whose
-# freeze lets the server read the give, which is the drain the pair exists to move past. The next
-# test closes it, as the test that meets a screen closes it.
+# opens, and this test closes it, because the runner closes a screen only before the first test of a
+# run: a screenshot test that ran later would capture this panel instead of the world.
 started: bool = false
 waited: number = 0
+step: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
     if not started {
@@ -39,14 +42,48 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
 
-    # An earlier test may have left something on the cursor, which the overlay would delete instead
-    # of giving.
-    Test.clear_carried_item()
-    ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the give.")
-    # Read the middle of the panel from the panel itself rather than assuming a window position, as
-    # the other overlay tests do: the screen this opens differs by loader and by game mode, and the
-    # inventory panel is centred, so its middle is the place the overlay's own box is drawn at.
-    box_x: number = Test.gui_left() + Math.floor(Test.gui_width() / 2)
-    box_y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
-    ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take a left click on its item.")
+    if step == 0 {
+        # An earlier test may have left something on the cursor, which the overlay would delete
+        # instead of giving. On a client-only run this clears the client's own cursor. On a
+        # dedicated-server run it clears the server's menu and the game syncs that to the joined
+        # client, whose cursor the forwarded click reads; the arrival below is what fails the test
+        # if that sync did not reach the client in time.
+        Test.clear_carried_item()
+        ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the give.")
+        # Read the middle of the panel from the panel itself rather than assuming a window position,
+        # as the other overlay tests do: the screen this opens differs by loader and by game mode,
+        # and the inventory panel is centred, so its middle is the place the overlay's own box is
+        # drawn at.
+        box_x: number = Test.gui_left() + Math.floor(Test.gui_width() / 2)
+        box_y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
+        ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take a left click on its item.")
+        waited = 0
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # The give has to arrive, which is what tells this press gave instead of deleting the item
+        # on the client's cursor, where no assertion of this test's own side can see the difference.
+        held: Option[Item] = Test.get_player().get_held_item()
+        if not held.has() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The item the overlay gave should reach the player's hand.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(equals(held.unwrap(), item_at(0)), "The overlay should give the item it drew, not another one.")
+        ctx.assert(Test.get_held_count(Test.get_player()) == 1, "A left click should give one item.")
+        # Empty the hand again, then press in this test's last tick: that give is still queued when
+        # the runner resets, which is what give_queue_b_starts_clean meets.
+        Test.clear_held_item(Test.get_player())
+        ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the last press.")
+        box_x: number = Test.gui_left() + Math.floor(Test.gui_width() / 2)
+        box_y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
+        ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take the last press on its item.")
+        # This test opened the screen, so it closes it. Closing is another forwarded call, but it
+        # does not drain the give: only the drain before a tick applies one.
+        Test.close_screen()
+    }
 }
