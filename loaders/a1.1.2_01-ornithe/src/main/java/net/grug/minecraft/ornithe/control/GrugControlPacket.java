@@ -18,8 +18,8 @@ import java.io.IOException;
  *
  * <p>{@link #read} runs on the connection's reader thread, which is the one thread still alive
  * while the server's game thread is frozen waiting for a client's answer, so an answer is handed to
- * the waiting capture from there. Everything else is handled by {@link #handle}, on the game
- * thread, as any packet is.
+ * the waiting capture from there, and a give is queued for the game thread that drains it. Anything
+ * else is handled by {@link #handle}, on the game thread, as any packet is.
  */
 @GrugGenerated(
         "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since only"

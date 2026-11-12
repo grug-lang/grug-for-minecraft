@@ -19,8 +19,8 @@ import java.io.IOException;
  *
  * <p>{@link #read} runs on the connection's reader thread, which is the one thread still alive
  * while the server's game thread is frozen waiting for a client's answer, so an answer is handed to
- * the waiting capture from there. Everything else is handled by {@link #handle}, on the game
- * thread, as any packet is.
+ * the waiting capture from there, and a give is queued for the game thread that drains it. Anything
+ * else is handled by {@link #handle}, on the game thread, as any packet is.
  */
 @GrugGenerated(
         "the game's packet type: its registration and its hand-off to the game's handlers need a"
