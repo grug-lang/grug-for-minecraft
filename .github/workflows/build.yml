@@ -2183,7 +2183,12 @@ jobs:
   #
   # It needs the two jobs that produce those, so it runs only when both did: a pull request and a
   # push run no multiplayer job, and a dispatch whose gate or server leg failed has no complete data
-  # to judge. The next full dispatch on main restores the guarantee either way.
+  # to judge. A dispatch that selected mods cannot judge reachability either, because its coverage
+  # job builds the map from only the selected mods' tests, while the multiplayer job runs every
+  # mod's tests whatever the selection says: a method another mod's test reaches on a server is
+  # absent from the map, so it looks client-only, and a recorded entry whose test the map no longer
+  # holds looks removable (#1261). The script says so in a line and passes. A full dispatch is the
+  # only run that does the check, and the next one on main restores the guarantee either way.
   server-reachable:
     name: server-reachable code
     if: ${{ !cancelled() && needs.multiplayer.result == 'success' && needs.coverage.result == 'success' }}
@@ -2217,6 +2222,11 @@ jobs:
           path: coverage/artifacts
 
       - name: Require server-reachable code to stay covered
+        env:
+          # A selection narrows the coverage map to the selected mods' tests, while the multiplayer
+          # job runs every mod's tests, so the map cannot judge reachability: the script says so and
+          # passes (#1261).
+          MODS: ${{ inputs.mods }}
         run: |
           if ! ls coverage/artifacts/coverage-server-tests-*/tests.txt >/dev/null 2>&1; then
             echo "::error::the run holds no dedicated-server test lists although the multiplayer job succeeded, so the server-reachable check cannot tell what the servers reached."
@@ -2225,7 +2235,8 @@ jobs:
           python3 .github/scripts/server-reachable.py \
             --map coverage/maps \
             --server-tests coverage/artifacts \
-            --baseline .github/scripts/server-reachable.json
+            --baseline .github/scripts/server-reachable.json \
+            --mods "${MODS}"
 
   # The one check the ruleset requires of a pull request's Build (#638). The loader jobs are a
   # matrix whose members `discover` picks, so a loader a diff does not reach has no job and no
