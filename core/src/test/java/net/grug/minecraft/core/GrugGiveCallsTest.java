@@ -148,6 +148,30 @@ class GrugGiveCallsTest {
     }
 
     @Test
+    void aGiveQueuedWhileItsTestRunsAppliesOnce() {
+        List<String> applied = new ArrayList<>();
+
+        // The give captured the reset count 3 and nothing has reset since, so this give is the
+        // test's own and lands exactly once, which is the arm a normal give takes.
+        GrugGiveCalls.applyQueuedGiveIfCurrent(3, 3, () -> applied.add("minecraft:stone"));
+
+        assertEquals(List.of("minecraft:stone"), applied);
+    }
+
+    @Test
+    void aGiveQueuedAsItsTestEndedIsDroppedByTheNextTestsReset() {
+        List<String> applied = new ArrayList<>();
+
+        // The give captured 3 but the runner reset in between, which clears the inventory for the
+        // next test: applying it now would leak the item into a test that never asked for it, so it
+        // never runs (#1144). This is the arm the game run reaches only when the give-queue tests
+        // land in one order, and the unit test is its deterministic proof.
+        GrugGiveCalls.applyQueuedGiveIfCurrent(3, 4, () -> applied.add("minecraft:stone"));
+
+        assertTrue(applied.isEmpty(), "a give the next test's reset dropped is not applied");
+    }
+
+    @Test
     void anItemTheClientCannotNameIsReportedAndNothingIsGiven() {
         Items items = new Items();
         List<byte[]> sent = joinedClient(items);

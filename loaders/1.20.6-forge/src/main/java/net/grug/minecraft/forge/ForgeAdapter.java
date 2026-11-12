@@ -7,6 +7,7 @@ import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugCaptureWait;
 import net.grug.minecraft.core.GrugClientLight;
+import net.grug.minecraft.core.GrugGiveCalls;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
@@ -737,7 +738,8 @@ public class ForgeAdapter implements ModLoaderAdapter {
     /**
      * Counts the runner's resets between tests, which is how a give the game queued for its server
      * thread by the test that just ended is dropped instead of landing in the next test's inventory
-     * (#1144). See {@link #giveItemToPlayer}.
+     * (#1144). {@link GrugGiveCalls#applyQueuedGiveIfCurrent} compares it with the count a give
+     * captured.
      */
     private volatile long giveResets;
 
@@ -766,15 +768,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
             giveOnServerThread(player, item, count);
             return;
         }
+        // The reset that starts the next test drops a give still queued here: it belongs to no
+        // test's inventory once one has run since it was queued (#1144).
         long resets = giveResets;
         server.execute(
-                () -> {
-                    // A give the client asked for as its test ended belongs to no test's inventory:
-                    // the reset that starts the next test has run since it was queued, so applying
-                    // it now would leak an item into that test (#1144).
-                    if (resets != giveResets) return;
-                    giveOnServerThread(player, item, count);
-                });
+                () ->
+                        GrugGiveCalls.applyQueuedGiveIfCurrent(
+                                resets, giveResets, () -> giveOnServerThread(player, item, count)));
     }
 
     @GrugGenerated(
