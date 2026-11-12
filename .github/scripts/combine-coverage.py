@@ -6,6 +6,10 @@ The core job and every loader job upload:
     coverage-exec-<runner>/<name>.exec
     coverage-classes-<runner>/...
 
+and the multiplayer job uploads its dedicated server's exec data apart, as
+server-exec-<loader>/<name>.exec, which is appended to that loader's own exec list (#1027): the
+runner's classes are then reported once, over the client run and the server run together.
+
 A single combined JaCoCo report is not possible, because different loaders compile different classes
 with the same fully-qualified names (net.grug.minecraft.ornithe.OrnitheAdapter exists in both Ornithe
 loaders, with different bytecode), and JaCoCo refuses to analyse two different classes with the same
@@ -55,6 +59,11 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 CORE = "core"
+
+# The artifact name a dedicated server's exec data comes in, without the loader it belongs to. The
+# loader jobs' own names start with coverage-, which the map build and the server-reachable check
+# read, so the server's data deliberately does not (#1027).
+SERVER_EXEC = "server-exec-"
 
 # These loaders compile shared/ornithe as an extra source directory.
 ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
@@ -205,6 +214,7 @@ def filtered_classes(source: Path, destination: Path) -> Path:
 
 def discover_runners(artifacts: Path) -> dict[str, dict]:
     runners: dict[str, dict] = {}
+    server_execs: dict[str, list[Path]] = {}
     for entry in sorted(artifacts.iterdir()):
         if not entry.is_dir():
             continue
@@ -216,6 +226,18 @@ def discover_runners(artifacts: Path) -> dict[str, dict]:
         elif entry.name.startswith("coverage-classes-"):
             runner = entry.name[len("coverage-classes-") :]
             runners.setdefault(runner, {})["classes"] = entry
+        elif entry.name.startswith(SERVER_EXEC):
+            runner = entry.name[len(SERVER_EXEC) :]
+            server_execs.setdefault(runner, []).extend(sorted(entry.glob("*.exec")))
+    # The dedicated server's exec data is appended to that loader's list rather than reported on its
+    # own (#1027): the runner then has one report over its classes, in which the server's coverage
+    # and the client's are a union. A second report would be summed with the first by sum_csvs,
+    # which adds missed counts, so the loader's misses would be counted twice and fail the gate for
+    # a line the server covered. A run with no multiplayer job, or a leg that recorded nothing, has
+    # no artifact here at all, which is no server data rather than an error.
+    for runner, execs in server_execs.items():
+        info = runners.setdefault(runner, {})
+        info["exec"] = [*info.get("exec", []), *execs]
     return runners
 
 

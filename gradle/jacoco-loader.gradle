@@ -1,12 +1,13 @@
-// Attaches the JaCoCo agent to this loader's runClient task, so that a game run records coverage to
-// <loader>/build/jacoco/*.exec for CI to merge into the coverage badges.
+// Attaches the JaCoCo agent to this loader's runClient and runServer tasks, so that a game run
+// records coverage to <loader>/build/jacoco/*.exec (the client) or build/jacoco-server/*.exec (the
+// dedicated server) for CI to merge into the coverage badges (#1027).
 //
-// Applied by every loader's build (the loaders' runClient tasks all extend JavaExec): the built-in
-// Loom RunGameTask and ForgeGradle MinecraftRunTask both do. Instrumentation is limited to this
-// project's classes, since instrumenting all of Minecraft would produce a huge exec for no benefit.
+// Applied by every loader's build (the loaders' run tasks all extend JavaExec): the built-in Loom
+// RunGameTask and ForgeGradle MinecraftRunTask both do. Instrumentation is limited to this build's
+// classes, since instrumenting all of Minecraft would produce a huge exec for no benefit.
 //
-// The agent is attached in doFirst so that resolving grugJacocoAgent doesn't happen at configuration
-// time, and only when GRUG_CI is set, so a plain local runClient stays uninstrumented.
+// The agent is attached in doFirst so that resolving grugJacocoAgent does not happen at
+// configuration time, and only when GRUG_CI is set, so a plain local run stays uninstrumented.
 //
 // The agent writes nothing itself (output=none): run-loader.sh terminates the game as soon as the
 // tests pass, which can interrupt a shutdown-hook write. Instead GrugCoverage cuts the data from
@@ -32,18 +33,48 @@ dependencies {
 }
 
 def grugJacocoExecDir = layout.buildDirectory.dir('jacoco')
+// The dedicated server's segments go to a directory of their own (#1027): the two game JVMs of a
+// multiplayer run cut their segments into NNN-named files, so one directory would let either
+// overwrite the other's, and the coverage job has to tell the server's data from the client's to
+// upload it apart.
+def grugJacocoServerExecDir = layout.buildDirectory.dir('jacoco-server')
 
+// The agent's arguments for a run, or none when this is not a CI run.
+def grugJacocoArgs = { execDirProvider ->
+    if (System.getenv('GRUG_CI') != 'true') {
+        return []
+    }
+    def agent = configurations.grugJacocoAgent.singleFile
+    def execDir = execDirProvider.get().asFile
+    // Start clean, so a segment of an earlier run cannot be combined with this one's.
+    project.delete(execDir)
+    return [
+        "-Dgrug.coverage.dir=${execDir.absolutePath}",
+        "-javaagent:${agent}=output=none,dumponexit=false," +
+            "includes=net.grug.*:net.minecraft.crafting.*",
+    ]
+}
+
+// Both runs are instrumented: runClient is the singleplayer run every loader job uses, and
+// runServer is the dedicated server the multiplayer job launches, whose data the coverage gate
+// counts beside the client's (#1027).
 tasks.withType(JavaExec).matching { it.name == 'runClient' }.configureEach {
     doFirst {
-        if (System.getenv('GRUG_CI') != 'true') {
-            return
-        }
-        def agent = configurations.grugJacocoAgent.singleFile
-        def execDir = grugJacocoExecDir.get().asFile
-        // Start clean, so a segment of an earlier run cannot be combined with this one's.
-        project.delete(execDir)
-        jvmArgs "-Dgrug.coverage.dir=${execDir.absolutePath}"
-        jvmArgs "-javaagent:${agent}=output=none,dumponexit=false," +
-            "includes=net.grug.*:net.minecraft.crafting.*"
+        jvmArgs grugJacocoArgs(grugJacocoExecDir)
+    }
+}
+
+tasks.withType(JavaExec).matching { it.name == 'runServer' }.configureEach {
+    doFirst {
+        jvmArgs grugJacocoArgs(grugJacocoServerExecDir)
+    }
+}
+
+// The agent jar's path, for a server this build does not launch through Gradle: run-multiplayer.sh
+// starts an Ornithe server from its jar and reads this line to put the same agent on that command
+// line, so one place resolves the version the server records against.
+tasks.register('printJacocoAgentPath') {
+    doLast {
+        println("JACOCO_AGENT=${configurations.grugJacocoAgent.singleFile.absolutePath}")
     }
 }

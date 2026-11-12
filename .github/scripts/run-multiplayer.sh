@@ -200,8 +200,12 @@ install_ornithe_server() {
   echo "==> Building the layer and core's release jar for ${LOADER}"
   GRUG_CI=true ./gradlew :core:shadowJar :core:publishMavenJavaPublicationToGrugBuildRepository \
     "${gradle_args[@]}" -x test || return 1
-  # A standalone loader has its own Gradle wrapper, so its tasks have no project prefix.
-  (cd "$LOADER_DIR" && GRUG_CI=true ./gradlew layerJar "${gradle_args[@]}" -x test) || return 1
+  # A standalone loader has its own Gradle wrapper, so its tasks have no project prefix. The agent's
+  # path is printed by the same invocation: the server below is launched from a jar rather than
+  # through Gradle, so it cannot pick up what gradle/jacoco-loader.gradle attaches to runClient, and
+  # reading the path back keeps the agent's version in that one place (#1027).
+  (cd "$LOADER_DIR" && GRUG_CI=true ./gradlew layerJar printJacocoAgentPath \
+    "${gradle_args[@]}" -x test) || return 1
   local core version
   # A restored build/ keeps the jars of every earlier commit, so the newest one is this build's.
   core=$(ls -t core/build/libs/*-release.jar | head -n1)
@@ -292,8 +296,22 @@ if [ -n "$SERVER_VERSION" ]; then
     echo "==> Installing the dedicated server of ${LOADER} failed." >&2
     exit 1
   fi
+  # The layer build above printed the agent jar it attaches to runClient, and this server records
+  # with the same one, into a directory of its own so the two runs cannot overwrite each other's
+  # segments (#1027). A build that printed no path would run the server uninstrumented, which every
+  # later step reads as no server coverage rather than as the defect it is, so it fails here.
+  jacoco_agent=$(sed -n 's/^JACOCO_AGENT=//p' "$SERVER_LOG" | tail -n1)
+  if [ -z "$jacoco_agent" ]; then
+    echo "==> The ${LOADER} build printed no JACOCO_AGENT= line, so its dedicated server cannot record coverage." >&2
+    exit 1
+  fi
+  # A restored build/ can hold the segments of an earlier run, which would be counted as this run's.
+  rm -rf "${REPO_ROOT}/${LOADER_DIR}/build/jacoco-server"
   cd "$SERVER_DIR"
-  GRUG_CI=true setsid java -jar fabric-server-launch.jar nogui >>"$SERVER_LOG" 2>&1 &
+  GRUG_CI=true setsid java \
+    "-Dgrug.coverage.dir=${REPO_ROOT}/${LOADER_DIR}/build/jacoco-server" \
+    "-javaagent:${jacoco_agent}=output=none,dumponexit=false,includes=net.grug.*:net.minecraft.crafting.*" \
+    -jar fabric-server-launch.jar nogui >>"$SERVER_LOG" 2>&1 &
   server_pid=$!
   cd "$REPO_ROOT"
 elif [ "$STANDALONE" = true ]; then
