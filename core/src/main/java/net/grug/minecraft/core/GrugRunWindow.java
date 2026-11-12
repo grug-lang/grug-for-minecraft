@@ -98,8 +98,12 @@ public final class GrugRunWindow {
      * this switch, read by the particle manager mixin of those two loaders (#1213). It belongs to
      * the run that took the window, like the dither and the cursor, so a run the window refused
      * takes nothing and a run that ends gives it back.
+     *
+     * <p>Volatile because the particle manager's {@code add} is also reached from the client's
+     * network thread (an entity pickup spawns a particle there), so the mixin reads this off the
+     * run's own thread while the run may be starting or ending (#1236's review).
      */
-    private boolean particlesMinimised = false;
+    private volatile boolean particlesMinimised = false;
 
     /** True only while a run has the cursor parked, so only that run restores it. */
     private boolean cursorParked = false;
