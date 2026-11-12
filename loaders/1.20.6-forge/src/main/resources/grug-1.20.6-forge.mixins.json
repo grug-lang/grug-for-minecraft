@@ -23,6 +23,8 @@
         ],
         "mixins": [
             "ChunkMapAccessor",
+            "LayerLightSectionStorageAccessor",
+            "LightEngineStorageAccessor",
             "ServerGamePacketListenerMixin",
             "ThreadedLevelLightEngineMixin"
         ]
