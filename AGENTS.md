@@ -132,6 +132,9 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   second pair of eyes, not a gate: the orchestrator still reads the diff itself and verifies a
   finding before acting on it. Non-trivial means code, a workflow or a script; prose alone and a
   one-line documentation edit do not need it.
+- **Review threads.** A review comment that is answered or fixed is marked resolved on the pull
+  request, so its thread list shows only what is still open; the reply says what was done, and a
+  finding the orchestrator decided against is resolved with the reason.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
   request is never left blocked on an answer.
