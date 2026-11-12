@@ -405,6 +405,14 @@ local _try_pull() {
         if offered == 0 {
             return
         }
+        # The machine hands its stack to a slot of this pipe's inbox, and a pipe saved while it had
+        # none has no slot to name. Asking would report a slot the destination does not have on
+        # every powered tick, and the error stops this tick before its last line spends the pipe's
+        # energy, so the pipe would hold 64 for ever. The reference pipe has no inventory at all, so
+        # this state simply takes nothing, as _store stays silent for the same pipe (#1205).
+        if me.get_inventory_size() < 1 {
+            return
+        }
         if neighbor.extract_item_into(me, 0, from_side) > 0 {
             _enter_from_slot(input_side)
         }
