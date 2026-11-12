@@ -15,18 +15,19 @@ import java.util.List;
  * packet its game has; nothing here knows about a packet, so every loader can reuse the format and
  * a unit test can run both ends in one process.
  *
- * <p>Nine messages exist. {@link #RUN_START} goes from the client to the server and says this
- * player started a run, which is the consent the client later relies on. {@link #CAPTURE_REQUEST}
- * goes the other way and names a screenshot rectangle. The client answers with either {@link
- * #ANSWER_ERROR} or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound
- * custom payload is limited to 32767 bytes on 1.20.6 and the other old games are no more generous,
- * so a capture is cut into {@link #MAX_CHUNK}-byte pieces. {@link #CALL_REQUEST} carries one of the
- * client-only host functions a server may forward, which the client answers with a {@link
- * #ANSWER_VALUE}, or with an {@link #ANSWER_NUMBER} when the call's answer is a measurement such as
- * a screen's width. {@link #GIVE_REQUEST} goes from the client to the server and asks it to give
- * the player an item, which is the one host function whose effect belongs to the server rather than
- * to the client that ran it (#1099). It names the item, because two processes whose item lists
- * differ give different items under the same index.
+ * <p>Ten messages exist. {@link #RUN_START} goes from the client to the server and says this player
+ * started a run, which is the consent the client later relies on. {@link #CAPTURE_REQUEST} goes the
+ * other way and names a screenshot rectangle. The client answers with either {@link #ANSWER_ERROR}
+ * or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound custom payload is
+ * limited to 32767 bytes on 1.20.6 and the other old games are no more generous, so a capture is
+ * cut into {@link #MAX_CHUNK}-byte pieces. {@link #CALL_REQUEST} carries one of the client-only
+ * host functions a server may forward, which the client answers with a {@link #ANSWER_VALUE}, or
+ * with an {@link #ANSWER_NUMBER} when the call's answer is a measurement such as a screen's width.
+ * A call that measures a whole screen answers with one {@link #ANSWER_NUMBERS}, so reading six
+ * values costs one round trip rather than six (#1277). {@link #GIVE_REQUEST} goes from the client
+ * to the server and asks it to give the player an item, which is the one host function whose effect
+ * belongs to the server rather than to the client that ran it (#1099). It names the item, because
+ * two processes whose item lists differ give different items under the same index.
  */
 public final class GrugControlWire {
     public static final byte RUN_START = 1;
@@ -59,6 +60,15 @@ public final class GrugControlWire {
      * different items. It has no answer, because the test asserts on the world the server changed.
      */
     public static final byte GIVE_REQUEST = 9;
+
+    /**
+     * Client to server: the call was performed; it carries the {@link #GEOMETRY_COUNT} numbers it
+     * measured, in the order {@link GrugScreenCalls} lists them (#1277). It holds a whole screen's
+     * geometry in one message, because a server-run test that reads several measurements of one
+     * screen asks for a few dozen values in a single tick, and each round trip on a client that
+     * reads its packets once per frame costs that client's frame time.
+     */
+    public static final byte ANSWER_NUMBERS = 10;
 
     /** The call: does the game have the sound under the name. The answer is 1 or 0. */
     public static final byte CALL_HAS_SOUND = 1;
@@ -163,6 +173,23 @@ public final class GrugControlWire {
      */
     public static final byte CALL_OVERLAY_DRAWN = 15;
 
+    /**
+     * The call: the {@link #GEOMETRY_COUNT} measurements of the client's screen in one answer
+     * (#1277), which are {@code gui_left}, {@code gui_top}, {@code gui_width}, {@code gui_height},
+     * {@code screen_width} and the screen's height in that order, the last derived from the
+     * centered GUI as a test derives it. The answer is an {@link #ANSWER_NUMBERS}, all 0 on a
+     * client with no screen open.
+     *
+     * <p>The call carries no name, because it asks for all of them, and a test still enters through
+     * the one read it wants: {@link GrugControlServer#screenRead} refuses the same names and the
+     * same no-screen answers it did before. A client performs it with the same adapter reads a
+     * single read makes, so one value cannot disagree with another.
+     */
+    public static final byte CALL_SCREEN_GEOMETRY = 16;
+
+    /** The number of measurements a {@link #CALL_SCREEN_GEOMETRY} answers, in its one message. */
+    public static final int GEOMETRY_COUNT = 6;
+
     /** The longest name a call or a give may carry, in bytes. */
     public static final int MAX_NAME = 256;
 
@@ -260,6 +287,12 @@ public final class GrugControlWire {
         /** The number a {@link #ANSWER_NUMBER} measured. */
         public final double number;
 
+        /**
+         * The numbers an {@link #ANSWER_NUMBERS} measured, in the order {@link GrugScreenCalls}
+         * lists the screen's measurements; null for every other message.
+         */
+        public final double[] numbers;
+
         Message(
                 byte type,
                 long id,
@@ -268,7 +301,9 @@ public final class GrugControlWire {
                 int total,
                 byte[] data,
                 String text) {
-            this(type, id, rectangle, index, total, data, text, (byte) 0, 0, 0, 0, (byte) 0, 0);
+            this(
+                    type, id, rectangle, index, total, data, text, (byte) 0, 0, 0, 0, (byte) 0, 0,
+                    null);
         }
 
         Message(
@@ -284,7 +319,8 @@ public final class GrugControlWire {
                 double pitch,
                 double third,
                 byte value,
-                double number) {
+                double number,
+                double[] numbers) {
             this.type = type;
             this.id = id;
             this.x1 = rectangle[0];
@@ -301,6 +337,7 @@ public final class GrugControlWire {
             this.third = third;
             this.value = value;
             this.number = number;
+            this.numbers = numbers;
         }
     }
 
@@ -309,12 +346,13 @@ public final class GrugControlWire {
         return type == ANSWER_ERROR
                 || type == ANSWER_CHUNK
                 || type == ANSWER_VALUE
-                || type == ANSWER_NUMBER;
+                || type == ANSWER_NUMBER
+                || type == ANSWER_NUMBERS;
     }
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_OVERLAY_DRAWN;
+        return call >= CALL_HAS_SOUND && call <= CALL_SCREEN_GEOMETRY;
     }
 
     /**
@@ -375,6 +413,26 @@ public final class GrugControlWire {
                 .putLong(id)
                 .putDouble(number)
                 .array();
+    }
+
+    /**
+     * The answer to a {@link #CALL_SCREEN_GEOMETRY}: {@code numbers}, which is exactly {@link
+     * #GEOMETRY_COUNT} measurements in the order {@link GrugScreenCalls} lists them.
+     */
+    public static byte[] answerNumbers(long id, double[] numbers) {
+        if (numbers.length != GEOMETRY_COUNT) {
+            throw new IllegalArgumentException(
+                    "a numbers answer carries "
+                            + GEOMETRY_COUNT
+                            + " numbers, and was given "
+                            + numbers.length);
+        }
+        ByteBuffer out = ByteBuffer.allocate(1 + 8 + 8 * GEOMETRY_COUNT).put(ANSWER_NUMBERS);
+        out.putLong(id);
+        for (double number : numbers) {
+            out.putDouble(number);
+        }
+        return out.array();
     }
 
     /**
@@ -499,7 +557,7 @@ public final class GrugControlWire {
                     message =
                             new Message(
                                     type, id, rectangle, 0, 0, null, null, (byte) 0, eye[0], eye[1],
-                                    eye[2], (byte) 0, 0);
+                                    eye[2], (byte) 0, 0, null);
                     break;
                 case ANSWER_ERROR:
                     long errorId = in.getLong();
@@ -559,7 +617,8 @@ public final class GrugControlWire {
                                     pitch,
                                     third,
                                     (byte) 0,
-                                    0);
+                                    0,
+                                    null);
                     break;
                 case ANSWER_VALUE:
                     long valueId = in.getLong();
@@ -567,7 +626,7 @@ public final class GrugControlWire {
                     message =
                             new Message(
                                     type, valueId, none, 0, 0, null, null, (byte) 0, 0, 0, 0, value,
-                                    0);
+                                    0, null);
                     break;
                 case ANSWER_NUMBER:
                     long numberId = in.getLong();
@@ -578,7 +637,21 @@ public final class GrugControlWire {
                     message =
                             new Message(
                                     type, numberId, none, 0, 0, null, null, (byte) 0, 0, 0, 0,
-                                    (byte) 0, number);
+                                    (byte) 0, number, null);
+                    break;
+                case ANSWER_NUMBERS:
+                    long numbersId = in.getLong();
+                    double[] numbers = new double[GEOMETRY_COUNT];
+                    for (int at = 0; at < numbers.length; at++) {
+                        numbers[at] = in.getDouble();
+                        if (Double.isNaN(numbers[at])) {
+                            throw new IllegalArgumentException("an answer number is not a number");
+                        }
+                    }
+                    message =
+                            new Message(
+                                    type, numbersId, none, 0, 0, null, null, (byte) 0, 0, 0, 0,
+                                    (byte) 0, 0, numbers);
                     break;
                 default:
                     throw new IllegalArgumentException("unknown control message type " + type);

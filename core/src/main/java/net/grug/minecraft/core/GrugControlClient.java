@@ -66,6 +66,17 @@ public final class GrugControlClient {
          */
         double screenRead(String read);
 
+        /**
+         * The six measurements of this client's screen that one {@link
+         * GrugControlWire#CALL_SCREEN_GEOMETRY} answers, read through {@link #screenRead} so a
+         * batch and a single read make the same adapter reads and cannot disagree (#1277). The last
+         * is the screen's height, which no read names because it is derived from the centered
+         * container GUI.
+         */
+        default double[] screenGeometry() {
+            return GrugScreenCalls.geometry(this::screenRead);
+        }
+
         /** Presses a key on the screen that is open, and answers whether an overlay took it. */
         boolean pressScreenKey(int key, boolean ctrl, boolean release);
 
@@ -378,7 +389,9 @@ public final class GrugControlClient {
             return;
         }
         try {
-            if (message.call == GrugControlWire.CALL_SCREEN_READ) {
+            if (message.call == GrugControlWire.CALL_SCREEN_GEOMETRY) {
+                link.send(GrugControlWire.answerNumbers(message.id, caller.screenGeometry()));
+            } else if (message.call == GrugControlWire.CALL_SCREEN_READ) {
                 link.send(
                         GrugControlWire.answerNumber(message.id, caller.screenRead(message.text)));
             } else if (message.call == GrugControlWire.CALL_HAS_SOUND) {

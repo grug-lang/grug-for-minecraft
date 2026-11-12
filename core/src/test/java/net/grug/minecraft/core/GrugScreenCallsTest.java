@@ -1,5 +1,6 @@
 package net.grug.minecraft.core;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -106,6 +107,23 @@ class GrugScreenCallsTest {
         assertEquals(176.0, GrugScreenCalls.read(adapter, GrugScreenCalls.GUI_WIDTH));
         assertEquals(166.0, GrugScreenCalls.read(adapter, GrugScreenCalls.GUI_HEIGHT));
         assertThrows(IllegalArgumentException.class, () -> GrugScreenCalls.read(adapter, "bogus"));
+    }
+
+    @Test
+    void oneGeometryBatchHoldsEveryReadAndTheHeightATestDerives() {
+        ModLoaderAdapter adapter = adapter();
+        double[] geometry = GrugScreenCalls.geometry(read -> GrugScreenCalls.read(adapter, read));
+        // The order is the one the answer carries, and the height is the centered GUI's: a 640
+        // pixel screen with the panel's 20 pixel top and 166 pixel height is 206 pixels tall.
+        assertArrayEquals(new double[] {10, 20, 176, 166, 640, 206}, geometry);
+        assertEquals(640.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.SCREEN_WIDTH));
+        assertEquals(10.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.GUI_LEFT));
+        assertEquals(20.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.GUI_TOP));
+        assertEquals(176.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.GUI_WIDTH));
+        assertEquals(166.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.GUI_HEIGHT));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugScreenCalls.fromGeometry(geometry, "bogus"));
     }
 
     @Test

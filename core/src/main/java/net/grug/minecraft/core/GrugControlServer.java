@@ -108,7 +108,9 @@ public final class GrugControlServer {
         /** One byte, from an {@link GrugControlWire#ANSWER_VALUE}. */
         VALUE,
         /** One measurement, from an {@link GrugControlWire#ANSWER_NUMBER}. */
-        NUMBER
+        NUMBER,
+        /** A whole screen's measurements, from an {@link GrugControlWire#ANSWER_NUMBERS}. */
+        NUMBERS
     }
 
     private static final class Pending {
@@ -160,6 +162,28 @@ public final class GrugControlServer {
             this.item = item;
             this.count = count;
         }
+    }
+
+    /**
+     * The six measurements the last {@link GrugControlWire#CALL_SCREEN_GEOMETRY} answered, and the
+     * two revisions it was answered at, or null when nothing is known (#1277). A screen's geometry
+     * moves only when the screen or the window changes, so one batch answers every read the test
+     * makes until something can have moved it: see {@link #screenRead}.
+     */
+    private double[] geometry;
+
+    private long geometryWorldRevision = Long.MIN_VALUE;
+    private long geometryScreenRevision = Long.MIN_VALUE;
+
+    /** The last answer {@link #screenOpen} got, so a screen that opened or closed is noticed. */
+    private boolean screenWasOpen;
+
+    /** Counts the screen calls since the last batch answer, all on the server thread. */
+    private long screenRevision;
+
+    /** The screen can have moved or been replaced, so no batch answer may be trusted again. */
+    private void forgetGeometry() {
+        screenRevision++;
     }
 
     public GrugControlServer(Link link, long timeoutMillis) {
@@ -279,6 +303,12 @@ public final class GrugControlServer {
             request.png.complete(new byte[] {message.value});
         } else if (request.answer == Answer.NUMBER) {
             request.png.complete(java.nio.ByteBuffer.allocate(8).putDouble(message.number).array());
+        } else if (request.answer == Answer.NUMBERS) {
+            java.nio.ByteBuffer numbers = java.nio.ByteBuffer.allocate(8 * message.numbers.length);
+            for (double number : message.numbers) {
+                numbers.putDouble(number);
+            }
+            request.png.complete(numbers.array());
         } else {
             accept(request, message);
         }
@@ -291,8 +321,10 @@ public final class GrugControlServer {
                 return type != GrugControlWire.ANSWER_CHUNK;
             case VALUE:
                 return type != GrugControlWire.ANSWER_VALUE;
-            default:
+            case NUMBER:
                 return type != GrugControlWire.ANSWER_NUMBER;
+            default:
+                return type != GrugControlWire.ANSWER_NUMBERS;
         }
     }
 
@@ -311,6 +343,8 @@ public final class GrugControlServer {
         }
         settled.forget();
         gives.clear();
+        forgetGeometry();
+        geometry = null;
         failAll("The run ended while the call was waiting.");
     }
 
@@ -321,6 +355,7 @@ public final class GrugControlServer {
             // nothing about the client a later starter uses.
             settled.forget();
             gives.clear();
+            geometry = null;
             failAll("The player who started the run disconnected.");
         }
     }
@@ -498,16 +533,56 @@ public final class GrugControlServer {
 
     /** Asks the starter's client whether it has a screen open (#1094). */
     public boolean screenOpen() throws ControlException {
-        byte result = call(GrugControlWire.CALL_SCREEN_OPEN, "", 0, 0, 0);
-        return yesOrNo(result, "screen_open");
+        boolean open = yesOrNo(call(GrugControlWire.CALL_SCREEN_OPEN, "", 0, 0, 0), "screen_open");
+        // A screen that opened or closed since the last ask is not the screen the batch measured,
+        // so a read after an observed change asks again even when nothing here announced it.
+        if (open != screenWasOpen) {
+            screenWasOpen = open;
+            forgetGeometry();
+        }
+        return open;
     }
 
     /**
      * Asks the starter's client for one of its screen's measurements, named as {@link
      * GrugScreenCalls} names them (#1094). A client with no screen open answers 0.
+     *
+     * <p>The first read forwards one {@link GrugControlWire#CALL_SCREEN_GEOMETRY} for all six
+     * measurements and answers the rest from it (#1277), because a test works a screen's geometry
+     * out through helpers that read several of them in one tick, and on a client that reads its
+     * packets once per frame every round trip costs that frame. The name is checked here, exactly
+     * as a single read checked it, so a name with no measurement is refused with the same error,
+     * and a read after a screen that moved can never answer from the old one: every call that can
+     * move or replace the screen drops the answer first, so does every world change, because a
+     * block the test bends can open or close the screen the client shows, and so does a screen
+     * {@link #screenOpen} saw open or closed since the last answer. The runner rebuilds the room
+     * before each test, which is a world change too, so no test reads the screen a previous one
+     * left.
      */
     public double screenRead(String read) throws ControlException {
-        return number(GrugControlWire.CALL_SCREEN_READ, read, 0, 0, 0);
+        String problem = callProblem(GrugControlWire.CALL_SCREEN_READ, read, 0, 0, 0);
+        if (problem != null) {
+            throw failure("The call was not sent: " + problem);
+        }
+        return GrugScreenCalls.fromGeometry(geometry(), read);
+    }
+
+    /**
+     * The six measurements of the starter's client's screen, from the answer the last batch got
+     * when nothing can have moved it since, or from one forward now.
+     */
+    private double[] geometry() throws ControlException {
+        long world = GrugWorldRevision.current();
+        long screen = screenRevision;
+        double[] known = geometry;
+        if (known != null && geometryWorldRevision == world && geometryScreenRevision == screen) {
+            return known;
+        }
+        double[] values = numbers(GrugControlWire.CALL_SCREEN_GEOMETRY, "", 0, 0, 0);
+        geometry = values;
+        geometryWorldRevision = world;
+        geometryScreenRevision = screen;
+        return values;
     }
 
     /**
@@ -515,6 +590,7 @@ public final class GrugControlServer {
      * took it (#1094).
      */
     public boolean pressScreenKey(int key, boolean ctrl, boolean release) throws ControlException {
+        forgetGeometry();
         byte result =
                 call(GrugControlWire.CALL_PRESS_SCREEN_KEY, "", key, ctrl ? 1 : 0, release ? 1 : 0);
         return yesOrNo(result, "press_screen_key");
@@ -525,12 +601,14 @@ public final class GrugControlServer {
      * overlay took the movement (#1094).
      */
     public boolean scrollScreen(double x, double y, double delta) throws ControlException {
+        forgetGeometry();
         byte result = call(GrugControlWire.CALL_SCROLL_SCREEN, "", x, y, delta);
         return yesOrNo(result, "scroll_screen");
     }
 
     /** Asks the starter's client to close its screen, and waits for its ack (#1094). */
     public void closeScreen() throws ControlException {
+        forgetGeometry();
         byte result = call(GrugControlWire.CALL_CLOSE_SCREEN, "", 0, 0, 0);
         if (result != 1) {
             throw failure("The client answered close_screen with " + result + ", not the ack 1.");
@@ -551,12 +629,14 @@ public final class GrugControlServer {
      * click packet it sends is applied by {@link #applyClientWork} on a later tick.
      */
     public boolean clickScreen(double x, double y, int button) throws ControlException {
+        forgetGeometry();
         byte result = call(GrugControlWire.CALL_CLICK_SCREEN, "", x, y, button);
         return yesOrNo(result, "click_screen");
     }
 
     /** Asks the starter's client to open its own inventory, and waits for its ack (#1094). */
     public void openInventory() throws ControlException {
+        forgetGeometry();
         byte result = call(GrugControlWire.CALL_OPEN_INVENTORY, "", 0, 0, 0);
         if (result != 1) {
             throw failure("The client answered open_inventory with " + result + ", not the ack 1.");
@@ -682,6 +762,7 @@ public final class GrugControlServer {
             case GrugControlWire.CALL_SCREEN_OPEN:
             case GrugControlWire.CALL_CLOSE_SCREEN:
             case GrugControlWire.CALL_OPEN_INVENTORY:
+            case GrugControlWire.CALL_SCREEN_GEOMETRY:
                 return null;
             case GrugControlWire.CALL_CAMERA:
                 return cameraAxisProblem(volume);
@@ -821,6 +902,28 @@ public final class GrugControlServer {
     }
 
     /**
+     * Forwards a call whose answer is a whole screen's measurements, as {@link #number} forwards
+     * one that measures a single value. The call carries no argument a client could refuse, so it
+     * has no problem to check here: {@link #screenRead} checked the read's name before it came.
+     */
+    private double[] numbers(byte call, String name, double volume, double pitch, double third)
+            throws ControlException {
+        try {
+            java.nio.ByteBuffer answer =
+                    java.nio.ByteBuffer.wrap(
+                            forward(call, name, volume, pitch, third, Answer.NUMBERS));
+            double[] values = new double[GrugControlWire.GEOMETRY_COUNT];
+            for (int at = 0; at < values.length; at++) {
+                values[at] = answer.getDouble();
+            }
+            return values;
+        } catch (ControlException e) {
+            FAILED.set(true);
+            throw e;
+        }
+    }
+
+    /**
      * Forwards one client-only call to the starter's client and waits for its answer, with the
      * world frozen as in {@link #capture}. The three numbers are the call's own: a settle ask puts
      * its world revision in the first, a sound call its volume and pitch in the first two, and a
@@ -871,9 +974,7 @@ public final class GrugControlServer {
                     "[GRUG CONTROL] request "
                             + id
                             + " answered: "
-                            + (answer == Answer.NUMBER
-                                    ? String.valueOf(java.nio.ByteBuffer.wrap(result).getDouble())
-                                    : String.valueOf(result[0])));
+                            + describeAnswer(answer, result));
             return result;
         } finally {
             pending.remove(id);
@@ -886,10 +987,30 @@ public final class GrugControlServer {
         }
     }
 
+    /** What a forwarded call answered, for the line that says the world is running again. */
+    private static String describeAnswer(Answer answer, byte[] result) {
+        if (answer == Answer.NUMBER) {
+            return String.valueOf(java.nio.ByteBuffer.wrap(result).getDouble());
+        }
+        if (answer == Answer.NUMBERS) {
+            java.nio.ByteBuffer numbers = java.nio.ByteBuffer.wrap(result);
+            StringBuilder text = new StringBuilder();
+            for (int at = 0; at < GrugControlWire.GEOMETRY_COUNT; at++) {
+                if (at > 0) text.append(", ");
+                text.append(numbers.getDouble());
+            }
+            return text.toString();
+        }
+        return String.valueOf(result[0]);
+    }
+
     /** What a forwarded call is, for the line that says what the world was frozen for. */
     private static String describe(byte call, String name, double volume) {
         if (call == GrugControlWire.CALL_WORLD_SETTLED) {
             return "world_settled at revision " + (long) volume;
+        }
+        if (call == GrugControlWire.CALL_SCREEN_GEOMETRY) {
+            return "screen geometry";
         }
         if (call == GrugControlWire.CALL_CAMERA) {
             return "camera axis " + (int) volume;
