@@ -603,13 +603,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return stack == null ? 0.0 : stack.size;
     }
 
-    /** The items this loader lists, in item id order, built once because the list never changes. */
+    /**
+     * The items this loader lists, in item id order, built once because the list never changes.
+     * Item id 0 is OSL's air block item: OSL gives the air block id 0, and the game gives every
+     * block a block item at the block's id. No item list offers air (1.20.6 skips Items.AIR), so
+     * the list starts at the first real item.
+     */
     private List<Item> itemsByIdCache = null;
 
     private List<Item> itemsById() {
         if (itemsByIdCache == null) {
             List<Item> items = new ArrayList<>();
-            for (int id = 0; id < Item.BY_ID.length; id++) {
+            for (int id = 1; id < Item.BY_ID.length; id++) {
                 Item item = Item.BY_ID[id];
                 if (item != null) {
                     items.add(item);
