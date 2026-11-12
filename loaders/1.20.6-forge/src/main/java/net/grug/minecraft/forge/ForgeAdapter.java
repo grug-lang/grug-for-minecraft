@@ -24,6 +24,8 @@ import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.forge.mixin.GuiSavingIndicatorAccessor;
+import net.grug.minecraft.forge.mixin.LayerLightSectionStorageAccessor;
+import net.grug.minecraft.forge.mixin.LightEngineStorageAccessor;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
@@ -75,8 +77,12 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.DataLayer;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.level.lighting.LayerLightEventListener;
+import net.minecraft.world.level.lighting.LayerLightSectionStorage;
+import net.minecraft.world.level.lighting.LightEngine;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -1503,12 +1509,40 @@ public class ForgeAdapter implements ModLoaderAdapter {
         if (levelObj == null) {
             return null;
         }
+        return lightLayer(levelObj, LightLayer.BLOCK, sectionX, sectionY, sectionZ);
+    }
+
+    /**
+     * One of a section's light layers as its 2048 bytes, or null when the level has no layer for
+     * it.
+     *
+     * <p>Read from the layer the client draws from, which is the storage's {@code
+     * visibleSectionData} rather than the copy {@code getDataLayerData} answers: that one returns a
+     * light packet's queued layer before the render thread has swapped it in, so a read taken
+     * between the packet and the swap holds data no frame has been meshed from yet. The swap
+     * happens in the same frame, before the sections are compiled, so the visible layer and the
+     * drawn light are the same thing. See #1266.
+     */
+    @GrugGenerated(
+            "settle: a section the engine has no layer for is one outside its height, and a light"
+                    + " engine this level has none of is one the Nether or the End has, neither of"
+                    + " which a test's own room asks for")
+    private static byte[] lightLayer(
+            Object levelObj, LightLayer lightType, int sectionX, int sectionY, int sectionZ) {
         Level level = (Level) levelObj;
-        net.minecraft.world.level.chunk.DataLayer layer =
-                level.getChunkSource()
-                        .getLightEngine()
-                        .getLayerListener(LightLayer.BLOCK)
-                        .getDataLayerData(SectionPos.of(sectionX, sectionY, sectionZ));
+        LayerLightEventListener listener =
+                level.getChunkSource().getLightEngine().getLayerListener(lightType);
+        // A level whose light engine has no engine for a layer (the Nether and the End have no sky
+        // light) answers a dummy listener rather than null, and it has no section data to read.
+        if (!(listener instanceof LightEngine<?, ?>)) {
+            return null;
+        }
+        LayerLightSectionStorage<?> storage =
+                ((LightEngineStorageAccessor) listener).grug$storage();
+        DataLayer layer =
+                ((LayerLightSectionStorageAccessor) storage)
+                        .grug$visibleSectionData()
+                        .getLayer(SectionPos.asLong(sectionX, sectionY, sectionZ));
         return layer == null ? null : layer.getData();
     }
 
