@@ -33,8 +33,14 @@ import java.util.function.Consumer;
         "a joined client: no test the coverage gate counts can reach it, since only the multiplayer"
                 + " job launches one")
 public final class GrugControlBetaClient {
-    /** Client ticks to wait for the frames that show what the server sent, at the least. */
-    static final int MIN_TICKS = 60;
+    /**
+     * Client ticks to wait for the frames that show what the server sent, at the least. The capture
+     * reads the frame drawn before this tick, and the pin in it has to be followed by one frame
+     * drawn from the eye, so this is the margin for those frames: the two conditions in front of
+     * the capture already cover the world and the camera, and 4 is the floor 1.20.6 has run on
+     * every multiplayer leg of every dispatch (#1199).
+     */
+    static final int MIN_TICKS = 4;
 
     /**
      * Client ticks after which the frame the client has is captured even if not settled: 15 s at 20
