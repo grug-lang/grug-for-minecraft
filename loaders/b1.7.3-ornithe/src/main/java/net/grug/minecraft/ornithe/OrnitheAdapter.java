@@ -35,6 +35,7 @@ import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
 import net.grug.minecraft.ornithe.inventory.DummyCraftingInventory;
+import net.grug.minecraft.ornithe.mixin.ItemInHandRendererAccess;
 import net.grug.minecraft.ornithe.mixin.SoundEngineAccess;
 import net.grug.minecraft.ornithe.mixin.WorldNotifyAccess;
 import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
@@ -1407,8 +1408,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     /**
      * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
-     * to, a window that was not yet at the size a capture reads, or a frame drawn before the world
-     * exists (a hotkey run's title screen).
+     * to, a window that was not yet at the size a capture reads, a frame drawn before the world
+     * exists (a hotkey run's title screen), or a first-person hand that was still moving.
      *
      * <p>This runs from the render path, after the frame was drawn, so the renderer's list is what
      * that frame left behind: a chunk still in it and in view was not drawn, and a frame drawn
@@ -1461,7 +1462,30 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 return true;
             }
         }
-        return false;
+        return handMoved();
+    }
+
+    /**
+     * Whether the client's first-person hand is still easing into place, so the frame it just drew
+     * is not one a capture may read.
+     *
+     * <p>The hand is drawn in the world pass, before the screen is drawn over it, so an open screen
+     * shows it behind its panel. Its height eases from 0 to 1 after the held item changes, which
+     * the runner does before every test, and the number of frames between that change and a capture
+     * varies with how the run's ticks fall, so two runs captured the hand at different points of
+     * its rise (#961). A frame whose pair is equal draws the hand at rest, which is the pose every
+     * golden was accepted with. Beta's first-person hand has no swing of its own, so the two swing
+     * values are 0. See {@link GrugRenderSettle#handMoved}.
+     */
+    private static boolean handMoved() {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (minecraft.gameRenderer == null || minecraft.gameRenderer.itemInHandRenderer == null) {
+            return false;
+        }
+        ItemInHandRendererAccess hand =
+                (ItemInHandRendererAccess) minecraft.gameRenderer.itemInHandRenderer;
+        return GrugRenderSettle.handMoved(
+                hand.grug$handHeight(), hand.grug$lastHandHeight(), 0.0F, 0.0F, 0.0F, 0.0F);
     }
 
     /**

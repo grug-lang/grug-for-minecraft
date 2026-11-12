@@ -12,6 +12,7 @@
             "GameRendererMixin",
             "GuiMixin",
             "GuiSavingIndicatorAccessor",
+            "ItemInHandRendererAccessor",
             "LayerLightSectionStorageMixin",
             "LightTextureMixin",
             "LiquidBlockRendererMixin",

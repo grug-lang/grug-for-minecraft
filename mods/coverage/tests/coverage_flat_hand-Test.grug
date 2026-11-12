@@ -8,18 +8,14 @@
 # a cobblestone pipe's) moved one pixel on b1.7.3-stationapi. coverage_atlas_shift.png sorts ahead of
 # the textures this one shares an atlas with and moves them on purpose, so a texture that is not flat
 # fails here at once. The hand is still while the player stands still and
-# holds the item, but it rises after the item is put in it, so the capture waits out that rise.
+# holds the item, but it rises after the item is put in it. Test.world_settled() waits for the
+# hand to be at rest, so the capture does not depend on how many ticks of the rise the run's frames
+# land on; see #961.
 settled_ticks: number = 0
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
-        ctx.not_done()
-        return
-    }
-
-    # The hand's rise takes about 10 ticks, so 40 leaves it long finished.
-    if ctx.current_tick() < 40 {
         ctx.not_done()
         return
     }
