@@ -899,9 +899,33 @@ public class HostFunctions {
      * for its copy, and a client-only run of the four older loaders has one shared world, so its
      * answer is true there. 1.2.5's incremental light is history-dependent, so its server cannot
      * verify the room's client copy and answers true for those sections (#1240).
+     *
+     * <p>A position that is not finite names no section at all: 1.20.6 floors NaN to 0, 0, 0 and
+     * reads an unrelated section, and the four older loaders answer the true default, so either
+     * answer can end a wait that never checked the room. {@link #lightAppliedProblem} refuses it,
+     * and a grug test drives that refusal on every loader.
      */
     public static boolean Test_light_applied(double x, double y, double z) {
+        String problem = lightAppliedProblem(x, y, z);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
+            return false;
+        }
         return GrugCore.getAdapter().lightApplied(x, y, z);
+    }
+
+    /** Why Test.light_applied refuses this position, or null when it can read the light there. */
+    static String lightAppliedProblem(double x, double y, double z) {
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+            return "Test.light_applied: The position has to be finite, and was ("
+                    + x
+                    + ", "
+                    + y
+                    + ", "
+                    + z
+                    + ").";
+        }
+        return null;
     }
 
     public static void Test_notify_neighbors(long levelId, double x, double y, double z) {

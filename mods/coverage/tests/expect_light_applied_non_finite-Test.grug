@@ -1,0 +1,18 @@
+# Test.light_applied compares the world's light with the client's copy for the section a position
+# falls in, so a position that is not finite names no section to compare. 1.20.6 would floor NaN to
+# 0, 0, 0 and read an unrelated section, and the four older loaders would answer the true default,
+# so either answer can end a wait that never checked the room. The call reports it instead.
+# Squaring 10000000000.0 five times overflows a double to infinity, and infinity minus infinity is
+# NaN.
+export tick_any_side(ctx: TestTickContext) {
+    infinity: number = 10000000000.0
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    nan: number = infinity - infinity
+
+    ctx.expect_error("Test.light_applied: The position has to be finite")
+    Test.light_applied(nan, 0, 0)
+}
