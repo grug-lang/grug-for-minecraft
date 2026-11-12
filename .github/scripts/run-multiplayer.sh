@@ -355,6 +355,23 @@ require_second_player() {
       exit 1
     fi
   done
+  # The clients say they sent a start whether or not the server accepted it, so the one start line
+  # alone cannot tell an accepted second start from an ignored one. The server's own ignored line
+  # is what proves it saw the second START and refused it; without it the count of one could be one
+  # start that arrived.
+  if ! grep -qF ' sent a start, which was ignored' "$SERVER_LOG"; then
+    echo "==> The server logged no second START to ignore, so only one real START reached it." >&2
+    grep -F '[GRUG CONTROL]' "$SERVER_LOG" >&2 || true
+    exit 1
+  fi
+  # The two starts above prove the second player exists; this line proves the second_player test can
+  # tell it apart from the starter. Both join at the world spawn, so without the move a run that
+  # picked the second player would pass the camera comparison the test exists for.
+  if ! grep -qF ' Moved a second player 8 blocks from the starter' "$SERVER_LOG"; then
+    echo "==> The server did not move the second player away, so the test could not fail for a wrong pick." >&2
+    grep -F '[GRUG CI] Moved a second player' "$SERVER_LOG" >&2 || true
+    exit 1
+  fi
   # A request only ever goes to the starter's connection, so the second client receiving none is
   # what makes its answer a stranger's: it answers the first request ids on every tick, and the
   # server must ignore them while the starter's answer completes the call.
@@ -422,7 +439,14 @@ elif [ "$STANDALONE" = true ]; then
   server_pid=$!
   cd "$REPO_ROOT"
 else
-  GRUG_CI=true setsid ./gradlew ":loaders:${LOADER}:classes" ":loaders:${LOADER}:runServer" "${gradle_args[@]}" -x test >"$SERVER_LOG" 2>&1 &
+  # The server is told this leg has a second player (#1027), because it moves that player away from
+  # the starter before the tests read the room. Only 1.20.6 has one, and it is the loader that
+  # reaches this branch, so the variable never reaches another leg.
+  server_env=()
+  if [ "$SECOND_CLIENT" = true ]; then
+    server_env=(GRUG_CI_SECOND_PLAYER=1)
+  fi
+  GRUG_CI=true env "${server_env[@]}" setsid ./gradlew ":loaders:${LOADER}:classes" ":loaders:${LOADER}:runServer" "${gradle_args[@]}" -x test >"$SERVER_LOG" 2>&1 &
   server_pid=$!
 fi
 
@@ -461,6 +485,22 @@ if [ "$SECOND_CLIENT" = true ]; then
   # server would not know; the display only ever accepts local connections.
   Xvfb "${GRUG_SECOND_CLIENT_DISPLAY}" -screen 0 1280x720x24 +extension RANDR +extension GLX -ac >/dev/null 2>&1 &
   xvfb_pid=$!
+  # Xvfb writes its lock and socket before it accepts connections, so a client started on it at
+  # once can die with "Unable to open X display", which the wrapper would report as a client that
+  # never joined. The display answering xset is the readiness that avoids that race; the deadline
+  # is short because Xvfb either starts in a second or has failed.
+  xvfb_deadline=$((SECONDS + 30))
+  until xset -display "${GRUG_SECOND_CLIENT_DISPLAY}" q >/dev/null 2>&1; do
+    if ! kill -0 "$xvfb_pid" 2>/dev/null; then
+      echo "==> Xvfb exited before ${GRUG_SECOND_CLIENT_DISPLAY} accepted connections." >&2
+      exit 1
+    fi
+    if [ "$SECONDS" -ge "$xvfb_deadline" ]; then
+      echo "==> Xvfb did not accept connections on ${GRUG_SECOND_CLIENT_DISPLAY} after 30s." >&2
+      exit 1
+    fi
+    sleep 0.2
+  done
   second_client_env=(
     "GRUG_CI_CLIENT_WRAPPER=${REPO_ROOT}/.github/scripts/run-client-with-second.sh"
     "GRUG_SECOND_CLIENT_DIR=${SECOND_CLIENT_DIR}"

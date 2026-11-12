@@ -267,6 +267,12 @@ public final class GrugControlServer {
         if (message.type == GrugControlWire.RUN_START) {
             if (link.mayStartRun(sender) && starter.compareAndSet(null, sender)) {
                 System.out.println("[GRUG CONTROL] " + sender + " started the run");
+            } else {
+                // The first start owns the run, so a second player's start, or a reconnected
+                // client's, is ignored rather than moving the run to it (#1027). The client says it
+                // sent its start either way, so this line is what run-multiplayer.sh reads to know
+                // that two real starts reached the server and only one was accepted.
+                System.out.println("[GRUG CONTROL] " + sender + " sent a start, which was ignored");
             }
             return;
         }

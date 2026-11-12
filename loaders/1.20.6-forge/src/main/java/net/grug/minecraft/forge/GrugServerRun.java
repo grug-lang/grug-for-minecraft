@@ -6,7 +6,9 @@ import net.grug.minecraft.core.GrugRunPlayers;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
@@ -25,9 +27,9 @@ import java.util.UUID;
  * <p>The run starts once a player has joined and the world around them can be read, the way the
  * client waits for the chunks the tests build in. The server always has its chunks, so the wait is
  * for the player, and the deadline is what keeps a client that never connects from hanging the run.
- * The first player in the list is the test player ({@link ServerForgeAdapter#testPlayer}). When the
- * run ends, passed or failed, the server stops itself, which is what ends the process {@code
- * run-loader.sh} is watching.
+ * The player who started the run is the test player ({@link ServerForgeAdapter#testPlayer}), and a
+ * second player never stands in for it (#1027). When the run ends, passed or failed, the server
+ * stops itself, which is what ends the process {@code run-loader.sh} is watching.
  */
 @GrugGenerated("a dedicated server, whose coverage no CI run merges until #167 stage 4")
 public final class GrugServerRun {
@@ -36,6 +38,13 @@ public final class GrugServerRun {
      * start and connect, so this is wide; it only has to be shorter than the run's own limit.
      */
     static final long PLAYER_JOIN_TIMEOUT_MILLIS = 240_000;
+
+    /**
+     * How far from the starter a second player is put before the tests read the room (#1027). It
+     * only has to be more than the capture-eye tolerance, a block in 1024, and more than the room's
+     * radius so the player is outside it; eight blocks is all three.
+     */
+    static final int STRANGER_DISTANCE = 8;
 
     private long waitStartMillis = 0;
     private GrugTestRunner runner = null;
@@ -73,6 +82,7 @@ public final class GrugServerRun {
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
                 runner = new GrugTestRunner();
+                moveStrangersAway(server);
             } else if (System.currentTimeMillis() - waitStartMillis >= PLAYER_JOIN_TIMEOUT_MILLIS) {
                 System.out.println("[GRUG CI] FAIL world readiness");
                 System.out.println(
@@ -86,18 +96,11 @@ public final class GrugServerRun {
             }
         }
 
-        if (players.isEmpty()) {
-            System.out.println("[GRUG CI] FAIL the test player left");
-            System.out.println(
-                    "[GRUG CI] Every player disconnected from the dedicated server during the"
-                            + " run.");
-            stop(server);
-            return;
-        }
-
         // The run belongs to the player who started it, so the question is whether that player is
         // still here, not whether anyone is (#1027). A second player who stays connected must not
         // hide the starter leaving, and must not become the test player the room is built for.
+        // Asking for the starter also covers every player leaving, since a cleared starter is not
+        // in the connected list, so the older players.isEmpty() question has no case of its own.
         ServerPlayer testPlayer = starterPlayer(server);
         if (testPlayer == null) {
             System.out.println("[GRUG CI] FAIL the test player left");
@@ -136,6 +139,49 @@ public final class GrugServerRun {
             return null;
         }
         return server.getPlayerList().getPlayer((UUID) starter);
+    }
+
+    /**
+     * Puts every player except the starter outside the room before the tests read it (#1027).
+     *
+     * <p>A second client joins the same world spawn as the starter, so a run that read the player
+     * list's first entry would report an eye inside the capture-eye tolerance of the starter's
+     * camera and pass the second_player test. Moving that player {@link #STRANGER_DISTANCE} blocks
+     * away leaves the wrong pick's origin outside the tolerance, so that test fails instead. The
+     * distance is horizontal and the ground is read from the server's own world, so the player is
+     * put on the floor there rather than in the air or inside the ground, and the room's walls hide
+     * it from every capture.
+     *
+     * <p>Only the leg that marks a second player does this, so a dedicated server with players of
+     * its own keeps them where they are.
+     */
+    private static void moveStrangersAway(MinecraftServer server) {
+        if (!"true".equals(System.getenv("GRUG_CI_SECOND_PLAYER"))) {
+            return;
+        }
+        Object starter = GrugControlForge.server().starter();
+        if (!(starter instanceof UUID)) {
+            return;
+        }
+        ServerPlayer starterPlayer = server.getPlayerList().getPlayer((UUID) starter);
+        if (starterPlayer == null) {
+            return;
+        }
+        int x = starterPlayer.getBlockX() + STRANGER_DISTANCE;
+        int z = starterPlayer.getBlockZ();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.getUUID().equals(starter)) {
+                continue;
+            }
+            ServerLevel level = player.serverLevel();
+            int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            player.teleportTo(level, x + 0.5, y, z + 0.5, player.getYRot(), player.getXRot());
+            System.out.println(
+                    "[GRUG CI] Moved a second player "
+                            + STRANGER_DISTANCE
+                            + " blocks from the starter, so a run that picked it would read another"
+                            + " player's eye.");
+        }
     }
 
     /**
