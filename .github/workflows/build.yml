@@ -1027,7 +1027,7 @@ jobs:
         if: always()
         run: |
           mkdir -p server-tests
-          grep -oE '\[GRUG CI\] PASS \S+' "loaders/${{ matrix.loader }}/run-server-ci.log" \
+          grep -oE '\[GRUG CI\] PASS [^ ]*-Test\.grug' "loaders/${{ matrix.loader }}/run-server-ci.log" \
             | sed -e 's/^\[GRUG CI\] PASS //' | sort -u > server-tests/tests.txt || true
           echo "The dedicated server of ${{ matrix.loader }} ran $(wc -l < server-tests/tests.txt) test(s)."
 
