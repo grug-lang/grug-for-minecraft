@@ -66,8 +66,21 @@ public final class GrugControlClientForge {
 
     /** The player started a run (here, the client joined a server named by GRUG_CI_CONNECT). */
     public static void beginRun() {
+        started = true;
         client().beginRun();
     }
+
+    /** Whether this client already started a run on the connection it is on. */
+    static boolean connectionRunStarted() {
+        return started;
+    }
+
+    /**
+     * Set once this client started a run on the server it joined. A run belongs to the connection
+     * that started it, so this stays set while the client is still in that world, even after the
+     * run ended, and is cleared when the client leaves (#1213).
+     */
+    private static boolean started;
 
     /** A message from the server, on the network thread. */
     static void onServerMessage(byte[] bytes, CustomPayloadEvent.Context ctx) {
@@ -96,11 +109,22 @@ public final class GrugControlClientForge {
     /** One client tick: takes the pending capture once the frame shows the server's world. */
     public static void onClientTick(Minecraft mc) {
         if (mc.level == null) {
-            // Left the server: a run belongs to the connection that started it.
+            // Left the server: a run belongs to the connection that started it, and a fresh
+            // connection starts its own.
             pendingCapture = false;
             if (client != null) client.endRun();
             GrugModLoader.endControlRun(mc);
+            started = false;
             return;
+        }
+        if (started && client != null && !client.runActive()) {
+            // The run is over while the client is still in its world, which is a joined client's
+            // ordinary state outside a run (#1040): the window and the settings the start changed
+            // go back to ordinary play. The gate stays set, so this connection starts no second
+            // run.
+            pendingCapture = false;
+            client.endRun();
+            GrugModLoader.endControlRun(mc);
         }
         if (!pendingCapture) return;
         waited++;

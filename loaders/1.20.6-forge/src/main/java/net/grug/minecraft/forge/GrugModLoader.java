@@ -119,8 +119,8 @@ public class GrugModLoader {
     }
 
     /**
-     * Ends a joined client's run after it leaves its server, putting back the settings the run
-     * changed. See {@link ClientForgeEvents#endControlRun}.
+     * Ends a joined client's run after the server ends it or the client leaves its server, putting
+     * back the settings the run changed. See {@link ClientForgeEvents#endControlRun}.
      */
     static void endControlRun(Minecraft mc) {
         ClientForgeEvents.endControlRun(mc);
@@ -835,7 +835,7 @@ public class GrugModLoader {
                 "a joined client: no test the coverage gate counts can reach it, since only the"
                         + " multiplayer job launches one")
         private static void startControlRun(Minecraft mc) {
-            if (grug$controlRunStarted
+            if (GrugControlClientForge.connectionRunStarted()
                     || System.getenv("GRUG_CI_CONNECT") == null
                     || mc.player == null
                     || mc.level == null
@@ -843,22 +843,29 @@ public class GrugModLoader {
                     || !GrugCore.getAdapter().isWorldReady(mc.player)) {
                 return;
             }
-            grug$controlRunStarted = true;
-            if (WINDOW.beginRun()) {
-                stopTutorialForRun(mc);
-                shrinkViewForRun(mc);
-                minimiseParticlesForRun(mc);
+            // A run this client started by hand owns the window until it ends, so this start is
+            // refused and the client tries again on its next tick (#1213). Nothing is claimed for
+            // a run the window refused: it owns no settings to put back, and the local run still
+            // owns the window.
+            if (!WINDOW.beginRun()) {
+                return;
             }
+            grug$controlRunStarted = true;
+            stopTutorialForRun(mc);
+            shrinkViewForRun(mc);
+            minimiseParticlesForRun(mc);
             GrugControlClientForge.beginRun();
         }
 
         private static boolean grug$controlRunStarted = false;
 
         /**
-         * Ends the run a joined client started, when it leaves its server, because a run belongs to
-         * the connection that started it. Puts back everything the start changed, so the fog,
-         * vignette and lightmap pinning, the hidden cursor and the parked mouse are the client's
-         * own again rather than a run's; until this existed they outlived the connection.
+         * Ends the run a joined client started, when the server ends it or the client leaves its
+         * server, because a run belongs to the connection that started it. Puts back everything the
+         * start changed, so the fog, vignette and lightmap pinning, the hidden cursor and the
+         * parked mouse are the client's own again rather than a run's; until this existed they
+         * outlived the connection, and later the end of the run. A run the window refused owns
+         * nothing, so this does nothing for it.
          */
         static void endControlRun(Minecraft mc) {
             if (!grug$controlRunStarted) {
