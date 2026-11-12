@@ -249,9 +249,10 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   reads stale runs after a force-push. The watcher exits 1 at the first failed job with the 80 log
   lines before its first error, 0 when all are green, and 3 when GitHub could not be reached (no
   verdict); the harness hands the session its output when it exits, so end the turn rather than
-  poll. Right after a push the run does not exist for a few seconds, so poll `gh run list --branch
-  <branch> --limit 5 --json databaseId,headSha` until the pushed commit's id is listed, then start
-  the watch once. Read a job's whole log with
+  poll. Right after a push the run does not exist for a few seconds, and the run list has lagged
+  minutes, so poll `gh run list --branch <branch> --limit 5 --json databaseId,headSha` for up to
+  five minutes until the pushed commit's id is listed, then start the watch once. Read a job's whole
+  log with
   `gh api repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a
   pipeline is fine; a push that shows no CI run usually means a conflict (`gh pr view <n> --json
   mergeable`).
@@ -297,6 +298,11 @@ Gradle invocation (the loader jobs of a pull request use it); a Gradle failure b
 starts is reported as a failed build, and the run timeout starts when Gradle starts `runClient`.
 `production` gives the launcher's install its own limit (`GRUG_CI_INSTALL_TIMEOUT`) and starts the
 run timeout at the line that reports the launch, which is `Launched` from portablemc 5.0.6.
+
+A class the dedicated server loads must not reference a client-only class: the a1 and b1.7.3
+Ornithe servers load `GrugControl<X>` at boot, so the client half lives in `GrugControl<X>Client`
+and the server classes name only the shared one, because a client type on that path fails the boot
+with `NoClassDefFoundError` (#1246).
 
 - `run-loader.sh` is the only supported way: it resets `run/saves`, sets `GRUG_CI=true`, and
   publishes `grug-core` to `build/maven` first, which the four standalone loaders resolve. The 1.2.5
