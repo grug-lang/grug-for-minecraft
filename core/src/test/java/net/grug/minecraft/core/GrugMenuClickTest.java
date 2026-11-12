@@ -11,7 +11,8 @@ import org.junit.jupiter.api.Test;
  * dispatch-only multiplayer job reaches, so the rule is a pure function of numbers and this test is
  * what pins it. The amount also decides whether the click writes the slot at all: the write is what
  * marks the block entity dirty and fires its {@code item_inserted} export, and a merge that moves
- * nothing must run neither.
+ * nothing must run neither. Alpha's own click test, {@code GrugAlphaMenuClickTest}, observes that
+ * write against a recording inventory.
  */
 class GrugMenuClickTest {
 
