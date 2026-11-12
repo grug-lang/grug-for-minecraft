@@ -59,13 +59,22 @@ with zipfile.ZipFile(sys.argv[1], "w") as archive:
     archive.writestr("grug/Grug.class", b"")' core/build/libs/core-0.1.0-release.jar
 """
 
+# The agent jar gradle/jacoco-loader.gradle's printJacocoAgentPath prints, which the script reads
+# back to put the agent on the server's own java line (#1027).
+AGENT = "/fake/jacoco-agent.jar"
+
 LOADER_GRADLEW = """\
 #!/usr/bin/env bash
 mkdir -p build/layer
 "$FAKE_REAL_PYTHON" -c 'import sys, zipfile
 with zipfile.ZipFile(sys.argv[1], "w") as archive:
     archive.writestr("fabric.mod.json", b"{}")' build/layer/grug-@LOADER@.jar
-""".replace("@LOADER@", LOADER)
+printf 'JACOCO_AGENT=@AGENT@\\n'
+""".replace("@LOADER@", LOADER).replace("@AGENT@", AGENT)
+
+# The same build without the line, which is what a task that never ran, or a drop of the print,
+# would leave: the script has to fail rather than launch an uninstrumented server.
+LOADER_GRADLEW_WITHOUT_AGENT = LOADER_GRADLEW.split("printf 'JACOCO_AGENT=")[0]
 
 CURL = """\
 #!/usr/bin/env bash
@@ -93,8 +102,11 @@ fi
 exec "$FAKE_REAL_PYTHON" "$@" < "$program"
 """
 
+# Exits at once, and records the arguments it was given so a case can read what the script launched
+# with, which is where the agent and the coverage directory are.
 JAVA = """\
 #!/usr/bin/env bash
+[ -n "${FAKE_JAVA_ARGV:-}" ] && printf '%s\\n' "$@" > "$FAKE_JAVA_ARGV"
 exit 0
 """
 
@@ -137,12 +149,17 @@ class RunMultiplayerTest(unittest.TestCase):
         self.installer = self.tmp / "fake-installer"
         self.set_executable(self.installer, INSTALLER)
         self.sentinel = self.tmp / "installer-ran"
+        self.java_argv = self.tmp / "java-argv"
 
     def set_executable(self, path, content):
         path.write_text(content)
         path.chmod(0o755)
 
-    def run_script(self, server_jar="full"):
+    def run_script(self, server_jar="full", agent_line=True):
+        self.set_executable(
+            self.loader / "gradlew",
+            LOADER_GRADLEW if agent_line else LOADER_GRADLEW_WITHOUT_AGENT,
+        )
         env = dict(os.environ)
         env.update(
             {
@@ -152,6 +169,7 @@ class RunMultiplayerTest(unittest.TestCase):
                 "FAKE_CURL_SOURCE": str(self.installer),
                 "FAKE_INSTALL_SENTINEL": str(self.sentinel),
                 "FAKE_INSTALL_SERVER_JAR": server_jar,
+                "FAKE_JAVA_ARGV": str(self.java_argv),
                 # A launch that never becomes ready ends the case once the loop looks.
                 "GRUG_CI_BUILD_TIMEOUT": "1",
             }
@@ -202,6 +220,29 @@ class RunMultiplayerTest(unittest.TestCase):
         self.assertTrue((self.installed() / "server.jar").is_file())
         # The run reached the launch, so the install returned success with the marker written.
         self.assertIn("exited before it was ready", result.stderr)
+
+    def test_the_server_is_launched_with_the_agent_and_its_own_directory(self):
+        result = self.run_script()
+
+        self.assertIn("exited before it was ready", result.stderr)
+        argv = self.java_argv.read_text().splitlines()
+        self.assertIn(
+            f"-javaagent:{AGENT}=output=none,dumponexit=false,"
+            "includes=net.grug.*:net.minecraft.crafting.*",
+            argv,
+        )
+        # Beside the client's build/jacoco rather than over it, so two JVMs cutting segments into
+        # NNN-named files cannot overwrite each other's (#1027).
+        self.assertIn(f"-Dgrug.coverage.dir={self.loader}/build/jacoco-server", argv)
+
+    def test_a_build_that_prints_no_agent_path_fails_before_the_launch(self):
+        result = self.run_script(agent_line=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("printed no JACOCO_AGENT= line", result.stderr)
+        # An uninstrumented launch would look exactly like a leg that recorded nothing, so it must
+        # not happen at all.
+        self.assertFalse(self.java_argv.exists(), "the server launched without the agent")
 
     def test_a_restored_install_without_server_jar_is_reinstalled(self):
         # What a run of the buggy marker leaves behind: the marker and the launch jar, and no
