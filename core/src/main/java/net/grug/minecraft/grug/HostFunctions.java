@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugForcedNormalization;
@@ -402,6 +403,20 @@ public class HostFunctions {
     }
 
     /**
+     * The forwarding end of a mod file call, or null when the call is this process's own. A
+     * dedicated server forwards the files only a client reads, a resource under {@code assets/},
+     * because its own copy reloads nothing and counts nothing; a script, a recipe or any other file
+     * the server compiles and reloads itself stays here (#1040).
+     */
+    private static GrugClientTestCalls.Forwarded forwardedModFileCalls(String relativePath) {
+        GrugClientTestCalls.Forwarded forwarded = GrugCore.getAdapter().forwardedClientTestCalls();
+        if (forwarded == null || !GrugModsWatcher.isClientResource(relativePath)) {
+            return null;
+        }
+        return forwarded;
+    }
+
+    /**
      * Puts a mod file into a named state, remembering its pristine text the first time so the
      * {@code "normal"} state restores it exactly.
      *
@@ -410,6 +425,11 @@ public class HostFunctions {
      */
     public static void Test_set_mod_file_state(String relativePath, String state) {
         worldChanged();
+        GrugClientTestCalls.Forwarded forwarded = forwardedModFileCalls(relativePath);
+        if (forwarded != null) {
+            forwarded.modFileState(relativePath, state);
+            return;
+        }
         try {
             GrugModFileStates.set(
                     GrugCore.getAdapter().getGrugModsDirectory(), relativePath, state);
@@ -427,6 +447,10 @@ public class HostFunctions {
      * same state rather than flipping past it, and the next startup puts the file back.
      */
     public static double Test_hot_reload_count(String relativePath) {
+        GrugClientTestCalls.Forwarded forwarded = forwardedModFileCalls(relativePath);
+        if (forwarded != null) {
+            return forwarded.hotReloadCount(relativePath);
+        }
         return GrugModsWatcher.reportedChangeCount(relativePath);
     }
 
@@ -438,6 +462,10 @@ public class HostFunctions {
      * report only means the loader was told.
      */
     public static double Test_reload_count(String relativePath) {
+        GrugClientTestCalls.Forwarded forwarded = forwardedModFileCalls(relativePath);
+        if (forwarded != null) {
+            return forwarded.reloadCount(relativePath);
+        }
         return GrugModsWatcher.loaderReloadCount(relativePath);
     }
 

@@ -40,8 +40,7 @@ coverage/tests/block_shape-Test.grug
 #
 # The GUI a server opens for its player. The three GUI capture tests run here since this server
 # builds the block entity's own menu and sends it to the joined client (#1098): remote_gui,
-# item_icon and gui_builder. hot_reload_item_texture is not listed because it defines a plain tick
-# rather than tick_any_side, so no server runs it at all. The two container-click tests still do
+# item_icon and gui_builder. The two container-click tests still do
 # not: they press a slot through Test.click_screen, which this loader forwards to the client's
 # screen but has no server-side click from, so they wait for that half of #1098.
 coverage/tests/gui_click-Test.grug

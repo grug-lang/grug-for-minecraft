@@ -192,6 +192,31 @@ public final class GrugControlWire {
      */
     public static final byte CALL_SCREEN_GEOMETRY = 16;
 
+    /**
+     * The call: whether the game draws the mining crack over the block's own geometry at the
+     * position in the three numbers, in the client's own copy of the world, which is {@code
+     * Test.mining_crack} (#1040). The crack is a client's frame pass, so a dedicated server has no
+     * overlay to ask. The answer is 1 or 0.
+     */
+    public static final byte CALL_MINING_CRACK = 17;
+
+    /**
+     * The call: puts a mod file of the client's own mods directory into a named state, which is
+     * {@code Test.set_mod_file_state} for a client resource (#1040). The name is the file's path
+     * and the first number is the state's index in {@code GrugModFileStates}. A texture is read by
+     * the client alone, so a dedicated server disturbing its own copy would reload nothing. The
+     * answer is the ack 1.
+     */
+    public static final byte CALL_MOD_FILE_STATE = 18;
+
+    /**
+     * The call: how many changes to the client resource named by the call's name the client's
+     * engine has reported (first number 0, {@code Test.hot_reload_count}) or its loader has
+     * finished reloading for (first number 1, {@code Test.reload_count}) (#1040). The answer is an
+     * {@link #ANSWER_NUMBER}.
+     */
+    public static final byte CALL_RELOAD_COUNT = 19;
+
     /** The number of measurements a {@link #CALL_SCREEN_GEOMETRY} answers, in its one message. */
     public static final int GEOMETRY_COUNT = 5;
 
@@ -377,7 +402,7 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_SCREEN_GEOMETRY;
+        return call >= CALL_HAS_SOUND && call <= CALL_RELOAD_COUNT;
     }
 
     /**

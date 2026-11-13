@@ -2,6 +2,7 @@ package net.grug.minecraft.forge125;
 
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
+import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugLightSync;
@@ -109,6 +110,21 @@ public class Grug125ServerAdapter extends Grug125Adapter {
             new GrugOverlayCalls.Forwarded(
                     GrugControlServer125::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    /**
+     * The mining crack and the client resource files of a hot reload, which the joined client
+     * answers from its own world and its own mods directory (#1040): the crack is its frame pass's,
+     * and a texture is read by the client alone.
+     */
+    private final GrugClientTestCalls.Forwarded clientTestCalls =
+            new GrugClientTestCalls.Forwarded(
+                    GrugControlServer125::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    @Override
+    public GrugClientTestCalls.Forwarded forwardedClientTestCalls() {
+        return clientTestCalls;
+    }
 
     /**
      * How thin the column is that asks which collision boxes cover the player's own point. It only
@@ -528,8 +544,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
 
     @Override
     public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
-        refuseWithoutAClient("Test.mining_crack");
-        return false;
+        return clientTestCalls.miningCrack(x, y, z);
     }
 
     /**

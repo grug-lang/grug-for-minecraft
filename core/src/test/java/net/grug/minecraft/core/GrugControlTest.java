@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.grug.HostFunctions;
 import net.grug.minecraft.grug.Vec3;
 
 import org.junit.jupiter.api.Test;
@@ -177,6 +178,21 @@ class GrugControlTest {
                 public boolean overlayDrawn(String mod) {
                     throw new AssertionError("no overlay call was expected");
                 }
+
+                @Override
+                public boolean miningCrack(double x, double y, double z) {
+                    throw new AssertionError("no call was expected");
+                }
+
+                @Override
+                public void modFileState(String path, int stateIndex) {
+                    throw new AssertionError("no call was expected");
+                }
+
+                @Override
+                public double reloadCount(String path, boolean loaderReloads) {
+                    throw new AssertionError("no call was expected");
+                }
             };
 
     private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
@@ -269,6 +285,21 @@ class GrugControlTest {
         public boolean overlayDrawn(String mod) {
             throw new AssertionError("no overlay call was expected");
         }
+
+        @Override
+        public boolean miningCrack(double x, double y, double z) {
+            throw new AssertionError("no call was expected");
+        }
+
+        @Override
+        public void modFileState(String path, int stateIndex) {
+            throw new AssertionError("no call was expected");
+        }
+
+        @Override
+        public double reloadCount(String path, boolean loaderReloads) {
+            throw new AssertionError("no call was expected");
+        }
     }
 
     /** A client whose settle answer the test decides, and which counts the frames it forgets. */
@@ -355,6 +386,21 @@ class GrugControlTest {
         public boolean overlayDrawn(String mod) {
             throw new AssertionError("no overlay call was expected");
         }
+
+        @Override
+        public boolean miningCrack(double x, double y, double z) {
+            throw new AssertionError("no call was expected");
+        }
+
+        @Override
+        public void modFileState(String path, int stateIndex) {
+            throw new AssertionError("no call was expected");
+        }
+
+        @Override
+        public double reloadCount(String path, boolean loaderReloads) {
+            throw new AssertionError("no call was expected");
+        }
     }
 
     /** A client whose screen answers the test decides, and which records the calls it gets. */
@@ -374,6 +420,7 @@ class GrugControlTest {
         long light = 12;
         boolean overlaySupported = true;
         boolean overlayDrawn = true;
+        boolean miningCrackAnswer = true;
         boolean overlayFails;
         boolean closed;
         boolean opened;
@@ -492,6 +539,23 @@ class GrugControlTest {
                 throw new IllegalStateException("this client has no overlay host");
             }
             return overlayDrawn;
+        }
+
+        @Override
+        public boolean miningCrack(double x, double y, double z) {
+            seen.add("miningCrack " + x + " " + y + " " + z);
+            return miningCrackAnswer;
+        }
+
+        @Override
+        public void modFileState(String path, int stateIndex) {
+            seen.add("modFileState " + path + " " + stateIndex);
+        }
+
+        @Override
+        public double reloadCount(String path, boolean loaderReloads) {
+            seen.add((loaderReloads ? "reloadCount " : "hotReloadCount ") + path);
+            return loaderReloads ? 7 : 5;
         }
     }
 
@@ -1514,7 +1578,7 @@ class GrugControlTest {
         assertFalse(GrugControlWire.isCall((byte) 0));
         // Above the last call the wire carries, so a code added there is not silently accepted as
         // one of these.
-        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_SCREEN_GEOMETRY + 1)));
+        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_RELOAD_COUNT + 1)));
 
         // A give names its item and the count the client computed, and a count no host function
         // can ask for, or a message that names no item, is refused rather than applied.
@@ -1594,7 +1658,7 @@ class GrugControlTest {
 
         byte[] unknown =
                 GrugControlWire.callRequest(
-                        1, (byte) (GrugControlWire.CALL_SCREEN_GEOMETRY + 1), "x", 0, 0, 0);
+                        1, (byte) (GrugControlWire.CALL_RELOAD_COUNT + 1), "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1685,6 +1749,11 @@ class GrugControlTest {
         assertEquals(0L, caller.clientLightFingerprint(7, 8, 9));
         assertTrue(caller.overlaySupported());
         assertTrue(caller.overlayDrawn("coverage"));
+        // The mining crack is asked of the client's own level, which the stand-in has none of.
+        assertTrue(caller.miningCrack(1, 2, 3));
+        // No change has been reported for a path nothing touched, by the engine or a loader.
+        assertEquals(0.0, caller.reloadCount("coverage/assets/none.png", false));
+        assertEquals(0.0, caller.reloadCount("coverage/assets/none.png", true));
         assertEquals(
                 List.of(
                         "hasSound a",
@@ -1703,7 +1772,9 @@ class GrugControlTest {
                         "savedNumberOnClient 1.0",
                         "clientLightFingerprint 7.0",
                         "overlaySupportedForTest",
-                        "overlayDrawnForTest coverage"),
+                        "overlayDrawnForTest coverage",
+                        "clientLevel",
+                        "miningCrackForTest null"),
                 seen);
 
         // The interface's own fallbacks: a loader that cannot read light answers -1, and a test's
@@ -1718,6 +1789,178 @@ class GrugControlTest {
                                                 proxy, method, args));
         assertEquals(GrugClientLight.CANNOT_VERIFY, bare.clientLightFingerprint(1, 2, 3));
         assertTrue(bare.lightApplied(1, 2, 3));
+        // A client forwards nothing, so its mod file calls and its crack are its own.
+        assertNull(bare.forwardedClientTestCalls());
+    }
+
+    @Test
+    void theClientPutsItsOwnModFileIntoTheStateAForwardedCallNames(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path mods) throws Exception {
+        java.nio.file.Path file = mods.resolve("coverage/assets/grug/textures/block/a.png");
+        java.nio.file.Files.createDirectories(file.getParent());
+        java.nio.file.Files.writeString(file, "shipped");
+        java.nio.file.Files.writeString(file.resolveSibling("a.swap.png"), "swapped");
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) -> mods.toFile());
+        GrugControlClient.Caller caller = GrugControlClient.adapterCaller(() -> adapter);
+        String path = "coverage/assets/grug/textures/block/a.png";
+
+        caller.modFileState(path, net.grug.minecraft.grug.GrugModFileStates.indexOf("swapped"));
+        assertEquals("swapped", java.nio.file.Files.readString(file));
+        caller.modFileState(path, net.grug.minecraft.grug.GrugModFileStates.indexOf("normal"));
+        assertEquals("shipped", java.nio.file.Files.readString(file));
+
+        // A file the client does not have is an unchecked failure, which the client answers as an
+        // error instead of acking a state it did not set.
+        IllegalStateException missing =
+                assertThrows(
+                        IllegalStateException.class,
+                        () ->
+                                caller.modFileState(
+                                        "coverage/assets/none.png",
+                                        net.grug.minecraft.grug.GrugModFileStates.indexOf(
+                                                "swapped")));
+        assertTrue(missing.getMessage().contains("coverage/assets/none.png"), missing.getMessage());
+        assertEquals(-1, net.grug.minecraft.grug.GrugModFileStates.indexOf("bogus"));
+    }
+
+    @Test
+    void theMiningCrackAndTheModFileCallsAreAskedOfTheJoinedClientAndAnswered() {
+        ScreenCalls client = new ScreenCalls();
+        Loopback loop = wireCalls(1000, client);
+        loop.client.beginRun();
+        List<String> failed = new ArrayList<>();
+        GrugClientTestCalls.Forwarded forwarded =
+                new GrugClientTestCalls.Forwarded(() -> loop.server, failed::add);
+
+        assertTrue(forwarded.miningCrack(1, 2, 3));
+        client.miningCrackAnswer = false;
+        assertFalse(forwarded.miningCrack(4, 5, 6));
+        forwarded.modFileState("coverage/assets/a.png", "swapped");
+        assertEquals(5.0, forwarded.hotReloadCount("coverage/assets/a.png"));
+        assertEquals(7.0, forwarded.reloadCount("coverage/assets/a.png"));
+        assertEquals(
+                List.of(
+                        "miningCrack 1.0 2.0 3.0",
+                        "miningCrack 4.0 5.0 6.0",
+                        "modFileState coverage/assets/a.png 4",
+                        "hotReloadCount coverage/assets/a.png",
+                        "reloadCount coverage/assets/a.png"),
+                client.seen);
+        assertTrue(failed.isEmpty(), failed.toString());
+
+        // Nobody started a run on this client, so every call is refused and each failure names the
+        // host function that made it, rather than answering a value a test would take as real.
+        Loopback idle = wireCalls(1000, new ScreenCalls());
+        List<String> reports = new ArrayList<>();
+        GrugClientTestCalls.Forwarded refused =
+                new GrugClientTestCalls.Forwarded(() -> idle.server, reports::add);
+        assertFalse(refused.miningCrack(1, 2, 3));
+        refused.modFileState("coverage/assets/a.png", "swapped");
+        assertEquals(0.0, refused.hotReloadCount("coverage/assets/a.png"));
+        assertEquals(0.0, refused.reloadCount("coverage/assets/a.png"));
+        assertEquals(4, reports.size());
+        assertTrue(reports.get(0).startsWith("Test.mining_crack: "), reports.get(0));
+        assertTrue(reports.get(1).startsWith("Test.set_mod_file_state: "), reports.get(1));
+        assertTrue(reports.get(2).startsWith("Test.hot_reload_count: "), reports.get(2));
+        assertTrue(reports.get(3).startsWith("Test.reload_count: "), reports.get(3));
+    }
+
+    @Test
+    void theNewCallsRefuseArgumentsTheClientCouldNotAct() {
+        String longPath = "x".repeat(GrugControlWire.MAX_NAME + 1);
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_MINING_CRACK));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_MOD_FILE_STATE));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_RELOAD_COUNT));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_MINING_CRACK));
+        assertNull(GrugControlServer.callProblem(GrugControlWire.CALL_MINING_CRACK, "", 1, 2, 3));
+        assertNotNull(
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_MINING_CRACK, "", Double.NaN, 2, 3));
+        assertNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "a/b", 4, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "", 0, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, null, 0, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_MOD_FILE_STATE, longPath, 0, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "a", -1, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "a", 5, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "a", 0.5, 0, 0));
+        assertNull(GrugControlServer.callProblem(GrugControlWire.CALL_RELOAD_COUNT, "a", 0, 0, 0));
+        assertNull(GrugControlServer.callProblem(GrugControlWire.CALL_RELOAD_COUNT, "a", 1, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_RELOAD_COUNT, "a", 2, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_RELOAD_COUNT, "", 0, 0, 0));
+    }
+
+    @Test
+    void aDedicatedServerForwardsOnlyTheFilesAClientReads(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path serverMods) throws Exception {
+        ScreenCalls client = new ScreenCalls();
+        Loopback loop = wireCalls(1000, client);
+        loop.client.beginRun();
+        GrugClientTestCalls.Forwarded forwarded =
+                new GrugClientTestCalls.Forwarded(
+                        () -> loop.server,
+                        message -> {
+                            throw new AssertionError(message);
+                        });
+        java.nio.file.Path code = serverMods.resolve("coverage/code/a.grug");
+        java.nio.file.Files.createDirectories(code.getParent());
+        java.nio.file.Files.writeString(code, "text\n");
+        java.lang.reflect.Field field = GrugCore.class.getDeclaredField("adapter");
+        field.setAccessible(true);
+        Object saved = field.get(null);
+        field.set(
+                null,
+                java.lang.reflect.Proxy.newProxyInstance(
+                        ModLoaderAdapter.class.getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) ->
+                                method.getName().equals("forwardedClientTestCalls")
+                                        ? forwarded
+                                        : method.getName().equals("getGrugModsDirectory")
+                                                ? serverMods.toFile()
+                                                : method.isDefault()
+                                                        ? java.lang.reflect.InvocationHandler
+                                                                .invokeDefault(proxy, method, args)
+                                                        : null));
+        try {
+            // A texture is the client's alone: the server asks the client and writes nothing.
+            String texture = "coverage/assets/grug/textures/block/a.png";
+            HostFunctions.Test_set_mod_file_state(texture, "swapped");
+            assertEquals(5.0, HostFunctions.Test_hot_reload_count(texture));
+            assertEquals(7.0, HostFunctions.Test_reload_count(texture));
+            assertEquals(
+                    List.of(
+                            "modFileState " + texture + " 4",
+                            "hotReloadCount " + texture,
+                            "reloadCount " + texture),
+                    client.seen);
+
+            // A script is compiled and reloaded by the server itself, so it never leaves it.
+            client.seen.clear();
+            HostFunctions.Test_set_mod_file_state("coverage/code/a.grug", "invalid");
+            assertTrue(
+                    java.nio.file.Files.readString(code).startsWith("!"),
+                    "The server's own file was disturbed.");
+            assertEquals(0.0, HostFunctions.Test_hot_reload_count("coverage/code/a.grug"));
+            assertEquals(0.0, HostFunctions.Test_reload_count("coverage/code/a.grug"));
+            assertTrue(client.seen.isEmpty(), client.seen.toString());
+        } finally {
+            field.set(null, saved);
+        }
     }
 
     @Test
@@ -2506,7 +2749,7 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) (GrugControlWire.CALL_SCREEN_GEOMETRY + 1),
+                        (byte) (GrugControlWire.CALL_RELOAD_COUNT + 1),
                         0,
                         0,
                         0,
@@ -2522,7 +2765,7 @@ class GrugControlTest {
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
         assertTrue(
-                answer.text.contains("unknown call " + (GrugControlWire.CALL_SCREEN_GEOMETRY + 1)),
+                answer.text.contains("unknown call " + (GrugControlWire.CALL_RELOAD_COUNT + 1)),
                 answer.text);
     }
 
@@ -2758,6 +3001,21 @@ class GrugControlTest {
                             @Override
                             public boolean overlayDrawn(String mod) {
                                 throw new AssertionError("no overlay call was expected");
+                            }
+
+                            @Override
+                            public boolean miningCrack(double x, double y, double z) {
+                                throw new AssertionError("no call was expected");
+                            }
+
+                            @Override
+                            public void modFileState(String path, int stateIndex) {
+                                throw new AssertionError("no call was expected");
+                            }
+
+                            @Override
+                            public double reloadCount(String path, boolean loaderReloads) {
+                                throw new AssertionError("no call was expected");
                             }
                         });
         loop.client.beginRun();

@@ -1,6 +1,8 @@
 package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugModFileStates;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.Vec3;
 
 import java.awt.image.BufferedImage;
@@ -126,6 +128,25 @@ public final class GrugControlClient {
          * the one that owns the running test, which only the server knows.
          */
         boolean overlayDrawn(String mod);
+
+        /**
+         * Whether this client draws the mining crack over the geometry of the block at the position
+         * in its own copy of the world, as a server-run {@code Test.mining_crack} asks (#1040).
+         */
+        boolean miningCrack(double x, double y, double z);
+
+        /**
+         * Puts the mod file under {@code path} of this client's own mods directory into the state
+         * at {@code stateIndex} of {@code GrugModFileStates}, as a forwarded {@code
+         * Test.set_mod_file_state} asks (#1040).
+         */
+        void modFileState(String path, int stateIndex);
+
+        /**
+         * How many changes to {@code path} this client's engine has reported, or when {@code
+         * loaderReloads} is set how many reloads its loader has finished for it (#1040).
+         */
+        double reloadCount(String path, boolean loaderReloads);
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -213,6 +234,27 @@ public final class GrugControlClient {
             @Override
             public boolean overlayDrawn(String mod) {
                 return adapter.get().overlayDrawnForTest(mod);
+            }
+
+            /** The block is in this client's own copy of the world, which is not the server's. */
+            @Override
+            public boolean miningCrack(double x, double y, double z) {
+                return adapter.get().miningCrackForTest(adapter.get().clientLevel(), x, y, z);
+            }
+
+            @Override
+            public void modFileState(String path, int stateIndex) {
+                GrugModFileStates.setUnchecked(
+                        adapter.get().getGrugModsDirectory(),
+                        path,
+                        GrugModFileStates.STATES[stateIndex]);
+            }
+
+            @Override
+            public double reloadCount(String path, boolean loaderReloads) {
+                return loaderReloads
+                        ? GrugModsWatcher.loaderReloadCount(path)
+                        : GrugModsWatcher.reportedChangeCount(path);
             }
         };
     }
@@ -449,6 +491,16 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_OVERLAY_DRAWN) {
                 boolean drawn = caller.overlayDrawn(message.text);
                 link.send(GrugControlWire.answerValue(message.id, (byte) (drawn ? 1 : 0)));
+            } else if (message.call == GrugControlWire.CALL_MINING_CRACK) {
+                boolean cracked = caller.miningCrack(message.volume, message.pitch, message.third);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (cracked ? 1 : 0)));
+            } else if (message.call == GrugControlWire.CALL_MOD_FILE_STATE) {
+                caller.modFileState(message.text, (int) message.volume);
+                link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+            } else if (message.call == GrugControlWire.CALL_RELOAD_COUNT) {
+                link.send(
+                        GrugControlWire.answerNumber(
+                                message.id, caller.reloadCount(message.text, message.volume == 1)));
             } else {
                 // A call this client has no arm for, which is what a call code added to the wire
                 // before its arm becomes. Answering it as an error keeps the server's mistake
