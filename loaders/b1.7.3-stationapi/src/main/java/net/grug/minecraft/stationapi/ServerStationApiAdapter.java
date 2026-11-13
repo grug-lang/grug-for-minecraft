@@ -673,7 +673,11 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         if (starter == null || world == null) {
             return false;
         }
-        while (world.doLightingUpdates()) {}
+        // The placements left the field their order made, which differs from the one the final
+        // blocks define and from the client-only run's, so it is recomputed before it is sent.
+        int[] box = lightResend.lastBox();
+        relightRoom(
+                world, box[0], Math.max(box[1], 0), box[2], box[3], Math.min(box[4], 127), box[5]);
         for (int[] region : regions) {
             // A chunk this server never loaded is an empty one with no block array, which a region
             // packet cannot be made of, and the client holds no light for it either.
