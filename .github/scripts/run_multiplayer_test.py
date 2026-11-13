@@ -134,6 +134,13 @@ case "$*" in
       cat "${FAKE_SERVER_LINES_FILE:?}"
       exit 0
     fi
+    if [ "${FAKE_STARTER_LEAVES:-0}" = "1" ]; then
+      # The run has begun, then the lines a server writes after its starter's client was killed.
+      printf '[GRUG CI] CI mode active & player loaded after 1 ms. Firing tests!\\n'
+      sleep 6
+      cat "${FAKE_SERVER_LINES_FILE:?}"
+      exec sleep 600
+    fi
     exec sleep 600
     ;;
   *runClient*)
@@ -550,6 +557,45 @@ class SecondPlayerTest(unittest.TestCase):
             "Two real clients: exactly one starter, its answers, and both connections survived",
             result.stdout,
         )
+
+    def starter_leaves(self, lines):
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(lines)
+        return self.run_script(
+            FAKE_STARTER_LEAVES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_STARTER_LEAVES="1",
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+    def test_the_starter_leaving_with_a_second_player_still_connected_passes_the_arm(self):
+        result = self.starter_leaves(
+            "[GRUG CI] FAIL the test player left\n"
+            "[GRUG CI] The player who started the run disconnected while 1 player(s) were still"
+            " on the dedicated server.\n"
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("Killing the starter's client", result.stdout)
+        self.assertIn("The run stopped when its starter left", result.stdout)
+
+    def test_a_run_that_follows_the_second_player_fails_the_arm(self):
+        # The old players.isEmpty() rule: the starter is gone, a second player is not, so the suite
+        # carries on to the end instead of stopping.
+        result = self.starter_leaves("[GRUG CI] ALL 254 TESTS PASSED\n")
+
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn("the run followed another player", result.stderr)
+
+    def test_a_stop_with_no_second_player_left_fails_the_arm(self):
+        result = self.starter_leaves(
+            "[GRUG CI] FAIL the test player left\n"
+            "[GRUG CI] The player who started the run disconnected while 0 player(s) were still"
+            " on the dedicated server.\n"
+        )
+
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn("not with the second player still connected", result.stderr)
 
     def test_a_run_without_an_ignored_second_start_fails_closed(self):
         # The two clients say they sent a START whether or not the server saw the second one, so the

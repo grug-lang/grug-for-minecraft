@@ -88,6 +88,21 @@ if [ "$LOADER" = "1.20.6-forge" ]; then
   SECOND_CLIENT=true
 fi
 
+# The failing arm of the starter-left stop (#1301): the starter's client is killed once the run has
+# begun, while the second player stays connected, and the leg passes only when the server stops with
+# the starter-left message. A server that asked whether anyone is connected would carry on with the
+# second player instead and reach the end of the suite, which this mode reports as a failure. Only the
+# leg with a second player can show it.
+STARTER_LEAVES=false
+if [ -n "${GRUG_CI_STARTER_LEAVES:-}" ]; then
+  if [ "$SECOND_CLIENT" != true ]; then
+    echo "GRUG_CI_STARTER_LEAVES needs the leg with a second player, which is 1.20.6-forge." >&2
+    exit 2
+  fi
+  STARTER_LEAVES=true
+fi
+starter_killed=false
+
 export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Djava.util.Arrays.useLegacyMergeSort=true"
 export RUST_BACKTRACE="${RUST_BACKTRACE:-full}"
 
@@ -524,6 +539,31 @@ while :; do
   # exactly one starter, and the second start arriving while a starter exists.
   if [ "$SECOND_CLIENT" = true ] && [ ! -e "$SECOND_CLIENT_START_FILE" ] && grep -qF ' started the run' "$SERVER_LOG"; then
     touch "$SECOND_CLIENT_START_FILE"
+  fi
+  if [ "$STARTER_LEAVES" = true ]; then
+    # The starter leaves once the server has built its runner, so the run is under way and a second
+    # player is still connected: the case where the starter-left question and a non-empty player
+    # list give different answers.
+    if [ "$starter_killed" = false ] && grep -qF '[GRUG CI] CI mode active' "$SERVER_LOG"; then
+      echo "==> Killing the starter's client while the second player stays connected."
+      kill -TERM -- "-${client_pid}" 2>/dev/null || true
+      starter_killed=true
+    fi
+    if [ "$starter_killed" = true ]; then
+      if grep -qE "$SUCCESS_RE" "$SERVER_LOG"; then
+        echo "==> The suite finished although its starter had left, so the run followed another player." >&2
+        exit 1
+      fi
+      if grep -qF '[GRUG CI] FAIL the test player left' "$SERVER_LOG"; then
+        if ! grep -qF 'disconnected while 1 player(s) were still on the dedicated server' "$SERVER_LOG"; then
+          echo "==> The run stopped for the starter leaving, but not with the second player still connected." >&2
+          grep -F '[GRUG CI] The player who started' "$SERVER_LOG" >&2 || true
+          exit 1
+        fi
+        echo "==> The run stopped when its starter left, with the second player still connected."
+        exit 0
+      fi
+    fi
   fi
   # A failure is checked before the success line, so a log holding both is a failure.
   if grep -qF '[GRUG CI] FAIL' "$SERVER_LOG"; then
