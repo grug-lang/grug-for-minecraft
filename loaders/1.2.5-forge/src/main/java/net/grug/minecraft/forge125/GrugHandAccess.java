@@ -4,6 +4,8 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.ItemRenderer;
 
 import java.lang.reflect.Field;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Reads the equip progress 1.2.5's first-person item renderer keeps private.
@@ -34,24 +36,28 @@ public final class GrugHandAccess {
      * <p>The lookup runs on every read and holds no branch, for the coverage gate (#961). A class
      * initializer that ran in a dropped segment is credited for itself and for nothing it calls,
      * and a test of another mod reaches this class first, so a lookup cached in a static field
-     * would run once, outside the counted segments. Here the launched game's miss takes the handler
-     * of {@link #lookup} and the second lookup behind it in every counted test that asks.
+     * would run once, outside the counted segments. Here the launched game takes the miss and the
+     * hit of {@link #lookup} in every counted test that asks, with no branch between them.
      */
     private static Field field(String mcpName, String obfuscatedName) {
-        try {
-            return lookup(mcpName);
-        } catch (IllegalStateException missing) {
-            return lookup(obfuscatedName);
-        }
+        // Both names are looked up every time, so the launched game takes the miss and the hit in
+        // the same call, and no arm of a choice between them is left to a game that carries the
+        // other name.
+        Field byMcpName = lookup(mcpName);
+        Field byObfuscatedName = lookup(obfuscatedName);
+        return Objects.requireNonNull(
+                Optional.ofNullable(byMcpName).orElse(byObfuscatedName),
+                "ItemRenderer carries neither " + mcpName + " nor " + obfuscatedName);
     }
 
+    /** The accessible field of that name, or null when the class carries none. */
     private static Field lookup(String name) {
         try {
             Field found = ItemRenderer.class.getDeclaredField(name);
             found.setAccessible(true);
             return found;
         } catch (NoSuchFieldException missing) {
-            throw new IllegalStateException("ItemRenderer carries no field " + name, missing);
+            return null;
         }
     }
 
