@@ -1040,6 +1040,8 @@ public class GrugModLoader {
             if (savedParticles == null) {
                 savedParticles = mc.options.particles().get();
                 mc.options.particles().set(ParticleStatus.MINIMAL);
+                // The setting only stops new spawns, so drop what is alive (#1272).
+                mc.particleEngine.clearParticles();
             }
         }
 

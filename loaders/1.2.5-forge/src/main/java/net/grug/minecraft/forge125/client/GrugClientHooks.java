@@ -251,6 +251,10 @@ public class GrugClientHooks implements ITickHandler {
         }
         savedParticleSetting = minecraft.gameSettings.particleSetting;
         minecraft.gameSettings.particleSetting = MINIMAL_PARTICLES;
+        // The setting only stops new spawns, so drop what is alive (#1272).
+        if (minecraft.effectRenderer != null) {
+            minecraft.effectRenderer.clearEffects(minecraft.theWorld);
+        }
     }
 
     /** Puts the particle setting back, and only if a run changed it. */
