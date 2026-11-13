@@ -7,7 +7,7 @@ pipe: Option[BlockEntity] = Option.new()
 # Whether the pedestal and the wall have been meshed again from the settled light yet.
 remeshed: bool = false
 
-# How many runner ticks in a row the world has answered settled. See the hold in tick().
+# How many runner ticks in a row the world has answered settled. See the hold in tick_any_side().
 settled_ticks: number = 0
 
 # The origin _setup built from, which the later steps build from too. get_origin answers from the
@@ -20,7 +20,7 @@ origin_z: number = 0
 # 0 while the straight run is on screen, 1 after the corner has replaced it.
 phase: number = 0
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()

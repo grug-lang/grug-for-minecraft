@@ -482,6 +482,9 @@ class SecondPlayerTest(unittest.TestCase):
         "buildcraft/tests/redstone_engine",
         "buildcraft/tests/redstone_engine_animation",
         "buildcraft/tests/redstone_engine_facings",
+        # The two wooden pipe captures #1096 promotes, which every leg requires.
+        "buildcraft/tests/wooden_pipe_items",
+        "buildcraft/tests/wooden_pipe_shapes",
         "coverage/tests/camera",
         # The snap's own server-side proof (#1161), required on every dedicated leg.
         "coverage/tests/test_origin_follows_the_test_player",

@@ -587,20 +587,25 @@ while :; do
         exit 1
       fi
     done
-    # The four wall-backed buildcraft captures #1161 promoted have to show as passed on the leg that
-    # can run them, which is 1.20.6-forge: its joined client matches the flat golden after the
-    # server half of the player snap and the particle pin, and that is what proves both. The other
-    # four legs list the ones their measured residue reaches in server-unsupported-tests.txt
-    # (b1.7.3-ornithe and a1.1.2_01 all four and 1.2.5-forge two of them, #1213 and #1092), so
-    # their servers skip those; the client-only run of every loader is where all four goldens are
-    # checked. Requiring them on the four legs would only restate an open rendering defect, so the
-    # list is per loader. Each compares against its single flat golden, so this leg fails in the
-    # test itself when its picture is off; this check catches one not running at all (an export
-    # reverted, or the loader listing it as unsupported) and passing quietly.
-    wall_backed_tests=""
+    # The wall-backed buildcraft captures have to show as passed, or a leg that skips one (its export
+    # reverted, or the loader listing it as unsupported) would still look green. Each compares
+    # against its single flat golden, so a leg whose joined client draws a different picture fails
+    # in the test itself; this check catches one not running at all and passing quietly.
+    # The four #1161 promoted are required on the leg that can run them, which is 1.20.6-forge: its
+    # joined client matches the flat golden after the server half of the player snap and the particle
+    # pin, and that is what proves both. The other four legs list the ones their measured residue
+    # reaches in server-unsupported-tests.txt (b1.7.3-ornithe and a1.1.2_01 all four and 1.2.5-forge
+    # two of them, #1213 and #1092), so their servers skip those; the client-only run of every loader
+    # is where all four goldens are checked. Requiring them on the four legs would only restate an
+    # open rendering defect, so the list is per loader.
+    # The two wooden pipe captures #1096 promotes are required on every leg, because no loader lists
+    # them yet: a leg whose joined capture differs fails in the test itself, and the dispatch that
+    # measures it then drops the name from that loader's arm here along with the entry that keeps it
+    # client-only there. Until then, a leg that skips one for any other reason fails here.
+    wall_backed_tests="buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
     case "$LOADER" in
       1.20.6-forge)
-        wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings"
+        wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
         ;;
     esac
     for wall_backed in $wall_backed_tests; do
