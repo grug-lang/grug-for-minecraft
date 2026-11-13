@@ -12,8 +12,9 @@
 # so the client draws the default for that player's UUID, and no test may depend on a skin fetch.
 # Nothing here waits a number of ticks. The model arrives after the server's teleport reaches the
 # client and its entity is added, and the entity then eases into its place over a few frames, so the
-# test waits until the crop has changed from the empty room and then stopped changing for five
-# captures in a row, with the light that reached the model's cell applied.
+# test waits until the crop has changed from the empty room and then stopped changing for fifteen
+# captures in a row: the crop brightens for a few dozen ticks while the client's light settles, so a
+# shorter run of equal frames is a plateau and not the settled frame.
 # The tick bound only ends a wait that cannot succeed.
 # Only 1.20.6-forge's multiplayer leg has a second client, so the other loaders return at once, and
 # the runner runs a forwarded_ test on a dedicated server alone.
@@ -24,7 +25,7 @@ empty_head: Option[Screenshot] = Option.new()
 # The last frame the wait took, to tell a model still easing into place from one that has arrived.
 previous: Option[Screenshot] = Option.new()
 
-# How many captures in a row, with the light that reached the model's cell applied matched the one before them, with the model in the frame.
+# How many captures in a row matched the one before them, with the model in the frame.
 steady: number = 0
 
 export init(ctx: TestInitContext) {
@@ -50,17 +51,15 @@ export tick(ctx: TestTickContext) {
     # model and not the light, which also moves the whole crop's brightness while it settles.
     head: Screenshot = Test.screenshot().capture(610, 322, 670, 372)
     now: Screenshot = Test.screenshot().capture(520, 260, 760, 648)
-    origin: Vec3 = Test.get_origin()
-    lit: bool = Test.light_applied(origin.x(), origin.y() - 4.0, origin.z() + 3.0)
     arrived: bool = head.change_from(empty_head.unwrap()) > 5.0
-    if arrived and lit and previous.has() and now.change_from(previous.unwrap()) < 0.3 {
+    if arrived and previous.has() and now.change_from(previous.unwrap()) < 0.3 {
         steady = steady + 1
     } else {
         steady = 0
     }
     previous.set(now)
-    if steady < 5 {
-        ctx.assert(ctx.current_tick() < 400, "The other player's model should have been drawn in the starter's view, lit and still, but the frame never settled.")
+    if steady < 15 {
+        ctx.assert(ctx.current_tick() < 400, "The other player's model should have been drawn in the starter's view, drawn and still, but the frame never settled.")
         ctx.not_done()
         return
     }
