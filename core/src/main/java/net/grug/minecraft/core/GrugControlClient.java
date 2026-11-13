@@ -252,6 +252,10 @@ public final class GrugControlClient {
 
             @Override
             public double reloadCount(String path, boolean loaderReloads) {
+                String problem = GrugModFileStates.clientPathProblem(path);
+                if (problem != null) {
+                    throw new IllegalArgumentException(problem);
+                }
                 return loaderReloads
                         ? GrugModsWatcher.loaderReloadCount(path)
                         : GrugModsWatcher.reportedChangeCount(path);

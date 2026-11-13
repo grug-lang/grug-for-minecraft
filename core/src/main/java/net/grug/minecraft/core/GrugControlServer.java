@@ -794,7 +794,6 @@ public final class GrugControlServer {
         return yesOrNo(result, "overlay_drawn");
     }
 
-    /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
     /**
      * Asks the starter's client whether its own copy of the block at the position shows the mining
      * crack over the block's own geometry (#1040).
@@ -823,6 +822,7 @@ public final class GrugControlServer {
         return number(GrugControlWire.CALL_RELOAD_COUNT, path, loaderReloads ? 1 : 0, 0, 0);
     }
 
+    /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
     private static boolean yesOrNo(byte result, String call) throws ControlException {
         if (result != 0 && result != 1) {
             throw failure("The client answered " + call + " with " + result + ", not 0 or 1.");
@@ -940,14 +940,17 @@ public final class GrugControlServer {
         }
     }
 
-    /** Why a forwarded mod file path cannot be sent, or null: the wire has to carry it whole. */
+    /**
+     * Why a forwarded mod file path cannot be sent, or null: the wire has to carry it whole, and it
+     * has to name a file under a mod's assets directory without leaving it.
+     */
     private static String modPathProblem(String path) {
         if (path == null || path.isEmpty()) return "The call names no mod file.";
         if (path.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                 > GrugControlWire.MAX_NAME) {
             return "The mod file's path is over " + GrugControlWire.MAX_NAME + " bytes.";
         }
-        return null;
+        return GrugModFileStates.clientPathProblem(path);
     }
 
     /** Why a forwarded key press carries what it cannot, or null. The key is the first number. */

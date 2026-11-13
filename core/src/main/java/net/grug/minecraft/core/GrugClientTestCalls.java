@@ -40,10 +40,13 @@ public final class GrugClientTestCalls {
 
         /** Puts the client's copy of a mod file into a state, and reports a failure. */
         public void modFileState(String path, String state) {
+            int index = net.grug.minecraft.grug.GrugModFileStates.indexOf(state);
+            if (index < 0) {
+                failed.accept("Test.set_mod_file_state: unknown state " + state);
+                return;
+            }
             try {
-                server.get()
-                        .modFileState(
-                                path, net.grug.minecraft.grug.GrugModFileStates.indexOf(state));
+                server.get().modFileState(path, index);
             } catch (GrugControlServer.ControlException e) {
                 failed.accept("Test.set_mod_file_state: " + e.getMessage());
             }
