@@ -837,6 +837,17 @@ while :; do
         exit 1
       fi
       require_second_player
+      # The player model capture (#1298) needs the server to have stood the second player in the
+      # starter's view, and its own PASS: a leg that skipped the move would capture an empty room
+      # and fail the golden, but a leg that skipped the test would say nothing at all.
+      if ! grep -qF '[GRUG CI] PASS coverage/tests/forwarded_player_model-Test.grug' "$SERVER_LOG"; then
+        echo "==> The run passed, but coverage/tests/forwarded_player_model-Test.grug did not run." >&2
+        exit 1
+      fi
+      if ! grep -qF '[GRUG CI] Put a second player ' "$SERVER_LOG"; then
+        echo "==> The server never put the second player in the starter's view, so the player model capture proved nothing." >&2
+        exit 1
+      fi
     fi
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0

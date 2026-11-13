@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugRunPlayers;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugTestState;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -46,6 +47,19 @@ public final class GrugServerRun {
      * radius so the player is outside it; eight blocks is all three.
      */
     static final int STRANGER_DISTANCE = 8;
+
+    /**
+     * How far in front of the starter a second player stands while the player model test runs
+     * (#1298): near enough to fill a crop of the frame, and far enough that the model, its name tag
+     * and the starter's own eye do not overlap.
+     */
+    static final double IN_VIEW_DISTANCE = 3.0;
+
+    /** The one test that wants a second player in the starter's view, by its file name. */
+    static final String PLAYER_MODEL_TEST = "forwarded_player_model-Test.grug";
+
+    /** Whether the second player is standing in the starter's view right now. */
+    private boolean strangerInView = false;
 
     /** The player as the snap found them, so the end of the test can put them back (#1161). */
     private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
@@ -121,6 +135,7 @@ public final class GrugServerRun {
         // this test's tick, and a test asserts on the tick after its click.
         GrugControlForge.server().applyClientWork();
         runner.tick(testPlayer);
+        followTheTestsView(server, testPlayer);
         if (runner.isFinished()) {
             stop(server);
         }
@@ -185,6 +200,51 @@ public final class GrugServerRun {
                             + STRANGER_DISTANCE
                             + " blocks from the starter, so a run that picked it would read another"
                             + " player's eye.");
+        }
+    }
+
+    /**
+     * Puts the second player in the starter's view for as long as the player model test is running,
+     * and back where {@link #moveStrangersAway} keeps them when it is not (#1298).
+     *
+     * <p>The test captures the starter's frame with the other player's model in it, which needs
+     * that player in front of the starter, and no grug call can move a player. Every other test
+     * wants the room to itself, because the goldens are captures of it, so the player is moved in
+     * after the test's first tick has taken its empty baseline and out again on the tick that
+     * finishes it. The decision is read from the runner's own state: the test is the current one,
+     * and it asked to run another tick.
+     */
+    private void followTheTestsView(MinecraftServer server, ServerPlayer starter) {
+        if (System.getenv("GRUG_CI_SECOND_PLAYER") == null) {
+            return;
+        }
+        String path = GrugTestState.currentTestPath;
+        boolean wanted =
+                path != null
+                        && path.endsWith(PLAYER_MODEL_TEST)
+                        && GrugTestState.testNotDone
+                        && !runner.isFinished();
+        if (wanted == strangerInView) {
+            return;
+        }
+        strangerInView = wanted;
+        if (!wanted) {
+            moveStrangersAway(server);
+            return;
+        }
+        double yaw = Math.toRadians(starter.getYRot());
+        double x = starter.getX() - Math.sin(yaw) * IN_VIEW_DISTANCE;
+        double z = starter.getZ() + Math.cos(yaw) * IN_VIEW_DISTANCE;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player == starter) {
+                continue;
+            }
+            player.teleportTo(
+                    player.serverLevel(), x, starter.getY(), z, starter.getYRot() + 180.0f, 0.0f);
+            System.out.println(
+                    "[GRUG CI] Put a second player "
+                            + IN_VIEW_DISTANCE
+                            + " blocks in front of the starter for the player model capture.");
         }
     }
 
