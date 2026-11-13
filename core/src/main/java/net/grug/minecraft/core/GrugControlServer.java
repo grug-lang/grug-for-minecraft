@@ -181,7 +181,7 @@ public final class GrugControlServer {
      * moves only when the screen or the window changes, so one batch answers every read the test
      * makes until something can have moved it: see {@link #screenRead}.
      */
-    private double[] geometry;
+    private volatile double[] geometry;
 
     private long geometryWorldRevision = Long.MIN_VALUE;
     private long geometryScreenRevision = Long.MIN_VALUE;
@@ -190,7 +190,7 @@ public final class GrugControlServer {
      * The identity the last {@link #screenOpen} answer named, 0 when it said no screen was open, so
      * a screen that opened, closed or was replaced by another one is noticed (#1094, #1289).
      */
-    private long screenIdentity;
+    private volatile long screenIdentity;
 
     /**
      * Counts the screen calls and disconnects since the last batch answer; the network thread's
