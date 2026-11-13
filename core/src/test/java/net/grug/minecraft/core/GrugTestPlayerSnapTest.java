@@ -27,6 +27,17 @@ class GrugTestPlayerSnapTest {
     }
 
     @Test
+    void aPinnedPlayerKeepsTheVelocityOfOneStandingOnTheGround() {
+        // Alpha and Beta tilt the first-person camera by atan(-velocityY * 0.2) * 15 degrees, so a
+        // pin that zeroed the velocity drew every joined capture 0.235 degrees (2 px at 1280x720)
+        // off the client-only golden (#1213). The value is a tick of gravity: velocityY -= 0.08 and
+        // then *= 0.98F, which the floor cancels in the next move.
+        assertEquals(-0.0784000015258789, GrugTestPlayerSnap.RESTING_VELOCITY_Y, 0.0);
+        double tilt = Math.atan(-GrugTestPlayerSnap.RESTING_VELOCITY_Y * 0.2) * 15;
+        assertTrue(tilt > 0.2 && tilt < 0.3, "the tilt a standing player's view has: " + tilt);
+    }
+
+    @Test
     void snapsTheLocalPlayerOnAClient() throws Throwable {
         AtomicInteger clientSnaps = new AtomicInteger();
         AtomicInteger serverSnaps = new AtomicInteger();

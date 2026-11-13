@@ -671,7 +671,7 @@ while :; do
     # loaders list them in server-unsupported-tests.txt and the client-only run checks the goldens.
     wall_backed_tests="buildcraft/tests/wooden_pipe_items"
     case "$LOADER" in
-      a1.1.2_01-ornithe|b1.7.3-ornithe) wall_backed_tests="" ;;
+      a1.1.2_01-ornithe|b1.7.3-ornithe) wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes" ;;
     esac
     case "$LOADER" in
       1.20.6-forge)

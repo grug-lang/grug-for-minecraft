@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -121,9 +122,12 @@ public final class GrugControlAlphaClient {
      * capture reads is one the client drew after that tick. That frame is still drawn from the eye:
      * {@code GameRenderer} interpolates between {@code lastY} and {@code y}, {@code
      * updatePositionAndAngles} writes both and {@code setPosition} moves the shape with them, the
-     * pin zeroes the velocity, and this version's {@code MobEntity.moveRelative} moves the player
-     * by the velocity the previous tick ended with and only then applies gravity, so the physics
-     * cannot carry a pinned player off the eye in the tick the pin ran in. See #1161 and #1193.
+     * pin holds the velocity at what a standing player has, {@link
+     * GrugTestPlayerSnap#RESTING_VELOCITY_Y}, which the floor cancels (zero would leave the view's
+     * tilt level where a standing player's is 0.235 degrees down, a 2 px shift of every capture,
+     * #1213), and this version's {@code MobEntity.moveRelative} moves the player by the velocity
+     * the previous tick ended with and only then applies gravity, so the physics cannot carry a
+     * pinned player off the eye in the tick the pin ran in. See #1161 and #1193.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         if (waited == 1 && (player.x != eye.x() || player.y != eye.y() || player.z != eye.z())) {
@@ -148,7 +152,7 @@ public final class GrugControlAlphaClient {
         }
         player.updatePositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
-        player.velocityY = 0.0;
+        player.velocityY = GrugTestPlayerSnap.RESTING_VELOCITY_Y;
         player.velocityZ = 0.0;
     }
 

@@ -29,6 +29,20 @@ public final class GrugTestPlayerSnap {
     private GrugTestPlayerSnap() {}
 
     /**
+     * The vertical velocity a player standing still on the ground has after each of its ticks: the
+     * gravity step Alpha and Beta apply after the move, {@code (0 - 0.08) * 0.98}, which the floor
+     * then cancels in the next move.
+     *
+     * <p>A client that pins its player at a capture's eye has to leave this value in the player,
+     * not zero. Those versions tilt the first-person camera by {@code atan(-velocityY * 0.2) * 15}
+     * degrees, smoothed from the velocity of every tick, so a standing player's view is tilted by
+     * 0.235 degrees and a pinned player whose velocity was zeroed is not. That is a uniform 2 px
+     * shift of the whole frame at 1280x720, and it was the whole residue between a joined client's
+     * capture and the flat golden a client-only run recorded (#1213).
+     */
+    public static final double RESTING_VELOCITY_Y = (0.0 - 0.08) * 0.98F;
+
+    /**
      * The coordinate the player is snapped to on one horizontal axis: the middle of the block they
      * stand in, so the room, the origin and a capture agree on where the player is.
      */

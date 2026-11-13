@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -125,18 +126,21 @@ public final class GrugControlBetaClient {
      * <p>It runs at the head of the client tick, before the world's own physics, and the frame a
      * capture reads is the one the client drew after that tick. That frame is still drawn from the
      * eye: {@code GameRenderer.transformCamera} interpolates between {@code lastY} and {@code y},
-     * {@code setPositionAndAngles} writes both, and the pin zeroes the velocity. This version's
-     * {@code MobEntity.moveRelative} moves the player by the velocity the previous tick ended with
-     * and only then applies gravity, so the physics cannot carry a pinned player off the eye in the
-     * tick the pin ran in, and that pair is the eye at every partial tick. ({@code prevX/Y/Z},
-     * which {@code World.tickEntity} and the position packets write, is not the camera's pair.) See
-     * #1193.
+     * {@code setPositionAndAngles} writes both, and the pin holds the velocity at what a standing
+     * player has, {@link GrugTestPlayerSnap#RESTING_VELOCITY_Y}, which the floor cancels (zero
+     * would also hold the position, but it would leave the view's tilt, {@code atan(-velocityY *
+     * 0.2) * 15} degrees, level where a standing player's is 0.235 degrees down: a 2 px shift of
+     * every capture, #1213). This version's {@code MobEntity.moveRelative} moves the player by the
+     * velocity the previous tick ended with and only then applies gravity, so the physics cannot
+     * carry a pinned player off the eye in the tick the pin ran in, and that pair is the eye at
+     * every partial tick. ({@code prevX/Y/Z}, which {@code World.tickEntity} and the position
+     * packets write, is not the camera's pair.) See #1193.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         player.setPositionAndAngles(
                 eye.x(), eye.y() - GrugTestOrigin.EYE_HEIGHT, eye.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
-        player.velocityY = 0.0;
+        player.velocityY = GrugTestPlayerSnap.RESTING_VELOCITY_Y;
         player.velocityZ = 0.0;
     }
 
