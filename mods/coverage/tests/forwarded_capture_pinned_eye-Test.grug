@@ -48,6 +48,9 @@ falling: Option[Screenshot] = Option.new()
 # air, 2 captures the wall from the air again and compares all three frames.
 step: number = 0
 
+# The y of the block the test removed from under the client.
+floor_y: number = 0
+
 export tick(ctx: TestTickContext) {
     if Test.loader_name() != "b1.7.3-ornithe" and Test.loader_name() != "a1.1.2_01-ornithe" {
         return
@@ -57,7 +60,7 @@ export tick(ctx: TestTickContext) {
         _wall_in_front_of(origin, "minecraft:cobblestone")
         _wait_for_the_wall(ctx)
         room.set(Test.screenshot().capture(200, 120, 1080, 320))
-        _remove_floor_under(origin)
+        floor_y = _remove_floor_under(origin)
         step = 1
         ctx.not_done()
         return
@@ -86,6 +89,15 @@ export tick(ctx: TestTickContext) {
             Test.stall(1000)
             camera = Test.camera()
             ctx.assert(camera.y() < eye - 1.0, "The joined client's own camera should drop below the room's eye once the block it stands on is removed, so the captures that follow are of a client that left the floor.")
+            # The pin lets go the moment the capture is taken, and the camera read below needs
+            # several round trips, during which the client's own physics would drop an unsupported
+            # client back off the eye by up to a block and a half (#1208). Putting the floor back
+            # under the eye first means a client the pin placed at the eye stays there, so the read
+            # does not depend on how long the round trips took, while a client the pin left at the
+            # torch floor or one eye height low still reads more than a block away.
+            level: Level = Test.get_client_level()
+            origin: Vec3 = Test.get_origin()
+            level.place_block(Math.floor(origin.x()), floor_y, Math.floor(origin.z()), "minecraft:stone")
         } else if camera.y() > eye - 1.0 {
             # A whole block, not the capture-eye tolerance: a pinned client sits at the eye, and a
             # client that has lost the block it stood on falls three blocks to the room's torch
@@ -148,7 +160,7 @@ local _wall_in_front_of(origin: Vec3, block_name: string) {
 # block holding the eye and the one the rest of the body is in are air, so the first block below
 # the eye is the block the room put under the feet; its top is where the feet stand. The room's
 # torch floor is three blocks further down, so the client lands there.
-local _remove_floor_under(origin: Vec3) {
+local _remove_floor_under(origin: Vec3) number {
     level: Level = Test.get_client_level()
     x: number = Math.floor(origin.x())
     z: number = Math.floor(origin.z())
@@ -158,4 +170,5 @@ local _remove_floor_under(origin: Vec3) {
         y = y - 1
     }
     level.place_block(x, y, z, "minecraft:air")
+    return y
 }
