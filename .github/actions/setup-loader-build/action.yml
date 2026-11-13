@@ -26,6 +26,17 @@ outputs:
   java21-path:
     description: JAVA_HOME of the JDK 21 this action installed.
     value: ${{ steps.java21.outputs.path }}
+  ornithe-server-key:
+    description: >-
+      The key the Ornithe dedicated server install entry is restored under, which the job that has
+      the directory writes back itself after its tests rather than through a post action (#1282).
+      Only the multiplayer job passes server-install, so no other job reads it.
+    value: ${{ steps.keys.outputs.ornithe-server }}
+  ornithe-cache-hit:
+    description: >-
+      Whether this job restored the Ornithe dedicated server install, in which case it has nothing
+      to write back.
+    value: ${{ steps.ornithe-server.outputs.cache-hit }}
 runs:
   using: composite
   steps:
@@ -399,18 +410,22 @@ runs:
     #
     # Only the multiplayer job runs that install, so only it has the directory. The step is gated by
     # server-install rather than by save, because that job passes save false to keep the Gradle
-    # entries to the build job and this entry is written by no other job. The restore is this step's
-    # main action, before the install the job runs next, and the save is its post action, at the
-    # job's end, after the install; a job whose install never completed, and whose leg therefore
-    # failed, saves nothing.
+    # entries to the build job and this entry is written by no other job. This step only restores it:
+    # the job saves it in a step of its own after its tests, because actions/cache's save is a post
+    # action pinned to success(), which the runner evaluates against the job's status at its end, so
+    # it skips exactly the leg whose install completed and whose suite then failed, and that leg's
+    # install is the one the next run needs (#1282). The step's own `if:` decides only whether the
+    # restore runs and has no bearing on the post action. The action's ornithe-cache-hit output is
+    # what tells the job's save step whether the entry is already there.
     #
     # Keyed on what decides what the install holds: the game version the installer is told (`-m`,
     # server-version.txt), the loader version passed to it and the OSL version, both from
     # gradle.properties, and run-multiplayer.sh, which holds the installer's version and the install
     # it writes. The OSL jar itself is fetched beside the install into mods/, so its version is an
-    # input of the layer rather than something the entry holds. Not this file: an edit of it must
-    # not orphan the entry, because a key can only be written by a job whose leg went green, which
-    # needs the host, and during an outage the entry is the only thing that starts the server (#196).
+    # input of the layer rather than something the entry holds. Not this file: an edit of it changes
+    # none of those inputs and installs nothing, while writing a new key still needs the host, which
+    # during an outage is the one thing missing and the entry is the only thing that starts the
+    # server (#196).
     # The prefix without the hash keeps the loader's previous entry reachable for the runs between a
     # rekey and the job that writes the new key. run-multiplayer.sh starts an entry only when its
     # marker is the hash this job computed, so a change to any input above is a miss that installs
@@ -420,9 +435,10 @@ runs:
     # It stays hot: the multiplayer job runs on a dispatch only (not on the Monday schedule, whose
     # event is a schedule), and the four-hourly main dispatch and the Sunday release dispatch both
     # run it, inside GitHub's seven-day unused cutoff.
-    - name: Cache the Ornithe dedicated server install
+    - name: Restore the Ornithe dedicated server install
+      id: ornithe-server
       if: inputs.server-install == 'true'
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: loaders/${{ inputs.loader }}/ornithe-server
         key: ${{ steps.keys.outputs.ornithe-server }}

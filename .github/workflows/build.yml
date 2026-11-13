@@ -1018,6 +1018,37 @@ jobs:
           GRUG_UPDATE_GOLDENS: ${{ inputs.update-goldens && '1' || '' }}
           GRUG_CI_STARTER_LEAVES: ${{ inputs.starter-leaves && matrix.loader == '1.20.6-forge' && '1' || '' }}
 
+      # The install is a toolchain nothing else can rebuild, and run-multiplayer.sh finishes it
+      # before the suite starts, so it is saved in a step of its own rather than by the cache step's
+      # post action, which actions/cache pins to success() and which therefore skipped exactly the
+      # red legs whose install the next run needed (#1282). The three checks are the ones
+      # run-multiplayer.sh makes before it reuses an entry, so an install killed partway, or a
+      # download that wrote nothing, saves nothing, and a leg that restored the entry writes no key
+      # that is already there.
+      - name: Check the Ornithe dedicated server install
+        id: ornithe-install
+        if: (!cancelled()) && (matrix.loader == 'b1.7.3-ornithe' || matrix.loader == 'a1.1.2_01-ornithe')
+        run: |
+          install="loaders/${{ matrix.loader }}/ornithe-server"
+          marker=""
+          if [ -f "${install}/.grug-server-install" ]; then
+            marker=$(tr -d ' \n\r' < "${install}/.grug-server-install")
+          fi
+          complete=false
+          if [ "${marker}" = "${GRUG_ORNITHE_SERVER_HASH}" ] &&
+            [ -s "${install}/server.jar" ] &&
+            [ -s "${install}/fabric-server-launch.jar" ]; then
+            complete=true
+          fi
+          echo "complete=${complete}" >> "$GITHUB_OUTPUT"
+
+      - name: Save the Ornithe dedicated server install
+        if: (!cancelled()) && (matrix.loader == 'b1.7.3-ornithe' || matrix.loader == 'a1.1.2_01-ornithe') && steps.setup.outputs.ornithe-cache-hit != 'true' && steps.ornithe-install.outputs.complete == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: loaders/${{ matrix.loader }}/ornithe-server
+          key: ${{ steps.setup.outputs.ornithe-server-key }}
+
       # What the test-control channel did (#1040), from both ends, so a reader of the job log sees the
       # round trips and the injected faults without opening the artifact.
       - name: The test-control channel's log lines
