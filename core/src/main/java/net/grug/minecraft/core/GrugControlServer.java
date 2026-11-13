@@ -144,13 +144,13 @@ public final class GrugControlServer {
 
     /**
      * Whether the server thread owes itself a drain: a forwarded call can have left the server a
-     * packet to read (#1094), or the starter's client asked for a give (#1280). It has two writers,
-     * neither of which is the thread that reads it. The server thread writes it in {@link
-     * #forward}, inside a test's tick, because that call can have made the client send a packet.
-     * The connection's network thread writes it in {@link #onMessage} when a give arrives, because
-     * a give changes the world and only the server thread may apply it, so the give has to bring
-     * that thread here. It is volatile for the second writer, and read by {@link #applyClientWork}
-     * on the server thread between ticks, which is the side that pays the drain.
+     * packet to read (#1094), or the starter's client asked for a give (#1280). It is set from two
+     * threads and cleared on one. The server thread sets it in {@link #forward}, inside a test's
+     * tick, because that call can have made the client send a packet. The connection's network
+     * thread sets it in {@link #onMessage} when a give arrives, because a give changes the world
+     * and only the server thread may apply it, so the give has to bring that thread here. The
+     * server thread clears it in {@link #applyClientWork}, between ticks, which is the side that
+     * pays the drain. It is volatile for the network thread's write.
      */
     private volatile boolean clientWorkPending;
 
