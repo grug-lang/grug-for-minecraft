@@ -65,10 +65,67 @@ public final class GrugModFileStates {
      */
     public static void setUnchecked(File modsDir, String relativePath, String state) {
         try {
+            clientResource(modsDir, relativePath);
             set(modsDir, relativePath, state);
         } catch (IOException | IllegalArgumentException e) {
             throw new IllegalStateException("set_mod_file_state " + relativePath + ": " + e, e);
         }
+    }
+
+    /**
+     * Why {@code path} is not a path a server may forward, or null: a relative path of plain
+     * segments under a mod's {@code assets/} directory. A parent or empty segment, a backslash, a
+     * NUL or a leading slash could name a file outside the mods directory once resolved.
+     */
+    public static String clientPathProblem(String path) {
+        if (path == null || path.isEmpty()) {
+            return "The call names no mod file.";
+        }
+        if (path.indexOf('\\') >= 0 || path.indexOf('\0') >= 0 || path.startsWith("/")) {
+            return "The mod file path " + path + " is not a plain relative path.";
+        }
+        for (String segment : path.split("/", -1)) {
+            if (segment.isEmpty() || segment.equals(".") || segment.equals("..")) {
+                return "The mod file path " + path + " has an empty or relative segment.";
+            }
+        }
+        if (!GrugModsWatcher.isClientResource(path)) {
+            return "The mod file path " + path + " is not under <mod>/assets/.";
+        }
+        return null;
+    }
+
+    /**
+     * The file a forwarded client resource path names, which is proven to stay inside {@code
+     * modsDir}: the syntax is checked, the nearest existing ancestor of the resolved path has to
+     * resolve, through symbolic links, to somewhere under the directory's own real path, which is
+     * compared component-wise, so a sibling that shares its prefix is outside.
+     *
+     * @throws IllegalArgumentException when the path leaves the directory
+     */
+    static Path clientResource(File modsDir, String path) throws IOException {
+        String problem = clientPathProblem(path);
+        if (problem != null) {
+            throw new IllegalArgumentException(problem);
+        }
+        Path base = modsDir.toPath().toAbsolutePath().normalize();
+        Path target = base.resolve(path).normalize();
+        // The syntax check has already refused every parent segment, so the lexical path stays
+        // under the directory; a link or an absolute path on another platform does not.
+        if (!existingReal(target).startsWith(existingReal(base))) {
+            throw new IllegalArgumentException(
+                    "The mod file path " + path + " leaves the mods directory.");
+        }
+        return target;
+    }
+
+    /** The real path of the nearest ancestor of {@code path} that exists, itself included. */
+    private static Path existingReal(Path path) throws IOException {
+        Path existing = path;
+        while (!Files.exists(existing)) {
+            existing = existing.getParent();
+        }
+        return existing.toRealPath();
     }
 
     /** What the {@code "invalid"} state puts at the top of a file, which the compiler rejects. */

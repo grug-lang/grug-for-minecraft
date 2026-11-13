@@ -1829,6 +1829,78 @@ class GrugControlTest {
     }
 
     @Test
+    void aForwardedModFilePathCannotLeaveTheClientsModsDirectory(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        java.nio.file.Path mods = java.nio.file.Files.createDirectories(root.resolve("mods"));
+        // A sibling that shares the directory's name as a prefix, and a file outside it.
+        java.nio.file.Path evil =
+                java.nio.file.Files.createDirectories(root.resolve("mods-evil/assets"));
+        java.nio.file.Path victim = evil.resolve("victim.png");
+        java.nio.file.Files.writeString(victim, "keep");
+        java.nio.file.Path outside = root.resolve("outside.png");
+        java.nio.file.Files.writeString(outside, "keep");
+        // A link inside the mods tree that points out of it.
+        java.nio.file.Files.createDirectories(mods.resolve("m"));
+        java.nio.file.Files.createSymbolicLink(mods.resolve("m/assets"), evil);
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) -> mods.toFile());
+        GrugControlClient.Caller caller = GrugControlClient.adapterCaller(() -> adapter);
+        int swapped = net.grug.minecraft.grug.GrugModFileStates.indexOf("deleted");
+
+        for (String path :
+                new String[] {
+                    "x/assets/../../outside.png",
+                    "x/assets/../../../mods-evil/assets/victim.png",
+                    "/" + outside,
+                    "x\\assets\\a.png",
+                    "../mods-evil/assets/victim.png",
+                    "m/assets//victim.png",
+                    "m/other/a.png",
+                    "m/assets/./victim.png"
+                }) {
+            assertThrows(RuntimeException.class, () -> caller.modFileState(path, swapped), path);
+            assertThrows(RuntimeException.class, () -> caller.reloadCount(path, false), path);
+            assertNotNull(
+                    GrugControlServer.callProblem(
+                            GrugControlWire.CALL_MOD_FILE_STATE, path, 0, 0, 0),
+                    path);
+            assertNotNull(
+                    GrugControlServer.callProblem(GrugControlWire.CALL_RELOAD_COUNT, path, 0, 0, 0),
+                    path);
+        }
+        // Well formed, but the link under the mods tree leads out of it, so only the client's
+        // resolution of the path can refuse it.
+        assertThrows(
+                IllegalStateException.class,
+                () -> caller.modFileState("m/assets/victim.png", swapped));
+        assertNotNull(net.grug.minecraft.grug.GrugModFileStates.clientPathProblem(null));
+        assertNotNull(net.grug.minecraft.grug.GrugModFileStates.clientPathProblem(""));
+        assertNotNull(net.grug.minecraft.grug.GrugModFileStates.clientPathProblem("m/assets/a\0"));
+        assertNull(net.grug.minecraft.grug.GrugModFileStates.clientPathProblem("m/assets/a.png"));
+        assertEquals("keep", java.nio.file.Files.readString(victim));
+        assertEquals("keep", java.nio.file.Files.readString(outside));
+        assertTrue(
+                java.nio.file.Files.notExists(root.resolve("mods-evil/assets/victim.png.grugbak")));
+    }
+
+    @Test
+    void aForwardedStateTheServerDoesNotKnowIsReportedNotSentAsMinusOne() {
+        ScreenCalls client = new ScreenCalls();
+        Loopback loop = wireCalls(1000, client);
+        loop.client.beginRun();
+        List<String> failed = new ArrayList<>();
+        GrugClientTestCalls.Forwarded forwarded =
+                new GrugClientTestCalls.Forwarded(() -> loop.server, failed::add);
+        forwarded.modFileState("coverage/assets/a.png", "bogus");
+        assertEquals(List.of("Test.set_mod_file_state: unknown state bogus"), failed);
+        assertTrue(client.seen.isEmpty(), client.seen.toString());
+    }
+
+    @Test
     void theMiningCrackAndTheModFileCallsAreAskedOfTheJoinedClientAndAnswered() {
         ScreenCalls client = new ScreenCalls();
         Loopback loop = wireCalls(1000, client);
@@ -1882,7 +1954,8 @@ class GrugControlTest {
                 GrugControlServer.callProblem(
                         GrugControlWire.CALL_MINING_CRACK, "", Double.NaN, 2, 3));
         assertNull(
-                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "a/b", 4, 0, 0));
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_MOD_FILE_STATE, "a/assets/b", 4, 0, 0));
         assertNotNull(
                 GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "", 0, 0, 0));
         assertNotNull(
@@ -1891,15 +1964,23 @@ class GrugControlTest {
                 GrugControlServer.callProblem(
                         GrugControlWire.CALL_MOD_FILE_STATE, longPath, 0, 0, 0));
         assertNotNull(
-                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "a", -1, 0, 0));
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_MOD_FILE_STATE, "a/assets/b", -1, 0, 0));
         assertNotNull(
-                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "a", 5, 0, 0));
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_MOD_FILE_STATE, "a/assets/b", 5, 0, 0));
         assertNotNull(
-                GrugControlServer.callProblem(GrugControlWire.CALL_MOD_FILE_STATE, "a", 0.5, 0, 0));
-        assertNull(GrugControlServer.callProblem(GrugControlWire.CALL_RELOAD_COUNT, "a", 0, 0, 0));
-        assertNull(GrugControlServer.callProblem(GrugControlWire.CALL_RELOAD_COUNT, "a", 1, 0, 0));
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_MOD_FILE_STATE, "a/assets/b", 0.5, 0, 0));
+        assertNull(
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_RELOAD_COUNT, "a/assets/b", 0, 0, 0));
+        assertNull(
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_RELOAD_COUNT, "a/assets/b", 1, 0, 0));
         assertNotNull(
-                GrugControlServer.callProblem(GrugControlWire.CALL_RELOAD_COUNT, "a", 2, 0, 0));
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_RELOAD_COUNT, "a/assets/b", 2, 0, 0));
         assertNotNull(
                 GrugControlServer.callProblem(GrugControlWire.CALL_RELOAD_COUNT, "", 0, 0, 0));
     }
