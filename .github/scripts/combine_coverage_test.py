@@ -826,6 +826,22 @@ class ServerExecTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["INSTRUCTION_MISSED"], "4")
 
+    def test_a_server_dropped_segment_reaches_the_rescue_input(self):
+        # The server writes the other mods' segments as .dropped, and the class initializer rescue
+        # reads them as the second report's extra input (#1309): globbing only *.exec left them out.
+        server = self.server_exec()
+        dropped = server.parent / "005-other.tests.x-Test.grug.dropped"
+        dropped.write_bytes(b"")
+        self.assertEqual(self.run_main(), 0)
+        everything = [
+            execs
+            for execs, csv_path in self.report_calls
+            if csv_path.parent.name == "everything-reports" and csv_path.stem == "1.20.6-forge"
+        ]
+        self.assertEqual(len(everything), 1)
+        self.assertIn(dropped, everything[0])
+        self.assertIn(server, everything[0])
+
 
 if __name__ == "__main__":
     unittest.main()

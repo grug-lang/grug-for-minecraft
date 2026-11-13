@@ -217,6 +217,7 @@ def filtered_classes(source: Path, destination: Path) -> Path:
 def discover_runners(artifacts: Path) -> dict[str, dict]:
     runners: dict[str, dict] = {}
     server_execs: dict[str, list[Path]] = {}
+    server_dropped: dict[str, list[Path]] = {}
     for entry in sorted(artifacts.iterdir()):
         if not entry.is_dir():
             continue
@@ -231,6 +232,10 @@ def discover_runners(artifacts: Path) -> dict[str, dict]:
         elif entry.name.startswith(SERVER_EXEC):
             runner = entry.name[len(SERVER_EXEC) :]
             server_execs.setdefault(runner, []).extend(sorted(entry.glob("*.exec")))
+            # The other mods' segments of the server are .dropped like the client's, and
+            # rescue_class_initializers reads them to count a class initializer that first ran
+            # there (#1309).
+            server_dropped.setdefault(runner, []).extend(sorted(entry.glob("*.dropped")))
     # The dedicated server's exec data is appended to that loader's list rather than reported on its
     # own (#1027): the runner then has one report over its classes, in which the server's coverage
     # and the client's are a union. A second report would be summed with the first by sum_csvs,
@@ -253,6 +258,10 @@ def discover_runners(artifacts: Path) -> dict[str, dict]:
         # Loud enough to tell a coverage job that held the artifacts from one that never got them,
         # since a leg that recorded nothing and a job that downloaded nothing look the same.
         print(f"appending {len(execs)} dedicated-server exec file(s) to {runner}'s report")
+        dropped = server_dropped.get(runner, [])
+        info["dropped"] = [*info.get("dropped", []), *dropped]
+        if dropped:
+            print(f"appending {len(dropped)} dedicated-server dropped file(s) to {runner}'s report")
     return runners
 
 
