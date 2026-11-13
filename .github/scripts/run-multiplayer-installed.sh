@@ -10,9 +10,10 @@
 # which is what GRUG_MULTIPLAYER_BOOT_ONLY=1 used to mean in run-multiplayer.sh (#166), kept here
 # as the only mode. Neither side runs with GRUG_CI, so no test runs and no coverage is recorded.
 #
-# Which loaders: the two Ornithe loaders, whose server Ornithe's installer sets up, and 1.20.6-forge,
-# whose server is Forge's own installer's. b1.7.3-stationapi and 1.2.5-forge have no server a player
-# installs from a launcher or an installer, so they stay on run-multiplayer.sh's development server.
+# Which loaders: the two Ornithe loaders, whose server Ornithe's installer sets up. 1.20.6-forge's
+# universal jar does not load on a Forge server yet (#1314), and b1.7.3-stationapi and 1.2.5-forge
+# have no server a player installs from a launcher or an installer, so they stay on
+# run-multiplayer.sh's development server.
 #
 # Needs GRUG_UNIVERSAL_JAR, the jar .github/scripts/universal_jar.py assembled, and a display for the
 # client, so run it under xvfb-run.
@@ -29,9 +30,9 @@ cd "$REPO_ROOT"
 
 LOADER_DIR="loaders/${LOADER}"
 case "$LOADER" in
-  a1.1.2_01-ornithe | b1.7.3-ornithe | 1.20.6-forge) ;;
+  a1.1.2_01-ornithe | b1.7.3-ornithe) ;;
   *)
-    echo "No installed dedicated server for ${LOADER}: only a1.1.2_01-ornithe, b1.7.3-ornithe and 1.20.6-forge have one." >&2
+    echo "No installed dedicated server for ${LOADER}: only a1.1.2_01-ornithe and b1.7.3-ornithe have one." >&2
     exit 2
     ;;
 esac
@@ -53,13 +54,8 @@ CLIENT_LOG="${WORK}/client.log"
 PORT=25565
 READY_RE='Done( \(.*\))?! For help, type "help"'
 ORNITHE_INSTALLER_VERSION=0.5.4
-# What each server prints once grug is loaded in it: the Ornithe loaders' mod loader reports the files
-# it compiled, and Forge's server has no such line, but it enables the grug gametest namespace only
-# for a grug mod it loaded.
+# What the Ornithe loaders' mod loader prints once grug has compiled its files in the server.
 LOADED_RE='Compiled [0-9]+ grug files successfully'
-if [ "$LOADER" = "1.20.6-forge" ]; then
-  LOADED_RE='Enabled Gametest Namespaces: \[grug\]'
-fi
 crash_re='Uncaught exception in thread "Server thread"|Exception in thread "main"|Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to|Broken grug invariant|Failed to start the minecraft server|panicked at .*\.rs:[0-9]+:[0-9]+'
 
 # A property from the loader's gradle.properties, which is where its versions are pinned.
@@ -123,10 +119,8 @@ simulation-distance=4
 max-tick-time=-1
 spawn-protection=0
 PROPS
-if [ "$LOADER" != "1.20.6-forge" ]; then
-  # The old servers spawn mobs and kick a player they see floating, which the boot has no use for.
-  printf 'spawn-monsters=false\nspawn-animals=false\nallow-flight=true\n' >> "${SERVER_DIR}/server.properties"
-fi
+# The old servers spawn mobs and kick a player they see floating, which the boot has no use for.
+printf 'spawn-monsters=false\nspawn-animals=false\nallow-flight=true\n' >> "${SERVER_DIR}/server.properties"
 
 # The coverage fixtures and the bundled mods' state, where a player puts a mod they downloaded and
 # where the first run installs the bundled mods from the jar, as launch-production.sh does.
@@ -176,38 +170,13 @@ PY
   server_pid=$!
 }
 
-install_forge_server() {
-  local minecraft forge version installer
-  minecraft=$(property minecraft_version) || return 1
-  forge=$(property forge_version) || return 1
-  version="${minecraft}-${forge}"
-  installer="${WORK}/forge-${version}-installer.jar"
-  curl --fail --silent --show-error --location --retry 3 --retry-delay 10 --retry-all-errors \
-    "https://maven.minecraftforge.net/net/minecraftforge/forge/${version}/forge-${version}-installer.jar" \
-    -o "$installer" || return 1
-  echo "==> Installing the Forge server ${version}"
-  (cd "$SERVER_DIR" && java -jar "$installer" --installServer) || return 1
-  local args="libraries/net/minecraftforge/forge/${version}/unix_args.txt"
-  if [ ! -s "${SERVER_DIR}/${args}" ]; then
-    echo "==> The Forge installer wrote no ${args}." >&2
-    return 1
-  fi
-  echo "==> Starting the Forge server from the universal jar"
-  (cd "$SERVER_DIR" && exec setsid java "@${args}" nogui) >>"$SERVER_LOG" 2>&1 &
-  server_pid=$!
-}
-
 : > "$SERVER_LOG"
 : > "$CLIENT_LOG"
 tail -n +1 -F "$SERVER_LOG" 2>/dev/null | sed -u 's/^/[server] /' &
 server_tail_pid=$!
 
 start_seconds=$SECONDS
-if [ "$LOADER" = "1.20.6-forge" ]; then
-  install_forge_server >>"$SERVER_LOG" 2>&1 || { echo "==> Installing the dedicated server of ${LOADER} failed." >&2; exit 1; }
-else
-  install_ornithe_server >>"$SERVER_LOG" 2>&1 || { echo "==> Installing the dedicated server of ${LOADER} failed." >&2; exit 1; }
-fi
+install_ornithe_server >>"$SERVER_LOG" 2>&1 || { echo "==> Installing the dedicated server of ${LOADER} failed." >&2; exit 1; }
 echo "==> The server install took $((SECONDS - start_seconds)) s."
 
 server_deadline=$((SECONDS + ${GRUG_CI_SERVER_TIMEOUT:-300}))
@@ -240,7 +209,7 @@ client_tail_pid=$!
 deadline=$((SECONDS + ${GRUG_CI_RUN_TIMEOUT:-1200}))
 while :; do
   if grep -qE "$LOADED_RE" "$SERVER_LOG" \
-    && grep -qE 'logged in with entity id' "$SERVER_LOG"; then
+    && grep -qE ' logged in' "$SERVER_LOG"; then
     echo "==> grug loaded in the dedicated server from the universal jar, and a client installed with the same jar joined it after $((SECONDS - client_start)) s of client install and boot."
     exit 0
   fi
