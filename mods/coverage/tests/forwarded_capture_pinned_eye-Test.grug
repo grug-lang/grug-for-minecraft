@@ -114,6 +114,16 @@ export tick(ctx: TestTickContext) {
             # shift every frame shares.
             pinned: Vec3 = Test.camera()
             ctx.assert(pinned.y() > eye - 1.0 and pinned.y() < eye + 1.0, "The pin should leave the client's camera at the room's eye when the capture is taken, not one eye height away from it.")
+            # The support came back for that read only. Taking it out again and waiting for the fall
+            # leaves the second capture window to the pin alone, so a pin that holds the first window
+            # and not the second still fails here (CodeRabbit on #1315).
+            second_level: Level = Test.get_client_level()
+            second_origin: Vec3 = Test.get_origin()
+            second_level.place_block(Math.floor(second_origin.x()), floor_y, Math.floor(second_origin.z()), "minecraft:air")
+            Test.world_settled()
+            Test.stall(1000)
+            fell: Vec3 = Test.camera()
+            ctx.assert(fell.y() < eye - 1.0, "The joined client should fall off the room's eye again once the restored block is removed, so the second capture is of a client the pin has to lift.")
         }
         step = 2
         ctx.not_done()
