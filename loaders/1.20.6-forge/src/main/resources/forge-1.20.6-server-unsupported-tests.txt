@@ -43,3 +43,8 @@ coverage/tests/hook_forced_normalization-Test.grug
 # golden in 5967 of 12672 pixels (#1099, #1137). coverage/tests/hook_forced_normalization-Test.grug
 # stays the client-only proof that this loader's item draw pins the state off.
 jei/tests/item_list_forced_normalization-Test.grug
+#
+# coverage_frame and coverage_render, promoted to tick_any_side by #1092 for b1.7.3-stationapi. Dispatch 43465548202 failed coverage_frame on this leg in 2800 of 44800 pixels, the wall's bottom 10 rows
+# (#1092), and coverage_render is unmeasured behind it. The client-only run still checks both.
+coverage/tests/coverage_frame-Test.grug
+coverage/tests/coverage_render-Test.grug

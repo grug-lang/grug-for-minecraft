@@ -675,6 +675,11 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         }
         while (world.doLightingUpdates()) {}
         for (int[] region : regions) {
+            // A chunk this server never loaded is an empty one with no block array, which a region
+            // packet cannot be made of, and the client holds no light for it either.
+            if (world.getChunk(region[0] >> 4, region[2] >> 4).blocks == null) {
+                continue;
+            }
             ((ServerPlayerEntity) starter)
                     .networkHandler.sendPacket(
                             new ChunkDataS2CPacket(
