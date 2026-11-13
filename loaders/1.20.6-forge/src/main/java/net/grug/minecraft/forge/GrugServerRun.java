@@ -156,7 +156,7 @@ public final class GrugServerRun {
      * its own keeps them where they are.
      */
     private static void moveStrangersAway(MinecraftServer server) {
-        if (!"true".equals(System.getenv("GRUG_CI_SECOND_PLAYER"))) {
+        if (System.getenv("GRUG_CI_SECOND_PLAYER") == null) {
             return;
         }
         Object starter = GrugControlForge.server().starter();
