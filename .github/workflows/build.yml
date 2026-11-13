@@ -1086,8 +1086,8 @@ jobs:
   # `production` job installs one, with the same jar, which joins it. It is a boot-and-join check and
   # not the suite, because the development-run legs above already prove the behaviour and this one is
   # about the jar (maintainer's decision of 2026-11-03). It runs on a dispatch and on the weekly
-  # schedule, never on a pull request or a push. b1.7.3-stationapi and 1.2.5-forge have no server a
-  # player installs from a launcher or an installer, so they have no leg here.
+  # schedule, never on a pull request or a push. 1.20.6-forge waits for #1314, and b1.7.3-stationapi and
+  # 1.2.5-forge have no server a player installs from a launcher or an installer.
   multiplayer-installed:
     name: ${{ matrix.loader }} installed server and client
     if: |
@@ -1101,7 +1101,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        loader: [a1.1.2_01-ornithe, b1.7.3-ornithe, 1.20.6-forge]
+        loader: [a1.1.2_01-ornithe, b1.7.3-ornithe]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
