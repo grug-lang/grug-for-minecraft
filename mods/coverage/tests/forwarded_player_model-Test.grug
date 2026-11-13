@@ -24,6 +24,9 @@ empty_head: Option[Screenshot] = Option.new()
 
 # The last frame the wait took, to tell a model still easing into place from one that has arrived.
 previous: Option[Screenshot] = Option.new()
+p_tag: Option[Screenshot] = Option.new()
+p_torso: Option[Screenshot] = Option.new()
+p_legs: Option[Screenshot] = Option.new()
 
 # How many captures in a row matched the one before them, with the model in the frame.
 steady: number = 0
@@ -50,28 +53,31 @@ export tick(ctx: TestTickContext) {
     # The head is black against a brown wall, so the first change in this part of the crop is the
     # model and not the light, which also moves the whole crop's brightness while it settles.
     head: Screenshot = Test.screenshot().capture(610, 322, 670, 372)
+    tag: Screenshot = Test.screenshot().capture(520, 260, 760, 310)
+    torso: Screenshot = Test.screenshot().capture(580, 400, 710, 490)
+    legs: Screenshot = Test.screenshot().capture(590, 500, 700, 648)
     now: Screenshot = Test.screenshot().capture(520, 260, 760, 648)
-    arrived: bool = head.change_from(empty_head.unwrap()) > 5.0
-    if arrived and previous.has() and now.change_from(previous.unwrap()) < 0.3 {
-        steady = steady + 1
-    } else {
-        steady = 0
-    }
     if ctx.current_tick() > 150 {
-        d: number = now.change_from(previous.unwrap())
-        h: number = head.change_from(empty_head.unwrap())
-        if d >= 0.3 {
-            if d >= 3.0 {
-                ctx.assert(false, "DIAG consecutive change at or above 3 percent")
-            }
-            ctx.assert(false, "DIAG consecutive change between 0.3 and 3 percent")
+        if tag.change_from(p_tag.unwrap()) > 0.0 {
+            ctx.assert(false, "DIAG the tag strip changed")
         }
-        if h <= 5.0 {
-            ctx.assert(false, "DIAG head change at most 5")
+        if head.change_from(previous.unwrap()) > 0.0 {
+            ctx.assert(false, "DIAG the head changed")
         }
-        ctx.assert(false, "DIAG consecutive change under 0.3 and head over 5, so steady counted")
+        if torso.change_from(p_torso.unwrap()) > 0.0 {
+            ctx.assert(false, "DIAG the torso changed")
+        }
+        if legs.change_from(p_legs.unwrap()) > 0.0 {
+            ctx.assert(false, "DIAG the legs changed")
+        }
+        ctx.assert(false, "DIAG no part changed, only the margins")
     }
-    previous.set(now)
+    p_tag.set(tag)
+    p_torso.set(torso)
+    p_legs.set(legs)
+    previous.set(head)
+    ctx.not_done()
+    return
     if steady < 15 {
         ctx.assert(ctx.current_tick() < 400, "The other player's model should have been drawn in the starter's view, drawn and still, but the frame never settled.")
         ctx.not_done()
