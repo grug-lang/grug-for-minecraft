@@ -296,10 +296,12 @@ def jacoco_report(
             command += ["--sourcefiles", str(source)]
     command += ["--csv", str(csv_path), "--xml", str(xml_path)]
     result = subprocess.run(
-        command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        command, check=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
     )
-    # The CLI's own output stays in the log, as it did when it wrote to the terminal.
+    # The CLI's own output stays in the log, as it did when it wrote to the terminal, and a failing
+    # run's output is the one that says why, so it is printed before the failure is raised.
     print(result.stdout, end="")
+    result.check_returncode()
     return sorted(set(DOES_NOT_MATCH.findall(result.stdout)))
 
 
