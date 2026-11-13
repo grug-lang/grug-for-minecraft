@@ -102,3 +102,11 @@ buildcraft/tests/cobblestone_pipe_shapes-Test.grug
 buildcraft/tests/redstone_engine-Test.grug
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
+#
+# The two wooden pipe captures #1096 promoted to tick_any_side. Dispatch 43422357886 failed
+# wooden_pipe_items' capture against this loader's flat golden in 14250 of 44800 pixels, the same
+# whole-frame joined-client difference #1213 tracks for the four above, and the leg stops at its
+# first failure, so wooden_pipe_shapes is unmeasured and listed with it. The client-only run of
+# this loader still runs both, which is where their goldens are checked.
+buildcraft/tests/wooden_pipe_items-Test.grug
+buildcraft/tests/wooden_pipe_shapes-Test.grug

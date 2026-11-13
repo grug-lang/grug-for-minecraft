@@ -52,3 +52,9 @@ buildcraft/tests/cobblestone_pipe_shapes-Test.grug
 buildcraft/tests/redstone_engine-Test.grug
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
+#
+# wooden_pipe_shapes, which #1096 promoted to tick_any_side. Dispatch 43422357886 failed its
+# wooden_pipe_straight capture in 5074 of 115200 pixels, the server-versus-client difference #1092
+# tracks. wooden_pipe_items passed on this server in the same run, so it is not listed. The
+# client-only run of this loader still checks the golden.
+buildcraft/tests/wooden_pipe_shapes-Test.grug
