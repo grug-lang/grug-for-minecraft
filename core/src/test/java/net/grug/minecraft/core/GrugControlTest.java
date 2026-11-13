@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import net.grug.minecraft.grug.Vec3;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -18,6 +19,9 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
 
@@ -794,6 +798,10 @@ class GrugControlTest {
         GrugControlServer.ControlException e =
                 failFrom((server) -> server.onMessage(null, GrugControlWire.answerError(1, "x")));
         assertTrue(e.getMessage().contains("could not identify"), e.getMessage());
+        // A malformed message cannot be told apart from an answer, so it fails what waits, as it
+        // always did. A decodable message that is not an answer waits for nothing and is dropped.
+        e = failFrom((server) -> server.onMessage(null, new byte[] {99}));
+        assertTrue(e.getMessage().contains("malformed control message"), e.getMessage());
     }
 
     @Test
@@ -1516,6 +1524,11 @@ class GrugControlTest {
         // A give and an answer are taken on the connection's reader thread, so neither waits for
         // the game thread to reach its connection drain; everything else waits for the game thread,
         // and a start must, because the player of a connection is learnt there (#1280).
+        //
+        // These assertions pin the wire's predicate, not a loader's use of it: the onRead method
+        // that consults it is @GrugGenerated in each loader and is not on core's test classpath, so
+        // nothing here reaches the reader-thread path. The dispatch-only multiplayer job is the
+        // real regression guard, since it runs a give through a live server and client (#1288).
         assertTrue(GrugControlWire.handledOnRead(GrugControlWire.GIVE_REQUEST));
         assertTrue(GrugControlWire.handledOnRead(GrugControlWire.ANSWER_ERROR));
         assertTrue(GrugControlWire.handledOnRead(GrugControlWire.ANSWER_CHUNK));
@@ -1524,6 +1537,7 @@ class GrugControlTest {
         assertFalse(GrugControlWire.handledOnRead(GrugControlWire.RUN_START));
         assertFalse(GrugControlWire.handledOnRead(GrugControlWire.RUN_END));
         assertFalse(GrugControlWire.handledOnRead(GrugControlWire.CALL_REQUEST));
+        assertFalse(GrugControlWire.handledOnRead(GrugControlWire.CAPTURE_REQUEST));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_OVERLAY_DRAWN));
         assertThrows(
                 IllegalArgumentException.class,
@@ -1787,7 +1801,16 @@ class GrugControlTest {
     @Test
     void aGiveTheJoinedClientSendsIsAppliedOnTheNextDrain() {
         Loopback loop = wireCalls(1000, new ScreenCalls());
+        // A give is taken on the connection's reader thread only once a starter exists: a give that
+        // arrives before the start of its own connection was handled is left to the game thread,
+        // which reads it after that start and keeps the stream order (#1288). This pins the
+        // predicate the three loaders' onReads consult; the dispatch-only multiplayer job reaches
+        // them, and nothing on core's test classpath does.
+        assertFalse(loop.server.handlesOnRead(GrugControlWire.GIVE_REQUEST));
+        assertTrue(loop.server.handlesOnRead(GrugControlWire.ANSWER_VALUE));
+        assertFalse(loop.server.handlesOnRead(GrugControlWire.RUN_START));
         loop.server.onMessage(PLAYER, GrugControlWire.runStart());
+        assertTrue(loop.server.handlesOnRead(GrugControlWire.GIVE_REQUEST));
         // Nothing is queued and nothing waits on a give, so the drain before it does not run.
         loop.server.applyClientWork();
         assertEquals(0, loop.drained);
@@ -1823,6 +1846,110 @@ class GrugControlTest {
         loop.server.forgetQueuedGives();
         loop.server.applyClientWork();
         assertTrue(loop.given.isEmpty());
+    }
+
+    /**
+     * The give queue with an {@code add} that holds the network thread inside it, so a test can run
+     * a drain in the window between a give joining the queue and the flag that pays for a drain
+     * being marked. The order of those two is what keeps a drain from taking the mark and finding
+     * no give.
+     */
+    private static final class HeldAddQueue extends ConcurrentLinkedQueue<Object> {
+        final CountDownLatch adding;
+        final CountDownLatch release = new CountDownLatch(1);
+
+        HeldAddQueue(int writers) {
+            adding = new CountDownLatch(writers);
+        }
+
+        @Override
+        public boolean add(Object give) {
+            adding.countDown();
+            try {
+                if (!release.await(10, TimeUnit.SECONDS)) {
+                    throw new AssertionError("the test never released the queue");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("interrupted while held inside the queue", e);
+            }
+            return super.add(give);
+        }
+    }
+
+    @Test
+    @Timeout(value = 20, unit = TimeUnit.SECONDS)
+    void aDrainThatRunsWhileAGiveArrivesStillAppliesItInOneCall() throws Exception {
+        // A give joins the queue before it marks the drain, which is load-bearing: a drain that
+        // reads the flag has to find the give, or it takes the mark and applies nothing, and the
+        // give waits for an unrelated call to mark the flag again. The writers here are held inside
+        // the queue's add, so every one of them is between the two while the drain runs. One drain
+        // after they finish then has to apply all of them (#1288).
+        HeldAddQueue queue = new HeldAddQueue(3);
+        Loopback loop = new Loopback();
+        loop.server = new GrugControlServer(loop, 1000, queue);
+        loop.server.onMessage(PLAYER, GrugControlWire.runStart());
+
+        String[] items = {"minecraft:stone", "minecraft:dirt", "minecraft:sand"};
+        List<Thread> writers = new ArrayList<>();
+        for (String item : items) {
+            Thread writer =
+                    new Thread(
+                            () ->
+                                    loop.server.onMessage(
+                                            PLAYER, GrugControlWire.giveRequest(item, 1)));
+            writers.add(writer);
+            writer.start();
+        }
+        assertTrue(queue.adding.await(10, TimeUnit.SECONDS), "every writer reached the queue");
+
+        // The drain a loader runs between two ticks, while the clients are still in the queue. No
+        // give is in it yet, so this call must not pay one.
+        loop.server.applyClientWork();
+        assertEquals(0, loop.drained, "a drain is not paid before a give can be in the queue");
+        assertTrue(loop.given.isEmpty(), "a give is not applied before it joins the queue");
+
+        queue.release.countDown();
+        for (Thread writer : writers) {
+            writer.join();
+        }
+
+        // One call now has to apply every give that arrived.
+        loop.server.applyClientWork();
+        assertEquals(3, loop.given.size(), "one drain applies every queued give: " + loop.given);
+        for (String item : items) {
+            assertTrue(loop.given.contains(item + "x1"), item + " was applied: " + loop.given);
+        }
+    }
+
+    @Test
+    void anUnattributableGiveDoesNotFailTheCallInFlight() {
+        // Nothing waits on a give, so one nobody can be held to is dropped. Failing the capture
+        // already waiting for it would blame that capture for a message it never sent (#1288).
+        ByteArrayOutputStream png = new ByteArrayOutputStream();
+        try {
+            ImageIO.write(new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB), "png", png);
+        } catch (java.io.IOException e) {
+            throw new AssertionError(e);
+        }
+        Loopback sender =
+                new Loopback() {
+                    @Override
+                    public boolean sendToStarter(Object starter, byte[] message) {
+                        server.onMessage(null, GrugControlWire.giveRequest("minecraft:stone", 1));
+                        for (byte[] answer : GrugControlWire.answerChunks(1, png.toByteArray())) {
+                            server.onMessage(PLAYER, answer);
+                        }
+                        return true;
+                    }
+                };
+        GrugControlServer server = new GrugControlServer(sender, 1000);
+        sender.server = server;
+        server.onMessage(PLAYER, GrugControlWire.runStart());
+
+        BufferedImage captured = captureOrFail(server, 0, 0, 10, 10);
+        assertEquals(10, captured.getWidth());
+        assertTrue(sender.given.isEmpty(), "an unattributable give applies nothing");
     }
 
     @Test

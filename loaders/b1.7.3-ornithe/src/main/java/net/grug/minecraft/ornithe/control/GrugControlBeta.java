@@ -2,7 +2,6 @@ package net.grug.minecraft.ornithe.control;
 
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
-import net.grug.minecraft.core.GrugControlWire;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
@@ -133,21 +132,24 @@ public final class GrugControlBeta {
 
     /**
      * Called on the reader thread with a message just read. An answer on a server is handed to the
-     * waiting capture here, because the game thread that would handle it is the one frozen. Answers
-     * true when the message was handled and the game thread must not.
+     * waiting call here, because the game thread that would handle it is the one frozen, and a give
+     * joins the queue the server thread drains, so neither waits for a game tick to reach the queue
+     * (#1280). Answers true when the message was handled and the game thread must not, which a give
+     * that arrived before the start of its own connection was handled is not: left to the game
+     * thread, the give is read after the start it followed, in the order they came (#1288).
      */
     static boolean onRead(byte[] bytes) {
         if (!onServer() || bytes.length == 0) return false;
-        if (!GrugControlWire.handledOnRead(bytes[0])) {
+        GrugControlServer control = server();
+        if (!control.handlesOnRead(bytes[0])) {
             return false;
         }
         // The reader thread of a Connection is a Thread subclass that holds it, so the sender of
         // this message is the connection it was read from, which the server compares with the
-        // starter's. An answer completes the call the frozen game thread waits on, and a give only
-        // joins the queue that thread drains, so neither waits for a game tick to reach the queue
-        // (#1280).
-        // A null sender (no connection found) is passed on: the server fails what waits on it.
-        server().onMessage(findConnection(Thread.currentThread(), 0), bytes);
+        // starter's.
+        // A null sender (no connection found) is passed on: the server fails an answer it cannot
+        // attribute and drops anything else.
+        control.onMessage(findConnection(Thread.currentThread(), 0), bytes);
         return true;
     }
 

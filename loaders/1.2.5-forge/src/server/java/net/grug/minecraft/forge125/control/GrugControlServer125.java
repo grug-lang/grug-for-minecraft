@@ -2,7 +2,6 @@ package net.grug.minecraft.forge125.control;
 
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
-import net.grug.minecraft.core.GrugControlWire;
 import net.grug.minecraft.forge125.GrugServerRun;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.EntityPlayerMP;
@@ -21,8 +20,9 @@ import java.util.WeakHashMap;
  *
  * <p>The freeze is the server's game thread blocking inside {@code capture}. The answer is read on
  * the connection's reader thread (see {@link GrugControlPacket}), so nothing needs the game thread
- * to deliver it. The sender of an answer is the connection the reader thread belongs to, and core
- * accepts an answer only from the connection that started the run.
+ * to deliver it, and a give the client asks for is queued from there for the server thread's next
+ * drain. The sender of a message is the connection the reader thread belongs to, and core accepts
+ * an answer or a give only from the connection that started the run.
  */
 @GrugGenerated(
         "the 1.2.5 channel glue of #1040: no test the coverage gate counts can reach it, since only"
@@ -124,15 +124,18 @@ public final class GrugControlServer125 implements GrugControlRouter {
     @Override
     public boolean onRead(Thread reader, byte[] bytes) {
         if (bytes.length == 0) return false;
-        if (!GrugControlWire.handledOnRead(bytes[0])) {
+        GrugControlServer control = server();
+        if (!control.handlesOnRead(bytes[0])) {
             return false;
         }
         // An answer and a give go in from here, because the game thread that would handle them is
         // the one frozen: the answer completes what waits on it, and the give only joins the queue
         // that thread drains, so neither waits for a game tick to reach the queue (#1280). The
         // reader thread holds the connection it reads, which core compares with the starter's; a
-        // null sender is passed on and fails what waits on it.
-        server().onMessage(GrugControlFind.byType(reader, NetworkManager.class), bytes);
+        // null sender is passed on, where core fails an answer it cannot attribute and drops
+        // anything else. A give that arrives before the start of its own connection was handled is
+        // left to the game thread, which reads it after that start, in the order they came (#1288).
+        control.onMessage(GrugControlFind.byType(reader, NetworkManager.class), bytes);
         return true;
     }
 

@@ -39,12 +39,14 @@ import javax.imageio.stream.ImageInputStream;
  * packet handler rather than by the call: the packet is queued while the server thread is frozen,
  * and {@link #applyClientWork}, which a loader calls between ticks, reads it (#1094).
  *
- * <p>Only the player who sent {@link GrugControlWire#RUN_START} may answer, and only a player the
- * loader says has finished login ({@link Link#mayStartRun}) can become the starter. That is the
- * server's half of the consent rule; the client's half is in {@link GrugControlClient}. What a
- * message from someone else does is nothing (an expected race is silent), and what a malformed or
- * oversized message from the starter does is fail the calls waiting on it with a {@link
- * ControlException}, which the host function reports as the test's error.
+ * <p>Only the player who sent {@link GrugControlWire#RUN_START} may answer a call or ask for a
+ * give, and only a player the loader says has finished login ({@link Link#mayStartRun}) can become
+ * the starter. That is the server's half of the consent rule; the client's half is in {@link
+ * GrugControlClient}. What a message from someone else does is nothing (an expected race is
+ * silent), and what a malformed or oversized message from the starter does is fail the calls
+ * waiting on it with a {@link ControlException}, which the host function reports as the test's
+ * error. An answer is what a call waits on; a give waits for nothing and only joins the queue the
+ * server thread drains before its next tick (#1280).
  */
 public final class GrugControlServer {
     /** The loader's half: how to reach the starting player, and how to make the world current. */
@@ -74,8 +76,9 @@ public final class GrugControlServer {
          * That thread is the one frozen inside the call, so the client's click packet is only
          * queued when the call returns; the game's own next tick would read it too late for a test
          * that ticks before it. This is the loader's one way to read that queue from the test's own
-         * tick loop, and the caller ({@link GrugControlServer#applyClientWork}) calls it only after
-         * a call that could have sent a packet.
+         * tick loop, and the caller ({@link GrugControlServer#applyClientWork}) calls it after a
+         * call that could have sent a packet, and after a give the client asked for, which marks
+         * the same drain (#1280).
          */
         void applyClientWork();
 
@@ -140,9 +143,14 @@ public final class GrugControlServer {
     private final GrugSettledRevision settled = new GrugSettledRevision();
 
     /**
-     * Whether a forwarded call since the last {@link #applyClientWork} can have left the server a
-     * packet to read (#1094). Written on the server thread by {@link #forward}, which runs inside a
-     * test's tick, and read by {@link #applyClientWork} from the same thread between ticks.
+     * Whether the server thread owes itself a drain: a forwarded call can have left the server a
+     * packet to read (#1094), or the starter's client asked for a give (#1280). It has two writers,
+     * neither of which is the thread that reads it. The server thread writes it in {@link
+     * #forward}, inside a test's tick, because that call can have made the client send a packet.
+     * The connection's network thread writes it in {@link #onMessage} when a give arrives, because
+     * a give changes the world and only the server thread may apply it, so the give has to bring
+     * that thread here. It is volatile for the second writer, and read by {@link #applyClientWork}
+     * on the server thread between ticks, which is the side that pays the drain.
      */
     private volatile boolean clientWorkPending;
 
@@ -151,7 +159,7 @@ public final class GrugControlServer {
      * they arrived. Written on the network thread, drained by {@link #applyClientWork} on the
      * server thread, because a give changes the world and only that thread may.
      */
-    private final Queue<Give> gives = new ConcurrentLinkedQueue<>();
+    private final Queue<Give> gives;
 
     /** One give a joined client asked for: the item's name and how many of it. */
     private static final class Give {
@@ -187,8 +195,22 @@ public final class GrugControlServer {
     }
 
     public GrugControlServer(Link link, long timeoutMillis) {
+        this(link, timeoutMillis, new ConcurrentLinkedQueue<Give>());
+    }
+
+    /**
+     * The constructor {@link #GrugControlServer(Link, long)} uses, with the give queue injected so
+     * a test can hold the network thread inside the queue's {@code add} and run a drain in that
+     * window. {@link #onMessage} queues a give before it marks the drain, and a test proves that
+     * order is what keeps a drain that runs meanwhile from taking the mark and finding no give;
+     * without the injection there is no way to stand between the two. Production passes a {@link
+     * ConcurrentLinkedQueue}, and only this class ever adds to it or polls it.
+     */
+    @SuppressWarnings("unchecked")
+    GrugControlServer(Link link, long timeoutMillis, Queue<?> gives) {
         this.link = link;
         this.timeoutMillis = timeoutMillis;
+        this.gives = (Queue<Give>) gives;
     }
 
     /**
@@ -203,9 +225,12 @@ public final class GrugControlServer {
      * reports an {@code item_inserted} error to the test's assertion rather than folding it into
      * the call that clicked (#583, #836).
      *
-     * <p>The drain is paid only by a call that can have sent a packet, so a tick that only reads a
-     * screen's geometry does not touch the connection. A call that sent nothing still marks it,
-     * which costs one empty drain and keeps the rule simple.
+     * <p>A drain is paid by a forwarded call that can have sent a packet and by a give the client
+     * asked for: a give marks the flag from the network thread, and the drain it pays is the
+     * loader's own drain as well as this queue's, even though only the give is owed (#1280). A tick
+     * that only reads a screen's geometry pays nothing, because a read cannot make the client send
+     * anything; a call the wire says can send a packet still marks the flag when it happens to send
+     * nothing, which costs one empty drain and keeps the rule simple.
      */
     public void applyClientWork() {
         if (!clientWorkPending) {
@@ -244,26 +269,53 @@ public final class GrugControlServer {
     }
 
     /**
+     * Whether a message of {@code type} may be handled on the connection's network thread right
+     * now: as {@link GrugControlWire#handledOnRead} says, an answer always and a give once a
+     * starter exists (#1280).
+     *
+     * <p>A give is taken there because the frozen server thread only reaches its connection's drain
+     * between two calls, so a give left to the game thread can arrive many ticks late, or never.
+     * But a give that arrives before the start of its own connection has been handled has no
+     * starter to be attributed to yet, while that start is still queued for the game thread, so
+     * taking the give on the network thread would drop it (#1288). Left to the game thread, the
+     * give is read after the start it followed, which is the stream order a server keeps on its
+     * own.
+     */
+    public boolean handlesOnRead(byte type) {
+        if (!GrugControlWire.handledOnRead(type)) {
+            return false;
+        }
+        // An answer is the other message taken there, and it can only arrive while a call waits,
+        // which needs a starter already.
+        return type != GrugControlWire.GIVE_REQUEST || hasStarter();
+    }
+
+    /**
      * Handles a message from {@code sender}, on the network thread. A start sets the starter when
      * there is none and the loader allows the sender; anything else counts only from the starter.
      */
     public void onMessage(Object sender, byte[] bytes) {
-        if (sender == null) {
-            // The loader could not say who sent it, so nobody can be held to it: whatever waits
-            // fails instead of waiting on an answer that cannot be attributed.
-            failAll("A control message arrived from a sender the server could not identify.");
-            return;
-        }
-        boolean fromStarter = sender.equals(starter.get());
         GrugControlWire.Message message;
         try {
             message = GrugControlWire.decode(bytes);
         } catch (IllegalArgumentException e) {
-            if (fromStarter) {
+            if (sender == null || sender.equals(starter.get())) {
                 failAll("The client sent a malformed control message: " + e.getMessage());
             }
             return;
         }
+        if (sender == null) {
+            // The loader could not say who sent this. Only an answer is worth failing for: it is
+            // the only message something waits on, so an unattributable one fails what waits
+            // instead of letting it time out. A give waits for nothing, so an unattributable one is
+            // dropped: failing the calls in flight would blame them for a message they never sent
+            // (#1288).
+            if (GrugControlWire.isAnswer(message.type)) {
+                failAll("An answer arrived from a sender the server could not identify.");
+            }
+            return;
+        }
+        boolean fromStarter = sender.equals(starter.get());
         if (message.type == GrugControlWire.RUN_START) {
             if (link.mayStartRun(sender) && starter.compareAndSet(null, sender)) {
                 System.out.println("[GRUG CONTROL] " + sender + " started the run");
@@ -284,6 +336,12 @@ public final class GrugControlServer {
             // item list and this server has the player, so the client names the item and this
             // server gives its own item of that name to its own copy. Applied by the next
             // applyClientWork, on the server thread, because it changes the world.
+            //
+            // The give joins the queue before the flag is marked, and that order is load-bearing:
+            // a drain that reads the flag then finds the give, so this thread cannot mark a drain
+            // that has already polled, which would leave the give unapplied until an unrelated call
+            // marked the flag again. The two-thread test that holds the network thread inside the
+            // queue's add pins this.
             gives.add(new Give(message.text, message.x1));
             clientWorkPending = true;
             return;
