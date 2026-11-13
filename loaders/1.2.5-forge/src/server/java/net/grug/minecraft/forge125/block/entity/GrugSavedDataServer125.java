@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.forge125.GrugServerRun;
 import net.grug.minecraft.forge125.block.GrugBlock;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.Block;
 
 /**
@@ -15,6 +16,10 @@ import net.minecraft.src.Block;
  * never loads. A singleplayer 1.2.5 game has no server and no second copy of the world, so it
  * installs none: the copy the script writes is the one the frame pass reads.
  */
+@GrugGenerated(
+        "the 1.2.5 dedicated server's saved-data transport: no test the coverage gate counts can"
+                + " reach it, since only the multiplayer job runs a server and a pull request skips"
+                + " that job; every decision in it lives in core's GrugSavedDataSync")
 public final class GrugSavedDataServer125 implements GrugSavedDataSync.Transport {
 
     @Override
