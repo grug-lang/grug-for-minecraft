@@ -41,11 +41,11 @@ export tick(ctx: TestTickContext) {
         origin: Vec3 = Test.get_origin()
         Test.get_client_level().place_block(Math.floor(origin.x()), Math.floor(origin.y() - 4.12) - 1, Math.floor(origin.z()) + 3, "minecraft:stone")
         _wait_for_the_room(ctx)
-        empty.set(Test.screenshot().capture(612, 236, 668, 640))
+        empty.set(Test.screenshot().capture(624, 236, 656, 640))
         ctx.not_done()
         return
     }
-    now: Screenshot = Test.screenshot().capture(612, 236, 668, 640)
+    now: Screenshot = Test.screenshot().capture(624, 236, 656, 640)
     if now.change_from(empty.unwrap()) > 5.0 and previous.has() and now.change_from(previous.unwrap()) < 0.05 {
         steady = steady + 1
     } else {
@@ -57,7 +57,7 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    Test.screenshot().equals(r"screenshots/player_model", 612, 236, 668, 640)
+    Test.screenshot().equals(r"screenshots/player_model", 624, 236, 656, 640)
 }
 
 # Asks the joined client whether it has drawn the room, as forwarded_capture_pinned_eye does.
