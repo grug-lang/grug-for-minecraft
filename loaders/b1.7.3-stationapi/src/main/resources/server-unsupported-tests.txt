@@ -42,3 +42,15 @@ coverage/tests/hook_forced_normalization-Test.grug
 # golden in 11614 of 12672 pixels (#1099, #1137). coverage/tests/hook_forced_normalization-Test.grug
 # stays the client-only proof that this loader's item draw pins the state off.
 jei/tests/item_list_forced_normalization-Test.grug
+#
+# The five wall-backed buildcraft captures #1161 and #1096 promoted to tick_any_side. Dispatch
+# 43468600623, with the joined client sent the server's light for the placed blocks (#1092), still
+# fails cobblestone_pipe_shapes' cobblestone_pipe_straight in 44 of 115200 pixels, all in the single
+# column x=61 with a channel sum of at most 5, so it is not the light band: the leg reaches no test
+# after its first promoted failure, so the rest are unmeasured and listed with it. The client-only
+# run of this loader still checks all five goldens.
+buildcraft/tests/cobblestone_pipe_shapes-Test.grug
+buildcraft/tests/redstone_engine-Test.grug
+buildcraft/tests/redstone_engine_animation-Test.grug
+buildcraft/tests/redstone_engine_facings-Test.grug
+buildcraft/tests/wooden_pipe_shapes-Test.grug
