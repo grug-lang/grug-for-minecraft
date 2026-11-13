@@ -94,8 +94,10 @@ case "$LOADER" in
     if [ -n "${GRUG_CI_CONNECT:-}" ]; then
       join=(--join-server "${GRUG_CI_CONNECT%:*}" --join-server-port "${GRUG_CI_CONNECT##*:}")
     fi
-    # A player's launcher picks a JVM the version accepts; this is the same choice.
-    start --jvm-policy system-then-mojang "${join[@]}" "forge::$(property minecraft_version)-$(property forge_version)"
+    # The Java the build runs on (setup-java's 21), not whichever newer one the runner image ships
+    # as its system Java: the policy took the image's 25 once it appeared, and Mixin cannot read a
+    # Java 25 class file, so the game died before the first test. Minecraft 1.20.6 asks for Java 21.
+    start --jvm "$STATIONAPI_JAVA" "${join[@]}" "forge::$(property minecraft_version)-$(property forge_version)"
     ;;
 
   b1.7.3-stationapi)
