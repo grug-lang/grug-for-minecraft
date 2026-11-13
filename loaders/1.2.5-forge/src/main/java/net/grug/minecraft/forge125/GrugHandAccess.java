@@ -32,6 +32,9 @@ public final class GrugHandAccess {
      * kept the names resolves the first one. The pairs are taken from the pinned snapshot's own
      * {@code client.srg}, which names the two fields this class needs.
      */
+    @GrugGenerated(
+            "reflection: the runtime jar carries only the obfuscated name, so the MCP lookup's"
+                    + " hit and the throws cannot be reached in a run")
     private static Field field(String mcpName, String obfuscatedName) {
         try {
             Field field;
@@ -47,6 +50,7 @@ public final class GrugHandAccess {
         }
     }
 
+    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
     private static float read(Field field, ItemRenderer renderer) {
         try {
             return field.getFloat(renderer);

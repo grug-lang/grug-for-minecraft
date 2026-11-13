@@ -1435,7 +1435,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 return true;
             }
         }
-        return handMoved();
+        return handMoved(minecraft, player);
     }
 
     /**
@@ -1448,15 +1448,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * varies with how the run's ticks fall, so two runs captured the hand at different points of
      * its rise (#961). A frame whose pair is equal draws the hand at rest, which is the pose every
      * golden was accepted with. See {@link GrugRenderSettle#handMoved}.
+     *
+     * <p>Its only caller has already returned when the world or the player is missing, so the
+     * renderer it reads is the one a client with a world has, and it carries no guard of its own.
      */
-    private static boolean handMoved() {
-        Minecraft minecraft = MinecraftInstance.get();
-        PlayerEntity player = GrugClientPlayer.of(minecraft);
-        if (player == null
-                || minecraft.gameRenderer == null
-                || minecraft.gameRenderer.itemInHandRenderer == null) {
-            return false;
-        }
+    private static boolean handMoved(Minecraft minecraft, PlayerEntity player) {
         ItemInHandRendererAccess hand =
                 (ItemInHandRendererAccess) minecraft.gameRenderer.itemInHandRenderer;
         return GrugRenderSettle.handMoved(
