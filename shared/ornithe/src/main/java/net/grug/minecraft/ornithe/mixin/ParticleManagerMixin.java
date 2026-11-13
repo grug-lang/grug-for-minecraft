@@ -6,9 +6,12 @@ import net.minecraft.client.ParticleManager;
 import net.minecraft.client.entity.particle.Particle;
 
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import java.util.List;
 
 /**
  * Drops every particle a run does not want in its captures.
@@ -24,6 +27,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
                 + " a1 capture dispatch is its proof")
 @Mixin(ParticleManager.class)
 public class ParticleManagerMixin {
+
+    @Shadow private List<Particle>[] particles;
+
+    /**
+     * Drops the particles that were already alive when the run took the window, once (#1272): the
+     * pin above stops new ones only, and a lava drip or a {@code largesmoke} outlives the 20-tick
+     * floor of a capture.
+     */
+    @Inject(method = "tick", at = @At("HEAD"))
+    private void grug$clearParticlesAliveAtRunStart(CallbackInfo ci) {
+        if (GrugClientHooks.takeParticleClear()) {
+            for (List<Particle> layer : particles) {
+                layer.clear();
+            }
+        }
+    }
 
     @Inject(method = "add", at = @At("HEAD"), cancellable = true)
     private void grug$dropParticleDuringRun(Particle particle, CallbackInfo ci) {

@@ -244,6 +244,32 @@ class GrugRunWindowTest {
         assertFalse(window.particlesMinimised(), "the run that took it gives it back");
     }
 
+    @Test
+    void aRunClearsTheParticlesAlreadyAliveExactlyOnce() {
+        FakeDisplay display = new FakeDisplay();
+        FakeKeys keys = new FakeKeys();
+        GrugRunWindow window = new GrugRunWindow(display);
+
+        assertFalse(window.takeParticleClear(), "no run, nothing to clear");
+
+        keys.pressRun();
+        assertTrue(window.tick(keys));
+        assertTrue(window.takeParticleClear(), "the run's first tick clears what was alive");
+        assertFalse(window.takeParticleClear(), "and only once");
+
+        // A refused run must not rearm the clear for the run that holds the window.
+        assertFalse(window.beginRun());
+        assertFalse(window.takeParticleClear(), "the refused run clears nothing");
+
+        window.endRun();
+        assertFalse(window.takeParticleClear(), "ended before it was taken: nothing");
+
+        keys.pressRun();
+        assertTrue(window.tick(keys));
+        assertTrue(window.takeParticleClear(), "the next run clears again");
+        window.endRun();
+    }
+
     /**
      * A run press the client cannot act on takes nothing, because a client joined to a server has
      * no integrated server to advance the run on: the window, the dither, the particles and the

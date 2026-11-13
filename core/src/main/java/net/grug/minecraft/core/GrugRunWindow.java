@@ -105,6 +105,14 @@ public final class GrugRunWindow {
      */
     private volatile boolean particlesMinimised = false;
 
+    /**
+     * True from the moment a run takes the window until a loader clears the particles that were
+     * already alive, once (#1272). The pin stops new particles only, so one that was alive when the
+     * run began would still be ticked and drawn into a capture: a lava drip lives about 4 s and a
+     * {@code largesmoke} up to 5 s, longer than the 20-tick floor of a capture.
+     */
+    private volatile boolean particleClearPending = false;
+
     /** True only while a run has the cursor parked, so only that run restores it. */
     private boolean cursorParked = false;
 
@@ -175,6 +183,7 @@ public final class GrugRunWindow {
 
         runActive = true;
         particlesMinimised = true;
+        particleClearPending = true;
         return true;
     }
 
@@ -185,6 +194,7 @@ public final class GrugRunWindow {
     public void endRun() {
         runActive = false;
         particlesMinimised = false;
+        particleClearPending = false;
 
         if (resolutionForcedByTestRun) {
             resolutionForced = false;
@@ -241,6 +251,20 @@ public final class GrugRunWindow {
      */
     public boolean particlesMinimised() {
         return particlesMinimised;
+    }
+
+    /**
+     * Whether a loader should now clear the particles the game already holds, true once per run and
+     * only while that run has particles minimised (#1272). The loader calls it from the particle
+     * manager's tick on the client thread, so the clear lands in the run's first tick after it took
+     * the window.
+     */
+    public boolean takeParticleClear() {
+        if (particlesMinimised && particleClearPending) {
+            particleClearPending = false;
+            return true;
+        }
+        return false;
     }
 
     /**
