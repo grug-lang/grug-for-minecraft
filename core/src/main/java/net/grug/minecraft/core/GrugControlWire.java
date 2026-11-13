@@ -362,6 +362,9 @@ public final class GrugControlWire {
      * behind the client's own packets arrived many ticks late, and behind enough of them not at all
      * (#1280). Read here, it waits for the next runner tick instead, as a give on 1.20.6 does,
      * whose channel hands every message to the server on its network thread.
+     *
+     * <p>This is the wire's rule only: a loader asks {@code GrugControlServer#handlesOnRead}, which
+     * adds that a give is taken there only once the server has a starter (#1288).
      */
     public static boolean handledOnRead(byte type) {
         return isAnswer(type) || type == GIVE_REQUEST;
