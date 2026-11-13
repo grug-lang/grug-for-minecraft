@@ -4,7 +4,6 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.ItemRenderer;
 
 import java.lang.reflect.Field;
-import java.util.Objects;
 
 /**
  * Reads the equip progress 1.2.5's first-person item renderer keeps private.
@@ -21,9 +20,6 @@ import java.util.Objects;
  */
 public final class GrugHandAccess {
 
-    private static final Field EQUIPPED_PROGRESS = field("equippedProgress", "c");
-    private static final Field PREV_EQUIPPED_PROGRESS = field("prevEquippedProgress", "d");
-
     @GrugGenerated("utility class: never instantiated")
     private GrugHandAccess() {}
 
@@ -35,23 +31,28 @@ public final class GrugHandAccess {
      * the build checks the literals against it, because a string carries no reference that
      * reobfuscation could follow.
      *
-     * <p>Both names are tried in one loop, so the launched game's miss takes the handler and the
-     * lookup behind it: a first lookup that succeeded would leave the handler and the second lookup
-     * unmeasured, and the name the launched game carries is the one that matters.
+     * <p>The lookup runs on every read and holds no branch, for the coverage gate (#961). A class
+     * initializer that ran in a dropped segment is credited for itself and for nothing it calls,
+     * and a test of another mod reaches this class first, so a lookup cached in a static field
+     * would run once, outside the counted segments. Here the launched game's miss takes the handler
+     * of {@link #lookup} and the second lookup behind it in every counted test that asks.
      */
     private static Field field(String mcpName, String obfuscatedName) {
-        Field found = null;
-        for (String name : new String[] {mcpName, obfuscatedName}) {
-            try {
-                found = ItemRenderer.class.getDeclaredField(name);
-                found.setAccessible(true);
-                break;
-            } catch (NoSuchFieldException missing) {
-                // The next name is the one this game carries, if it carries one of them.
-            }
+        try {
+            return lookup(mcpName);
+        } catch (IllegalStateException missing) {
+            return lookup(obfuscatedName);
         }
-        return Objects.requireNonNull(
-                found, "ItemRenderer carries neither " + mcpName + " nor " + obfuscatedName);
+    }
+
+    private static Field lookup(String name) {
+        try {
+            Field found = ItemRenderer.class.getDeclaredField(name);
+            found.setAccessible(true);
+            return found;
+        } catch (NoSuchFieldException missing) {
+            throw new IllegalStateException("ItemRenderer carries no field " + name, missing);
+        }
     }
 
     @GrugGenerated("reflection: field() makes every field accessible, so read's catch cannot fire")
@@ -65,11 +66,11 @@ public final class GrugHandAccess {
 
     /** The height the renderer last drew the hand at, 0 for an item that just changed. */
     public static float equippedProgress(ItemRenderer renderer) {
-        return read(EQUIPPED_PROGRESS, renderer);
+        return read(field("equippedProgress", "c"), renderer);
     }
 
     /** The height the tick before it drew the hand at. */
     public static float prevEquippedProgress(ItemRenderer renderer) {
-        return read(PREV_EQUIPPED_PROGRESS, renderer);
+        return read(field("prevEquippedProgress", "d"), renderer);
     }
 }
