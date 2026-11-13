@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.ItemRenderer;
 
 import java.lang.reflect.Field;
+import java.util.Objects;
 
 /**
  * Reads the equip progress 1.2.5's first-person item renderer keeps private.
@@ -28,29 +29,32 @@ public final class GrugHandAccess {
 
     /**
      * The field by its MCP name, or by the name the pinned 1.2.5 snapshot reobfuscates it to. The
-     * runtime jar is launched reobfuscated, so the MCP name is not there; a development run that
-     * kept the names resolves the first one. The pairs are taken from the pinned snapshot's own
-     * {@code client.srg}, which names the two fields this class needs.
+     * game this loader launches carries the reobfuscated name, so that is the one that resolves; a
+     * development run that kept the MCP names resolves the first. The pairs are taken from the
+     * pinned snapshot's own {@code client.srg}, which names the two fields this class needs, and
+     * the build checks the literals against it, because a string carries no reference that
+     * reobfuscation could follow.
+     *
+     * <p>Both names are tried in one loop, so the launched game's miss takes the handler and the
+     * lookup behind it: a first lookup that succeeded would leave the handler and the second lookup
+     * unmeasured, and the name the launched game carries is the one that matters.
      */
-    @GrugGenerated(
-            "reflection: the runtime jar carries only the obfuscated name, so the MCP lookup's"
-                    + " hit and the throws cannot be reached in a run")
     private static Field field(String mcpName, String obfuscatedName) {
-        try {
-            Field field;
+        Field found = null;
+        for (String name : new String[] {mcpName, obfuscatedName}) {
             try {
-                field = ItemRenderer.class.getDeclaredField(mcpName);
+                found = ItemRenderer.class.getDeclaredField(name);
+                found.setAccessible(true);
+                break;
             } catch (NoSuchFieldException missing) {
-                field = ItemRenderer.class.getDeclaredField(obfuscatedName);
+                // The next name is the one this game carries, if it carries one of them.
             }
-            field.setAccessible(true);
-            return field;
-        } catch (ReflectiveOperationException e) {
-            throw new ExceptionInInitializerError(e);
         }
+        return Objects.requireNonNull(
+                found, "ItemRenderer carries neither " + mcpName + " nor " + obfuscatedName);
     }
 
-    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
+    @GrugGenerated("reflection: field() makes every field accessible, so read's catch cannot fire")
     private static float read(Field field, ItemRenderer renderer) {
         try {
             return field.getFloat(renderer);
