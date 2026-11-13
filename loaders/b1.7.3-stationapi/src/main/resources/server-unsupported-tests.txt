@@ -54,3 +54,12 @@ buildcraft/tests/redstone_engine-Test.grug
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
 buildcraft/tests/wooden_pipe_shapes-Test.grug
+#
+# The two wall-backed world captures renamed to tick_any_side. Dispatch 43480583214, with the light
+# of the placed blocks recomputed and resent (#1092), still fails coverage_frame in 2800 of 44800
+# pixels: the wall's lowest block row (rows 150 to 159) is half as bright on the server's field as
+# in the golden. Beta's light is incremental and depends on the history of placements, and the
+# golden comes from the client replaying them, so a stable relight of the final state is darker
+# there. The client-only run of this loader still checks both goldens.
+coverage/tests/coverage_frame-Test.grug
+coverage/tests/coverage_render-Test.grug
