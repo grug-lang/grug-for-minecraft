@@ -124,7 +124,7 @@ public final class GrugModsWatcher {
      * which a loader never asks for on a hot reload, so the client reloading every pack for one
      * buys nothing and holds the suite for seconds. See #758.
      */
-    private static boolean isClientResource(String resource) {
+    public static boolean isClientResource(String resource) {
         return resource.replace('\\', '/').matches("[^/]+/assets(/.*)?");
     }
 

@@ -2,6 +2,7 @@ package net.grug.minecraft.stationapi;
 
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
+import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugLightSync;
@@ -114,6 +115,21 @@ public class ServerStationApiAdapter extends StationApiAdapter {
             new GrugOverlayCalls.Forwarded(
                     GrugControlStation::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    /**
+     * The mining crack and the client resource files of a hot reload, which the joined client
+     * answers from its own world and its own mods directory (#1040): the crack is its frame pass's,
+     * and a texture is read by the client alone.
+     */
+    private final GrugClientTestCalls.Forwarded clientTestCalls =
+            new GrugClientTestCalls.Forwarded(
+                    GrugControlStation::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    @Override
+    public GrugClientTestCalls.Forwarded forwardedClientTestCalls() {
+        return clientTestCalls;
+    }
 
     /**
      * How thin the column is that asks which collision boxes cover the player's own point. It only
@@ -308,6 +324,12 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     @Override
     public Vec3 testCamera() {
         return camera.camera();
+    }
+
+    /** The crack is drawn by the joined client's frame pass, so the client answers. */
+    @Override
+    public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
+        return clientTestCalls.miningCrack(x, y, z);
     }
 
     /** The joined client's own copy of a saved number, which is the copy its frame pass reads. */

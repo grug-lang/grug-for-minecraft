@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe;
 
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
+import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugLightSync;
@@ -268,6 +269,21 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                     GrugControlBeta::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
+    /**
+     * The mining crack and the client resource files of a hot reload, which the joined client
+     * answers from its own world and its own mods directory (#1040): the crack is its frame pass's,
+     * and a texture is read by the client alone.
+     */
+    private final GrugClientTestCalls.Forwarded clientTestCalls =
+            new GrugClientTestCalls.Forwarded(
+                    GrugControlBeta::server,
+                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+
+    @Override
+    public GrugClientTestCalls.Forwarded forwardedClientTestCalls() {
+        return clientTestCalls;
+    }
+
     @Override
     public Object getLevel() {
         return MinecraftServerInstance.get().getWorld(0);
@@ -419,6 +435,12 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public Vec3 testCamera() {
         return camera.camera();
+    }
+
+    /** The crack is drawn by the joined client's frame pass, so the client answers. */
+    @Override
+    public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
+        return clientTestCalls.miningCrack(x, y, z);
     }
 
     /** The joined client's own copy of a saved number, which is the copy its frame pass reads. */

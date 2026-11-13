@@ -48,6 +48,29 @@ public final class GrugModFileStates {
     private static final String DELETED = "deleted";
     private static final String SWAPPED = "swapped";
 
+    /**
+     * The states a forwarded {@code Test.set_mod_file_state} names by index, which is the position
+     * here (#1040): the wire carries a number, and both ends read the same list.
+     */
+    public static final String[] STATES = {NORMAL, INVALID, NO_TRAILING_NEWLINE, DELETED, SWAPPED};
+
+    /** The index of {@code state} in {@link #STATES}, or -1 when it is not a known state. */
+    public static int indexOf(String state) {
+        return Arrays.asList(STATES).indexOf(state);
+    }
+
+    /**
+     * {@link #set} for a caller that cannot throw a checked exception, such as the client's answer
+     * to a forwarded call: a failure is reported as an unchecked one that names the file.
+     */
+    public static void setUnchecked(File modsDir, String relativePath, String state) {
+        try {
+            set(modsDir, relativePath, state);
+        } catch (IOException | IllegalArgumentException e) {
+            throw new IllegalStateException("set_mod_file_state " + relativePath + ": " + e, e);
+        }
+    }
+
     /** What the {@code "invalid"} state puts at the top of a file, which the compiler rejects. */
     private static final byte[] INVALID_MARKER = "!\n".getBytes(StandardCharsets.UTF_8);
 

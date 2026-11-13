@@ -1,5 +1,6 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.GrugModFileStates;
 import net.grug.minecraft.grug.Vec3;
 
 import java.awt.image.BufferedImage;
@@ -794,6 +795,36 @@ public final class GrugControlServer {
     }
 
     /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
+    /**
+     * Asks the starter's client whether its own copy of the block at the position shows the mining
+     * crack over the block's own geometry (#1040).
+     */
+    public boolean miningCrack(double x, double y, double z) throws ControlException {
+        byte result = call(GrugControlWire.CALL_MINING_CRACK, "", x, y, z);
+        return yesOrNo(result, "mining_crack");
+    }
+
+    /**
+     * Asks the starter's client to put the mod file under {@code path} into the state at {@code
+     * stateIndex} of {@code GrugModFileStates}, in its own mods directory (#1040), and waits for
+     * its ack.
+     */
+    public void modFileState(String path, int stateIndex) throws ControlException {
+        byte result = call(GrugControlWire.CALL_MOD_FILE_STATE, path, stateIndex, 0, 0);
+        if (result != 1) {
+            throw failure(
+                    "The client answered set_mod_file_state with " + result + ", not the ack 1.");
+        }
+    }
+
+    /**
+     * How many changes to {@code path} the starter's engine has reported, or, when {@code
+     * loaderReloads} is set, how many reloads its loader has finished for it (#1040).
+     */
+    public double reloadCount(String path, boolean loaderReloads) throws ControlException {
+        return number(GrugControlWire.CALL_RELOAD_COUNT, path, loaderReloads ? 1 : 0, 0, 0);
+    }
+
     private static boolean yesOrNo(byte result, String call) throws ControlException {
         if (result != 0 && result != 1) {
             throw failure("The client answered " + call + " with " + result + ", not 0 or 1.");
@@ -884,6 +915,24 @@ public final class GrugControlServer {
                 return null;
             case GrugControlWire.CALL_OVERLAY_DRAWN:
                 return overlayModProblem(name);
+            case GrugControlWire.CALL_MINING_CRACK:
+                return positionProblem(volume, pitch, third);
+            case GrugControlWire.CALL_MOD_FILE_STATE:
+                String path = modPathProblem(name);
+                if (path != null) return path;
+                if (volume != Math.floor(volume)
+                        || volume < 0
+                        || volume >= GrugModFileStates.STATES.length) {
+                    return "The mod file state has to be the index of a known state, and was "
+                            + volume
+                            + ".";
+                }
+                return null;
+            case GrugControlWire.CALL_RELOAD_COUNT:
+                if (volume != 0 && volume != 1) {
+                    return "A reload count read asks for 0 or 1, and was " + volume + ".";
+                }
+                return modPathProblem(name);
             default:
                 String problem = GrugSoundArgs.pathProblem(name);
                 if (problem == null && call == GrugControlWire.CALL_PLAY_UI_SOUND) {
@@ -891,6 +940,16 @@ public final class GrugControlServer {
                 }
                 return problem;
         }
+    }
+
+    /** Why a forwarded mod file path cannot be sent, or null: the wire has to carry it whole. */
+    private static String modPathProblem(String path) {
+        if (path == null || path.isEmpty()) return "The call names no mod file.";
+        if (path.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                > GrugControlWire.MAX_NAME) {
+            return "The mod file's path is over " + GrugControlWire.MAX_NAME + " bytes.";
+        }
+        return null;
     }
 
     /** Why a forwarded key press carries what it cannot, or null. The key is the first number. */
@@ -1133,6 +1192,15 @@ public final class GrugControlServer {
         }
         if (call == GrugControlWire.CALL_OVERLAY_DRAWN) {
             return "overlay drawn of \"" + name + "\"";
+        }
+        if (call == GrugControlWire.CALL_MINING_CRACK) {
+            return "mining crack";
+        }
+        if (call == GrugControlWire.CALL_MOD_FILE_STATE) {
+            return "mod file state " + (int) volume + " of \"" + name + "\"";
+        }
+        if (call == GrugControlWire.CALL_RELOAD_COUNT) {
+            return (volume == 1 ? "reload count" : "hot reload count") + " of \"" + name + "\"";
         }
         return "call " + call + " \"" + name + "\"";
     }

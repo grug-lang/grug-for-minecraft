@@ -18,7 +18,7 @@ reload_baseline: number = -1
 path: string = "coverage/assets/grug/textures/item/coverage_item.png"
 before: Option[Screenshot] = Option.new()
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()

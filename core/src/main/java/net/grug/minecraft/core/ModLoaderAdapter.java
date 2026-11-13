@@ -97,6 +97,15 @@ public interface ModLoaderAdapter {
         return false;
     }
 
+    /**
+     * The mining crack and mod file calls this loader's dedicated server forwards to the joined
+     * client (#1040), or null where the process has the client's own state to ask: a client, and a
+     * server that forwards nothing. A forwarding server returns the same object every time.
+     */
+    default GrugClientTestCalls.Forwarded forwardedClientTestCalls() {
+        return null;
+    }
+
     void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj);
 
     // --- Logging Abstraction --- TODO: Give this section a better title
