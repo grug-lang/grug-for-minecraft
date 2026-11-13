@@ -476,7 +476,15 @@ class SecondPlayerTest(unittest.TestCase):
         "coverage/tests/decline_use_places",
         "coverage/tests/decline_use",
         "coverage/tests/sound",
+        # The four wall-backed captures #1161 promoted, which this leg requires by name because it
+        # is the one whose joined client matches their flat goldens.
+        "buildcraft/tests/cobblestone_pipe_shapes",
+        "buildcraft/tests/redstone_engine",
+        "buildcraft/tests/redstone_engine_animation",
+        "buildcraft/tests/redstone_engine_facings",
         "coverage/tests/camera",
+        # The snap's own server-side proof (#1161), required on every dedicated leg.
+        "coverage/tests/test_origin_follows_the_test_player",
         "coverage/tests/remote_gui",
         "coverage/tests/item_icon",
         "coverage/tests/gui_builder",
