@@ -192,12 +192,15 @@ public final class GrugControlServer {
      */
     private long screenIdentity;
 
-    /** Counts the screen calls since the last batch answer, all on the server thread. */
-    private long screenRevision;
+    /**
+     * Counts the screen calls and disconnects since the last batch answer; the network thread's
+     * {@link #onDisconnect} also bumps it, so it is atomic.
+     */
+    private final AtomicLong screenRevision = new AtomicLong();
 
     /** The screen can have moved or been replaced, so no batch answer may be trusted again. */
     private void forgetGeometry() {
-        screenRevision++;
+        screenRevision.incrementAndGet();
     }
 
     public GrugControlServer(Link link, long timeoutMillis) {
@@ -602,7 +605,7 @@ public final class GrugControlServer {
      */
     private double[] geometry() throws ControlException {
         long world = GrugWorldRevision.current();
-        long screen = screenRevision;
+        long screen = screenRevision.get();
         double[] known = geometry;
         if (known != null && geometryWorldRevision == world && geometryScreenRevision == screen) {
             return known;

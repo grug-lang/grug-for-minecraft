@@ -475,6 +475,14 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         return screens.screenOpen();
     }
 
+    /**
+     * The joined client's screen is the only one there is, so the open-or-closed answer names it.
+     */
+    @Override
+    public long screenIdentityForTest() {
+        return isScreenOpenForTest() ? 1 : 0;
+    }
+
     /** The client's screen width, measured by the client of the player who started the run. */
     @Override
     public double screenWidthForTest() {

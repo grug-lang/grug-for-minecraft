@@ -921,11 +921,12 @@ public interface ModLoaderAdapter {
      * another one while the panel stayed open (#1289). See {@link GrugTestScreens#identityOf}.
      *
      * <p>Every client adapter names its own screen, because a client is the only side that has one;
-     * a dedicated server forwards {@link #isScreenOpenForTest} to the joined client instead. A
-     * loader that keeps this default still tells a screen that opened or closed from one that
-     * stayed up, but not one screen from another.
+     * a dedicated server answers the joined client's open-or-closed state. A loader that keeps this
+     * default still tells a screen that opened or closed from one that stayed up, but not one
+     * screen from another.
      */
-    @GrugGenerated("default only: every client adapter names its screen, and a server has none")
+    @GrugGenerated(
+            "default only: the 1.2.5 dedicated server, which no client adapter extends, uses it")
     default long screenIdentityForTest() {
         return isScreenOpenForTest() ? 1 : 0;
     }
