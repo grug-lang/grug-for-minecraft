@@ -204,7 +204,13 @@ public final class GrugServerRun {
         if (player == null) {
             return;
         }
-        SNAP.save(player.getX(), player.getY(), player.getZ(), player.getYRot(), player.getXRot());
+        SNAP.save(
+                player,
+                player.getX(),
+                player.getY(),
+                player.getZ(),
+                player.getYRot(),
+                player.getXRot());
         player.connection.teleport(
                 SNAP.snappedX(),
                 SNAP.snappedY(),
@@ -224,7 +230,7 @@ public final class GrugServerRun {
      * it had no player copy yet, restores nothing.
      */
     public static void restoreTestPlayer(ServerPlayer player) {
-        if (player == null || !SNAP.isSaved()) {
+        if (!SNAP.claimRestore(player)) {
             return;
         }
         player.connection.teleport(

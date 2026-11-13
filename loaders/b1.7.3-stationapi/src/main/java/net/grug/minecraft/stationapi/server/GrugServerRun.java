@@ -285,6 +285,7 @@ public final class GrugServerRun {
         }
         ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
         SNAP.save(
+                serverPlayer,
                 serverPlayer.x,
                 serverPlayer.boundingBox.minY,
                 serverPlayer.z,
@@ -308,7 +309,7 @@ public final class GrugServerRun {
      * player. A player this server does not own, or a snap that did not run, restores nothing.
      */
     public static void restoreTestPlayer(PlayerEntity player) {
-        if (!(player instanceof ServerPlayerEntity) || !SNAP.isSaved()) {
+        if (!SNAP.claimRestore(player) || !(player instanceof ServerPlayerEntity)) {
             return;
         }
         ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
