@@ -123,15 +123,14 @@ public final class GrugControlBetaClient {
      * is what the request names, and this version's {@code setPositionAndAngles} takes the feet and
      * adds the eye height itself, so the feet go one eye height below it.
      *
-     * <p>It runs at the head of the client tick, and only when the camera is not at the eye: a
-     * player already there stands on the floor and is left to the game's own physics, which is the
-     * state the client-only run's golden was drawn in, with a standing player's view tilt and bob
-     * (#1213). It writes the eye a hair above the eye the request names ({@link
-     * GrugTestPlayerSnap#pinnedEyeY}), so the feet start above the floor and the first move settles
-     * them on it; a pin at exactly the eye left them inside the block and the player fell a step
-     * every tick, which a pin that zeroed the velocity every tick hid at the price of that tilt.
-     * ({@code prevX/Y/Z}, which {@code World.tickEntity} and the position packets write, is not the
-     * camera's pair.) See #1193.
+     * <p>It runs at the head of the client tick, every tick the capture is pending. It writes the
+     * eye a hair above the eye the request names ({@link GrugTestPlayerSnap#pinnedEyeY}), so the
+     * feet start above the floor, and a pin at exactly the eye left them inside the block, where
+     * the player fell a step every tick. A player standing on a floor keeps a standing player's
+     * velocity ({@link GrugTestPlayerSnap#pinnedVelocityY}), so the view keeps the tilt of 0.235
+     * degrees the client-only golden was drawn with, a 2 px shift of every capture when it is
+     * missing (#1213); the move lands it on the floor at the eye. A player with no floor keeps
+     * zero, so it cannot leave the eye in the tick. See #1161 and #1193.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         player.setPositionAndAngles(
@@ -141,7 +140,7 @@ public final class GrugControlBetaClient {
                 0.0F,
                 0.0F);
         player.velocityX = 0.0;
-        player.velocityY = 0.0;
+        player.velocityY = GrugTestPlayerSnap.pinnedVelocityY(player.onGround);
         player.velocityZ = 0.0;
     }
 
@@ -233,10 +232,10 @@ public final class GrugControlBetaClient {
         PlayerEntity player = GrugClientPlayer.of(mc);
         // The frame has to show the world the server has and be drawn from the place the test's
         // room was built around, so a capture names the eye and the client waits for its own camera
-        // to reach it (#1161). It is read before the pin, so a client the pin had to move is not
-        // counted as at the eye until its own physics has put it there.
+        // to reach it (#1161). It is read before the pin, so it reports where the client's own
+        // physics left it and not the pin's write.
         boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
-        if (!cameraHere && eye != null && player != null) {
+        if (eye != null && player != null) {
             pinAtCaptureEye(player);
         }
         boolean settled = GrugCore.getAdapter().isWorldSettled();

@@ -41,6 +41,16 @@ class GrugTestPlayerSnapTest {
     }
 
     @Test
+    void aStandingPinnedPlayerKeepsTheRestingVelocityAndAnAirborneOneZero() {
+        assertEquals(-0.0784, GrugTestPlayerSnap.RESTING_VELOCITY_Y, 1e-4);
+        assertEquals(
+                GrugTestPlayerSnap.RESTING_VELOCITY_Y,
+                GrugTestPlayerSnap.pinnedVelocityY(true),
+                0.0);
+        assertEquals(0.0, GrugTestPlayerSnap.pinnedVelocityY(false), 0.0);
+    }
+
+    @Test
     void snapsTheLocalPlayerOnAClient() throws Throwable {
         AtomicInteger clientSnaps = new AtomicInteger();
         AtomicInteger serverSnaps = new AtomicInteger();

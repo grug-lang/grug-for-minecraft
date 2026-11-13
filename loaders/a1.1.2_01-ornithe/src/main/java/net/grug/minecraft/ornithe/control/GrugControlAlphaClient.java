@@ -118,15 +118,14 @@ public final class GrugControlAlphaClient {
      * move then rewrites from the shape, so the pin is a move to the eye itself, the call the
      * position packet handler makes with the packet's {@code minY}.
      *
-     * <p>It runs at the head of the client tick, and only when the camera is not at the eye: a
-     * player already there stands on the floor and is left to the game's own physics, which is the
-     * state the client-only run's golden was drawn in, with a standing player's view tilt of 0.235
-     * degrees, a 2 px shift of every capture when it is missing (#1213). The pin writes the eye a
-     * hair above the eye the request names ({@link GrugTestPlayerSnap#pinnedEyeY}), because the
-     * feet are the eye minus the float 1.62F, which is a hair more than 1.62, so a pin at exactly
-     * the eye put them inside the floor and the player fell every tick. The frame a capture reads
-     * is drawn after that tick from the eye: {@code GameRenderer} interpolates between {@code
-     * lastY} and {@code y}, and {@code updatePositionAndAngles} writes both. See #1161 and #1193.
+     * <p>It runs at the head of the client tick, every tick the capture is pending. It writes the
+     * eye a hair above the eye the request names ({@link GrugTestPlayerSnap#pinnedEyeY}), so the
+     * feet start above the floor, and a pin at exactly the eye left them inside the block, where
+     * the player fell a step every tick. A player standing on a floor keeps a standing player's
+     * velocity ({@link GrugTestPlayerSnap#pinnedVelocityY}), so the view keeps the tilt of 0.235
+     * degrees the client-only golden was drawn with, a 2 px shift of every capture when it is
+     * missing (#1213); the move lands it on the floor at the eye. A player with no floor keeps
+     * zero, so it cannot leave the eye in the tick. See #1161 and #1193.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         if (waited == 1 && (player.x != eye.x() || player.y != eye.y() || player.z != eye.z())) {
@@ -152,7 +151,7 @@ public final class GrugControlAlphaClient {
         player.updatePositionAndAngles(
                 eye.x(), GrugTestPlayerSnap.pinnedEyeY(eye.y()), eye.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
-        player.velocityY = 0.0;
+        player.velocityY = GrugTestPlayerSnap.pinnedVelocityY(player.onGround);
         player.velocityZ = 0.0;
     }
 
@@ -272,7 +271,7 @@ public final class GrugControlAlphaClient {
         // the count the capture log's "camera at the room's eye" now gives, the mirror of the
         // drift line the first pin prints (#1161).
         boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
-        if (!cameraHere && eye != null && player != null) {
+        if (eye != null && player != null) {
             pinAtCaptureEye(player);
         }
         boolean settled = GrugCore.getAdapter().isWorldSettled();
