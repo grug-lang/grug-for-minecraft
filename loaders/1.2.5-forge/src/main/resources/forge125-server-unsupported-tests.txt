@@ -52,3 +52,9 @@ jei/tests/item_list_forced_normalization-Test.grug
 # are checked.
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
+#
+# wooden_pipe_shapes, which #1096 promoted to tick_any_side. Dispatch 43422357886 failed its
+# wooden_pipe_straight capture against this loader's flat golden in 1449 of 115200 pixels, the
+# joined-client residue #1213 tracks. wooden_pipe_items passed on this server in the same run, so it
+# is not listed. The client-only run of this loader still checks the golden.
+buildcraft/tests/wooden_pipe_shapes-Test.grug

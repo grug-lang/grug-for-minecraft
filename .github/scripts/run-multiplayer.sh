@@ -598,11 +598,15 @@ while :; do
     # two of them, #1213 and #1092), so their servers skip those; the client-only run of every loader
     # is where all four goldens are checked. Requiring them on the four legs would only restate an
     # open rendering defect, so the list is per loader.
-    # The two wooden pipe captures #1096 promotes are required on every leg, because no loader lists
-    # them yet: a leg whose joined capture differs fails in the test itself, and the dispatch that
-    # measures it then drops the name from that loader's arm here along with the entry that keeps it
-    # client-only there. Until then, a leg that skips one for any other reason fails here.
-    wall_backed_tests="buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
+    # The two wooden pipe captures #1096 promotes are required on the legs that match the flat golden
+    # (1.20.6-forge, and wooden_pipe_items on 1.2.5-forge and b1.7.3-stationapi). Dispatch
+    # 43422357886 measured the rest: wooden_pipe_items differs on a1.1.2_01 and b1.7.3-ornithe and
+    # wooden_pipe_shapes on those two, 1.2.5-forge and b1.7.3-stationapi (#1213, #1092), so those
+    # loaders list them in server-unsupported-tests.txt and the client-only run checks the goldens.
+    wall_backed_tests="buildcraft/tests/wooden_pipe_items"
+    case "$LOADER" in
+      a1.1.2_01-ornithe|b1.7.3-ornithe) wall_backed_tests="" ;;
+    esac
     case "$LOADER" in
       1.20.6-forge)
         wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"

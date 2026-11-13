@@ -482,7 +482,7 @@ class SecondPlayerTest(unittest.TestCase):
         "buildcraft/tests/redstone_engine",
         "buildcraft/tests/redstone_engine_animation",
         "buildcraft/tests/redstone_engine_facings",
-        # The two wooden pipe captures #1096 promotes, which every leg requires.
+        # The two wooden pipe captures #1096 promotes, which this leg requires.
         "buildcraft/tests/wooden_pipe_items",
         "buildcraft/tests/wooden_pipe_shapes",
         "coverage/tests/camera",
