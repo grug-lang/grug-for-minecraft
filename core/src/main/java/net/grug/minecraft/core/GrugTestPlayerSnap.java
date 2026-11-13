@@ -46,14 +46,20 @@ public final class GrugTestPlayerSnap {
      */
     public static final class ServerSave {
         private boolean saved;
+        private Object owner;
         private double x;
         private double y;
         private double z;
         private float yaw;
         private float pitch;
 
-        /** Saves the player as the game reports them, before the snap moves them. */
-        public void save(double x, double y, double z, float yaw, float pitch) {
+        /**
+         * Saves the player as the game reports them, before the snap moves them. {@code owner} is
+         * the player object the values belong to, compared by reference in {@link #claimRestore},
+         * so the saved position is never put on another player (#1308).
+         */
+        public void save(Object owner, double x, double y, double z, float yaw, float pitch) {
+            this.owner = owner;
             this.x = x;
             this.y = y;
             this.z = z;
@@ -67,6 +73,23 @@ public final class GrugTestPlayerSnap {
          */
         public boolean isSaved() {
             return saved;
+        }
+
+        /**
+         * Whether {@code player} may take the saved state back. A restore with nothing saved is
+         * refused and changes nothing. A restore for any other player than the one saved, or for
+         * none because the owner just left, is refused and discards the snapshot, so the owner's
+         * position and view are never applied to a player who fell in as the fallback (#1308).
+         */
+        public boolean claimRestore(Object player) {
+            if (!saved) {
+                return false;
+            }
+            if (player == null || player != owner) {
+                clear();
+                return false;
+            }
+            return true;
         }
 
         /** The x the snap writes: the centre of the block the player was saved in. */
@@ -130,6 +153,7 @@ public final class GrugTestPlayerSnap {
         /** Forgets the saved state, so the next restore is a no-op until another snap saves it. */
         public void clear() {
             this.saved = false;
+            this.owner = null;
         }
     }
 }

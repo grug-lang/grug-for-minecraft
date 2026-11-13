@@ -282,7 +282,13 @@ public final class GrugServerRun implements ITickHandler {
         if (player == null) {
             return;
         }
-        SNAP.save(player.posX, player.posY, player.posZ, player.rotationYaw, player.rotationPitch);
+        SNAP.save(
+                player,
+                player.posX,
+                player.posY,
+                player.posZ,
+                player.rotationYaw,
+                player.rotationPitch);
         player.playerNetServerHandler.teleportTo(
                 SNAP.snappedX(),
                 SNAP.snappedY(),
@@ -301,7 +307,7 @@ public final class GrugServerRun implements ITickHandler {
      * player. A server whose snap did not run, because it had no player copy yet, restores nothing.
      */
     public static void restoreTestPlayer(EntityPlayerMP player) {
-        if (player == null || !SNAP.isSaved()) {
+        if (!SNAP.claimRestore(player)) {
             return;
         }
         player.playerNetServerHandler.teleportTo(

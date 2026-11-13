@@ -69,7 +69,7 @@ class GrugTestPlayerSnapTest {
     @Test
     void serverSnapWritesTheBlockCentreAndALevelView() {
         GrugTestPlayerSnap.ServerSave save = new GrugTestPlayerSnap.ServerSave();
-        save.save(12.3, 64.0, -7.8, 90.0F, -12.5F);
+        save.save(new Object(), 12.3, 64.0, -7.8, 90.0F, -12.5F);
 
         assertEquals(12.5, save.snappedX());
         assertEquals(64.0, save.snappedY());
@@ -86,7 +86,7 @@ class GrugTestPlayerSnapTest {
     @Test
     void serverRestorePutsBackExactlyWhatTheSnapFound() {
         GrugTestPlayerSnap.ServerSave save = new GrugTestPlayerSnap.ServerSave();
-        save.save(12.3, 64.0, -7.8, 90.0F, -12.5F);
+        save.save(new Object(), 12.3, 64.0, -7.8, 90.0F, -12.5F);
 
         assertEquals(12.3, save.savedX());
         assertEquals(64.0, save.savedY());
@@ -106,12 +106,53 @@ class GrugTestPlayerSnapTest {
 
         assertFalse(save.isSaved());
 
-        save.save(0.0, 64.0, 0.0, 0.0F, 0.0F);
+        save.save(new Object(), 0.0, 64.0, 0.0, 0.0F, 0.0F);
         save.clear();
         assertFalse(save.isSaved());
 
-        save.save(0.0, 64.0, 0.0, 0.0F, 0.0F);
+        save.save(new Object(), 0.0, 64.0, 0.0, 0.0F, 0.0F);
         assertTrue(save.isSaved());
+    }
+
+    /**
+     * The starter can disconnect during the tick that ends a test, so the restore finds another
+     * player (or none) where the starter was. The snapshot holds the starter's position and view,
+     * and applying it to someone else teleports a stranger (#1308).
+     */
+    @Test
+    void serverRestoreRefusesAPlayerOtherThanTheOneSaved() {
+        Object starter = new Object();
+        Object other = new Object();
+        GrugTestPlayerSnap.ServerSave save = new GrugTestPlayerSnap.ServerSave();
+        save.save(starter, 12.3, 64.0, -7.8, 90.0F, -12.5F);
+
+        assertFalse(save.claimRestore(other));
+        assertFalse(save.isSaved());
+        // The refusal discarded the snapshot, so even the starter cannot restore it afterwards.
+        assertFalse(save.claimRestore(starter));
+    }
+
+    @Test
+    void serverRestoreRefusesWhenTheOwnerIsGone() {
+        Object starter = new Object();
+        GrugTestPlayerSnap.ServerSave save = new GrugTestPlayerSnap.ServerSave();
+        save.save(starter, 0.0, 64.0, 0.0, 0.0F, 0.0F);
+
+        assertFalse(save.claimRestore(null));
+        assertFalse(save.isSaved());
+    }
+
+    @Test
+    void serverRestoreAcceptsTheOwnerAndKeepsTheSnapshotForThePut() {
+        Object starter = new Object();
+        GrugTestPlayerSnap.ServerSave save = new GrugTestPlayerSnap.ServerSave();
+
+        assertFalse(save.claimRestore(starter));
+
+        save.save(starter, 12.3, 64.0, -7.8, 90.0F, -12.5F);
+
+        assertTrue(save.claimRestore(starter));
+        assertEquals(12.3, save.savedX());
     }
 
     @Test

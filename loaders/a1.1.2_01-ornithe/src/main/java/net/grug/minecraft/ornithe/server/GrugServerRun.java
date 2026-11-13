@@ -386,7 +386,7 @@ public final class GrugServerRun {
         if (player == null) {
             return;
         }
-        SNAP.save(player.x, player.y, player.z, player.yaw, player.pitch);
+        SNAP.save(player, player.x, player.y, player.z, player.yaw, player.pitch);
         moveTo(
                 player,
                 SNAP.snappedY(),
@@ -406,7 +406,7 @@ public final class GrugServerRun {
      * A server whose snap did not run, because it had no player copy yet, restores nothing.
      */
     public static void restoreTestPlayer(PlayerEntity player) {
-        if (player == null || !SNAP.isSaved()) {
+        if (!SNAP.claimRestore(player)) {
             return;
         }
         moveTo(
