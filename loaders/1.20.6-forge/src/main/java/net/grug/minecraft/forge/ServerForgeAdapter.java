@@ -86,6 +86,37 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * A dedicated server holds no client copy of the world, and the read that would ask for one is
+     * forwarded to the joined client, so reaching this is a defect in the caller.
+     */
+    @Override
+    public Object clientLevel() {
+        throw Grug.fatal("A dedicated server has no client level: the read is forwarded instead.");
+    }
+
+    /** A server has no frame to sample: only a client's render thread reports one. */
+    @Override
+    public void onFrameRendered() {}
+
+    /**
+     * The runner snaps the test player on a server through {@code snapPlayerForTestOnServer}, which
+     * is what {@code snapPlayerForTest} picks for this side, so the client half is never called.
+     */
+    @Override
+    public void snapPlayerForTestOnClient() {
+        throw Grug.fatal("A dedicated server snaps its player on the server, not on a client.");
+    }
+
+    /**
+     * The mining crack is drawn by a client, so a server's test is refused like any client call.
+     */
+    @Override
+    public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
+        refuseWithoutAClient("Test.mining_crack");
+        return false;
+    }
+
+    /**
      * The screen calls this server makes, which its joined client performs: a server has no screen
      * of its own, so every one of them is a round trip to the client of the player who started the
      * run (#1094). A failure is a host function error, which fails the test.

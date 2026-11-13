@@ -140,7 +140,7 @@ public final class GrugControlClientForge {
         }
         if (!pendingCapture) return;
         waited++;
-        boolean idle = mc.level != null && ForgeAdapter.clientIdleForControl(mc);
+        boolean idle = mc.level != null && ClientForgeAdapter.clientIdleForControl(mc);
         // The frame has to show the world the server has and be drawn from the place the test's
         // room was built around, so a capture names the eye and the client waits for its own
         // camera to reach it (#1161).
@@ -190,6 +190,6 @@ public final class GrugControlClientForge {
                         + ", camera at the room's eye: "
                         + cameraHere
                         + ")");
-        done.accept(ForgeAdapter.captureRectangle(x1, y1, x2, y2));
+        done.accept(ClientForgeAdapter.captureRectangle(x1, y1, x2, y2));
     }
 }

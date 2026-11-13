@@ -4,8 +4,8 @@ import net.grug.minecraft.core.GrugTickLockstep;
 
 /**
  * How many times faster than real time the client's tick timer runs, which {@code
- * MinecraftTimerMixin} reads and {@link ForgeAdapter#setGameSpeed} writes, and the lockstep that
- * keeps the integrated server's ticks in step with the client's.
+ * MinecraftTimerMixin} reads and {@link ClientForgeAdapter#setGameSpeed} writes, and the lockstep
+ * that keeps the integrated server's ticks in step with the client's.
  *
  * <p>It is a plain class and not a field of the mixin because Mixin refuses code that names a mixin
  * class directly. The runner sets it on the server thread and the timer reads it on the client
