@@ -810,11 +810,9 @@ public final class GrugControlServer {
      * its ack.
      */
     public void modFileState(String path, int stateIndex) throws ControlException {
-        byte result = call(GrugControlWire.CALL_MOD_FILE_STATE, path, stateIndex, 0, 0);
-        if (result != 1) {
-            throw failure(
-                    "The client answered set_mod_file_state with " + result + ", not the ack 1.");
-        }
+        // The answer is only the ack: a client that could not set the state answers an error,
+        // which the call reports.
+        call(GrugControlWire.CALL_MOD_FILE_STATE, path, stateIndex, 0, 0);
     }
 
     /**
