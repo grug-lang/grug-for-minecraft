@@ -57,6 +57,20 @@ export tick(ctx: TestTickContext) {
     } else {
         steady = 0
     }
+    if ctx.current_tick() > 150 {
+        d: number = now.change_from(previous.unwrap())
+        h: number = head.change_from(empty_head.unwrap())
+        if d >= 0.3 {
+            if d >= 3.0 {
+                ctx.assert(false, "DIAG consecutive change at or above 3 percent")
+            }
+            ctx.assert(false, "DIAG consecutive change between 0.3 and 3 percent")
+        }
+        if h <= 5.0 {
+            ctx.assert(false, "DIAG head change at most 5")
+        }
+        ctx.assert(false, "DIAG consecutive change under 0.3 and head over 5, so steady counted")
+    }
     previous.set(now)
     if steady < 15 {
         ctx.assert(ctx.current_tick() < 400, "The other player's model should have been drawn in the starter's view, drawn and still, but the frame never settled.")
