@@ -559,19 +559,6 @@ tasks.register('prepareRunDir') {
     }
 }
 
-// The classes the coverage gate reports on must be the bytes the agent instrumented, because JaCoCo
-// identifies a class by its bytes. This loader is reobfuscated before it runs (reobfJar rewrites
-// every reference to a Minecraft class), so build/classes/java/main is not what ran: the same class
-// has different bytes there. Stage the jar's entries, which are exactly what prepareRunDir put in
-// run/mods, at the path build.yml uploads for every loader.
-tasks.register('coverageClasses', Sync) {
-    description = 'Stages the reobfuscated classes the coverage report is built from.'
-    dependsOn 'reobfJar'
-    from zipTree(finalJar)
-    include '**/*.class'
-    into new File(buildDirFile, 'coverage-classes')
-}
-
 // Resolve the Java 8 the game must run on. The build/Gradle JVM stays modern; only the game JVM
 // here has to be 8. CI installs a JDK 8 alongside the build JDK and points GRUG_JAVA8 at it.
 def findJava8 = {
@@ -952,6 +939,40 @@ tasks.register('reobfServerJar') {
     doLast {
         specialSource(serverFixedJar, serverLoaderJar, serverReobfSrgFile, false)
     }
+}
+
+// The classes the coverage gate reports on must be the bytes the agent instrumented, because JaCoCo
+// identifies a class by its bytes. This loader is reobfuscated before it runs (reobfJar rewrites
+// every reference to a Minecraft class), so build/classes/java/main is not what ran: the same class
+// has different bytes there. Stage the jar's entries, which are exactly what prepareRunDir put in
+// run/mods, at the path build.yml uploads for every loader.
+//
+// The dedicated server runs serverLoaderJar, a second reobfuscation with the server's names, so a
+// class that names a renamed Minecraft type has other bytes there and the server's exec data does
+// not match the client jar's copy (#1324). The classes only the server loads (Grug125ServerAdapter,
+// GrugControlServer125 and its $Link, GrugServerRun, GrugSavedDataServer125) are in no client jar,
+// so they are staged from the server jar, where their bytes are the ones the server recorded. A
+// class the client jar has stays the client's copy, so no logical class is staged twice.
+tasks.register('coverageClasses', Sync) {
+    description = 'Stages the reobfuscated classes the coverage report is built from.'
+    dependsOn 'reobfJar', 'reobfServerJar'
+    def clientEntries = null
+    from zipTree(finalJar)
+    from(zipTree(serverLoaderJar)) {
+        exclude { details ->
+            if (clientEntries == null) {
+                def zip = new java.util.zip.ZipFile(finalJar)
+                try {
+                    clientEntries = zip.entries().collect { it.name } as Set
+                } finally {
+                    zip.close()
+                }
+            }
+            !details.directory && clientEntries.contains(details.relativePath.pathString)
+        }
+    }
+    include '**/*.class'
+    into new File(buildDirFile, 'coverage-classes')
 }
 
 tasks.register('runServer', Exec) {
