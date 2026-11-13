@@ -137,6 +137,7 @@ case "$*" in
     if [ "${FAKE_STARTER_LEAVES:-0}" = "1" ]; then
       # The run has begun, then the lines a server writes after its starter's client was killed.
       printf '[GRUG CI] CI mode active & player loaded after 1 ms. Firing tests!\\n'
+      printf '[GRUG CI] Executing test: coverage/tests/starter_left_window-Test.grug\\n'
       sleep 6
       cat "${FAKE_SERVER_LINES_FILE:?}"
       exec sleep 600

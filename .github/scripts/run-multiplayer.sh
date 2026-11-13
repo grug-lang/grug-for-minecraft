@@ -100,6 +100,10 @@ if [ -n "${GRUG_CI_STARTER_LEAVES:-}" ]; then
     exit 2
   fi
   STARTER_LEAVES=true
+  # The one test that asks the player's client nothing while it runs (#1301). The starter is killed
+  # once it is executing: a forwarded call in flight would freeze the server on the dead client for
+  # its whole timeout and end the run on that call's error before the server could notice the leaver.
+  export GRUG_CI_TESTS=coverage/tests/starter_left_window
 fi
 starter_killed=false
 
@@ -541,10 +545,10 @@ while :; do
     touch "$SECOND_CLIENT_START_FILE"
   fi
   if [ "$STARTER_LEAVES" = true ]; then
-    # The starter leaves once the server has built its runner, so the run is under way and a second
-    # player is still connected: the case where the starter-left question and a non-empty player
-    # list give different answers.
-    if [ "$starter_killed" = false ] && grep -qF '[GRUG CI] CI mode active' "$SERVER_LOG"; then
+    # The starter leaves once the test that makes no client calls is executing, so the run is under
+    # way, the starter's START has been accepted and a second player is still connected: the case
+    # where the starter-left question and a non-empty player list give different answers.
+    if [ "$starter_killed" = false ] && grep -qF '[GRUG CI] Executing test: coverage/tests/starter_left_window-Test.grug' "$SERVER_LOG"; then
       echo "==> Killing the starter's client while the second player stays connected."
       kill -TERM -- "-${client_pid}" 2>/dev/null || true
       starter_killed=true
@@ -826,5 +830,9 @@ while :; do
     echo "==> Timed out after ${GRUG_CI_RUN_TIMEOUT:-300}s without an ALL n TESTS PASSED line." >&2
     exit 1
   fi
-  sleep 2
+  if [ "$STARTER_LEAVES" = true ]; then
+    sleep 0.2
+  else
+    sleep 2
+  fi
 done
