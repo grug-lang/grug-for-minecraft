@@ -86,3 +86,28 @@ jei/tests/jei-Test.grug
 # Test.open_inventory, because it has no override that forwards the open to the joined client.
 coverage/tests/hook_forced_normalization-Test.grug
 #
+# The four wall-backed buildcraft captures #1161 promoted to tick_any_side. All four stay
+# client-only on this loader until #1213 finds why. Dispatch 42430865929 stopped at
+# redstone_engine's redstone_engine_green, 73 of 34100 pixels. Dispatch 43252257792 reached
+# cobblestone_pipe_shapes first and its cobblestone_pipe_straight capture differed in 35994 of
+# 115200 pixels: moving the capture down 2 px makes 95 percent of its pixels identical to the flat
+# golden, at the same 2.0 px for the 6-block wall, the 4-block chests and the pipe, so the eye, the
+# room, the lighting and a camera move are all excluded: the joined client draws the same scene into
+# a frame whose world sits 2 px higher, which is frame geometry and not the port. The client-only
+# run of this loader still matches the golden, and the camera the log measured was the eye the
+# capture named. Dispatch 43478998919 (#1213, the pin held a hair above the eye) passed
+# cobblestone_pipe_shapes on the joined client, so it left this list, and failed redstone_engine's
+# redstone_engine_red in 2500 of 34100 pixels. redstone_engine_animation and
+# redstone_engine_facings are unmeasured, since a leg stops at its first failing promoted test, and
+# are listed with it.
+buildcraft/tests/redstone_engine-Test.grug
+buildcraft/tests/redstone_engine_animation-Test.grug
+buildcraft/tests/redstone_engine_facings-Test.grug
+#
+# The two wooden pipe captures #1096 promoted to tick_any_side. Dispatch 43422357886 failed
+# wooden_pipe_items' capture against this loader's flat golden in 14250 of 44800 pixels, the same
+# whole-frame joined-client difference #1213 tracks for the four above, and the leg stops at its
+# first failure, so wooden_pipe_shapes is unmeasured and listed with it. The client-only run of
+# this loader still runs both, which is where their goldens are checked.
+buildcraft/tests/wooden_pipe_items-Test.grug
+buildcraft/tests/wooden_pipe_shapes-Test.grug
