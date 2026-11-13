@@ -1,0 +1,45 @@
+# Test.world_settled() must ask about the first-person hand when it is asked, not only from the
+# frames drawn so far: the runner runs several ticks of a test for one frame, so the held item can
+# change and the hand start rising with no frame drawn since, and the frame a capture is then served
+# by would show a pose no settle answer had seen (#961). Nothing here builds a block: the room is the
+# one the runner clears before every test, so once it has settled the only work a held item change
+# makes is the hand's rise. That is what makes this a proof of the hand rule rather than of a wall's
+# rebuild, because coverage_flat_hand's wall outlasts the rise, so its settle would be false through
+# the rise even without the rule, while this test's settle can only go false because of the hand.
+# The change is made only after the settle is true, which is the case the rule exists for. Without
+# it the settle stays true from the item change until the assert below fires, and a capture asked
+# there reads whatever point of the rise the next frame lands on.
+started: bool = false
+waited: number = 0
+saw_rising: bool = false
+
+export tick_any_side(ctx: TestTickContext) {
+    if not started {
+        if not Test.world_settled() {
+            ctx.not_done()
+            return
+        }
+        started = true
+        Test.set_held_item(Test.get_player(), item(resource_location("grug:coverage_flat_hand")))
+        ctx.not_done()
+        return
+    }
+
+    if not saw_rising {
+        if Test.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 40, "The settle stayed true for 40 ticks after the held item changed, so it does not cover the hand's rise (#961).")
+            ctx.not_done()
+            return
+        }
+        saw_rising = true
+        ctx.not_done()
+        return
+    }
+
+    if not Test.world_settled() {
+        ctx.not_done()
+        return
+    }
+    Test.clear_held_item(Test.get_player())
+}

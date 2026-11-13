@@ -276,10 +276,40 @@ tasks.register('generateGrugVersion') {
     }
 }
 
+// GrugHandAccess names ItemRenderer's two equip-progress fields by the srg names the launched game
+// carries. A string holds no reference for reobfuscation to follow, so a wrong literal would only
+// fail in a game launched from the reobfuscated jar, after a merge, on the first frame that draws
+// the hand. This pins the literals to the snapshot the loader is built against, so a snapshot
+// change that moves them fails the loader job instead of the installed one.
+tasks.register('verifyHandFieldNames') {
+    description = 'Checks the srg names GrugHandAccess reads against the pinned snapshot.'
+    dependsOn 'reobfSrg'
+    inputs.file reobfSrgFile
+    doLast {
+        def wanted = ['equippedProgress': 'c', 'prevEquippedProgress': 'd']
+        def mapped = [:]
+        reobfSrgFile.eachLine { line ->
+            if (!line.startsWith('FD: ')) return
+            def parts = line.substring(4).split(' ')
+            if (parts.length == 2) {
+                mapped[parts[0]] = parts[1]
+            }
+        }
+        wanted.each { name, srgName ->
+            def dev = "net/minecraft/src/ItemRenderer/${name}"
+            def obf = mapped[dev]
+            if (obf == null || obf.tokenize('/').last() != srgName) {
+                throw new GradleException(
+                    "GrugHandAccess reads ${dev} as '${srgName}', but the pinned snapshot maps it to ${obf}")
+            }
+        }
+    }
+}
+
 // -- Steps 4 and 5: compile and reobfuscate the loader ------------------------------------------
 
 tasks.named('compileJava', JavaCompile) {
-    dependsOn 'fetchMcpSnapshot', 'generateGrugVersion'
+    dependsOn 'fetchMcpSnapshot', 'generateGrugVersion', 'verifyHandFieldNames'
     options.release = 8
     options.encoding = 'UTF-8'
 }

@@ -1374,7 +1374,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // Counting it now keeps the two idle-frame wait from passing on frames drawn before the
         // change. The gate is here rather than in clientSettled because that method takes the
         // frames' answer as a value, and this is the one part of the frame read at the question.
-        if (handMoved(minecraft)) {
+        // The value is the one the client thread published at its last tick; see
+        // noteClientTickHand for why the ask cannot read the renderer itself.
+        if (handMovedInLastClientTick) {
             RENDER_SETTLE.noteBusy();
             return false;
         }
@@ -1805,11 +1807,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * points of its rise (#961). A frame whose pairs are equal draws the hand at rest, which is the
      * pose every golden was accepted with. See {@link GrugRenderSettle#handMoved}.
      *
-     * <p>The null arm is a frame drawn before a world exists, such as the title screen of a hotkey
-     * run, which no test captures; the moving answer itself stays measured through the screenshot
-     * tests and {@code coverage_flat_hand}, which wait on it.
+     * <p>The pair is written by the client thread's tick, so the settle ask, which runs on the
+     * server thread of a singleplayer run, does not read it off the renderer: {@link
+     * #noteClientTickHand} publishes the answer through a volatile field at the end of each client
+     * tick, after {@code ItemInHandRenderer.tick} wrote the pair.
      */
-    @GrugGenerated("settle: a frame drawn before a world exists, which no test captures")
     private static boolean handMoved(Minecraft minecraft) {
         Player player = minecraft.player;
         if (player == null) {
@@ -1824,6 +1826,24 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 hand.grug$lastOffHandHeight(),
                 player.attackAnim,
                 player.oAttackAnim);
+    }
+
+    /**
+     * Whether the client's hand moved in the tick that just ended, last published for {@link
+     * #isWorldSettled} to read.
+     *
+     * <p>The hand's pair is written by the client thread, and the settle ask of a singleplayer run
+     * is made on the server thread, so the answer crosses over as one volatile boolean rather than
+     * as six floats read from a thread that did not tick them. The entry is the one {@link
+     * #handMoved} computes after {@code ItemInHandRenderer.tick}, which runs inside the client's
+     * own tick, so the ask sees the rise from the tick that started it and not only from the next
+     * frame.
+     */
+    private static volatile boolean handMovedInLastClientTick;
+
+    /** Publishes whether the hand moved during the client tick that ended, for the settle ask. */
+    static void noteClientTickHand() {
+        handMovedInLastClientTick = handMoved(Minecraft.getInstance());
     }
 
     /**

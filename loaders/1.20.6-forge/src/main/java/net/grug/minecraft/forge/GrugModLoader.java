@@ -703,6 +703,12 @@ public class GrugModLoader {
 
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent event) {
+            if (event.phase == TickEvent.Phase.END) {
+                // After the tick, so it includes GameRenderer.tick's ItemInHandRenderer.tick, which
+                // is where the hand's equip pair moves. See ForgeAdapter.noteClientTickHand.
+                ForgeAdapter.noteClientTickHand();
+                return;
+            }
             if (event.phase == TickEvent.Phase.START) {
                 Minecraft mc = Minecraft.getInstance();
                 ForgeAdapter.noteClientThread();

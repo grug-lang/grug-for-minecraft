@@ -375,7 +375,9 @@ public class Grug125ClientAdapter extends Grug125Adapter {
      * golden was accepted with. See {@link GrugRenderSettle#handMoved}.
      *
      * <p>Its only caller reaches it once the core answer says a player exists, so it reads the
-     * renderer and the player without a guard of its own.
+     * renderer and the player without a guard of its own. The frame hook and the settle ask both
+     * run that caller, {@code frameHadPendingWork}, so the hand is read when the question is asked
+     * as well as at the end of a frame.
      */
     private boolean handMoved(Minecraft minecraft, EntityPlayer player) {
         return GrugRenderSettle.handMoved(

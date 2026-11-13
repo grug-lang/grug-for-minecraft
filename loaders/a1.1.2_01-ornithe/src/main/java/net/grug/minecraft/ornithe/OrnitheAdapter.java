@@ -1451,6 +1451,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      *
      * <p>Its only caller has already returned when the world or the player is missing, so the
      * renderer it reads is the one a client with a world has, and it carries no guard of its own.
+     * The frame hook and the settle ask both run that caller, {@code frameHadPendingWork}, so the
+     * hand is read when the question is asked as well as at the end of a frame.
      */
     private static boolean handMoved(Minecraft minecraft, PlayerEntity player) {
         ItemInHandRendererAccess hand =
