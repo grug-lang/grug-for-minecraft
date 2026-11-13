@@ -4,13 +4,17 @@
 This lives in the repository so it survives the machine it runs on. A systemd
 user timer runs it every ten minutes; the unit files are beside it. It sends one
 message into the orchestrator's own session when fewer than five subagents are
-working, when the four-hourly build.yml dispatch on main is due, or when main's
-newest run is red. It never dispatches, merges or edits anything itself: the
-message says what the rules ask for and the orchestrator decides. A message
-about the subagent floor is sent at most once per 45 minutes and backs off to
-four hours while the number of working subagents does not rise; a message about
-main waits two hours between sends. Nothing is sent while the orchestrator is in
-the middle of a turn.
+working, when the four-hourly build.yml dispatch on main is due, when main's
+newest run is red, or when the four-hourly review check is due. The review check
+asks for a subagent to scan every pull request updated in the last 24 hours for
+unresolved review threads, dropping CodeRabbit's quota and draft notices and
+validating every other finding against the current code. It never dispatches,
+merges or edits anything itself: the message says what the rules ask for and the
+orchestrator decides. A message about the subagent floor is sent at most once
+per 45 minutes and backs off to four hours while the number of working
+subagents does not rise; a message about main waits two hours between sends. The
+review line is sent at most once every four hours. Nothing is sent while the
+orchestrator is in the middle of a turn.
 
 GRUG_REPO overrides the checkout whose sessions are watched; the repository root
 above this file is the default, so the installed unit needs no path of its own.
@@ -50,6 +54,8 @@ COOLDOWN = 45 * 60
 MAX_COOLDOWN = 4 * 3600
 MAIN_COOLDOWN = 2 * 3600
 DISPATCH_AGE = 4 * 3600
+REVIEW_COOLDOWN = 4 * 3600
+REVIEW_WINDOW = 24 * 3600
 SEND_TIMEOUT = 90 * 60
 LIVE_MS = 2 * 3600 * 1000
 BAD_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
@@ -320,16 +326,25 @@ def main():
     floor_delay = state.get("floor_delay") or COOLDOWN
     floor_due = floor_line is not None and now_epoch - state.get("floor_at", 0) >= floor_delay
     main_due = bool(main_lines) and now_epoch - state.get("main_at", 0) >= MAIN_COOLDOWN
+    review_due = now_epoch - state.get("review_at", 0) >= REVIEW_COOLDOWN
+    review_line = (
+        "The review check is due: spawn a subagent to scan every pull request updated in the "
+        "last %d hours for unresolved review threads. It ignores CodeRabbit's quota and draft "
+        "notices, validates every other finding against the current code, and reports each "
+        "still-valid one with its pull request, file and line; fix or resolve the valid ones."
+        % (REVIEW_WINDOW // 3600)
+    )
 
-    if not (floor_due or main_due):
+    if not (floor_due or main_due or review_due):
         state_file.write_text(json.dumps(state) + "\n")
         log(
-            "ok: %d of %d working; floor %s, main %s"
+            "ok: %d of %d working; floor %s, main %s, review %s"
             % (
                 len(working),
                 FLOOR,
                 "due" if floor_due else "quiet",
                 "due" if main_due else "quiet",
+                "due" if review_due else "quiet",
             )
         )
         return
@@ -339,6 +354,8 @@ def main():
         lines.append(floor_line)
     if main_due:
         lines.extend(main_lines)
+    if review_due:
+        lines.append(review_line)
     message = "[automatic supervisor, not the maintainer] %s\n\n%s\n" % (
         now.strftime("%H:%MZ"),
         "\n".join("- " + line for line in lines),
@@ -376,6 +393,8 @@ def main():
         state["floor_at"] = now_epoch
     if main_due:
         state["main_at"] = now_epoch
+    if review_due:
+        state["review_at"] = now_epoch
     state_file.write_text(json.dumps(state) + "\n")
     if failure:
         log("send failed (%s): %s" % (failure, " | ".join(lines)))

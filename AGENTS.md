@@ -136,7 +136,11 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   one-line documentation edit do not need it.
 - **Review threads.** A review comment that is answered or fixed is marked resolved on the pull
   request, so its thread list shows only what is still open; the reply says what was done, and a
-  finding the orchestrator decided against is resolved with the reason.
+  finding the orchestrator decided against is resolved with the reason. The four-hourly supervisor
+  review line asks for a scan of every pull request updated in the last 24 hours: a subagent lists
+  each one's unresolved threads, drops CodeRabbit's quota and draft notices because they are not
+  findings, validates every other finding against the current code, and the orchestrator fixes or
+  resolves the valid ones.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
   request is never left blocked on an answer.
@@ -208,7 +212,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   satisfies it for the next four hours.
 - **The supervisor.** `.github/orchestrator/grug-supervisor.py` runs from a systemd user timer every
   ten minutes and posts a message into the orchestrator's session when fewer than five subagents
-  are working, when the dispatch above is due, or when `main`'s newest run is red. It reads every
+  are working, when the dispatch above is due, when `main`'s newest run is red, or when the
+  four-hourly review check is due (a scan of every pull request updated in the last 24 hours for
+  unresolved review threads; CodeRabbit's quota and draft notices are not findings). It reads every
   branch's build runs for the in-flight state, so a pull request's run keeps its dispatch hint
   quiet, and its message says to re-read the age and that state before dispatching. A message starts
   `[automatic supervisor, not the maintainer]` and is acted on as the rule it names, at the next
@@ -282,6 +288,12 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   revert, and do not pause the work in flight. Keeping `main` green still matters, because a red
   `main` blocks the next release and makes the next pull request's comparisons noisy, but only the
   Sunday release has to be green.
+- A proof is dispatched only on a pull request head whose own run is green, and a failed proof arm is
+  rerun only after its failing leg's log has been read and the cause named. On 2026-11-13 five of the
+  ten red dispatches were the branch's own new code before it measured, and the rule that a subagent
+  run its own tests did not catch them because those paths run only in a dispatch. A proof whose only
+  red jobs are #1179's mesh-capture family is recorded in #1179 and not repeated: all six such legs on
+  2026-11-13 passed on the next run.
 - When a job fails, read the titles of the open issues (`gh issue list --state open`) before
   anything else: it is often a known flake. A rerun that passes still gets the occurrence added to
   that issue's body.
