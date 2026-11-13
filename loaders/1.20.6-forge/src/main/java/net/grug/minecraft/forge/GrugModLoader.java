@@ -377,6 +377,7 @@ public class GrugModLoader {
         GrugCore.initialize(ForgeAdapter.forCurrentEnvironment(), modApiJson, activeGrugDir);
 
         FileInfo[] files = Grug.compileAllFiles();
+        LOGGER.info("Compiled " + files.length + " grug files successfully.");
 
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
@@ -674,7 +675,7 @@ public class GrugModLoader {
          *
          * <p>The same moment serves a capture a test is waiting for, which needs the frame to be
          * complete and its save indicator to describe that frame. See {@link
-         * ForgeAdapter#onFrameEnded}.
+         * ClientForgeAdapter#onFrameEnded}.
          */
         @SubscribeEvent
         public static void onRenderTick(TickEvent.RenderTickEvent event) {
@@ -684,11 +685,11 @@ public class GrugModLoader {
                         GrugModLoader.appliedReloadBatches.pollFirst());
                 GrugModLoader.reloadsOutstanding.decrementAndGet();
             }
-            ForgeAdapter.onFrameEnded();
+            ClientForgeAdapter.onFrameEnded();
         }
 
         /**
-         * One completed frame, for {@link ForgeAdapter#onFrameRendered}.
+         * One completed frame, for {@link ClientForgeAdapter#onFrameRendered}.
          *
          * <p>{@code AFTER_LEVEL} fires once per frame, after the level's sections were uploaded and
          * drawn, which is the moment a capture's frame rule waits for. It is deliberately not a
@@ -705,13 +706,13 @@ public class GrugModLoader {
         public static void onClientTick(TickEvent.ClientTickEvent event) {
             if (event.phase == TickEvent.Phase.END) {
                 // After the tick, so it includes GameRenderer.tick's ItemInHandRenderer.tick, which
-                // is where the hand's equip pair moves. See ForgeAdapter.noteClientTickHand.
-                ForgeAdapter.noteClientTickHand();
+                // is where the hand's equip pair moves. See ClientForgeAdapter.noteClientTickHand.
+                ClientForgeAdapter.noteClientTickHand();
                 return;
             }
             if (event.phase == TickEvent.Phase.START) {
                 Minecraft mc = Minecraft.getInstance();
-                ForgeAdapter.noteClientThread();
+                ClientForgeAdapter.noteClientThread();
 
                 if (mc.getWindow() != null && !grug$titleSet) {
                     mc.getWindow().setTitle("Minecraft 1.20.6 - Forge with grug");
