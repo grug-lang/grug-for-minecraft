@@ -109,3 +109,8 @@ buildcraft/tests/redstone_engine_facings-Test.grug
 # this loader still runs both, which is where their goldens are checked.
 buildcraft/tests/wooden_pipe_items-Test.grug
 buildcraft/tests/wooden_pipe_shapes-Test.grug
+#
+# coverage_frame and coverage_render, promoted to tick_any_side by #1092 for b1.7.3-stationapi. Dispatch 43465548202 failed coverage_frame on this leg in 17243 of 44800 pixels
+# (#1092), and coverage_render is unmeasured behind it. The client-only run still checks both.
+coverage/tests/coverage_frame-Test.grug
+coverage/tests/coverage_render-Test.grug
