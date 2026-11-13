@@ -26,13 +26,14 @@ import java.util.UUID;
  * opaque byte array of core's {@code GrugControlWire}. Mod authors never see it: it is the plumbing
  * behind client-only host functions.
  *
- * <p>The protocol version is 4 since the overlay reads joined the wire and a give started naming
- * its item (#1099): the wire carries calls 14 and 15, and a give message carries a name instead of
- * a list index, so a client and a server built from different commits must refuse each other rather
- * than misread each other's messages. Version 3 was the client-light call (#1207), whose answer is
- * a section's light fingerprint as a number rather than a value byte, and version 2 was the screen
- * calls (#1094), which added a third number to the call request and a numbered screen measurement
- * as an answer.
+ * <p>The protocol version is 5 since the screen-open call answers a screen's identity as a number
+ * and the screen batch holds five numbers (#1289). Version 4 was the overlay reads joining the wire
+ * and a give naming its item (#1099): the wire carries calls 14 and 15, and a give message carries
+ * a name instead of a list index, so a client and a server built from different commits must refuse
+ * each other rather than misread each other's messages. Version 3 was the client-light call
+ * (#1207), whose answer is a section's light fingerprint as a number rather than a value byte, and
+ * version 2 was the screen calls (#1094), which added a third number to the call request and a
+ * numbered screen measurement as an answer.
  *
  * <p>The channel is registered on both sides and is {@code optional()}, so a player without grug
  * can still join a grug server and the other way round. Handlers run on the network thread, never
@@ -73,7 +74,7 @@ public final class GrugControlForge {
                         // the channel at connect instead of failing on a call one of them does not
                         // have (#1207, #1099). Every branch that adds or changes one bumps this
                         // again.
-                        .networkProtocolVersion(4)
+                        .networkProtocolVersion(5)
                         .optional()
                         .simpleChannel()
                         .messageBuilder(Packet.class, NetworkProtocol.PLAY)
