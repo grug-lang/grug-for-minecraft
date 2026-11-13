@@ -88,8 +88,14 @@ case "$LOADER" in
       modrinth jei "$jei" forge
     fi
     portablemc --version >/dev/null
+    # GRUG_CI_CONNECT ("host:port") joins a server through quick play, as run-multiplayer.sh's
+    # development client does, for run-multiplayer-installed.sh (#1065).
+    join=()
+    if [ -n "${GRUG_CI_CONNECT:-}" ]; then
+      join=(--join-server "${GRUG_CI_CONNECT%:*}" --join-server-port "${GRUG_CI_CONNECT##*:}")
+    fi
     # A player's launcher picks a JVM the version accepts; this is the same choice.
-    start --jvm-policy system-then-mojang "forge::$(property minecraft_version)-$(property forge_version)"
+    start --jvm-policy system-then-mojang "${join[@]}" "forge::$(property minecraft_version)-$(property forge_version)"
     ;;
 
   b1.7.3-stationapi)
