@@ -123,24 +123,25 @@ public final class GrugControlBetaClient {
      * is what the request names, and this version's {@code setPositionAndAngles} takes the feet and
      * adds the eye height itself, so the feet go one eye height below it.
      *
-     * <p>It runs at the head of the client tick, before the world's own physics, and the frame a
-     * capture reads is the one the client drew after that tick. That frame is still drawn from the
-     * eye: {@code GameRenderer.transformCamera} interpolates between {@code lastY} and {@code y},
-     * {@code setPositionAndAngles} writes both, and the pin holds the velocity at what a standing
-     * player has, {@link GrugTestPlayerSnap#RESTING_VELOCITY_Y}, which the floor cancels (zero
-     * would also hold the position, but it would leave the view's tilt, {@code atan(-velocityY *
-     * 0.2) * 15} degrees, level where a standing player's is 0.235 degrees down: a 2 px shift of
-     * every capture, #1213). This version's {@code MobEntity.moveRelative} moves the player by the
-     * velocity the previous tick ended with and only then applies gravity, so the physics cannot
-     * carry a pinned player off the eye in the tick the pin ran in, and that pair is the eye at
-     * every partial tick. ({@code prevX/Y/Z}, which {@code World.tickEntity} and the position
-     * packets write, is not the camera's pair.) See #1193.
+     * <p>It runs at the head of the client tick, and only when the camera is not at the eye: a
+     * player already there stands on the floor and is left to the game's own physics, which is the
+     * state the client-only run's golden was drawn in, with a standing player's view tilt and bob
+     * (#1213). It writes the eye a hair above the eye the request names ({@link
+     * GrugTestPlayerSnap#pinnedEyeY}), so the feet start above the floor and the first move settles
+     * them on it; a pin at exactly the eye left them inside the block and the player fell a step
+     * every tick, which a pin that zeroed the velocity every tick hid at the price of that tilt.
+     * ({@code prevX/Y/Z}, which {@code World.tickEntity} and the position packets write, is not the
+     * camera's pair.) See #1193.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         player.setPositionAndAngles(
-                eye.x(), eye.y() - GrugTestOrigin.EYE_HEIGHT, eye.z(), 0.0F, 0.0F);
+                eye.x(),
+                GrugTestPlayerSnap.pinnedEyeY(eye.y()) - GrugTestOrigin.EYE_HEIGHT,
+                eye.z(),
+                0.0F,
+                0.0F);
         player.velocityX = 0.0;
-        player.velocityY = GrugTestPlayerSnap.RESTING_VELOCITY_Y;
+        player.velocityY = 0.0;
         player.velocityZ = 0.0;
     }
 
@@ -230,14 +231,15 @@ public final class GrugControlBetaClient {
                             + Thread.currentThread().getName());
         }
         PlayerEntity player = GrugClientPlayer.of(mc);
-        if (eye != null && player != null) {
+        // The frame has to show the world the server has and be drawn from the place the test's
+        // room was built around, so a capture names the eye and the client waits for its own camera
+        // to reach it (#1161). It is read before the pin, so a client the pin had to move is not
+        // counted as at the eye until its own physics has put it there.
+        boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
+        if (!cameraHere && eye != null && player != null) {
             pinAtCaptureEye(player);
         }
         boolean settled = GrugCore.getAdapter().isWorldSettled();
-        // The frame has to show the world the server has and be drawn from the place the test's
-        // room was built around, so a capture names the eye and the client waits for its own camera
-        // to reach it (#1161).
-        boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
         if (GrugTestCamera.waitsForCapture(waited, MIN_TICKS, MAX_TICKS, settled, cameraHere))
             return;
         pending = false;

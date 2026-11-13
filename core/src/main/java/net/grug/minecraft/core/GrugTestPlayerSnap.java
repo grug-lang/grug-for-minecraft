@@ -29,18 +29,25 @@ public final class GrugTestPlayerSnap {
     private GrugTestPlayerSnap() {}
 
     /**
-     * The vertical velocity a player standing still on the ground has after each of its ticks: the
-     * gravity step Alpha and Beta apply after the move, {@code (0 - 0.08) * 0.98}, which the floor
-     * then cancels in the next move.
+     * How far above the eye a joined client's pin puts its player, in blocks: the player's feet
+     * start just above the floor instead of in it, and the client's own first move settles them on
+     * it, which is exactly where a standing player rests.
      *
-     * <p>A client that pins its player at a capture's eye has to leave this value in the player,
-     * not zero. Those versions tilt the first-person camera by {@code atan(-velocityY * 0.2) * 15}
-     * degrees, smoothed from the velocity of every tick, so a standing player's view is tilted by
-     * 0.235 degrees and a pinned player whose velocity was zeroed is not. That is a uniform 2 px
-     * shift of the whole frame at 1280x720, and it was the whole residue between a joined client's
-     * capture and the flat golden a client-only run recorded (#1213).
+     * <p>Pinning at the eye itself puts the feet at {@code eye - 1.62}, but Alpha and Beta add the
+     * eye height as a float (1.62F, 4.8e-9 above 1.62), so the feet land a hair inside the floor
+     * block. A player inside a block is not held by it and falls a gravity step, so every tick's
+     * pin was undone by the next tick's physics. A pin that zeroed the velocity every tick hid
+     * that, at the price of a standing player's first-person tilt, {@code atan(-velocityY * 0.2) *
+     * 15} (0.235 degrees, a uniform 2 px at 1280x720), and its view bob: the pinned player never
+     * stood, so a joined capture was drawn 2 px off the client-only golden (#1213). The lift is far
+     * above the float's rounding and far below the 1/1024 capture tolerance.
      */
-    public static final double RESTING_VELOCITY_Y = (0.0 - 0.08) * 0.98F;
+    public static final double PIN_LIFT = 1.0 / 65536;
+
+    /** The eye height a joined client's pin writes for a capture that named {@code eyeY}. */
+    public static double pinnedEyeY(double eyeY) {
+        return eyeY + PIN_LIFT;
+    }
 
     /**
      * The coordinate the player is snapped to on one horizontal axis: the middle of the block they

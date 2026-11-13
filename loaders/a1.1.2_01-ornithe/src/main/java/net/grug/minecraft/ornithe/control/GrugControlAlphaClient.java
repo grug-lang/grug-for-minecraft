@@ -118,16 +118,15 @@ public final class GrugControlAlphaClient {
      * move then rewrites from the shape, so the pin is a move to the eye itself, the call the
      * position packet handler makes with the packet's {@code minY}.
      *
-     * <p>It runs at the head of the client tick, before the world's physics, and the frame a
-     * capture reads is one the client drew after that tick. That frame is still drawn from the eye:
-     * {@code GameRenderer} interpolates between {@code lastY} and {@code y}, {@code
-     * updatePositionAndAngles} writes both and {@code setPosition} moves the shape with them, the
-     * pin holds the velocity at what a standing player has, {@link
-     * GrugTestPlayerSnap#RESTING_VELOCITY_Y}, which the floor cancels (zero would leave the view's
-     * tilt level where a standing player's is 0.235 degrees down, a 2 px shift of every capture,
-     * #1213), and this version's {@code MobEntity.moveRelative} moves the player by the velocity
-     * the previous tick ended with and only then applies gravity, so the physics cannot carry a
-     * pinned player off the eye in the tick the pin ran in. See #1161 and #1193.
+     * <p>It runs at the head of the client tick, and only when the camera is not at the eye: a
+     * player already there stands on the floor and is left to the game's own physics, which is the
+     * state the client-only run's golden was drawn in, with a standing player's view tilt of 0.235
+     * degrees, a 2 px shift of every capture when it is missing (#1213). The pin writes the eye a
+     * hair above the eye the request names ({@link GrugTestPlayerSnap#pinnedEyeY}), because the
+     * feet are the eye minus the float 1.62F, which is a hair more than 1.62, so a pin at exactly
+     * the eye put them inside the floor and the player fell every tick. The frame a capture reads
+     * is drawn after that tick from the eye: {@code GameRenderer} interpolates between {@code
+     * lastY} and {@code y}, and {@code updatePositionAndAngles} writes both. See #1161 and #1193.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         if (waited == 1 && (player.x != eye.x() || player.y != eye.y() || player.z != eye.z())) {
@@ -150,9 +149,10 @@ public final class GrugControlAlphaClient {
                             + eye.z()
                             + "); pinning it for the capture");
         }
-        player.updatePositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
+        player.updatePositionAndAngles(
+                eye.x(), GrugTestPlayerSnap.pinnedEyeY(eye.y()), eye.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
-        player.velocityY = GrugTestPlayerSnap.RESTING_VELOCITY_Y;
+        player.velocityY = 0.0;
         player.velocityZ = 0.0;
     }
 
@@ -272,7 +272,7 @@ public final class GrugControlAlphaClient {
         // the count the capture log's "camera at the room's eye" now gives, the mirror of the
         // drift line the first pin prints (#1161).
         boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
-        if (eye != null && player != null) {
+        if (!cameraHere && eye != null && player != null) {
             pinAtCaptureEye(player);
         }
         boolean settled = GrugCore.getAdapter().isWorldSettled();

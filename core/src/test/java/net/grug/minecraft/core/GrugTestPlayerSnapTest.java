@@ -27,14 +27,17 @@ class GrugTestPlayerSnapTest {
     }
 
     @Test
-    void aPinnedPlayerKeepsTheVelocityOfOneStandingOnTheGround() {
-        // Alpha and Beta tilt the first-person camera by atan(-velocityY * 0.2) * 15 degrees, so a
-        // pin that zeroed the velocity drew every joined capture 0.235 degrees (2 px at 1280x720)
-        // off the client-only golden (#1213). The value is a tick of gravity: velocityY -= 0.08 and
-        // then *= 0.98F, which the floor cancels in the next move.
-        assertEquals(-0.0784000015258789, GrugTestPlayerSnap.RESTING_VELOCITY_Y, 0.0);
-        double tilt = Math.atan(-GrugTestPlayerSnap.RESTING_VELOCITY_Y * 0.2) * 15;
-        assertTrue(tilt > 0.2 && tilt < 0.3, "the tilt a standing player's view has: " + tilt);
+    void aPinnedPlayerStartsAboveTheFloorItStandsOn() {
+        // Alpha and Beta add the eye height as a float, 1.62F, which is 4.8e-9 above 1.62, so a pin
+        // at exactly the eye put the feet inside the floor block and the player fell a gravity
+        // step every tick. The lift is above that rounding and inside the capture tolerance, so
+        // the first move settles the player on the floor and the camera is still at the eye
+        // (#1213).
+        double floatRounding = 1.62F - 1.62;
+        assertTrue(GrugTestPlayerSnap.PIN_LIFT > 1000 * floatRounding);
+        assertTrue(GrugTestPlayerSnap.PIN_LIFT < GrugTestCamera.CAPTURE_EYE_TOLERANCE / 10);
+        assertEquals(
+                65.62 + GrugTestPlayerSnap.PIN_LIFT, GrugTestPlayerSnap.pinnedEyeY(65.62), 0.0);
     }
 
     @Test
