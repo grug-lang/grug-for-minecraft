@@ -108,15 +108,6 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
-     * The mining crack is drawn by a client, so a server's test is refused like any client call.
-     */
-    @Override
-    public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
-        refuseWithoutAClient("Test.mining_crack");
-        return false;
-    }
-
-    /**
      * The screen calls this server makes, which its joined client performs: a server has no screen
      * of its own, so every one of them is a round trip to the client of the player who started the
      * run (#1094). A failure is a host function error, which fails the test.
