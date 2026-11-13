@@ -100,4 +100,17 @@ class GrugLightResendTest {
         assertTrue(resend.due().isEmpty());
         assertFalse(resend.pending());
     }
+
+    @Test
+    void theBoxOfTheLastSendIsKept() {
+        GrugLightResend resend = new GrugLightResend();
+        assertEquals(0, resend.lastBox().length);
+        resend.noteBlock(5, 64, 5);
+        resend.noteBlock(2, 70, 9);
+        resend.due();
+        assertEquals(0, resend.lastBox().length, "nothing was sent for the waiting poll");
+        resend.due();
+
+        assertArrayEquals(new int[] {1, 63, 4, 6, 71, 10}, resend.lastBox());
+    }
 }

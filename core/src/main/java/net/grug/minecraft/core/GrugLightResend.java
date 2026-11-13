@@ -37,6 +37,7 @@ public final class GrugLightResend {
     private int maxX;
     private int maxY;
     private int maxZ;
+    private int[] sent = new int[0];
 
     /**
      * Records that the block at this position changed, and with it the light of the blocks around
@@ -69,6 +70,16 @@ public final class GrugLightResend {
     }
 
     /**
+     * The box {@code {minX, minY, minZ, maxX, maxY, maxZ}} the regions {@link #due} last returned
+     * were cut from, or an empty array before it has returned any. The loader recomputes its light
+     * over this box before it sends, so the light that goes out is the field the final blocks
+     * define and not the one the order of the placements left.
+     */
+    public synchronized int[] lastBox() {
+        return sent.clone();
+    }
+
+    /**
      * The regions to send the client now, one per chunk the changes touched, each as {@code {x, y,
      * z, sizeX, sizeY, sizeZ}} in blocks, or an empty list while nothing is owed or the tick that
      * made the change has not ended. Clears what it returns.
@@ -84,6 +95,7 @@ public final class GrugLightResend {
         }
         owed = false;
         waited = false;
+        sent = new int[] {minX, minY, minZ, maxX, maxY, maxZ};
         int fromY = Math.max(minY, 0);
         int toY = Math.min(maxY, WORLD_HEIGHT - 1);
         if (fromY > toY) {
