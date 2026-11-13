@@ -17,7 +17,10 @@
 # another leg is unchanged. It is used only by the 1.20.6 leg.
 set -uo pipefail
 
-java_bin="${JAVA_HOME:+${JAVA_HOME}/bin/java}"
+# The Gradle task that hands this wrapper in also passes the java its own launcher would have run,
+# because replacing the task's executable would otherwise leave the clients on the daemon's java
+# rather than the loader's toolchain.
+java_bin="${GRUG_CI_CLIENT_JAVA:-${JAVA_HOME:+${JAVA_HOME}/bin/java}}"
 java_bin="${java_bin:-java}"
 
 if [ -z "${GRUG_SECOND_CLIENT_DIR:-}" ]; then
