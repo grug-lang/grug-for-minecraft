@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugLightSync;
+import net.grug.minecraft.core.GrugRelight;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
@@ -875,6 +876,48 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // The client and the server share this loader's world, so the block is there, but the
         // settle wait still has to be told that a frame has to see it. See #804.
         blockSync.owe(posX, posY, posZ, getBlock(world, posX, posY, posZ));
+    }
+
+    /** Sweeps of the room's cells the light may take before it is called not settling. */
+    private static final int RELIGHT_SWEEP_LIMIT = 16;
+
+    /**
+     * Brings the room's block light to the one field its blocks define, whatever rooms were built
+     * before it.
+     *
+     * <p>This version lights incrementally, one queued change at a time, so the light a room ends
+     * with depends on the changes that came before it, as 1.2.5's does (#961). A dedicated server
+     * runs only the tests that reach it, in another order from a client-only run, so its room was
+     * built over other remains and a wall's bottom rows held a darker field than the golden's
+     * (#1092). Queueing a recompute of the whole box and draining the queue until nothing moves
+     * ends at the exact field. See {@link GrugRelight}.
+     */
+    @Override
+    public void relightRoom(
+            Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        World world = (World) levelObj;
+        GrugRelight.sweepUntilStable(
+                () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), RELIGHT_SWEEP_LIMIT);
+    }
+
+    /**
+     * Recomputes the block light of every cell of the box once and hashes what the box holds
+     * afterwards. The drain runs in full, as the settle's own does, so the hash describes a field
+     * with no update left queued.
+     */
+    private static long relightSweep(
+            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        world.queueLightUpdate(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
+        while (world.doLightingUpdates()) {}
+        long hash = 0;
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    hash = hash * 31 + world.getBrightness(LightType.BLOCK, x, y, z);
+                }
+            }
+        }
+        return hash;
     }
 
     /**
