@@ -1803,7 +1803,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * capture varies with how the run's ticks fall, so two runs captured the hand at different
      * points of its rise (#961). A frame whose pairs are equal draws the hand at rest, which is the
      * pose every golden was accepted with. See {@link GrugRenderSettle#handMoved}.
+     *
+     * <p>The null arm is a frame drawn before a world exists, such as the title screen of a hotkey
+     * run, which no test captures; the moving answer itself stays measured through the screenshot
+     * tests and {@code coverage_flat_hand}, which wait on it.
      */
+    @GrugGenerated("settle: a frame drawn before a world exists, which no test captures")
     private static boolean handMoved(Minecraft minecraft) {
         Player player = minecraft.player;
         if (player == null) {

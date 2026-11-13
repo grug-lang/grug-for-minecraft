@@ -1461,7 +1461,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 return true;
             }
         }
-        return handMoved();
+        return handMoved(minecraft);
     }
 
     /**
@@ -1475,12 +1475,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * its rise (#961). A frame whose pair is equal draws the hand at rest, which is the pose every
      * golden was accepted with. Beta's first-person hand has no swing of its own, so the two swing
      * values are 0. See {@link GrugRenderSettle#handMoved}.
+     *
+     * <p>Its only caller has already returned when the world or the player is missing, so the
+     * renderer it reads is the one a client with a world has, and it carries no guard of its own.
      */
-    private static boolean handMoved() {
-        Minecraft minecraft = MinecraftInstance.get();
-        if (minecraft.gameRenderer == null || minecraft.gameRenderer.itemInHandRenderer == null) {
-            return false;
-        }
+    private static boolean handMoved(Minecraft minecraft) {
         ItemInHandRendererAccess hand =
                 (ItemInHandRendererAccess) minecraft.gameRenderer.itemInHandRenderer;
         return GrugRenderSettle.handMoved(

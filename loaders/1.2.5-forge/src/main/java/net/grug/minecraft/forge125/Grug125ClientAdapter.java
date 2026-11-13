@@ -350,13 +350,17 @@ public class Grug125ClientAdapter extends Grug125Adapter {
      * still the older one. See #257.
      */
     private boolean frameHadPendingWork(Minecraft minecraft) {
+        EntityPlayer player = minecraft.thePlayer;
+        // The core answer is true for a player that does not exist yet, and this side is a
+        // short-circuit, so the hand is only read once one does: the client draws frames at the
+        // title screen before a world is loaded.
         return GrugRenderSettle.frameHadPendingWork(
                         minecraft.displayWidth,
                         minecraft.displayHeight,
                         minecraft.renderGlobal,
-                        minecraft.thePlayer,
+                        player,
                         chunkPending(minecraft))
-                | handMoved(minecraft);
+                || handMoved(minecraft, player);
     }
 
     /**
@@ -369,14 +373,11 @@ public class Grug125ClientAdapter extends Grug125Adapter {
      * varies with how the run's ticks fall, so two runs captured the hand at different points of
      * its rise (#961). A frame whose pair is equal draws the hand at rest, which is the pose every
      * golden was accepted with. See {@link GrugRenderSettle#handMoved}.
+     *
+     * <p>Its only caller reaches it once the core answer says a player exists, so it reads the
+     * renderer and the player without a guard of its own.
      */
-    private boolean handMoved(Minecraft minecraft) {
-        EntityPlayer player = minecraft.thePlayer;
-        if (player == null
-                || minecraft.entityRenderer == null
-                || minecraft.entityRenderer.itemRenderer == null) {
-            return false;
-        }
+    private boolean handMoved(Minecraft minecraft, EntityPlayer player) {
         return GrugRenderSettle.handMoved(
                 GrugHandAccess.equippedProgress(minecraft.entityRenderer.itemRenderer),
                 GrugHandAccess.prevEquippedProgress(minecraft.entityRenderer.itemRenderer),
