@@ -143,6 +143,8 @@ case "$*" in
       head -n 1 "${FAKE_SERVER_LINES_FILE:?}"
       sleep "${FAKE_COUNT_GAP:-0}"
       tail -n +2 "${FAKE_SERVER_LINES_FILE:?}"
+      # A real server halts right after its marker, so the process is gone when the script looks.
+      [ "${FAKE_SERVER_EXITS:-0}" = "1" ] && exit 0
       exec sleep 600
     fi
     exec sleep 600
@@ -597,6 +599,20 @@ class SecondPlayerTest(unittest.TestCase):
         )
 
         self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_a_server_that_exits_right_after_the_marker_still_passes_the_arm(self):
+        # The server halts after printing the marker and the count, so a poll can find the process
+        # gone; the marker is judged before the exit is reported.
+        result = self.starter_leaves(
+            "[GRUG CI] FAIL the test player left\n"
+            "[GRUG CI] The player who started the run disconnected while 1 player(s) were still"
+            " on the dedicated server.\n",
+            FAKE_COUNT_GAP="1",
+            FAKE_SERVER_EXITS="1",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("exited without", result.stderr)
 
     def test_a_run_that_follows_the_second_player_fails_the_arm(self):
         # The old players.isEmpty() rule: the starter is gone, a second player is not, so the suite

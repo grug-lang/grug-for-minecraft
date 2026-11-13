@@ -536,6 +536,13 @@ if [ "$SECOND_CLIENT" = true ]; then
   second_tail_pid=$!
 fi
 
+# True once the arm has killed the starter and the server has written the starter-left marker, which
+# the arm's own check judges on the next pass.
+starter_left_marker_landed() {
+  [ "$STARTER_LEAVES" = true ] && [ "$starter_killed" = true ] \
+    && grep -qF '[GRUG CI] FAIL the test player left' "$SERVER_LOG"
+}
+
 deadline=$((SECONDS + ${GRUG_CI_RUN_TIMEOUT:-300}))
 while :; do
   # The second player holds its real START until the server has accepted the first one (#1027), so
@@ -593,6 +600,12 @@ while :; do
     exit 1
   fi
   if line=$(grep -m1 -E "$SUCCESS_RE" "$SERVER_LOG"); then
+    # The arm's own check above can have read the log just before this line landed. A suite that
+    # finishes in the arm is the failure the arm exists to show, whatever else it printed.
+    if [ "$STARTER_LEAVES" = true ]; then
+      echo "==> The suite finished although its starter had left, so the run followed another player." >&2
+      exit 1
+    fi
     grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
     # A server skips a test that does not define tick_any_side and skips a forwarded_ test it
     # cannot forward, and either skip is a green run: the tests below have to show as passed. The
@@ -820,8 +833,10 @@ while :; do
     exit 0
   fi
   # The server halts right after the marker, so a marker that landed since the arm's check is in the
-  # log by now; the next pass judges it instead of this one reporting an exit or a timeout.
-  if [ "$STARTER_LEAVES" = true ] && [ "$starter_killed" = true ] && grep -qF '[GRUG CI] FAIL the test player left' "$SERVER_LOG"; then
+  # log by now; the next pass judges it instead of this one reporting an exit or a timeout. The
+  # check is repeated right before each of those reports below, because the marker can also land
+  # between this one and them.
+  if starter_left_marker_landed; then
     continue
   fi
   if line=$(grep -m1 -E "$crash_re" "$SERVER_LOG"); then
@@ -833,6 +848,9 @@ while :; do
     exit 1
   fi
   if ! kill -0 "$server_pid" 2>/dev/null; then
+    if starter_left_marker_landed; then
+      continue
+    fi
     echo "==> The dedicated server exited without an ALL n TESTS PASSED line." >&2
     exit 1
   fi
@@ -841,6 +859,9 @@ while :; do
     exit 1
   fi
   if [ "$SECONDS" -ge "$deadline" ]; then
+    if starter_left_marker_landed; then
+      continue
+    fi
     echo "==> Timed out after ${GRUG_CI_RUN_TIMEOUT:-300}s without an ALL n TESTS PASSED line." >&2
     exit 1
   fi
