@@ -3,11 +3,12 @@
 # client answers, so a starter killed during one is not noticed until the call times out, and the run
 # then ends on that call's error rather than on the starter's absence. With only server-side work the
 # server ticks, handles the disconnect, and the runner's starter check is what stops the run. In an
-# ordinary run the test just passes after the ticks.
+# ordinary run the test just passes after the ticks. The count stays under the runner's budget of 200
+# ticks, which a test at game speed 1 may not exceed.
 # The tick count is a duration here, not a stand-in for a condition: nothing in the game says that
 # a killed client's disconnect has been handled, which is what the arm waits for (#688).
 export tick_any_side(ctx: TestTickContext) {
-    if ctx.current_tick() < 200 {
+    if ctx.current_tick() < 150 {
         ctx.not_done()
     }
 }

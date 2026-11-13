@@ -103,7 +103,7 @@ if [ -n "${GRUG_CI_STARTER_LEAVES:-}" ]; then
   # The one test that asks the player's client nothing while it runs (#1301). The starter is killed
   # once it is executing: a forwarded call in flight would freeze the server on the dead client for
   # its whole timeout and end the run on that call's error before the server could notice the leaver.
-  export GRUG_CI_TESTS=coverage/tests/starter_left_window
+  export GRUG_CI_TESTS=coverage/tests/starter_left_window-Test.grug
 fi
 starter_killed=false
 
@@ -559,6 +559,12 @@ while :; do
         exit 1
       fi
       if grep -qF '[GRUG CI] FAIL the test player left' "$SERVER_LOG"; then
+        # The marker and the player count are two println calls, so a poll can land between them;
+        # the count line is waited for briefly before it is judged.
+        count_deadline=$((SECONDS + 5))
+        until grep -qF '[GRUG CI] The player who started the run disconnected while' "$SERVER_LOG" || [ "$SECONDS" -ge "$count_deadline" ]; do
+          sleep 0.2
+        done
         if ! grep -qF 'disconnected while 1 player(s) were still on the dedicated server' "$SERVER_LOG"; then
           echo "==> The run stopped for the starter leaving, but not with the second player still connected." >&2
           grep -F '[GRUG CI] The player who started' "$SERVER_LOG" >&2 || true

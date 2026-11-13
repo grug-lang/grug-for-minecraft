@@ -2231,7 +2231,9 @@ jobs:
   # only run that does the check, and the next one on main restores the guarantee either way.
   server-reachable:
     name: server-reachable code
-    if: ${{ !cancelled() && needs.multiplayer.result == 'success' && needs.coverage.result == 'success' }}
+    # A starter-leaves dispatch runs one test on the 1.20.6 server, so its list is nearly empty and
+    # would read as every server-reachable method lost; the arm proves one stop, not reachability.
+    if: ${{ !cancelled() && !inputs.starter-leaves && needs.multiplayer.result == 'success' && needs.coverage.result == 'success' }}
     needs: [multiplayer, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 5

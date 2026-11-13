@@ -138,8 +138,11 @@ case "$*" in
       # The run has begun, then the lines a server writes after its starter's client was killed.
       printf '[GRUG CI] CI mode active & player loaded after 1 ms. Firing tests!\\n'
       printf '[GRUG CI] Executing test: coverage/tests/starter_left_window-Test.grug\\n'
+      printf '%s\\n' "${GRUG_CI_TESTS:-}" > "${FAKE_TESTS_ENV_FILE:?}"
       sleep 6
-      cat "${FAKE_SERVER_LINES_FILE:?}"
+      head -n 1 "${FAKE_SERVER_LINES_FILE:?}"
+      sleep "${FAKE_COUNT_GAP:-0}"
+      tail -n +2 "${FAKE_SERVER_LINES_FILE:?}"
       exec sleep 600
     fi
     exec sleep 600
@@ -556,7 +559,7 @@ class SecondPlayerTest(unittest.TestCase):
             result.stdout,
         )
 
-    def starter_leaves(self, lines):
+    def starter_leaves(self, lines, **env):
         lines_file = self.tmp / "server-lines.log"
         lines_file.write_text(lines)
         return self.run_script(
@@ -564,6 +567,8 @@ class SecondPlayerTest(unittest.TestCase):
             FAKE_SERVER_LINES_FILE=str(lines_file),
             GRUG_CI_STARTER_LEAVES="1",
             GRUG_CI_RUN_TIMEOUT="60",
+            FAKE_TESTS_ENV_FILE=str(self.tmp / "tests-env.txt"),
+            **env,
         )
 
     def test_the_starter_leaving_with_a_second_player_still_connected_passes_the_arm(self):
@@ -576,6 +581,22 @@ class SecondPlayerTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("Killing the starter's client", result.stdout)
         self.assertIn("The run stopped when its starter left", result.stdout)
+        # The runner matches GRUG_CI_TESTS exactly against loaded paths, which end in -Test.grug.
+        self.assertEqual(
+            "coverage/tests/starter_left_window-Test.grug",
+            (self.tmp / "tests-env.txt").read_text().strip(),
+        )
+
+    def test_a_count_line_written_after_the_marker_is_still_read(self):
+        # The server prints the marker and the count in two calls; the fake writes the count late.
+        result = self.starter_leaves(
+            "[GRUG CI] FAIL the test player left\n"
+            "[GRUG CI] The player who started the run disconnected while 1 player(s) were still"
+            " on the dedicated server.\n",
+            FAKE_COUNT_GAP="2",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_a_run_that_follows_the_second_player_fails_the_arm(self):
         # The old players.isEmpty() rule: the starter is gone, a second player is not, so the suite
