@@ -576,7 +576,10 @@ while :; do
     fi
   fi
   # A failure is checked before the success line, so a log holding both is a failure.
-  if grep -qF '[GRUG CI] FAIL' "$SERVER_LOG"; then
+  # In the starter-left arm the starter-left marker is the expected failure, and it can land after
+  # the arm's own check above and before this one; the arm judges it on the next pass, so it is not
+  # counted as a test failure here.
+  if grep -F '[GRUG CI] FAIL' "$SERVER_LOG" | { [ "$STARTER_LEAVES" = true ] && [ "$starter_killed" = true ] && grep -vF '[GRUG CI] FAIL the test player left' || cat; } | grep -q .; then
     echo "==> A test failed on the dedicated server." >&2
     grep -m1 -B 5 -A 10 -F '[GRUG CI] FAIL' "$SERVER_LOG" >&2
     exit 1
@@ -815,6 +818,11 @@ while :; do
     fi
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0
+  fi
+  # The server halts right after the marker, so a marker that landed since the arm's check is in the
+  # log by now; the next pass judges it instead of this one reporting an exit or a timeout.
+  if [ "$STARTER_LEAVES" = true ] && [ "$starter_killed" = true ] && grep -qF '[GRUG CI] FAIL the test player left' "$SERVER_LOG"; then
+    continue
   fi
   if line=$(grep -m1 -E "$crash_re" "$SERVER_LOG"); then
     echo "==> The dedicated server crashed: ${line}" >&2
