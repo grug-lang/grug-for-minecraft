@@ -1,3 +1,8 @@
+import org.gradle.api.file.RegularFile
+import org.gradle.api.tasks.Internal
+import org.gradle.jvm.toolchain.JavaInstallationMetadata
+import org.gradle.jvm.toolchain.JavaLauncher
+
 plugins {
     id 'eclipse'
     id 'idea'
@@ -64,9 +69,51 @@ minecraft {
 // The wrapper starts the second client on its own display and game directory first, and then runs
 // this client, so one Gradle invocation still launches exactly one build. The variable is set only
 // on the 1.20.6 leg, and no other loader's runClient sees it.
+//
+// Gradle refuses a task whose executable and javaLauncher name different toolchains, which is what
+// the first dispatch hit. So the launcher itself is replaced by one whose executable path is the
+// wrapper but whose metadata is the loader's own toolchain, and the wrapper is handed that
+// toolchain's java: the client still runs on the java it was built for.
 tasks.matching { it.name == 'runClient' }.configureEach {
-    if (System.getenv('GRUG_CI_CLIENT_WRAPPER')) {
-        executable System.getenv('GRUG_CI_CLIENT_WRAPPER')
+    String wrapperPath = System.getenv('GRUG_CI_CLIENT_WRAPPER')
+    if (wrapperPath) {
+        def toolchain = javaToolchains.launcherFor { languageVersion = java.toolchain.languageVersion.get() }
+        def wrapperFile = layout.file(providers.provider { new File(wrapperPath) })
+        environment 'GRUG_CI_CLIENT_JAVA', toolchain.get().executablePath.asFile.absolutePath
+        javaLauncher.set(new ClientWrapperLauncher(toolchain.get(), wrapperFile.get()))
+    }
+}
+
+// The launcher Gradle refuses without the wrapper: the executable path is the wrapper, so the task
+// starts it, while the metadata stays the loader's toolchain, so the java arguments and the version
+// it is built for do not change.
+class ClientWrapperLauncher implements JavaLauncher {
+    private final JavaLauncher real
+    private final RegularFile wrapperPath
+
+    ClientWrapperLauncher(JavaLauncher real, RegularFile wrapperPath) {
+        this.real = real
+        this.wrapperPath = wrapperPath
+    }
+
+    @Internal
+    JavaLauncher getReal() {
+        return real
+    }
+
+    @Internal
+    RegularFile getWrapperPath() {
+        return wrapperPath
+    }
+
+    @Override
+    JavaInstallationMetadata getMetadata() {
+        return real.metadata
+    }
+
+    @Override
+    RegularFile getExecutablePath() {
+        return wrapperPath
     }
 }
 
