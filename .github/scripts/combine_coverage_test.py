@@ -10,9 +10,11 @@ import csv
 import importlib.util
 import io
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -899,6 +901,22 @@ class ServerExecTest(unittest.TestCase):
             "[INFO] Analyzing 3 classes.\n"
         )
         self.assertEqual(combine.DOES_NOT_MATCH.findall(text), ["net/grug/A", "net/grug/A"])
+
+    def test_a_failing_jacoco_run_prints_its_output_before_it_raises(self):
+        failed = subprocess.CompletedProcess(
+            ["java"], 1, stdout="[ERROR] Exception while analyzing net/grug/A\n"
+        )
+        out = io.StringIO()
+        with (
+            unittest.mock.patch.object(combine.subprocess, "run", return_value=failed),
+            contextlib.redirect_stdout(out),
+            self.assertRaises(subprocess.CalledProcessError),
+        ):
+            combine.jacoco_report(
+                Path("cli.jar"), [Path("a.exec")], Path("classes"), [], Path("o.csv"), Path("o.xml")
+            )
+
+        self.assertIn("Exception while analyzing net/grug/A", out.getvalue())
 
 
 if __name__ == "__main__":
