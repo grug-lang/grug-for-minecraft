@@ -520,6 +520,7 @@ class SecondPlayerTest(unittest.TestCase):
         "jei/tests/paging",
         "jei/tests/scroll",
         "coverage/tests/second_player",
+        "coverage/tests/forwarded_player_model",
     ]
 
     # The overlay tests are required twice: the PASS line and the line only a test whose overlay
@@ -534,7 +535,7 @@ class SecondPlayerTest(unittest.TestCase):
         "jei/tests/scroll",
     ]
 
-    def passing_server_lines(self, ignored_start=True, moved_stranger=True):
+    def passing_server_lines(self, ignored_start=True, moved_stranger=True, in_view=True):
         lines = ["[GRUG CONTROL] Dev started the run"]
         if ignored_start:
             lines.append("[GRUG CONTROL] SecondPlayer sent a start, which was ignored")
@@ -542,6 +543,11 @@ class SecondPlayerTest(unittest.TestCase):
             lines.append(
                 "[GRUG CI] Moved a second player 8 blocks from the starter, so a run that"
                 " picked it would read another player's eye."
+            )
+        if in_view:
+            lines.append(
+                "[GRUG CI] Put a second player 3.0 blocks in front of the starter for the player"
+                " model capture."
             )
         for path in self.REQUIRED_PASSES:
             lines.append(f"[GRUG CI] PASS {path}-Test.grug")
@@ -672,6 +678,35 @@ class SecondPlayerTest(unittest.TestCase):
             "The server did not move the second player away",
             result.stderr,
         )
+
+    def test_a_run_that_never_put_the_second_player_in_view_fails_closed(self):
+        # The player model capture (#1298) needs the second player in the starter's frame; a leg
+        # whose server never made the move would have captured the empty room.
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines(in_view=False))
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("never put the second player in the starter's view", result.stderr)
+
+    def test_a_run_that_skipped_the_player_model_test_fails_closed(self):
+        lines_file = self.tmp / "server-lines.log"
+        lines = self.passing_server_lines().replace(
+            "[GRUG CI] PASS coverage/tests/forwarded_player_model-Test.grug\n", ""
+        )
+        lines_file.write_text(lines)
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("forwarded_player_model-Test.grug did not run", result.stderr)
 
     def test_the_second_client_runs_before_the_client_gradle_asked_for(self):
         result = self.run_script()

@@ -1,0 +1,65 @@
+# Another player's model, as the starter's own screen draws it (#1298). The 1.20.6 multiplayer leg
+# has a second real client (#1027); the dedicated server stands that player three blocks in front of
+# the starter for as long as this test runs (GrugServerRun), the test captures the starter's frame,
+# and the golden pins what the loader's own entity renderer drew: the player's default skin in its
+# idle pose with its name tag, where it stands in the frame. The capture is first person, so the
+# only player model in view is the other player's.
+# Two things fail it. A model that never arrives leaves the crop as the empty room it was at the
+# first tick, and the wait below ends at its bound with the assertion that says so; a model drawn
+# from the wrong eye sits elsewhere in the frame and the golden does not match. Both would pass a
+# test that only read the camera, which second_player-Test.grug already does.
+# The skin is the default one on purpose: the dedicated server runs offline and sends no textures,
+# so the client draws the default for that player's UUID, and no test may depend on a skin fetch.
+# Nothing here waits a number of ticks. The model arrives after the server's teleport reaches the
+# client and its entity is added, and the entity then eases into its place over a few frames, so the
+# test waits until the crop has changed from the empty room and then stopped changing for three
+# captures in a row. The tick bound only ends a wait that cannot succeed.
+# Only 1.20.6-forge's multiplayer leg has a second client, so the other loaders return at once, and
+# the runner runs a forwarded_ test on a dedicated server alone.
+
+# The crop's frame at the first tick, before the second player is in view.
+empty: Option[Screenshot] = Option.new()
+
+# The last frame the wait took, to tell a model still easing into place from one that has arrived.
+previous: Option[Screenshot] = Option.new()
+
+# How many captures in a row matched the one before them, with the model in the frame.
+steady: number = 0
+
+export tick(ctx: TestTickContext) {
+    if Test.loader_name() != "1.20.6-forge" {
+        return
+    }
+    if ctx.current_tick() == 0 {
+        # The server puts the second player in view when this tick ends, so this is the room alone.
+        _wait_for_the_room(ctx)
+        empty.set(Test.screenshot().capture(320, 100, 960, 700))
+        ctx.not_done()
+        return
+    }
+    now: Screenshot = Test.screenshot().capture(320, 100, 960, 700)
+    arrived: bool = now.change_from(empty.unwrap()) > 5.0
+    if arrived and previous.has() and now.change_from(previous.unwrap()) == 0.0 {
+        steady = steady + 1
+    } else {
+        steady = 0
+    }
+    previous.set(now)
+    if steady < 3 {
+        ctx.assert(ctx.current_tick() < 150, "The other player's model should have been drawn in the starter's view, but the frame never changed from the empty room.")
+        ctx.not_done()
+        return
+    }
+    Test.screenshot().equals(r"screenshots/player_model", 320, 100, 960, 700)
+}
+
+# Asks the joined client whether it has drawn the room, as forwarded_capture_pinned_eye does.
+local _wait_for_the_room(ctx: TestTickContext) {
+    settled: bool = Test.world_settled()
+    asks: number = 1
+    while not settled and asks < 60 {
+        settled = Test.world_settled()
+        asks = asks + 1
+    }
+    ctx.assert(settled, "The client should have drawn the room before the baseline is taken.")
+}
