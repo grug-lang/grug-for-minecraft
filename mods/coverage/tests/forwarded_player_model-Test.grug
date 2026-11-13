@@ -1,32 +1,27 @@
 # Another player's model, as the starter's own screen draws it (#1298). The 1.20.6 multiplayer leg
-# has a second real client (#1027); the dedicated server stands that player three blocks in front of
-# the starter for as long as this test runs (GrugServerRun), the test captures the starter's frame,
-# and the golden pins what the loader's own entity renderer drew: the player's default skin in its
-# idle pose with its name tag, where it stands in the frame. The capture is first person, so the
-# only player model in view is the other player's.
-# Two things fail it. A model that never arrives leaves the crop as the empty room it was at the
-# first tick, and the wait below ends at its bound with the assertion that says so; a model drawn
-# from the wrong eye sits elsewhere in the frame and the golden does not match. Both would pass a
-# test that only read the camera, which second_player-Test.grug already does.
-# The skin is the default one on purpose: the dedicated server runs offline and sends no textures,
-# so the client draws the default for that player's UUID, and no test may depend on a skin fetch.
-# Nothing here waits a number of ticks. The model arrives after the server's teleport reaches the
-# client and its entity is added, and the entity then eases into its place over a few frames, so the
-# test waits until the crop has changed from the empty room and then stopped changing for fifteen
-# captures in a row: the crop brightens for a few dozen ticks while the client's light settles, so a
-# shorter run of equal frames is a plateau and not the settled frame.
-# The tick bound only ends a wait that cannot succeed.
+# has a second real client (#1027), and the dedicated server stands that player three blocks in
+# front of the starter while this test runs (GrugServerRun). The golden pins what the loader's own
+# entity renderer drew for it: the default skin, since the offline server sends no textures, with
+# its name tag. The capture is first person, so the only model in view is the other player's.
+# A model that never arrives leaves the crop as the empty room it was at the first tick, and the
+# wait ends at its bound with the assertion that says so; a model drawn from the wrong eye sits
+# elsewhere in the frame and the golden does not match.
+# The crop is the head, the name tag and the body between the arms, not the whole model: vanilla
+# sways a player model's arms with its age, so consecutive frames of the arms never agree, while the
+# head, the tag and the torso did in every frame measured (#1298).
+# Nothing here waits a number of ticks. The test waits until the crop has changed from the empty
+# room and then held still for fifteen captures in a row: the client's light brightens the crop for
+# a few dozen ticks after the model arrives (its mean colour went from #372b20 to #413326), so a
+# shorter run of equal frames is a plateau and not the settled one. The tick bound only ends a wait
+# that cannot succeed.
 # Only 1.20.6-forge's multiplayer leg has a second client, so the other loaders return at once, and
 # the runner runs a forwarded_ test on a dedicated server alone.
 
-# The head's part of the crop at the first tick, before the second player is in view.
-empty_head: Option[Screenshot] = Option.new()
+# The crop at the first tick, before the second player is in view.
+empty: Option[Screenshot] = Option.new()
 
-# The last frame the wait took, to tell a model still easing into place from one that has arrived.
+# The last frame the wait took.
 previous: Option[Screenshot] = Option.new()
-p_tag: Option[Screenshot] = Option.new()
-p_torso: Option[Screenshot] = Option.new()
-p_legs: Option[Screenshot] = Option.new()
 
 # How many captures in a row matched the one before them, with the model in the frame.
 steady: number = 0
@@ -46,44 +41,23 @@ export tick(ctx: TestTickContext) {
         origin: Vec3 = Test.get_origin()
         Test.get_client_level().place_block(Math.floor(origin.x()), Math.floor(origin.y() - 4.12) - 1, Math.floor(origin.z()) + 3, "minecraft:stone")
         _wait_for_the_room(ctx)
-        empty_head.set(Test.screenshot().capture(610, 322, 670, 372))
+        empty.set(Test.screenshot().capture(612, 236, 668, 640))
         ctx.not_done()
         return
     }
-    # The head is black against a brown wall, so the first change in this part of the crop is the
-    # model and not the light, which also moves the whole crop's brightness while it settles.
-    head: Screenshot = Test.screenshot().capture(610, 322, 670, 372)
-    tag: Screenshot = Test.screenshot().capture(520, 260, 760, 310)
-    torso: Screenshot = Test.screenshot().capture(580, 400, 710, 490)
-    legs: Screenshot = Test.screenshot().capture(590, 500, 700, 648)
-    now: Screenshot = Test.screenshot().capture(520, 260, 760, 648)
-    if ctx.current_tick() > 150 {
-        if tag.change_from(p_tag.unwrap()) > 0.0 {
-            ctx.assert(false, "DIAG the tag strip changed")
-        }
-        if head.change_from(previous.unwrap()) > 0.0 {
-            ctx.assert(false, "DIAG the head changed")
-        }
-        if torso.change_from(p_torso.unwrap()) > 0.0 {
-            ctx.assert(false, "DIAG the torso changed")
-        }
-        if legs.change_from(p_legs.unwrap()) > 0.0 {
-            ctx.assert(false, "DIAG the legs changed")
-        }
-        ctx.assert(false, "DIAG no part changed, only the margins")
+    now: Screenshot = Test.screenshot().capture(612, 236, 668, 640)
+    if now.change_from(empty.unwrap()) > 5.0 and previous.has() and now.change_from(previous.unwrap()) < 0.05 {
+        steady = steady + 1
+    } else {
+        steady = 0
     }
-    p_tag.set(tag)
-    p_torso.set(torso)
-    p_legs.set(legs)
-    previous.set(head)
-    ctx.not_done()
-    return
+    previous.set(now)
     if steady < 15 {
-        ctx.assert(ctx.current_tick() < 400, "The other player's model should have been drawn in the starter's view, drawn and still, but the frame never settled.")
+        ctx.assert(ctx.current_tick() < 400, "The other player's model should have been drawn in the starter's view and then held still, but the frame never settled.")
         ctx.not_done()
         return
     }
-    Test.screenshot().equals(r"screenshots/player_model", 520, 260, 760, 648)
+    Test.screenshot().equals(r"screenshots/player_model", 612, 236, 668, 640)
 }
 
 # Asks the joined client whether it has drawn the room, as forwarded_capture_pinned_eye does.
