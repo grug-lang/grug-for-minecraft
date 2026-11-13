@@ -42,19 +42,3 @@ coverage/tests/hook_forced_normalization-Test.grug
 # golden in 11614 of 12672 pixels (#1099, #1137). coverage/tests/hook_forced_normalization-Test.grug
 # stays the client-only proof that this loader's item draw pins the state off.
 jei/tests/item_list_forced_normalization-Test.grug
-# The four wall-backed buildcraft captures #1161 promoted to tick_any_side. Their joined client
-# still draws a different picture from the flat golden here, so they stay client-only on this loader
-# until #1092's server-versus-client difference is fixed: dispatch 42430865929 stopped at
-# cobblestone_pipe_shapes' cobblestone_pipe_straight, 47 of 115200 pixels, and the leg reaches no
-# test after its first promoted failure, so the other three are unmeasured and listed with it. The
-# client-only run of this loader still runs all four, which is where their goldens are checked.
-buildcraft/tests/cobblestone_pipe_shapes-Test.grug
-buildcraft/tests/redstone_engine-Test.grug
-buildcraft/tests/redstone_engine_animation-Test.grug
-buildcraft/tests/redstone_engine_facings-Test.grug
-#
-# wooden_pipe_shapes, which #1096 promoted to tick_any_side. Dispatch 43422357886 failed its
-# wooden_pipe_straight capture in 5074 of 115200 pixels, the server-versus-client difference #1092
-# tracks. wooden_pipe_items passed on this server in the same run, so it is not listed. The
-# client-only run of this loader still checks the golden.
-buildcraft/tests/wooden_pipe_shapes-Test.grug

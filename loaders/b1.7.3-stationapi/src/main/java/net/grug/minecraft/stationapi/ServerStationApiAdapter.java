@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
+import net.grug.minecraft.core.GrugLightResend;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
@@ -26,8 +27,10 @@ import net.grug.minecraft.stationapi.control.GrugControlStation;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
@@ -625,12 +628,60 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         if (!GrugControlStation.server().hasStarter()) {
             return true;
         }
+        if (resendLight()) {
+            return false;
+        }
         try {
             return GrugControlStation.server().worldSettled();
         } catch (GrugControlServer.ControlException e) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.world_settled: " + e.getMessage());
             return true;
         }
+    }
+
+    /**
+     * The blocks a test placed, whose light the joined client lights for itself and so can light
+     * differently from this server's engine (#1092). See {@link GrugLightResend}.
+     */
+    private final GrugLightResend lightResend = new GrugLightResend();
+
+    /** A block placed here also owes the joined client the light around it. */
+    @Override
+    public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
+        super.placeBlock(levelObj, x, y, z, blockName);
+        lightResend.noteBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    /**
+     * Sends the joined client this server's light for the blocks a test changed, once the tick that
+     * changed them has been flushed to it, and answers whether it did.
+     *
+     * <p>This version's client lights a block-change packet from that change alone, while a chunk
+     * region packet carries the server's own light, so a room that touches a chunk with few blocks
+     * left that chunk's light a level off the server's, which the client-only run's golden does not
+     * show. The region packet is the one carrier of light this version has, so the settle wait
+     * sends it: the answer is false for the poll that sent it, so the next one asks a client that
+     * has the light. See {@link GrugLightResend} and #1092.
+     */
+    private boolean resendLight() {
+        List<int[]> regions = lightResend.due();
+        if (regions.isEmpty()) {
+            return false;
+        }
+        PlayerEntity starter = GrugControlStation.starterPlayer();
+        World world = (World) getLevel();
+        if (starter == null || world == null) {
+            return false;
+        }
+        while (world.doLightingUpdates()) {}
+        for (int[] region : regions) {
+            ((ServerPlayerEntity) starter)
+                    .networkHandler.sendPacket(
+                            new ChunkDataS2CPacket(
+                                    region[0], region[1], region[2], region[3], region[4],
+                                    region[5], world));
+        }
+        return true;
     }
 
     /** The server has no frames, so there is nothing to forget. */
