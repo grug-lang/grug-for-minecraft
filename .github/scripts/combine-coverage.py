@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import shutil
 import subprocess
 import sys
@@ -247,11 +248,13 @@ def discover_runners(artifacts: Path) -> dict[str, dict]:
     # analyses only exec data recorded against the very bytes staged for that runner. Core is those
     # bytes on every leg, since the server loads the same core classes the client does. A loader's
     # own server-only classes count on 1.20.6-forge and b1.7.3-stationapi, whose runServer launches
-    # the staged dev classes. They do not count on the three Ornithe legs or on 1.2.5-forge, whose
-    # servers run a remapped or reobfuscated jar instead, so every one of their loader classes is
-    # dropped with a per-class "[WARN] ... does not match" and only core's contributes: counting
-    # those would need a per-class-set analysis with a line-level union over the two sets of bytes,
-    # never a second report summed by sum_csvs (#1027).
+    # the staged dev classes, and on 1.2.5-forge, whose coverageClasses also stages the classes only
+    # its reobfuscated server jar has (#1324). They do not count on the three Ornithe legs, whose
+    # servers run a remapped jar instead, so every one of their loader classes is dropped with a
+    # per-class "[WARN] ... does not match" and only core's contributes, and a 1.2.5 class that both
+    # jars have is the client's copy: counting those would need a per-class-set analysis with a
+    # line-level union over the two sets of bytes, never a second report summed by sum_csvs
+    # (#1027). main() prints each runner's dropped classes so the report says it.
     for runner, execs in server_execs.items():
         info = runners.setdefault(runner, {})
         info["exec"] = [*info.get("exec", []), *execs]
@@ -284,14 +287,36 @@ def jacoco_report(
     sources: list[Path],
     csv_path: Path,
     xml_path: Path,
-) -> None:
+) -> list[str]:
+    """Run the JaCoCo report and return the classes whose exec data it dropped as not matching."""
     command = ["java", "-jar", str(cli), "report", *map(str, execs)]
     command += ["--classfiles", str(classes)]
     for source in sources:
         if source.is_dir():
             command += ["--sourcefiles", str(source)]
     command += ["--csv", str(csv_path), "--xml", str(xml_path)]
-    subprocess.run(command, check=True)
+    result = subprocess.run(
+        command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    # The CLI's own output stays in the log, as it did when it wrote to the terminal.
+    print(result.stdout, end="")
+    return sorted(set(DOES_NOT_MATCH.findall(result.stdout)))
+
+
+# JaCoCo's warning for exec data recorded against a class whose bytes differ from the analysed ones.
+DOES_NOT_MATCH = re.compile(r"Execution data for class (\S+) does not match", re.MULTILINE)
+
+
+def print_unmatched(runner: str, unmatched: list[str]) -> None:
+    """Say which classes the exec data cannot count for a runner, and why (#1324)."""
+    if not unmatched:
+        return
+    print(
+        f"{runner}: exec data of {len(unmatched)} class(es) does not match the staged class bytes "
+        "and is not counted (the dedicated server's reobfuscated jar has other bytes for a class "
+        "that names a renamed Minecraft type, and the client's copy is what the report analyses): "
+        + ", ".join(unmatched)
+    )
 
 
 # The counters a <clinit> and its ancestors carry. INSTRUCTION and BRANCH are the gate's; the
@@ -839,7 +864,7 @@ def main() -> int:
         # Kept out of coverage/report so it isn't uploaded with the report artifact.
         classes = filtered_classes(classes, args.output.parent / "filtered-classes" / runner)
         csv_path = args.output / f"{runner}.csv"
-        jacoco_report(
+        unmatched = jacoco_report(
             args.jacoco_cli,
             execs,
             classes,
@@ -847,6 +872,7 @@ def main() -> int:
             csv_path,
             args.output / f"{runner}.xml",
         )
+        print_unmatched(runner, unmatched or [])
         if dropped:
             # Kept out of coverage/report like the filtered classes, since it is only an input.
             everything_xml = args.output.parent / "everything-reports" / f"{runner}.xml"

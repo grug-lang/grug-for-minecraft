@@ -744,7 +744,7 @@ class ServerExecTest(unittest.TestCase):
         csv_path.write_text(HEADER + f"{name},net.grug,{cls},4,0,0,0,1,0,1,0,1,0\n")
         xml_path.write_text('<report name="r"></report>')
 
-    def run_main(self):
+    def run_main(self, *extra_args):
         sys.argv = [
             "combine-coverage.py",
             "--artifacts",
@@ -753,6 +753,7 @@ class ServerExecTest(unittest.TestCase):
             str(self.root / "cli.jar"),
             "--output",
             str(self.output),
+            *extra_args,
         ]
         # Patched for this run only: this module's other classes use the real report.
         combine.jacoco_report = self.fake_report
@@ -841,6 +842,60 @@ class ServerExecTest(unittest.TestCase):
         self.assertEqual(len(everything), 1)
         self.assertIn(dropped, everything[0])
         self.assertIn(server, everything[0])
+
+    def test_a_server_only_class_is_covered_by_the_server_exec_alone(self):
+        # A class only the dedicated server loads (1.2.5's Grug125ServerAdapter, staged from the
+        # server jar by coverageClasses, #1324) has hits in the server exec and none in the
+        # client's. The stub reports it covered only when the server's exec reaches the report, so
+        # the 100% gate passes through the appended exec and through nothing else.
+        server = self.server_exec()
+
+        original = self.fake_report
+
+        def report(cli, execs, classes, sources, csv_path, xml_path):
+            if csv_path.name != "1.20.6-forge.csv":
+                return original(cli, execs, classes, sources, csv_path, xml_path)
+            missed, covered = (0, 4) if server in execs else (4, 0)
+            csv_path.write_text(
+                HEADER + f"1.20.6-forge,net.grug,ServerOnly,{missed},{covered},0,0,1,0,1,0,1,0\n"
+            )
+            xml_path.write_text('<report name="r"></report>')
+            return []
+
+        self.fake_report = report
+        self.assertEqual(self.run_main("--require-100"), 0)
+        rows = [row for row in self.combined_rows() if row["CLASS"] == "ServerOnly"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["INSTRUCTION_COVERED"], "4")
+
+    def test_the_classes_the_server_data_cannot_match_are_printed_per_runner(self):
+        self.server_exec()
+
+        def report(cli, execs, classes, sources, csv_path, xml_path):
+            self.report_calls.append((tuple(execs), csv_path))
+            csv_path.write_text(HEADER)
+            xml_path.write_text('<report name="r"></report>')
+            return (
+                ["net.grug.Grug125Adapter", "net.grug.GrugPacketRegister"]
+                if (csv_path.name == "1.20.6-forge.csv")
+                else []
+            )
+
+        self.fake_report = report
+        self.assertEqual(self.run_main(), 0)
+        self.assertIn(
+            "1.20.6-forge: exec data of 2 class(es) does not match the staged class bytes", self.log
+        )
+        self.assertIn("net.grug.Grug125Adapter, net.grug.GrugPacketRegister", self.log)
+        self.assertNotIn("core: exec data", self.log)
+
+    def test_unmatched_classes_are_parsed_from_the_cli_warnings(self):
+        text = (
+            "[WARN] Execution data for class net/grug/A does not match.\n"
+            "[WARN] Execution data for class net/grug/A does not match.\n"
+            "[INFO] Analyzing 3 classes.\n"
+        )
+        self.assertEqual(combine.DOES_NOT_MATCH.findall(text), ["net/grug/A", "net/grug/A"])
 
 
 if __name__ == "__main__":
