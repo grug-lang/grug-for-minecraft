@@ -1088,6 +1088,82 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The multiplayer path from the universal jar alone, on both sides (#1065): a dedicated server a
+  # player would set up with the jar in its mods folder, and a client installed the way the
+  # `production` job installs one, with the same jar, which joins it. It is a boot-and-join check and
+  # not the suite, because the development-run legs above already prove the behaviour and this one is
+  # about the jar (maintainer's decision of 2026-11-03). It runs on a dispatch and on the weekly
+  # schedule, never on a pull request or a push. b1.7.3-stationapi and 1.2.5-forge have no server a
+  # player installs from a launcher or an installer, so they have no leg here.
+  multiplayer-installed:
+    name: ${{ matrix.loader }} installed server and client
+    if: |
+      !cancelled()
+      && needs.universal.result == 'success'
+      && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
+      && needs.discover.outputs.no-tests != 'true'
+    needs: [discover, universal]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: [a1.1.2_01-ornithe, b1.7.3-ornithe, 1.20.6-forge]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: |
+          packages=(
+            xvfb xauth x11-xserver-utils
+            libgl1 libgl1-mesa-dri libglx-mesa0
+            libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+          )
+          missing=()
+          for package in "${packages[@]}"; do
+            status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
+            [ "$status" = 'install ok installed' ] || missing+=("$package")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            if ! sudo apt-get install -y --no-install-recommends "${missing[@]}"; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends "${missing[@]}"
+            fi
+          fi
+
+      - name: Download the universal jar
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-universal
+          path: universal
+
+      - name: Boot a server and join it, both from the universal jar
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer-installed.sh "${{ matrix.loader }}"
+        env:
+          GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
+
+      - name: Upload logs and crash reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: multiplayer-installed-${{ matrix.loader }}-logs
+          path: |
+            loaders/${{ matrix.loader }}/build/installed-multiplayer/server.log
+            loaders/${{ matrix.loader }}/build/installed-multiplayer/client.log
+            loaders/${{ matrix.loader }}/build/installed-multiplayer/server/logs
+            loaders/${{ matrix.loader }}/build/installed-multiplayer/server/crash-reports
+            loaders/${{ matrix.loader }}/build/installed-multiplayer/client/logs
+            loaders/${{ matrix.loader }}/build/installed-multiplayer/client/crash-reports
+          if-no-files-found: ignore
+          retention-days: 7
+
   # The reference run (#574, #832): the reference named by the mod under test's first derived_from
   # entry, on that entry's runtime, driven by the mod's screenshot tests and compared with the
   # committed goldens. A dispatch names the mod; every other event runs the default, buildcraft, so a
