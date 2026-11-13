@@ -850,21 +850,24 @@ class ServerExecTest(unittest.TestCase):
         # the 100% gate passes through the appended exec and through nothing else.
         server = self.server_exec()
 
-        original = self.fake_report
-
         def report(cli, execs, classes, sources, csv_path, xml_path):
-            if csv_path.name != "1.20.6-forge.csv":
-                return original(cli, execs, classes, sources, csv_path, xml_path)
-            missed, covered = (0, 4) if server in execs else (4, 0)
+            self.report_calls.append((tuple(execs), csv_path))
+            # Core and the other runners are fully covered, so only ServerOnly decides the gate.
+            full = csv_path.name != "1.20.6-forge.csv" or server in execs
+            missed, covered = (0, 4) if full else (4, 0)
             csv_path.write_text(
-                HEADER + f"1.20.6-forge,net.grug,ServerOnly,{missed},{covered},0,0,1,0,1,0,1,0\n"
+                HEADER + f"{csv_path.stem},net.grug,ServerOnly,{missed},{covered},0,0,1,0,1,0,1,0\n"
             )
             xml_path.write_text('<report name="r"></report>')
             return []
 
         self.fake_report = report
         self.assertEqual(self.run_main("--require-100"), 0)
-        rows = [row for row in self.combined_rows() if row["CLASS"] == "ServerOnly"]
+        rows = [
+            row
+            for row in self.combined_rows()
+            if row["CLASS"] == "ServerOnly" and row["GROUP"] == "1.20.6-forge"
+        ]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["INSTRUCTION_COVERED"], "4")
 
