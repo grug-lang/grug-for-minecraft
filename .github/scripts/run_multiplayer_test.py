@@ -258,8 +258,10 @@ class RunMultiplayerTest(unittest.TestCase):
                 "FAKE_INSTALL_SENTINEL": str(self.sentinel),
                 "FAKE_INSTALL_SERVER_JAR": server_jar,
                 "FAKE_JAVA_ARGV": str(self.java_argv),
-                # A launch that never becomes ready ends the case once the loop looks.
-                "GRUG_CI_BUILD_TIMEOUT": "1",
+                # The fake server exits at once, so the loop ends the case when it first looks. The
+                # deadline is far off so a slow runner cannot reach it before that look and print
+                # "not ready" in place of "exited before it was ready" (#1302 flaked on that).
+                "GRUG_CI_BUILD_TIMEOUT": "30",
             }
         )
         env.pop("GRUG_ORNITHE_SERVER_HASH", None)
