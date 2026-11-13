@@ -13,7 +13,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
 
 /**
  * The screen calls a client performs, and the error path of the same calls when a dedicated server
@@ -21,9 +21,11 @@ import java.util.function.BooleanSupplier;
  * GrugControlTest}, which has both ends of the channel.
  */
 class GrugScreenCallsTest {
-    /** A stand-in adapter: the five measurements, the screen flag and the frame bookkeeping. */
+    /**
+     * A stand-in adapter: the five measurements, the screen's identity and the frame bookkeeping.
+     */
     private static ModLoaderAdapter adapter(
-            BooleanSupplier open, AtomicInteger forgotten, List<String> closed) {
+            LongSupplier identity, AtomicInteger forgotten, List<String> closed) {
         return (ModLoaderAdapter)
                 Proxy.newProxyInstance(
                         ModLoaderAdapter.class.getClassLoader(),
@@ -31,7 +33,9 @@ class GrugScreenCallsTest {
                         (proxy, method, args) -> {
                             switch (method.getName()) {
                                 case "isScreenOpenForTest":
-                                    return open.getAsBoolean();
+                                    return identity.getAsLong() != 0;
+                                case "screenIdentityForTest":
+                                    return identity.getAsLong();
                                 case "forgetSettledFrames":
                                     forgotten.incrementAndGet();
                                     return null;
@@ -56,16 +60,16 @@ class GrugScreenCallsTest {
     }
 
     private static ModLoaderAdapter adapter() {
-        return adapter(() -> true, new AtomicInteger(), new ArrayList<>());
+        return adapter(() -> 7, new AtomicInteger(), new ArrayList<>());
     }
 
     @Test
-    void screenOpenForgetsTheFramesOnlyWhenAScreenHasJustAppeared() {
-        boolean[] open = {false};
+    void screenOpenForgetsTheFramesOnlyWhenAnotherScreenHasAppeared() {
+        long[] identity = {0};
         AtomicInteger forgotten = new AtomicInteger();
         List<String> closed = new ArrayList<>();
-        ModLoaderAdapter adapter = adapter(() -> open[0], forgotten, closed);
-        // The class shares whether a screen was already open across calls, so start from closed.
+        ModLoaderAdapter adapter = adapter(() -> identity[0], forgotten, closed);
+        // The class shares which screen it saw last across calls, so start from closed.
         GrugScreenCalls.closeScreen(adapter);
         forgotten.set(0);
         closed.clear();
@@ -75,7 +79,7 @@ class GrugScreenCallsTest {
 
         // A screen that has just appeared forgets the frames counted so far, so a following settle
         // wait can only be answered by frames drawn after it opened (#421).
-        open[0] = true;
+        identity[0] = 7;
         assertTrue(GrugScreenCalls.screenOpen(adapter));
         assertEquals(1, forgotten.get());
 
@@ -83,18 +87,24 @@ class GrugScreenCallsTest {
         assertTrue(GrugScreenCalls.screenOpen(adapter));
         assertEquals(1, forgotten.get());
 
-        // A screen that closes and opens again is fresh.
-        open[0] = false;
-        assertFalse(GrugScreenCalls.screenOpen(adapter));
-        open[0] = true;
+        // A screen that replaced another one while the panel stayed open is just as fresh: nothing
+        // but its identity says it is not the screen the counted frames were drawn for (#1289).
+        identity[0] = 8;
         assertTrue(GrugScreenCalls.screenOpen(adapter));
         assertEquals(2, forgotten.get());
 
-        // closeScreen forgets that one was open, so the next screen is fresh even without the
+        // A screen that closes and opens again is fresh too.
+        identity[0] = 0;
+        assertFalse(GrugScreenCalls.screenOpen(adapter));
+        identity[0] = 7;
+        assertTrue(GrugScreenCalls.screenOpen(adapter));
+        assertEquals(3, forgotten.get());
+
+        // closeScreen forgets which one it was, so the next screen is fresh even without the
         // screen reporting closed first.
         GrugScreenCalls.closeScreen(adapter);
         assertTrue(GrugScreenCalls.screenOpen(adapter));
-        assertEquals(3, forgotten.get());
+        assertEquals(4, forgotten.get());
         assertEquals(List.of("closed"), closed);
     }
 
@@ -110,20 +120,55 @@ class GrugScreenCallsTest {
     }
 
     @Test
-    void oneGeometryBatchHoldsEveryReadAndTheHeightATestDerives() {
+    void oneGeometryBatchHoldsEveryReadInTheOrderTheNamesAreListed() throws Exception {
         ModLoaderAdapter adapter = adapter();
         double[] geometry = GrugScreenCalls.geometry(read -> GrugScreenCalls.read(adapter, read));
-        // The order is the one the answer carries, and the height is the centered GUI's: a 640
-        // pixel screen with the panel's 20 pixel top and 166 pixel height is 206 pixels tall.
-        assertArrayEquals(new double[] {10, 20, 176, 166, 640, 206}, geometry);
+        // The order is the one the answer carries, and each value is the one its own read makes.
+        assertArrayEquals(new double[] {10, 20, 176, 166, 640}, geometry);
         assertEquals(640.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.SCREEN_WIDTH));
         assertEquals(10.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.GUI_LEFT));
         assertEquals(20.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.GUI_TOP));
         assertEquals(176.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.GUI_WIDTH));
         assertEquals(166.0, GrugScreenCalls.fromGeometry(geometry, GrugScreenCalls.GUI_HEIGHT));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> GrugScreenCalls.fromGeometry(geometry, "bogus"));
+    }
+
+    @Test
+    void aGeometryAnswerHoldsExactlyTheReadsThatHaveNames() throws Exception {
+        ModLoaderAdapter adapter = adapter();
+        double[] geometry = GrugScreenCalls.geometry(read -> GrugScreenCalls.read(adapter, read));
+        List<String> named =
+                List.of(
+                        GrugScreenCalls.GUI_LEFT,
+                        GrugScreenCalls.GUI_TOP,
+                        GrugScreenCalls.GUI_WIDTH,
+                        GrugScreenCalls.GUI_HEIGHT,
+                        GrugScreenCalls.SCREEN_WIDTH);
+        // One table holds the names, their places and the read each one makes, so a name cannot be
+        // in the batch and missing from the reads, or the other way around (#1289): the batch is
+        // exactly as long as the names, and every name is answered out of it.
+        assertEquals(named.size(), geometry.length);
+        assertEquals(named.size(), GrugControlWire.GEOMETRY_COUNT);
+        for (String read : named) {
+            assertNull(GrugScreenCalls.readProblem(read));
+            assertEquals(
+                    GrugScreenCalls.read(adapter, read),
+                    GrugScreenCalls.fromGeometry(geometry, read));
+        }
+
+        // A name no read has reaches the test as the call's own error, with the message the name
+        // check gives it, rather than as an unchecked exception out of a host function.
+        assertEquals(
+                "There is no screen read named bogus.",
+                assertThrows(
+                                GrugControlServer.ControlException.class,
+                                () -> GrugScreenCalls.fromGeometry(geometry, "bogus"))
+                        .getMessage());
+        assertEquals(
+                "The screen read has no name.",
+                assertThrows(
+                                GrugControlServer.ControlException.class,
+                                () -> GrugScreenCalls.fromGeometry(geometry, null))
+                        .getMessage());
     }
 
     @Test

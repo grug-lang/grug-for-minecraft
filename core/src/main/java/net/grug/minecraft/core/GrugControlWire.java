@@ -85,9 +85,15 @@ public final class GrugControlWire {
     public static final byte CALL_WORLD_SETTLED = 3;
 
     /**
-     * The call: whether a screen is open on the client. The answer is 1 or 0 (#1094). A screen that
-     * has just appeared makes the client forget its counted frames, as the local call does, so a
-     * following settle wait cannot answer from frames drawn before the screen opened.
+     * The call: the identity of the screen the client has open. The answer is an {@link
+     * #ANSWER_NUMBER} that is 0 when no screen is open and otherwise the number that names the
+     * screen, which is the same number only while that screen is the one up (#1094, #1289): a
+     * screen replaced by another one while the panel stayed open answers a different number, so a
+     * server that remembered the earlier screen's measurements drops them.
+     *
+     * <p>A screen that has just appeared makes the client forget its counted frames, as the local
+     * call does, so a following settle wait cannot answer from frames drawn before the screen
+     * opened.
      */
     public static final byte CALL_SCREEN_OPEN = 4;
 
@@ -175,9 +181,8 @@ public final class GrugControlWire {
 
     /**
      * The call: the {@link #GEOMETRY_COUNT} measurements of the client's screen in one answer
-     * (#1277), which are {@code gui_left}, {@code gui_top}, {@code gui_width}, {@code gui_height},
-     * {@code screen_width} and the screen's height in that order, the last derived from the
-     * centered GUI as a test derives it. The answer is an {@link #ANSWER_NUMBERS}, all 0 on a
+     * (#1277), which are {@code gui_left}, {@code gui_top}, {@code gui_width}, {@code gui_height}
+     * and {@code screen_width} in that order. The answer is an {@link #ANSWER_NUMBERS}, all 0 on a
      * client with no screen open.
      *
      * <p>The call carries no name, because it asks for all of them, and a test still enters through
@@ -188,7 +193,7 @@ public final class GrugControlWire {
     public static final byte CALL_SCREEN_GEOMETRY = 16;
 
     /** The number of measurements a {@link #CALL_SCREEN_GEOMETRY} answers, in its one message. */
-    public static final int GEOMETRY_COUNT = 6;
+    public static final int GEOMETRY_COUNT = 5;
 
     /** The longest name a call or a give may carry, in bytes. */
     public static final int MAX_NAME = 256;

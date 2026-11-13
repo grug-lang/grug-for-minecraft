@@ -25,17 +25,30 @@ public final class GrugScreenCalls {
     public static final String GUI_HEIGHT = "gui_height";
 
     /**
-     * Where a {@link GrugControlWire#CALL_SCREEN_GEOMETRY} answer holds each measurement. The last
-     * is the screen's height, which no read names: the screen has no height measurement, and a test
-     * derives it from the centered container GUI as {@link #geometry} does.
+     * Every read a test may name, in the order a {@link GrugControlWire#CALL_SCREEN_GEOMETRY}
+     * answer carries them, each with the measurement the client that owns the screen makes for it.
+     * One table holds the names, their places in an answer and the adapter call each one makes, so
+     * a name cannot be in one of those and missing from another: it is either here or nowhere
+     * (#1289).
      */
-    static final int AT_LEFT = 0;
+    private static final Read[] READS = {
+        new Read(GUI_LEFT, ModLoaderAdapter::guiLeftForTest),
+        new Read(GUI_TOP, ModLoaderAdapter::guiTopForTest),
+        new Read(GUI_WIDTH, ModLoaderAdapter::guiWidthForTest),
+        new Read(GUI_HEIGHT, ModLoaderAdapter::guiHeightForTest),
+        new Read(SCREEN_WIDTH, ModLoaderAdapter::screenWidthForTest),
+    };
 
-    static final int AT_TOP = 1;
-    static final int AT_WIDTH = 2;
-    static final int AT_HEIGHT = 3;
-    static final int AT_SCREEN_WIDTH = 4;
-    static final int AT_SCREEN_HEIGHT = 5;
+    /** One screen read: the name a test says and the measurement the client makes for it. */
+    private static final class Read {
+        final String name;
+        final ToDoubleFunction<ModLoaderAdapter> measurement;
+
+        Read(String name, ToDoubleFunction<ModLoaderAdapter> measurement) {
+            this.name = name;
+            this.measurement = measurement;
+        }
+    }
 
     /**
      * The highest mouse button a screen press may carry: 0 is the left button, 1 the right and 2
@@ -64,116 +77,103 @@ public final class GrugScreenCalls {
     }
 
     /**
-     * Whether the last {@link #screenOpen} saw a screen open, so the call can tell a screen that
-     * has just appeared from one that was already up.
+     * The identity of the last {@link #screenIdentity} call, 0 when it saw no screen, so the call
+     * can tell a screen that has just appeared, or one that replaced another while the panel stayed
+     * open, from the screen it already saw.
      */
-    private static boolean screenWasOpen;
+    private static long openIdentity;
 
     private GrugScreenCalls() {}
 
     /**
-     * Whether a screen is open, which on a dedicated server that forwards is the joined client's
-     * own screen.
+     * The identity of the screen that is open, and 0 when none is, which is what {@code
+     * screen_open} answers on a client that a dedicated server forwards the call to (#1289).
      *
-     * <p>A screen that has just appeared forgets the frames counted so far. {@code screen_open}
-     * alone only says the screen object exists, and {@code world_settled} only says the last frames
-     * were idle, so the two together could still let a capture read a frame drawn before the screen
-     * opened once the world was already settled. Forgetting the frames here means a following
-     * {@code world_settled} wait can only be answered by frames drawn after the screen opened. See
-     * #421.
+     * <p>A screen that has just appeared forgets the frames counted so far, as does one that
+     * replaced another while the panel stayed open. {@code screen_open} alone only says the screen
+     * object exists, and {@code world_settled} only says the last frames were idle, so the two
+     * together could still let a capture read a frame drawn before the screen opened once the world
+     * was already settled. Forgetting the frames here means a following {@code world_settled} wait
+     * can only be answered by frames drawn after the screen opened, or after the one this call
+     * found was replaced. See #421.
      */
-    public static boolean screenOpen(ModLoaderAdapter adapter) {
-        boolean open = adapter.isScreenOpenForTest();
-        if (open && !screenWasOpen) {
+    public static long screenIdentity(ModLoaderAdapter adapter) {
+        long identity = adapter.screenIdentityForTest();
+        if (identity != 0 && identity != openIdentity) {
             adapter.forgetSettledFrames();
         }
-        screenWasOpen = open;
-        return open;
+        openIdentity = identity;
+        return identity;
     }
 
     /**
-     * Closes whatever screen is open, and forgets whether one was, so the next screen to open is
+     * Whether a screen is open, which on a dedicated server that forwards is the joined client's
+     * own screen. See {@link #screenIdentity}.
+     */
+    public static boolean screenOpen(ModLoaderAdapter adapter) {
+        return screenIdentity(adapter) != 0;
+    }
+
+    /**
+     * Closes whatever screen is open, and forgets which one it was, so the next screen to open is
      * seen as a fresh one and a following {@link #screenOpen} forgets the settled frames for it.
      */
     public static void closeScreen(ModLoaderAdapter adapter) {
         adapter.closeOpenScreenForTest();
-        screenWasOpen = false;
+        openIdentity = 0;
     }
 
     /**
      * One of the screen's measurements, named as a {@link GrugControlWire#CALL_SCREEN_READ} names
-     * it.
+     * it. The name and the adapter call both come from {@link #READS}, so a name {@link
+     * #readProblem} accepts is always measured here.
      */
     public static double read(ModLoaderAdapter adapter, String read) {
-        switch (read) {
-            case SCREEN_WIDTH:
-                return adapter.screenWidthForTest();
-            case GUI_LEFT:
-                return adapter.guiLeftForTest();
-            case GUI_TOP:
-                return adapter.guiTopForTest();
-            case GUI_WIDTH:
-                return adapter.guiWidthForTest();
-            case GUI_HEIGHT:
-                return adapter.guiHeightForTest();
-            default:
-                throw new IllegalArgumentException("unknown screen read " + read);
+        for (Read measurement : READS) {
+            if (measurement.name.equals(read)) {
+                return measurement.measurement.applyAsDouble(adapter);
+            }
         }
+        throw new IllegalArgumentException(readProblem(read));
     }
 
     /**
      * Every measurement a {@link GrugControlWire#CALL_SCREEN_GEOMETRY} answer carries, each read
-     * through {@code source} on the side that owns the screen, so a batch and a single read can
-     * never disagree about a value. The screen's height is derived from the centered container GUI
-     * the way a test without a height read derives it (#1277).
+     * through {@code source} on the side that owns the screen, in the order {@link #READS} lists
+     * them, so a batch and a single read can never disagree about a value or its place (#1277).
      */
     public static double[] geometry(ToDoubleFunction<String> source) {
-        double left = source.applyAsDouble(GUI_LEFT);
-        double top = source.applyAsDouble(GUI_TOP);
-        double width = source.applyAsDouble(GUI_WIDTH);
-        double height = source.applyAsDouble(GUI_HEIGHT);
-        double screenWidth = source.applyAsDouble(SCREEN_WIDTH);
         double[] values = new double[GrugControlWire.GEOMETRY_COUNT];
-        values[AT_LEFT] = left;
-        values[AT_TOP] = top;
-        values[AT_WIDTH] = width;
-        values[AT_HEIGHT] = height;
-        values[AT_SCREEN_WIDTH] = screenWidth;
-        values[AT_SCREEN_HEIGHT] = top * 2 + height;
+        for (int at = 0; at < READS.length; at++) {
+            values[at] = source.applyAsDouble(READS[at].name);
+        }
         return values;
     }
 
-    /** One measurement out of a {@link #geometry} answer, named as {@link #read} names it. */
-    static double fromGeometry(double[] geometry, String read) {
-        switch (read) {
-            case SCREEN_WIDTH:
-                return geometry[AT_SCREEN_WIDTH];
-            case GUI_LEFT:
-                return geometry[AT_LEFT];
-            case GUI_TOP:
-                return geometry[AT_TOP];
-            case GUI_WIDTH:
-                return geometry[AT_WIDTH];
-            case GUI_HEIGHT:
-                return geometry[AT_HEIGHT];
-            default:
-                throw new IllegalArgumentException("unknown screen read " + read);
+    /**
+     * One measurement out of a {@link #geometry} answer, named as {@link #read} names it. A name
+     * that is not a read is a {@link GrugControlServer.ControlException}, which a host function
+     * reports as the test's error, rather than an unchecked exception out of it (#1289).
+     */
+    static double fromGeometry(double[] geometry, String read)
+            throws GrugControlServer.ControlException {
+        for (int at = 0; at < READS.length; at++) {
+            if (READS[at].name.equals(read)) {
+                return geometry[at];
+            }
         }
+        // {@link #readProblem} loops the same table, so a name it accepts is never missing here
+        // and this refuses exactly the names it refuses.
+        throw new GrugControlServer.ControlException(readProblem(read));
     }
 
     /** Why {@code read} is not a measurement a screen has, or null when it is one. */
     public static String readProblem(String read) {
         if (read == null) return "The screen read has no name.";
-        switch (read) {
-            case SCREEN_WIDTH:
-            case GUI_LEFT:
-            case GUI_TOP:
-            case GUI_WIDTH:
-            case GUI_HEIGHT:
-                return null;
-            default:
-                return "There is no screen read named " + read + ".";
+        for (Read measurement : READS) {
+            if (measurement.name.equals(read)) return null;
         }
+        return "There is no screen read named " + read + ".";
     }
 
     /**

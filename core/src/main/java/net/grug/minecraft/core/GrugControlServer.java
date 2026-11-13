@@ -101,16 +101,27 @@ public final class GrugControlServer {
         }
     }
 
-    /** What kind of answer a request waits for. */
+    /** What kind of answer a request waits for, and the wire message that carries it. */
     private enum Answer {
         /** A PNG, cut into {@link GrugControlWire#ANSWER_CHUNK}s. */
-        CHUNKS,
+        CHUNKS(GrugControlWire.ANSWER_CHUNK),
         /** One byte, from an {@link GrugControlWire#ANSWER_VALUE}. */
-        VALUE,
+        VALUE(GrugControlWire.ANSWER_VALUE),
         /** One measurement, from an {@link GrugControlWire#ANSWER_NUMBER}. */
-        NUMBER,
+        NUMBER(GrugControlWire.ANSWER_NUMBER),
         /** A whole screen's measurements, from an {@link GrugControlWire#ANSWER_NUMBERS}. */
-        NUMBERS
+        NUMBERS(GrugControlWire.ANSWER_NUMBERS);
+
+        /**
+         * The wire type this kind of answer arrives as, declared by the constant itself, so a kind
+         * added later cannot be mistaken for another one, which a {@code default:} arm that meant
+         * the last of them would have let it be (#1289).
+         */
+        final byte wireType;
+
+        Answer(byte wireType) {
+            this.wireType = wireType;
+        }
     }
 
     private static final class Pending {
@@ -165,8 +176,8 @@ public final class GrugControlServer {
     }
 
     /**
-     * The six measurements the last {@link GrugControlWire#CALL_SCREEN_GEOMETRY} answered, and the
-     * two revisions it was answered at, or null when nothing is known (#1277). A screen's geometry
+     * The measurements the last {@link GrugControlWire#CALL_SCREEN_GEOMETRY} answered, and the two
+     * revisions it was answered at, or null when nothing is known (#1277). A screen's geometry
      * moves only when the screen or the window changes, so one batch answers every read the test
      * makes until something can have moved it: see {@link #screenRead}.
      */
@@ -175,8 +186,11 @@ public final class GrugControlServer {
     private long geometryWorldRevision = Long.MIN_VALUE;
     private long geometryScreenRevision = Long.MIN_VALUE;
 
-    /** The last answer {@link #screenOpen} got, so a screen that opened or closed is noticed. */
-    private boolean screenWasOpen;
+    /**
+     * The identity the last {@link #screenOpen} answer named, 0 when it said no screen was open, so
+     * a screen that opened, closed or was replaced by another one is noticed (#1094, #1289).
+     */
+    private long screenIdentity;
 
     /** Counts the screen calls since the last batch answer, all on the server thread. */
     private long screenRevision;
@@ -322,16 +336,8 @@ public final class GrugControlServer {
 
     /** Whether a message of type {@code type} is not the answer {@code answer} waits for. */
     private static boolean wrongKind(Answer answer, byte type) {
-        switch (answer) {
-            case CHUNKS:
-                return type != GrugControlWire.ANSWER_CHUNK;
-            case VALUE:
-                return type != GrugControlWire.ANSWER_VALUE;
-            case NUMBER:
-                return type != GrugControlWire.ANSWER_NUMBER;
-            default:
-                return type != GrugControlWire.ANSWER_NUMBERS;
-        }
+        // Each kind names its own wire type, so a kind added later cannot be answered as this one.
+        return type != answer.wireType;
     }
 
     /** Fails every request that is waiting, as the starter's call error. */
@@ -351,6 +357,7 @@ public final class GrugControlServer {
         gives.clear();
         forgetGeometry();
         geometry = null;
+        screenIdentity = 0;
         failAll("The run ended while the call was waiting.");
     }
 
@@ -361,7 +368,12 @@ public final class GrugControlServer {
             // nothing about the client a later starter uses.
             settled.forget();
             gives.clear();
+            // The revision before the cache: a batch answer from the call in flight may still be
+            // stored after this returned, and the bumped revision is what says it is not this
+            // client's (#1289).
+            forgetGeometry();
             geometry = null;
+            screenIdentity = 0;
             failAll("The player who started the run disconnected.");
         }
     }
@@ -537,33 +549,44 @@ public final class GrugControlServer {
         }
     }
 
-    /** Asks the starter's client whether it has a screen open (#1094). */
+    /**
+     * Asks the starter's client which screen it has open (#1094), and answers whether it has one.
+     * The answer is the screen's identity rather than a yes or no, so a screen replaced by another
+     * one while the panel stayed open is not the screen the batch measured (#1289).
+     */
     public boolean screenOpen() throws ControlException {
-        boolean open = yesOrNo(call(GrugControlWire.CALL_SCREEN_OPEN, "", 0, 0, 0), "screen_open");
-        // A screen that opened or closed since the last ask is not the screen the batch measured,
-        // so a read after an observed change asks again even when nothing here announced it.
-        if (open != screenWasOpen) {
-            screenWasOpen = open;
+        double answer = number(GrugControlWire.CALL_SCREEN_OPEN, "", 0, 0, 0);
+        if (!Double.isFinite(answer) || answer < 0 || answer != Math.floor(answer)) {
+            throw failure(
+                    "The client answered screen_open with "
+                            + answer
+                            + ", not the identity of a screen.");
+        }
+        // A screen that opened or closed since the last ask, or one that replaced another while
+        // it stayed open, is not the screen the batch measured, so a read after an observed change
+        // asks again even when nothing here announced it.
+        if ((long) answer != screenIdentity) {
+            screenIdentity = (long) answer;
             forgetGeometry();
         }
-        return open;
+        return screenIdentity != 0;
     }
 
     /**
      * Asks the starter's client for one of its screen's measurements, named as {@link
      * GrugScreenCalls} names them (#1094). A client with no screen open answers 0.
      *
-     * <p>The first read forwards one {@link GrugControlWire#CALL_SCREEN_GEOMETRY} for all six
-     * measurements and answers the rest from it (#1277), because a test works a screen's geometry
-     * out through helpers that read several of them in one tick, and on a client that reads its
-     * packets once per frame every round trip costs that frame. The name is checked here, exactly
-     * as a single read checked it, so a name with no measurement is refused with the same error,
-     * and a read after a screen that moved can never answer from the old one: every call that can
-     * move or replace the screen drops the answer first, so does every world change, because a
-     * block the test bends can open or close the screen the client shows, and so does a screen
-     * {@link #screenOpen} saw open or closed since the last answer. The runner rebuilds the room
-     * before each test, which is a world change too, so no test reads the screen a previous one
-     * left.
+     * <p>The first read forwards one {@link GrugControlWire#CALL_SCREEN_GEOMETRY} for all {@link
+     * GrugControlWire#GEOMETRY_COUNT} measurements and answers the rest from it (#1277), because a
+     * test works a screen's geometry out through helpers that read several of them in one tick, and
+     * on a client that reads its packets once per frame every round trip costs that frame. The name
+     * is checked here, exactly as a single read checked it, so a name with no measurement is
+     * refused with the same error, and a read after a screen that moved can never answer from the
+     * old one: every call that can move or replace the screen drops the answer first, so does every
+     * world change, because a block the test bends can open or close the screen the client shows,
+     * and so does a screen {@link #screenOpen} saw opened, closed or replaced since the last
+     * answer. The runner rebuilds the room before each test, which is a world change too, so no
+     * test reads the screen a previous one left.
      */
     public double screenRead(String read) throws ControlException {
         String problem = callProblem(GrugControlWire.CALL_SCREEN_READ, read, 0, 0, 0);
@@ -574,8 +597,8 @@ public final class GrugControlServer {
     }
 
     /**
-     * The six measurements of the starter's client's screen, from the answer the last batch got
-     * when nothing can have moved it since, or from one forward now.
+     * The measurements of the starter's client's screen, from the answer the last batch got when
+     * nothing can have moved it since, or from one forward now.
      */
     private double[] geometry() throws ControlException {
         long world = GrugWorldRevision.current();
@@ -584,11 +607,31 @@ public final class GrugControlServer {
         if (known != null && geometryWorldRevision == world && geometryScreenRevision == screen) {
             return known;
         }
+        Object asked = starter.get();
         double[] values = numbers(GrugControlWire.CALL_SCREEN_GEOMETRY, "", 0, 0, 0);
+        rememberGeometry(asked, values, world, screen);
+        return values;
+    }
+
+    /**
+     * Remembers a batch answer for the revisions it was asked at, unless the client it was asked of
+     * is no longer the starter. The network thread's {@link #onDisconnect} clears the cache and
+     * bumps the revision while an answer can be in flight, so storing after it returned would put
+     * the screen of a client that left back (#1289). An answer that arrives then is still this
+     * read's, because the client did answer, and no later read's.
+     *
+     * <p>Package-private so a unit test can reach the store with a client that has gone, which is
+     * the order the two threads cannot be made to take in a test otherwise, and can see that the
+     * answer was refused and that one from the client that is still there was kept.
+     */
+    boolean rememberGeometry(Object asked, double[] values, long world, long screen) {
+        if (asked == null || asked != starter.get()) {
+            return false;
+        }
         geometry = values;
         geometryWorldRevision = world;
         geometryScreenRevision = screen;
-        return values;
+        return true;
     }
 
     /**

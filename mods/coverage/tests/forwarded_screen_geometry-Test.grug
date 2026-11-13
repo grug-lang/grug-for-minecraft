@@ -36,9 +36,8 @@ export tick(ctx: TestTickContext) {
     ctx.assert(Test.screen_width() == screen_width, "A second screen_width read should answer the same width.")
     ctx.assert(width == 176, "The client's coverage_gui panel is 176 pixels wide.")
     ctx.assert(left == Math.floor((screen_width - width) / 2), "A centered panel's left is half the window left of it.")
-    # The screen's height is not a read: a test derives it from the centered GUI, and the batch
-    # carries the same derivation. A window that is not taller than the panel it centers would
-    # mean the two halves disagree.
+    # The screen's height is not a read: a test derives it from the centered GUI. A window that is
+    # not taller than the panel it centers would mean the two halves disagree.
     screen_height: number = top * 2 + height
     ctx.assert(screen_height > height, "The window has to be taller than the panel it centers.")
     # The panel closed under the answer: 1.20.6's key path has Escape, which its screen handles by

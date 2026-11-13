@@ -468,6 +468,15 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     }
 
     @Override
+    public long screenIdentityForTest() {
+        // The empty screen close_screen displays is not a screen a test can see, so it has no
+        // identity either, and the rule about that is the one above this asks.
+        return isScreenOpenForTest()
+                ? GrugTestScreens.identityOf(ModLoader.getMinecraftInstance().currentScreen)
+                : 0;
+    }
+
+    @Override
     @GrugGenerated("the no-player arm: a run opens the screen of the player it was given")
     public void openInventory(Object playerObj) {
         EntityPlayer player = (EntityPlayer) playerObj;
