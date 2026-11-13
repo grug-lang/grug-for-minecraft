@@ -828,6 +828,22 @@ public class GrugModLoader {
                     manager.registerReloadListener(new GrugReloadListener());
                 }
 
+                // A client joined to a dedicated server has no server tick of its own, so nothing
+                // polls its mods tree: poll it here, the way the 1.2.5 and StationAPI clients do,
+                // so a file the test changed on the server's behalf reaches this client's reload.
+                if (mc.level != null && mc.getSingleplayerServer() == null) {
+                    for (String resource :
+                            GrugModsWatcher.update(
+                                    errorMsg -> {
+                                        synchronized (GrugErrors.runtimeErrorQueue) {
+                                            GrugErrors.runtimeErrorQueue.add(errorMsg);
+                                        }
+                                    })) {
+                        LOGGER.info("Reloading changed resource: {}", resource);
+                        GrugModLoader.reloadClientResources = true;
+                    }
+                }
+
                 // Intercept the flag from the server tick thread
                 // to trigger a client-side reload
                 if (GrugModLoader.reloadClientResources) {
