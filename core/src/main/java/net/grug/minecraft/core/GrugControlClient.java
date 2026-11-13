@@ -58,8 +58,13 @@ public final class GrugControlClient {
         /** Forgets the frames the settle answer counts, so it waits for frames drawn from now. */
         void forgetSettledFrames();
 
-        /** Whether a screen is open on this client, as {@code Test.screen_open} asks (#1094). */
-        boolean screenOpen();
+        /**
+         * The identity of the screen this client has open, and 0 when it has none, as a forwarded
+         * {@code Test.screen_open} asks (#1094, #1289). A screen replaced by another one while the
+         * panel stayed open answers a different identity, so a server that remembered the earlier
+         * screen's measurements drops them.
+         */
+        long screenIdentity();
 
         /**
          * One of this client's screen measurements, named as {@link GrugScreenCalls} names them.
@@ -67,11 +72,9 @@ public final class GrugControlClient {
         double screenRead(String read);
 
         /**
-         * The six measurements of this client's screen that one {@link
+         * The measurements of this client's screen that one {@link
          * GrugControlWire#CALL_SCREEN_GEOMETRY} answers, read through {@link #screenRead} so a
-         * batch and a single read make the same adapter reads and cannot disagree (#1277). The last
-         * is the screen's height, which no read names because it is derived from the centered
-         * container GUI.
+         * batch and a single read make the same adapter reads and cannot disagree (#1277).
          */
         default double[] screenGeometry() {
             return GrugScreenCalls.geometry(this::screenRead);
@@ -149,8 +152,8 @@ public final class GrugControlClient {
             }
 
             @Override
-            public boolean screenOpen() {
-                return GrugScreenCalls.screenOpen(adapter.get());
+            public long screenIdentity() {
+                return GrugScreenCalls.screenIdentity(adapter.get());
             }
 
             @Override
@@ -401,8 +404,7 @@ public final class GrugControlClient {
                 caller.playUiSound(message.text, message.volume, message.pitch);
                 link.send(GrugControlWire.answerValue(message.id, (byte) 1));
             } else if (message.call == GrugControlWire.CALL_SCREEN_OPEN) {
-                boolean open = caller.screenOpen();
-                link.send(GrugControlWire.answerValue(message.id, (byte) (open ? 1 : 0)));
+                link.send(GrugControlWire.answerNumber(message.id, caller.screenIdentity()));
             } else if (message.call == GrugControlWire.CALL_PRESS_SCREEN_KEY) {
                 boolean taken =
                         caller.pressScreenKey(

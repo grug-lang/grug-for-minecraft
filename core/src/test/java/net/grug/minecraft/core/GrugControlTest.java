@@ -119,7 +119,7 @@ class GrugControlTest {
                 }
 
                 @Override
-                public boolean screenOpen() {
+                public long screenIdentity() {
                     throw new AssertionError("no screen call was expected");
                 }
 
@@ -211,7 +211,7 @@ class GrugControlTest {
         }
 
         @Override
-        public boolean screenOpen() {
+        public long screenIdentity() {
             throw new AssertionError("no screen call was expected");
         }
 
@@ -297,7 +297,7 @@ class GrugControlTest {
         }
 
         @Override
-        public boolean screenOpen() {
+        public long screenIdentity() {
             throw new AssertionError("no screen call was expected");
         }
 
@@ -361,6 +361,10 @@ class GrugControlTest {
     private static final class ScreenCalls implements GrugControlClient.Caller {
         final List<String> seen = new ArrayList<>();
         boolean open = true;
+
+        /** The identity an open screen answers, so a screen replaced by another one can be told. */
+        long identity = 7;
+
         boolean keyTaken = true;
         boolean scrollTaken = false;
         boolean clickTaken = false;
@@ -395,9 +399,9 @@ class GrugControlTest {
         }
 
         @Override
-        public boolean screenOpen() {
+        public long screenIdentity() {
             seen.add("screenOpen");
-            return open;
+            return open ? identity : 0;
         }
 
         @Override
@@ -1389,7 +1393,7 @@ class GrugControlTest {
                             answeredWithGeometry.onMessage(
                                     PLAYER,
                                     GrugControlWire.answerNumbers(
-                                            id, new double[] {71, 40, 176, 166, 320, 246}));
+                                            id, new double[] {71, 40, 176, 166, 320}));
                         });
         geometryAnswerer.start();
         GrugControlServer.ControlException wrongValueAgain =
@@ -1461,24 +1465,23 @@ class GrugControlTest {
         assertEquals(7, number.id);
         assertEquals(123.5, number.number);
 
-        // A whole screen comes back in one message, its six measurements in the order the calls
+        // A whole screen comes back in one message, its five measurements in the order the calls
         // name them, so a server can answer a dozen reads from one round trip (#1277).
         GrugControlWire.Message geometry =
                 GrugControlWire.decode(
-                        GrugControlWire.answerNumbers(
-                                9, new double[] {71, 40, 176, 166, 320, 246}));
+                        GrugControlWire.answerNumbers(9, new double[] {71, 40, 176, 166, 320}));
         assertEquals(GrugControlWire.ANSWER_NUMBERS, geometry.type);
         assertEquals(9, geometry.id);
-        assertArrayEquals(new double[] {71, 40, 176, 166, 320, 246}, geometry.numbers);
+        assertArrayEquals(new double[] {71, 40, 176, 166, 320}, geometry.numbers);
         assertThrows(
                 IllegalArgumentException.class,
-                () -> GrugControlWire.answerNumbers(9, new double[] {1, 2, 3, 4, 5}));
+                () -> GrugControlWire.answerNumbers(9, new double[] {1, 2, 3, 4, 5, 6}));
         assertThrows(
                 IllegalArgumentException.class,
                 () ->
                         GrugControlWire.decode(
                                 GrugControlWire.answerNumbers(
-                                        9, new double[] {1, 2, 3, 4, 5, Double.NaN})));
+                                        9, new double[] {1, 2, 3, 4, Double.NaN})));
 
         // A screen call carries its arguments in the call's three number slots.
         GrugControlWire.Message press =
@@ -1668,7 +1671,7 @@ class GrugControlTest {
         caller.playUiSound("b", 1, 1);
         assertTrue(caller.isWorldSettled());
         caller.forgetSettledFrames();
-        assertTrue(caller.screenOpen());
+        assertEquals(0L, caller.screenIdentity());
         assertEquals(0.0, caller.screenRead(GrugScreenCalls.GUI_LEFT));
         assertTrue(caller.pressScreenKey(1, true, false));
         assertTrue(caller.scrollScreen(2, 3, -1));
@@ -1688,8 +1691,7 @@ class GrugControlTest {
                         "playUiSound b",
                         "isWorldSettled",
                         "forgetSettledFrames",
-                        "isScreenOpenForTest",
-                        "forgetSettledFrames",
+                        "screenIdentityForTest",
                         "guiLeftForTest",
                         "pressScreenKey 1",
                         "scrollScreen 2.0",
@@ -2116,11 +2118,10 @@ class GrugControlTest {
                         "read screen_width"),
                 screens.seen);
 
-        // The batch derives the screen's height from the centered GUI, which is how a test without
-        // a height read derives it: on a 320 pixel screen the 40 and the 166 put its bottom at 206
-        // and a symmetric top above it.
+        // The batch holds the five reads, each in the place its read names, so a server can answer
+        // any of them from the one answer it has.
         assertArrayEquals(
-                new double[] {71, 40, 176, 166, 320, 246},
+                new double[] {71, 40, 176, 166, 320},
                 GrugScreenCalls.geometry(screens::screenRead));
 
         // Nothing moved, so the next read costs no message at all.
@@ -2165,6 +2166,14 @@ class GrugControlTest {
         screens.open = true;
         assertTrue(server.screenOpen());
         assertReasked(server, loop);
+
+        // A screen replaced by another one while the panel stayed open is a different screen, so
+        // the measurements of the one that is gone cannot answer a read of the one that is up
+        // (#1289).
+        screens.identity = 8;
+        assertTrue(server.screenOpen());
+        assertReasked(server, loop);
+
         screens.open = false;
         assertFalse(server.screenOpen());
         assertReasked(server, loop);
@@ -2183,6 +2192,86 @@ class GrugControlTest {
         assertEquals(before + 1, loop.toClient.size(), "a read after a screen change asks again");
         assertEquals(176.0, server.screenRead(GrugScreenCalls.GUI_WIDTH));
         assertEquals(before + 1, loop.toClient.size(), "the answer is remembered");
+    }
+
+    @Test
+    void aBatchIsOnlyRememberedWhileTheClientItWasAskedOfIsStillTheStarter() throws Exception {
+        // A batch answer describes the screen of the client it was asked of, and that client is the
+        // one that started the run. onDisconnect clears the cache from the network thread while a
+        // batch can be in flight, so the answer may only be remembered while that same client is
+        // still the starter: storing after it returned would put a gone client's screen back
+        // (#1289). Both orders the two can reach the store in are here, and each is followed by a
+        // read that would answer from the batch if it had been kept.
+        ScreenCalls screens = new ScreenCalls();
+        Loopback loop = wireCalls(1000, screens);
+        loop.client.beginRun();
+        double[] values = {71, 40, 176, 166, 320};
+
+        assertFalse(loop.server.rememberGeometry(null, values, GrugWorldRevision.current(), 0));
+        assertFalse(
+                loop.server.rememberGeometry(new Object(), values, GrugWorldRevision.current(), 0));
+        assertReasked(loop.server, loop);
+
+        assertTrue(loop.server.rememberGeometry(PLAYER, values, GrugWorldRevision.current(), 0));
+        int sent = loop.toClient.size();
+        assertEquals(71.0, loop.server.screenRead(GrugScreenCalls.GUI_LEFT));
+        assertEquals(sent, loop.toClient.size(), "a batch the starter answered is kept");
+
+        // The batch the client answered is dropped when it leaves, so a later starter's first read
+        // asks its own client rather than answering the one that is gone.
+        loop.server.onDisconnect(PLAYER);
+        loop.client.beginRun();
+        assertReasked(loop.server, loop);
+    }
+
+    @Test
+    void aScreenOpenAnswerThatIsNotAScreenIdentityFailsTheCall() {
+        List<byte[]> sent = java.util.Collections.synchronizedList(new ArrayList<>());
+        GrugControlServer.Link link =
+                new GrugControlServer.Link() {
+                    @Override
+                    public boolean sendToStarter(Object starter, byte[] message) {
+                        sent.add(message);
+                        return true;
+                    }
+
+                    @Override
+                    public void flushWorld() {}
+
+                    @Override
+                    public void applyClientWork() {}
+
+                    @Override
+                    public boolean mayStartRun(Object sender) {
+                        return true;
+                    }
+                };
+        // The identity is a finite, whole, non-negative number, and 0 says no screen is open.
+        // Each answer below breaks exactly one rule (it is negative, it is not whole, it is not
+        // finite), so each check has its own case, and the call fails rather than remember a
+        // number that may differ on the next ask (#1289).
+        double[] answers = {-1, 0.5, Double.POSITIVE_INFINITY};
+        String[] brokenRule = {"a negative", "a fractional", "an infinite"};
+        for (int i = 0; i < answers.length; i++) {
+            double answer = answers[i];
+            String rule = brokenRule[i];
+            GrugControlServer server = new GrugControlServer(link, 5000);
+            server.onMessage(PLAYER, GrugControlWire.runStart());
+            int before = sent.size();
+            Thread answerer =
+                    new Thread(
+                            () -> {
+                                awaitSent(sent, before + 1);
+                                long id = GrugControlWire.decode(sent.get(sent.size() - 1)).id;
+                                server.onMessage(PLAYER, GrugControlWire.answerNumber(id, answer));
+                            });
+            answerer.start();
+            GrugControlServer.ControlException refused =
+                    assertThrows(GrugControlServer.ControlException.class, server::screenOpen);
+            assertTrue(
+                    refused.getMessage().contains("not the identity of a screen"),
+                    rule + " answer: " + refused.getMessage());
+        }
     }
 
     @Test
@@ -2612,7 +2701,7 @@ class GrugControlTest {
                             }
 
                             @Override
-                            public boolean screenOpen() {
+                            public long screenIdentity() {
                                 throw new AssertionError("no screen call was expected");
                             }
 

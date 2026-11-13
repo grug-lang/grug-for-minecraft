@@ -16,6 +16,7 @@ import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugTickLockstep;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.GrugWorldReady;
@@ -1913,6 +1914,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public boolean isScreenOpenForTest() {
         return Minecraft.getInstance().screen != null;
+    }
+
+    @Override
+    public long screenIdentityForTest() {
+        // The screen this loader calls open is the one it names, so a loader's own rule about
+        // which screens a test can see is asked here rather than repeated (#1289).
+        return isScreenOpenForTest()
+                ? GrugTestScreens.identityOf(Minecraft.getInstance().screen)
+                : 0;
     }
 
     @Override

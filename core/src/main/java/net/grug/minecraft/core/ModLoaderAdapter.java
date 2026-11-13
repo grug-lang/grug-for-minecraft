@@ -916,6 +916,21 @@ public interface ModLoaderAdapter {
     boolean isScreenOpenForTest();
 
     /**
+     * Test only: a number that names the screen a test can see, and 0 when there is none, so a
+     * caller that remembered the screen's measurements can tell that the screen was replaced by
+     * another one while the panel stayed open (#1289). See {@link GrugTestScreens#identityOf}.
+     *
+     * <p>Every client adapter names its own screen, because a client is the only side that has one;
+     * a dedicated server forwards {@link #isScreenOpenForTest} to the joined client instead. A
+     * loader that keeps this default still tells a screen that opened or closed from one that
+     * stayed up, but not one screen from another.
+     */
+    @GrugGenerated("default only: every client adapter names its screen, and a server has none")
+    default long screenIdentityForTest() {
+        return isScreenOpenForTest() ? 1 : 0;
+    }
+
+    /**
      * Whether this loader draws overlays on the inventory and container screens at all, which is
      * what {@code Test.overlay_supported} answers.
      *
