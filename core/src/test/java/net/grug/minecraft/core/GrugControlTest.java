@@ -3406,7 +3406,7 @@ class GrugControlTest {
         }
 
         @Override
-        public Object playerOf(Object sender) {
+        public Object playerOfSender(Object sender) {
             return playerPresent ? "player of " + sender : null;
         }
 
@@ -3574,7 +3574,7 @@ class GrugControlTest {
         Loopback loop = new Loopback();
         loop.server = new GrugControlServer(loop, 1000);
         assertFalse(loop.givesToSender());
-        assertNull(loop.playerOf("bob"));
+        assertNull(loop.playerOfSender("bob"));
         loop.tell("bob", "ignored");
         loop.onRunStarted("bob");
         int[] ran = {0};

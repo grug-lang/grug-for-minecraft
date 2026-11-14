@@ -154,13 +154,13 @@ public final class GrugControlForge {
         }
 
         @Override
-        public Object playerOf(Object sender) {
+        public Object playerOfSender(Object sender) {
             return ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayer((UUID) sender);
         }
 
         @Override
         public void tell(Object sender, String message) {
-            ServerPlayer player = (ServerPlayer) playerOf(sender);
+            ServerPlayer player = (ServerPlayer) playerOfSender(sender);
             if (player != null) {
                 player.sendSystemMessage(Component.literal(message).withStyle(ChatFormatting.RED));
             }
@@ -180,7 +180,7 @@ public final class GrugControlForge {
             if (!"true".equals(System.getenv("GRUG_CI"))) return;
             runOnServerThread(
                     () -> {
-                        Object player = playerOf(starter);
+                        Object player = playerOfSender(starter);
                         if (player != null) GrugCore.getAdapter().makeOperator(player);
                     });
         }

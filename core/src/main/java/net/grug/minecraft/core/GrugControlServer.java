@@ -98,7 +98,7 @@ public final class GrugControlServer {
         /**
          * Whether this loader gives to the player who asked, whoever they are, after an operator
          * check (#882), instead of only to the run's starter with the older {@link #applyGive}. A
-         * loader that answers true implements {@link #playerOf}, {@link #tell} and {@link
+         * loader that answers true implements {@link #playerOfSender}, {@link #tell} and {@link
          * #runOnServerThread}. The default is false, which is the older loaders' path until each
          * one has its own.
          */
@@ -110,7 +110,7 @@ public final class GrugControlServer {
          * The server's player the sender is, or null when that player has left. Called on the
          * server thread, only when {@link #givesToSender}.
          */
-        default Object playerOf(Object sender) {
+        default Object playerOfSender(Object sender) {
             return null;
         }
 
@@ -319,7 +319,7 @@ public final class GrugControlServer {
                 link.applyGive(give.item, give.count);
                 continue;
             }
-            Object player = link.playerOf(give.sender);
+            Object player = link.playerOfSender(give.sender);
             if (player == null) {
                 // The player left before the give was applied: nobody is left to tell.
                 continue;
