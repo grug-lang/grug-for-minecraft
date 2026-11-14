@@ -2,8 +2,11 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge.mixin.ChunkMapAccessor;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
@@ -26,14 +29,16 @@ import java.util.UUID;
  * opaque byte array of core's {@code GrugControlWire}. Mod authors never see it: it is the plumbing
  * behind client-only host functions.
  *
- * <p>The protocol version is 5 since the screen-open call answers a screen's identity as a number
- * and the screen batch holds five numbers (#1289). Version 4 was the overlay reads joining the wire
- * and a give naming its item (#1099): the wire carries calls 14 and 15, and a give message carries
- * a name instead of a list index, so a client and a server built from different commits must refuse
- * each other rather than misread each other's messages. Version 3 was the client-light call
- * (#1207), whose answer is a section's light fingerprint as a number rather than a value byte, and
- * version 2 was the screen calls (#1094), which added a third number to the call request and a
- * numbered screen measurement as an answer.
+ * <p>The protocol version is 6 since a player's own give is accepted from any client and checked
+ * for operator status (#882), so a pair built before and after must refuse each other. It was 5
+ * since the screen-open call answers a screen's identity as a number and the screen batch holds
+ * five numbers (#1289). Version 4 was the overlay reads joining the wire and a give naming its item
+ * (#1099): the wire carries calls 14 and 15, and a give message carries a name instead of a list
+ * index, so a client and a server built from different commits must refuse each other rather than
+ * misread each other's messages. Version 3 was the client-light call (#1207), whose answer is a
+ * section's light fingerprint as a number rather than a value byte, and version 2 was the screen
+ * calls (#1094), which added a third number to the call request and a numbered screen measurement
+ * as an answer.
  *
  * <p>The channel is registered on both sides and is {@code optional()}, so a player without grug
  * can still join a grug server and the other way round. Handlers run on the network thread, never
@@ -74,7 +79,7 @@ public final class GrugControlForge {
                         // the channel at connect instead of failing on a call one of them does not
                         // have (#1207, #1099). Every branch that adds or changes one bumps this
                         // again.
-                        .networkProtocolVersion(5)
+                        .networkProtocolVersion(6)
                         .optional()
                         .simpleChannel()
                         .messageBuilder(Packet.class, NetworkProtocol.PLAY)
@@ -120,6 +125,16 @@ public final class GrugControlForge {
         channel.send(new Packet(bytes), PacketDistributor.SERVER.noArg());
     }
 
+    /**
+     * Sends a player's own give to the server of {@code connection}, and answers whether it could:
+     * a server without the channel (a player without grug on it) is not asked (#882).
+     */
+    static boolean sendGiveToServer(net.minecraft.network.Connection connection, byte[] bytes) {
+        if (!channel.isRemotePresent(connection)) return false;
+        channel.send(new Packet(bytes), connection);
+        return true;
+    }
+
     @GrugGenerated(
             "the Forge channel glue of #1040: no test the coverage gate counts can reach it, since"
                     + " only the multiplayer job runs it")
@@ -131,6 +146,43 @@ public final class GrugControlForge {
             if (player == null) return false;
             channel.send(new Packet(message), PacketDistributor.PLAYER.with(player));
             return true;
+        }
+
+        @Override
+        public boolean givesToSender() {
+            return true;
+        }
+
+        @Override
+        public Object playerOfSender(Object sender) {
+            return ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayer((UUID) sender);
+        }
+
+        @Override
+        public void tell(Object sender, String message) {
+            ServerPlayer player = (ServerPlayer) playerOfSender(sender);
+            if (player != null) {
+                player.sendSystemMessage(Component.literal(message).withStyle(ChatFormatting.RED));
+            }
+        }
+
+        @Override
+        public void runOnServerThread(Runnable task) {
+            ServerLifecycleHooks.getCurrentServer().execute(task);
+        }
+
+        /**
+         * A CI server makes the player who starts a run an operator, so the gives its tests make
+         * pass the permission check a player's own would (#882). A real server never sets GRUG_CI.
+         */
+        @Override
+        public void onRunStarted(Object starter) {
+            if (!"true".equals(System.getenv("GRUG_CI"))) return;
+            runOnServerThread(
+                    () -> {
+                        Object player = playerOfSender(starter);
+                        if (player != null) GrugCore.getAdapter().makeOperator(player);
+                    });
         }
 
         /**

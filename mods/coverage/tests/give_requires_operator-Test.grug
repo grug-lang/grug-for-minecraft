@@ -1,0 +1,105 @@
+# A player's own give is applied only if the player is an operator, the way the reference JEI's server
+# half does (#882): the overlay's click on a client joined to a dedicated server asks the server to
+# put the item in that player's inventory, and the server refuses a player who is not an operator
+# with an error shown to them. The test runs on the server, which holds the operator list, so it
+# flips the player's status there with set_operator (#1331) and presses the overlay's item from the
+# joined client: as a non-operator nothing is given, as an operator one item is.
+
+# The press is a forwarded call: the client sends its give before it answers the call, and the server
+# applies every give it holds before the next tick of this test, so the refusal is final when the
+# next tick starts and no tick count is waited for. The status is put back before anything asserts,
+# so a failed assert never leaves the operator list changed for the next test.
+
+# Only the 1.20.6 dedicated leg runs it for now: the older loaders still give to the run's starter
+# without the check, and a client-only run gives to its own player, who is the world's owner. The
+# others return on their first tick (#882).
+
+started: bool = false
+opened: bool = false
+waited: number = 0
+step: number = 0
+was_operator: bool = false
+refused: bool = false
+
+export tick_any_side(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.on_dedicated_server() or Test.loader_name() != "1.20.6-forge" or not Test.overlay_supported() {
+            # See the top of this file for where this test runs.
+            return
+        }
+        Test.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens: the inventory
+    # draws the player with the entity renderer, whose texture manager and camera the world's own
+    # entity pass fills in, and a `-f mods=coverage` dispatch can run this test first, before any
+    # frame has drawn (#1287). The runner puts the test that failed last first and then the
+    # slowest, so any test of the mod can be that one. The test box's light is queued before the
+    # test's own clock starts and the game runs ten ticks for one frame, so the first settle can
+    # take a few hundred of the test's ticks; the failure bound is what says it never came.
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not Test.world_settled() {
+            ctx.not_done()
+            return
+        }
+        Test.open_inventory(Test.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    box_x: number = Test.gui_left() + Math.floor(Test.gui_width() / 2)
+    box_y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
+
+    if step == 0 {
+        Test.clear_carried_item()
+        ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the first press.")
+        was_operator = is_operator()
+        set_operator(false)
+        ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take a left click on its item.")
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # The server applied the press above before this tick, while the player was not an operator.
+        refused = not Test.get_player().get_held_item().has()
+        set_operator(true)
+        ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take a left click on its item.")
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    # The server applied the second press before this tick, while the player was an operator. The
+    # status goes back first, so a failed assert below leaves the list as it was found.
+    set_operator(was_operator)
+    held: Option[Item] = Test.get_player().get_held_item()
+    ctx.assert(refused, "A player who is not an operator should be given nothing.")
+    ctx.assert(held.has(), "An operator should be given the item the overlay drew.")
+    ctx.assert(equals(held.unwrap(), item_at(0)), "The overlay should give the item it drew, not another one.")
+    ctx.assert(Test.get_held_count(Test.get_player()) == 1, "A left click should give one item, and the refused press none.")
+    Test.clear_held_item(Test.get_player())
+    Test.close_screen()
+}

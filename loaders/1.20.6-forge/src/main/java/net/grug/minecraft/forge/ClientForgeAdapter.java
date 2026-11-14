@@ -60,6 +60,26 @@ import java.util.concurrent.CountDownLatch;
 
 public class ClientForgeAdapter extends ForgeAdapter {
 
+    /**
+     * Names the give to the server this client is joined to, which applies it to this player if
+     * they are an operator (#882). Singleplayer has an integrated server and gives locally, and a
+     * server without the grug channel cannot be asked, so both answer false and keep the local
+     * path.
+     */
+    @Override
+    @GrugGenerated(
+            "a joined client: no test the coverage gate counts launches one, only the multiplayer"
+                    + " job does")
+    public boolean askServerToGive(String itemName, int count) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getSingleplayerServer() != null || mc.getConnection() == null) {
+            return false;
+        }
+        return GrugControlForge.sendGiveToServer(
+                mc.getConnection().getConnection(),
+                net.grug.minecraft.core.GrugControlWire.giveRequest(itemName, count));
+    }
+
     @Override
     public GrugSide getSide() {
         return GrugSide.CLIENT;
