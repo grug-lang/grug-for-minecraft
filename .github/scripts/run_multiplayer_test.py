@@ -512,6 +512,7 @@ class SecondPlayerTest(unittest.TestCase):
         "buildcraft/tests/redstone_engine_item",
         "coverage/tests/forwarded_press_screen_key",
         "coverage/tests/forwarded_scroll_screen",
+        "coverage/tests/give_requires_operator",
         "coverage/tests/overlay_click_hook",
         "coverage/tests/overlay_key",
         "coverage/tests/overlay_probe_gives_nothing",
@@ -525,6 +526,7 @@ class SecondPlayerTest(unittest.TestCase):
     # The overlay tests are required twice: the PASS line and the line only a test whose overlay
     # was drawn on the joined client writes.
     OVERLAY_PASSES = [
+        "coverage/tests/give_requires_operator",
         "coverage/tests/overlay_click_hook",
         "coverage/tests/overlay_key",
         "coverage/tests/overlay_probe_gives_nothing",

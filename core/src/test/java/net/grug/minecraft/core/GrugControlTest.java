@@ -3391,4 +3391,194 @@ class GrugControlTest {
         assertTrue(e.getMessage().contains("not 0 or 1"), e.getMessage());
         assertTrue(GrugControlServer.failed());
     }
+
+    /** A server link of a loader that gives to whoever asks, which records what it was asked. */
+    private static class PlayerGiveLink extends Loopback {
+        final List<String> told = new ArrayList<>();
+        final List<Object> scheduled = new ArrayList<>();
+        final List<Runnable> tasks = new ArrayList<>();
+        final List<Object> runStarts = new ArrayList<>();
+        boolean playerPresent = true;
+
+        @Override
+        public boolean givesToSender() {
+            return true;
+        }
+
+        @Override
+        public Object playerOf(Object sender) {
+            return playerPresent ? "player of " + sender : null;
+        }
+
+        @Override
+        public void tell(Object sender, String message) {
+            told.add(sender + ": " + message);
+        }
+
+        @Override
+        public void runOnServerThread(Runnable task) {
+            tasks.add(task);
+        }
+
+        @Override
+        public void onRunStarted(Object starter) {
+            runStarts.add(starter);
+        }
+
+        void runTasks() {
+            List<Runnable> now = new ArrayList<>(tasks);
+            tasks.clear();
+            now.forEach(Runnable::run);
+        }
+    }
+
+    /**
+     * Runs {@code body} with the game's adapter set to {@code adapter}, and puts the old one back.
+     */
+    private static void withAdapter(ModLoaderAdapter adapter, Runnable body) throws Exception {
+        java.lang.reflect.Field field = GrugCore.class.getDeclaredField("adapter");
+        field.setAccessible(true);
+        Object before = field.get(null);
+        field.set(null, adapter);
+        try {
+            body.run();
+        } finally {
+            field.set(null, before);
+        }
+    }
+
+    /** An adapter whose only operator is {@code operators}, giving to the players it is shown. */
+    private static ModLoaderAdapter playerGiveAdapter(
+            Object item, List<String> given, java.util.Set<Object> operators) {
+        return (ModLoaderAdapter)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        ModLoaderAdapter.class.getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) -> {
+                            switch (method.getName()) {
+                                case "isOperator":
+                                    return operators.contains(args[0]);
+                                case "itemCount":
+                                    return 1;
+                                case "itemByIndex":
+                                    return (Integer) args[0] == 0 ? item : null;
+                                case "itemName":
+                                    return "grug:test";
+                                case "giveItemCountToPlayer":
+                                    given.add(args[0] + " x" + args[2]);
+                                    return null;
+                                default:
+                                    throw new AssertionError(
+                                            "a give does not ask " + method.getName());
+                            }
+                        });
+    }
+
+    @Test
+    void aPlayerWhoStartedNoRunGetsTheirOwnGiveFromTheServerThreadIfTheyAreAnOperator()
+            throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        List<String> given = new ArrayList<>();
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(new Object(), given, java.util.Set.of("player of bob"));
+
+        // Nobody started a run, and bob is not the starter anyway: his give is queued and a task is
+        // scheduled for the server thread, which applies it.
+        loop.server.onMessage("bob", GrugControlWire.giveRequest("grug:test", 5));
+        assertTrue(given.isEmpty(), "the network thread applies nothing");
+        assertEquals(1, loop.tasks.size());
+
+        withAdapter(adapter, loop::runTasks);
+
+        assertEquals(List.of("player of bob x5"), given);
+        assertTrue(loop.told.isEmpty());
+    }
+
+    @Test
+    void aPlayerWhoIsNotAnOperatorIsToldSoAndGivenNothing() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        List<String> given = new ArrayList<>();
+        ModLoaderAdapter adapter = playerGiveAdapter(new Object(), given, java.util.Set.of());
+
+        loop.server.onMessage("bob", GrugControlWire.giveRequest("grug:test", 1));
+        withAdapter(adapter, loop::runTasks);
+
+        assertTrue(given.isEmpty());
+        assertEquals(List.of("bob: You must be an operator to give yourself items."), loop.told);
+    }
+
+    @Test
+    void eachSendersGiveIsCheckedAgainstThatSender() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        List<String> given = new ArrayList<>();
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(new Object(), given, java.util.Set.of("player of carol"));
+
+        loop.server.onMessage("bob", GrugControlWire.giveRequest("grug:test", 1));
+        loop.server.onMessage("carol", GrugControlWire.giveRequest("grug:test", 2));
+        withAdapter(adapter, loop::runTasks);
+
+        assertEquals(List.of("player of carol x2"), given);
+        assertEquals(1, loop.told.size());
+        assertTrue(loop.told.get(0).startsWith("bob: "));
+    }
+
+    @Test
+    void aGiveOfAPlayerWhoLeftBeforeItWasAppliedIsDropped() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        List<String> given = new ArrayList<>();
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(new Object(), given, java.util.Set.of("player of bob"));
+
+        loop.server.onMessage("bob", GrugControlWire.giveRequest("grug:test", 1));
+        loop.playerPresent = false;
+        withAdapter(adapter, loop::runTasks);
+
+        assertTrue(given.isEmpty());
+        assertTrue(loop.told.isEmpty());
+    }
+
+    @Test
+    void aRunsOwnDrainAppliesAPlayersGiveToo() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        List<String> given = new ArrayList<>();
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(new Object(), given, java.util.Set.of("player of bob"));
+
+        loop.server.onMessage("bob", GrugControlWire.giveRequest("grug:test", 1));
+        withAdapter(adapter, loop.server::applyClientWork);
+        withAdapter(adapter, loop::runTasks);
+
+        assertEquals(
+                List.of("player of bob x1"), given, "applied once, by whichever drain came first");
+    }
+
+    @Test
+    void aStartedRunTellsTheLoaderWhoStartedIt() {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+
+        loop.server.onMessage("bob", GrugControlWire.runStart());
+        loop.server.onMessage("carol", GrugControlWire.runStart());
+
+        assertEquals(List.of("bob"), loop.runStarts, "an ignored start is not a start");
+    }
+
+    @Test
+    void theDefaultLinkGivesToNobodyButTheStarterAndStartsNothing() {
+        Loopback loop = new Loopback();
+        loop.server = new GrugControlServer(loop, 1000);
+        assertFalse(loop.givesToSender());
+        assertNull(loop.playerOf("bob"));
+        loop.tell("bob", "ignored");
+        loop.onRunStarted("bob");
+        int[] ran = {0};
+        loop.runOnServerThread(() -> ran[0]++);
+        assertEquals(1, ran[0]);
+    }
 }

@@ -36,6 +36,14 @@ class GrugGiveCallsTest {
         final List<String> given = new ArrayList<>();
         Object player = "the player";
 
+        /** Whether the player is an operator. */
+        boolean operator = true;
+
+        /** Whether this process is a client joined to a server, which the give names itself to. */
+        boolean joined = false;
+
+        final List<String> asked = new ArrayList<>();
+
         Object add(String name) {
             Object item = new Object();
             list.add(item);
@@ -61,6 +69,11 @@ class GrugGiveCallsTest {
                                         return names.get(args[0]);
                                     case "testPlayer":
                                         return player;
+                                    case "isOperator":
+                                        return operator;
+                                    case "askServerToGive":
+                                        if (joined) asked.add(args[0] + "x" + args[1]);
+                                        return joined;
                                     case "giveItemCountToPlayer":
                                         given.add(
                                                 args[0] + " " + names.get(args[1]) + "x" + args[2]);
@@ -371,5 +384,72 @@ class GrugGiveCallsTest {
         return (eye, x1, y1, x2, y2, done, failed) -> {
             throw new AssertionError("no capture was expected");
         };
+    }
+
+    @Test
+    void anOperatorsOwnGiveIsAppliedToThatPlayer() {
+        Items items = new Items();
+        items.add("minecraft:stone");
+        items.add("minecraft:dirt");
+
+        String refusal = GrugGiveCalls.giveToPlayer(items.adapter(), "bob", "minecraft:dirt", 3);
+
+        assertNull(refusal);
+        assertEquals(List.of("bob minecraft:dirtx3"), items.given);
+    }
+
+    @Test
+    void aPlayerWhoIsNotAnOperatorIsRefusedWithAnErrorAndGivenNothing() {
+        Items items = new Items();
+        items.add("minecraft:stone");
+        items.operator = false;
+
+        String refusal = GrugGiveCalls.giveToPlayer(items.adapter(), "bob", "minecraft:stone", 1);
+
+        assertEquals("You must be an operator to give yourself items.", refusal);
+        assertTrue(items.given.isEmpty());
+    }
+
+    @Test
+    void anItemTheServerDoesNotKnowIsRefusedByName() {
+        Items items = new Items();
+        items.add("minecraft:stone");
+
+        String refusal = GrugGiveCalls.giveToPlayer(items.adapter(), "bob", "minecraft:gravel", 1);
+
+        assertEquals("The server has no item named minecraft:gravel.", refusal);
+        assertTrue(items.given.isEmpty());
+    }
+
+    @Test
+    void aClientJoinedWithNoRunAsksItsServerAndGivesNothingItself() {
+        Items items = new Items();
+        Object stone = items.add("minecraft:stone");
+        items.joined = true;
+        // A client of no run, so a run an earlier test left active is not this process's.
+        new GrugControlClient(
+                noLink(), noCapture(), GrugControlClient.adapterCaller(items::adapter), -1, -1);
+
+        GrugGiveCalls.give(items.adapter(), items.player, stone, 2, "give_item");
+
+        assertEquals(List.of("minecraft:stonex2"), items.asked);
+        assertTrue(items.given.isEmpty(), "the client's own copy is not written");
+    }
+
+    @Test
+    void anItemWithNoNameIsGivenLocallyWithoutAskingAServer() {
+        Items items = new Items();
+        Object unnamed = new Object();
+        Object emptyNamed = items.add("");
+        items.joined = true;
+        // A client of no run, so a run an earlier test left active is not this process's.
+        new GrugControlClient(
+                noLink(), noCapture(), GrugControlClient.adapterCaller(items::adapter), -1, -1);
+
+        GrugGiveCalls.give(items.adapter(), items.player, unnamed, 1, "give_item");
+        GrugGiveCalls.give(items.adapter(), items.player, emptyNamed, 1, "give_item");
+
+        assertTrue(items.asked.isEmpty());
+        assertEquals(2, items.given.size());
     }
 }
