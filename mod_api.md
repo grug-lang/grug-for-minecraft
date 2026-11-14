@@ -303,6 +303,7 @@ give_item(item: Item)
 give_item_stack(item: Item)
 gui(texture_path: resource) GUI
 has_sound(sound: string) bool
+is_operator() bool
 item(resource_location: ResourceLocation) Item
 item_at(index: number) Item
 item_count() number
@@ -313,3 +314,4 @@ print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)
 resource_location(resource_location_string: string) ResourceLocation
+set_operator(operator: bool)

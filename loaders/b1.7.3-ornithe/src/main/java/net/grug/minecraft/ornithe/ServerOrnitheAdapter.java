@@ -316,6 +316,30 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * Whether the server's operator list holds the player, which is the game's own check: {@code
+     * PlayerManager.isOp} lower-cases the name and looks it up in the set {@code ops.txt} fills
+     * (#1331). A dedicated server has no singleplayer owner, so the list is the whole answer.
+     */
+    @Override
+    public boolean isOperator(Object playerObj) {
+        return MinecraftServerInstance.get().playerManager.isOp(((PlayerEntity) playerObj).name);
+    }
+
+    /** Adds the player to the server's operator list, which the game saves to {@code ops.txt}. */
+    @Override
+    public void makeOperator(Object playerObj) {
+        MinecraftServerInstance.get().playerManager.addOp(((PlayerEntity) playerObj).name);
+    }
+
+    /**
+     * Removes the player from the server's operator list, which the game saves to {@code ops.txt}.
+     */
+    @Override
+    public void removeOperator(Object playerObj) {
+        MinecraftServerInstance.get().playerManager.removeOp(((PlayerEntity) playerObj).name);
+    }
+
+    /**
      * Right-clicks a block on this server's own world, so a server-run test's click lands in the
      * world the test reads (#1090).
      *

@@ -87,6 +87,25 @@ public final class GrugServerRun {
         }
     }
 
+    /**
+     * Whether the server's operator list holds {@code name}, which is the game's own check: {@code
+     * PlayerManager.isOperator} lower-cases the name and looks it up in the set {@code ops.txt}
+     * fills (#1331).
+     */
+    public static boolean isOperator(String name) {
+        return server.playerManager.isOperator(name);
+    }
+
+    /** Adds {@code name} to the operator list, which the game saves to {@code ops.txt}. */
+    public static void addToOperators(String name) {
+        server.playerManager.addToOperators(name);
+    }
+
+    /** Removes {@code name} from the operator list, which the game saves to {@code ops.txt}. */
+    public static void removeFromOperators(String name) {
+        server.playerManager.removeFromOperators(name);
+    }
+
     /** The connected players, newest last, as an untyped list (see the server adapter). */
     public static List<?> players() {
         return server == null ? Collections.emptyList() : server.playerManager.players;

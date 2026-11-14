@@ -176,6 +176,29 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     }
 
     /**
+     * Whether the server's operator list holds the player, which is the game's own check. A
+     * dedicated server has no singleplayer owner, so the list is the whole answer (#1331).
+     */
+    @Override
+    public boolean isOperator(Object playerObj) {
+        return GrugServerRun.isOperator(((PlayerEntity) playerObj).name);
+    }
+
+    /** Adds the player to the server's operator list, which the game saves to {@code ops.txt}. */
+    @Override
+    public void makeOperator(Object playerObj) {
+        GrugServerRun.addToOperators(((PlayerEntity) playerObj).name);
+    }
+
+    /**
+     * Removes the player from the server's operator list, which the game saves to {@code ops.txt}.
+     */
+    @Override
+    public void removeOperator(Object playerObj) {
+        GrugServerRun.removeFromOperators(((PlayerEntity) playerObj).name);
+    }
+
+    /**
      * Right-clicks a block on this server's own world, so a server-run test's click lands in the
      * world the test reads (#1090).
      *

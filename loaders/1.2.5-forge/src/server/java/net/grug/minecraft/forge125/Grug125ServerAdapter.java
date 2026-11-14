@@ -336,6 +336,29 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     }
 
     /**
+     * Whether the server's operator list holds the player, which is the game's own check. A
+     * dedicated server has no singleplayer owner, so the list is the whole answer (#1331).
+     */
+    @Override
+    public boolean isOperator(Object playerObj) {
+        return GrugServerRun.isOp(((EntityPlayer) playerObj).username);
+    }
+
+    /** Adds the player to the server's operator list, which the game saves to {@code ops.txt}. */
+    @Override
+    public void makeOperator(Object playerObj) {
+        GrugServerRun.addOp(((EntityPlayer) playerObj).username);
+    }
+
+    /**
+     * Removes the player from the server's operator list, which the game saves to {@code ops.txt}.
+     */
+    @Override
+    public void removeOperator(Object playerObj) {
+        GrugServerRun.removeOp(((EntityPlayer) playerObj).username);
+    }
+
+    /**
      * The eye of the test player. A server player keeps the feet in {@code posY} where the client
      * keeps the eye, so the eye is rebuilt from the bottom of the bounding box, rounded to a
      * millionth to shed the arithmetic's last bits, which is what the client's {@code posY} is.

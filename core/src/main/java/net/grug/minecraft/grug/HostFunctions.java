@@ -7,6 +7,7 @@ import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugGiveCalls;
 import net.grug.minecraft.core.GrugItemStacks;
+import net.grug.minecraft.core.GrugOperatorCalls;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSoundArgs;
 import net.grug.minecraft.core.GrugTestRunner;
@@ -2545,6 +2546,25 @@ public class HostFunctions {
                     Grug.statePtr, method + ": There is no player to give to yet.");
         }
         return player;
+    }
+
+    /**
+     * Whether the player a test runs as is an operator, decided by the loader's own server code:
+     * the operator list on a dedicated server, and the owner of a singleplayer world counts as one.
+     * A client joined to a server that drives the run is reported as the test's error, because the
+     * server holds the list (#1331). See {@link GrugOperatorCalls}.
+     */
+    public static boolean is_operator() {
+        return GrugOperatorCalls.isOperator(GrugCore.getAdapter(), "is_operator");
+    }
+
+    /**
+     * Makes the player a test runs as an operator, or removes that status, the way the game's own
+     * operator and deop commands do. The status outlives the test, so a test puts back what it read
+     * first (#1331). See {@link GrugOperatorCalls}.
+     */
+    public static void set_operator(boolean operator) {
+        GrugOperatorCalls.setOperator(GrugCore.getAdapter(), operator, "set_operator");
     }
 
     public static long gui(String texturePath) {

@@ -13,9 +13,13 @@ import net.grug.minecraft.grug.GrugGenerated;
  * names are looked up by reflection, once, in the one place that needs them (#1123). The server
  * instance comes from OSL's lifecycle API, which keeps the one it runs. A client has no player
  * manager and answers nothing, so a singleplayer run keeps its own settle without one.
+ *
+ * <p>The same manager holds the operator list, which {@code ops.txt} fills: {@code isOp}
+ * lower-cases a name and looks it up, and {@code addOp} and {@code removeOp} change the set and
+ * save the file (#1331). They are reached the same way, by intermediary name, for the same reason.
  */
 @GrugGenerated("the server's player manager, which only the dedicated-server job reaches")
-final class GrugPlayerManagerAccess {
+public final class GrugPlayerManagerAccess {
     /** OSL's holder of the running server, which keeps its own name in every namespace. */
     private static final String SERVER_INSTANCE =
             "net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance";
@@ -28,6 +32,12 @@ final class GrugPlayerManagerAccess {
 
     private static final boolean CLIENT =
             FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT;
+
+    /** The server's intermediary names of the operator list's three methods, all taking a name. */
+    private static final String SERVER_IS_OP = "m_55622692";
+
+    private static final String SERVER_ADD_OP = "m_16677163";
+    private static final String SERVER_REMOVE_OP = "m_26800521";
 
     /** The player manager, looked up on the first flush and kept for the run. */
     private static Object playerManager = null;
@@ -53,6 +63,41 @@ final class GrugPlayerManagerAccess {
                             + SERVER_PLAYER_MANAGER_TICK
                             + "().",
                     e);
+        }
+    }
+
+    /** Whether the server's operator list holds {@code name}. */
+    public static boolean isOp(String name) {
+        return (Boolean) callWithName(SERVER_IS_OP, name);
+    }
+
+    /** Adds {@code name} to the server's operator list, which the game saves to {@code ops.txt}. */
+    public static void addOp(String name) {
+        callWithName(SERVER_ADD_OP, name);
+    }
+
+    /** Removes {@code name} from the operator list, which the game saves to {@code ops.txt}. */
+    public static void removeOp(String name) {
+        callWithName(SERVER_REMOVE_OP, name);
+    }
+
+    /** Calls one of the manager's methods that takes a name, and answers what it answers. */
+    private static Object callWithName(String method, String name) {
+        try {
+            if (playerManager == null) {
+                playerManager = findPlayerManager();
+            }
+            if (playerManager == null) {
+                throw new IllegalStateException(
+                        "There is no running server to ask who is an operator.");
+            }
+            return playerManager
+                    .getClass()
+                    .getMethod(method, String.class)
+                    .invoke(playerManager, name);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(
+                    "The dedicated server's player manager has no " + method + "(String).", e);
         }
     }
 
