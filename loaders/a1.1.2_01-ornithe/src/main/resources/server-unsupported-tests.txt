@@ -95,9 +95,11 @@ coverage/tests/hook_forced_normalization-Test.grug
 # room, the lighting and a camera move are all excluded: the joined client draws the same scene into
 # a frame whose world sits 2 px higher, which is frame geometry and not the port. The client-only
 # run of this loader still matches the golden, and the camera the log measured was the eye the
-# capture named. redstone_engine_animation and redstone_engine_facings are unmeasured, since a leg
-# stops at its first failing promoted test, and are listed with it.
-buildcraft/tests/cobblestone_pipe_shapes-Test.grug
+# capture named. The cause was the camera tilt (0.235 degrees, atan(-velocityY * 0.2) * 15) that the
+# capture pin removed with the velocity it zeroes, and the pin now writes the standing tilt after the
+# client's physics (#1213), so cobblestone_pipe_shapes is no longer listed. redstone_engine_animation
+# and redstone_engine_facings are unmeasured, since a leg stops at its first failing promoted test,
+# and are listed with it.
 buildcraft/tests/redstone_engine-Test.grug
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug

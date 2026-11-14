@@ -27,6 +27,16 @@ class GrugTestPlayerSnapTest {
     }
 
     @Test
+    void theStandingTiltIsWhatAlphaAndBetaGiveAPlayerStandingStill() {
+        // atan(0.0784 * 0.2) * 15 degrees, about 0.235: the 2 px at 1280x720 that a pinned joined
+        // client lost against the flat goldens (#1213).
+        assertEquals(-0.0784, GrugTestPlayerSnap.RESTING_VELOCITY_Y, 1e-4);
+        assertEquals(0.2349, GrugTestPlayerSnap.STANDING_TILT, 1e-3);
+        double pixels = Math.tan(Math.toRadians(GrugTestPlayerSnap.STANDING_TILT)) * 514;
+        assertEquals(2.1, pixels, 0.1);
+    }
+
+    @Test
     void snapsTheLocalPlayerOnAClient() throws Throwable {
         AtomicInteger clientSnaps = new AtomicInteger();
         AtomicInteger serverSnaps = new AtomicInteger();

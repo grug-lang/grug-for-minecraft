@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -171,6 +172,27 @@ public final class GrugControlBetaClient {
     private static Connection clientConnection() {
         return GrugControlBeta.findConnection(
                 net.ornithemc.osl.lifecycle.api.client.MinecraftInstance.get().world, 1);
+    }
+
+    /**
+     * The end of one client tick, after the world's physics: while a capture is pending, the
+     * player's camera tilt is the tilt of a player standing still ({@link
+     * GrugTestPlayerSnap#STANDING_TILT}), whatever the pinned velocity or the floor under it.
+     *
+     * <p>The pin zeroes the velocity, and the tilt {@code PlayerEntity.mobTick} computes from it is
+     * therefore 0, but the flat goldens were drawn by a client-only player standing on a floor,
+     * whose tilt of 0.235 degrees shifts the whole frame 2 px (#1213). The velocity cannot carry
+     * that tilt, because a player given a falling velocity leaves the eye in the tick, so the tilt
+     * is written here, after {@code mobTick} has run and before the frame is drawn. Both fields are
+     * written because the camera interpolates from {@code lastTilt} to {@code tilt}. A player with
+     * no floor gets the same tilt, so every pinned frame agrees with every other ({@code
+     * forwarded_capture_pinned_eye}).
+     */
+    public static void afterClientTick(PlayerEntity player) {
+        if (pending && eye != null && player != null) {
+            player.lastTilt = GrugTestPlayerSnap.STANDING_TILT;
+            player.tilt = GrugTestPlayerSnap.STANDING_TILT;
+        }
     }
 
     /**

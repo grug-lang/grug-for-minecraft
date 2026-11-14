@@ -88,6 +88,11 @@ public abstract class MinecraftMixin implements GrugClientAccess {
         GrugControlAlphaClient.onClientTick((Minecraft) (Object) this, grug$hooks);
     }
 
+    @Inject(method = "tick", at = @At("RETURN"))
+    private void grug$afterClientTick(CallbackInfo ci) {
+        GrugControlAlphaClient.afterClientTick(((Minecraft) (Object) this).player);
+    }
+
     @Override
     public void grug$sendChat(String line) {
         if (this.gui != null) {

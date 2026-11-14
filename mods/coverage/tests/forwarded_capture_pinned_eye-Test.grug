@@ -13,6 +13,9 @@
 # zeroes is the only thing that could move the player within the tick, so a pin at the head draws the
 # same frame as a pin at its end. The pin stays at the head, and this test records that it cannot
 # tell the two places apart rather than claiming a partial-tick difference the game does not make.
+# Every pinned frame also carries the camera tilt of a standing player, which the pin writes after the
+# client's physics (#1213), so a player with no floor under it is drawn tilted exactly as the standing
+# frame is and the comparison below still sees only the camera's position.
 # What the pin is for is the time between capture windows, when nothing pins: the server is frozen
 # while it waits for a frame, so it cannot hold its own player, and the joined client's own physics
 # drops it off the eye, onto the room's floor or three blocks further down once that floor is gone.

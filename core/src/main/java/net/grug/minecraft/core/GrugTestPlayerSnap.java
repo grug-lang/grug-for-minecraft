@@ -29,6 +29,28 @@ public final class GrugTestPlayerSnap {
     private GrugTestPlayerSnap() {}
 
     /**
+     * The vertical velocity a player standing still on the ground has after each of its ticks: the
+     * gravity step Alpha and Beta apply after the move, {@code (0 - 0.08) * 0.98}.
+     */
+    public static final double RESTING_VELOCITY_Y = (0.0 - 0.08) * 0.98F;
+
+    /**
+     * The first-person camera tilt of a player standing still on the ground, in degrees, as Alpha
+     * and Beta compute it: {@code atan(-velocityY * 0.2) * 15} from {@link #RESTING_VELOCITY_Y},
+     * with the same float casts as {@code PlayerEntity.mobTick}. It is 0.235 degrees, a uniform 2
+     * px shift of the whole frame at 1280x720, and the flat goldens a client-only run recorded were
+     * drawn with it (#1213).
+     *
+     * <p>A joined client's capture pin zeroes the velocity so the player cannot leave the eye in
+     * the tick, which removes the tilt and shifts every capture 2 px against those goldens. The
+     * velocity cannot carry the tilt without moving the player off the eye (a player with no floor
+     * under it must stay at the eye, which {@code forwarded_capture_pinned_eye} checks), so the pin
+     * writes the tilt directly after the client's physics instead, on every pending tick, and every
+     * pinned frame has the same tilt whether the player stands or hangs in the air.
+     */
+    public static final float STANDING_TILT = (float) Math.atan(-RESTING_VELOCITY_Y * 0.2F) * 15.0F;
+
+    /**
      * The coordinate the player is snapped to on one horizontal axis: the middle of the block they
      * stand in, so the room, the origin and a capture agree on where the player is.
      */
