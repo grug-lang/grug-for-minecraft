@@ -11,21 +11,29 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         was_operator: bool = is_operator()
 
+        # Every read is taken first and asserted after the status is put back, so a failed assert
+        # never leaves the operator list changed for the next test or the next run.
         set_operator(true)
-        ctx.assert(is_operator(), "set_operator(true) did not make the player an operator.")
+        granted: bool = is_operator()
 
         set_operator(false)
-        ctx.assert(not is_operator(), "set_operator(false) did not remove the operator status.")
+        revoked: bool = not is_operator()
 
         # A second revoke and a second grant change nothing: both are idempotent in the game's list.
         set_operator(false)
-        ctx.assert(not is_operator(), "A second set_operator(false) made the player an operator.")
+        revoked_twice: bool = not is_operator()
 
         set_operator(true)
         set_operator(true)
-        ctx.assert(is_operator(), "A second set_operator(true) removed the operator status.")
+        granted_twice: bool = is_operator()
 
         set_operator(was_operator)
-        ctx.assert(is_operator() == was_operator, "The test did not put the operator status back.")
+        restored: bool = is_operator() == was_operator
+
+        ctx.assert(granted, "set_operator(true) did not make the player an operator.")
+        ctx.assert(revoked, "set_operator(false) did not remove the operator status.")
+        ctx.assert(revoked_twice, "A second set_operator(false) made the player an operator.")
+        ctx.assert(granted_twice, "A second set_operator(true) removed the operator status.")
+        ctx.assert(restored, "The test did not put the operator status back.")
     }
 }
