@@ -134,6 +134,25 @@ public final class GrugServerRun implements ITickHandler {
         return players().contains(player);
     }
 
+    /**
+     * Whether the server's operator list holds {@code name}, which is the game's own check: {@code
+     * ServerConfigurationManager.isOp} lower-cases the name and looks it up in the set {@code
+     * ops.txt} fills (#1331).
+     */
+    public static boolean isOp(String name) {
+        return server().configManager.isOp(name);
+    }
+
+    /** Adds {@code name} to the operator list, which the game saves to {@code ops.txt}. */
+    public static void addOp(String name) {
+        server().configManager.addOp(name);
+    }
+
+    /** Removes {@code name} from the operator list, which the game saves to {@code ops.txt}. */
+    public static void removeOp(String name) {
+        server().configManager.removeOp(name);
+    }
+
     /** The first connected player, or null. */
     public static EntityPlayerMP firstPlayer() {
         List<?> players = players();

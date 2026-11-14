@@ -3651,6 +3651,12 @@
 				}
 			]
 		},
+		"is_operator": {
+			"description": "Whether the player the test runs as is an operator, answered by the loader's own server code: the operator list (ops.txt, or the operator list of 1.20.6) on a dedicated server, and always true for the owner of a singleplayer world unless set_operator took it away, since a singleplayer world keeps no list on Alpha, Beta and 1.2.5 and 1.20.6 counts the owner only while cheats are on. A test that runs on a client joined to a server cannot know, because the server holds the list, so that call is an error of the test that made it rather than an answer; it needs a player.",
+			"return_type": {
+				"name": "bool"
+			}
+		},
 		"item": {
 			"description": "Creates a new item.",
 			"return_type": {
@@ -3857,6 +3863,17 @@
 					"name": "resource_location_string",
 					"type": {
 						"name": "string"
+					}
+				}
+			]
+		},
+		"set_operator": {
+			"description": "Makes the player the test runs as an operator when operator is true, and removes that status when it is false, the way the game's own operator and deop commands do on a dedicated server (the operator list is written to disk there). In a singleplayer world the owner counts as an operator until this removes it, and a later call with true gives it back. The status outlives the test, so a test that changes it puts back what is_operator read first. A test that runs on a client joined to a server cannot change the list the server holds, so that call is an error of the test that made it; it needs a player.",
+			"parameters": [
+				{
+					"name": "operator",
+					"type": {
+						"name": "bool"
 					}
 				}
 			]

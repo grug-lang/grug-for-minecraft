@@ -1,0 +1,31 @@
+# is_operator and set_operator read and change the operator status of the player the test runs as,
+# which a loader answers from its own server code (#1331): the operator list on a dedicated server
+# (ops.txt, or 1.20.6's operator list), and in singleplayer the owner of the world, who counts as an
+# operator until a script removes that. Every call here asks and changes the status in the same tick
+# and reads it back at once, so what the test proves is the round trip through the loader, not a
+# timing. The status outlives the test, so it is put back to what it was when the test began.
+
+# A client joined to a server would report these calls as an error, because the server holds the
+# list; this test never runs there, since a test runs on the side that holds the player.
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        was_operator: bool = is_operator()
+
+        set_operator(true)
+        ctx.assert(is_operator(), "set_operator(true) did not make the player an operator.")
+
+        set_operator(false)
+        ctx.assert(not is_operator(), "set_operator(false) did not remove the operator status.")
+
+        # A second revoke and a second grant change nothing: both are idempotent in the game's list.
+        set_operator(false)
+        ctx.assert(not is_operator(), "A second set_operator(false) made the player an operator.")
+
+        set_operator(true)
+        set_operator(true)
+        ctx.assert(is_operator(), "A second set_operator(true) removed the operator status.")
+
+        set_operator(was_operator)
+        ctx.assert(is_operator() == was_operator, "The test did not put the operator status back.")
+    }
+}

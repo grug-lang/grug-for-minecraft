@@ -23,6 +23,7 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.grug.minecraft.ornithe.gui.GrugScreenContentPacket;
 import net.grug.minecraft.ornithe.gui.GrugScreenOpenPacket;
+import net.grug.minecraft.ornithe.server.GrugPlayerManagerAccess;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
@@ -298,6 +299,29 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         }
         List<?> players = world.players;
         return players.isEmpty() ? null : players.get(0);
+    }
+
+    /**
+     * Whether the server's operator list holds the player, which is the game's own check. A
+     * dedicated server has no singleplayer owner, so the list is the whole answer (#1331).
+     */
+    @Override
+    public boolean isOperator(Object playerObj) {
+        return GrugPlayerManagerAccess.isOp(((PlayerEntity) playerObj).name);
+    }
+
+    /** Adds the player to the server's operator list, which the game saves to {@code ops.txt}. */
+    @Override
+    public void makeOperator(Object playerObj) {
+        GrugPlayerManagerAccess.addOp(((PlayerEntity) playerObj).name);
+    }
+
+    /**
+     * Removes the player from the server's operator list, which the game saves to {@code ops.txt}.
+     */
+    @Override
+    public void removeOperator(Object playerObj) {
+        GrugPlayerManagerAccess.removeOp(((PlayerEntity) playerObj).name);
     }
 
     /**

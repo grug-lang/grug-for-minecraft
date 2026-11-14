@@ -1,11 +1,13 @@
 package net.grug.minecraft.forge;
 
+import com.mojang.authlib.GameProfile;
 import com.mojang.logging.LogUtils;
 
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugGiveCalls;
 import net.grug.minecraft.core.GrugLightSync;
+import net.grug.minecraft.core.GrugOperatorStatus;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestBox;
@@ -655,6 +657,56 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public void giveItemCountToPlayer(Object playerObj, Object itemObj, int count) {
         giveItemToPlayer((Player) playerObj, (Item) itemObj, count);
+    }
+
+    /**
+     * What this loader answers for the owner of a singleplayer world (#1331). The game's own rule
+     * makes the owner an operator only while the world allows cheats, which a world that was made
+     * without them never does, and holds no state a script could revoke and read back, so the
+     * answer is the operator list's, or the owner while no script has revoked it.
+     */
+    private final GrugOperatorStatus operatorStatus = new GrugOperatorStatus();
+
+    /**
+     * The server that holds the players: the dedicated server, or the integrated one under a
+     * singleplayer client. A client joined to a remote server has none, and the host functions
+     * never ask it (see {@code GrugOperatorCalls}), so reaching this without one is a bug here.
+     */
+    @GrugGenerated("the invariant arm: the host functions refuse a joined client before asking")
+    private static MinecraftServer serverHoldingPlayers() {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) {
+            throw Grug.fatal("An operator was asked for with no server that holds the players.");
+        }
+        return server;
+    }
+
+    /**
+     * Whether the operator list holds the player, or the player owns a singleplayer world and no
+     * script has removed that. The list is the game's own {@code PlayerList.getOps}, read by the
+     * profile, which both the client's player and the server's carry.
+     */
+    @Override
+    public boolean isOperator(Object playerObj) {
+        MinecraftServer server = serverHoldingPlayers();
+        GameProfile profile = ((Player) playerObj).getGameProfile();
+        return operatorStatus.isOperator(
+                server.isSingleplayerOwner(profile),
+                server.getPlayerList().getOps().contains(profile));
+    }
+
+    /** Adds the player to the operator list, as the game's {@code /op} does. */
+    @Override
+    public void makeOperator(Object playerObj) {
+        serverHoldingPlayers().getPlayerList().op(((Player) playerObj).getGameProfile());
+        operatorStatus.granted();
+    }
+
+    /** Removes the player from the operator list, as the game's {@code /deop} does. */
+    @Override
+    public void removeOperator(Object playerObj) {
+        serverHoldingPlayers().getPlayerList().deop(((Player) playerObj).getGameProfile());
+        operatorStatus.revoked();
     }
 
     /**

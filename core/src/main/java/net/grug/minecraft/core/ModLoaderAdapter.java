@@ -215,6 +215,24 @@ public interface ModLoaderAdapter {
      */
     void giveItemCountToPlayer(Object playerObj, Object itemObj, int count);
 
+    /**
+     * Whether the player is an operator, decided where the player is held: a dedicated server reads
+     * its own operator list, and a singleplayer world counts its owner as an operator (see {@link
+     * GrugOperatorStatus}). A client joined to a server cannot know, so the host functions never
+     * ask a joined client (see {@link GrugOperatorCalls}).
+     *
+     * <p>Like {@link #giveItemCountToPlayer}, these three have no default on purpose: every loader
+     * in this repository has an operator concept, and one that cannot would rather fail to compile
+     * than answer for a player it knows nothing about (#1331).
+     */
+    boolean isOperator(Object playerObj);
+
+    /** Makes the player an operator, the way the game's own operator command does. */
+    void makeOperator(Object playerObj);
+
+    /** Removes the player's operator status, the way the game's own deop command does. */
+    void removeOperator(Object playerObj);
+
     Object createItemEntity(Object levelObj, double x, double y, double z, Object itemStackObj);
 
     Object createItemStack(Object itemObj, double damage, double count);

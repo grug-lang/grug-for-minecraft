@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugLightSync;
+import net.grug.minecraft.core.GrugOperatorStatus;
 import net.grug.minecraft.core.GrugRelight;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
@@ -1060,6 +1061,29 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public int getItemMaxStack(Object itemObj) {
         return ((Item) itemObj).getMaxCount();
+    }
+
+    /**
+     * What this loader's singleplayer answers, which is the whole answer here: Beta has no
+     * integrated server and no operator list, so the one player is the owner of their world and
+     * counts as an operator until a script removes that (#1331). The dedicated server's adapter
+     * overrides all three with the server's own list.
+     */
+    protected final GrugOperatorStatus operatorStatus = new GrugOperatorStatus();
+
+    @Override
+    public boolean isOperator(Object playerObj) {
+        return operatorStatus.isOperator(true, false);
+    }
+
+    @Override
+    public void makeOperator(Object playerObj) {
+        operatorStatus.granted();
+    }
+
+    @Override
+    public void removeOperator(Object playerObj) {
+        operatorStatus.revoked();
     }
 
     @Override
