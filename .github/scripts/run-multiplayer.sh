@@ -660,7 +660,7 @@ while :; do
     # The four #1161 promoted are required on the leg that can run them, which is 1.20.6-forge: its
     # joined client matches the flat golden after the server half of the player snap and the particle
     # pin, and that is what proves both. The other four legs list the ones their measured residue
-    # reaches in server-unsupported-tests.txt (b1.7.3-ornithe all four, a1.1.2_01 three and 1.2.5-forge
+    # reaches in server-unsupported-tests.txt (b1.7.3-ornithe and a1.1.2_01 all four and 1.2.5-forge
     # two of them, #1213 and #1092), so their servers skip those; the client-only run of every loader
     # is where all four goldens are checked. Requiring them on the four legs would only restate an
     # open rendering defect, so the list is per loader.
@@ -671,8 +671,7 @@ while :; do
     # loaders list them in server-unsupported-tests.txt and the client-only run checks the goldens.
     wall_backed_tests="buildcraft/tests/wooden_pipe_items"
     case "$LOADER" in
-      a1.1.2_01-ornithe) wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes" ;;
-      b1.7.3-ornithe) wall_backed_tests="" ;;
+      a1.1.2_01-ornithe|b1.7.3-ornithe) wall_backed_tests="" ;;
     esac
     case "$LOADER" in
       1.20.6-forge)
