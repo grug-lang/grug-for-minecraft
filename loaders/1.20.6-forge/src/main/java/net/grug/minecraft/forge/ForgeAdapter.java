@@ -692,7 +692,7 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
         GameProfile profile = ((Player) playerObj).getGameProfile();
         return operatorStatus.isOperator(
                 server.isSingleplayerOwner(profile),
-                server.getPlayerList().getOps().contains(profile));
+                server.getPlayerList().getOps().get(profile) != null);
     }
 
     /** Adds the player to the operator list, as the game's {@code /op} does. */
