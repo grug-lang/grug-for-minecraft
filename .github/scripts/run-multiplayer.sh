@@ -786,7 +786,14 @@ while :; do
     # joined item list is fixed by #1238, so paging and scroll are required there again. Each loader's
     # list carries the reason and the numbers.
     case "$LOADER" in
-      1.20.6-forge|1.2.5-forge|b1.7.3-stationapi)
+      1.20.6-forge)
+        # give_requires_operator is the permission-checked give's own proof (#882): it flips the
+        # player's operator status on this server and presses the overlay's item from the joined
+        # client, so it runs on this leg only until the older loaders have their own wire path.
+        overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        excluded="jei/tests/item_list_forced_normalization"
+        ;;
+      1.2.5-forge|b1.7.3-stationapi)
         overlay_tests="coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
         # The forced-normalization item list: a dedicated server cannot force that GL state, and
         # the joined client's capture differs from the golden in 5967, all 12672 and 11614 of 12672

@@ -47,6 +47,10 @@ public final class GrugGiveCalls {
             GrugControlClient.giveToServer(name, count);
             return;
         }
+        String name = adapter.itemName(item);
+        if (name != null && !name.isEmpty() && adapter.askServerToGive(name, count)) {
+            return;
+        }
         adapter.giveItemCountToPlayer(player, item, count);
     }
 
@@ -81,6 +85,30 @@ public final class GrugGiveCalls {
         }
         GrugWorldRevision.bump();
         adapter.giveItemCountToPlayer(player, item, count);
+    }
+
+    /**
+     * Gives a player the item their own client named, if the player is an operator (#882), the way
+     * the reference JEI's server half does: {@code ServerCommandUtil.executeGive} refuses a player
+     * who lacks the cheat permission. It is not the game's {@code /give} command and does not go
+     * through the command parser.
+     *
+     * <p>Returns null when the item was given, and otherwise the one-line error to show the player,
+     * so a refusal is never a silent no-op. Called on the server thread, with the player the
+     * request came from rather than the run's test player.
+     */
+    public static String giveToPlayer(
+            ModLoaderAdapter adapter, Object player, String itemName, int count) {
+        if (!adapter.isOperator(player)) {
+            return "You must be an operator to give yourself items.";
+        }
+        Object item = itemNamed(adapter, itemName);
+        if (item == null) {
+            return "The server has no item named " + itemName + ".";
+        }
+        GrugWorldRevision.bump();
+        adapter.giveItemCountToPlayer(player, item, count);
+        return null;
     }
 
     /**

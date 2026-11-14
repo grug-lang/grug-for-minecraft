@@ -94,6 +94,47 @@ public final class GrugControlServer {
         default void applyGive(String item, int count) {
             GrugGiveCalls.giveOnServer(GrugCore.getAdapter(), item, count);
         }
+
+        /**
+         * Whether this loader gives to the player who asked, whoever they are, after an operator
+         * check (#882), instead of only to the run's starter with the older {@link #applyGive}. A
+         * loader that answers true implements {@link #playerOf}, {@link #tell} and {@link
+         * #runOnServerThread}. The default is false, which is the older loaders' path until each
+         * one has its own.
+         */
+        default boolean givesToSender() {
+            return false;
+        }
+
+        /**
+         * The server's player the sender is, or null when that player has left. Called on the
+         * server thread, only when {@link #givesToSender}.
+         */
+        default Object playerOf(Object sender) {
+            return null;
+        }
+
+        /**
+         * Tells the sender's player a one-line error, shown the way the game shows a refused
+         * command. Called on the server thread, only when {@link #givesToSender}.
+         */
+        default void tell(Object sender, String message) {}
+
+        /**
+         * Runs {@code task} on the server thread at its next opportunity, from any thread. A
+         * player's give arrives on the network thread and changes the world, so it has to be
+         * applied there, run or no run. Only when {@link #givesToSender}.
+         */
+        default void runOnServerThread(Runnable task) {
+            task.run();
+        }
+
+        /**
+         * Called once, on the network thread, after {@code starter} became the run's starter. The
+         * harness's CI servers make that player an operator here, so the gives a run's tests make
+         * pass the same permission check a player's would (#882). The default does nothing.
+         */
+        default void onRunStarted(Object starter) {}
     }
 
     /** A request that cannot be answered; its message is what the test's error says. */
@@ -175,10 +216,16 @@ public final class GrugControlServer {
 
     /** One give a joined client asked for: the item's name and how many of it. */
     private static final class Give {
+        /**
+         * Who asked, or null for the older starter-only path, whose give goes to the test player.
+         */
+        final Object sender;
+
         final String item;
         final int count;
 
-        Give(String item, int count) {
+        Give(Object sender, String item, int count) {
+            this.sender = sender;
             this.item = item;
             this.count = count;
         }
@@ -258,9 +305,31 @@ public final class GrugControlServer {
         link.applyClientWork();
         // After the game's own packets, so a give sees the inventory a click of the same tick
         // already changed: the client sends both in that order, and this is the order it sees.
+        drainGives();
+    }
+
+    /**
+     * Applies the queued gives, on the server thread: the older starter-only ones to the test
+     * player, and a player's own to that player after the operator check (#882).
+     */
+    private void drainGives() {
         Give give;
         while ((give = gives.poll()) != null) {
-            link.applyGive(give.item, give.count);
+            if (give.sender == null) {
+                link.applyGive(give.item, give.count);
+                continue;
+            }
+            Object player = link.playerOf(give.sender);
+            if (player == null) {
+                // The player left before the give was applied: nobody is left to tell.
+                continue;
+            }
+            String refusal =
+                    GrugGiveCalls.giveToPlayer(
+                            GrugCore.getAdapter(), player, give.item, give.count);
+            if (refusal != null) {
+                link.tell(give.sender, refusal);
+            }
         }
     }
 
@@ -310,7 +379,8 @@ public final class GrugControlServer {
 
     /**
      * Handles a message from {@code sender}, on the network thread. A start sets the starter when
-     * there is none and the loader allows the sender; anything else counts only from the starter.
+     * there is none and the loader allows the sender; anything else counts only from the starter,
+     * except a give on a loader that gives to its sender (#882), which any player may ask for.
      */
     public void onMessage(Object sender, byte[] bytes) {
         GrugControlWire.Message message;
@@ -337,6 +407,7 @@ public final class GrugControlServer {
         if (message.type == GrugControlWire.RUN_START) {
             if (link.mayStartRun(sender) && starter.compareAndSet(null, sender)) {
                 System.out.println("[GRUG CONTROL] " + sender + " started the run");
+                link.onRunStarted(sender);
             } else {
                 // The first start owns the run, so a second player's start, or a reconnected
                 // client's, is ignored rather than moving the run to it (#1027). The client says it
@@ -344,6 +415,17 @@ public final class GrugControlServer {
                 // that two real starts reached the server and only one was accepted.
                 System.out.println("[GRUG CONTROL] " + sender + " sent a start, which was ignored");
             }
+            return;
+        }
+        if (message.type == GrugControlWire.GIVE_REQUEST && link.givesToSender()) {
+            // A player's own give (#882): any player may ask, none of it is the run's business, and
+            // the operator check happens where the give is applied, on the server thread, so the
+            // operator list is read where it is written. The order of the add and the mark is the
+            // one explained below, and the scheduled drain covers a server with no run, whose
+            // runner never calls applyClientWork.
+            gives.add(new Give(sender, message.text, message.x1));
+            clientWorkPending = true;
+            link.runOnServerThread(this::drainGives);
             return;
         }
         if (!fromStarter) {
@@ -360,7 +442,7 @@ public final class GrugControlServer {
             // that has already polled, which would leave the give unapplied until an unrelated call
             // marked the flag again. The two-thread test that holds the network thread inside the
             // queue's add pins this.
-            gives.add(new Give(message.text, message.x1));
+            gives.add(new Give(null, message.text, message.x1));
             clientWorkPending = true;
             return;
         }

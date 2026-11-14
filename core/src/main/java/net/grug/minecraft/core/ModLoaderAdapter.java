@@ -216,6 +216,22 @@ public interface ModLoaderAdapter {
     void giveItemCountToPlayer(Object playerObj, Object itemObj, int count);
 
     /**
+     * Asks the server this client is joined to to give the player {@code count} of the item named
+     * {@code itemName} (#882), and answers whether it did. The server applies the give to that
+     * player only if they are an operator, as the reference JEI's server half does, and tells the
+     * player when it refuses.
+     *
+     * <p>True means the request was sent, so the caller must not write the client's own copy of the
+     * player, which the server's next inventory sync would overwrite. False means this process is
+     * not a client joined to a server that gives this way: a singleplayer world, a dedicated
+     * server, or a loader whose own request is still to come, which keeps the older paths.
+     */
+    @GrugGenerated("a joined client: only a loader's client half sends one")
+    default boolean askServerToGive(String itemName, int count) {
+        return false;
+    }
+
+    /**
      * Whether the player is an operator, decided where the player is held: a dedicated server reads
      * its own operator list, and a singleplayer world counts its owner as an operator (see {@link
      * GrugOperatorStatus}). A client joined to a server cannot know, so the host functions never
