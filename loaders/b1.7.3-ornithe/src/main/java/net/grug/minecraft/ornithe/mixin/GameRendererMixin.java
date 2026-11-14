@@ -28,6 +28,7 @@ public class GameRendererMixin {
     @Inject(method = "render(F)V", at = @At("RETURN"))
     private void grug$onFrameRendered(CallbackInfo ci) {
         GrugCore.getAdapter().onFrameRendered();
+        net.grug.minecraft.ornithe.Diag1213.frameReturn();
     }
 
     /**
@@ -43,7 +44,9 @@ public class GameRendererMixin {
     private void grug$skipUnwantedFrame(float partialTicks, CallbackInfo ci) {
         if (!GrugFrameRequest.wanted()) {
             ci.cancel();
+            return;
         }
+        net.grug.minecraft.ornithe.Diag1213.frameHead(partialTicks);
     }
 
     @Inject(method = "setupFog(IF)V", at = @At("RETURN"))

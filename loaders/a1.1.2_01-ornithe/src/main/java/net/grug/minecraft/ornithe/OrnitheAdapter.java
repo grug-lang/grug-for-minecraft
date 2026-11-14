@@ -1823,6 +1823,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         int width = x2 - x1;
         int height = y2 - y1;
         int glY = windowHeight - y2;
+        Diag1213.capture(operation);
 
         ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
 
