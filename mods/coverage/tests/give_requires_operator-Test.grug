@@ -25,11 +25,11 @@ second_pressed: bool = false
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.on_dedicated_server() or (Test.loader_name() != "1.20.6-forge" and Test.loader_name() != "1.2.5-forge") or not Test.overlay_supported() {
+        if not me.on_dedicated_server() or (me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge") or not me.overlay_supported() {
             # See the top of this file for where this test runs.
             return
         }
-        Test.close_screen()
+        ctx.close_screen()
         ctx.not_done()
         return
     }
@@ -44,40 +44,40 @@ export tick_any_side(ctx: TestTickContext) {
     if not opened {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         opened = true
         waited = 0
         ctx.not_done()
         return
     }
 
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         waited = waited + 1
         ctx.assert(waited < 100, "The player's inventory screen should open.")
         ctx.not_done()
         return
     }
 
-    if not Test.overlay_drawn() {
+    if not ctx.overlay_drawn() {
         waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
         ctx.not_done()
         return
     }
 
-    box_x: number = Test.gui_left() + Math.floor(Test.gui_width() / 2)
-    box_y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
+    box_x: number = ctx.gui_left() + Math.floor(ctx.gui_width() / 2)
+    box_y: number = ctx.gui_top() + Math.floor(ctx.gui_height() / 2)
 
     if step == 0 {
-        Test.clear_carried_item()
-        ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the first press.")
+        ctx.clear_carried_item()
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == 0, "The hand should be empty before the first press.")
         was_operator = is_operator()
         set_operator(false)
-        first_pressed = Test.click_screen(box_x, box_y, 0)
+        first_pressed = ctx.click_screen(box_x, box_y, 0)
         step = 1
         ctx.not_done()
         return
@@ -89,7 +89,7 @@ export tick_any_side(ctx: TestTickContext) {
         # finds, so a press that was not applied yet would be applied under the status this tick
         # sets and would show as a second item below. A refused press shows as no item at all.
         set_operator(true)
-        second_pressed = Test.click_screen(box_x, box_y, 0)
+        second_pressed = ctx.click_screen(box_x, box_y, 0)
         waited = 0
         step = 2
         ctx.not_done()
@@ -98,7 +98,7 @@ export tick_any_side(ctx: TestTickContext) {
 
     # Both presses are the server's before the operator's item shows, so the status stays until it
     # does: the wait is on the item, with a bound that says it never came.
-    held: Option[Item] = Test.get_player().get_held_item()
+    held: Option[Item] = ctx.get_player().get_held_item()
     if not held.has() and waited < 200 {
         waited = waited + 1
         ctx.not_done()
@@ -107,12 +107,12 @@ export tick_any_side(ctx: TestTickContext) {
 
     # Every read is taken before the status goes back and asserted after it, so a failed assert
     # never leaves the operator list changed for the next test.
-    count: number = Test.get_held_count(Test.get_player())
+    count: number = ctx.get_held_count(ctx.get_player())
     has_item: bool = held.has()
     drew_item: bool = has_item and equals(held.unwrap(), item_at(0))
     set_operator(was_operator)
-    Test.clear_held_item(Test.get_player())
-    Test.close_screen()
+    ctx.clear_held_item(ctx.get_player())
+    ctx.close_screen()
 
     ctx.assert(first_pressed, "The overlay should take the first left click on its item.")
     ctx.assert(second_pressed, "The overlay should take the second left click on its item.")

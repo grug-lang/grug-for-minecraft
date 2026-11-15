@@ -308,7 +308,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double screenWidthForTest() {
-        if (refuseWithoutAClient("Test.screen_width")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.screen_width")) return 0.0;
         Screen screen = Minecraft.getInstance().screen;
         return screen == null ? 0.0 : screen.width;
     }
@@ -316,7 +316,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiLeftForTest() {
-        if (refuseWithoutAClient("Test.gui_left")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.gui_left")) return 0.0;
         AbstractContainerScreen<?> container = openContainerScreen();
         return container == null ? 0.0 : container.getGuiLeft();
     }
@@ -324,7 +324,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiWidthForTest() {
-        if (refuseWithoutAClient("Test.gui_width")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.gui_width")) return 0.0;
         AbstractContainerScreen<?> container = openContainerScreen();
         return container == null ? 0.0 : container.getXSize();
     }
@@ -332,7 +332,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiTopForTest() {
-        if (refuseWithoutAClient("Test.gui_top")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.gui_top")) return 0.0;
         AbstractContainerScreen<?> container = openContainerScreen();
         return container == null ? 0.0 : container.getGuiTop();
     }
@@ -340,7 +340,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiHeightForTest() {
-        if (refuseWithoutAClient("Test.gui_height")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.gui_height")) return 0.0;
         AbstractContainerScreen<?> container = openContainerScreen();
         return container == null ? 0.0 : container.getYSize();
     }
@@ -772,18 +772,18 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void openInventory(Object playerObj) {
-        if (refuseWithoutAClient("Test.open_inventory")) return;
+        if (refuseWithoutAClient("TestTickContext.open_inventory")) return;
         Player player = (Player) playerObj;
         // Marshalled like closeOpenScreenForTest, because a test ticks on the server thread and the
         // screen belongs to the client. The screen is up by the next frame, which a test waits for
-        // with Test.screen_open.
+        // with TestTickContext.screen_open.
         onClientThread(() -> Minecraft.getInstance().setScreen(new InventoryScreen(player)));
     }
 
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
-        if (refuseWithoutAClient("Test.click_screen")) return false;
+        if (refuseWithoutAClient("TestTickContext.click_screen")) return false;
         // The same path a real press takes, fired on the client thread, so the overlay's handler
         // and the screen's own handler see exactly what a mouse would send, including a
         // cancellation. The arms live in clickOnClient so that this method has no branch for a
@@ -794,7 +794,8 @@ public class ClientForgeAdapter extends ForgeAdapter {
         // and a host function error raised from another thread would not reach it.
         if (outcome[0]) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.click_screen: There is no screen open to click.");
+                    Grug.statePtr,
+                    "TestTickContext.click_screen: There is no screen open to click.");
         }
         return outcome[1];
     }
@@ -837,14 +838,15 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run scrolls while the screen it just opened is up")
     public boolean scrollScreen(double x, double y, double delta) {
-        if (refuseWithoutAClient("Test.scroll_screen")) return false;
+        if (refuseWithoutAClient("TestTickContext.scroll_screen")) return false;
         // The same path a real wheel takes: the pre event the overlay listens to, fired on the
         // client thread, and the screen's own handler only when nothing cancelled it.
         boolean[] outcome = new boolean[2];
         onClientThread(() -> scrollOnClient(x, y, delta, outcome));
         if (outcome[0]) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.scroll_screen: There is no screen open to scroll.");
+                    Grug.statePtr,
+                    "TestTickContext.scroll_screen: There is no screen open to scroll.");
         }
         return outcome[1];
     }
@@ -866,14 +868,15 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
-        if (refuseWithoutAClient("Test.press_screen_key")) return false;
+        if (refuseWithoutAClient("TestTickContext.press_screen_key")) return false;
         // The same path a real key takes: the pre event the overlay listens to, fired on the
         // client thread, and the screen's own handler only when nothing cancelled it.
         boolean[] outcome = new boolean[2];
         onClientThread(() -> pressKeyOnClient(key, ctrl, release, outcome));
         if (outcome[0]) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.press_screen_key: There is no screen open to press.");
+                    Grug.statePtr,
+                    "TestTickContext.press_screen_key: There is no screen open to press.");
         }
         return outcome[1];
     }
@@ -899,7 +902,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        if (refuseWithoutAClient("Test.use_block")) return;
+        if (refuseWithoutAClient("TestTickContext.use_block")) return;
         onClientThread(() -> useBlockOnClient(x, y, z));
     }
 
@@ -908,7 +911,8 @@ public class ClientForgeAdapter extends ForgeAdapter {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.gameMode == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
+                    Grug.statePtr,
+                    "TestTickContext.use_block: There is no local player to right-click with.");
             return;
         }
         net.minecraft.core.BlockPos pos =
@@ -936,7 +940,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
             "failure paths a healthy run cannot enter: no local player or client level, no block at"
                     + " the position, or a shape the overlay failed to reset")
     public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
-        if (refuseWithoutAClient("Test.mining_crack")) return false;
+        if (refuseWithoutAClient("TestTickContext.mining_crack")) return false;
         final net.minecraft.core.BlockPos pos =
                 new net.minecraft.core.BlockPos(
                         (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
@@ -955,7 +959,8 @@ public class ClientForgeAdapter extends ForgeAdapter {
         ClientLevel level = mc.level;
         if (level == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.mining_crack: There is no client level to draw in.");
+                    Grug.statePtr,
+                    "TestTickContext.mining_crack: There is no client level to draw in.");
             return false;
         }
 
@@ -963,7 +968,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
         if (!(state.getBlock() instanceof GrugBlock)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.mining_crack: There is no grug block at "
+                    "TestTickContext.mining_crack: There is no grug block at "
                             + pos.getX()
                             + ", "
                             + pos.getY()

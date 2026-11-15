@@ -144,9 +144,9 @@ class GrugBlockEntityNbtTest {
     void aProblemIsReportedAsTheFunctionsAndNothingElseIs() {
         List<String> reported = new ArrayList<>();
         GrugBlockEntityNbt.reporter = reported::add;
-        GrugBlockEntityNbt.report("Test.load_nbt", null);
-        GrugBlockEntityNbt.report("Test.load_nbt", "Nothing was staged.");
-        assertEquals(Arrays.asList("Test.load_nbt: Nothing was staged."), reported);
+        GrugBlockEntityNbt.report("TestTickContext.load_nbt", null);
+        GrugBlockEntityNbt.report("TestTickContext.load_nbt", "Nothing was staged.");
+        assertEquals(Arrays.asList("TestTickContext.load_nbt: Nothing was staged."), reported);
     }
 
     /**

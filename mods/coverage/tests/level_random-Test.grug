@@ -5,7 +5,7 @@
 # near 0 and whose mean square is near 1 over many draws. Each repeated draw must also move, because a
 # constant answer would pass every range check.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     _check_random_int(ctx, level)
     _check_random_float(ctx, level)
     _check_random_gaussian(ctx, level)

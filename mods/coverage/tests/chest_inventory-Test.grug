@@ -2,8 +2,8 @@
 # chest, not just a grug block entity. The wooden pipe moves items between chests, so a
 # chest-specific bug in those three would only ever show up as the pipe's problem.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()

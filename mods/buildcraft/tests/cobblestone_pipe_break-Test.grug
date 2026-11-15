@@ -12,8 +12,8 @@ break_damage: number = 7
 break_stack_count: number = 5
 
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # Band 24, clear of the bands the other pipe tests use.
     y: number = origin.y() + 24

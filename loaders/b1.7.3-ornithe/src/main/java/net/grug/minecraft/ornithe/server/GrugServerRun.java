@@ -166,8 +166,8 @@ public final class GrugServerRun {
 
     /**
      * Runs the world's own tick {@code ticks} times from inside a test's tick, which is what {@code
-     * Test.tick_level} asks for (#780), in the order the server's own tick runs a world. Answers
-     * how many ticks ran.
+     * TestTickContext.tick_level} asks for (#780), in the order the server's own tick runs a world.
+     * Answers how many ticks ran.
      */
     public static int advance(World target, int ticks) {
         advancing = true;

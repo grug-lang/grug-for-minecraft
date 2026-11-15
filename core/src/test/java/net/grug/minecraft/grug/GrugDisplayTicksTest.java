@@ -177,7 +177,7 @@ class GrugDisplayTicksTest {
         assertEquals(2, particle.y);
         assertEquals(3, particle.z);
         assertEquals(0.1, particle.vy);
-        HostFunctions.Test_particle_position(0);
+        HostFunctions.TestTickContext_particle_position(GrugTestContexts.tick(), 0);
         assertTrue(drain().isEmpty(), "A recorded particle is a position, not a report.");
     }
 }

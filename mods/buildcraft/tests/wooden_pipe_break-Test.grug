@@ -9,8 +9,8 @@ break_damage: number = 7
 break_stack_count: number = 5
 
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
@@ -33,12 +33,12 @@ export tick_any_side(ctx: TestTickContext) {
     stack_source.set_item_in_slot(0, diamond, break_stack_count)
 
     pipe.receive_energy(1)
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
     ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
 
     # 64 energy, so the pull takes the slot's whole stack rather than being limited by the energy.
     stack_pipe.receive_energy(64)
-    Test.tick_block_entity(stack_pipe, 1)
+    ctx.tick_block_entity(stack_pipe, 1)
     ctx.assert(stack_pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling stack.")
     ctx.assert(stack_pipe.get_saved_list_number("traveling", 0, "count") == break_stack_count, "The travelling stack should hold the whole stack.")
 

@@ -71,60 +71,11 @@ export scroll(ctx: OverlayScrollContext)
 export init(ctx: TestInitContext)
 export tick(ctx: TestTickContext)
 export tick_any_side(ctx: TestTickContext)
-Test.block_collision(level: Level, x: number, y: number, z: number, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) bool
-Test.block_ray_trace(level: Level, x: number, y: number, z: number, start_x: number, start_y: number, start_z: number, end_x: number, end_y: number, end_z: number) bool
-Test.block_selection(level: Level, x: number, y: number, z: number, point_x: number, point_y: number, point_z: number) bool
-Test.camera() Vec3
-Test.clear_carried_item()
-Test.clear_held_item(player: Player)
-Test.click_screen(x: number, y: number, button: number) bool
-Test.client_saved_number(block_entity: BlockEntity, name: string) number
-Test.close_screen()
-Test.display_tick(level: Level, x: number, y: number, z: number, seed: number) number
-Test.force_gc()
-Test.get_carried_item() Option[Item]
-Test.get_client_level() Level
-Test.get_held_count(player: Player) number
-Test.get_item_max_stack(item: Item) number
-Test.get_origin() Vec3
-Test.get_player() Player
-Test.gui_height() number
-Test.gui_left() number
-Test.gui_top() number
-Test.gui_width() number
-Test.high_block_round_trip() number
-Test.hot_reload_count(relative_path: string) number
-Test.is_reference() bool
-Test.light_applied(x: number, y: number, z: number) bool
-Test.load_nbt(block_entity: BlockEntity)
-Test.loader_name() string
-Test.mining_crack(level: Level, x: number, y: number, z: number) bool
-Test.normalization_forced() bool
-Test.notify_neighbors(level: Level, x: number, y: number, z: number)
-Test.on_dedicated_server() bool
-Test.open_inventory(player: Player)
-Test.overlay_drawn() bool
-Test.overlay_supported() bool
-Test.particle_position(index: number) Vec3
-Test.press_screen_key(key: number, ctrl: bool, release: bool) bool
-Test.registers_mod_recipes() bool
-Test.reload_count(relative_path: string) number
-Test.round_trip_nbt(block_entity: BlockEntity)
-Test.screen_open() bool
-Test.screen_width() number
-Test.screenshot() Screenshot
-Test.scroll_screen(x: number, y: number, delta: number) bool
-Test.set_box_radius(radius: number)
-Test.set_carried_item(item: Item)
-Test.set_held_item(player: Player, item: Item)
-Test.set_mod_file_state(relative_path: string, state: string)
-Test.set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
-Test.set_nbt_number(block_entity: BlockEntity, path: string, type: string, value: number)
-Test.stall(milliseconds: number)
-Test.tick_block_entity(block_entity: BlockEntity, ticks: number)
-Test.tick_level(level: Level, ticks: number) number
-Test.use_block(level: Level, x: number, y: number, z: number)
-Test.world_settled() bool
+.is_reference() bool
+.loader_name() string
+.on_dedicated_server() bool
+.overlay_supported() bool
+.registers_mod_recipes() bool
 
 # Classes
 
@@ -214,6 +165,7 @@ Option.new() Option[$Value]
 ## OverlayClickContext
 .button() number
 .carried_item() Option[Item]
+.close_screen()
 .delete_carried_item()
 .gui_height() number
 .gui_left() number
@@ -280,13 +232,64 @@ Option.new() Option[$Value]
 .add_selection_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 
 ## TestInitContext
+.get_origin() Vec3
 .set_max_ticks(ticks: number)
+.stall(milliseconds: number)
 
 ## TestTickContext
 .assert(condition: bool, message: string)
+.block_collision(level: Level, x: number, y: number, z: number, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) bool
+.block_ray_trace(level: Level, x: number, y: number, z: number, start_x: number, start_y: number, start_z: number, end_x: number, end_y: number, end_z: number) bool
+.block_selection(level: Level, x: number, y: number, z: number, point_x: number, point_y: number, point_z: number) bool
+.camera() Vec3
+.clear_carried_item()
+.clear_held_item(player: Player)
+.click_screen(x: number, y: number, button: number) bool
+.client_saved_number(block_entity: BlockEntity, name: string) number
+.close_screen()
 .current_tick() number
+.display_tick(level: Level, x: number, y: number, z: number, seed: number) number
 .expect_error(message: string)
+.force_gc()
+.get_carried_item() Option[Item]
+.get_client_level() Level
+.get_held_count(player: Player) number
+.get_item_max_stack(item: Item) number
+.get_origin() Vec3
+.get_player() Player
+.gui_height() number
+.gui_left() number
+.gui_top() number
+.gui_width() number
+.high_block_round_trip() number
+.hot_reload_count(relative_path: string) number
+.light_applied(x: number, y: number, z: number) bool
+.load_nbt(block_entity: BlockEntity)
+.mining_crack(level: Level, x: number, y: number, z: number) bool
+.normalization_forced() bool
 .not_done()
+.notify_neighbors(level: Level, x: number, y: number, z: number)
+.open_inventory(player: Player)
+.overlay_drawn() bool
+.particle_position(index: number) Vec3
+.press_screen_key(key: number, ctrl: bool, release: bool) bool
+.reload_count(relative_path: string) number
+.round_trip_nbt(block_entity: BlockEntity)
+.screen_open() bool
+.screen_width() number
+.screenshot() Screenshot
+.scroll_screen(x: number, y: number, delta: number) bool
+.set_box_radius(radius: number)
+.set_carried_item(item: Item)
+.set_held_item(player: Player, item: Item)
+.set_mod_file_state(relative_path: string, state: string)
+.set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
+.set_nbt_number(block_entity: BlockEntity, path: string, type: string, value: number)
+.stall(milliseconds: number)
+.tick_block_entity(block_entity: BlockEntity, ticks: number)
+.tick_level(level: Level, ticks: number) number
+.use_block(level: Level, x: number, y: number, z: number)
+.world_settled() bool
 
 ## Vec3
 .x() number

@@ -80,7 +80,7 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _wall(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         ctx.not_done()
     } else if not empty.has() {
         if _light_settled(ctx) {
@@ -114,7 +114,7 @@ export tick_any_side(ctx: TestTickContext) {
         # by the capture below.
         ctx.not_done()
     } else {
-        restored: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        restored: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         if restored.change_from(before.unwrap()) < 1 {
             ctx.assert(mesh_block.unwrap().get_saved_number("mesh_marker") == 0, "The number should be saved as 0.")
         } else {
@@ -134,7 +134,7 @@ export tick_any_side(ctx: TestTickContext) {
 # Whether the client's copy holds the room's light, with its own deadline so the wait names the
 # light rather than only running the test's tick budget out.
 local _light_settled(ctx: TestTickContext) bool {
-    if _light_applied() {
+    if _light_applied(ctx) {
         light_waits = 0
         return true
     }
@@ -143,24 +143,24 @@ local _light_settled(ctx: TestTickContext) bool {
     return false
 }
 
-local _light_applied() bool {
-    origin: Vec3 = Test.get_origin()
+local _light_applied(ctx: TestTickContext) bool {
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
-    if not Test.light_applied(x - 4, y - 1.88, z + 5) {
+    if not ctx.light_applied(x - 4, y - 1.88, z + 5) {
         return false
     }
-    if not Test.light_applied(x, y - 1.88, z + 3) {
+    if not ctx.light_applied(x, y - 1.88, z + 3) {
         return false
     }
-    return Test.light_applied(x + 4, y - 1.88, z + 5)
+    return ctx.light_applied(x + 4, y - 1.88, z + 5)
 }
 
 local _wall(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    Test.set_box_radius(6)
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    ctx.set_box_radius(6)
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -183,7 +183,7 @@ local _wall(ctx: TestTickContext) {
 # are a frame apart at least, so a room that is still moving is not accepted as settled.
 local _settle_empty(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 {
-        shot: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        shot: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         room_tick = ctx.current_tick()
         if empty_prev.has() and shot.change_from(empty_prev.unwrap()) < 1 {
             empty.set(shot)
@@ -199,7 +199,7 @@ local _settle_empty(ctx: TestTickContext) {
 
 local _capture_before(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 {
-        drawn: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        drawn: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         room_tick = ctx.current_tick()
         if drawn.change_from(empty.unwrap()) < 1 {
             attempts = attempts + 1
@@ -213,7 +213,7 @@ local _capture_before(ctx: TestTickContext) {
 
 local _capture_after(ctx: TestTickContext) {
     if ctx.current_tick() >= saved_tick + 30 {
-        shot: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        shot: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         if shot.change_from(before.unwrap()) < 1 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "The saved number never rebuilt the client's chunk mesh.")
@@ -232,8 +232,8 @@ local _save(value: number) {
 }
 
 local _place(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

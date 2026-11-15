@@ -16,7 +16,7 @@
 # used to stall the server thread for 1500 ms so that a build without #698's fix failed on the old count of
 # ticks: after #709 no length of stall does that, so it does not stall any more (#708).
 # A dedicated server skips this test, because its wait is the client's screen. A screen belongs to the
-# client, so every loader's server adapter answers Test.screen_open false (#1032), and the wait above could
+# client, so every loader's server adapter answers ctx.screen_open false (#1032), and the wait above could
 # never end there. What the test covers is also the client's own ordering, of the packet that opens the
 # screen against the one that places the block (#425), which a server has no screen to observe.
 # Which position the next use is at, and whether the current one is waiting for its screen.
@@ -26,19 +26,19 @@ waiting: bool = false
 
 export tick(ctx: TestTickContext) {
     if not waiting {
-        _use()
+        _use(ctx)
         waiting = true
         ctx.not_done()
         return
     }
 
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         ctx.not_done()
         return
     }
 
     waiting = false
-    Test.close_screen()
+    ctx.close_screen()
     col = col + 1
     if col == 5 {
         col = 0
@@ -49,13 +49,13 @@ export tick(ctx: TestTickContext) {
     }
 }
 
-local _use() {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+local _use(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x() + col - 2
     y: number = origin.y()
     z: number = origin.z() + row - 2
 
     level.place_block(x, y, z, "grug:coverage_block")
-    Test.use_block(level, x, y, z)
+    ctx.use_block(level, x, y, z)
 }

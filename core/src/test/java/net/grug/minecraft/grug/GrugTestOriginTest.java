@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-/** Covers the per-test origin cache that {@code Test.get_origin()} reads through. */
+/** Covers the per-test origin cache that {@code TestTickContext.get_origin()} reads through. */
 class GrugTestOriginTest {
 
     @AfterEach

@@ -14,7 +14,7 @@
 # every loader but 1.2.5, and that readout grows to ten lines of 27 pixels once a repeat has run, so
 # anything below about y=250 holds text in a later repeat.
 # The reference run has no grug saved data, so it sets the real TileEngine's "orientation" and
-# "progress" through its NBT instead, and Test.load_nbt replaces the engine with one loaded from it
+# "progress" through its NBT instead, and ctx.load_nbt replaces the engine with one loaded from it
 # and redraws the block. RenderEngine is a tile entity renderer that reads both on every frame, and
 # an unpowered engine at rest leaves its progress alone, so the loaded numbers are what it draws. The
 # reference therefore needs no redraw of the engine's own, and the capture checks only its drawing.
@@ -41,7 +41,7 @@ remeshed: bool = false
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        _setup()
+        _setup(ctx)
         ctx.not_done()
         return
     }
@@ -84,22 +84,22 @@ export tick_any_side(ctx: TestTickContext) {
     # Both runs compare against the same committed pixels, because the port draws the engine from the
     # path the reference does. See the top of this file.
     if capture == 0 {
-        Test.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
+        ctx.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
         capture = 1
         changed = false
         ctx.not_done()
         return
     }
 
-    Test.screenshot().equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
+    ctx.screenshot().equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
 }
 
-local _setup() {
-    level: Level = Test.get_client_level()
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
 
-    Test.set_box_radius(10)
+    ctx.set_box_radius(10)
 
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     ex = origin.x() - 3
     ey = origin.y() + 0.12
     ez = origin.z() + 8
@@ -108,7 +108,7 @@ local _setup() {
 
     i: number = 0
     while i < 6 {
-        _place_engine(level, ex + i, ey, ez)
+        _place_engine(ctx, level, ex + i, ey, ez)
         i = i + 1
     }
 }
@@ -132,10 +132,10 @@ local _show_progresses(ctx: TestTickContext) {
     i: number = 0
     while i < 6 {
         engine: BlockEntity = _engine(ctx, i)
-        if Test.is_reference() {
-            Test.set_nbt_number(engine, "orientation", "int", 1)
-            Test.set_nbt_number(engine, "progress", "float", _progress(i))
-            Test.load_nbt(engine)
+        if me.is_reference() {
+            ctx.set_nbt_number(engine, "orientation", "int", 1)
+            ctx.set_nbt_number(engine, "progress", "float", _progress(i))
+            ctx.load_nbt(engine)
         } else {
             engine.set_saved_number("orientation", 1)
             engine.set_saved_number("oriented", 1)
@@ -166,7 +166,7 @@ local _progress(i: number) number {
 
 # The engine i blocks along the row.
 local _engine(ctx: TestTickContext, i: number) BlockEntity {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     engine_opt: Option[BlockEntity] = level.get_block_entity(ex + i, ey, ez)
     ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     return engine_opt.unwrap()
@@ -178,10 +178,10 @@ local _show_facings(ctx: TestTickContext) {
     i: number = 0
     while i < 6 {
         engine: BlockEntity = _engine(ctx, i)
-        if Test.is_reference() {
-            Test.set_nbt_number(engine, "orientation", "int", i)
-            Test.set_nbt_number(engine, "progress", "float", 0.5)
-            Test.load_nbt(engine)
+        if me.is_reference() {
+            ctx.set_nbt_number(engine, "orientation", "int", i)
+            ctx.set_nbt_number(engine, "progress", "float", 0.5)
+            ctx.load_nbt(engine)
         } else {
             engine.set_saved_number("orientation", i)
             engine.set_saved_number("progress", 0.5)
@@ -196,7 +196,7 @@ local _show_facings(ctx: TestTickContext) {
 # renderer has not seen, so no settled answer can come from frames drawn before it, and the numbers
 # the engines now hold are drawn by the frame pass in those same frames.
 local _ready(ctx: TestTickContext) bool {
-    if not Test.world_settled() {
+    if not ctx.world_settled() {
         settled_ticks = 0
         return false
     }
@@ -211,14 +211,14 @@ local _ready(ctx: TestTickContext) bool {
     }
     # The swap's blocks have to reach the client and the mesh they scheduled has to be drawn, which
     # is what the fixed tick hold used to stand in for. See coverage_render, #259 and #804.
-    return Test.world_settled()
+    return ctx.world_settled()
 }
 
 # Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
 # the capture's mesh is built from the settled light. See coverage_render-Test.grug.
 local _force_remesh(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -233,16 +233,16 @@ local _force_remesh(ctx: TestTickContext) {
 # right-clicking the side of a block at z + 1 with the engine held, which is the face the test
 # player's eye sees of it, so the engine lands at z; that block is cleared again so both scenes
 # hold the same blocks. The reference's placement ignores the face. See redstone_engine-Test.grug.
-local _place_engine(level: Level, x: number, y: number, z: number) {
-    if not Test.is_reference() {
+local _place_engine(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    if not me.is_reference() {
         level.place_block(x, y, z, "grug:redstone_engine")
         return
     }
     level.place_block(x, y, z + 1, "minecraft:stone")
-    player: Player = Test.get_player()
+    player: Player = ctx.get_player()
     held: Item = item(resource_location("buildcraft:engineWood"))
-    Test.set_held_item(player, held)
-    Test.use_block(level, x, y, z + 1)
-    Test.clear_held_item(player)
+    ctx.set_held_item(player, held)
+    ctx.use_block(level, x, y, z + 1)
+    ctx.clear_held_item(player)
     level.place_block(x, y, z + 1, "minecraft:air")
 }

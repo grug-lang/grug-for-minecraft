@@ -9,10 +9,10 @@ waited: number = 0
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.overlay_supported() {
+        if not me.overlay_supported() {
             return
         }
-        Test.close_screen()
+        ctx.close_screen()
         ctx.not_done()
         return
     }
@@ -27,25 +27,25 @@ export tick_any_side(ctx: TestTickContext) {
     if not opened {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         opened = true
         waited = 0
         ctx.not_done()
         return
     }
 
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         waited = waited + 1
         ctx.assert(waited < 100, "The player's inventory screen should open.")
         ctx.not_done()
         return
     }
 
-    if not Test.overlay_drawn() {
+    if not ctx.overlay_drawn() {
         # The first screen has to draw a frame of its own before the mark is worth clearing.
         waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
@@ -56,8 +56,8 @@ export tick_any_side(ctx: TestTickContext) {
     # Close the drawn screen and open a fresh one. The screen-open hook runs while displayGuiScreen
     # or the mixin's init is still on the stack, so the new screen starts undrawn even though no
     # frame of it has been rendered yet.
-    Test.close_screen()
-    Test.open_inventory(Test.get_player())
-    ctx.assert(not Test.overlay_drawn(), "Opening a new inventory should clear the drawn mark before its first frame.")
-    Test.close_screen()
+    ctx.close_screen()
+    ctx.open_inventory(ctx.get_player())
+    ctx.assert(not ctx.overlay_drawn(), "Opening a new inventory should clear the drawn mark before its first frame.")
+    ctx.close_screen()
 }

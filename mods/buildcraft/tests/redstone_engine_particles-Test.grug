@@ -5,12 +5,12 @@
 # test runs the display tick with a seeded generator and reads the particles it spawned. The
 # reference run has no such record, so it is skipped there.
 export tick_any_side(ctx: TestTickContext) {
-    if Test.is_reference() {
+    if me.is_reference() {
         return
     }
 
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = Math.floor(origin.x())
     y: number = Math.floor(origin.y() + 20)
     z: number = Math.floor(origin.z())
@@ -18,18 +18,18 @@ export tick_any_side(ctx: TestTickContext) {
     level.place_block(x, y - 2, z, "minecraft:stone")
     level.place_block(x, y, z, "grug:redstone_engine")
     ctx.assert(not level.has_neighbor_signal(x, y, z), "The engine should start unpowered.")
-    ctx.assert(Test.display_tick(level, x, y, z, 5) == 0, "An unpowered engine should give off no particle.")
+    ctx.assert(ctx.display_tick(level, x, y, z, 5) == 0, "An unpowered engine should give off no particle.")
 
     level.place_block(x, y - 1, z, "minecraft:redstone_torch")
     ctx.assert(level.has_neighbor_signal(x, y, z), "The torch under the engine should power it.")
-    ctx.assert(Test.display_tick(level, x, y, z, 5) == 4, "A powered engine should give off four particles.")
+    ctx.assert(ctx.display_tick(level, x, y, z, 5) == 4, "A powered engine should give off four particles.")
 
     cx: number = x + 0.5
     cz: number = z + 0.5
-    west: Vec3 = Test.particle_position(0)
-    east: Vec3 = Test.particle_position(1)
-    north: Vec3 = Test.particle_position(2)
-    south: Vec3 = Test.particle_position(3)
+    west: Vec3 = ctx.particle_position(0)
+    east: Vec3 = ctx.particle_position(1)
+    north: Vec3 = ctx.particle_position(2)
+    south: Vec3 = ctx.particle_position(3)
 
     ctx.assert(_near(west.x(), cx - 0.52) and _near(east.x(), cx + 0.52), "The first two particles should be 0.52 beside the centre along x.")
     ctx.assert(_near(north.z(), cz - 0.52) and _near(south.z(), cz + 0.52), "The last two particles should be 0.52 beside the centre along z.")
@@ -43,8 +43,8 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(_near(east.z() - cz, offset) and _near(north.x() - cx, offset) and _near(south.x() - cx, offset), "All four particles should share one offset.")
 
     # A different seed draws different numbers.
-    Test.display_tick(level, x, y, z, 6)
-    ctx.assert(not _near(Test.particle_position(0).y(), west.y()), "A different seed should draw a different height.")
+    ctx.display_tick(level, x, y, z, 6)
+    ctx.assert(not _near(ctx.particle_position(0).y(), west.y()), "A different seed should draw a different height.")
 }
 
 local _near(a: number, b: number) bool {

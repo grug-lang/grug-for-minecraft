@@ -19,14 +19,14 @@ export tick_any_side(ctx: TestTickContext) {
     if rounds > 0 {
         flips: number = 0
         while flips < 15 {
-            Test.set_mod_file_state("coverage/data/racens/toggle_1.txt", "deleted")
-            Test.set_mod_file_state("coverage/data/racens/toggle_2.txt", "deleted")
-            Test.set_mod_file_state("coverage/data/racens/toggle_3.txt", "deleted")
-            Test.set_mod_file_state("coverage/data/racens/toggle_4.txt", "deleted")
-            Test.set_mod_file_state("coverage/data/racens/toggle_1.txt", "normal")
-            Test.set_mod_file_state("coverage/data/racens/toggle_2.txt", "normal")
-            Test.set_mod_file_state("coverage/data/racens/toggle_3.txt", "normal")
-            Test.set_mod_file_state("coverage/data/racens/toggle_4.txt", "normal")
+            ctx.set_mod_file_state("coverage/data/racens/toggle_1.txt", "deleted")
+            ctx.set_mod_file_state("coverage/data/racens/toggle_2.txt", "deleted")
+            ctx.set_mod_file_state("coverage/data/racens/toggle_3.txt", "deleted")
+            ctx.set_mod_file_state("coverage/data/racens/toggle_4.txt", "deleted")
+            ctx.set_mod_file_state("coverage/data/racens/toggle_1.txt", "normal")
+            ctx.set_mod_file_state("coverage/data/racens/toggle_2.txt", "normal")
+            ctx.set_mod_file_state("coverage/data/racens/toggle_3.txt", "normal")
+            ctx.set_mod_file_state("coverage/data/racens/toggle_4.txt", "normal")
             flips = flips + 1
         }
         rounds = rounds - 1
@@ -34,11 +34,11 @@ export tick_any_side(ctx: TestTickContext) {
     } else if baseline < 0 {
         # One more change after the baseline, so the wait below ends on a report that came after the
         # last toggle and the file is whole again when the test ends.
-        baseline = Test.hot_reload_count(path)
-        Test.set_mod_file_state(path, "deleted")
-        Test.set_mod_file_state(path, "normal")
+        baseline = ctx.hot_reload_count(path)
+        ctx.set_mod_file_state(path, "deleted")
+        ctx.set_mod_file_state(path, "normal")
         ctx.not_done()
-    } else if Test.hot_reload_count(path) <= baseline {
+    } else if ctx.hot_reload_count(path) <= baseline {
         ctx.not_done()
     }
 }

@@ -1,10 +1,10 @@
 # The eye a server-run test's frames are drawn from (#1161). A dedicated server builds the room
 # around its own copy of the player, so the capture request carries the eye it built around and
 # each loader's capture client waits for its own camera to reach that eye before it takes the
-# frame. Test.camera is the same measure a test can read: on a client it is that client's own
+# frame. ctx.camera is the same measure a test can read: on a client it is that client's own
 # camera, and on a dedicated server it is the joined client's camera, asked for over the control
 # channel, so this assertion proves the client's view really is the room's eye rather than wherever
-# its own view has drifted to. Test.get_origin answers the camera plus the runner's 3 block lift
+# its own view has drifted to. ctx.get_origin answers the camera plus the runner's 3 block lift
 # (GrugTestOrigin.LIFT), so the room's eye is the origin's y minus 3. It needs no capture: the eye
 # is the whole assertion, and a capture would only prove the same point again.
 
@@ -18,12 +18,12 @@ export tick_any_side(ctx: TestTickContext) {
     # arrived: the runner teleports the player to the room's start before the test, and the camera
     # follows that teleport. Asking before a frame is drawn could read a camera still on the old
     # position, which is a wait and not a parity failure.
-    if not Test.world_settled() {
+    if not ctx.world_settled() {
         ctx.not_done()
         return
     }
-    origin: Vec3 = Test.get_origin()
-    camera: Vec3 = Test.camera()
+    origin: Vec3 = ctx.get_origin()
+    camera: Vec3 = ctx.camera()
     if not _at_eye(camera, origin) and ctx.current_tick() < 100 {
         # A capture waits for the camera the same way before it takes its frame, so a camera that
         # is still moving is a wait here too. The bound fails a camera that never arrives rather

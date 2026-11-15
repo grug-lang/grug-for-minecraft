@@ -6,8 +6,8 @@
 # the destination's own slot write reports the slot instead, so this test fails either way that path
 # is broken.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
@@ -30,8 +30,8 @@ export tick_any_side(ctx: TestTickContext) {
 
     # Load the destination with no inventory slots, as a block entity saved while it had none
     # does. The load replaces the tile, so the handle names the old one afterwards.
-    Test.set_nbt_number(destination, "GrugInvSize", "int", 0)
-    Test.load_nbt(destination)
+    ctx.set_nbt_number(destination, "GrugInvSize", "int", 0)
+    ctx.load_nbt(destination)
     again_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
     ctx.assert(again_opt.has(), "The reloaded destination should have a block entity.")
     ctx.assert(again_opt.unwrap().get_inventory_size() == 0, "A destination loaded with no slot should have no inventory.")

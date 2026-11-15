@@ -54,7 +54,10 @@ public final class GrugControlClient {
 
         void playUiSound(String path, double volume, double pitch);
 
-        /** Whether this client has drawn the world it has, as {@code Test.world_settled} asks. */
+        /**
+         * Whether this client has drawn the world it has, as {@code TestTickContext.world_settled}
+         * asks.
+         */
         boolean isWorldSettled();
 
         /** Forgets the frames the settle answer counts, so it waits for frames drawn from now. */
@@ -62,9 +65,9 @@ public final class GrugControlClient {
 
         /**
          * The identity of the screen this client has open, and 0 when it has none, as a forwarded
-         * {@code Test.screen_open} asks (#1094, #1289). A screen replaced by another one while the
-         * panel stayed open answers a different identity, so a server that remembered the earlier
-         * screen's measurements drops them.
+         * {@code TestTickContext.screen_open} asks (#1094, #1289). A screen replaced by another one
+         * while the panel stayed open answers a different identity, so a server that remembered the
+         * earlier screen's measurements drops them.
          */
         long screenIdentity();
 
@@ -100,7 +103,9 @@ public final class GrugControlClient {
         /** Presses a mouse button on the open screen, and answers whether an overlay took it. */
         boolean clickScreen(double x, double y, int button);
 
-        /** Opens the player's own inventory screen, as {@code Test.open_inventory} asks. */
+        /**
+         * Opens the player's own inventory screen, as {@code TestTickContext.open_inventory} asks.
+         */
         void openInventory();
 
         /**
@@ -124,21 +129,22 @@ public final class GrugControlClient {
 
         /**
          * Whether a frame has drawn the overlay of the mod named {@code mod} on the screen this
-         * client has open now, which is a server-run {@code Test.overlay_drawn} (#1099). The mod is
-         * the one that owns the running test, which only the server knows.
+         * client has open now, which is a server-run {@code TestTickContext.overlay_drawn} (#1099).
+         * The mod is the one that owns the running test, which only the server knows.
          */
         boolean overlayDrawn(String mod);
 
         /**
          * Whether this client draws the mining crack over the geometry of the block at the position
-         * in its own copy of the world, as a server-run {@code Test.mining_crack} asks (#1040).
+         * in its own copy of the world, as a server-run {@code TestTickContext.mining_crack} asks
+         * (#1040).
          */
         boolean miningCrack(double x, double y, double z);
 
         /**
          * Puts the mod file under {@code path} of this client's own mods directory into the state
          * at {@code stateIndex} of {@code GrugModFileStates}, as a forwarded {@code
-         * Test.set_mod_file_state} asks (#1040).
+         * TestTickContext.set_mod_file_state} asks (#1040).
          */
         void modFileState(String path, int stateIndex);
 

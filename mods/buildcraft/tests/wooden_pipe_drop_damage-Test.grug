@@ -15,7 +15,7 @@ export tick_any_side(ctx: TestTickContext) {
         # drop is read on the tick the pipe lets go of it, because a dedicated server advances up to
         # ten world ticks per runner tick and a read at the end of the floor can find the sword
         # fallen out of the radius or already picked up (#1146).
-        _drop_sample()
+        _drop_sample(ctx)
         ctx.not_done()
     } else {
         _drop_check(ctx)
@@ -23,8 +23,8 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _drop_setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # The other pipe tests use bands at +25, +35 and +45, so this one works in a clear band. +50 is
     # the top of the ladder, and a high spawn would put it above Alpha's 128-block world height, so
@@ -57,12 +57,12 @@ local _drop_setup(ctx: TestTickContext) {
 # drop made: the entity, its damage and its count. A read taken after more ticks can see an entity
 # that has fallen out of the radius or been picked up, which is the same drop read differently
 # (#1146).
-local _drop_sample() {
+local _drop_sample(ctx: TestTickContext) {
     if pipe_drop_sampled or not _drop_pipe_has_moved() {
         return
     }
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     # A wide radius, because the drop is made wherever the pipe was, and the sword falls from there.
     found: Option[ItemEntity] = level.find_item_entity(origin.x(), _drop_band_y(origin), origin.z(), 10)
     if found.has() {

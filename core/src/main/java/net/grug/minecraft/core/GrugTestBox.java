@@ -25,8 +25,8 @@ package net.grug.minecraft.core;
  * leaks in under them.
  *
  * <p>It is built before every test with {@link #DEFAULT_RADIUS}, and again whenever a test asks for
- * a different one through {@code Test.set_box_radius}, because a fixture that reaches further than
- * the default room needs a bigger one around it.
+ * a different one through {@code TestTickContext.set_box_radius}, because a fixture that reaches
+ * further than the default room needs a bigger one around it.
  *
  * <p>The build clears the whole test area, not just the room's box: {@link #AREA_RADIUS} blocks
  * around the player and {@link #AREA_TOP} above their feet, which covers the bands the tests build

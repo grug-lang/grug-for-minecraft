@@ -525,7 +525,8 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (screen == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.press_screen_key: There is no screen open to press.");
+                    Grug.statePtr,
+                    "TestTickContext.press_screen_key: There is no screen open to press.");
             return false;
         }
         return GrugOverlayHost.pressKey(screen, key, ctrl, release);
@@ -537,7 +538,8 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (screen == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.scroll_screen: There is no screen open to scroll.");
+                    Grug.statePtr,
+                    "TestTickContext.scroll_screen: There is no screen open to scroll.");
             return false;
         }
         return GrugOverlayHost.scrollThroughScreen(screen, (int) x, (int) y, delta);
@@ -549,7 +551,8 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (screen == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.click_screen: There is no screen open to click.");
+                    Grug.statePtr,
+                    "TestTickContext.click_screen: There is no screen open to click.");
             return false;
         }
         return GrugOverlayHost.clickThroughScreen(screen, (int) x, (int) y, (int) button);
@@ -597,12 +600,13 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        if (refuseWithoutAClient("Test.use_block")) return;
+        if (refuseWithoutAClient("TestTickContext.use_block")) return;
         World world = (World) levelObj;
         EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
+                    Grug.statePtr,
+                    "TestTickContext.use_block: There is no local player to right-click with.");
             return;
         }
 
@@ -627,7 +631,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.use_block: There is no block at "
+                    "TestTickContext.use_block: There is no block at "
                             + blockX
                             + ", "
                             + blockY
@@ -669,12 +673,13 @@ public class Grug125ClientAdapter extends Grug125Adapter {
             "failure paths a healthy run cannot enter: no local player or client level, no block at"
                     + " the position, or a shape the overlay failed to reset")
     public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
-        if (refuseWithoutAClient("Test.mining_crack")) return false;
+        if (refuseWithoutAClient("TestTickContext.mining_crack")) return false;
         Minecraft mc = ModLoader.getMinecraftInstance();
         EntityPlayer player = mc.thePlayer;
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.mining_crack: There is no local player to mine with.");
+                    Grug.statePtr,
+                    "TestTickContext.mining_crack: There is no local player to mine with.");
             return false;
         }
 
@@ -690,7 +695,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         if (block == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.mining_crack: There is no block at "
+                    "TestTickContext.mining_crack: There is no block at "
                             + blockX
                             + ", "
                             + blockY
@@ -707,7 +712,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         if (!fullCube(block)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.mining_crack: The overlay left the block at "
+                    "TestTickContext.mining_crack: The overlay left the block at "
                             + blockX
                             + ", "
                             + blockY

@@ -204,11 +204,13 @@ class HostFunctionsOverlayContextTest {
         HostFunctions.OverlayClickContext_button(context);
         HostFunctions.OverlayClickContext_shift(context);
         HostFunctions.OverlayClickContext_take(context);
+        HostFunctions.OverlayClickContext_close_screen(context);
 
         List<String> reports = drain();
-        assertEquals(11, reports.size(), "Every method names its own refusal.");
+        assertEquals(12, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("OverlayClickContext.screen_width"), reports.get(0));
         assertTrue(reports.get(10).contains("OverlayClickContext.take"), reports.get(10));
+        assertTrue(reports.get(11).contains("OverlayClickContext.close_screen"), reports.get(11));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }
@@ -243,17 +245,17 @@ class HostFunctionsOverlayContextTest {
 
     @Test
     void overlaySupportedStartsFalseAndStaysTrueOnceNoted() {
-        assertFalse(HostFunctions.Test_overlay_supported());
+        assertFalse(HostFunctions.Test_overlay_supported(0));
         GrugOverlay.noteSupported();
-        assertTrue(HostFunctions.Test_overlay_supported());
+        assertTrue(HostFunctions.Test_overlay_supported(0));
     }
 
     @Test
     void overlayDrawnStartsFalseAndStaysTrueOnceNoted() {
         GrugOverlay.screenOpened();
-        assertFalse(HostFunctions.Test_overlay_drawn());
+        assertFalse(HostFunctions.TestTickContext_overlay_drawn(GrugTestContexts.tick()));
         GrugOverlay.noteDrawn();
-        assertTrue(HostFunctions.Test_overlay_drawn());
+        assertTrue(HostFunctions.TestTickContext_overlay_drawn(GrugTestContexts.tick()));
     }
 
     @Test

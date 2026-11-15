@@ -19,7 +19,7 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # The mesh below has to read the settled light, so the wait comes first: the loader reports
         # false until its light engine and its mesh rebuilds are done, and a world that never settles
         # runs into the test's own budget rather than capturing something that moved. Asking from the
@@ -39,7 +39,7 @@ export tick_any_side(ctx: TestTickContext) {
         _force_remesh(ctx)
         remeshed = true
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # Waiting for the swap's blocks to reach the client and for the mesh they scheduled. A
         # rebuild bakes a face's per-vertex light, and a rebuild that ran while the light was still
         # propagating keeps that mid-propagation light until something dirties the section again: a
@@ -57,7 +57,7 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
 
     # The runner builds a sealed, torch-lit room around the player before every test, so the
     # capture's light does not come from the sky: its brightness moves with the time of day, which
@@ -68,9 +68,9 @@ local _setup(ctx: TestTickContext) {
     # that holds the shape, the wall two blocks behind it, and both ends of that wall. Asked for
     # before the fixture goes in, so the room's clearing cannot take the fixture out again. See
     # #253.
-    Test.set_box_radius(6)
+    ctx.set_box_radius(6)
 
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -133,7 +133,7 @@ local _check(ctx: TestTickContext) {
     # every loader, and the stone background differs per version because each shades a face from its
     # own light table. 1.20.6 used to land on a second state now and then (#262, #264); that stopped
     # after #301, #304 and #315, so one reference per loader is enough.
-    Test.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
+    ctx.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
 }
 
 # Meshes the crop's section again from the settled light by changing a block state and putting it
@@ -143,8 +143,8 @@ local _check(ctx: TestTickContext) {
 # capture is a coin toss between the settled bake and one made while the light was still propagating,
 # and both are byte-identical when they happen. See #259.
 local _force_remesh(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

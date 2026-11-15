@@ -2,8 +2,8 @@
 # world save.
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         x: number = origin.x()
         y: number = origin.y()
         z: number = origin.z()
@@ -15,7 +15,7 @@ export tick_any_side(ctx: TestTickContext) {
 
         diamond: Item = item(resource_location("minecraft:diamond"))
         block.set_item_in_slot(0, diamond, 3)
-        Test.round_trip_nbt(block)
+        ctx.round_trip_nbt(block)
         ctx.assert(block.get_item_count_in_slot(0) == 3, "The item should survive an NBT round trip.")
     }
 }

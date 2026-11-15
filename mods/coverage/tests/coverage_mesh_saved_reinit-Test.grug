@@ -50,7 +50,7 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _wall(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         ctx.not_done()
     } else if not empty.has() {
         _settle_empty(ctx)
@@ -85,7 +85,7 @@ export tick_any_side(ctx: TestTickContext) {
         # spinning.
         ctx.not_done()
     } else {
-        plate: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        plate: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         if plate.change_from(pedestal.unwrap()) < 1 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "The chunk-mesh block's plate never drew on the tile a block with no entity file left.")
@@ -98,9 +98,9 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _wall(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    Test.set_box_radius(6)
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    ctx.set_box_radius(6)
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -122,7 +122,7 @@ local _wall(ctx: TestTickContext) {
 # mesh arrives late, or a cloud, is not what the plate is then compared against.
 local _settle_empty(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 {
-        shot: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        shot: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         room_tick = ctx.current_tick()
         if empty_prev.has() and shot.change_from(empty_prev.unwrap()) < 1 {
             empty.set(shot)
@@ -137,8 +137,8 @@ local _settle_empty(ctx: TestTickContext) {
 
 # Puts a grug block that names no entity file on the cell the chunk-mesh block will take.
 local _place_plain(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     level.place_block(origin.x(), origin.y() - 1.88, origin.z() + 4, "grug:coverage_model_cube")
 }
 
@@ -146,16 +146,16 @@ local _place_plain(ctx: TestTickContext) {
 # notification asks the world for the block entity at the block's position, and the tile the game
 # then creates is inited from a block that names no entity file.
 local _place_neighbour(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     level.place_block(origin.x() + 1, origin.y() - 1.88, origin.z() + 4, "minecraft:stone")
 }
 
 # Puts the chunk-mesh block on that same cell, which is the block the kept tile has to be inited
 # for, and saves its number as 0 so the pedestal is what the first capture is of.
 local _place_mesh(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -174,7 +174,7 @@ local _place_mesh(ctx: TestTickContext) {
 # comparison then sees.
 local _capture_pedestal(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 {
-        shot: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        shot: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         room_tick = ctx.current_tick()
         if shot.change_from(empty.unwrap()) < 1 {
             attempts = attempts + 1

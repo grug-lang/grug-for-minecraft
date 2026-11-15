@@ -8,7 +8,7 @@
 # a cobblestone pipe's) moved one pixel on b1.7.3-stationapi. coverage_atlas_shift.png sorts ahead of
 # the textures this one shares an atlas with and moves them on purpose, so a texture that is not flat
 # fails here at once. The hand is still while the player stands still and
-# holds the item, but it rises after the item is put in it. Test.world_settled() waits for the
+# holds the item, but it rises after the item is put in it. ctx.world_settled() waits for the
 # hand to be at rest, so the capture does not depend on how many ticks of the rise the run's frames
 # land on; see #961.
 settled_ticks: number = 0
@@ -20,7 +20,7 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    if not Test.world_settled() {
+    if not ctx.world_settled() {
         settled_ticks = 0
         ctx.not_done()
         return
@@ -31,13 +31,13 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    Test.screenshot().equals(r"screenshots/coverage_flat_hand", 940, 550, 1140, 720)
-    Test.clear_held_item(Test.get_player())
+    ctx.screenshot().equals(r"screenshots/coverage_flat_hand", 940, 550, 1140, 720)
+    ctx.clear_held_item(ctx.get_player())
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
 
     wy: number = origin.y() - 9
     while wy < origin.y() + 8 {
@@ -49,5 +49,5 @@ local _setup(ctx: TestTickContext) {
         wy = wy + 1
     }
 
-    Test.set_held_item(Test.get_player(), item(resource_location("grug:coverage_flat_hand")))
+    ctx.set_held_item(ctx.get_player(), item(resource_location("grug:coverage_flat_hand")))
 }

@@ -1,5 +1,5 @@
 # Covers the overlay's key hook through the screen's own key path: the coverage overlay takes
-# Ctrl+K and leaves every other key to the screen, so Test.press_screen_key answers true for the one
+# Ctrl+K and leaves every other key to the screen, so ctx.press_screen_key answers true for the one
 # and false for the rest. See #866.
 started: bool = false
 opened: bool = false
@@ -8,10 +8,10 @@ waited: number = 0
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.overlay_supported() {
+        if not me.overlay_supported() {
             return
         }
-        Test.close_screen()
+        ctx.close_screen()
         ctx.not_done()
         return
     }
@@ -26,33 +26,33 @@ export tick_any_side(ctx: TestTickContext) {
     if not opened {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         opened = true
         waited = 0
         ctx.not_done()
         return
     }
 
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         waited = waited + 1
         ctx.assert(waited < 100, "The player's inventory screen should open.")
         ctx.not_done()
         return
     }
 
-    if not Test.overlay_drawn() {
+    if not ctx.overlay_drawn() {
         waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
         ctx.not_done()
         return
     }
 
-    ctx.assert(Test.press_screen_key(75, true, true), "Ctrl+K should be taken by the coverage overlay.")
-    ctx.assert(not Test.press_screen_key(75, false, true), "K without control should be left to the screen.")
-    ctx.assert(not Test.press_screen_key(76, true, true), "Ctrl+L should be left to the screen.")
-    Test.close_screen()
+    ctx.assert(ctx.press_screen_key(75, true, true), "Ctrl+K should be taken by the coverage overlay.")
+    ctx.assert(not ctx.press_screen_key(75, false, true), "K without control should be left to the screen.")
+    ctx.assert(not ctx.press_screen_key(76, true, true), "Ctrl+L should be left to the screen.")
+    ctx.close_screen()
 }

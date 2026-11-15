@@ -12,48 +12,48 @@ step: number = 0
 waited: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
-    player: Player = Test.get_player()
+    player: Player = ctx.get_player()
     wrench: Item = item(resource_location("grug:wrench"))
 
     if step == 0 {
         level.place_block(x - 1, y, z, "minecraft:chest")
         level.place_block(x + 1, y, z, "minecraft:chest")
         level.place_block(x, y, z, "grug:wooden_pipe")
-        Test.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
+        ctx.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
         ctx.assert(_source(ctx, level, x, y, z) == 5, "A fresh pipe should extract from side 4, saved as 5.")
 
         # A chunk reload makes the block entity read what it saved, which round_trip_nbt does without one.
-        Test.round_trip_nbt(_pipe(ctx, level, x, y, z))
-        Test.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
+        ctx.round_trip_nbt(_pipe(ctx, level, x, y, z))
+        ctx.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
         ctx.assert(_source(ctx, level, x, y, z) == 5, "The side should survive a reload.")
 
-        Test.set_held_item(player, wrench)
-        Test.use_block(level, x, y, z)
+        ctx.set_held_item(player, wrench)
+        ctx.use_block(level, x, y, z)
         step = 1
         ctx.not_done()
     } else if step == 1 {
-        Test.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
+        ctx.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
         if _source(ctx, level, x, y, z) == 6 {
-            Test.use_block(level, x, y, z)
+            ctx.use_block(level, x, y, z)
             step = 2
         }
         _wait(ctx)
     } else if step == 2 {
-        Test.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
+        ctx.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
         if _source(ctx, level, x, y, z) == 5 {
-            Test.clear_held_item(player)
-            Test.use_block(level, x, y, z)
+            ctx.clear_held_item(player)
+            ctx.use_block(level, x, y, z)
             step = 3
             waited = 0
         }
         _wait(ctx)
     } else if step == 3 {
-        Test.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
+        ctx.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
         waited = waited + 1
         if waited < 20 {
             ctx.not_done()
@@ -66,7 +66,7 @@ export tick_any_side(ctx: TestTickContext) {
         step = 4
         ctx.not_done()
     } else {
-        Test.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
+        ctx.tick_block_entity(_pipe(ctx, level, x, y, z), 1)
         ctx.assert(_source(ctx, level, x, y, z) == 6, "A pipe whose chest is gone should pick the other chest.")
     }
 }

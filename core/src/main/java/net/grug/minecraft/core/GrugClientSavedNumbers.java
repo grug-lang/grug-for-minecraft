@@ -65,7 +65,7 @@ public final class GrugClientSavedNumbers {
             try {
                 return server.get().savedNumber(x, y, z, name);
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.client_saved_number: " + e.getMessage());
+                failed.accept("TestTickContext.client_saved_number: " + e.getMessage());
                 return 0.0;
             }
         }

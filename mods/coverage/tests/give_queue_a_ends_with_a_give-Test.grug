@@ -19,11 +19,11 @@ step: number = 0
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.overlay_supported() {
+        if not me.overlay_supported() {
             # This loader draws no overlays; the deviation is in about.json.
             return
         }
-        Test.close_screen()
+        ctx.close_screen()
         ctx.not_done()
         return
     }
@@ -38,25 +38,25 @@ export tick_any_side(ctx: TestTickContext) {
     if not opened {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         opened = true
         waited = 0
         ctx.not_done()
         return
     }
 
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         waited = waited + 1
         ctx.assert(waited < 100, "The player's inventory screen should open.")
         ctx.not_done()
         return
     }
 
-    if not Test.overlay_drawn() {
+    if not ctx.overlay_drawn() {
         waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
         ctx.not_done()
@@ -69,15 +69,15 @@ export tick_any_side(ctx: TestTickContext) {
         # dedicated-server run it clears the server's menu and the game syncs that to the joined
         # client, whose cursor the forwarded click reads; the arrival below is what fails the test
         # if that sync did not reach the client in time.
-        Test.clear_carried_item()
-        ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the give.")
+        ctx.clear_carried_item()
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == 0, "The hand should be empty before the give.")
         # Read the middle of the panel from the panel itself rather than assuming a window position,
         # as the other overlay tests do: the screen this opens differs by loader and by game mode,
         # and the inventory panel is centred, so its middle is the place the overlay's own box is
         # drawn at.
-        box_x: number = Test.gui_left() + Math.floor(Test.gui_width() / 2)
-        box_y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
-        ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take a left click on its item.")
+        box_x: number = ctx.gui_left() + Math.floor(ctx.gui_width() / 2)
+        box_y: number = ctx.gui_top() + Math.floor(ctx.gui_height() / 2)
+        ctx.assert(ctx.click_screen(box_x, box_y, 0), "The overlay should take a left click on its item.")
         waited = 0
         step = 1
         ctx.not_done()
@@ -87,7 +87,7 @@ export tick_any_side(ctx: TestTickContext) {
     if step == 1 {
         # The give has to arrive, which is what tells this press gave instead of deleting the item
         # on the client's cursor, where no assertion of this test's own side can see the difference.
-        held: Option[Item] = Test.get_player().get_held_item()
+        held: Option[Item] = ctx.get_player().get_held_item()
         if not held.has() {
             waited = waited + 1
             ctx.assert(waited < 200, "The item the overlay gave should reach the player's hand.")
@@ -95,16 +95,16 @@ export tick_any_side(ctx: TestTickContext) {
             return
         }
         ctx.assert(equals(held.unwrap(), item_at(0)), "The overlay should give the item it drew, not another one.")
-        ctx.assert(Test.get_held_count(Test.get_player()) == 1, "A left click should give one item.")
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == 1, "A left click should give one item.")
         # Empty the hand again, then press in this test's last tick: that give is still queued when
         # the runner resets, which is what give_queue_b_starts_clean meets.
-        Test.clear_held_item(Test.get_player())
-        ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the last press.")
-        box_x: number = Test.gui_left() + Math.floor(Test.gui_width() / 2)
-        box_y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
-        ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take the last press on its item.")
+        ctx.clear_held_item(ctx.get_player())
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == 0, "The hand should be empty before the last press.")
+        box_x: number = ctx.gui_left() + Math.floor(ctx.gui_width() / 2)
+        box_y: number = ctx.gui_top() + Math.floor(ctx.gui_height() / 2)
+        ctx.assert(ctx.click_screen(box_x, box_y, 0), "The overlay should take the last press on its item.")
         # This test opened the screen, so it closes it. Closing is another forwarded call, but it
         # does not drain the give: only the drain before a tick applies one.
-        Test.close_screen()
+        ctx.close_screen()
     }
 }

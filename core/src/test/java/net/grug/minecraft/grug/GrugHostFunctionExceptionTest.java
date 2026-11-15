@@ -41,22 +41,24 @@ import java.util.concurrent.TimeUnit;
  * throws a real Java exception, and the assertions are on what the state and the test runner did
  * with it.
  *
- * <p>The exception is real without a game: {@code Test.get_client_level()} asks the adapter for the
+ * <p>The exception is real without a game: {@code ctx.get_client_level()} asks the adapter for the
  * level, and this JVM has none, so the adapter answers null and its {@code getSide()} throws. That
  * is a Java exception inside a host function, which is exactly the defect a host function can have.
+ * A block's export holds no test context, so it reaches the same kind of exception through {@code
+ * item_count()}, which asks the adapter for a primitive the null answer cannot unbox.
  */
 class GrugHostFunctionExceptionTest {
 
     /** A test whose tick calls the host function that throws. */
     private static final String THROWING_TEST =
             "export tick(ctx: TestTickContext) {\n"
-                    + "    level: Level = Test.get_client_level()\n"
+                    + "    level: Level = ctx.get_client_level()\n"
                     + "}\n";
 
     /** A fixture that throws the same way, which is what a test's block entity can do. */
     private static final String THROWING_FIXTURE =
             "export tick(ctx: TestTickContext) {\n"
-                    + "    level: Level = Test.get_client_level()\n"
+                    + "    level: Level = ctx.get_client_level()\n"
                     + "}\n";
 
     /** A test that keeps asking for ticks, so a fixture can run between two of them. */
@@ -71,11 +73,11 @@ class GrugHostFunctionExceptionTest {
     private static final String THROWING_USE =
             "export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number,"
                     + " player: Player) {\n"
-                    + "    level: Level = Test.get_client_level()\n"
+                    + "    count: number = item_count()\n"
                     + "}\n";
 
     /** A Block whose member scope throws through a host function when its entity is created. */
-    private static final String THROWING_MEMBER = "level: Level = Test.get_client_level()\n";
+    private static final String THROWING_MEMBER = "count: number = item_count()\n";
 
     /** A Block whose member scope is harmless, so its entity can be created and tracked. */
     private static final String HARMLESS_MEMBER = "count: number = 0\n";
@@ -140,12 +142,14 @@ class GrugHostFunctionExceptionTest {
         assertFalse(GrugTestState.callTick(entity, tick), "the script carried on after the throw");
 
         String reported = runtimeErrors();
-        assertTrue(reported.contains("HostFunctions.Test_get_client_level"), reported);
+        assertTrue(reported.contains("HostFunctions.TestTickContext_get_client_level"), reported);
         assertTrue(reported.contains("java.lang.NullPointerException"), reported);
         assertTrue(reported.contains("defect in grug"), reported);
         // The record the runner fails the run for is the same report, so a throw with no test call
         // to abort cannot be lost.
-        assertTrue(GrugErrors.takeHostFunctionException().contains("Test_get_client_level"));
+        assertTrue(
+                GrugErrors.takeHostFunctionException()
+                        .contains("TestTickContext_get_client_level"));
     }
 
     @Test
@@ -160,7 +164,7 @@ class GrugHostFunctionExceptionTest {
         assertTrue(printed.contains("[GRUG CI] FAIL throws/tests/a-Test.grug"), printed);
         // The report itself goes to the chat queue, which a loader logs; the FAIL line names the
         // test whose call it was.
-        assertTrue(runtimeErrors().contains("Test_get_client_level"), runtimeErrors());
+        assertTrue(runtimeErrors().contains("TestTickContext_get_client_level"), runtimeErrors());
         assertFalse(printed.contains("[GRUG CI] PASS"), printed);
         assertFalse(printed.contains("TESTS PASSED"), printed);
     }
@@ -186,7 +190,7 @@ class GrugHostFunctionExceptionTest {
         String printed = capture(() -> runner.tick(null));
 
         assertTrue(printed.contains("[GRUG CI] FAIL stays/tests/c-Test.grug"), printed);
-        assertTrue(printed.contains("Test_get_client_level"), printed);
+        assertTrue(printed.contains("TestTickContext_get_client_level"), printed);
         assertFalse(printed.contains("TESTS PASSED"), printed);
     }
 
@@ -314,7 +318,7 @@ class GrugHostFunctionExceptionTest {
         assertFalse(
                 GrugBlockUse.use(block, 0, 0, 0, 0, 0),
                 "the script carried on after the throw in its use export");
-        assertTrue(runtimeErrors().contains("Test_get_client_level"), runtimeErrors());
+        assertTrue(runtimeErrors().contains("item_count"), runtimeErrors());
     }
 
     @Test
@@ -323,7 +327,7 @@ class GrugHostFunctionExceptionTest {
         // thread marked, the throw has to fail the creation; unmarked, it would be recorded and the
         // entity would come up with a member the host never answered (#1134).
         assertEquals(0, Grug.createEntity(compile("i-Block.grug")));
-        assertTrue(runtimeErrors().contains("Test_get_client_level"), runtimeErrors());
+        assertTrue(runtimeErrors().contains("item_count"), runtimeErrors());
     }
 
     @Test
@@ -482,7 +486,7 @@ class GrugHostFunctionExceptionTest {
 
         Grug.compileAllFiles();
 
-        assertTrue(runtimeErrors().contains("Test_get_client_level"), runtimeErrors());
+        assertTrue(runtimeErrors().contains("item_count"), runtimeErrors());
         Grug.destroyEntity(block);
     }
 
@@ -498,12 +502,12 @@ class GrugHostFunctionExceptionTest {
         rewrite("reload-block", "v-Block.grug", THROWING_MEMBER);
 
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-        while (!runtimeErrors().contains("Test_get_client_level") && System.nanoTime() < deadline) {
+        while (!runtimeErrors().contains("item_count") && System.nanoTime() < deadline) {
             GrugModsWatcher.update(error -> {});
             Thread.sleep(50);
         }
 
-        assertTrue(runtimeErrors().contains("Test_get_client_level"), runtimeErrors());
+        assertTrue(runtimeErrors().contains("item_count"), runtimeErrors());
         Grug.destroyEntity(block);
     }
 

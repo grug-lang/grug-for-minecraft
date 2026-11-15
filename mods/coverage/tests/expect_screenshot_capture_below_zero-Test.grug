@@ -5,6 +5,6 @@
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.expect_error("x1 is -1, which is outside")
-        Test.screenshot().capture(-1, 0, 100, 100)
+        ctx.screenshot().capture(-1, 0, 100, 100)
     }
 }

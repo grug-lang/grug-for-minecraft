@@ -32,11 +32,11 @@ export tick_any_side(ctx: TestTickContext) {
 # loader that answers ticks it did not run is not slow but broken: the cap is spent with the chain
 # where it started, and the assertion in _check says so.
 local _advance(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     advanced: number = 0
     ran: number = 5
     while not _done() and ran > 0 and advanced < 1000 {
-        ran = Test.tick_level(level, 5)
+        ran = ctx.tick_level(level, 5)
         advanced = advanced + ran
         _sample(ctx)
     }
@@ -51,8 +51,8 @@ local _check(ctx: TestTickContext) {
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # Band 12, clear of the bands the other pipe tests use.
     y: number = origin.y() + 12

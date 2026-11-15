@@ -17,8 +17,8 @@ export tick_any_side(ctx: TestTickContext) {
         # block fallback has nothing either, which is a branch the other loaders take too.
         unknown_vanilla_item: Item = item(resource_location("minecraft:does_not_exist"))
 
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         x: number = origin.x() + 7
         y: number = origin.y()
         z: number = origin.z()

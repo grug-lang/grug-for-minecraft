@@ -21,14 +21,14 @@ export tick_any_side(ctx: TestTickContext) {
     }
     phase = 1
 
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     origin_x = origin.x()
     origin_y = origin.y() - 1.88
     origin_z = origin.z()
 
     # A straight run: an inventory on each side, so the pipe has two opposite arms.
-    _place_pipe(level, origin_x, origin_y, origin_z)
+    _place_pipe(ctx, level, origin_x, origin_y, origin_z)
     level.place_block(origin_x - 1, origin_y, origin_z, "minecraft:chest")
     level.place_block(origin_x + 1, origin_y, origin_z, "minecraft:chest")
     _check_straight(ctx, level, origin_x, origin_y, origin_z)
@@ -48,17 +48,17 @@ export tick_any_side(ctx: TestTickContext) {
 # right-clicking the bottom of a block above it with the pipe held, which is the face the test
 # player's eye sees of it, so the pipe lands on that block's own level; that block is cleared again
 # so both scenes hold the same blocks.
-local _place_pipe(level: Level, x: number, y: number, z: number) {
-    if not Test.is_reference() {
+local _place_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    if not me.is_reference() {
         level.place_block(x, y, z, "grug:wooden_pipe")
         return
     }
     level.place_block(x, y + 1, z, "minecraft:stone")
-    player: Player = Test.get_player()
+    player: Player = ctx.get_player()
     held: Item = item(resource_location("buildcraft:PipeItemsWood"))
-    Test.set_held_item(player, held)
-    Test.use_block(level, x, y + 1, z)
-    Test.clear_held_item(player)
+    ctx.set_held_item(player, held)
+    ctx.use_block(level, x, y + 1, z)
+    ctx.clear_held_item(player)
     level.place_block(x, y + 1, z, "minecraft:air")
 }
 
@@ -68,20 +68,20 @@ local _place_pipe(level: Level, x: number, y: number, z: number) {
 # pipe does not reach goes past it. Every loader clips that ray through its own block method, so a
 # loader that clips against the full cube, or against a box it left on a shared block, fails here.
 local _check_straight(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    ctx.assert(Test.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "A straight run's centre should collide.")
-    ctx.assert(Test.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A straight run's west arm should collide.")
-    ctx.assert(Test.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A straight run's east arm should collide.")
-    ctx.assert(not Test.block_collision(level, x, y, z, 0.3, 0.0, 0.3, 0.7, 0.2, 0.7), "The space under a straight run should be empty.")
-    ctx.assert(not Test.block_collision(level, x, y, z, 0.3, 0.8, 0.3, 0.7, 1.0, 0.7), "The space above a straight run should be empty.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "A straight run's centre should collide.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A straight run's west arm should collide.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A straight run's east arm should collide.")
+    ctx.assert(not ctx.block_collision(level, x, y, z, 0.3, 0.0, 0.3, 0.7, 0.2, 0.7), "The space under a straight run should be empty.")
+    ctx.assert(not ctx.block_collision(level, x, y, z, 0.3, 0.8, 0.3, 0.7, 1.0, 0.7), "The space above a straight run should be empty.")
 
-    ctx.assert(Test.block_selection(level, x, y, z, 0.05, 0.5, 0.5), "A straight run's selection should reach the west arm.")
-    ctx.assert(Test.block_selection(level, x, y, z, 0.95, 0.5, 0.5), "A straight run's selection should reach the east arm.")
-    ctx.assert(not Test.block_selection(level, x, y, z, 0.5, 0.1, 0.5), "A straight run's selection should not reach under the pipe.")
-    ctx.assert(not Test.block_selection(level, x, y, z, 0.5, 0.9, 0.5), "A straight run's selection should not reach above the pipe.")
-    ctx.assert(not Test.block_selection(level, x, y, z, 0.05, 0.1, 0.5), "A straight run's selection should not reach the empty corner.")
+    ctx.assert(ctx.block_selection(level, x, y, z, 0.05, 0.5, 0.5), "A straight run's selection should reach the west arm.")
+    ctx.assert(ctx.block_selection(level, x, y, z, 0.95, 0.5, 0.5), "A straight run's selection should reach the east arm.")
+    ctx.assert(not ctx.block_selection(level, x, y, z, 0.5, 0.1, 0.5), "A straight run's selection should not reach under the pipe.")
+    ctx.assert(not ctx.block_selection(level, x, y, z, 0.5, 0.9, 0.5), "A straight run's selection should not reach above the pipe.")
+    ctx.assert(not ctx.block_selection(level, x, y, z, 0.05, 0.1, 0.5), "A straight run's selection should not reach the empty corner.")
 
-    ctx.assert(Test.block_ray_trace(level, x, y, z, 0.5, 0.01, 0.5, 0.5, 0.99, 0.5), "A ray through a straight run's centre should hit the pipe.")
-    ctx.assert(not Test.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a straight run's empty corner should go past the pipe.")
+    ctx.assert(ctx.block_ray_trace(level, x, y, z, 0.5, 0.01, 0.5, 0.5, 0.99, 0.5), "A ray through a straight run's centre should hit the pipe.")
+    ctx.assert(not ctx.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a straight run's empty corner should go past the pipe.")
 }
 
 # A corner with an east arm and a north arm: the union starts at the centre's near corner and
@@ -90,31 +90,31 @@ local _check_straight(ctx: TestTickContext, level: Level, x: number, y: number, 
 # pipe does not reach stay empty, and so do the space under the pipe and the corners beyond the
 # union.
 local _check_corner(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    ctx.assert(Test.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A corner's east arm should collide.")
-    ctx.assert(Test.block_collision(level, x, y, z, 0.35, 0.35, 0.02, 0.65, 0.65, 0.2), "A corner's north arm should collide.")
-    ctx.assert(Test.block_collision(level, x, y, z, 0.8, 0.35, 0.02, 0.98, 0.65, 0.2), "The corner between a corner's two arms should collide, as the reference's union box does.")
-    ctx.assert(not Test.block_collision(level, x, y, z, 0.02, 0.35, 0.8, 0.2, 0.65, 0.98), "A corner's south-west side should be empty.")
-    ctx.assert(not Test.block_collision(level, x, y, z, 0.02, 0.35, 0.02, 0.2, 0.65, 0.2), "A corner's north-west side should be empty.")
-    ctx.assert(not Test.block_collision(level, x, y, z, 0.3, 0.0, 0.3, 0.7, 0.2, 0.7), "The space under a corner should be empty.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A corner's east arm should collide.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.02, 0.65, 0.65, 0.2), "A corner's north arm should collide.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.8, 0.35, 0.02, 0.98, 0.65, 0.2), "The corner between a corner's two arms should collide, as the reference's union box does.")
+    ctx.assert(not ctx.block_collision(level, x, y, z, 0.02, 0.35, 0.8, 0.2, 0.65, 0.98), "A corner's south-west side should be empty.")
+    ctx.assert(not ctx.block_collision(level, x, y, z, 0.02, 0.35, 0.02, 0.2, 0.65, 0.2), "A corner's north-west side should be empty.")
+    ctx.assert(not ctx.block_collision(level, x, y, z, 0.3, 0.0, 0.3, 0.7, 0.2, 0.7), "The space under a corner should be empty.")
 
-    ctx.assert(Test.block_selection(level, x, y, z, 0.95, 0.5, 0.5), "A corner's selection should reach the east arm.")
-    ctx.assert(Test.block_selection(level, x, y, z, 0.5, 0.5, 0.05), "A corner's selection should reach the north arm.")
-    ctx.assert(Test.block_selection(level, x, y, z, 0.9, 0.5, 0.1), "A corner's selection should reach the corner between its two arms, as the reference's union box does.")
-    ctx.assert(not Test.block_selection(level, x, y, z, 0.1, 0.5, 0.5), "A corner's selection should not reach the west side.")
-    ctx.assert(not Test.block_selection(level, x, y, z, 0.5, 0.5, 0.95), "A corner's selection should not reach the south side.")
-    ctx.assert(not Test.block_selection(level, x, y, z, 0.1, 0.5, 0.9), "A corner's selection should not reach the empty corner.")
+    ctx.assert(ctx.block_selection(level, x, y, z, 0.95, 0.5, 0.5), "A corner's selection should reach the east arm.")
+    ctx.assert(ctx.block_selection(level, x, y, z, 0.5, 0.5, 0.05), "A corner's selection should reach the north arm.")
+    ctx.assert(ctx.block_selection(level, x, y, z, 0.9, 0.5, 0.1), "A corner's selection should reach the corner between its two arms, as the reference's union box does.")
+    ctx.assert(not ctx.block_selection(level, x, y, z, 0.1, 0.5, 0.5), "A corner's selection should not reach the west side.")
+    ctx.assert(not ctx.block_selection(level, x, y, z, 0.5, 0.5, 0.95), "A corner's selection should not reach the south side.")
+    ctx.assert(not ctx.block_selection(level, x, y, z, 0.1, 0.5, 0.9), "A corner's selection should not reach the empty corner.")
 
-    ctx.assert(Test.block_ray_trace(level, x, y, z, 0.9, 0.01, 0.1, 0.9, 0.99, 0.1), "A ray through the corner between a corner's two arms should hit the pipe.")
-    ctx.assert(not Test.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a corner the pipe does not reach should go past it.")
+    ctx.assert(ctx.block_ray_trace(level, x, y, z, 0.9, 0.01, 0.1, 0.9, 0.99, 0.1), "A ray through the corner between a corner's two arms should hit the pipe.")
+    ctx.assert(not ctx.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a corner the pipe does not reach should go past it.")
 }
 
 # A pipe with nothing beside it: only the quarter-block centre is solid, and the selection box is
 # that same centre.
 local _check_alone(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    ctx.assert(Test.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "A pipe with no neighbour should still collide at its centre.")
-    ctx.assert(not Test.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A pipe with no neighbour should have no west arm.")
-    ctx.assert(Test.block_selection(level, x, y, z, 0.5, 0.5, 0.5), "A pipe with no neighbour should be selected at its centre.")
-    ctx.assert(not Test.block_selection(level, x, y, z, 0.1, 0.5, 0.5), "A pipe with no neighbour should not be selected at a side.")
-    ctx.assert(Test.block_ray_trace(level, x, y, z, 0.5, 0.01, 0.5, 0.5, 0.99, 0.5), "A ray through a lone pipe's centre should hit it.")
-    ctx.assert(not Test.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a lone pipe's empty corner should go past it.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "A pipe with no neighbour should still collide at its centre.")
+    ctx.assert(not ctx.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A pipe with no neighbour should have no west arm.")
+    ctx.assert(ctx.block_selection(level, x, y, z, 0.5, 0.5, 0.5), "A pipe with no neighbour should be selected at its centre.")
+    ctx.assert(not ctx.block_selection(level, x, y, z, 0.1, 0.5, 0.5), "A pipe with no neighbour should not be selected at a side.")
+    ctx.assert(ctx.block_ray_trace(level, x, y, z, 0.5, 0.01, 0.5, 0.5, 0.99, 0.5), "A ray through a lone pipe's centre should hit it.")
+    ctx.assert(not ctx.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a lone pipe's empty corner should go past it.")
 }

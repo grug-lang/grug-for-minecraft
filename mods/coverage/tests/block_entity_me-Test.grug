@@ -3,8 +3,8 @@
 # resolve me during creation first. A script that relied on the old behaviour needed a throwaway member-scope
 # line such as `level: Level = me.level()`. See #604.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
@@ -14,7 +14,7 @@ export tick_any_side(ctx: TestTickContext) {
 
     # tick is an export the host calls long after creation, with nothing binding me.
     before_ticks: number = block.get_saved_number("ticks")
-    Test.tick_block_entity(block, 1)
+    ctx.tick_block_entity(block, 1)
     after_ticks: number = block.get_saved_number("ticks")
     ctx.assert(after_ticks - before_ticks >= 1, "tick should have found me and counted the tick.")
 

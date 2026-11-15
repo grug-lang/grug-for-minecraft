@@ -5,7 +5,7 @@
 first: number = -1
 
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     now: number = level.get_time()
 
     ctx.assert(now >= 0, "The world time should never be negative.")

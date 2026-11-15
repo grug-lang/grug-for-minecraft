@@ -66,7 +66,7 @@ public final class GrugOverlayCalls {
                 }
                 return drawn;
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.overlay_drawn: " + e.getMessage());
+                failed.accept("TestTickContext.overlay_drawn: " + e.getMessage());
                 return false;
             }
         }

@@ -19,7 +19,7 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # The mesh below has to read the settled light, so the wait comes first. See coverage_render
         # and #257 for why one settled answer is not enough.
         settled_ticks = 0
@@ -31,7 +31,7 @@ export tick_any_side(ctx: TestTickContext) {
         _force_remesh(ctx)
         remeshed = true
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # Waiting for the swap's blocks to reach the client and for the mesh they scheduled, which
         # is what the fixed tick hold used to stand in for. See coverage_render, #259 and #804.
         ctx.not_done()
@@ -41,14 +41,14 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
 
     # The default room is small and this fixture sits at its far edge, so ask for a room that holds
     # the block, the wall two blocks behind it and both ends of that wall. Asked for before the
     # fixture goes in, so the room's clearing cannot take the fixture out again.
-    Test.set_box_radius(6)
+    ctx.set_box_radius(6)
 
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -91,15 +91,15 @@ local _check(ctx: TestTickContext) {
     # what the hook draws is the same set on every loader, and the stone background differs per
     # version because each shades a face from its own light table, so the reference directory holds
     # one PNG per loader.
-    Test.screenshot().equals(r"screenshots/coverage_frame", 500, 180, 780, 340)
+    ctx.screenshot().equals(r"screenshots/coverage_frame", 500, 180, 780, 340)
 }
 
 # Meshes the crop's section again from the settled light by changing a block state and putting it
 # back. The swapped block is outside the crop, and dirt and stone are both opaque and unlit, so the
 # swap changes no light and no compared pixel; it dirties the wall's sections and their neighbours.
 local _force_remesh(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

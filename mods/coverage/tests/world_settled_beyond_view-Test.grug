@@ -7,8 +7,8 @@
 # covers, and the wait is what this test is about. See #804.
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
 
         # Well outside the two-chunk render distance the run sets, so the client's chunk storage
         # never holds it.
@@ -16,7 +16,7 @@ export tick_any_side(ctx: TestTickContext) {
         level.place_block(far_x, origin.y(), origin.z(), "minecraft:air")
         ctx.assert(level.get_block(far_x, origin.y(), origin.z()) == "minecraft:air", "The world the test reads should hold the air the placement put there.")
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # The client cannot answer for a chunk it does not have, so nothing it shows can satisfy the
         # placement, and the wait has to be satisfied without the client's copy of it.
         ctx.assert(ctx.current_tick() < 100, "A placement in a chunk the client has not received must not keep the world unsettled.")

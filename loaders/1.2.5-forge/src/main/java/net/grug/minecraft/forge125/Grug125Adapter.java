@@ -1470,7 +1470,8 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     long highBlockRoundTrip(World world) {
         if (world == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.high_block_round_trip: There is no level to test in yet.");
+                    Grug.statePtr,
+                    "TestTickContext.high_block_round_trip: There is no level to test in yet.");
             return -1L;
         }
 
@@ -1478,8 +1479,8 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         if (origin == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.high_block_round_trip: There is no test player to measure the origin"
-                            + " from yet.");
+                    "TestTickContext.high_block_round_trip: There is no test player to measure the"
+                            + " origin from yet.");
             return -1L;
         }
         BlockPos block = originBlock(origin);
@@ -1497,7 +1498,7 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
             releaseStandIns(standIns);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.high_block_round_trip: every id from "
+                    "TestTickContext.high_block_round_trip: every id from "
                             + GrugBlocks.START_BLOCK_ID
                             + " to "
                             + GrugBlocks.LAST_BLOCK_ID
@@ -1514,7 +1515,7 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
             restoreRoundTripBlock(world, ox, oy, oz, before);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.high_block_round_trip: the game did not put the test block at "
+                    "TestTickContext.high_block_round_trip: the game did not put the test block at "
                             + ox
                             + ", "
                             + oy
@@ -1530,7 +1531,8 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         } catch (IOException e) {
             releaseStandIns(standIns);
             restoreRoundTripBlock(world, ox, oy, oz, before);
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.high_block_round_trip: " + e);
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.high_block_round_trip: " + e);
             return -1L;
         }
         if (loaded == null) {
@@ -1538,8 +1540,8 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
             restoreRoundTripBlock(world, ox, oy, oz, before);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.high_block_round_trip: the chunk's save and load came back with no"
-                            + " chunk.");
+                    "TestTickContext.high_block_round_trip: the chunk's save and load came back"
+                            + " with no chunk.");
             return -1L;
         }
 
@@ -1549,7 +1551,7 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
             restoreRoundTripBlock(world, ox, oy, oz, before);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.high_block_round_trip: block id "
+                    "TestTickContext.high_block_round_trip: block id "
                             + highId
                             + " came back "
                             + readBack
@@ -1764,8 +1766,8 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         if (!(levelObj instanceof World)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.tick_level: Only a level has a tick this process can run, and this is not"
-                            + " one.");
+                    "TestTickContext.tick_level: Only a level has a tick this process can run, and"
+                            + " this is not one.");
             return 0;
         }
         return advanceLevelTicks((World) levelObj, ticks);
@@ -1974,7 +1976,7 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
             double pointY,
             double pointZ) {
         // A server's Block has no selection box: it belongs to the client's outline.
-        if (refuseWithoutAClient("Test.block_selection")) return false;
+        if (refuseWithoutAClient("TestTickContext.block_selection")) return false;
         World world = (World) levelObj;
         int blockX = (int) Math.floor(x);
         int blockY = (int) Math.floor(y);

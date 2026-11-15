@@ -22,7 +22,8 @@ import java.util.function.Consumer;
  * <p>A request arrives on the game thread (ordered after the block updates the server sent before
  * it) and is answered a few client ticks later, once the client has drawn frames that show those
  * updates and its renderer is idle. That wait is the client-side settle the singleplayer path does
- * with {@code Test.world_settled}; here the server cannot ask for it, because it is frozen.
+ * with {@code TestTickContext.world_settled}; here the server cannot ask for it, because it is
+ * frozen.
  */
 @GrugGenerated(
         "a joined client: no test the coverage gate counts can reach it, since only the multiplayer"

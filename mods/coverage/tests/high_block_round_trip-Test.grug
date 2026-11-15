@@ -10,7 +10,7 @@
 export tick_any_side(ctx: TestTickContext) {
     rounds: number = 0
     while rounds < 8 {
-        id: number = Test.high_block_round_trip()
+        id: number = ctx.high_block_round_trip()
         ctx.assert(id == -1 or id >= 256, "the round trip answered an id the block id search cannot hand out")
         if id < 0 {
             return

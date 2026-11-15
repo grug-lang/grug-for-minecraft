@@ -1,6 +1,6 @@
 # The room build sweeps the item entities out of its box, so a fixture's drops cannot be picked up
 # and carried into a later capture. This spawns one inside the room and one in the last block the
-# area clearing reaches, checks both exist, forces a rebuild through Test.set_box_radius, and checks
+# area clearing reaches, checks both exist, forces a rebuild through ctx.set_box_radius, and checks
 # the sweep took both. The second is the boundary: a block covers [x, x + 1), so an item resting in
 # the last cleared block sits past the block's own coordinate, and a sweep whose bound stops at that
 # coordinate leaves it behind. See #254.
@@ -10,8 +10,8 @@
 # GrugTestRunnerTest covers it. See #323.
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
 
         sword: Item = item(resource_location("minecraft:diamond_sword"))
         stack: ItemStack = item_stack(sword, 3, 1)
@@ -36,8 +36,8 @@ export tick_any_side(ctx: TestTickContext) {
         # and the sweep below was never checked.
         ctx.not_done()
     } else if ctx.current_tick() == 1 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         # Both items have to exist before the rebuild, or the assertions after it pass without the
         # sweep having removed anything. The player picks up an item that has fallen into reach
         # after about six ticks, which is why the rebuild comes this early.
@@ -47,11 +47,11 @@ export tick_any_side(ctx: TestTickContext) {
         pz: number = Math.floor(origin.z() - 3)
         edge_before: Option[ItemEntity] = level.find_item_entity(px + 16.5, origin.y(), pz + 0.5, 2)
         ctx.assert(edge_before.has(), "The item in the last cleared block should exist before the room is rebuilt.")
-        Test.set_box_radius(4)
+        ctx.set_box_radius(4)
         ctx.not_done()
     } else {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         found: Option[ItemEntity] = level.find_item_entity(origin.x(), origin.y(), origin.z(), 10)
         ctx.assert(not found.has(), "The room build's sweep should have removed the spawned item.")
 

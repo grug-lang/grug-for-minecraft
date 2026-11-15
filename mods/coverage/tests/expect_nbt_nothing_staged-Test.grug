@@ -1,8 +1,8 @@
 # A load with nothing staged for the block entity has nothing to apply, which is a test that forgot
 # its edits or loaded twice, so it is reported rather than read as a no-op.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
@@ -11,5 +11,5 @@ export tick_any_side(ctx: TestTickContext) {
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
 
     ctx.expect_error("Test.load_nbt: Nothing was staged for this block entity.")
-    Test.load_nbt(be)
+    ctx.load_nbt(be)
 }

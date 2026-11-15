@@ -1,4 +1,4 @@
-# Test.world_settled() must ask about the first-person hand when it is asked, not only from the
+# ctx.world_settled() must ask about the first-person hand when it is asked, not only from the
 # frames drawn so far: the runner runs several ticks of a test for one frame, so the held item can
 # change and the hand start rising with no frame drawn since, and the frame a capture is then served
 # by would show a pose no settle answer had seen (#961). Nothing here builds a block: the room is the
@@ -15,18 +15,18 @@ saw_rising: bool = false
 
 export tick_any_side(ctx: TestTickContext) {
     if not started {
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
         started = true
-        Test.set_held_item(Test.get_player(), item(resource_location("grug:coverage_flat_hand")))
+        ctx.set_held_item(ctx.get_player(), item(resource_location("grug:coverage_flat_hand")))
         ctx.not_done()
         return
     }
 
     if not saw_rising {
-        if Test.world_settled() {
+        if ctx.world_settled() {
             waited = waited + 1
             ctx.assert(waited < 40, "The settle stayed true for 40 ticks after the held item changed, so it does not cover the hand's rise (#961).")
             ctx.not_done()
@@ -37,9 +37,9 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
 
-    if not Test.world_settled() {
+    if not ctx.world_settled() {
         ctx.not_done()
         return
     }
-    Test.clear_held_item(Test.get_player())
+    ctx.clear_held_item(ctx.get_player())
 }

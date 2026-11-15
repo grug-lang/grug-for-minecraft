@@ -8,8 +8,8 @@ reload_source: Option[BlockEntity] = Option.new()
 reload_target: Option[BlockEntity] = Option.new()
 
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
@@ -36,9 +36,9 @@ export tick_any_side(ctx: TestTickContext) {
     source.set_item_damage_in_slot(1, 7)
 
     pipe.receive_energy(3)
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
     pipe.receive_energy(1)
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
 
     ctx.assert(pipe.get_saved_list_size("traveling") == 2, "The pulls should have started two travelling records.")
     ctx.assert(pipe.get_saved_list_number("traveling", 0, "count") == 3, "The stack's record should hold 3 items.")
@@ -46,13 +46,13 @@ export tick_any_side(ctx: TestTickContext) {
 
     # Move them 20 ticks in, then reload, so neither record is at the face where it started. The
     # sword entered a tick after the stack, so it is one move behind it.
-    Test.tick_block_entity(pipe, 20)
+    ctx.tick_block_entity(pipe, 20)
     stack_x: number = pipe.get_saved_list_number("traveling", 0, "x")
     sword_x: number = pipe.get_saved_list_number("traveling", 1, "x")
     ctx.assert(_hundredths(stack_x - bx) == 21, "The stack should be 21 moves into the pipe.")
     ctx.assert(_hundredths(sword_x - bx) == 20, "The sword should be 20 moves into the pipe.")
 
-    Test.round_trip_nbt(pipe)
+    ctx.round_trip_nbt(pipe)
 
     ctx.assert(pipe.get_saved_list_size("traveling") == 2, "The reload should keep both travelling records.")
     ctx.assert(pipe.get_saved_list_number("traveling", 0, "x") == stack_x, "The reload should keep the stack's position.")
@@ -71,7 +71,7 @@ export tick_any_side(ctx: TestTickContext) {
 
     # The stack is 21 moves in, so 28 more reach the centre and 51 more reach the far face, and the
     # sword is a move behind it.
-    Test.tick_block_entity(pipe, 90)
+    ctx.tick_block_entity(pipe, 90)
     ctx.assert(pipe.get_saved_list_size("traveling") == 0, "Both records should have finished after the reload.")
     ctx.assert(target.get_item_count_in_slot(0) == 3, "The east chest should hold the reloaded stack of 3.")
     ctx.assert(target.get_item_count_in_slot(1) == 1, "The east chest should hold the reloaded sword.")

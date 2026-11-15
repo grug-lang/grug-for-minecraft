@@ -12,10 +12,10 @@ step: number = 0
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.overlay_supported() {
+        if not me.overlay_supported() {
             return
         }
-        Test.close_screen()
+        ctx.close_screen()
         ctx.not_done()
         return
     }
@@ -30,25 +30,25 @@ export tick_any_side(ctx: TestTickContext) {
     if not opened {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         opened = true
         waited = 0
         ctx.not_done()
         return
     }
 
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         waited = waited + 1
         ctx.assert(waited < 100, "The player's inventory screen should open.")
         ctx.not_done()
         return
     }
 
-    if not Test.overlay_drawn() {
+    if not ctx.overlay_drawn() {
         waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
         ctx.not_done()
@@ -56,9 +56,9 @@ export tick_any_side(ctx: TestTickContext) {
     }
 
     if step == 0 {
-        Test.clear_carried_item()
-        Test.set_held_item(Test.get_player(), item_at(0))
-        ctx.assert(Test.get_player().get_held_item().has(), "The player should hold the item the hotbar press uses.")
+        ctx.clear_carried_item()
+        ctx.set_held_item(ctx.get_player(), item_at(0))
+        ctx.assert(ctx.get_player().get_held_item().has(), "The player should hold the item the hotbar press uses.")
         step = 1
         ctx.not_done()
         return
@@ -70,11 +70,11 @@ export tick_any_side(ctx: TestTickContext) {
     # the game opens for the player's inventory is not always the same one: 1.20.6 swaps in its
     # creative inventory on a creative world, and that panel is a different size and sits at a
     # different place than the survival one.
-    hotbar_x: number = Test.gui_left() + 17
-    hotbar_y: number = Test.gui_top() + Test.gui_height() - 15
-    taken: bool = Test.click_screen(hotbar_x, hotbar_y, 0)
+    hotbar_x: number = ctx.gui_left() + 17
+    hotbar_y: number = ctx.gui_top() + ctx.gui_height() - 15
+    taken: bool = ctx.click_screen(hotbar_x, hotbar_y, 0)
     ctx.assert(taken, "The overlay should take a press on the hotbar slot it covers.")
-    ctx.assert(Test.get_player().get_held_item().has(), "A taken press should not also pick the hotbar item up.")
-    ctx.assert(not Test.get_carried_item().has(), "A taken press should not put the hotbar item on the cursor.")
-    Test.close_screen()
+    ctx.assert(ctx.get_player().get_held_item().has(), "A taken press should not also pick the hotbar item up.")
+    ctx.assert(not ctx.get_carried_item().has(), "A taken press should not put the hotbar item on the cursor.")
+    ctx.close_screen()
 }

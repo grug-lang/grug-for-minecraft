@@ -1,4 +1,4 @@
-# Covers which face Test.use_block clicks, on a client and on a dedicated server (#1106). The face is
+# Covers which face ctx.use_block clicks, on a client and on a dedicated server (#1106). The face is
 # the one the test player's eye sees of the block: a block below the eye is clicked on its top, and a
 # block at the eye's level beside the player on the side facing them. The fixture block declines the
 # use, so the held cobblestone is placed against the clicked face, above the block for the top and
@@ -9,8 +9,8 @@
 step: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -22,8 +22,8 @@ export tick_any_side(ctx: TestTickContext) {
         # At the origin's height, three beside the player: the eye is level with it, so the click
         # lands on the side facing the player and the cobblestone goes between the two.
         level.place_block(x + 3, y - 3, z, "grug:coverage_decline_use")
-        Test.set_held_item(Test.get_player(), item(resource_location("minecraft:cobblestone")))
-        Test.use_block(level, x + 1, y - 6, z)
+        ctx.set_held_item(ctx.get_player(), item(resource_location("minecraft:cobblestone")))
+        ctx.use_block(level, x + 1, y - 6, z)
         step = 1
         ctx.not_done()
     } else if step == 1 {
@@ -31,8 +31,8 @@ export tick_any_side(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        Test.set_held_item(Test.get_player(), item(resource_location("minecraft:cobblestone")))
-        Test.use_block(level, x + 3, y - 3, z)
+        ctx.set_held_item(ctx.get_player(), item(resource_location("minecraft:cobblestone")))
+        ctx.use_block(level, x + 3, y - 3, z)
         step = 2
         ctx.not_done()
     } else if not _is_cobblestone(level, x + 2, y - 3, z) {
@@ -42,7 +42,7 @@ export tick_any_side(ctx: TestTickContext) {
         # block beside it, so neither is there when the two faces were different.
         ctx.assert(not _is_cobblestone(level, x + 3, y - 2, z), "The side click should not place above the block.")
         ctx.assert(not _is_cobblestone(level, x, y - 6, z), "The top click should not place beside the block.")
-        Test.clear_held_item(Test.get_player())
+        ctx.clear_held_item(ctx.get_player())
     }
 }
 

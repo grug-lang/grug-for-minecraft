@@ -1,8 +1,8 @@
-# Test.tick_block_entity runs a whole number of ticks, so a fraction must report an error rather than
+# ctx.tick_block_entity runs a whole number of ticks, so a fraction must report an error rather than
 # be rounded: a test asking for 2.5 ticks has a bug that rounding would hide.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
@@ -13,5 +13,5 @@ export tick_any_side(ctx: TestTickContext) {
     block: BlockEntity = block_opt.unwrap()
 
     ctx.expect_error("whole number from 0 to")
-    Test.tick_block_entity(block, 2.5)
+    ctx.tick_block_entity(block, 2.5)
 }

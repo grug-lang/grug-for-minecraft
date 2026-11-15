@@ -38,7 +38,7 @@ export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _wall(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         ctx.not_done()
     } else if not empty.has() {
         _settle_empty(ctx)
@@ -57,12 +57,12 @@ export tick(ctx: TestTickContext) {
         trigger_tick = ctx.current_tick()
         attempts = 0
         ctx.not_done()
-    } else if ctx.current_tick() < trigger_tick + 30 or not Test.world_settled() {
+    } else if ctx.current_tick() < trigger_tick + 30 or not ctx.world_settled() {
         # Nothing marks the world unsettled for the client's own redraw: the capture below decides
         # whether the rebuilt mesh arrived, and this wait only keeps it from spinning.
         ctx.not_done()
     } else {
-        plate: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        plate: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         if plate.change_from(pedestal.unwrap()) < 1 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "The client's own redraw never rebuilt the block's chunk mesh.")
@@ -75,9 +75,9 @@ export tick(ctx: TestTickContext) {
 }
 
 local _wall(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    Test.set_box_radius(6)
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    ctx.set_box_radius(6)
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -99,7 +99,7 @@ local _wall(ctx: TestTickContext) {
 # mesh arrives late, or a cloud, is not what the pedestal is then compared against.
 local _settle_empty(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 {
-        shot: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        shot: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         room_tick = ctx.current_tick()
         if empty_prev.has() and shot.change_from(empty_prev.unwrap()) < 1 {
             empty.set(shot)
@@ -113,8 +113,8 @@ local _settle_empty(ctx: TestTickContext) {
 }
 
 local _place(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     level.place_block(origin.x(), origin.y() - 1.88, origin.z() + 4, "grug:coverage_mesh_saved")
 
     be_opt: Option[BlockEntity] = level.get_block_entity(origin.x(), origin.y() - 1.88, origin.z() + 4)
@@ -127,7 +127,7 @@ local _place(ctx: TestTickContext) {
 # that still matches the empty room is the block not drawn yet, not a baseline.
 local _capture_pedestal(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 {
-        shot: Screenshot = Test.screenshot().capture(500, 0, 780, 720)
+        shot: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
         room_tick = ctx.current_tick()
         if shot.change_from(empty.unwrap()) < 1 {
             attempts = attempts + 1
@@ -144,7 +144,7 @@ local _capture_pedestal(ctx: TestTickContext) {
 # inside the clear box the runner empties before every test, and the block is one no terrain and no
 # other test puts there.
 local _trigger(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     center: Vec3 = mesh_block.unwrap().block_pos().center()
     level.place_block(center.x(), center.y(), center.z() - 9, "grug:coverage_block")
 }

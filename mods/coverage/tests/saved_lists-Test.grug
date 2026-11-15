@@ -3,8 +3,8 @@
 # Option, a key a record never stored answers 0, which are the defaults a fresh record has, and an
 # item alone stores no number, which is the shape the pipe's record needs.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
@@ -22,7 +22,7 @@ export tick_any_side(ctx: TestTickContext) {
 
     # A record with no item has to come back with none, which is the branch the write and the read
     # take when a record holds no item at all.
-    Test.round_trip_nbt(be)
+    ctx.round_trip_nbt(be)
     ctx.assert(be.get_saved_list_size("things") == 1, "The reload should keep a record with no item.")
     ctx.assert(not be.get_saved_list_item("things", 0).has(), "A record with no item should reload with none.")
 
@@ -46,7 +46,7 @@ export tick_any_side(ctx: TestTickContext) {
 
     # The whole list, numbers and item, has to survive the block entity's own NBT.
     be.set_saved_list_item("things", 0, diamond)
-    Test.round_trip_nbt(be)
+    ctx.round_trip_nbt(be)
     ctx.assert(be.get_saved_list_size("things") == 1, "The reload should keep the list.")
     ctx.assert(be.get_saved_list_number("things", 0, "speed") == 0.75, "The reload should keep the record's numbers.")
     reloaded: Option[Item] = be.get_saved_list_item("things", 0)
@@ -76,7 +76,7 @@ export tick_any_side(ctx: TestTickContext) {
     be.set_saved_list_number("traveling", 0, "damage", 1)
     be.set_saved_list_item("traveling", 0, diamond)
 
-    Test.round_trip_nbt(be)
+    ctx.round_trip_nbt(be)
     ctx.assert(be.get_saved_list_size("traveling") == 1, "The reload should keep the pipe's record.")
     ctx.assert(be.get_saved_list_number("traveling", 0, "x") == 10.5, "The reload should keep the half-block x exactly.")
     ctx.assert(be.get_saved_list_number("traveling", 0, "y") == 20.5, "The reload should keep y exactly.")
@@ -91,7 +91,7 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(equals(pipe_item.unwrap(), diamond), "The reload should keep the item's identity.")
 
     # A record's item is its identity alone: a loader writes it as a stack of one, undamaged, the
-    # same shape Test.set_nbt_item stages, and get_saved_list_item answers an Item handle, which has
+    # same shape ctx.set_nbt_item stages, and get_saved_list_item answers an Item handle, which has
     # no count or damage. The count and damage above are therefore the record's own numbers, and
     # that is the recorded limitation of this shape rather than an accident (#473): a later port
     # that needs a real stack or components starts from its own accessor pair, as this one does for
@@ -105,7 +105,7 @@ export tick_any_side(ctx: TestTickContext) {
     be.set_saved_list_item("traveling", 1, diamond)
     ctx.assert(be.get_saved_list_number("traveling", 1, "count") == 0, "An item alone should store no count, not the stack of one's 1.")
 
-    Test.round_trip_nbt(be)
+    ctx.round_trip_nbt(be)
     ctx.assert(be.get_saved_list_size("traveling") == 2, "The reload should keep both records.")
     ctx.assert(be.get_saved_list_number("traveling", 1, "count") == 0, "An item alone should still store no count.")
     alone_item: Option[Item] = be.get_saved_list_item("traveling", 1)

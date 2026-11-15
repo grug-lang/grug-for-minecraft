@@ -230,14 +230,16 @@ public final class GrugTestState {
     // (#1099). Volatile for the same reason as the mod above.
     public static volatile String currentTestPath = null;
 
-    // The origin Test.get_origin() captured first for the running test, so every later call in the
+    // The origin TestTickContext.get_origin() captured first for the running test, so every later
+    // call in the
     // same test returns the same position while the player settles. The runner snaps the player to
     // their block centre before the first call and clears this when a test starts and when it ends,
     // which is what keeps a setup and its check on one row. See #158 and #609.
     public static Vec3 testOrigin = null;
 
     // Whether the loader forced the normalizing GL capabilities for the running test, which the
-    // runner sets before the test's first tick and clears for every test. Test.normalization_forced
+    // runner sets before the test's first tick and clears for every test.
+    // TestTickContext.normalization_forced
     // reads it, so a coverage test can prove a loader whose item draw inherits the state really
     // forces it instead of passing unforced. See GrugForcedNormalization.
     public static boolean forcedNormalization = false;
@@ -282,11 +284,12 @@ public final class GrugTestState {
     }
 
     /**
-     * Why {@code ticks} is not a number of ticks Test.tick_block_entity or Test.tick_level can run,
-     * or null when it is one. Only a whole number from 0 to {@link Integer#MAX_VALUE} means
-     * anything, and anything else is reported rather than rounded, because a test asking for 2.5
-     * ticks has a bug that rounding would hide. The upper bound is the {@code int} loop in {@code
-     * Test_tick_block_entity}, which a larger count could never finish.
+     * Why {@code ticks} is not a number of ticks TestTickContext.tick_block_entity or
+     * TestTickContext.tick_level can run, or null when it is one. Only a whole number from 0 to
+     * {@link Integer#MAX_VALUE} means anything, and anything else is reported rather than rounded,
+     * because a test asking for 2.5 ticks has a bug that rounding would hide. The upper bound is
+     * the {@code int} loop in {@code TestTickContext_tick_block_entity}, which a larger count could
+     * never finish.
      */
     public static String checkTickCount(double ticks) {
         if (ticks >= 0 && ticks <= Integer.MAX_VALUE && ticks == Math.floor(ticks)) {

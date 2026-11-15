@@ -7,6 +7,6 @@
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.expect_error("the rectangle is empty")
-        Test.screenshot().capture(590, 310, 590.5, 410)
+        ctx.screenshot().capture(590, 310, 590.5, 410)
     }
 }

@@ -3,8 +3,8 @@ package net.grug.minecraft.core;
 import net.grug.minecraft.grug.Vec3;
 
 /**
- * Where the origin {@code Test.get_origin} answers comes from: the test player's eye, which is the
- * render camera, lifted by {@link #LIFT} on every loader.
+ * Where the origin {@code TestTickContext.get_origin} answers comes from: the test player's eye,
+ * which is the render camera, lifted by {@link #LIFT} on every loader.
  *
  * <p>The rule lives here rather than in each adapter so the five loaders cannot drift apart, and so
  * a unit test reaches it without a game. What a loader still answers is its player's eye, through

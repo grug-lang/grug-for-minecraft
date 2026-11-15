@@ -23,8 +23,9 @@ import java.util.Map;
  * Windows watcher forwards every notification {@code ReadDirectoryChangesW} produces, and its Linux
  * poller reports a file again whenever its mtime has moved since the previous scan. It only
  * deduplicates paths inside the batch one {@code update} drains. A grug test can therefore not
- * assert that one write raises {@code Test.hot_reload_count} by one, since a count of two could be
- * the engine's. Here the report is handed in, so a count of two can only be this class's.
+ * assert that one write raises {@code TestTickContext.hot_reload_count} by one, since a count of
+ * two could be the engine's. Here the report is handed in, so a count of two can only be this
+ * class's.
  */
 class GrugModsWatcherTest {
     private static final String PREFIX = "watcher_test/";

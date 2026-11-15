@@ -2,8 +2,8 @@
 # ctx.expect_error accepts here. The boxes declared before it are still recorded, so the block keeps
 # its shape, and the error aborts the test's own tick as it aborts every call that sees it.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
@@ -14,5 +14,5 @@ export tick_any_side(ctx: TestTickContext) {
     be.set_saved_number("arm_bad", 1)
 
     ctx.expect_error("The box was not recorded")
-    Test.block_collision(level, x, y, z, 0.3, 0.3, 0.3, 0.5, 0.5, 0.5)
+    ctx.block_collision(level, x, y, z, 0.3, 0.3, 0.3, 0.5, 0.5, 0.5)
 }

@@ -124,8 +124,8 @@ public final class GrugControlWire {
     /**
      * The call: one component of the joined client's own render camera, which is the eye of its
      * test player (#1161). The volume slot carries the axis, 0 for x, 1 for y and 2 for z, and the
-     * answer is an {@link #ANSWER_NUMBER}. {@code Test.camera} makes the three calls, so a test can
-     * assert that the client draws from the place the room was built around.
+     * answer is an {@link #ANSWER_NUMBER}. {@code TestTickContext.camera} makes the three calls, so
+     * a test can assert that the client draws from the place the room was built around.
      */
     public static final byte CALL_CAMERA = 9;
 
@@ -147,8 +147,8 @@ public final class GrugControlWire {
     /**
      * The call: the number saved under the call's name by the joined client's own copy of the block
      * entity at the position the three numbers carry, which is what {@code
-     * Test.client_saved_number} asks (#1162). The answer is an {@link #ANSWER_NUMBER}, 0 when the
-     * client holds no such block entity or the number was never saved there.
+     * TestTickContext.client_saved_number} asks (#1162). The answer is an {@link #ANSWER_NUMBER}, 0
+     * when the client holds no such block entity or the number was never saved there.
      */
     public static final byte CALL_SAVED_NUMBER = 12;
 
@@ -172,10 +172,10 @@ public final class GrugControlWire {
 
     /**
      * The call: whether a frame has drawn the running test's own overlay on the screen that client
-     * has open now, which is {@code Test.overlay_drawn} (#1099). The call's name is the mod that
-     * owns the test, because the client is not running the test itself and so has to be told whose
-     * overlay it waits for: the answer is about a frame of that mod's overlay, and the client drops
-     * the mark it held when the mod changes. The answer is 1 or 0.
+     * has open now, which is {@code TestTickContext.overlay_drawn} (#1099). The call's name is the
+     * mod that owns the test, because the client is not running the test itself and so has to be
+     * told whose overlay it waits for: the answer is about a frame of that mod's overlay, and the
+     * client drops the mark it held when the mod changes. The answer is 1 or 0.
      */
     public static final byte CALL_OVERLAY_DRAWN = 15;
 
@@ -195,25 +195,25 @@ public final class GrugControlWire {
     /**
      * The call: whether the game draws the mining crack over the block's own geometry at the
      * position in the three numbers, in the client's own copy of the world, which is {@code
-     * Test.mining_crack} (#1040). The crack is a client's frame pass, so a dedicated server has no
-     * overlay to ask. The answer is 1 or 0.
+     * TestTickContext.mining_crack} (#1040). The crack is a client's frame pass, so a dedicated
+     * server has no overlay to ask. The answer is 1 or 0.
      */
     public static final byte CALL_MINING_CRACK = 17;
 
     /**
      * The call: puts a mod file of the client's own mods directory into a named state, which is
-     * {@code Test.set_mod_file_state} for a client resource (#1040). The name is the file's path
-     * and the first number is the state's index in {@code GrugModFileStates}. A texture is read by
-     * the client alone, so a dedicated server disturbing its own copy would reload nothing. The
-     * answer is the ack 1.
+     * {@code TestTickContext.set_mod_file_state} for a client resource (#1040). The name is the
+     * file's path and the first number is the state's index in {@code GrugModFileStates}. A texture
+     * is read by the client alone, so a dedicated server disturbing its own copy would reload
+     * nothing. The answer is the ack 1.
      */
     public static final byte CALL_MOD_FILE_STATE = 18;
 
     /**
      * The call: how many changes to the client resource named by the call's name the client's
-     * engine has reported (first number 0, {@code Test.hot_reload_count}) or its loader has
-     * finished reloading for (first number 1, {@code Test.reload_count}) (#1040). The answer is an
-     * {@link #ANSWER_NUMBER}.
+     * engine has reported (first number 0, {@code TestTickContext.hot_reload_count}) or its loader
+     * has finished reloading for (first number 1, {@code TestTickContext.reload_count}) (#1040).
+     * The answer is an {@link #ANSWER_NUMBER}.
      */
     public static final byte CALL_RELOAD_COUNT = 19;
 

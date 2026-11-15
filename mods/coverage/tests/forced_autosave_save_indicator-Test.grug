@@ -24,13 +24,13 @@ export init(ctx: TestInitContext) {
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        _setup()
+        _setup(ctx)
         ctx.not_done()
         return
     }
 
-    if Test.loader_name() != "1.20.6-forge" {
-        Test.clear_held_item(Test.get_player())
+    if me.loader_name() != "1.20.6-forge" {
+        ctx.clear_held_item(ctx.get_player())
         return
     }
 
@@ -40,7 +40,7 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             settled_ticks = 0
             ctx.not_done()
             return
@@ -56,12 +56,12 @@ export tick(ctx: TestTickContext) {
     # The forced save's fade is over by about tick 110, and the last capture is at 145, so the window
     # ends after it and long before the game's own autosave could add a second save.
     if ctx.current_tick() >= 150 {
-        Test.clear_held_item(Test.get_player())
+        ctx.clear_held_item(ctx.get_player())
         return
     }
 
     if until_capture == 0 {
-        Test.screenshot().equals(r"screenshots/coverage_flat_hand", 940, 550, 1140, 720)
+        ctx.screenshot().equals(r"screenshots/coverage_flat_hand", 940, 550, 1140, 720)
         until_capture = 5
     } else {
         until_capture = until_capture - 1
@@ -69,9 +69,9 @@ export tick(ctx: TestTickContext) {
     ctx.not_done()
 }
 
-local _setup() {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
 
     wy: number = origin.y() - 9
     while wy < origin.y() + 8 {
@@ -83,5 +83,5 @@ local _setup() {
         wy = wy + 1
     }
 
-    Test.set_held_item(Test.get_player(), item(resource_location("grug:coverage_flat_hand")))
+    ctx.set_held_item(ctx.get_player(), item(resource_location("grug:coverage_flat_hand")))
 }

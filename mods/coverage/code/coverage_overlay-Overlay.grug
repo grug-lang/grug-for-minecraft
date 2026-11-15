@@ -38,7 +38,7 @@ export click(ctx: OverlayClickContext) {
     # the screen the client shows then, so the release must not reach the screen the press left
     # (#1217). A press here with an empty cursor keeps the take below, as the earlier tests expect.
     if inside_screen and inside_gui and over_hotbar and ctx.button() == 0 and carrying {
-        Test.close_screen()
+        ctx.close_screen()
         return
     }
     if inside_screen and inside_gui and over_hotbar {

@@ -14,40 +14,40 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if not Test.screen_open() {
+    } else if not ctx.screen_open() {
         # On a server the screen is opened by a packet, so wait for the screen itself. See
         # item_icon-Test.
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         ctx.not_done()
     } else {
         _check(ctx)
-        Test.close_screen()
-        Test.clear_held_item(Test.get_player())
+        ctx.close_screen()
+        ctx.clear_held_item(ctx.get_player())
     }
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
 
-    Test.set_held_item(Test.get_player(), item(resource_location("minecraft:diamond")))
+    ctx.set_held_item(ctx.get_player(), item(resource_location("minecraft:diamond")))
 
     level.place_block(x, y, z, "grug:coverage_gui")
-    Test.use_block(level, x, y, z)
+    ctx.use_block(level, x, y, z)
 }
 
 local _check(ctx: TestTickContext) {
     # The strip of panel (8, 6) to (38, 14) where the text sits, against the golden of the same strip, so the
     # test compares the colour the text drew with the colour it should draw, not only with the panel's plain
     # background.
-    Test.screenshot().equals(r"screenshots/gui_builder_text", 400, 129, 490, 153)
+    ctx.screenshot().equals(r"screenshots/gui_builder_text", 400, 129, 490, 153)
 
     # The main inventory's third row, panel (7, 119) to (169, 137), against the hotbar, panel (7, 141) to (169, 159).
-    main_row: Screenshot = Test.screenshot().capture(397, 468, 883, 522)
-    hotbar: Screenshot = Test.screenshot().capture(397, 534, 883, 588)
+    main_row: Screenshot = ctx.screenshot().capture(397, 468, 883, 522)
+    hotbar: Screenshot = ctx.screenshot().capture(397, 534, 883, 588)
     hotbar.differs_from(main_row, 1)
 }

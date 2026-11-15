@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.grug.GrugTestContexts;
 import net.grug.minecraft.grug.HostFunctions;
 import net.grug.minecraft.grug.Vec3;
 
@@ -1896,7 +1897,7 @@ class GrugControlTest {
         GrugClientTestCalls.Forwarded forwarded =
                 new GrugClientTestCalls.Forwarded(() -> loop.server, failed::add);
         forwarded.modFileState("coverage/assets/a.png", "bogus");
-        assertEquals(List.of("Test.set_mod_file_state: unknown state bogus"), failed);
+        assertEquals(List.of("TestTickContext.set_mod_file_state: unknown state bogus"), failed);
         assertTrue(client.seen.isEmpty(), client.seen.toString());
     }
 
@@ -1936,10 +1937,11 @@ class GrugControlTest {
         assertEquals(0.0, refused.hotReloadCount("coverage/assets/a.png"));
         assertEquals(0.0, refused.reloadCount("coverage/assets/a.png"));
         assertEquals(4, reports.size());
-        assertTrue(reports.get(0).startsWith("Test.mining_crack: "), reports.get(0));
-        assertTrue(reports.get(1).startsWith("Test.set_mod_file_state: "), reports.get(1));
-        assertTrue(reports.get(2).startsWith("Test.hot_reload_count: "), reports.get(2));
-        assertTrue(reports.get(3).startsWith("Test.reload_count: "), reports.get(3));
+        assertTrue(reports.get(0).startsWith("TestTickContext.mining_crack: "), reports.get(0));
+        assertTrue(
+                reports.get(1).startsWith("TestTickContext.set_mod_file_state: "), reports.get(1));
+        assertTrue(reports.get(2).startsWith("TestTickContext.hot_reload_count: "), reports.get(2));
+        assertTrue(reports.get(3).startsWith("TestTickContext.reload_count: "), reports.get(3));
     }
 
     @Test
@@ -2020,9 +2022,15 @@ class GrugControlTest {
         try {
             // A texture is the client's alone: the server asks the client and writes nothing.
             String texture = "coverage/assets/grug/textures/block/a.png";
-            HostFunctions.Test_set_mod_file_state(texture, "swapped");
-            assertEquals(5.0, HostFunctions.Test_hot_reload_count(texture));
-            assertEquals(7.0, HostFunctions.Test_reload_count(texture));
+            HostFunctions.TestTickContext_set_mod_file_state(
+                    GrugTestContexts.tick(), texture, "swapped");
+            assertEquals(
+                    5.0,
+                    HostFunctions.TestTickContext_hot_reload_count(
+                            GrugTestContexts.tick(), texture));
+            assertEquals(
+                    7.0,
+                    HostFunctions.TestTickContext_reload_count(GrugTestContexts.tick(), texture));
             assertEquals(
                     List.of(
                             "modFileState " + texture + " 4",
@@ -2032,12 +2040,19 @@ class GrugControlTest {
 
             // A script is compiled and reloaded by the server itself, so it never leaves it.
             client.seen.clear();
-            HostFunctions.Test_set_mod_file_state("coverage/code/a.grug", "invalid");
+            HostFunctions.TestTickContext_set_mod_file_state(
+                    GrugTestContexts.tick(), "coverage/code/a.grug", "invalid");
             assertTrue(
                     java.nio.file.Files.readString(code).startsWith("!"),
                     "The server's own file was disturbed.");
-            assertEquals(0.0, HostFunctions.Test_hot_reload_count("coverage/code/a.grug"));
-            assertEquals(0.0, HostFunctions.Test_reload_count("coverage/code/a.grug"));
+            assertEquals(
+                    0.0,
+                    HostFunctions.TestTickContext_hot_reload_count(
+                            GrugTestContexts.tick(), "coverage/code/a.grug"));
+            assertEquals(
+                    0.0,
+                    HostFunctions.TestTickContext_reload_count(
+                            GrugTestContexts.tick(), "coverage/code/a.grug"));
             assertTrue(client.seen.isEmpty(), client.seen.toString());
         } finally {
             field.set(null, saved);
@@ -2085,7 +2100,7 @@ class GrugControlTest {
         assertFalse(reports.drawn("coverage"));
         assertEquals(2, failed.size());
         assertTrue(failed.get(0).contains("Test.overlay_supported"), failed.get(0));
-        assertTrue(failed.get(1).contains("Test.overlay_drawn"), failed.get(1));
+        assertTrue(failed.get(1).contains("TestTickContext.overlay_drawn"), failed.get(1));
 
         // A server nobody started a run on has no client to ask, and says so.
         List<String> noStarter = new ArrayList<>();
@@ -2666,7 +2681,7 @@ class GrugControlTest {
                 new GrugClientSavedNumbers.Forwarded(() -> failing.server, failed::add);
         assertEquals(0.0, reports.savedNumber(10, 64, 20, "frame_marker"));
         assertEquals(1, failed.size());
-        assertTrue(failed.get(0).contains("Test.client_saved_number"), failed.get(0));
+        assertTrue(failed.get(0).contains("TestTickContext.client_saved_number"), failed.get(0));
         GrugControlServer.clearFailure();
 
         // A server nobody started a run on has no client to ask, and says so.
@@ -2747,7 +2762,7 @@ class GrugControlTest {
                 new GrugClientLight.Forwarded(() -> none.server, failed::add);
         assertTrue(withoutStarter.lightApplied(10, 68, 20, 12));
         assertEquals(1, failed.size());
-        assertTrue(failed.get(0).contains("Test.light_applied"), failed.get(0));
+        assertTrue(failed.get(0).contains("TestTickContext.light_applied"), failed.get(0));
     }
 
     @Test

@@ -5,8 +5,8 @@
 # without. A rule can only be declared in init(), so each rule has a block of its own.
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         # Band 15 with an x offset, clear of every other test's fixtures: a rule lives on the block entity
         # object and its leftovers live in its slots, and the world outlives a test, so a fixture
         # another test shares a band with would be handed both. Band 15's other user is

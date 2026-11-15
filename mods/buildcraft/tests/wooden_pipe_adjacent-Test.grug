@@ -23,8 +23,8 @@
 # stroke, which is a duration, is not part of this test: redstone_engine-Test and wooden_pipe-Test
 # cover it.
 export tick(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     row: number = 0
     while row < 6 {
         _row(ctx, level, origin.x(), origin.y() + 12, origin.z() + (row - 2) * 4)
@@ -73,7 +73,7 @@ local _row(ctx: TestTickContext, level: Level, x: number, y: number, z: number) 
 # the 60 ticks after it move the one record and then find nothing left to pull.
 local _pull_and_drop(ctx: TestTickContext, level: Level, pipe: BlockEntity, chest: BlockEntity, wanted: Item, damage: number) {
     pipe.receive_energy(64)
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
     ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The pipe should have pulled its chest's item.")
 
     held: Option[Item] = pipe.get_saved_list_item("traveling", 0)
@@ -83,7 +83,7 @@ local _pull_and_drop(ctx: TestTickContext, level: Level, pipe: BlockEntity, ches
 
     # 49 moves bring the item within speed * 1.01 of the pipe's centre, where the other wooden pipe
     # and every empty side accept nothing, so that move drops it at the centre.
-    Test.tick_block_entity(pipe, 60)
+    ctx.tick_block_entity(pipe, 60)
     ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The pipe should have dropped its travelling item.")
     ctx.assert(chest.get_item_count_in_slot(0) == 0, "The pipe's own chest should be empty.")
 

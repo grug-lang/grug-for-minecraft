@@ -1307,7 +1307,7 @@ jobs:
           (cd loaders/${{ steps.select.outputs.loader }}/run/reference-mods && sha256sum -- *)
 
       # The harness is the mod's tests that have a reference side, the ones that capture a screenshot
-      # or branch on Test.is_reference(), plus about.json, LICENSE and goldens without its code, so the
+      # or branch on me.is_reference(), plus about.json, LICENSE and goldens without its code, so the
       # real reference provides every block and the harness only drives the tests. The game dies
       # before the tests without the LICENSE.
       - name: Assemble the reference harness
@@ -1322,7 +1322,7 @@ jobs:
           if [ -d "mods/$mod/screenshots" ]; then
             cp -r "mods/$mod/screenshots" "$harness/$mod/"
           fi
-          for test in $(grep -l -e "Test.screenshot" -e "Test.is_reference" "mods/$mod/tests/"*-Test.grug 2>/dev/null); do
+          for test in $(grep -l -e "\.screenshot(" -e "\.is_reference(" "mods/$mod/tests/"*-Test.grug 2>/dev/null); do
             cp "$test" "$harness/$mod/tests/"
           done
           echo "The reference harness is $harness:"

@@ -25,8 +25,8 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _full_target_setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # A clear band: the other pipe tests use +25, +35, +45 and +50. The +45 and +50 bands are
     # clamped to 120 for a high spawn, because Alpha's world is 128 blocks tall, so the ladder's
@@ -84,8 +84,8 @@ local _full_target_setup(ctx: TestTickContext) {
 }
 
 local _full_target_check(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 40
     z: number = origin.z()

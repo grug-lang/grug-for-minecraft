@@ -10,42 +10,42 @@ step: number = 0
 waited: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
-    player: Player = Test.get_player()
+    player: Player = ctx.get_player()
     wrench: Item = item(resource_location("grug:wrench"))
 
     if step == 0 {
         level.place_block(x, y, z - 1, "grug:wooden_pipe")
         level.place_block(x + 1, y, z, "grug:wooden_pipe")
         level.place_block(x, y, z, "grug:redstone_engine")
-        Test.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        ctx.tick_block_entity(_engine(ctx, level, x, y, z), 1)
         ctx.assert(_facing(ctx, level, x, y, z) == 2, "The engine should start facing the pipe at z - 1.")
-        Test.set_held_item(player, wrench)
-        Test.use_block(level, x, y, z)
+        ctx.set_held_item(player, wrench)
+        ctx.use_block(level, x, y, z)
         step = 1
         ctx.not_done()
     } else if step == 1 {
-        Test.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        ctx.tick_block_entity(_engine(ctx, level, x, y, z), 1)
         if _facing(ctx, level, x, y, z) == 5 {
-            Test.use_block(level, x, y, z)
+            ctx.use_block(level, x, y, z)
             step = 2
         }
         _wait(ctx)
     } else if step == 2 {
-        Test.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        ctx.tick_block_entity(_engine(ctx, level, x, y, z), 1)
         if _facing(ctx, level, x, y, z) == 2 {
-            Test.clear_held_item(player)
-            Test.use_block(level, x, y, z)
+            ctx.clear_held_item(player)
+            ctx.use_block(level, x, y, z)
             step = 3
             waited = 0
         }
         _wait(ctx)
     } else {
-        Test.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        ctx.tick_block_entity(_engine(ctx, level, x, y, z), 1)
         waited = waited + 1
         if waited < 20 {
             ctx.not_done()

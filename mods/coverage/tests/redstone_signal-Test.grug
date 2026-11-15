@@ -3,8 +3,8 @@
 # it, so a torch placed on top of a stone block should make the block above the torch report a
 # signal. A block far from any torch should not.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

@@ -4,11 +4,11 @@
 # a pull already took from its chest: the chest is debited and the stack exists nowhere. The pipe
 # checks its inbox before writing and reads the write back, and hands whatever did not land to the
 # normal drop path, where it is an item entity rather than a silent destruction. This test loads the
-# pipe back with no slots through Test.load_nbt, the same route a save takes, and asserts the stack is
+# pipe back with no slots through ctx.load_nbt, the same route a save takes, and asserts the stack is
 # dropped.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # Band 32, clear of the bands the other pipe tests use and below the +45 and +50 bands that
     # Alpha's 128-block world clamps to 120.
@@ -30,8 +30,8 @@ export tick_any_side(ctx: TestTickContext) {
 
     # Load the pipe back with no inventory slots, as a block entity saved while it had none does.
     # The load replaces the tile, so the handle names the old one afterwards.
-    Test.set_nbt_number(pipe, "GrugInvSize", "int", 0)
-    Test.load_nbt(pipe)
+    ctx.set_nbt_number(pipe, "GrugInvSize", "int", 0)
+    ctx.load_nbt(pipe)
     pipe_again_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     ctx.assert(pipe_again_opt.has(), "The reloaded pipe should have a block entity.")
     pipe = pipe_again_opt.unwrap()
@@ -40,13 +40,13 @@ export tick_any_side(ctx: TestTickContext) {
     # A tile replaced by a load has not run its init() yet on every loader, so tick it once with no
     # energy first: that tick cannot pull, and it declares the pipe an energy receiver as a
     # chunk-loaded one would be.
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
 
     # 64 energy makes the next tick take the chest's whole stack, as wooden_pipe_drop_stack does,
-    # and Test.tick_block_entity runs the pipe's own tick without ticking entities, so the drop is
+    # and ctx.tick_block_entity runs the pipe's own tick without ticking entities, so the drop is
     # still exactly what the pipe made.
     pipe.receive_energy(64)
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
 
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The pull should have taken the source stack.")
     ctx.assert(pipe.get_saved_list_size("traveling") == 0, "A stack the inbox cannot hold should not start travelling.")

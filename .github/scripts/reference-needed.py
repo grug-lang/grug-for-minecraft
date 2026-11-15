@@ -6,7 +6,7 @@
 The reference job runs the reference named by the mod under test's first derived_from entry, on
 that entry's runtime (#832). What it observes is the harness that job assembles for that mod:
 its about.json, its LICENSE, its screenshots/ and only the tests that capture a screenshot or
-branch on Test.is_reference(). The mod's code, data and assets are deliberately not staged, since
+branch on is_reference(). The mod's code, data and assets are deliberately not staged, since
 the real reference provides every block, so a change to them cannot change what the reference
 run draws. The job also observes the loader the runtime names and core it runs in, and whatever
 else the game and the job read that is not a mod or another loader: shared/, mod_api.json,
@@ -57,8 +57,8 @@ def load_changed_paths():
 # it cannot change the reference run.
 HARNESS_FILES = ("about.json", "LICENSE")
 HARNESS_DIR = "screenshots/"
-# The tests the harness takes: the ones `grep -l -e Test.screenshot -e Test.is_reference` selects.
-HARNESS_TEST_MARKERS = (b"Test.screenshot", b"Test.is_reference")
+# The tests the harness takes: the ones that call `.screenshot(` or `.is_reference(`.
+HARNESS_TEST_MARKERS = (b".screenshot(", b".is_reference(")
 
 
 def harness_paths(repo: Path, ref: str, mod: str) -> set[str]:

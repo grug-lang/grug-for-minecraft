@@ -14,7 +14,7 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(not has_sound("minecraft:no_such_sound"), "The game should have no sound named no_such_sound.")
     ctx.assert(not has_sound("grug:ui.button.click"), "A namespace other than minecraft is not the game's own sound table.")
 
-    if Test.loader_name() == "1.20.6-forge" {
+    if me.loader_name() == "1.20.6-forge" {
         ctx.assert(has_sound("minecraft:ui.button.click"), "1.20.6 should have the button click.")
         ctx.assert(not has_sound("minecraft:random.click"), "1.20.6 names its sounds by event, so it has no random.click.")
     } else {

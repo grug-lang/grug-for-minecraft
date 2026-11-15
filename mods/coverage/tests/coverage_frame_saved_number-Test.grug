@@ -37,10 +37,10 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         ctx.not_done()
     } else if not saved {
-        before.set(Test.screenshot().capture(500, 60, 780, 440))
+        before.set(ctx.screenshot().capture(500, 60, 780, 440))
         frame_block.unwrap().set_saved_number("marker", 1)
         saved = true
         saved_tick = ctx.current_tick()
@@ -52,7 +52,7 @@ export tick_any_side(ctx: TestTickContext) {
         # the captures from spinning; whether the change arrived is decided by the capture below.
         ctx.not_done()
     } else {
-        after: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        after: Screenshot = ctx.screenshot().capture(500, 60, 780, 440)
         if after.change_from(before.unwrap()) < 1 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "The saved number never reached the client's frame.")
@@ -66,9 +66,9 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    Test.set_box_radius(6)
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    ctx.set_box_radius(6)
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

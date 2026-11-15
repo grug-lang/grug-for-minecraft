@@ -3,6 +3,6 @@
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.expect_error("is -1, which is outside")
-        Test.screenshot().tolerance(1).equals(r"screenshots/dummy", -1, 0, 10, 10)
+        ctx.screenshot().tolerance(1).equals(r"screenshots/dummy", -1, 0, 10, 10)
     }
 }

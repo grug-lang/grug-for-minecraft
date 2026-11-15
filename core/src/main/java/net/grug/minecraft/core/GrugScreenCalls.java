@@ -198,7 +198,7 @@ public final class GrugScreenCalls {
             try {
                 return server.get().screenOpen();
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.screen_open: " + e.getMessage());
+                failed.accept("TestTickContext.screen_open: " + e.getMessage());
                 return false;
             }
         }
@@ -208,7 +208,7 @@ public final class GrugScreenCalls {
             try {
                 return server.get().screenRead(read);
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test." + read + ": " + e.getMessage());
+                failed.accept("TestTickContext." + read + ": " + e.getMessage());
                 return 0.0;
             }
         }
@@ -218,7 +218,7 @@ public final class GrugScreenCalls {
             try {
                 return server.get().pressScreenKey(key, ctrl, release);
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.press_screen_key: " + e.getMessage());
+                failed.accept("TestTickContext.press_screen_key: " + e.getMessage());
                 return false;
             }
         }
@@ -230,7 +230,7 @@ public final class GrugScreenCalls {
             try {
                 return server.get().scrollScreen(x, y, delta);
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.scroll_screen: " + e.getMessage());
+                failed.accept("TestTickContext.scroll_screen: " + e.getMessage());
                 return false;
             }
         }
@@ -240,7 +240,7 @@ public final class GrugScreenCalls {
             try {
                 server.get().closeScreen();
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.close_screen: " + e.getMessage());
+                failed.accept("TestTickContext.close_screen: " + e.getMessage());
             }
         }
 
@@ -253,7 +253,7 @@ public final class GrugScreenCalls {
             try {
                 return server.get().clickScreen(x, y, button);
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.click_screen: " + e.getMessage());
+                failed.accept("TestTickContext.click_screen: " + e.getMessage());
                 return false;
             }
         }
@@ -263,7 +263,7 @@ public final class GrugScreenCalls {
             try {
                 server.get().openInventory();
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.open_inventory: " + e.getMessage());
+                failed.accept("TestTickContext.open_inventory: " + e.getMessage());
             }
         }
     }

@@ -24,7 +24,7 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # The mesh below has to read the settled light, so the wait comes first. See coverage_render
         # and #257 for why one settled answer is not enough.
         settled_ticks = 0
@@ -36,7 +36,7 @@ export tick_any_side(ctx: TestTickContext) {
         _force_remesh(ctx)
         remeshed = true
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # Waiting for the swap's blocks to reach the client and for the mesh they scheduled. The
         # settle answer asks the client's own copy, so it is false until the chest that makes the
         # corner is there and a frame drawn after it has been made, which is the wait the fixed
@@ -45,26 +45,26 @@ export tick_any_side(ctx: TestTickContext) {
     } else {
         if phase == 0 {
             ctx.assert(pipe.has(), "The pipe should have a block entity.")
-            Test.screenshot().equals(r"screenshots/wooden_pipe_straight", 400, 120, 880, 360)
+            ctx.screenshot().equals(r"screenshots/wooden_pipe_straight", 400, 120, 880, 360)
             phase = 1
-            _make_corner()
+            _make_corner(ctx)
             remeshed = false
             settled_ticks = 0
             ctx.not_done()
         } else {
-            Test.screenshot().equals(r"screenshots/wooden_pipe_corner", 400, 120, 880, 360)
+            ctx.screenshot().equals(r"screenshots/wooden_pipe_corner", 400, 120, 880, 360)
         }
     }
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
 
     # The default room is small and this fixture sits at its far edge, so ask for a room that holds
     # the pipe, its two chests and the wall behind them.
-    Test.set_box_radius(6)
+    ctx.set_box_radius(6)
 
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -74,7 +74,7 @@ local _setup(ctx: TestTickContext) {
 
     _wall(level, x - 6, y - 9, z + 6)
 
-    _place_pipe(level, x, y - 1.88, z + 4)
+    _place_pipe(ctx, level, x, y - 1.88, z + 4)
 
     # The source side is the east chest, so its arm is the plain-texture arm. The reference keeps its
     # source in the block's metadata, and on a neighbour change keeps a source that still holds an
@@ -88,7 +88,7 @@ local _setup(ctx: TestTickContext) {
     pipe.set(pipe_opt.unwrap())
 
     # The port's saved number is the side plus one, like the reference's metadata; side 5 is east.
-    if not Test.is_reference() {
+    if not me.is_reference() {
         pipe.unwrap().set_saved_number("source", 6)
     }
 }
@@ -97,17 +97,17 @@ local _setup(ctx: TestTickContext) {
 # right-clicking the side of a block at z + 1 with the pipe held, which is the face the test player's
 # eye sees of it, so the pipe lands at z; that block is cleared again so both scenes hold the same
 # blocks. ItemPipe names the item after its pipe class.
-local _place_pipe(level: Level, x: number, y: number, z: number) {
-    if not Test.is_reference() {
+local _place_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    if not me.is_reference() {
         level.place_block(x, y, z, "grug:wooden_pipe")
         return
     }
     level.place_block(x, y, z + 1, "minecraft:stone")
-    player: Player = Test.get_player()
+    player: Player = ctx.get_player()
     held: Item = item(resource_location("buildcraft:PipeItemsWood"))
-    Test.set_held_item(player, held)
-    Test.use_block(level, x, y, z + 1)
-    Test.clear_held_item(player)
+    ctx.set_held_item(player, held)
+    ctx.use_block(level, x, y, z + 1)
+    ctx.clear_held_item(player)
     level.place_block(x, y, z + 1, "minecraft:air")
 }
 
@@ -128,8 +128,8 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
 
 # Replaces the west chest with one to the south, so the arms leave adjacent sides instead of
 # opposite ones. The east chest stays the source, and the pipe's own shape is rebuilt by the swap.
-local _make_corner() {
-    level: Level = Test.get_client_level()
+local _make_corner(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
     x: number = origin_x
     y: number = origin_y
     z: number = origin_z
@@ -141,7 +141,7 @@ local _make_corner() {
 # back. The swapped block is outside the crop, and dirt and stone are both opaque and unlit, so the
 # swap changes no light and no compared pixel; it dirties the wall's sections and their neighbours.
 local _force_remesh(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     x: number = origin_x
     y: number = origin_y
     z: number = origin_z

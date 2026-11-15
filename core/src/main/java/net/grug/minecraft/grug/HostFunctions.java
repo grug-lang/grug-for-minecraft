@@ -36,8 +36,8 @@ public class HostFunctions {
      * revision no longer describes it (#1086). Every host function through which a test can write a
      * block, a block entity's saved data, inventory, energy or NBT, a slot a client may be showing,
      * an entity, a dropped item or the player's hand calls this, and so does a test that advances
-     * the world's simulation. It is what lets a forwarded {@code Test.world_settled} wait without
-     * freezing the world on every poll.
+     * the world's simulation. It is what lets a forwarded {@code TestTickContext.world_settled}
+     * wait without freezing the world on every poll.
      *
      * <p>It counts only a write made while a test's own export is running: the game ticks a mod's
      * block entities between calls, and a machine that saves its progress every tick must not move
@@ -68,7 +68,8 @@ public class HostFunctions {
         }
     }
 
-    public static long Test_get_client_level() {
+    public static long TestTickContext_get_client_level(long contextId) {
+        if (!requireTickContext("TestTickContext.get_client_level", contextId)) return 0;
         return addLevel(GrugCore.getAdapter().getLevel());
     }
 
@@ -79,7 +80,7 @@ public class HostFunctions {
             // empty one means a server with no world yet.
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.get_client_level: There is no level to test in on "
+                    "TestTickContext.get_client_level: There is no level to test in on "
                             + GrugCore.getAdapter().getSide().description()
                             + " yet.");
             return 0;
@@ -181,10 +182,11 @@ public class HostFunctions {
                 0L);
     }
 
-    public static void Test_set_held_item(long playerId, long itemId) {
+    public static void TestTickContext_set_held_item(long contextId, long playerId, long itemId) {
+        if (!requireTickContext("TestTickContext.set_held_item", contextId)) return;
         worldChanged();
         withEntities(
-                "Test.set_held_item",
+                "TestTickContext.set_held_item",
                 "player",
                 playerId,
                 "item",
@@ -192,10 +194,11 @@ public class HostFunctions {
                 (player, item) -> GrugCore.getAdapter().setHeldItem(player, item));
     }
 
-    public static void Test_clear_held_item(long playerId) {
+    public static void TestTickContext_clear_held_item(long contextId, long playerId) {
+        if (!requireTickContext("TestTickContext.clear_held_item", contextId)) return;
         worldChanged();
         withEntity(
-                "Test.clear_held_item",
+                "TestTickContext.clear_held_item",
                 "player",
                 playerId,
                 player -> GrugCore.getAdapter().setHeldItem(player, null));
@@ -205,9 +208,10 @@ public class HostFunctions {
      * Test only: how many items the player's main hand holds, so a test can tell one item from a
      * full stack. The held item itself is what {@code Player.get_held_item} answers.
      */
-    public static double Test_get_held_count(long playerId) {
+    public static double TestTickContext_get_held_count(long contextId, long playerId) {
+        if (!requireTickContext("TestTickContext.get_held_count", contextId)) return 0.0;
         return withEntity(
-                "Test.get_held_count",
+                "TestTickContext.get_held_count",
                 "player",
                 playerId,
                 player -> GrugCore.getAdapter().getHeldCount(player),
@@ -219,9 +223,10 @@ public class HostFunctions {
      * stack from one item without knowing which item this version's list puts first.
      */
     @GrugGenerated("asks the adapter about the game's own items: a unit test has no game")
-    public static double Test_get_item_max_stack(long itemId) {
+    public static double TestTickContext_get_item_max_stack(long contextId, long itemId) {
+        if (!requireTickContext("TestTickContext.get_item_max_stack", contextId)) return 0.0;
         return withEntity(
-                "Test.get_item_max_stack",
+                "TestTickContext.get_item_max_stack",
                 "item",
                 itemId,
                 item -> (double) GrugCore.getAdapter().getItemMaxStack(item),
@@ -233,9 +238,10 @@ public class HostFunctions {
      * where the reference reads the stack a left click deletes.
      */
     @GrugGenerated("asks the adapter to touch the game's own screen: a unit test has no game")
-    public static void Test_set_carried_item(long itemId) {
+    public static void TestTickContext_set_carried_item(long contextId, long itemId) {
+        if (!requireTickContext("TestTickContext.set_carried_item", contextId)) return;
         withEntity(
-                "Test.set_carried_item",
+                "TestTickContext.set_carried_item",
                 "item",
                 itemId,
                 item -> GrugCore.getAdapter().setCarriedItem(item));
@@ -246,13 +252,15 @@ public class HostFunctions {
      * out where the screen put its GUI and its display area instead of assuming a window size.
      */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
-    public static double Test_screen_width() {
+    public static double TestTickContext_screen_width(long contextId) {
+        if (!requireTickContext("TestTickContext.screen_width", contextId)) return 0.0;
         return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.SCREEN_WIDTH);
     }
 
     /** Test only: the x of the open container screen's GUI, the same measure an overlay gets. */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
-    public static double Test_gui_left() {
+    public static double TestTickContext_gui_left(long contextId) {
+        if (!requireTickContext("TestTickContext.gui_left", contextId)) return 0.0;
         return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.GUI_LEFT);
     }
 
@@ -260,13 +268,15 @@ public class HostFunctions {
      * Test only: the width of the open container screen's GUI, the same measure an overlay gets.
      */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
-    public static double Test_gui_width() {
+    public static double TestTickContext_gui_width(long contextId) {
+        if (!requireTickContext("TestTickContext.gui_width", contextId)) return 0.0;
         return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.GUI_WIDTH);
     }
 
     /** Test only: the y of the open container screen's GUI, the same measure an overlay gets. */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
-    public static double Test_gui_top() {
+    public static double TestTickContext_gui_top(long contextId) {
+        if (!requireTickContext("TestTickContext.gui_top", contextId)) return 0.0;
         return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.GUI_TOP);
     }
 
@@ -274,7 +284,8 @@ public class HostFunctions {
      * Test only: the height of the open container screen's GUI, the same measure an overlay gets.
      */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
-    public static double Test_gui_height() {
+    public static double TestTickContext_gui_height(long contextId) {
+        if (!requireTickContext("TestTickContext.gui_height", contextId)) return 0.0;
         return GrugScreenCalls.read(GrugCore.getAdapter(), GrugScreenCalls.GUI_HEIGHT);
     }
 
@@ -283,13 +294,15 @@ public class HostFunctions {
      * integrated server, so a test starts a press with nothing carried.
      */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
-    public static void Test_clear_carried_item() {
+    public static void TestTickContext_clear_carried_item(long contextId) {
+        if (!requireTickContext("TestTickContext.clear_carried_item", contextId)) return;
         GrugCore.getAdapter().deleteCarriedItem();
     }
 
     /** Test only: the item on the mouse cursor of the open container screen, if it holds one. */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
-    public static long Test_get_carried_item() {
+    public static long TestTickContext_get_carried_item(long contextId) {
+        if (!requireTickContext("TestTickContext.get_carried_item", contextId)) return 0;
         Object item = GrugCore.getAdapter().carriedItem();
         if (item == null) {
             return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
@@ -299,7 +312,8 @@ public class HostFunctions {
                 new GrugOption(GrugEntities.addEntity(GrugEntityType.Item, item)));
     }
 
-    public static long Test_get_player() {
+    public static long TestTickContext_get_player(long contextId) {
+        if (!requireTickContext("TestTickContext.get_player", contextId)) return 0;
         return addPlayer(GrugCore.getAdapter().testPlayer());
     }
 
@@ -310,7 +324,7 @@ public class HostFunctions {
             // and on a dedicated server it means nobody has joined yet.
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.get_player: There is no player to test from on "
+                    "TestTickContext.get_player: There is no player to test from on "
                             + GrugCore.getAdapter().getSide().description()
                             + " yet.");
             return 0;
@@ -318,7 +332,8 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Player, player);
     }
 
-    public static void Test_round_trip_nbt(long blockEntityId) {
+    public static void TestTickContext_round_trip_nbt(long contextId, long blockEntityId) {
+        if (!requireTickContext("TestTickContext.round_trip_nbt", contextId)) return;
         worldChanged();
         GrugCore.getAdapter().roundTripNbt(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
     }
@@ -334,7 +349,8 @@ public class HostFunctions {
      * whose block ids never reach above 255 has no such id to round trip, and answers -1, which is
      * a no-op rather than an err. See #518.
      */
-    public static double Test_high_block_round_trip() {
+    public static double TestTickContext_high_block_round_trip(long contextId) {
+        if (!requireTickContext("TestTickContext.high_block_round_trip", contextId)) return 0.0;
         worldChanged();
         return GrugCore.getAdapter().highBlockRoundTrip();
     }
@@ -351,18 +367,22 @@ public class HostFunctions {
      * whole, non-negative number of ticks means anything, so anything else is reported rather than
      * rounded.
      */
-    public static void Test_tick_block_entity(long blockEntityId, double ticks) {
+    public static void TestTickContext_tick_block_entity(
+            long contextId, long blockEntityId, double ticks) {
+        if (!requireTickContext("TestTickContext.tick_block_entity", contextId)) return;
         worldChanged();
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!GrugSavedNumbers.isHolder(blockEntity)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.tick_block_entity: Only a grug block entity has a tick to run.");
+                    "TestTickContext.tick_block_entity: Only a grug block entity has a tick to"
+                            + " run.");
             return;
         }
         String problem = GrugTestState.checkTickCount(ticks);
         if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.tick_block_entity: " + problem);
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.tick_block_entity: " + problem);
             return;
         }
         for (int tick = 0; tick < ticks; tick++) {
@@ -380,7 +400,7 @@ public class HostFunctions {
      * loader's order, with no frame, no screen and no client packet between them. What it cannot do
      * is make the client catch up, so anything the client draws or receives still needs a real
      * tick. The clock {@code Level.get_time} reads moves one per tick and the level's random is
-     * drawn from, unlike {@code Test.tick_block_entity}, which leaves both alone.
+     * drawn from, unlike {@code TestTickContext.tick_block_entity}, which leaves both alone.
      *
      * <p>Only a whole, non-negative number of ticks means anything, so anything else is reported
      * rather than rounded. The advances run past the runner's tick budget, which counts the test's
@@ -388,15 +408,16 @@ public class HostFunctions {
      * which is the count asked for on a loader that can advance its level and 0 on one that cannot
      * yet, so a test can tell an advance that did nothing from one that worked. See #753 and #780.
      */
-    public static double Test_tick_level(long levelId, double ticks) {
+    public static double TestTickContext_tick_level(long contextId, long levelId, double ticks) {
+        if (!requireTickContext("TestTickContext.tick_level", contextId)) return 0.0;
         worldChanged();
         String problem = GrugTestState.checkTickCount(ticks);
         if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.tick_level: " + problem);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "TestTickContext.tick_level: " + problem);
             return 0;
         }
         return withEntity(
-                "Test.tick_level",
+                "TestTickContext.tick_level",
                 "level",
                 levelId,
                 level -> (double) GrugCore.getAdapter().tickLevel(level, (int) ticks),
@@ -424,7 +445,9 @@ public class HostFunctions {
      * <p>The record outlives the process, so a run killed before it restored the file leaves
      * nothing behind for the next run to trip over. See {@link GrugModFileStates}.
      */
-    public static void Test_set_mod_file_state(String relativePath, String state) {
+    public static void TestTickContext_set_mod_file_state(
+            long contextId, String relativePath, String state) {
+        if (!requireTickContext("TestTickContext.set_mod_file_state", contextId)) return;
         worldChanged();
         GrugClientTestCalls.Forwarded forwarded = forwardedModFileCalls(relativePath);
         if (forwarded != null) {
@@ -435,7 +458,8 @@ public class HostFunctions {
             GrugModFileStates.set(
                     GrugCore.getAdapter().getGrugModsDirectory(), relativePath, state);
         } catch (Exception e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.set_mod_file_state: " + e);
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.set_mod_file_state: " + e);
         }
     }
 
@@ -447,7 +471,8 @@ public class HostFunctions {
      * granularity, and idempotent: an aborted run leaves the file disturbed, but a re-run sets the
      * same state rather than flipping past it, and the next startup puts the file back.
      */
-    public static double Test_hot_reload_count(String relativePath) {
+    public static double TestTickContext_hot_reload_count(long contextId, String relativePath) {
+        if (!requireTickContext("TestTickContext.hot_reload_count", contextId)) return 0.0;
         GrugClientTestCalls.Forwarded forwarded = forwardedModFileCalls(relativePath);
         if (forwarded != null) {
             return forwarded.hotReloadCount(relativePath);
@@ -458,11 +483,12 @@ public class HostFunctions {
     /**
      * How many times a loader has finished reloading after a change to {@code relativePath}.
      *
-     * <p>{@link #Test_hot_reload_count} says the engine saw the change; this says the loader has
-     * answered it. A test that checks what the reload rendered waits on this, because the engine's
-     * report only means the loader was told.
+     * <p>{@link #TestTickContext_hot_reload_count} says the engine saw the change; this says the
+     * loader has answered it. A test that checks what the reload rendered waits on this, because
+     * the engine's report only means the loader was told.
      */
-    public static double Test_reload_count(String relativePath) {
+    public static double TestTickContext_reload_count(long contextId, String relativePath) {
+        if (!requireTickContext("TestTickContext.reload_count", contextId)) return 0.0;
         GrugClientTestCalls.Forwarded forwarded = forwardedModFileCalls(relativePath);
         if (forwarded != null) {
             return forwarded.reloadCount(relativePath);
@@ -476,11 +502,26 @@ public class HostFunctions {
      * first call in a test is already at a known place, and later calls reuse it. See #609.
      *
      * <p>With no test player to measure from, as on a dedicated server nobody has joined, it
-     * reports an error naming this function and answers 0, the way {@link #Test_get_client_level}
-     * and {@link #Test_get_player} answer without a level or a player. See #188.
+     * reports an error naming this function and answers 0, the way {@link
+     * #TestTickContext_get_client_level} and {@link #TestTickContext_get_player} answer without a
+     * level or a player. See #188.
      */
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
-    public static long Test_get_origin() {
+    public static long TestTickContext_get_origin(long contextId) {
+        if (!requireTickContext("TestTickContext.get_origin", contextId)) return 0;
+        return origin();
+    }
+
+    /**
+     * The same origin, asked from {@code init()}: the first call of a test captures it, so a test
+     * that reads it here proves it is already the player's after the runner snapped them.
+     */
+    public static long TestInitContext_get_origin(long contextId) {
+        if (!requireInitContext("TestInitContext.get_origin", contextId)) return 0;
+        return origin();
+    }
+
+    private static long origin() {
         return addOrigin(
                 GrugTestState.captureTestOrigin(() -> GrugCore.getAdapter().getTestOrigin()));
     }
@@ -492,7 +533,8 @@ public class HostFunctions {
             // dedicated server it means nobody has joined yet.
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.get_origin: There is no test player to measure an origin from on "
+                    "TestTickContext.get_origin: There is no test player to measure an origin from"
+                            + " on "
                             + GrugCore.getAdapter().getSide().description()
                             + " yet.");
             return 0;
@@ -506,9 +548,10 @@ public class HostFunctions {
      * it is the joined client's, which the server asks (#1161), so a test can assert that the
      * client draws from the point the room was built around rather than from wherever its own view
      * has drifted to. With no camera to read, it reports the reason and answers 0, the way {@link
-     * #Test_get_origin} does without a player.
+     * #TestTickContext_get_origin} does without a player.
      */
-    public static long Test_camera() {
+    public static long TestTickContext_camera(long contextId) {
+        if (!requireTickContext("TestTickContext.camera", contextId)) return 0;
         ModLoaderAdapter adapter = GrugCore.getAdapter();
         // A forwarded read that failed already says why, so this does not add a second reason for
         // the same call; see play_ui_sound.
@@ -524,7 +567,7 @@ public class HostFunctions {
             if (!GrugControlServer.failed()) {
                 Grug.hostFunctionErrorHappened(
                         Grug.statePtr,
-                        "Test.camera: There is no test camera to measure on "
+                        "TestTickContext.camera: There is no test camera to measure on "
                                 + adapter.getSide().description()
                                 + " yet.");
             }
@@ -547,7 +590,9 @@ public class HostFunctions {
      * never saved there, which is also a number a script may have saved: a test whose number starts
      * at 0 cannot tell the two apart, so it saves a value it knows is not the starting one.
      */
-    public static double Test_client_saved_number(long blockEntityId, String name) {
+    public static double TestTickContext_client_saved_number(
+            long contextId, long blockEntityId, String name) {
+        if (!requireTickContext("TestTickContext.client_saved_number", contextId)) return 0.0;
         BlockPos pos =
                 GrugCore.getAdapter()
                         .getBlockPosOfBlockEntity(
@@ -561,28 +606,32 @@ public class HostFunctions {
      * <p>Host entities are weakly held, so a test that proves an entity is still rooted has to make
      * the collection deterministic instead of hoping GC timing lines up.
      */
-    public static void Test_force_gc() {
+    public static void TestTickContext_force_gc(long contextId) {
+        if (!requireTickContext("TestTickContext.force_gc", contextId)) return;
         System.gc();
     }
 
     /** Test only: stages a number in a block entity's own NBT. See {@link GrugBlockEntityNbt}. */
-    public static void Test_set_nbt_number(
-            long blockEntityId, String path, String type, double value) {
+    public static void TestTickContext_set_nbt_number(
+            long contextId, long blockEntityId, String path, String type, double value) {
+        if (!requireTickContext("TestTickContext.set_nbt_number", contextId)) return;
         GrugBlockEntityNbt.report(
-                "Test.set_nbt_number",
+                "TestTickContext.set_nbt_number",
                 GrugBlockEntityNbt.stageNumber(
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId), path, type, value));
     }
 
     /** Test only: stages an item in a block entity's own NBT. See {@link GrugBlockEntityNbt}. */
-    public static void Test_set_nbt_item(long blockEntityId, String path, long itemId) {
+    public static void TestTickContext_set_nbt_item(
+            long contextId, long blockEntityId, String path, long itemId) {
+        if (!requireTickContext("TestTickContext.set_nbt_item", contextId)) return;
         withEntity(
-                "Test.set_nbt_item",
+                "TestTickContext.set_nbt_item",
                 "item",
                 itemId,
                 item ->
                         GrugBlockEntityNbt.report(
-                                "Test.set_nbt_item",
+                                "TestTickContext.set_nbt_item",
                                 GrugBlockEntityNbt.stageItem(
                                         HostFunctionHelpers.resolveBlockEntity(blockEntityId),
                                         path,
@@ -590,14 +639,15 @@ public class HostFunctions {
     }
 
     /** Test only: loads a block entity's staged NBT edits. See {@link GrugBlockEntityNbt}. */
-    public static void Test_load_nbt(long blockEntityId) {
+    public static void TestTickContext_load_nbt(long contextId, long blockEntityId) {
+        if (!requireTickContext("TestTickContext.load_nbt", contextId)) return;
         worldChanged();
         GrugBlockEntityNbt.report(
-                "Test.load_nbt",
+                "TestTickContext.load_nbt",
                 GrugBlockEntityNbt.load(HostFunctionHelpers.resolveBlockEntity(blockEntityId)));
     }
 
-    public static boolean Test_is_reference() {
+    public static boolean Test_is_reference(long testId) {
         return GrugReference.isReferenceRun();
     }
 
@@ -612,7 +662,7 @@ public class HostFunctions {
      * {@code client_light_applied} uses this to assert its far section only where the joined
      * client's copy is the one that lacks it. See #1240.
      */
-    public static boolean Test_on_dedicated_server() {
+    public static boolean Test_on_dedicated_server(long testId) {
         return GrugCore.getAdapter().getSide().isDedicatedServer();
     }
 
@@ -625,7 +675,8 @@ public class HostFunctions {
      * not the state was forced: the overlay's pin makes its capture identical either way, so a
      * loader that lost its hook would leave the capture green and unproven (#1144).
      */
-    public static boolean Test_normalization_forced() {
+    public static boolean TestTickContext_normalization_forced(long contextId) {
+        if (!requireTickContext("TestTickContext.normalization_forced", contextId)) return false;
         return GrugTestState.forcedNormalization;
     }
 
@@ -636,7 +687,7 @@ public class HostFunctions {
      * <p>A test that asserts one of those recipes asks this first, so a future loader that cannot
      * register the tree does not fail the run for something it cannot do.
      */
-    public static boolean Test_registers_mod_recipes() {
+    public static boolean Test_registers_mod_recipes(long testId) {
         return GrugCore.getAdapter().registersModRecipes();
     }
 
@@ -647,11 +698,11 @@ public class HostFunctions {
      * item_stack} to refuse one has to know which limit it is asserting. The name is the same one
      * the adapter already gives the screenshot tree, so it names the loader exactly.
      */
-    public static String Test_loader_name() {
+    public static String Test_loader_name(long testId) {
         return GrugCore.getAdapter().getLoaderName();
     }
 
-    /** The longest {@code Test.stall} may block the game, in milliseconds. */
+    /** The longest {@code TestTickContext.stall} may block the game, in milliseconds. */
     static final double MAX_STALL_MILLISECONDS = 10_000;
 
     /**
@@ -665,11 +716,23 @@ public class HostFunctions {
      * or a frame still waits for the condition: a stall is how such a test proves it. See #688 and
      * #709.
      */
-    public static void Test_stall(double milliseconds) {
+    public static void TestTickContext_stall(long contextId, double milliseconds) {
+        if (!requireTickContext("TestTickContext.stall", contextId)) return;
+        stall("TestTickContext.stall", milliseconds);
+    }
+
+    /** The same stall, from {@code init()}, which holds the server thread before the first tick. */
+    public static void TestInitContext_stall(long contextId, double milliseconds) {
+        if (!requireInitContext("TestInitContext.stall", contextId)) return;
+        stall("TestInitContext.stall", milliseconds);
+    }
+
+    private static void stall(String method, double milliseconds) {
         if (!(milliseconds >= 0 && milliseconds <= MAX_STALL_MILLISECONDS)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.stall: The time has to be from 0 to "
+                    method
+                            + ": The time has to be from 0 to "
                             + (long) MAX_STALL_MILLISECONDS
                             + " milliseconds, and was "
                             + milliseconds
@@ -697,23 +760,25 @@ public class HostFunctions {
      * world, and the golden it writes down silently becomes the panel.
      *
      * <p>The remembered state is cleared too, so the next screen to open is seen as a fresh one and
-     * {@link #Test_screen_open()} forgets the settled frames for it.
+     * {@link #TestTickContext_screen_open} forgets the settled frames for it.
      */
-    public static void Test_close_screen() {
+    public static void TestTickContext_close_screen(long contextId) {
+        if (!requireTickContext("TestTickContext.close_screen", contextId)) return;
         GrugScreenCalls.closeScreen(GrugCore.getAdapter());
     }
 
     /**
      * Test only: whether a screen is open, which on a dedicated server is the joined client's own
      * screen (#1094). A block's GUI is opened by a packet from the server on 1.20.6, so it is not
-     * open yet when {@code Test.use_block} returns, and a settled world does not say it has
-     * arrived. See #418.
+     * open yet when {@code TestTickContext.use_block} returns, and a settled world does not say it
+     * has arrived. See #418.
      *
      * <p>A screen that has just appeared forgets the frames counted so far, so a following {@code
      * world_settled} wait can only be answered by frames drawn after the screen opened. See {@link
      * GrugScreenCalls#screenOpen}.
      */
-    public static boolean Test_screen_open() {
+    public static boolean TestTickContext_screen_open(long contextId) {
+        if (!requireTickContext("TestTickContext.screen_open", contextId)) return false;
         return GrugScreenCalls.screenOpen(GrugCore.getAdapter());
     }
 
@@ -727,7 +792,7 @@ public class HostFunctions {
      * client's answer, asked of the client of the player who started the run (#1099). See {@link
      * ModLoaderAdapter#overlaySupportedForTest}.
      */
-    public static boolean Test_overlay_supported() {
+    public static boolean Test_overlay_supported(long testId) {
         return GrugCore.getAdapter().overlaySupportedForTest();
     }
 
@@ -736,16 +801,17 @@ public class HostFunctions {
      * that is open now, which a test waits for before it clicks. The mark is cleared when an
      * eligible screen opens, so a test waits for a frame of its own screen rather than for one
      * another mod drew on an earlier one. Asking also asks the client to draw the next frame, the
-     * way {@code Test.world_settled} does, because a test that never captures has its frames
-     * skipped and would otherwise wait for a frame that no test asked for. The answer is set on the
-     * render thread, so waiting for it is how a test tells a screen that was really drawn from one
-     * the game closed before a frame.
+     * way {@code TestTickContext.world_settled} does, because a test that never captures has its
+     * frames skipped and would otherwise wait for a frame that no test asked for. The answer is set
+     * on the render thread, so waiting for it is how a test tells a screen that was really drawn
+     * from one the game closed before a frame.
      *
      * <p>On a dedicated server the mark belongs to the joined client's frame pass, so the answer
      * comes from the client of the player who started the run, which is told which mod's overlay
      * the running test waits for (#1099). See {@link ModLoaderAdapter#overlayDrawnForTest}.
      */
-    public static boolean Test_overlay_drawn() {
+    public static boolean TestTickContext_overlay_drawn(long contextId) {
+        if (!requireTickContext("TestTickContext.overlay_drawn", contextId)) return false;
         return GrugCore.getAdapter().overlayDrawnForTest(GrugTestState.currentTestMod);
     }
 
@@ -755,7 +821,9 @@ public class HostFunctions {
      */
     @GrugGenerated(
             "asks the adapter to press a key on the game's own screen: a unit test has no game")
-    public static boolean Test_press_screen_key(double key, boolean ctrl, boolean release) {
+    public static boolean TestTickContext_press_screen_key(
+            long contextId, double key, boolean ctrl, boolean release) {
+        if (!requireTickContext("TestTickContext.press_screen_key", contextId)) return false;
         String problem = screenKeyProblem(key);
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
@@ -764,10 +832,11 @@ public class HostFunctions {
         return GrugCore.getAdapter().pressScreenKey((int) key, ctrl, release);
     }
 
-    /** Why Test.press_screen_key refuses this key, or null when it can drive it. */
+    /** Why TestTickContext.press_screen_key refuses this key, or null when it can drive it. */
     static String screenKeyProblem(double key) {
         if (!Double.isFinite(key) || key != Math.floor(key) || key < 0) {
-            return "Test.press_screen_key: The key has to be a whole number from 0 up, and was "
+            return "TestTickContext.press_screen_key: The key has to be a whole number from 0 up,"
+                    + " and was "
                     + key
                     + ".";
         }
@@ -780,9 +849,10 @@ public class HostFunctions {
      * screen_open} before clicking it.
      */
     @GrugGenerated("asks the adapter to open the game's own screen: a unit test has no game")
-    public static void Test_open_inventory(long playerId) {
+    public static void TestTickContext_open_inventory(long contextId, long playerId) {
+        if (!requireTickContext("TestTickContext.open_inventory", contextId)) return;
         withEntity(
-                "Test.open_inventory",
+                "TestTickContext.open_inventory",
                 "player",
                 playerId,
                 player -> GrugCore.getAdapter().openInventory(player));
@@ -800,7 +870,9 @@ public class HostFunctions {
      * drives without a game.
      */
     @GrugGenerated("asks the adapter to press on the game's own screen: a unit test has no game")
-    public static boolean Test_click_screen(double x, double y, double button) {
+    public static boolean TestTickContext_click_screen(
+            long contextId, double x, double y, double button) {
+        if (!requireTickContext("TestTickContext.click_screen", contextId)) return false;
         String problem = screenClickProblem(x, y, button);
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
@@ -809,14 +881,14 @@ public class HostFunctions {
         return GrugCore.getAdapter().clickScreen(x, y, (int) button);
     }
 
-    /** Why Test.click_screen refuses this press, or null when it can drive it. */
+    /** Why TestTickContext.click_screen refuses this press, or null when it can drive it. */
     static String screenClickProblem(double x, double y, double button) {
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
-            return "Test.click_screen: The position has to be finite.";
+            return "TestTickContext.click_screen: The position has to be finite.";
         }
         String problem = GrugScreenCalls.buttonProblem(button);
         if (problem != null) {
-            return "Test.click_screen: " + problem;
+            return "TestTickContext.click_screen: " + problem;
         }
         return null;
     }
@@ -826,7 +898,9 @@ public class HostFunctions {
      * takes, and answers whether an overlay took it.
      */
     @GrugGenerated("asks the adapter to scroll the game's own screen: a unit test has no game")
-    public static boolean Test_scroll_screen(double x, double y, double delta) {
+    public static boolean TestTickContext_scroll_screen(
+            long contextId, double x, double y, double delta) {
+        if (!requireTickContext("TestTickContext.scroll_screen", contextId)) return false;
         String problem = screenScrollProblem(x, y, delta);
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
@@ -835,13 +909,13 @@ public class HostFunctions {
         return GrugCore.getAdapter().scrollScreen(x, y, delta);
     }
 
-    /** Why Test.scroll_screen refuses this movement, or null when it can drive it. */
+    /** Why TestTickContext.scroll_screen refuses this movement, or null when it can drive it. */
     static String screenScrollProblem(double x, double y, double delta) {
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
-            return "Test.scroll_screen: The position has to be finite.";
+            return "TestTickContext.scroll_screen: The position has to be finite.";
         }
         if (!Double.isFinite(delta)) {
-            return "Test.scroll_screen: The delta has to be finite.";
+            return "TestTickContext.scroll_screen: The delta has to be finite.";
         }
         return null;
     }
@@ -851,7 +925,8 @@ public class HostFunctions {
      * radius. The runner builds a small one before every test; a test whose fixture reaches further
      * than that calls this at the top of its setup. See #253.
      */
-    public static void Test_set_box_radius(double radius) {
+    public static void TestTickContext_set_box_radius(long contextId, double radius) {
+        if (!requireTickContext("TestTickContext.set_box_radius", contextId)) return;
         String problem = boxRadiusProblem(radius);
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
@@ -869,15 +944,16 @@ public class HostFunctions {
      */
     static final int MAX_BOX_RADIUS = 30;
 
-    /** Why Test.set_box_radius refuses this radius, or null when it can build it. */
+    /** Why TestTickContext.set_box_radius refuses this radius, or null when it can build it. */
     static String boxRadiusProblem(double radius) {
         if (!Double.isFinite(radius) || radius != Math.floor(radius) || radius < 0) {
-            return "Test.set_box_radius: The radius has to be a whole number from 0 up, and was "
+            return "TestTickContext.set_box_radius: The radius has to be a whole number from 0 up,"
+                    + " and was "
                     + radius
                     + ".";
         }
         if (radius > MAX_BOX_RADIUS) {
-            return "Test.set_box_radius: The radius has to be at most "
+            return "TestTickContext.set_box_radius: The radius has to be at most "
                     + MAX_BOX_RADIUS
                     + " so the room stays inside the chunks the client holds, and was "
                     + radius
@@ -902,7 +978,8 @@ public class HostFunctions {
      * frame, so it can be in the capture although nothing here waited for it. A block the test
      * places is counted before this can answer. See {@link GrugRenderSettle} and #1154.
      */
-    public static boolean Test_world_settled() {
+    public static boolean TestTickContext_world_settled(long contextId) {
+        if (!requireTickContext("TestTickContext.world_settled", contextId)) return false;
         // A settle wait is about frames, so asking whether the client has a settled one means the
         // test wants one drawn. The frame count was forgotten when this test's room was built, so
         // the two frames that satisfy the wait are frames this call asked for. See
@@ -931,7 +1008,9 @@ public class HostFunctions {
      * answer can end a wait that never checked the room. {@link #lightAppliedProblem} refuses it,
      * and a grug test drives that refusal on every loader.
      */
-    public static boolean Test_light_applied(double x, double y, double z) {
+    public static boolean TestTickContext_light_applied(
+            long contextId, double x, double y, double z) {
+        if (!requireTickContext("TestTickContext.light_applied", contextId)) return false;
         String problem = lightAppliedProblem(x, y, z);
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
@@ -940,11 +1019,14 @@ public class HostFunctions {
         return GrugCore.getAdapter().lightApplied(x, y, z);
     }
 
-    /** Why Test.light_applied refuses this position, or null when it can read the light there. */
+    /**
+     * Why TestTickContext.light_applied refuses this position, or null when it can read the light
+     * there.
+     */
     static String lightAppliedProblem(double x, double y, double z) {
         for (double position : new double[] {x, y, z}) {
             if (!Double.isFinite(position)) {
-                return "Test.light_applied: The position has to be finite, and was ("
+                return "TestTickContext.light_applied: The position has to be finite, and was ("
                         + x
                         + ", "
                         + y
@@ -956,34 +1038,41 @@ public class HostFunctions {
         return null;
     }
 
-    public static void Test_notify_neighbors(long levelId, double x, double y, double z) {
+    public static void TestTickContext_notify_neighbors(
+            long contextId, long levelId, double x, double y, double z) {
+        if (!requireTickContext("TestTickContext.notify_neighbors", contextId)) return;
         worldChanged();
         withEntity(
-                "Test.notify_neighbors",
+                "TestTickContext.notify_neighbors",
                 "level",
                 levelId,
                 level -> GrugCore.getAdapter().notifyNeighbors(level, x, y, z));
     }
 
-    public static void Test_use_block(long levelId, double x, double y, double z) {
+    public static void TestTickContext_use_block(
+            long contextId, long levelId, double x, double y, double z) {
+        if (!requireTickContext("TestTickContext.use_block", contextId)) return;
         worldChanged();
         withEntity(
-                "Test.use_block",
+                "TestTickContext.use_block",
                 "level",
                 levelId,
                 level -> GrugCore.getAdapter().useBlockForTest(level, x, y, z));
     }
 
-    public static boolean Test_mining_crack(long levelId, double x, double y, double z) {
+    public static boolean TestTickContext_mining_crack(
+            long contextId, long levelId, double x, double y, double z) {
+        if (!requireTickContext("TestTickContext.mining_crack", contextId)) return false;
         return withEntity(
-                "Test.mining_crack",
+                "TestTickContext.mining_crack",
                 "level",
                 levelId,
                 level -> GrugCore.getAdapter().miningCrackForTest(level, x, y, z),
                 false);
     }
 
-    public static boolean Test_block_collision(
+    public static boolean TestTickContext_block_collision(
+            long contextId,
             long levelId,
             double x,
             double y,
@@ -994,6 +1083,7 @@ public class HostFunctions {
             double maxX,
             double maxY,
             double maxZ) {
+        if (!requireTickContext("TestTickContext.block_collision", contextId)) return false;
         return GrugCore.getAdapter()
                 .blockCollisionIntersects(
                         GrugEntities.entityData.get(levelId).object,
@@ -1008,7 +1098,8 @@ public class HostFunctions {
                         maxZ);
     }
 
-    public static boolean Test_block_selection(
+    public static boolean TestTickContext_block_selection(
+            long contextId,
             long levelId,
             double x,
             double y,
@@ -1016,6 +1107,7 @@ public class HostFunctions {
             double pointX,
             double pointY,
             double pointZ) {
+        if (!requireTickContext("TestTickContext.block_selection", contextId)) return false;
         return GrugCore.getAdapter()
                 .blockSelectionContains(
                         GrugEntities.entityData.get(levelId).object,
@@ -1027,7 +1119,8 @@ public class HostFunctions {
                         pointZ);
     }
 
-    public static boolean Test_block_ray_trace(
+    public static boolean TestTickContext_block_ray_trace(
+            long contextId,
             long levelId,
             double x,
             double y,
@@ -1038,6 +1131,7 @@ public class HostFunctions {
             double endX,
             double endY,
             double endZ) {
+        if (!requireTickContext("TestTickContext.block_ray_trace", contextId)) return false;
         return GrugCore.getAdapter()
                 .blockRayTraceHits(
                         GrugEntities.entityData.get(levelId).object,
@@ -1052,10 +1146,11 @@ public class HostFunctions {
                         endZ);
     }
 
-    public static double Test_display_tick(
-            long levelId, double x, double y, double z, double seed) {
+    public static double TestTickContext_display_tick(
+            long contextId, long levelId, double x, double y, double z, double seed) {
+        if (!requireTickContext("TestTickContext.display_tick", contextId)) return 0.0;
         return withEntity(
-                "Test.display_tick",
+                "TestTickContext.display_tick",
                 "level",
                 levelId,
                 level -> {
@@ -1070,21 +1165,23 @@ public class HostFunctions {
                 0.0);
     }
 
-    public static long Test_particle_position(double index) {
+    public static long TestTickContext_particle_position(long contextId, double index) {
+        if (!requireTickContext("TestTickContext.particle_position", contextId)) return 0;
         GrugDisplayTicks.Particle particle = GrugDisplayTicks.recorded((int) index);
         if (particle == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.particle_position: There is no particle number "
+                    "TestTickContext.particle_position: There is no particle number "
                             + (long) index
-                            + " in the last Test.display_tick().");
+                            + " in the last TestTickContext.display_tick().");
             return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
         }
         return GrugEntities.addEntity(
                 GrugEntityType.Vec3, new Vec3(particle.x, particle.y, particle.z));
     }
 
-    public static long Test_screenshot() {
+    public static long TestTickContext_screenshot(long contextId) {
+        if (!requireTickContext("TestTickContext.screenshot", contextId)) return 0;
         // A test that builds a screenshot entity is about to capture, so it wants frames drawn from
         // here, which is before the settle wait in front of the capture. See GrugFrameRequest.
         GrugFrameRequest.request();
@@ -2127,7 +2224,7 @@ public class HostFunctions {
     public static void Screenshot_equals(
             long screenshotId, String referencePath, double x1, double y1, double x2, double y2) {
         // A capture reads a drawn frame, so the test wants one even if it reached this call without
-        // Test.screenshot. See GrugFrameRequest.
+        // TestTickContext.screenshot. See GrugFrameRequest.
         GrugFrameRequest.request();
         // The rectangle is checked here, before the adapter is asked, so a typo is reported as a
         // typo on every side (#1040).
@@ -3338,6 +3435,11 @@ public class HostFunctions {
     public static void OverlayClickContext_take(long contextId) {
         if (!requireOverlayClickContext("OverlayClickContext.take", contextId)) return;
         GrugOverlay.take();
+    }
+
+    public static void OverlayClickContext_close_screen(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.close_screen", contextId)) return;
+        GrugScreenCalls.closeScreen(GrugCore.getAdapter());
     }
 
     /**
