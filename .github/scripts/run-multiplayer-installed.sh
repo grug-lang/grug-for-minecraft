@@ -121,8 +121,8 @@ max-tick-time=-1
 spawn-protection=0
 PROPS
 if [ "$LOADER" != "1.20.6-forge" ]; then
-  # The old servers spawn mobs and kick a player they see floating, which the boot has no use for.
-  printf 'spawn-monsters=false\nspawn-animals=false\nallow-flight=true\n' >> "${SERVER_DIR}/server.properties"
+  # The old servers spawn mobs, which the boot has no use for.
+  printf 'spawn-monsters=false\nspawn-animals=false\n' >> "${SERVER_DIR}/server.properties"
 fi
 
 # The coverage fixtures and the bundled mods' state, where a player puts a mod they downloaded and
