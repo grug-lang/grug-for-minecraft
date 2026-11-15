@@ -836,6 +836,13 @@ public class ClientForgeAdapter extends ForgeAdapter {
     }
 
     @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
+    public void pressWorldKey(int key, boolean ctrl) {
+        if (refuseWithoutAClient("TestTickContext.press_world_key")) return;
+        GrugOverlayHost.pressWorldKey(key, ctrl);
+    }
+
+    @Override
     @GrugGenerated("the no-screen arm: a run scrolls while the screen it just opened is up")
     public boolean scrollScreen(double x, double y, double delta) {
         if (refuseWithoutAClient("TestTickContext.scroll_screen")) return false;

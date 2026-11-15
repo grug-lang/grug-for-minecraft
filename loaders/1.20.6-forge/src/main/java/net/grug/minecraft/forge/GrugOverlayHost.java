@@ -1,5 +1,9 @@
 package net.grug.minecraft.forge;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+
 import net.grug.minecraft.forge.gui.GrugScreen;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
@@ -10,13 +14,21 @@ import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugTestState;
+import net.grug.minecraft.grug.GrugWorldKeys;
+import net.grug.minecraft.grug.GrugWorldOverlay;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.util.ArrayList;
@@ -69,6 +81,9 @@ public final class GrugOverlayHost {
         final long clickFnId;
         final long keyFnId;
         final long scrollFnId;
+        final long hudFnId;
+        final long worldFnId;
+        final long worldKeyFnId;
         final String mod;
 
         Overlay(
@@ -78,6 +93,9 @@ public final class GrugOverlayHost {
                 long clickFnId,
                 long keyFnId,
                 long scrollFnId,
+                long hudFnId,
+                long worldFnId,
+                long worldKeyFnId,
                 String mod) {
             this.entityHandle = entityHandle;
             this.owner = owner;
@@ -85,6 +103,9 @@ public final class GrugOverlayHost {
             this.clickFnId = clickFnId;
             this.keyFnId = keyFnId;
             this.scrollFnId = scrollFnId;
+            this.hudFnId = hudFnId;
+            this.worldFnId = worldFnId;
+            this.worldKeyFnId = worldKeyFnId;
             this.mod = mod;
         }
     }
@@ -98,6 +119,7 @@ public final class GrugOverlayHost {
         overlayFileIds = new TreeMap<>(files);
         overlayMods = new TreeMap<>(mods);
         GrugOverlay.noteSupported();
+        GrugWorldOverlay.noteSupported();
     }
 
     private static void ensureCreated() {
@@ -116,6 +138,9 @@ public final class GrugOverlayHost {
                             Grug.getExportFnId("Overlay", "click"),
                             Grug.getExportFnId("Overlay", "key"),
                             Grug.getExportFnId("Overlay", "scroll"),
+                            Grug.getExportFnId("Overlay", "render_hud"),
+                            Grug.getExportFnId("Overlay", "render_world"),
+                            Grug.getExportFnId("Overlay", "world_key"),
                             overlayMods.getOrDefault(entry.getKey(), "")));
         }
     }
@@ -319,5 +344,151 @@ public final class GrugOverlayHost {
         if (container instanceof GrugScreen) return null;
         if (container.width <= 0 || container.height <= 0) return null;
         return container;
+    }
+
+    private static final GrugWorldKeys worldKeys = new GrugWorldKeys();
+
+    private static final int GLFW_KEY_LEFT_CONTROL = 341;
+    private static final int GLFW_KEY_RIGHT_CONTROL = 345;
+    private static final int GLFW_KEY_LEFT_SUPER = 343;
+    private static final int GLFW_KEY_RIGHT_SUPER = 347;
+
+    /**
+     * Draws every overlay's HUD export on top of the finished HUD, in the GUI's scaled pixels,
+     * while no screen is open and F1 has not hidden the HUD. Called from the end of {@code
+     * Gui.render}.
+     */
+    public static void drawHud(Minecraft minecraft, GuiGraphics graphics) {
+        if (minecraft.level == null || minecraft.screen != null || minecraft.options.hideGui) {
+            return;
+        }
+        ensureCreated();
+        String testMod = GrugTestState.currentTestMod;
+        for (Overlay overlay : overlays) {
+            List<GrugWorldOverlay.Text> texts =
+                    GrugWorldOverlay.hud(
+                            overlay.entityHandle,
+                            overlay.hudFnId,
+                            minecraft.getWindow().getGuiScaledWidth(),
+                            minecraft.getWindow().getGuiScaledHeight());
+            for (GrugWorldOverlay.Text text : texts) {
+                graphics.drawString(
+                        minecraft.font,
+                        text.text(),
+                        (int) text.x(),
+                        (int) text.y(),
+                        0xFF000000 | text.rgb());
+            }
+            if (!texts.isEmpty() && overlay.mod.equals(testMod)) {
+                GrugWorldOverlay.noteDrawn();
+            }
+        }
+        graphics.flush();
+    }
+
+    /**
+     * Draws every overlay's world export as lines after the particles, depth-tested against the
+     * level. The level's model-view matrix is already on the render system when this stage fires,
+     * so the lines go in through an identity pose, camera-relative.
+     */
+    @SubscribeEvent
+    public static void onRenderLevel(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) return;
+        ensureCreated();
+        Camera camera = event.getCamera();
+        Vec3 position = camera.getPosition();
+        String testMod = GrugTestState.currentTestMod;
+        for (Overlay overlay : overlays) {
+            List<GrugWorldOverlay.Line> lines =
+                    GrugWorldOverlay.world(
+                            overlay.entityHandle,
+                            overlay.worldFnId,
+                            event.getPartialTick(),
+                            position.x,
+                            position.y,
+                            position.z);
+            if (lines.isEmpty()) continue;
+            if (overlay.mod.equals(testMod)) {
+                GrugWorldOverlay.noteDrawn();
+            }
+            MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+            VertexConsumer consumer = buffers.getBuffer(RenderType.lines());
+            PoseStack.Pose pose = new PoseStack().last();
+            for (GrugWorldOverlay.Line line : lines) {
+                int rgb = line.rgb();
+                int r = (rgb >> 16) & 0xFF;
+                int g = (rgb >> 8) & 0xFF;
+                int b = rgb & 0xFF;
+                float x1 = (float) (line.x1() - position.x);
+                float y1 = (float) (line.y1() - position.y);
+                float z1 = (float) (line.z1() - position.z);
+                float x2 = (float) (line.x2() - position.x);
+                float y2 = (float) (line.y2() - position.y);
+                float z2 = (float) (line.z2() - position.z);
+                float dx = x2 - x1;
+                float dy = y2 - y1;
+                float dz = z2 - z1;
+                float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (length > 0.0F) {
+                    dx /= length;
+                    dy /= length;
+                    dz /= length;
+                }
+                consumer.vertex(pose.pose(), x1, y1, z1)
+                        .color(r, g, b, 255)
+                        .normal(pose, dx, dy, dz)
+                        .endVertex();
+                consumer.vertex(pose.pose(), x2, y2, z2)
+                        .color(r, g, b, 255)
+                        .normal(pose, dx, dy, dz)
+                        .endVertex();
+            }
+            buffers.endBatch(RenderType.lines());
+        }
+    }
+
+    /**
+     * Polls the letter and digit keys once per client tick and asks the overlays' world_key export
+     * about each fresh press made with no screen open. A key held across ticks, or through a
+     * screen, fires once at most.
+     */
+    @SubscribeEvent
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) return;
+        boolean open = minecraft.screen == null;
+        long window = minecraft.getWindow().getWindow();
+        for (int code = '0'; code <= 'Z'; code++) {
+            if (!GrugWorldKeys.tracked(code)) continue;
+            // GLFW's letter and digit key codes are the upper case ASCII codes.
+            boolean down = InputConstants.isKeyDown(window, code);
+            if (worldKeys.deliver(code, down, open)) {
+                deliverWorldKey(code, controlDown(window));
+            }
+        }
+    }
+
+    private static boolean controlDown(long window) {
+        return InputConstants.isKeyDown(window, GLFW_KEY_LEFT_CONTROL)
+                || InputConstants.isKeyDown(window, GLFW_KEY_RIGHT_CONTROL)
+                || (Minecraft.ON_OSX
+                        && (InputConstants.isKeyDown(window, GLFW_KEY_LEFT_SUPER)
+                                || InputConstants.isKeyDown(window, GLFW_KEY_RIGHT_SUPER)));
+    }
+
+    private static void deliverWorldKey(int code, boolean ctrl) {
+        ensureCreated();
+        for (Overlay overlay : overlays) {
+            GrugWorldOverlay.key(overlay.entityHandle, overlay.worldKeyFnId, code, ctrl);
+        }
+    }
+
+    /** Test only: delivers one press of the key whose character code is {@code code}. */
+    static void pressWorldKey(int code, boolean ctrl) {
+        GrugWorldOverlay.clearDrawn();
+        deliverWorldKey(code, ctrl);
     }
 }

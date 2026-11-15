@@ -1,6 +1,8 @@
 package net.grug.minecraft.forge.mixin;
 
 import net.grug.minecraft.forge.GrugModLoader;
+import net.grug.minecraft.forge.GrugOverlayHost;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.entity.Entity;
@@ -38,5 +40,14 @@ public abstract class GuiMixin {
         if (GrugModLoader.isTestRunActive()) {
             this.vignetteBrightness = 0.0F;
         }
+    }
+
+    /**
+     * The HUD overlay hook: draws the overlays' HUD export after the game's own HUD, so it sits on
+     * top of it. Needs no call-site target because it is the return of {@code Gui.render} itself.
+     */
+    @Inject(method = "render", at = @At("RETURN"))
+    private void grug$drawHudOverlay(GuiGraphics guiGraphics, float partialTick, CallbackInfo ci) {
+        GrugOverlayHost.drawHud(Minecraft.getInstance(), guiGraphics);
     }
 }
