@@ -7,6 +7,7 @@ import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
 import net.grug.minecraft.ornithe.block.entity.GrugSavedDataPacket;
 import net.grug.minecraft.ornithe.client.ClientGrugScreens;
+import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.control.GrugControlAlphaClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.TickTimer;
@@ -92,6 +93,7 @@ public abstract class MinecraftMixin implements GrugClientAccess {
         // installed here, on the thread that draws (#1098).
         ClientGrugScreens.applyPending((Minecraft) (Object) this);
         GrugControlAlphaClient.onClientTick((Minecraft) (Object) this, grug$hooks);
+        GrugOverlayHost.pollWorldKeys((Minecraft) (Object) this);
     }
 
     @Override

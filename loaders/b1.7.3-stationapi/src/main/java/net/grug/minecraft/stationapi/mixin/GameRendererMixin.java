@@ -1,8 +1,11 @@
 package net.grug.minecraft.stationapi.mixin;
 
+import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.stationapi.GrugClientHooks;
+import net.grug.minecraft.stationapi.client.GrugOverlayHost;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.render.GameRenderer;
 
 import org.lwjgl.opengl.GL11;
@@ -27,6 +30,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class GameRendererMixin {
     @Inject(method = "onFrameUpdate(F)V", at = @At("RETURN"))
     private void grug$onFrameRendered(CallbackInfo ci) {
+        Minecraft minecraft = (Minecraft) FabricLoader.getInstance().getGameInstance();
+        if (minecraft.world != null && minecraft.currentScreen == null) {
+            GrugOverlayHost.drawHud(minecraft);
+        }
         GrugCore.getAdapter().onFrameRendered();
     }
 
@@ -45,6 +52,17 @@ public class GameRendererMixin {
         if (!GrugFrameRequest.wanted()) {
             ci.cancel();
         }
+    }
+
+    /**
+     * The world overlay hook: the snow pass is the last world draw before the clouds, the depth
+     * clear and the hand, so a line drawn at its return is depth-tested against the world. It is a
+     * method of this class, so it needs no call-site target.
+     */
+    @Inject(method = "renderSnow(F)V", at = @At("RETURN"))
+    private void grug$drawWorldOverlay(float partialTicks, CallbackInfo ci) {
+        GrugOverlayHost.drawWorld(
+                (Minecraft) FabricLoader.getInstance().getGameInstance(), partialTicks);
     }
 
     @Inject(method = "applyFog(IF)V", at = @At("RETURN"))

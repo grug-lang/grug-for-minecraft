@@ -3,6 +3,7 @@ package net.grug.minecraft.stationapi.mixin;
 import net.grug.minecraft.core.GrugConnectAddress;
 import net.grug.minecraft.stationapi.GrugClientAccess;
 import net.grug.minecraft.stationapi.GrugClientHooks;
+import net.grug.minecraft.stationapi.client.GrugOverlayHost;
 import net.grug.minecraft.stationapi.control.GrugControlStationClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.util.Timer;
@@ -61,6 +62,7 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     private void onClientTick(CallbackInfo ci) {
         grug$hooks.tick();
         GrugControlStationClient.onClientTick((Minecraft) (Object) this, grug$hooks);
+        GrugOverlayHost.pollWorldKeys((Minecraft) (Object) this);
     }
 
     /**
