@@ -61,3 +61,6 @@ jei/tests/item_list_forced_normalization-Test.grug
 # golden comes from the client replaying them, so a stable relight of the final state is darker
 # there. The client-only run of this loader still checks the golden.
 coverage/tests/coverage_frame-Test.grug
+buildcraft/tests/redstone_engine-Test.grug
+buildcraft/tests/redstone_engine_animation-Test.grug
+buildcraft/tests/redstone_engine_facings-Test.grug
