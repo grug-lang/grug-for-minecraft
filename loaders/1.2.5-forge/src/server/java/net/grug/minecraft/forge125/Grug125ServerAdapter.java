@@ -360,11 +360,6 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     }
 
     /**
-     * The eye of the test player. A server player keeps the feet in {@code posY} where the client
-     * keeps the eye, so the eye is rebuilt from the bottom of the bounding box, rounded to a
-     * millionth to shed the arithmetic's last bits, which is what the client's {@code posY} is.
-     */
-    /**
      * Builds the room around the height the hold keeps the player at, not wherever the client is
      * this tick. A client a fraction under the held height put the stand block a block too low, and
      * the hold then kept the player hovering above it until the game kicked them for floating
@@ -399,6 +394,11 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         }
     }
 
+    /**
+     * The eye of the test player. A server player keeps the feet in {@code posY} where the client
+     * keeps the eye, so the eye is rebuilt from the bottom of the bounding box, rounded to a
+     * millionth to shed the arithmetic's last bits, which is what the client's {@code posY} is.
+     */
     @Override
     public Vec3 testPlayerEye(Object playerObj) {
         EntityPlayer player = (EntityPlayer) playerObj;
