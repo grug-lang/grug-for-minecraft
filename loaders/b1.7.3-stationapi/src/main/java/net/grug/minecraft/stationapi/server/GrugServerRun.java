@@ -49,6 +49,20 @@ public final class GrugServerRun {
     // it.
     private static int gameSpeed;
 
+    /**
+     * Where the test save's own player stands, as feet: the position a client-only run's room is
+     * built around. A joined player starts from the world's random spawn, and the renderer's single
+     * precision arithmetic and the terrain's light differ at another absolute position, so the
+     * server places the joined player here before the run starts (#1213).
+     */
+    private static final double START_X = -18.5;
+
+    private static final double START_FEET_Y = 70.0;
+    private static final double START_Z = -63.5;
+
+    /** Whether the joined player has been placed at the start above. */
+    private static boolean placedAtStart = false;
+
     /** How many times the hold put the player back on the floor, and when it last said so. */
     private static long holds;
 
@@ -214,6 +228,22 @@ public final class GrugServerRun {
             PlayerEntity waiting = (PlayerEntity) GrugCore.getAdapter().testPlayer();
             if (waiting != null) {
                 holdPlayer(waiting);
+            }
+            if (waiting instanceof ServerPlayerEntity
+                    && !placedAtStart
+                    && GrugControlStation.server().hasStarter()) {
+                placedAtStart = true;
+                ServerPlayerEntity placed = (ServerPlayerEntity) waiting;
+                placed.networkHandler.teleport(START_X, START_FEET_Y, START_Z, 0.0F, 0.0F);
+                placed.velocityY = 0.0;
+                System.out.println(
+                        "[GRUG CI] placed the test player at the save's start "
+                                + START_X
+                                + ", "
+                                + START_FEET_Y
+                                + ", "
+                                + START_Z);
+                return;
             }
             // The run starts when a player has started it (#1040): the joined client sends its
             // start once it is in the world.

@@ -234,6 +234,14 @@ public class GrugBlockEntity extends BlockEntity
             initGrug();
         }
 
+        // A client joined to a server holds a copy of this block entity that the server's saved
+        // data keeps current, and the server's copy runs the script. Running it here too moved the
+        // pipe's items on the client's copy, which reported a runtime error into the chat line a
+        // capture then drew (#1213).
+        if (world != null && world.isRemote) {
+            return;
+        }
+
         if (entityHandle != 0 && tickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
             GrugEntities.callExportFnWithOwner(entityHandle, tickFnId, new ArrayList<>(), null);
         }
