@@ -10,6 +10,7 @@ import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestRunner;
@@ -363,6 +364,41 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      * keeps the eye, so the eye is rebuilt from the bottom of the bounding box, rounded to a
      * millionth to shed the arithmetic's last bits, which is what the client's {@code posY} is.
      */
+    /**
+     * Builds the room around the height the hold keeps the player at, not wherever the client is
+     * this tick. A client a fraction under the held height put the stand block a block too low, and
+     * the hold then kept the player hovering above it until the game kicked them for floating
+     * (#1068). A player under the held height is put back on it, so the new stand block is not
+     * around their feet.
+     */
+    @Override
+    public void buildTestBox(int radius) {
+        EntityPlayerMP player = (EntityPlayerMP) testPlayer();
+        double held = GrugServerRun.heldFeetY();
+        if (player == null || held == 0) {
+            super.buildTestBox(radius);
+            return;
+        }
+        renderSettle.reset();
+        GrugTestBox.build(
+                this,
+                getLevel(),
+                player.posX,
+                GrugPlayerFloor.buildAnchor(player.boundingBox.minY, held),
+                player.posZ,
+                radius,
+                false);
+        if (player.boundingBox.minY < held) {
+            player.playerNetServerHandler.teleportTo(
+                    player.posX,
+                    player.posY + (held - player.boundingBox.minY),
+                    player.posZ,
+                    player.rotationYaw,
+                    player.rotationPitch);
+            player.motionY = 0;
+        }
+    }
+
     @Override
     public Vec3 testPlayerEye(Object playerObj) {
         EntityPlayer player = (EntityPlayer) playerObj;

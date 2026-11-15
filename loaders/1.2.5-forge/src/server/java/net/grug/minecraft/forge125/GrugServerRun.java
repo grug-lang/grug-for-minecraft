@@ -381,6 +381,11 @@ public final class GrugServerRun implements ITickHandler {
         return true;
     }
 
+    /** The feet height the hold keeps the test player at, 0 before the run has started. */
+    static double heldFeetY() {
+        return holdY == 0 ? 0 : holdY - (testPlayer.posY - testPlayer.boundingBox.minY);
+    }
+
     private static void tick() {
         List<?> players = players();
         pollModFiles();
