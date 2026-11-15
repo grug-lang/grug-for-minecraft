@@ -1,5 +1,7 @@
 package net.grug.minecraft.forge125;
 
+import cpw.mods.fml.server.FMLServerHandler;
+
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
@@ -25,8 +27,11 @@ import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
+import net.minecraft.src.Entity;
+import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerMP;
+import net.minecraft.src.EntityTracker;
 import net.minecraft.src.EnumSkyBlock;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
@@ -40,6 +45,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -358,6 +364,29 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public void removeOperator(Object playerObj) {
         GrugServerRun.removeOp(((EntityPlayer) playerObj).username);
+    }
+
+    /**
+     * Sweeps the items as the client-only game does, then tells the joined client they are gone.
+     * The sweep takes a dead item out of the world's lists itself, so the world's own update never
+     * reaches {@code releaseEntitySkin} for it and the entity tracker never sends the destroy
+     * packet: the joined client kept a ghost of every swept item, such as a diamond a pipe test
+     * dropped, and drew it into later captures (#1068).
+     */
+    @Override
+    public void clearItemEntities(
+            Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
+        World world = (World) levelObj;
+        List<?> items =
+                new ArrayList<Object>(
+                        world.getEntitiesWithinAABB(
+                                EntityItem.class,
+                                AxisAlignedBB.getBoundingBox(x1, y1, z1, x2, y2, z2)));
+        super.clearItemEntities(levelObj, x1, y1, z1, x2, y2, z2);
+        EntityTracker tracker = FMLServerHandler.instance().getServer().getEntityTracker(0);
+        for (Object item : items) {
+            tracker.untrackEntity((Entity) item);
+        }
     }
 
     /**
