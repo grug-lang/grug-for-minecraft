@@ -44,6 +44,22 @@ public final class GrugServerRun {
     private static int gameSpeed = 1;
 
     /**
+     * Where the test save's own player stands, as feet: the position a client-only run's room is
+     * built around, because its player starts from the save. A joined player starts from the
+     * world's random spawn instead (the room landed at a different position every run), and the
+     * renderer's single precision arithmetic rounds a texel edge differently at another absolute
+     * position, so a joined capture differed from the golden. The server therefore places the
+     * joined player here before the run starts (#1213).
+     */
+    private static final double START_X = 314.5;
+
+    private static final double START_FEET_Y = 64.0;
+    private static final double START_Z = 148.5;
+
+    /** Whether the joined player has been placed at the start above. */
+    private static boolean placedAtStart = false;
+
+    /**
      * The feet height the run started at, which the hold puts the player back on. It is {@code y}
      * itself, because this server keeps the feet in the player's position (#1190).
      */
@@ -182,6 +198,18 @@ public final class GrugServerRun {
             Object testPlayer = GrugCore.getAdapter().testPlayer();
             if (testPlayer instanceof PlayerEntity) {
                 holdOnFloor((PlayerEntity) testPlayer);
+                if (!placedAtStart && GrugControlAlpha.server().hasStarter()) {
+                    placedAtStart = true;
+                    moveTo((PlayerEntity) testPlayer, START_FEET_Y, START_X, START_Z, 0.0F, 0.0F);
+                    System.out.println(
+                            "[GRUG CI] placed the test player at the save's start "
+                                    + START_X
+                                    + ", "
+                                    + START_FEET_Y
+                                    + ", "
+                                    + START_Z);
+                    return;
+                }
             }
             if (!players.isEmpty()
                     && GrugControlAlpha.server().hasStarter()

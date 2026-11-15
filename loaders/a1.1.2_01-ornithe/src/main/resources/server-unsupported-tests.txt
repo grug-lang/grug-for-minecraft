@@ -86,14 +86,10 @@ jei/tests/jei-Test.grug
 # Test.open_inventory, because it has no override that forwards the open to the joined client.
 coverage/tests/hook_forced_normalization-Test.grug
 #
-# The four wall-backed buildcraft captures #1161 promoted to tick_any_side. #1213's tilt hook and
-# float eye pin took cobblestone_pipe_shapes from 35994 px to 1 px off its golden at one room
-# position (proof run 43740015080 passed it), but the room's position differs per run, and two
-# later dedicated legs failed it: 1 of 115200 px at the eye (304.5,64.62,153.5) (run 43751669544)
-# and 14400 of 115200 px at (322.5,66.62,141.5) (run 43750212309). A float texel edge that moves
-# with the absolute position is what #1213's coordinate experiment is testing. All four stay
-# client-only on this loader until it is settled.
-buildcraft/tests/cobblestone_pipe_shapes-Test.grug
+# The three wall-backed buildcraft captures #1161 promoted to tick_any_side that still differ.
+# cobblestone_pipe_shapes left this list once the dedicated server placed the joined player at the
+# save's own start (#1213), so its room sits where the golden was captured. The leg stops at its
+# first failure at redstone_engine_red (2500 of 34100 px, unanalysed).
 buildcraft/tests/redstone_engine-Test.grug
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
