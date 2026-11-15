@@ -19,6 +19,16 @@ class GrugWorldKeysTest {
     }
 
     @Test
+    void aKeyHeldThroughAScreenIsNotDelivered() {
+        GrugWorldKeys keys = new GrugWorldKeys();
+        assertFalse(
+                keys.deliver('E', true, false), "Pressed while a screen is open: not delivered.");
+        assertFalse(keys.deliver('E', true, true), "Still held when the screen closed: no press.");
+        assertFalse(keys.deliver('E', false, true));
+        assertTrue(keys.deliver('E', true, true), "A fresh press with no screen is delivered.");
+    }
+
+    @Test
     void everyKeyKeepsItsOwnState() {
         GrugWorldKeys keys = new GrugWorldKeys();
         assertTrue(keys.pressed('0', true));

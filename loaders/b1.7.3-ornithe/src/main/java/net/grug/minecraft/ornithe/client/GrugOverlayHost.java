@@ -399,6 +399,8 @@ public final class GrugOverlayHost {
      * coordinates, while no screen is open. The caller has already checked there is a world.
      */
     public static void drawHud(Minecraft minecraft) {
+        // F1 hides the game's own HUD, and a HUD overlay goes with it.
+        if (minecraft.options.hideGui) return;
         ensureCreated();
         if (overlays.isEmpty()) return;
         Window window = new Window(minecraft.options, minecraft.width, minecraft.height);
@@ -423,7 +425,8 @@ public final class GrugOverlayHost {
     /**
      * Draws every overlay's world export as GL lines, in the game's own world pass, so the depth
      * buffer hides a line behind a block in front of it. Vertices are camera-relative, as the
-     * game's own world draws are.
+     * game's own world draws are. F1 does not hide it: SafeSquares' marks are world geometry and
+     * stay. With anaglyph 3D the game renders the world twice, so this runs twice per frame.
      */
     public static void drawWorld(Minecraft minecraft, float partialTick) {
         MobEntity camera = minecraft.camera;
@@ -476,8 +479,8 @@ public final class GrugOverlayHost {
         for (int code = '0'; code <= 'Z'; code++) {
             if (!GrugWorldKeys.tracked(code)) continue;
             int key = Keyboard.getKeyIndex(String.valueOf((char) code));
-            boolean down = key != Keyboard.KEY_NONE && open && Keyboard.isKeyDown(key);
-            if (worldKeys.pressed(code, down)) {
+            boolean down = key != Keyboard.KEY_NONE && Keyboard.isKeyDown(key);
+            if (worldKeys.deliver(code, down, open)) {
                 deliverWorldKey(code, isControlDown());
             }
         }
