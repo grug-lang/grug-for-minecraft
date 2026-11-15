@@ -9,8 +9,8 @@
 # is the hand-over for all three, as the reference's endReached would see it: 0.03 at the 16th move
 # from the source pipe's centre, 0.015 at the 33rd, and 0.01 at the 50th.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # Band 22, clear of the bands the other pipe tests use.
     y: number = origin.y() + 22
@@ -29,7 +29,7 @@ export tick_any_side(ctx: TestTickContext) {
     _record(source, center.x() + 0.495, floor_y, center.z(), 0.015)
     _record(source, center.x() + 0.5, floor_y, center.z(), 0.01)
 
-    Test.tick_block_entity(source, 1)
+    ctx.tick_block_entity(source, 1)
     ctx.assert(source.get_saved_list_size("traveling") == 0, "All three records should have been handed over.")
     ctx.assert(target.get_saved_list_size("traveling") == 3, "The target pipe should have taken all three records.")
     ctx.assert(_thousandths(_speed(target, 0)) == 20, "A speed of 0.03 should enter at 0.02.")

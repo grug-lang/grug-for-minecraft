@@ -8,6 +8,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -93,5 +95,60 @@ class HostFunctionsTestTickContextTest {
         assertFalse(GrugTestState.testNotDone);
         HostFunctions.TestTickContext_not_done(current);
         assertTrue(GrugTestState.testNotDone);
+    }
+
+    @Test
+    void aContextSavedAfterItsCallIsRefusedByEveryHostFunctionOfTheContext() throws Exception {
+        long context = contextId();
+        GrugTestState.closeTickContext();
+        int methods = 0;
+
+        for (Method method : HostFunctions.class.getDeclaredMethods()) {
+            if (!method.getName().startsWith("TestTickContext_")
+                    || !Modifier.isPublic(method.getModifiers())) {
+                continue;
+            }
+            Object[] arguments = new Object[method.getParameterCount()];
+            Class<?>[] types = method.getParameterTypes();
+            for (int i = 0; i < types.length; i++) {
+                arguments[i] = i == 0 ? (Object) context : defaultOf(types[i]);
+            }
+            method.invoke(null, arguments);
+            methods++;
+        }
+
+        List<String> reports = drain();
+        assertEquals(methods, reports.size(), "Every method names its own refusal.");
+        for (String report : reports) {
+            assertTrue(report.contains("saved in a member variable"), report);
+        }
+        assertTrue(methods > 40, "The reflection found the host functions, not an empty set.");
+    }
+
+    @Test
+    void everyRefusalNamesTheMethodThatMadeIt() throws Exception {
+        long context = contextId();
+        GrugTestState.closeTickContext();
+
+        HostFunctions.TestTickContext_screenshot(context);
+        HostFunctions.TestTickContext_get_origin(context);
+
+        List<String> reports = drain();
+        assertEquals(2, reports.size());
+        assertTrue(reports.get(0).contains("TestTickContext.screenshot"), reports.get(0));
+        assertTrue(reports.get(1).contains("TestTickContext.get_origin"), reports.get(1));
+    }
+
+    private static Object defaultOf(Class<?> type) {
+        if (type == boolean.class) {
+            return false;
+        }
+        if (type == double.class) {
+            return 0.0;
+        }
+        if (type == long.class) {
+            return 0L;
+        }
+        return "";
     }
 }

@@ -57,8 +57,8 @@ public interface ModLoaderAdapter {
      * <p>A core test reaches both answers through a stand-in adapter that says which side it is on,
      * so the whole method is counted by the core test job without a game: {@code
      * HostFunctionsOnADedicatedServerWithNothingJoinedTest}. Every loader's game run also exercises
-     * the client answer, where {@code Test.use_block}, {@code Test.mining_crack} and {@code
-     * Screenshot.equals} ask it. See #169 and #188.
+     * the client answer, where {@code TestTickContext.use_block}, {@code
+     * TestTickContext.mining_crack} and {@code Screenshot.equals} ask it. See #169 and #188.
      *
      * <p>A refusal is a host function error rather than a fatal: it names the function, it fails
      * the test that called it, and the game keeps running, which is what a mod's mistake deserves.
@@ -340,7 +340,8 @@ public interface ModLoaderAdapter {
     @GrugGenerated("test only: only the 1.20.6 adapter has an overlay test that counts a stack")
     default double getHeldCount(Object playerObj) {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.get_held_count: This loader cannot count the held stack yet.");
+                Grug.statePtr,
+                "TestTickContext.get_held_count: This loader cannot count the held stack yet.");
         return 0.0;
     }
 
@@ -806,7 +807,8 @@ public interface ModLoaderAdapter {
      * The position the test bands are measured from: {@link #testPlayerEye(Object)}, the render
      * camera, plus {@link GrugTestOrigin#LIFT}, which is where the bands already sit in every test.
      * Null when this side has no player, which on a dedicated server means nobody has joined, and
-     * {@code Test.get_origin} reports that null as an error rather than dereferencing it.
+     * {@code TestTickContext.get_origin} reports that null as an error rather than dereferencing
+     * it.
      *
      * <p>It is derived from the test player rather than read from a player of its own, so {@link
      * #testPlayer()} is the only place a loader chooses whose position a test builds from. A
@@ -824,12 +826,14 @@ public interface ModLoaderAdapter {
 
     /**
      * Test only: the position of this side's render camera, which is {@link #testPlayerEye(Object)}
-     * of {@link #testPlayer()}, so {@code Test.camera} and a capture's own eye are one measure.
+     * of {@link #testPlayer()}, so {@code TestTickContext.camera} and a capture's own eye are one
+     * measure.
      *
      * <p>On a client that is its own camera. A dedicated server has none of its own, so each server
      * adapter overrides this to ask the joined client for its camera (#1161), which is what lets a
      * test assert that the client draws from the point the room was built around. Null when this
-     * side has no player, which {@code Test.camera} reports as the reason it cannot answer.
+     * side has no player, which {@code TestTickContext.camera} reports as the reason it cannot
+     * answer.
      */
     default Vec3 testCamera() {
         Object player = testPlayer();
@@ -949,8 +953,8 @@ public interface ModLoaderAdapter {
 
     /**
      * Whether a screen is open, for a test that must not capture before the panel it asked for has
-     * arrived. {@code Test.close_screen} leaves no screen open by this answer, even on a loader
-     * that displays a placeholder screen for it.
+     * arrived. {@code TestTickContext.close_screen} leaves no screen open by this answer, even on a
+     * loader that displays a placeholder screen for it.
      *
      * <p>On a dedicated server this is the joined client's own screen, which every server asks the
      * client of the player who started the run (#1094).
@@ -987,7 +991,7 @@ public interface ModLoaderAdapter {
 
     /**
      * Whether a frame has drawn the overlay of the mod named {@code mod}, which owns the running
-     * test, on the screen open now, which is what {@code Test.overlay_drawn} answers.
+     * test, on the screen open now, which is what {@code TestTickContext.overlay_drawn} answers.
      *
      * <p>On a dedicated server the mark belongs to the joined client's frame pass, so every server
      * asks the client of the player who started the run, naming the mod the client is not itself
@@ -1005,7 +1009,8 @@ public interface ModLoaderAdapter {
     @GrugGenerated("default only: every current adapter opens the inventory")
     default void openInventory(Object playerObj) {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.open_inventory: This loader cannot open the inventory yet.");
+                Grug.statePtr,
+                "TestTickContext.open_inventory: This loader cannot open the inventory yet.");
     }
 
     /**
@@ -1016,7 +1021,8 @@ public interface ModLoaderAdapter {
     @GrugGenerated("default only: every current adapter drives a synthetic press")
     default boolean clickScreen(double x, double y, double button) {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.click_screen: This loader cannot press on a screen yet.");
+                Grug.statePtr,
+                "TestTickContext.click_screen: This loader cannot press on a screen yet.");
         return false;
     }
 
@@ -1027,7 +1033,8 @@ public interface ModLoaderAdapter {
     @GrugGenerated("default only: every current adapter drives a synthetic key press")
     default boolean pressScreenKey(int key, boolean ctrl, boolean release) {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.press_screen_key: This loader cannot press a key yet.");
+                Grug.statePtr,
+                "TestTickContext.press_screen_key: This loader cannot press a key yet.");
         return false;
     }
 
@@ -1038,7 +1045,8 @@ public interface ModLoaderAdapter {
     @GrugGenerated("default only: every current adapter drives a synthetic wheel movement")
     default boolean scrollScreen(double x, double y, double delta) {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.scroll_screen: This loader cannot scroll a screen yet.");
+                Grug.statePtr,
+                "TestTickContext.scroll_screen: This loader cannot scroll a screen yet.");
         return false;
     }
 
@@ -1049,7 +1057,8 @@ public interface ModLoaderAdapter {
     @GrugGenerated("default only: every current adapter measures a screen")
     default double screenWidthForTest() {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.screen_width: This loader cannot measure a screen yet.");
+                Grug.statePtr,
+                "TestTickContext.screen_width: This loader cannot measure a screen yet.");
         return 0.0;
     }
 
@@ -1057,7 +1066,8 @@ public interface ModLoaderAdapter {
     @GrugGenerated("default only: every current adapter measures a screen")
     default double guiLeftForTest() {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.gui_left: This loader cannot measure a screen yet.");
+                Grug.statePtr,
+                "TestTickContext.gui_left: This loader cannot measure a screen yet.");
         return 0.0;
     }
 
@@ -1065,7 +1075,8 @@ public interface ModLoaderAdapter {
     @GrugGenerated("default only: every current adapter measures a screen")
     default double guiWidthForTest() {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.gui_width: This loader cannot measure a screen yet.");
+                Grug.statePtr,
+                "TestTickContext.gui_width: This loader cannot measure a screen yet.");
         return 0.0;
     }
 
@@ -1073,7 +1084,7 @@ public interface ModLoaderAdapter {
     @GrugGenerated("default only: every current adapter measures a screen")
     default double guiTopForTest() {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.gui_top: This loader cannot measure a screen yet.");
+                Grug.statePtr, "TestTickContext.gui_top: This loader cannot measure a screen yet.");
         return 0.0;
     }
 
@@ -1081,7 +1092,8 @@ public interface ModLoaderAdapter {
     @GrugGenerated("default only: every current adapter measures a screen")
     default double guiHeightForTest() {
         Grug.hostFunctionErrorHappened(
-                Grug.statePtr, "Test.gui_height: This loader cannot measure a screen yet.");
+                Grug.statePtr,
+                "TestTickContext.gui_height: This loader cannot measure a screen yet.");
         return 0.0;
     }
 
@@ -1107,7 +1119,7 @@ public interface ModLoaderAdapter {
     default void setCarriedItem(Object itemObj) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr,
-                "Test.set_carried_item: This loader cannot set the carried item yet.");
+                "TestTickContext.set_carried_item: This loader cannot set the carried item yet.");
     }
 
     /**
@@ -1148,8 +1160,8 @@ public interface ModLoaderAdapter {
 
     /**
      * Builds the sealed room the runner puts around the player before every test, and again when a
-     * test asks for a different radius through {@code Test.set_box_radius}. See {@link GrugTestBox}
-     * for what the room is and why it exists.
+     * test asks for a different radius through {@code TestTickContext.set_box_radius}. See {@link
+     * GrugTestBox} for what the room is and why it exists.
      *
      * <p>The player's feet are the anchor, so the floor replaces the block they stand on and they
      * do not move. An adapter whose player's y is the eye height subtracts it first; one whose

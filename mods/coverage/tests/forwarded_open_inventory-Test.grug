@@ -1,4 +1,4 @@
-# Test.open_inventory asked of a dedicated server's joined client (#1094). On every server but
+# ctx.open_inventory asked of a dedicated server's joined client (#1094). On every server but
 # a1.1.2_01's, the server forwards the call, the client opens its own inventory screen, and this
 # waits for that screen and closes it: the screen is the client's, not a menu the server made up.
 # The a1.1.2_01 server has no openInventory override that forwards the call, so the inherited
@@ -10,17 +10,17 @@ opened: bool = false
 waited: number = 0
 
 export tick(ctx: TestTickContext) {
-    loader: string = Test.loader_name()
+    loader: string = me.loader_name()
     if loader == "a1.1.2_01-ornithe" {
         # A server that cannot forward the call names the function rather than reaching for the
         # client's own game class, which a server refuses to load.
         ctx.expect_error("Test.open_inventory: This needs a client")
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         return
     }
     if not started {
         started = true
-        Test.close_screen()
+        ctx.close_screen()
         ctx.not_done()
         return
     }
@@ -35,20 +35,20 @@ export tick(ctx: TestTickContext) {
     if not opened {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         opened = true
         waited = 0
         ctx.not_done()
         return
     }
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         ctx.not_done()
         return
     }
-    Test.close_screen()
-    ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
+    ctx.close_screen()
+    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
 }

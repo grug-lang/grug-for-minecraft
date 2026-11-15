@@ -6,26 +6,26 @@ path: string = "coverage/code/coverage_fixture_entity-BlockEntity.grug"
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
 
         # A block whose script roots host entities in its members.
         level.place_block(origin.x() + 9, origin.y(), origin.z(), "grug:coverage_fixture")
         ctx.not_done()
     } else if ctx.current_tick() == 1 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
 
         # Replacing it removes the block entity, which has to destroy the grug entity it owns.
         level.place_block(origin.x() + 9, origin.y(), origin.z(), "grug:coverage_block")
-        Test.force_gc()
+        ctx.force_gc()
 
-        change_baseline = Test.hot_reload_count(path)
-        Test.set_mod_file_state(path, "invalid")
+        change_baseline = ctx.hot_reload_count(path)
+        ctx.set_mod_file_state(path, "invalid")
         ctx.not_done()
-    } else if Test.hot_reload_count(path) <= change_baseline {
+    } else if ctx.hot_reload_count(path) <= change_baseline {
         ctx.not_done()
     } else {
-        Test.set_mod_file_state(path, "normal")
+        ctx.set_mod_file_state(path, "normal")
     }
 }

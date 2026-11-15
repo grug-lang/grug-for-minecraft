@@ -501,8 +501,8 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
         if (!(levelObj instanceof ServerLevel serverLevel)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.tick_level: Only a server level has a tick this process can run, and this"
-                            + " is not one.");
+                    "TestTickContext.tick_level: Only a server level has a tick this process can"
+                            + " run, and this is not one.");
             return 0;
         }
         return advanceLevelTicks(serverLevel, ticks);

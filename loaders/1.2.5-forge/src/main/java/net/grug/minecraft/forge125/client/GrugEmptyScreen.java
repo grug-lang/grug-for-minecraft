@@ -13,9 +13,9 @@ import net.minecraft.src.GuiScreen;
  * the focus check has nothing to do, and {@link #doesGuiPauseGame()} is false, so the world keeps
  * ticking.
  *
- * <p>It is what {@code Test.close_screen()} displays on this loader, which is why it lives next to
- * the client hooks rather than in core: the game it works around is 1.2.5's, and no other loader
- * needs it.
+ * <p>It is what {@code TestTickContext.close_screen()} displays on this loader, which is why it
+ * lives next to the client hooks rather than in core: the game it works around is 1.2.5's, and no
+ * other loader needs it.
  */
 public class GrugEmptyScreen extends GuiScreen {
 

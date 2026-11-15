@@ -27,14 +27,14 @@ BASE = {
     "mods/buildcraft/about.json": "{}",
     "mods/buildcraft/LICENSE": "license\n",
     "mods/buildcraft/tests/pipe-Test.grug": "tick() {}\n",
-    "mods/buildcraft/tests/capture-Test.grug": "# Test.screenshot()\n",
+    "mods/buildcraft/tests/capture-Test.grug": "# ctx.screenshot()\n",
     "mods/buildcraft/screenshots/pipe/1.2.5-forge.png": "png",
     "mods/coverage/about.json": "{}",
     "mods/coverage/code/coverage_frame-Block.grug": "on_tick() {}\n",
     "mods/examplemod/about.json": "{}",
     "mods/examplemod/LICENSE": "license\n",
     "mods/examplemod/code/foo_block-Block.grug": "on_tick() {}\n",
-    "mods/examplemod/tests/capture-Test.grug": "# Test.screenshot()\n",
+    "mods/examplemod/tests/capture-Test.grug": "# ctx.screenshot()\n",
     "mods/examplemod/screenshots/x/1.20.6-forge.png": "png",
     "loaders/1.2.5-forge/build.gradle": "// 1.2.5\n",
     "loaders/1.2.5-forge/src/Main.java": "class Main {}\n",
@@ -108,8 +108,8 @@ class ReferenceNeededTest(unittest.TestCase):
         for path, content in (
             ("mods/buildcraft/about.json", "{}\n"),
             ("mods/buildcraft/LICENSE", "license\n"),
-            ("mods/buildcraft/tests/capture-Test.grug", "# Test.screenshot()\n"),
-            ("mods/buildcraft/tests/newcapture-Test.grug", "# Test.is_reference()\n"),
+            ("mods/buildcraft/tests/capture-Test.grug", "# ctx.screenshot()\n"),
+            ("mods/buildcraft/tests/newcapture-Test.grug", "# me.is_reference()\n"),
             ("mods/buildcraft/screenshots/pipe/1.2.5-forge.png", "png"),
             ("loaders/1.2.5-forge/build.gradle", "// new\n"),
             ("loaders/1.2.5-forge/src/Main.java", "// new\n"),
@@ -156,7 +156,7 @@ class ReferenceNeededTest(unittest.TestCase):
         changes = {
             "mods/examplemod/code/foo_block-Block.grug": "# new\n",
             "loaders/1.20.6-forge/src/Main.java": "// new\n",
-            "mods/buildcraft/tests/capture-Test.grug": "# Test.screenshot()\n// new\n",
+            "mods/buildcraft/tests/capture-Test.grug": "# ctx.screenshot()\n// new\n",
         }
         self.assertEqual(self.answer(changes), "true")
 
@@ -219,7 +219,7 @@ class ReferenceNeededTest(unittest.TestCase):
         # examplemod on 1.20.6-forge.
         changes = {
             "mods/buildcraft/about.json": "{}\n",
-            "mods/buildcraft/tests/capture-Test.grug": "# Test.screenshot()\n// new\n",
+            "mods/buildcraft/tests/capture-Test.grug": "# ctx.screenshot()\n// new\n",
             "loaders/1.2.5-forge/src/Main.java": "// new\n",
             "mods/coverage/code/coverage_frame-Block.grug": "# new\n",
         }
@@ -237,7 +237,7 @@ class ReferenceNeededTest(unittest.TestCase):
     def test_a_change_to_the_selected_mods_screenshot_test_runs_it(self):
         self.assertEqual(
             self.answer(
-                {"mods/examplemod/tests/capture-Test.grug": "# Test.is_reference()\n"},
+                {"mods/examplemod/tests/capture-Test.grug": "# me.is_reference()\n"},
                 mod="examplemod",
                 loader="1.20.6-forge",
             ),

@@ -3,8 +3,8 @@
 # another, and NaN would write slot 0 as well. Both would land the stack in a slot nobody asked for
 # after the source had given it up (#1205).
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()

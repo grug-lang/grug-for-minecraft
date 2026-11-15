@@ -11,7 +11,7 @@
 # what sends the click packet: this test proves the release half, and the diamond landing in the
 # grid proves the click was applied. gui_click_empty proves the other half, the press path an empty
 # cursor takes. The a1.1.2_01 server now applies the clicks a client's screen sends, but
-# Test.click_screen, the call that presses on a screen, still refuses there, because that screen is
+# ctx.click_screen, the call that presses on a screen, still refuses there, because that screen is
 # the joined client's own and carrying the press to it is the later dispatch that carries #1094
 # PR2, so the test stays unsupported on that server.
 started: bool = false
@@ -20,36 +20,36 @@ clicked: bool = false
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        Test.close_screen()
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        ctx.close_screen()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_block")
-        Test.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.use_block(level, origin.x(), origin.y(), origin.z())
         ctx.not_done()
         return
     }
     if not clicked {
         # The server opens the container and sends it, so the client's screen arrives a frame later.
-        if not Test.screen_open() {
+        if not ctx.screen_open() {
             ctx.not_done()
             return
         }
         clicked = true
-        Test.set_carried_item(item(resource_location("minecraft:diamond")))
-        ctx.assert(Test.get_carried_item().has(), "The cursor should carry the diamond the test put on it.")
+        ctx.set_carried_item(item(resource_location("minecraft:diamond")))
+        ctx.assert(ctx.get_carried_item().has(), "The cursor should carry the diamond the test put on it.")
         # The grid's first slot is 30,17 from the panel's corner and a slot is 16 pixels, so this
         # presses its centre. No overlay is asked on a mod's own GrugScreen, so the press is left to
         # the screen: it answers false and sends the click packet.
-        left: number = Test.gui_left()
-        top: number = Test.gui_top()
-        ctx.assert(not Test.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+        left: number = ctx.gui_left()
+        top: number = ctx.gui_top()
+        ctx.assert(not ctx.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
         ctx.not_done()
         return
     }
     # The effect is the server's, so it is read on the tick after the click, once the drain has
     # applied the client's packet.
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
     ctx.assert(block_entity.get_item_count_in_slot(0) == 1, "The click should have put the diamond in the grid's first slot.")
     in_slot: Option[Item] = block_entity.get_item_in_slot(0)
@@ -57,6 +57,6 @@ export tick_any_side(ctx: TestTickContext) {
     if in_slot.has() {
         ctx.assert(equals(in_slot.unwrap(), item(resource_location("minecraft:diamond"))), "The click should have moved the diamond, not another item.")
     }
-    ctx.assert(not Test.get_carried_item().has(), "The click should have taken the item off the cursor.")
-    Test.close_screen()
+    ctx.assert(not ctx.get_carried_item().has(), "The click should have taken the item off the cursor.")
+    ctx.close_screen()
 }

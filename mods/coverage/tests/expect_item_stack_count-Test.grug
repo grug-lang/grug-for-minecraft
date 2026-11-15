@@ -4,7 +4,7 @@
 export tick_any_side(ctx: TestTickContext) {
     sword: Item = item(resource_location("minecraft:diamond_sword"))
 
-    if Test.loader_name() == "1.20.6-forge" {
+    if me.loader_name() == "1.20.6-forge" {
         ctx.expect_error("The count has to be a whole number from 1 to 2147483647")
         stack: ItemStack = item_stack(sword, 0, 0)
     } else {

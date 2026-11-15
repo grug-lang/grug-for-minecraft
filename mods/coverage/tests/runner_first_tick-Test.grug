@@ -22,11 +22,11 @@ start: number = -1
 ran: number = 0
 
 export init(ctx: TestInitContext) {
-    Test.stall(stall)
+    ctx.stall(stall)
 }
 
 export tick_any_side(ctx: TestTickContext) {
-    now: number = Test.get_client_level().get_time()
+    now: number = ctx.get_client_level().get_time()
     if start < 0 {
         start = now
     }

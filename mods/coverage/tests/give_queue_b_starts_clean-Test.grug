@@ -18,6 +18,6 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The item the previous test's give sent should not reach this one's hand.")
-    ctx.assert(not Test.get_player().get_held_item().has(), "The previous test's give should leave this one with an empty hand.")
+    ctx.assert(ctx.get_held_count(ctx.get_player()) == 0, "The item the previous test's give sent should not reach this one's hand.")
+    ctx.assert(not ctx.get_player().get_held_item().has(), "The previous test's give should leave this one with an empty hand.")
 }

@@ -114,8 +114,8 @@ public class GrugTestRunner {
         /**
          * Puts the player where a test starts: the centre of their own block, with a level view.
          * Called before {@link #build}, so the room is built around the place the test runs in, and
-         * before the test's first {@code Test.get_origin} answer is captured. A no-op on a side
-         * with no local player. See #609.
+         * before the test's first {@code TestTickContext.get_origin} answer is captured. A no-op on
+         * a side with no local player. See #609.
          */
         default void snapPlayer() {}
 
@@ -1297,7 +1297,7 @@ public class GrugTestRunner {
         // state the game's own slime renderer leaves on. See GrugForcedNormalization.
         if (currentTick == 0) {
             // Cleared for every test, so the test after a marked one reads the state it has rather
-            // than the one the marked test asked for. See Test.normalization_forced.
+            // than the one the marked test asked for. See TestTickContext.normalization_forced.
             GrugTestState.forcedNormalization = false;
             if (GrugForcedNormalization.appliesTo(
                     path, dedicatedServer, GrugReference.isReferenceRun())) {
@@ -1845,7 +1845,8 @@ public class GrugTestRunner {
         }
 
         // Before the test's first tick, so a fixture it places at tick 0 lands inside the room. A
-        // test whose fixture reaches further than the default room calls Test.set_box_radius at the
+        // test whose fixture reaches further than the default room calls
+        // TestTickContext.set_box_radius at the
         // top of its setup, which rebuilds the room at the radius it asks for.
         boxBuilder.build(GrugTestBox.DEFAULT_RADIUS);
 

@@ -10,13 +10,13 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.not_done()
     } else if ctx.current_tick() == 1 {
-        file_baseline = Test.hot_reload_count(file_path)
-        dir_baseline = Test.hot_reload_count(dir_path)
-        Test.set_mod_file_state(file_path, "deleted")
+        file_baseline = ctx.hot_reload_count(file_path)
+        dir_baseline = ctx.hot_reload_count(dir_path)
+        ctx.set_mod_file_state(file_path, "deleted")
         ctx.not_done()
-    } else if Test.hot_reload_count(file_path) <= file_baseline and Test.hot_reload_count(dir_path) <= dir_baseline {
+    } else if ctx.hot_reload_count(file_path) <= file_baseline and ctx.hot_reload_count(dir_path) <= dir_baseline {
         ctx.not_done()
     } else {
-        Test.set_mod_file_state(file_path, "normal")
+        ctx.set_mod_file_state(file_path, "normal")
     }
 }

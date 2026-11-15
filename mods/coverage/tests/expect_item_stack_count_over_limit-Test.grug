@@ -4,7 +4,7 @@
 # rather than accepting either message.
 export tick_any_side(ctx: TestTickContext) {
     sword: Item = item(resource_location("minecraft:diamond_sword"))
-    loader: string = Test.loader_name()
+    loader: string = me.loader_name()
 
     if loader == "1.20.6-forge" {
         ctx.expect_error("The count has to be a whole number from 1 to 2147483647")

@@ -3,8 +3,8 @@
 # the export has crafted the next one into the holder by then, and the host takes nothing and does not call
 # output_taken, which would pay for the same craft twice.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()

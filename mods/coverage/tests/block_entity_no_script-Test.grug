@@ -3,8 +3,8 @@
 # GrugBlock.getEntityFileId's "no block entity string" branch.
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         x: number = origin.x() + 4
 
         level.place_block(x, origin.y(), origin.z(), "grug:coverage_model_cube")

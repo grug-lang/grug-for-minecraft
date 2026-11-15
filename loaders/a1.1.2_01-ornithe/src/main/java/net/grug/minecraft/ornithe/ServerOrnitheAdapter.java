@@ -350,7 +350,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.use_block: There is no player to right-click with.");
+                    Grug.statePtr,
+                    "TestTickContext.use_block: There is no player to right-click with.");
             return;
         }
 
@@ -365,7 +366,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         if (!(block instanceof GrugBlock)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.use_block: There is no grug block at "
+                    "TestTickContext.use_block: There is no grug block at "
                             + blockX
                             + ", "
                             + blockY
@@ -547,7 +548,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.set_carried_item: There is no player to set a cursor on.");
+                    Grug.statePtr,
+                    "TestTickContext.set_carried_item: There is no player to set a cursor on.");
             return;
         }
         GrugAlphaMenu menu = MENUS.get(player);
@@ -766,7 +768,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         try {
             return GrugControlAlpha.server().worldSettled();
         } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.world_settled: " + e.getMessage());
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
             return true;
         }
     }

@@ -195,7 +195,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         Object playerObj = testPlayer();
         if (!(playerObj instanceof PlayerEntity)) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.set_carried_item: There is no player to set a cursor on.");
+                    Grug.statePtr,
+                    "TestTickContext.set_carried_item: There is no player to set a cursor on.");
             return;
         }
         PlayerEntity player = (PlayerEntity) playerObj;
@@ -295,8 +296,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * <p>A server has no local player, so a test that wants one to build fixtures around and to
      * right-click with has to be given one of the connected players. Which one does not matter: the
      * tests share one world, and they are told to build in bands above the origin rather than at a
-     * player, so the choice only decides whose position {@code Test.get_origin} reports. The
-     * inherited {@code testPlayerEye} and {@code getTestOrigin} both go through this answer, so
+     * player, so the choice only decides whose position {@code TestTickContext.get_origin} reports.
+     * The inherited {@code testPlayerEye} and {@code getTestOrigin} both go through this answer, so
      * choosing the player here is all a server has to do. See #188.
      */
     @Override
@@ -366,7 +367,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.use_block: There is no player to right-click with.");
+                    Grug.statePtr,
+                    "TestTickContext.use_block: There is no player to right-click with.");
             return;
         }
 
@@ -381,7 +383,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         if (!(block instanceof GrugBlock)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.use_block: There is no grug block at "
+                    "TestTickContext.use_block: There is no grug block at "
                             + blockX
                             + ", "
                             + blockY
@@ -680,7 +682,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         try {
             return GrugControlBeta.server().worldSettled();
         } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.world_settled: " + e.getMessage());
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
             return true;
         }
     }

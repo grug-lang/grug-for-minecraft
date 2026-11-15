@@ -27,8 +27,8 @@ import net.grug.minecraft.grug.GrugScreenshots;
  * places is not that case: it calls {@link #noteBusy} and is owed by the client, so the answer
  * waits for it (#804). Closing the rest would need a client-side version of the world that the
  * frame hook could compare with the one the settle answer saw, which no loader keeps today; the
- * docs of {@link #settled} and of {@code Test.world_settled} say what the answer covers instead.
- * See #1154.
+ * docs of {@link #settled} and of {@code TestTickContext.world_settled} say what the answer covers
+ * instead. See #1154.
  *
  * <p>The two calls can arrive on different threads: a capture's wait runs on the render thread
  * while a test's own wait can run on the game-tick thread. Both methods are synchronized because a

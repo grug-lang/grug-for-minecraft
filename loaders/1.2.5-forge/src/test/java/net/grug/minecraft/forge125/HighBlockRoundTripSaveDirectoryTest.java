@@ -13,11 +13,11 @@ import java.nio.file.Files;
 /**
  * What the game's own chunk loader answers from a save directory nothing has written yet (#1206).
  *
- * <p>{@code Test.high_block_round_trip} saves the test chunk into a directory of its own and waits
- * for the load to answer, which is how it learns that the queued save has reached its region file:
- * that only works while an empty directory answers no chunk at all. The loader would answer a
- * cached or default chunk instead if a future game change made one, and the round trip would then
- * read a chunk no save wrote.
+ * <p>{@code TestTickContext.high_block_round_trip} saves the test chunk into a directory of its own
+ * and waits for the load to answer, which is how it learns that the queued save has reached its
+ * region file: that only works while an empty directory answers no chunk at all. The loader would
+ * answer a cached or default chunk instead if a future game change made one, and the round trip
+ * would then read a chunk no save wrote.
  *
  * <p>The race this waits for cannot be forced from a unit test: {@code saveChunk} needs a live
  * world and a chunk and writes on the game's file IO thread, so the ordering is the game's, and the

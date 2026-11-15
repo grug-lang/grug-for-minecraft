@@ -49,8 +49,8 @@ public final class GrugModFileStates {
     private static final String SWAPPED = "swapped";
 
     /**
-     * The states a forwarded {@code Test.set_mod_file_state} names by index, which is the position
-     * here (#1040): the wire carries a number, and both ends read the same list.
+     * The states a forwarded {@code TestTickContext.set_mod_file_state} names by index, which is
+     * the position here (#1040): the wire carries a number, and both ends read the same list.
      */
     public static final String[] STATES = {NORMAL, INVALID, NO_TRAILING_NEWLINE, DELETED, SWAPPED};
 
@@ -154,8 +154,9 @@ public final class GrugModFileStates {
      * {@code "normal"} state restores it exactly.
      *
      * <p>Idempotent on purpose: a hot-reload test sets a state, waits for {@code
-     * Test.hot_reload_count} to rise, then sets it back to {@code "normal"}, so an aborted run
-     * leaves the file disturbed rather than flipped, and a re-run sets the same state again.
+     * TestTickContext.hot_reload_count} to rise, then sets it back to {@code "normal"}, so an
+     * aborted run leaves the file disturbed rather than flipped, and a re-run sets the same state
+     * again.
      */
     public static void set(File modsDir, String relativePath, String state) throws IOException {
         Path path = modFile(modsDir, relativePath);
@@ -397,10 +398,10 @@ public final class GrugModFileStates {
      * stone.swap.png} and a name with no extension at all by {@code LICENSE.swap}.
      *
      * <p>A name the state is derived from rather than passed in, so a test that swaps one file
-     * cannot name a different one: {@code Test.set_mod_file_state} is a test-only host function and
-     * the whole reason it can write into the mods tree is that a test needs to disturb a file the
-     * game reloads from. Handing it a second path would let it overwrite anything on disk instead
-     * of only swapping a file for the sibling that already sits beside it.
+     * cannot name a different one: {@code TestTickContext.set_mod_file_state} is a test-only host
+     * function and the whole reason it can write into the mods tree is that a test needs to disturb
+     * a file the game reloads from. Handing it a second path would let it overwrite anything on
+     * disk instead of only swapping a file for the sibling that already sits beside it.
      */
     private static Path swapSibling(Path path) {
         String name = path.getFileName().toString();

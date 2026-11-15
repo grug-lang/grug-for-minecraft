@@ -11,9 +11,9 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 
 /**
- * Covers the rules every loader's {@code Test.get_origin} answer goes through: the test player's
- * eye plus three blocks, the eye one eye height above a room's feet anchor, and no origin without a
- * player.
+ * Covers the rules every loader's {@code TestTickContext.get_origin} answer goes through: the test
+ * player's eye plus three blocks, the eye one eye height above a room's feet anchor, and no origin
+ * without a player.
  */
 class GrugTestOriginTest {
 

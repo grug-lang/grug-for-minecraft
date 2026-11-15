@@ -6,17 +6,17 @@
 # each loader's server adapter right-clicks there with the connected player, and the block's use export
 # runs on that side (#1090).
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
 
     level.place_block(x, y, z, "grug:coverage_decline_use")
-    Test.use_block(level, x, y, z)
+    ctx.use_block(level, x, y, z)
 
     # A block with no use export has not handled the click either, which is the other way a click is
     # left to the game.
     level.place_block(x + 1, y, z, "grug:coverage_mat_snow")
-    Test.use_block(level, x + 1, y, z)
+    ctx.use_block(level, x + 1, y, z)
 }

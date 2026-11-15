@@ -4,8 +4,8 @@
 # near panes; the far pane is twelve blocks away, well outside a power 3 explosion's reach of about
 # five blocks.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()

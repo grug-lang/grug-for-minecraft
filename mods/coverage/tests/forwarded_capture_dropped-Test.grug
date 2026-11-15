@@ -5,6 +5,6 @@
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.expect_error("did not answer request")
-        Test.screenshot().capture(10, 10, 17, 17)
+        ctx.screenshot().capture(10, 10, 17, 17)
     }
 }

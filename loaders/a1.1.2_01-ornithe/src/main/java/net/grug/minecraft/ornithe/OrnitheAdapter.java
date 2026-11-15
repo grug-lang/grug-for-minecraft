@@ -1594,7 +1594,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void openInventory(Object playerObj) {
-        if (refuseWithoutAClient("Test.open_inventory")) return;
+        if (refuseWithoutAClient("TestTickContext.open_inventory")) return;
         PlayerEntity player = (PlayerEntity) playerObj;
         GrugClientPlayer.openInventory(player);
     }
@@ -1602,11 +1602,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
-        if (refuseWithoutAClient("Test.press_screen_key")) return false;
+        if (refuseWithoutAClient("TestTickContext.press_screen_key")) return false;
         Minecraft minecraft = MinecraftInstance.get();
         if (minecraft.screen == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.press_screen_key: There is no screen open to press.");
+                    Grug.statePtr,
+                    "TestTickContext.press_screen_key: There is no screen open to press.");
             return false;
         }
         return GrugOverlayHost.pressKey(minecraft.screen, key, ctrl, release);
@@ -1615,11 +1616,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run scrolls while the screen it just opened is up")
     public boolean scrollScreen(double x, double y, double delta) {
-        if (refuseWithoutAClient("Test.scroll_screen")) return false;
+        if (refuseWithoutAClient("TestTickContext.scroll_screen")) return false;
         Minecraft minecraft = MinecraftInstance.get();
         if (minecraft.screen == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.scroll_screen: There is no screen open to scroll.");
+                    Grug.statePtr,
+                    "TestTickContext.scroll_screen: There is no screen open to scroll.");
             return false;
         }
         return GrugOverlayHost.scrollThroughScreen(minecraft.screen, (int) x, (int) y, delta);
@@ -1628,11 +1630,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
-        if (refuseWithoutAClient("Test.click_screen")) return false;
+        if (refuseWithoutAClient("TestTickContext.click_screen")) return false;
         Minecraft minecraft = MinecraftInstance.get();
         if (minecraft.screen == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.click_screen: There is no screen open to click.");
+                    Grug.statePtr,
+                    "TestTickContext.click_screen: There is no screen open to click.");
             return false;
         }
         if (minecraft.screen instanceof GrugScreenGeometry) {
@@ -1645,7 +1648,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double screenWidthForTest() {
-        if (refuseWithoutAClient("Test.screen_width")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.screen_width")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         return minecraft.screen == null ? 0.0 : minecraft.screen.width;
     }
@@ -1653,7 +1656,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiLeftForTest() {
-        if (refuseWithoutAClient("Test.gui_left")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.gui_left")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
         return ((GrugScreenGeometry) minecraft.screen).grug$guiLeft();
@@ -1662,7 +1665,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiWidthForTest() {
-        if (refuseWithoutAClient("Test.gui_width")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.gui_width")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
         return ((GrugScreenGeometry) minecraft.screen).grug$guiWidth();
@@ -1671,7 +1674,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiTopForTest() {
-        if (refuseWithoutAClient("Test.gui_top")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.gui_top")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
         return ((GrugScreenGeometry) minecraft.screen).grug$guiTop();
@@ -1680,7 +1683,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiHeightForTest() {
-        if (refuseWithoutAClient("Test.gui_height")) return 0.0;
+        if (refuseWithoutAClient("TestTickContext.gui_height")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
         return ((GrugScreenGeometry) minecraft.screen).grug$guiHeight();
@@ -1879,12 +1882,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        if (refuseWithoutAClient("Test.use_block")) return;
+        if (refuseWithoutAClient("TestTickContext.use_block")) return;
         World world = (World) levelObj;
         PlayerEntity player = GrugClientPlayer.get();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
+                    Grug.statePtr,
+                    "TestTickContext.use_block: There is no local player to right-click with.");
             return;
         }
 
@@ -1917,7 +1921,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.use_block: There is no grug block at "
+                    "TestTickContext.use_block: There is no grug block at "
                             + blockX
                             + ", "
                             + blockY
@@ -1932,12 +1936,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             "failure paths a healthy run cannot enter: no local player or client level, no block at"
                     + " the position, or a shape the overlay failed to reset")
     public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
-        if (refuseWithoutAClient("Test.mining_crack")) return false;
+        if (refuseWithoutAClient("TestTickContext.mining_crack")) return false;
         Minecraft minecraft = MinecraftInstance.get();
         PlayerEntity player = GrugClientPlayer.of(minecraft);
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.mining_crack: There is no local player to mine with.");
+                    Grug.statePtr,
+                    "TestTickContext.mining_crack: There is no local player to mine with.");
             return false;
         }
 
@@ -1950,7 +1955,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (block == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.mining_crack: There is no block at "
+                    "TestTickContext.mining_crack: There is no block at "
                             + blockX
                             + ", "
                             + blockY
@@ -1987,7 +1992,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 || block.maxZ != 1.0) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.mining_crack: The overlay left the block at "
+                    "TestTickContext.mining_crack: The overlay left the block at "
                             + blockX
                             + ", "
                             + blockY

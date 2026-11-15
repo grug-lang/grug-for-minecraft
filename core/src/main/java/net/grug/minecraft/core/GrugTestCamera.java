@@ -211,7 +211,7 @@ public final class GrugTestCamera {
                 return new Vec3(
                         server.get().camera(0), server.get().camera(1), server.get().camera(2));
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.camera: " + e.getMessage());
+                failed.accept("TestTickContext.camera: " + e.getMessage());
                 return null;
             }
         }

@@ -297,7 +297,7 @@ class GrugTestBoxTest {
         blind.build(3);
         assertEquals(blind.blocks, telling.blocks);
 
-        // A bigger room after a smaller one, as Test.set_box_radius asks for.
+        // A bigger room after a smaller one, as TestTickContext.set_box_radius asks for.
         telling.build(5);
         blind.build(5);
         assertEquals(blind.blocks, telling.blocks);

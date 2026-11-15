@@ -42,14 +42,14 @@ class HostFunctionsTestOnDedicatedServerTest {
     void answersTrueWhenTheLoaderIsADedicatedServer() throws Exception {
         install(GrugSide.DEDICATED_SERVER);
 
-        assertTrue(HostFunctions.Test_on_dedicated_server());
+        assertTrue(HostFunctions.Test_on_dedicated_server(0));
     }
 
     @Test
     void answersFalseWhenTheLoaderIsAClient() throws Exception {
         install(GrugSide.CLIENT);
 
-        assertFalse(HostFunctions.Test_on_dedicated_server());
+        assertFalse(HostFunctions.Test_on_dedicated_server(0));
     }
 
     private static Field adapterField() throws NoSuchFieldException {

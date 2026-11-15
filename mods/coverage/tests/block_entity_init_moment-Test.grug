@@ -4,8 +4,8 @@
 # fails on a loader that waits for the first tick, which is the cross-loader difference this test
 # exists to catch. See #187.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

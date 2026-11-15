@@ -202,7 +202,7 @@ public final class GrugOverlayHost {
 
     /**
      * Asks the overlays about one press and answers whether one took it, recording the answer for
-     * {@code Test.click_screen}.
+     * {@code TestTickContext.click_screen}.
      */
     public static boolean click(Screen screen, int x, int y, int button, boolean shift) {
         GrugScreenGeometry geometry = geometry(screen);
@@ -234,7 +234,7 @@ public final class GrugOverlayHost {
 
     /**
      * Asks the overlays about one key press and answers whether one took it, recording the answer
-     * for {@code Test.press_screen_key}.
+     * for {@code TestTickContext.press_screen_key}.
      *
      * <p>Only a letter or a digit key is asked, given as its upper case character code, which is
      * the same number on every loader. A key the game reports again while it is held is a repeat
@@ -288,7 +288,7 @@ public final class GrugOverlayHost {
         if (key == Keyboard.KEY_NONE) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.press_screen_key: The game has no key for character code "
+                    "TestTickContext.press_screen_key: The game has no key for character code "
                             + charCode
                             + ".");
             return false;
@@ -315,7 +315,7 @@ public final class GrugOverlayHost {
     /**
      * Asks the overlays about the wheel movement the screen's mouse handler is looking at and
      * answers whether the screen's handler must be skipped, recording whether one took it for
-     * {@code Test.scroll_screen}.
+     * {@code TestTickContext.scroll_screen}.
      *
      * <p>The screen's mouse handler runs for every mouse event, a press and a release included, so
      * an event with no wheel movement is declined first. The delta is in notches, positive up, and

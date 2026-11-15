@@ -10,12 +10,12 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.not_done()
     } else if ctx.current_tick() == 1 {
-        change_baseline = Test.hot_reload_count(path)
-        Test.set_mod_file_state(path, "no_trailing_newline")
+        change_baseline = ctx.hot_reload_count(path)
+        ctx.set_mod_file_state(path, "no_trailing_newline")
         ctx.not_done()
-    } else if Test.hot_reload_count(path) <= change_baseline {
+    } else if ctx.hot_reload_count(path) <= change_baseline {
         ctx.not_done()
     } else {
-        Test.set_mod_file_state(path, "normal")
+        ctx.set_mod_file_state(path, "normal")
     }
 }

@@ -4,8 +4,8 @@
 # is. See #173.
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         x: number = origin.x()
         y: number = origin.y()
         z: number = origin.z()
@@ -15,7 +15,7 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.assert(block_opt.has(), "coverage_fixture has no block entity after being placed.")
 
         ctx.not_done()
-    } else if not _diamond_has_spawned() or ctx.current_tick() < 15 {
+    } else if not _diamond_has_spawned(ctx) or ctx.current_tick() < 15 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
         ctx.not_done()
     } else {
@@ -25,12 +25,12 @@ export tick_any_side(ctx: TestTickContext) {
 
 # The diamond is spawned 2 blocks above the block with no velocity, and nothing else in the suite drops
 # an item that close to the origin.
-local _diamond_has_spawned() bool {
-    origin: Vec3 = Test.get_origin()
+local _diamond_has_spawned(ctx: TestTickContext) bool {
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     found: Option[ItemEntity] = level.find_item_entity(x, y + 2, z, 2)
     return found.has()
 }

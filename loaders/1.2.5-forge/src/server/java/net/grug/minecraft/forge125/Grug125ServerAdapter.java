@@ -249,7 +249,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         EntityPlayerMP player = serverPlayer();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.set_carried_item: There is no player to set a cursor on.");
+                    Grug.statePtr,
+                    "TestTickContext.set_carried_item: There is no player to set a cursor on.");
             return;
         }
         player.inventory.setItemStack(itemObj == null ? null : new ItemStack((Item) itemObj));
@@ -325,8 +326,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     /**
      * The first player who joined. A server has no local player, so a test that wants one to build
      * fixtures around is given a connected one: the tests share one world and build in a room
-     * around the test player, so which one only decides whose position {@code Test.get_origin}
-     * reports.
+     * around the test player, so which one only decides whose position {@code
+     * TestTickContext.get_origin} reports.
      */
     @Override
     public Object testPlayer() {
@@ -474,7 +475,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         try {
             return GrugControlServer125.server().worldSettled();
         } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.world_settled: " + e.getMessage());
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
             return true;
         }
     }
@@ -592,7 +594,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         EntityPlayerMP player = (EntityPlayerMP) testPlayer();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.use_block: There is no player to right-click with.");
+                    Grug.statePtr,
+                    "TestTickContext.use_block: There is no player to right-click with.");
             return;
         }
 
@@ -603,7 +606,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         if (blockAt(world, blockX, blockY, blockZ) == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.use_block: There is no block at "
+                    "TestTickContext.use_block: There is no block at "
                             + blockX
                             + ", "
                             + blockY

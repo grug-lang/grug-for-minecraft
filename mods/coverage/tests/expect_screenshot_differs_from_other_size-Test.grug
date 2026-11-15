@@ -3,8 +3,8 @@
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.expect_error("not two views of the same rectangle")
-        small: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
-        tall: Screenshot = Test.screenshot().capture(590, 310, 690, 450)
+        small: Screenshot = ctx.screenshot().capture(590, 310, 690, 410)
+        tall: Screenshot = ctx.screenshot().capture(590, 310, 690, 450)
         tall.differs_from(small, 50)
     }
 }

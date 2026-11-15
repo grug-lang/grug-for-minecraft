@@ -9,7 +9,7 @@
 # the click is applied to and the one the runner's hold settles (#1196). That divergent state is
 # what the installed client was in when this failed, and three rounds make it every run rather than
 # a loaded runner's accident. The a1.1.2_01 server now applies the clicks a client's screen sends,
-# but Test.click_screen, the call that presses on a screen, still refuses there, because that
+# but ctx.click_screen, the call that presses on a screen, still refuses there, because that
 # screen is the joined client's own and carrying the press to it is the later dispatch that carries
 # #1094 PR2, so the test stays unsupported on that server.
 started: bool = false
@@ -21,27 +21,27 @@ round: number = 0
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        Test.close_screen()
+        ctx.close_screen()
         # Cleared before the screen opens, so the client's queued half of the clear has landed on
         # the server by the tick that presses.
-        Test.clear_carried_item()
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        ctx.clear_carried_item()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_block")
-        Test.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.use_block(level, origin.x(), origin.y(), origin.z())
         ctx.not_done()
         return
     }
     if not clicked {
-        if not Test.screen_open() {
+        if not ctx.screen_open() {
             ctx.not_done()
             return
         }
         clicked = true
-        ctx.assert(not Test.get_carried_item().has(), "The cursor should be empty for a click that changes nothing.")
-        left: number = Test.gui_left()
-        top: number = Test.gui_top()
-        ctx.assert(not Test.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+        ctx.assert(not ctx.get_carried_item().has(), "The cursor should be empty for a click that changes nothing.")
+        left: number = ctx.gui_left()
+        top: number = ctx.gui_top()
+        ctx.assert(not ctx.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
         ctx.not_done()
         return
     }
@@ -49,11 +49,11 @@ export tick_any_side(ctx: TestTickContext) {
         unchanged_checked = true
         # Nothing changed, and the next tick still came: the call does not wait for the container to
         # change.
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
         ctx.assert(block_entity.get_item_count_in_slot(0) == 0, "A click with an empty cursor should leave an empty slot empty.")
-        ctx.assert(not Test.get_carried_item().has(), "A click with an empty cursor should leave the cursor empty.")
+        ctx.assert(not ctx.get_carried_item().has(), "A click with an empty cursor should leave the cursor empty.")
         round = 1
         ctx.not_done()
         return
@@ -63,23 +63,23 @@ export tick_any_side(ctx: TestTickContext) {
         # press is the one that sends the click packet. The diamond goes in on this same tick, so
         # the client's prediction is behind the server by construction and cannot be what moves it.
         pressed = true
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
         block_entity.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
-        left: number = Test.gui_left()
-        top: number = Test.gui_top()
-        ctx.assert(not Test.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+        left: number = ctx.gui_left()
+        top: number = ctx.gui_top()
+        ctx.assert(not ctx.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
         ctx.not_done()
         return
     }
     # The effect is the click's, so it is read on the tick after the press.
     pressed = false
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
     ctx.assert(block_entity.get_item_count_in_slot(0) == 0, "The click should have taken the diamond out of the grid's first slot.")
-    in_hand: Option[Item] = Test.get_carried_item()
+    in_hand: Option[Item] = ctx.get_carried_item()
     ctx.assert(in_hand.has(), "The click should have put the grid's diamond on the cursor.")
     if in_hand.has() {
         ctx.assert(equals(in_hand.unwrap(), item(resource_location("minecraft:diamond"))), "The cursor should hold the diamond the grid had.")
@@ -88,9 +88,9 @@ export tick_any_side(ctx: TestTickContext) {
         round = round + 1
         # The next round presses the press path again, which needs an empty cursor, so this round's
         # diamond comes off it.
-        Test.clear_carried_item()
+        ctx.clear_carried_item()
         ctx.not_done()
         return
     }
-    Test.close_screen()
+    ctx.close_screen()
 }

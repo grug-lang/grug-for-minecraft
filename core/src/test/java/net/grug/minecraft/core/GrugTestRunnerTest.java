@@ -13,6 +13,7 @@ import com.google.gson.JsonParser;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugReference;
+import net.grug.minecraft.grug.GrugTestContexts;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.HostFunctions;
 import net.grug.minecraft.grug.Vec3;
@@ -1362,8 +1363,8 @@ class GrugTestRunnerTest {
                 () -> {
                     if (!"coverage/tests/a-Test.grug".equals(ops.activePath)) return;
                     reportRuntimeError(
-                            "Test.screen_width: This needs a client, and grug is running on a"
-                                    + " dedicated server.");
+                            "TestTickContext.screen_width: This needs a client, and grug is running"
+                                    + " on a dedicated server.");
                     ops.completed = false;
                 };
 
@@ -2618,7 +2619,9 @@ class GrugTestRunnerTest {
                 () -> {
                     calls[0]++;
                     log.add("tick " + calls[0]);
-                    reported.add(HostFunctions.Test_normalization_forced());
+                    reported.add(
+                            HostFunctions.TestTickContext_normalization_forced(
+                                    GrugTestContexts.tick()));
                     GrugTestState.testNotDone = calls[0] < 140;
                 };
         GrugTestRunner runner =
@@ -3000,7 +3003,9 @@ class GrugTestRunnerTest {
         ops.onCall =
                 () -> {
                     calls[0]++;
-                    reported.add(HostFunctions.Test_normalization_forced());
+                    reported.add(
+                            HostFunctions.TestTickContext_normalization_forced(
+                                    GrugTestContexts.tick()));
                     GrugTestState.testNotDone = calls[0] < 140;
                 };
         List<String> forced = new ArrayList<>();

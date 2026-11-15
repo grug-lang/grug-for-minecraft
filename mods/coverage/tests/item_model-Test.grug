@@ -7,9 +7,9 @@
 # It defines tick, so a dedicated server skips it: the item list is the client's.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        _setup()
+        _setup(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # The block has to reach the client and a frame has to be drawn after that, which is what
         # makes its block entity's render_frame run. See coverage_render_mining.
         ctx.not_done()
@@ -18,9 +18,9 @@ export tick(ctx: TestTickContext) {
     }
 }
 
-local _setup() {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
 
     # Four blocks in front of the player, where the block entity is in view and its frame render
     # runs every drawn frame.
@@ -28,8 +28,8 @@ local _setup() {
 }
 
 local _check(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

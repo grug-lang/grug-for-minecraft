@@ -20,7 +20,7 @@ target: Option[BlockEntity] = Option.new()
 wooden_a: Option[BlockEntity] = Option.new()
 wooden_b: Option[BlockEntity] = Option.new()
 cobblestone: Option[BlockEntity] = Option.new()
-# The level to advance, fetched once: every Test.get_client_level adds a level entity, and the
+# The level to advance, fetched once: every ctx.get_client_level adds a level entity, and the
 # advance is asked for on more than one runner tick.
 test_level: Option[Level] = Option.new()
 
@@ -83,7 +83,7 @@ local _advance(ctx: TestTickContext) {
     chunk: number = 0
     ran: number = 5
     while not _done() and ran > 0 and chunk < 200 and advanced < 6000 {
-        ran = Test.tick_level(test_level.unwrap(), 5)
+        ran = ctx.tick_level(test_level.unwrap(), 5)
         chunk = chunk + ran
         advanced = advanced + ran
         _sample(ctx)
@@ -91,9 +91,9 @@ local _advance(ctx: TestTickContext) {
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     test_level.set(level)
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # Band 12, clear of the bands the other pipe tests use.
     y: number = origin.y() + 12
@@ -153,7 +153,7 @@ local _sample(ctx: TestTickContext) {
     diamonds: number = _total(diamond)
     ingots: number = _total(ingot)
     if diamonds != 4 or ingots != 4 {
-        _report(diamonds, ingots)
+        _report(ctx, diamonds, ingots)
     }
     ctx.assert(diamonds == 4, "The diamonds should exist exactly once at every sample.")
     ctx.assert(ingots == 4, "The iron ingots should exist exactly once at every sample.")
@@ -189,11 +189,11 @@ local _refetch_one(level: Level, previous: Option[BlockEntity], x: number, y: nu
 # item is not written yet is counted by no sum, the item entities beside the fixture, since a drop is
 # the other place an item can stand unread, and the player's held slot, since the a1 player may have
 # picked a drop up.
-local _report(diamonds: number, ingots: number) {
+local _report(ctx: TestTickContext, diamonds: number, ingots: number) {
     diamond: Item = item(resource_location("minecraft:diamond"))
     ingot: Item = item(resource_location("minecraft:iron_ingot"))
     level: Level = test_level.unwrap()
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     print2("A sample found the wrong total: diamonds", diamonds)
     print2("A sample found the wrong total: ingots", ingots)
     print2("world ticks advanced", advanced)
@@ -209,7 +209,7 @@ local _report(diamonds: number, ingots: number) {
     print2("wooden_a travelling records", _records(wooden_a.unwrap()))
     print2("wooden_b travelling records", _records(wooden_b.unwrap()))
     print2("cobblestone travelling records", _records(cobblestone.unwrap()))
-    print3("held slot", _held(diamond), _held(ingot))
+    print3("held slot", _held(ctx, diamond), _held(ctx, ingot))
     print2("block entities found again", refetched)
     print2("item entities near the fixture", level.count_item_entities(origin.x(), origin.y() + 12, origin.z(), 16))
 }
@@ -229,11 +229,11 @@ local _total(wanted: Item) number {
 # the floor, but it is not summed into _total: a dropped item the player picks up has to stay red
 # (#1205). The player's other slots cannot be read through the API, so a pickup into one of them is
 # reported by nothing but the wrong total.
-local _held(wanted: Item) number {
-    player: Player = Test.get_player()
+local _held(ctx: TestTickContext, wanted: Item) number {
+    player: Player = ctx.get_player()
     held: Option[Item] = player.get_held_item()
     if held.has() and equals(held.unwrap(), wanted) {
-        return Test.get_held_count(player)
+        return ctx.get_held_count(player)
     }
     return 0
 }

@@ -10,8 +10,8 @@ route_north: Option[BlockEntity] = Option.new()
 route_south: Option[BlockEntity] = Option.new()
 
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
@@ -28,7 +28,7 @@ export tick_any_side(ctx: TestTickContext) {
     source.set_item_in_slot(0, diamond, 1)
 
     pipe.receive_energy(1)
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
     ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
 
     # The source is the west chest now, so the two chests placed here can only be exits.
@@ -40,7 +40,7 @@ export tick_any_side(ctx: TestTickContext) {
     route_south.set(south)
 
     # 49 moves to the centre and 51 more to a horizontal exit, with a margin for the ticks after.
-    Test.tick_block_entity(pipe, 110)
+    ctx.tick_block_entity(pipe, 110)
 
     north_count: number = north.get_item_count_in_slot(0)
     south_count: number = south.get_item_count_in_slot(0)

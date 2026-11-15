@@ -1,5 +1,5 @@
 # A render err that belongs to a block must not stop the call of a test that happens to be waiting on
-# the client when the block is drawn (#583, #836). Test.close_screen waits for the client thread with
+# the client when the block is drawn (#583, #836). ctx.close_screen waits for the client thread with
 # the state lock released, which is the moment a chunk worker can enter grug and draw. The draw of a
 # fresh coverage_render block entity reports an err the first time (a refused draw_box), and the
 # engine folds an err that ends a nested call into the call it interrupted, so without a guard the
@@ -11,15 +11,15 @@
 # draw while a call waits. A rebuild from the runner's own clear of the previous test is not the only
 # way in, which is why runner_clear_a_leaves_render_blocks and runner_clear_b_hammers_client alone did
 # not close this. Nothing is asserted but that the calls come back.
-# Since #1094 a dedicated server forwards Test.close_screen to the joined client, so its eight calls
+# Since #1094 a dedicated server forwards ctx.close_screen to the joined client, so its eight calls
 # each wait on the client and have to come back: repeated forwarding is part of what this test proves.
 export tick_any_side(ctx: TestTickContext) {
     # A frame is only drawn for a test that asks for one (#770), and a chunk rebuild is only started by
     # a drawn frame, so ask every tick. The answer is not the point here.
-    Test.world_settled()
+    ctx.world_settled()
 
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -46,10 +46,10 @@ export tick_any_side(ctx: TestTickContext) {
 
     i: number = 0
     while i < 8 {
-        Test.close_screen()
+        ctx.close_screen()
         i = i + 1
     }
-    ctx.assert(not Test.screen_open(), "Test.close_screen should leave no screen open.")
+    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave no screen open.")
 
     if ctx.current_tick() < 9 {
         ctx.not_done()

@@ -10,23 +10,23 @@ before: Option[Screenshot] = Option.new()
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        before.set(Test.screenshot().capture(620, 62, 700, 118))
-        origin: Vec3 = Test.get_origin()
-        _wall_in_front_of(origin)
+        before.set(ctx.screenshot().capture(620, 62, 700, 118))
+        origin: Vec3 = ctx.get_origin()
+        _wall_in_front_of(ctx, origin)
         # Same tick as the placement: the client cannot have drawn it, so a forwarded answer has to
         # say the world is not settled. A server that answers for itself says it is.
-        ctx.assert(not Test.world_settled(), "The world should not be settled in the tick a block was placed.")
+        ctx.assert(not ctx.world_settled(), "The world should not be settled in the tick a block was placed.")
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         ctx.not_done()
     } else {
-        after: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
+        after: Screenshot = ctx.screenshot().capture(620, 62, 700, 118)
         after.differs_from(before.unwrap(), 50)
     }
 }
 
-local _wall_in_front_of(origin: Vec3) {
-    level: Level = Test.get_client_level()
+local _wall_in_front_of(ctx: TestTickContext, origin: Vec3) {
+    level: Level = ctx.get_client_level()
     z: number = origin.z() + 1
     across: number = -2
     while across <= 2 {

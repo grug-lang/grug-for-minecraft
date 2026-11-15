@@ -22,11 +22,11 @@ stack_row: number = 0
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.overlay_supported() {
+        if not me.overlay_supported() {
             # This loader draws no overlays; the deviation is in about.json.
             return
         }
-        Test.close_screen()
+        ctx.close_screen()
         ctx.not_done()
         return
     }
@@ -41,25 +41,25 @@ export tick_any_side(ctx: TestTickContext) {
     if not opened {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         opened = true
         waited = 0
         ctx.not_done()
         return
     }
 
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         waited = waited + 1
         ctx.assert(waited < 100, "The player's inventory screen should open.")
         ctx.not_done()
         return
     }
 
-    if not Test.overlay_drawn() {
+    if not ctx.overlay_drawn() {
         # The screen is up but no frame with this port's overlay on it has been drawn yet, and at
         # the run's maximum speed the test can click and close before one is. Asking turns drawing
         # on.
@@ -69,29 +69,29 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
 
-    expected: Item = item_at(clicked_row * _columns() + clicked_column)
-    expected_stack: Item = item_at(stack_row * _columns() + stack_column)
+    expected: Item = item_at(clicked_row * _columns(ctx) + clicked_column)
+    expected_stack: Item = item_at(stack_row * _columns(ctx) + stack_column)
 
     if step == 0 {
         # A right click gives one item, which is the reference's cheatOneItem2. An earlier test may
         # have left something on the cursor; clearing it keeps the delete check from seeing it.
-        ctx.assert(_columns() >= 3, "The test needs the grid to be at least three columns wide to click column 2.")
+        ctx.assert(_columns(ctx) >= 3, "The test needs the grid to be at least three columns wide to click column 2.")
         # The first item whose full stack is 64 is the stack the middle click uses. The list order
         # differs by version, so scanning it is what makes the same test work on all of them.
         stack_index: number = -1
         search: number = 0
         while search < item_count() and stack_index < 0 {
-            if Test.get_item_max_stack(item_at(search)) == 64 {
+            if ctx.get_item_max_stack(item_at(search)) == 64 {
                 stack_index = search
             }
             search = search + 1
         }
         ctx.assert(stack_index >= 0, "The item list should hold an item whose full stack is 64.")
-        stack_column = Math.remainder(stack_index, _columns())
-        stack_row = Math.floor(stack_index / _columns())
-        Test.clear_carried_item()
+        stack_column = Math.remainder(stack_index, _columns(ctx))
+        stack_row = Math.floor(stack_index / _columns(ctx))
+        ctx.clear_carried_item()
         step = 1
-        taken: bool = Test.click_screen(_cell_x(clicked_column), _cell_y(clicked_row), 1)
+        taken: bool = ctx.click_screen(_cell_x(ctx, clicked_column), _cell_y(clicked_row), 1)
         ctx.assert(taken, "The overlay should take a right click on its item, so that the vanilla slot under it is not clicked too.")
         ctx.not_done()
         return
@@ -99,14 +99,14 @@ export tick_any_side(ctx: TestTickContext) {
 
     if step == 1 {
         waited = waited + 1
-        held: Option[Item] = Test.get_player().get_held_item()
+        held: Option[Item] = ctx.get_player().get_held_item()
         if not held.has() {
             ctx.assert(waited < 200, "The item a right click gives should reach the player's hand.")
             ctx.not_done()
             return
         }
         ctx.assert(equals(held.unwrap(), expected), "A right click should give the clicked item.")
-        ctx.assert(Test.get_held_count(Test.get_player()) == 1, "A right click should give one item.")
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == 1, "A right click should give one item.")
         step = 2
         ctx.not_done()
         return
@@ -116,10 +116,10 @@ export tick_any_side(ctx: TestTickContext) {
         # A middle click gives a full stack, which is the reference's cheatItemStack binding. The
         # item is the one the test found whose full stack is 64, so the count can tell it from a
         # single item.
-        ctx.assert(Test.get_item_max_stack(expected_stack) == 64, "The stack item should be a 64 stack.")
-        Test.clear_held_item(Test.get_player())
+        ctx.assert(ctx.get_item_max_stack(expected_stack) == 64, "The stack item should be a 64 stack.")
+        ctx.clear_held_item(ctx.get_player())
         step = 3
-        taken: bool = Test.click_screen(_cell_x(stack_column), _cell_y(stack_row), 2)
+        taken: bool = ctx.click_screen(_cell_x(ctx, stack_column), _cell_y(stack_row), 2)
         ctx.assert(taken, "The overlay should take a middle click on its item.")
         ctx.not_done()
         return
@@ -127,15 +127,15 @@ export tick_any_side(ctx: TestTickContext) {
 
     if step == 3 {
         waited = waited + 1
-        held: Option[Item] = Test.get_player().get_held_item()
+        held: Option[Item] = ctx.get_player().get_held_item()
         if not held.has() {
             ctx.assert(waited < 200, "The stack a middle click gives should reach the player's hand.")
             ctx.not_done()
             return
         }
         ctx.assert(equals(held.unwrap(), expected_stack), "A middle click should give the clicked item.")
-        ctx.assert(Test.get_held_count(Test.get_player()) == 64, "A middle click should give a full stack.")
-        Test.clear_held_item(Test.get_player())
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == 64, "A middle click should give a full stack.")
+        ctx.clear_held_item(ctx.get_player())
         step = 4
         ctx.not_done()
         return
@@ -144,19 +144,19 @@ export tick_any_side(ctx: TestTickContext) {
     if step == 4 {
         # A left click while the cursor carries an item deletes it, as DeleteItemInputHandler does,
         # rather than giving another one.
-        Test.set_carried_item(expected)
-        carried: Option[Item] = Test.get_carried_item()
+        ctx.set_carried_item(expected)
+        carried: Option[Item] = ctx.get_carried_item()
         ctx.assert(carried.has(), "The test should be able to put an item on the cursor.")
         step = 5
-        taken: bool = Test.click_screen(_cell_x(clicked_column), _cell_y(clicked_row), 0)
+        taken: bool = ctx.click_screen(_cell_x(ctx, clicked_column), _cell_y(clicked_row), 0)
         ctx.assert(taken, "The overlay should take a left click while the cursor carries an item.")
         ctx.not_done()
         return
     }
 
     if step == 5 {
-        ctx.assert(not Test.get_carried_item().has(), "A left click on the list should delete the item on the cursor.")
-        ctx.assert(not Test.get_player().get_held_item().has(), "Deleting the carried item should not also give one.")
+        ctx.assert(not ctx.get_carried_item().has(), "A left click on the list should delete the item on the cursor.")
+        ctx.assert(not ctx.get_player().get_held_item().has(), "Deleting the carried item should not also give one.")
         step = 6
         ctx.not_done()
         return
@@ -164,16 +164,16 @@ export tick_any_side(ctx: TestTickContext) {
 
     if step == 6 {
         # With the cursor empty again, a left click gives one item.
-        Test.clear_held_item(Test.get_player())
+        ctx.clear_held_item(ctx.get_player())
         step = 7
-        taken: bool = Test.click_screen(_cell_x(clicked_column), _cell_y(clicked_row), 0)
+        taken: bool = ctx.click_screen(_cell_x(ctx, clicked_column), _cell_y(clicked_row), 0)
         ctx.assert(taken, "The overlay should take a left click on its item, so that the vanilla slot under it is not clicked too.")
         ctx.not_done()
         return
     }
 
     waited = waited + 1
-    held: Option[Item] = Test.get_player().get_held_item()
+    held: Option[Item] = ctx.get_player().get_held_item()
     if not held.has() {
         ctx.assert(waited < 200, "The clicked item should reach the player's hand.")
         ctx.not_done()
@@ -181,8 +181,8 @@ export tick_any_side(ctx: TestTickContext) {
     }
 
     ctx.assert(equals(held.unwrap(), expected), "The item in the player's hand should be the one that was clicked.")
-    ctx.assert(Test.get_held_count(Test.get_player()) == 1, "A left click should give one item.")
-    Test.close_screen()
+    ctx.assert(ctx.get_held_count(ctx.get_player()) == 1, "A left click should give one item.")
+    ctx.close_screen()
 }
 
 # The middle of a slot, in the scaled pixels a screen's mouse handlers take.
@@ -191,26 +191,26 @@ export tick_any_side(ctx: TestTickContext) {
 # the bottom for its search bar, and crops 22 at the top for its page buttons. The screen's size and
 # the GUI's position come from the open screen, because the window size and the recipe book can move
 # the GUI, so the test works out the same grid the overlay does instead of assuming a window size.
-local _cell_x(column: number) number {
-    return _grid_x() + column * 18 + 9
+local _cell_x(ctx: TestTickContext, column: number) number {
+    return _grid_x(ctx) + column * 18 + 9
 }
 
 local _cell_y(row: number) number {
     return _grid_y() + row * 18 + 9
 }
 
-local _grid_x() number {
-    display_left: number = Test.gui_left() + Test.gui_width()
-    available_width: number = Test.screen_width() - display_left - 12
-    return display_left + 6 + (available_width - _columns() * 18)
+local _grid_x(ctx: TestTickContext) number {
+    display_left: number = ctx.gui_left() + ctx.gui_width()
+    available_width: number = ctx.screen_width() - display_left - 12
+    return display_left + 6 + (available_width - _columns(ctx) * 18)
 }
 
 local _grid_y() number {
     return 28
 }
 
-local _columns() number {
-    available_width: number = Test.screen_width() - Test.gui_left() - Test.gui_width() - 12
+local _columns(ctx: TestTickContext) number {
+    available_width: number = ctx.screen_width() - ctx.gui_left() - ctx.gui_width() - 12
     columns: number = Math.floor(available_width / 18)
     if columns > 9 {
         columns = 9

@@ -3,8 +3,8 @@
 # returning a wrong number. The substring is shared by every loader's message.
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         x: number = origin.x() + 6
         y: number = origin.y()
         z: number = origin.z()

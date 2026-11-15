@@ -8,7 +8,8 @@ package net.grug.minecraft.core;
  * of the {@code 1.20.6-forge} test phase, 15% to 24% of it, with 71% of the run's frames belonging
  * to tests that never capture. The runner turns drawing off once a test's room is built and back on
  * when the test ends, and only the calls that need a drawn frame turn it on again: {@code
- * Test.screenshot}, a {@code Test.world_settled} wait, and either capture call.
+ * TestTickContext.screenshot}, a {@code TestTickContext.world_settled} wait, and either capture
+ * call.
  *
  * <p>Drawing is on outside a test, so the client draws its title screen, the world load and the
  * frames between two tests as it always did. Nothing here decides what a frame contains: a loader

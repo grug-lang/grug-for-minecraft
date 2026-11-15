@@ -721,7 +721,7 @@
 					]
 				},
 				"level": {
-					"description": "Gets the Level (dimension) a BlockEntity is in: the world the game simulates, the same one on every loader, and the one `Test.get_client_level` returns.",
+					"description": "Gets the Level (dimension) a BlockEntity is in: the world the game simulates, the same one on every loader, and the one `TestTickContext.get_client_level` returns.",
 					"return_type": {
 						"name": "Level"
 					}
@@ -1001,7 +1001,7 @@
 			]
 		},
 		"Test": {
-			"description": "Utility functions for automated tests.",
+			"description": "Utility functions for automated tests. The calls that drive or read a running test live on TestTickContext, handed to its tick(); the ones that describe the loader or the harness are methods of the test itself, called as me.method().",
 			"export_functions": [
 				{
 					"name": "init",
@@ -1043,446 +1043,12 @@
 					]
 				}
 			],
-			"static_methods": {
-				"block_collision": {
-					"description": "Whether the block at that position, as the game collides with it, has a collision box that overlaps the given box. The box is in block-local coordinates, 0 to 1 from the block's minimum corner, so a test can put a player-sized box in a block's corner and ask whether the player would be kept out of it. It asks the game for the block's own collision boxes, so it answers for any block the loader knows, not only for grug blocks.",
-					"return_type": {
-						"name": "bool"
-					},
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "x1",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y1",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z1",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "x2",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y2",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z2",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"block_ray_trace": {
-					"description": "Test only: whether the game's own ray trace from one point to another first meets the block at that position. The two points are in block-local coordinates, 0 to 1 from the block's minimum corner, and may lie outside them so a ray can start outside the block. It asks each loader through the method its world's own block ray trace calls, which is the path a player's click takes, rather than reading the block's boxes itself, so it answers for any block the loader knows and a loader that clips against the wrong box fails here.",
-					"return_type": {
-						"name": "bool"
-					},
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "start_x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "start_y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "start_z",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "end_x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "end_y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "end_z",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"block_selection": {
-					"description": "Whether the box the game targets and outlines for the block at that position contains the given point. The point is in block-local coordinates, 0 to 1 from the block's minimum corner. It asks the game for the block's own selection box, so it answers for any block the loader knows, not only for grug blocks.",
-					"return_type": {
-						"name": "bool"
-					},
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "point_x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "point_y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "point_z",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"camera": {
-					"description": "Test only: the render camera of the client that draws the tests, which is the eye its player's origin is measured from. On a client that is its own camera; on a dedicated server it is the joined client's camera, asked for over the test-control channel, so a test can assert that the client draws from the point the room was built around rather than from wherever its own view has drifted to. With no camera to read, the call reports an error naming `Test.camera` rather than answering a position, the way `Test.get_origin` reports without a player. See #1161.",
-					"return_type": {
-						"name": "Vec3"
-					}
-				},
-				"clear_carried_item": {
-					"description": "Test only: clears the mouse cursor of the container screen that is open, on the client and on the integrated server, so a test starts a press with nothing carried. A test with no container screen open does nothing."
-				},
-				"clear_held_item": {
-					"description": "Test only: empties the player's selected hotbar slot.",
-					"parameters": [
-						{
-							"name": "player",
-							"type": {
-								"name": "Player"
-							}
-						}
-					]
-				},
-				"click_screen": {
-					"description": "Presses a mouse button at a screen position, in the same scaled pixels a screen's own mouse handlers use, through the same path a real press takes, and answers whether an overlay took the press. True means an overlay took it, so the vanilla slot under it did not see it; false means no overlay took it, even when the screen handled the press itself, so a test can tell the overlay's take from a click on a vanilla slot. The button is 0 for the left button, 1 for the right and 2 for the middle, which is every button a click means on every loader, and any other number is an err rather than a press. Test only: it is how a test clicks what an overlay drew without a real mouse.",
-					"return_type": {
-						"name": "bool"
-					},
-					"parameters": [
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "button",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"client_saved_number": {
-					"description": "Test only: the number saved under a name by the client's own copy of a block entity, which is the copy its render_frame pass reads. A test that saves a number and waits for its frame to change can only see that something moved, which a section being built again or a light step can do too; this says whether the save reached the copy the frame is drawn from, so a test can wait for the data itself and then ask what the frame shows. On a client that copy is its own, and a dedicated server asks the joined client of the player who started the run over the test-control channel. The answer is 0 when the client holds no block entity there or the number was never saved, which is also a number a script may have saved, so a test whose number starts at 0 cannot tell the two apart and saves a value that is not the starting one. See #1162.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						},
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"close_screen": {
-					"description": "Closes whatever screen is open. On a client that is its own screen. On a dedicated server it is forwarded to the joined client of the player who started the run (#1094), which closes its own screen, and 1.20.6's server also closes the container menu the player the test runs as has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
-				},
-				"display_tick": {
-					"description": "Test only: runs the display tick of the block at that position as the game does for a block it samples around the player, with a random generator seeded by `seed`, and answers how many particles it spawned. It goes through the block's own random display tick rather than a grug call, so it answers for any block the loader knows. The particles spawned are kept for Test.particle_position until the next call. Whether they are drawn depends on the player's particle setting, which the screenshot runs set to minimal, and on Alpha and Beta, which have no such setting, the CI runs drop them.",
-					"return_type": {
-						"name": "number"
-					},
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "seed",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"force_gc": {
-					"description": "Test only: asks the JVM for a full garbage collection, so a test can make a collected host entity deterministic instead of waiting for GC timing to line up."
-				},
-				"get_carried_item": {
-					"description": "Test only: the Item on the mouse cursor of the container screen that is open, if it carries one, and an empty Option when the cursor is empty or no container screen is open.",
-					"return_type": {
-						"name": "Option",
-						"generics": [
-							{
-								"name": "Item"
-							}
-						]
-					}
-				},
-				"get_client_level": {
-					"description": "Gets the level a test's edits and queries reach: the world the game simulates, the same one on every loader. On 1.20.6 that is the integrated server's level, not the client's mirror of it, which nothing ticks, so a block entity placed here ticks on its own. The name is historical. See #803.",
-					"return_type": {
-						"name": "Level"
-					}
-				},
-				"get_held_count": {
-					"description": "Test only: how many items the player's selected hotbar slot holds, so a test can tell one item from a full stack. The item itself is what `Player.get_held_item` answers.",
-					"parameters": [
-						{
-							"name": "player",
-							"type": {
-								"name": "Player"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"get_item_max_stack": {
-					"description": "Test only: the largest stack the item can come in, so a test of an overlay can tell a full stack from one item without knowing which item this version's list puts first.",
-					"parameters": [
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"get_origin": {
-					"description": "Gets the origin coordinates for running isolated tests: the camera's position plus 3, the same on every loader. The runner snaps the player to the centre of their block and levels their view at the start of every test, so the first call in a test captures that position and every later call in the same test returns it, which is what keeps a fixture and its check on one row. On a side with no test player to measure from, as on a dedicated server nobody has joined, the call reports an error naming `Test.get_origin` rather than answering a position, the way `Test.get_client_level` and `Test.get_player` report without a level or a player. See #188.",
-					"return_type": {
-						"name": "Vec3"
-					}
-				},
-				"get_player": {
-					"description": "Gets the local client player, for tests that need to call a method taking a Player.",
-					"return_type": {
-						"name": "Player"
-					}
-				},
-				"gui_height": {
-					"description": "Test only: the height of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's screen.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_left": {
-					"description": "Test only: the x position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's screen.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_top": {
-					"description": "Test only: the y position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's screen.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_width": {
-					"description": "Test only: the width of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's screen.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"high_block_round_trip": {
-					"description": "Test only: proves a block id above 255 survives the game's own chunk save and load. The loader's block-id search takes an id with every id in its low range taken by stand-ins, a block registers and is placed with it, and the chunk the tests run in is saved and read straight back through the game's own chunk loader. The answer is the id the loaded chunk holds, which the test checks is above 255, or -1 on a loader whose block ids never reach there: it has no such id to round trip, and -1 is a no-op rather than an err. See #518.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"hot_reload_count": {
-					"description": "How many changes to relative_path the engine has reported so far, so a test can wait until its own file write has been observed instead of assuming it was.",
-					"parameters": [
-						{
-							"name": "relative_path",
-							"type": {
-								"name": "string"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
+			"methods": {
 				"is_reference": {
 					"description": "Whether the test harness is driving the reference mod rather than this port, so a recreation test can take the reference branch. Set by the GRUG_REFERENCE environment variable, so one test file runs against both.",
 					"return_type": {
 						"name": "bool"
 					}
-				},
-				"light_applied": {
-					"description": "Test only: whether the client's copy of the world holds the same block light in the section this position falls in as the world the test edits, which is the light the client's frame pass draws that section with. A light change reaches a 1.20.6 client in a packet after the block changes a capture settle counts, so two frames of a room drawn from the light it had before the change can agree with each other, and a capture taken then lands a light step away from the room's real light. A test that captures a room whose light a change of its own touched waits for this before it captures, which is deterministic where a frame count is not. The answer is false while the world's own light engine still has work in its own queues, so the copies are not compared before the change has been worked out; a check still waiting in the chunk sorter's queue is not visible to that gate. The section is compared as a 53-bit fingerprint of its light, not one position's light, because a client-only run reads the client's copy from the server thread and only the section is published for another thread to read. The position has to be finite, because a coordinate that is not finite names no section at all, so a call with one is reported and answers false. A dedicated server asks the joined client for its own copy, and a client-only run of the four older loaders shares one world, so its answer is true there. A position in a chunk column the client was never sent is false, because that client cannot hold the world's light there, however empty the world's own section still is. 1.2.5's incremental light is history-dependent, so its server cannot verify the room's client copy and answers true for those sections. See #1207 and #1240.",
-					"parameters": [
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					],
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"load_nbt": {
-					"description": "Test only: writes a block entity's NBT, applies the edits staged for it in the order they were staged, and has the world load a block entity from the result as a chunk load does: the old block entity is removed, and a new one is created from the NBT before it enters the world, so a mod whose block entity depends on that order loads as it would from a save. The handle names the removed block entity afterwards, so get the block entity at its position again. A path that does not fit the NBT and a block entity with nothing staged are reported, and then nothing is replaced.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						}
-					]
 				},
 				"loader_name": {
 					"description": "Test only: the name of the loader this run is on, such as `1.20.6-forge` or `b1.7.3-stationapi`. A test whose answer depends on the loader, such as the largest count an item stack's save keeps, asks this and checks the loader's own answer.",
@@ -1490,92 +1056,8 @@
 						"name": "string"
 					}
 				},
-				"mining_crack": {
-					"description": "Test only: whether the game draws the mining crack over the block's own geometry, and leaves the block's shape a full cube afterwards. A test cannot hold the crack on screen, because the versions whose overlay follows the local player's own mining clear that state on every tick the attack button is not held; so the versions that draw the overlay from an explicit call make one overlay pass for the block at the middle of the break, and 1.20.6 asks its baked model for the quads the overlay would draw. The block is left in place.",
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					],
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"normalization_forced": {
-					"description": "Whether the loader forced the GL capabilities that normalize normals for the running test, which the runner does before the first tick of a test whose file name ends with `_forced_normalization` (GrugForcedNormalization), on the loaders whose GUI item draw inherits the state. A marked test asks this to prove the hook really ran: the overlay's pin makes its capture identical whether or not the state was forced, so a loader that lost its hook would otherwise leave the capture green and unproven. False on 1.20.6-forge, whose item draw never inherits the state, and in a reference run. Test only.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"notify_neighbors": {
-					"description": "Test only: notifies the neighbours of a position as if the block there had changed, so a test can deliver an on_neighbor_change without a non-quiet block write.",
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
 				"on_dedicated_server": {
 					"description": "Test only: whether this run is a dedicated server process rather than a client. A dedicated run has a joined client whose world is a copy the server does not share, so a wait that compares the client's copy with the server's is real there; a client-only run of a loader whose client and server share one world has no second copy, so the same wait is true by construction. `client_light_applied` asks this to assert the far section only where the joined client's copy is the one that lacks it. See #1240.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"open_inventory": {
-					"description": "Opens the player's own inventory screen, the way the inventory key does, so a test can drive an overlay that only appears there. The screen appears on the next frame, so a test waits for `screen_open` before it clicks. Test only: no mod needs to open the vanilla inventory.",
-					"parameters": [
-						{
-							"name": "player",
-							"type": {
-								"name": "Player"
-							}
-						}
-					]
-				},
-				"overlay_drawn": {
-					"description": "Whether a frame has drawn the running test's own overlay on the eligible screen that is open now, which a test waits for after it opens the screen and before it clicks. The mark is cleared when an eligible screen opens, so a test waits for a frame of its own screen rather than for one another mod drew on an earlier one. Asking also asks the client for a frame, the way `Test.world_settled` does, because the runner skips the frames of a test that never captures. The answer is set on the render thread, so waiting for it is how a test tells a screen that was really drawn from one the game closed before a frame, which a run at maximum speed can otherwise hide. On a dedicated server the frame is the joined client's, and the overlay is the one of the mod whose test is running, which the server names to the client. Test only.",
 					"return_type": {
 						"name": "bool"
 					}
@@ -1586,309 +1068,8 @@
 						"name": "bool"
 					}
 				},
-				"particle_position": {
-					"description": "Test only: where the particle with that index, counted from 0, was spawned by the last Test.display_tick, as a position in the world. An index past the last particle reports an error.",
-					"return_type": {
-						"name": "Vec3"
-					},
-					"parameters": [
-						{
-							"name": "index",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"press_screen_key": {
-					"description": "Presses a key on the screen that is open, through the same path a real key press takes, and answers whether an overlay took the key. True means an overlay took it, so the screen never saw it; false means no overlay took it, even when the screen handled the key itself. The key is the number OverlayKeyContext.key answers. The key is released again after the press when `release` is true; with `release` false it stays held, so pressing the same key again is a key repeat, which an overlay is not asked about (it answers false), until a press with `release` true lets go. On a dedicated server the press is forwarded to the joined client (#1094), which presses the key on its own screen. Test only.",
-					"return_type": {
-						"name": "bool"
-					},
-					"parameters": [
-						{
-							"name": "key",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "ctrl",
-							"type": {
-								"name": "bool"
-							}
-						},
-						{
-							"name": "release",
-							"type": {
-								"name": "bool"
-							}
-						}
-					]
-				},
 				"registers_mod_recipes": {
 					"description": "Test only: whether this loader registers the crafting recipes a mod ships under `data/<namespace>/recipes`. Every loader does, each through its own version's recipe machinery: the Ornithe loaders parse the tree themselves and hand the result to the game's CraftingManager, StationAPI hands the files to its recipe registry, 1.20.6 serves the tree to Forge as a pack so the level's own recipe manager loads it, and 1.2.5 parses the tree and calls the game's own ModLoader.addRecipe and addShapelessRecipe. A test that asserts a shipped recipe asks this first, so a future loader that registers none does not fail the run for something it cannot do.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"reload_count": {
-					"description": "How many times a loader has finished reloading after a change to relative_path was reported, so a test that checks what the reload rendered waits for the loader instead of a guessed number of ticks.",
-					"parameters": [
-						{
-							"name": "relative_path",
-							"type": {
-								"name": "string"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"round_trip_nbt": {
-					"description": "Serialises a block entity's NBT and reads it straight back, so tests can cover the save/load paths without a real world save.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						}
-					]
-				},
-				"screen_open": {
-					"description": "Whether a screen is open. On a client it is the client's own screen. On a dedicated server it is forwarded to the joined client of the player who started the run (#1094), so a server-run test sees that client's screen and not the container menu the server holds. A block's GUI is not necessarily open when `use_block` returns: on 1.20.6 the server opens it with a packet, and a settled world does not say the packet has arrived, so a test that captures the panel waits for this first. The answer is the client's own screen object, so it is true only once that screen exists, which is after the packet arrived. A screen that `close_screen` leaves in place on a loader that needs one does not count. See #418 and #168.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"screen_width": {
-					"description": "Test only: the width of the open screen in scaled pixels, so a test of an overlay can work out where the screen put its GUI and display area instead of assuming a window size. A test with no screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's window.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"screenshot": {
-					"description": "Starts a screenshot assertion for the current frame. Returns a builder whose `equals` captures a pixel rectangle and compares it against a directory of reference PNGs. The builder compares pixel-exactly by default; call `tolerance` first to allow a small percentage of differing pixels.",
-					"return_type": {
-						"name": "Screenshot"
-					}
-				},
-				"scroll_screen": {
-					"description": "Turns the mouse wheel at a screen position, in the same scaled pixels a screen's own mouse handlers use, through the same path a real wheel takes, and answers whether an overlay took the movement. True means an overlay took it, so the screen never saw it; false means no overlay took it. The delta is the number OverlayScrollContext.delta answers: positive turns the wheel up, away from the player, and negative turns it down. On a dedicated server the movement is forwarded to the joined client (#1094), which turns the wheel on its own screen. Test only: it is how a test scrolls what an overlay drew without a real mouse.",
-					"return_type": {
-						"name": "bool"
-					},
-					"parameters": [
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "delta",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"set_box_radius": {
-					"description": "Rebuilds the sealed room the runner builds around the player before every test, with the given radius. The room is a hollow box of stone with a torch on every floor tile, so its light comes from torches rather than the sky, and a screenshot does not change with the time of day. The default room is small; a test whose fixture reaches further than that asks for a bigger one, up to a radius of 30: a wider room would reach chunks the client never receives. See #253 and #948.",
-					"parameters": [
-						{
-							"name": "radius",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"set_carried_item": {
-					"description": "Test only: puts one of the item on the mouse cursor of the container screen that is open, replacing what was there. A test with no container screen open does nothing.",
-					"parameters": [
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						}
-					]
-				},
-				"set_held_item": {
-					"description": "Test only: puts one of the item in the player's selected hotbar slot, replacing what was there.",
-					"parameters": [
-						{
-							"name": "player",
-							"type": {
-								"name": "Player"
-							}
-						},
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						}
-					]
-				},
-				"set_mod_file_state": {
-					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it. The record of the original contents outlives the run, so a run that ends abruptly while a file is disturbed cannot leave that file unreadable for the next one.",
-					"parameters": [
-						{
-							"name": "relative_path",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "state",
-							"description": "One of \"normal\" (restores the bytes the file was first read with), \"invalid\" (fails to compile), \"no_trailing_newline\" (still valid JSON), \"deleted\" (the file is removed), or \"swapped\" (the bytes of the sibling file whose name carries \".swap\" before the extension, which is how a binary asset such as a texture can be replaced with different content).",
-							"type": {
-								"name": "string"
-							}
-						}
-					]
-				},
-				"set_nbt_item": {
-					"description": "Test only: stages a stack of one of the item, undamaged, in a block entity's own NBT, as the compound the game itself saves a stack as, at a path as for Test.set_nbt_number. Nothing changes until Test.load_nbt.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						},
-						{
-							"name": "path",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						}
-					]
-				},
-				"set_nbt_number": {
-					"description": "Test only: stages a number in a block entity's own NBT, the data it saves and loads, so a test can set up state that has no grug saved data, such as a recreation test's reference branch setting the real mod's block entity to what the port sets through its saved data. The path is the keys from the block entity's compound to the one set, joined by dots; a part of only digits is an index into a list of compounds, a list's size appends a new compound, an index is always followed by a key, and a missing key on the way is created. The number is stored as the NBT type named: byte, short, int, long, float or double, an integer type taking only a whole number in its range. Nothing changes until Test.load_nbt.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						},
-						{
-							"name": "path",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "type",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "value",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"stall": {
-					"description": "Blocks the thread the test runs on for the given number of milliseconds, the way a garbage collection pause or a world save does, and returns once they have passed. On 1.20.6 the game keeps ticking its client while the integrated server's thread is blocked, so a stall leaves the client with ticks the server has not acted on; the runner coalesces them to at most one frame's worth, but a test that waits for a packet or a frame calls this to prove it waits for the condition and not for a number of ticks. The time has to be from 0 to 10000, and anything else is reported without stalling.",
-					"parameters": [
-						{
-							"name": "milliseconds",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"tick_block_entity": {
-					"description": "Test only: runs a grug block entity's tick function the given number of times in a row, within the test's current tick, so a test can reach a state that takes the game minutes to build without waiting for them. The clock Level.get_time reads is left alone, as a machine accelerator leaves it. The ticks have to be a whole number from 0 to 2147483647, and the block entity a grug one, or it is reported.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						},
-						{
-							"name": "ticks",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"tick_level": {
-					"description": "Test only: runs the level's own tick the given number of times in a row, synchronously, at the point of the call, so a test can reach a state that takes the game minutes to build without waiting for those ticks to be drawn. It runs what the game's own tick of that level runs, in the loader's own order: the level's clock and weather, its scheduled block and fluid updates, its random block ticks, its entity ticks and its block entity ticks, including vanilla and reference ones. The clock moves one per tick and the level's random is drawn from exactly as it is on a real tick, unlike Test.tick_block_entity, which leaves both alone. It does not tick the client: no frame is drawn, no screen opens, no client packet is read by the server between the ticks and no resource reload is applied, so a test that waits for something drawn or received still waits for a real tick. The ticks have to be a whole number from 0 to 2147483647, or it is reported. The runner's own tick and budget do not move: ctx.current_tick is unchanged, and the game's own tick still runs around the test's tick, so two test ticks are one more world tick apart than the count. The budget counts the test's own ticks and this bypasses it, so the work an advance costs is bounded only by the run timeout, which is a new way for a test to hang. The answer is the number of ticks the advance ran, which is the count asked for on a loader that can advance its level, or 0 on one that cannot yet: a loader without an advance keeps a default that answers 0 and does nothing, and 0 is a documented no-op rather than an err, so a test that gets 0 falls back to waiting for the game's own ticks. A test that needs the advance reads the answer instead of assuming it.",
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "ticks",
-							"type": {
-								"name": "number"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"use_block": {
-					"description": "Right-clicks the block at the given coordinates with the player the test runs as, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. The click runs on the side the test runs on, the local player's own right-click on a client and the test player's on a dedicated server, so its effect lands in the world the test reads either way. The face is the one the test player's eye sees of the block, the same on both sides: the top of a block below the eye, the bottom of one above it, and the side facing the player of one at its level.",
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"world_settled": {
-					"description": "Whether the frame a capture would read is one the client had no work left in: no light it had not propagated, no chunk rebuild it did not get to, a window already at the screenshot resolution, and the first-person hand's equip height and swing at rest (the height it eases after the held item changes and the swing an attack interpolates with; the walk bob and an item's use animation are not part of the answer). The hand is drawn in the world pass, so an open screen shows it behind its panel, and it rises after the held item changes; a capture taken during that rise depends on how many ticks of it the run's frames reached, which is a difference between two runs of one test (#961). The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light update is still settling, so a capture taken too early can land a light step away from the reference. A screenshot test waits for this before capturing. It is sampled from each loader's own frame hook rather than from the game tick the call runs on, because the game draws fewer frames than it runs ticks and, on the loaders that read the back buffer, the frame a capture reads can be several ticks old. The answer covers the frames the client had drawn when it was given, not the frame the capture that follows is served by: a capture is served by the first frame drawn after it asks, and the integrated server's world keeps simulating in between, so a block or light update it sends after this answered is applied on the client's next tick and uploaded by that frame. Such an update can be in the capture although no frame counted here had it. A block the test places is counted before this can answer, because the answer waits for the client to show it. So a test whose scene can change on the server while it waits must not treat this as a promise that the served frame still shows the scene it checked. See #253, #257 and #1154.",
 					"return_type": {
 						"name": "bool"
 					}
@@ -2147,7 +1328,7 @@
 					]
 				},
 				"random": {
-					"description": "The next number from the game's random generator for this tick, from 0 up to but not 1, as `Random.nextFloat` and `RandomSource.nextFloat` give it. A port consumes the generator in the order its reference does, so a test that seeds it (see Test.display_tick) gets the same particles from a port and from its reference. Only legal on the context display_tick() was passed, while that call is running: a context saved for later is refused.",
+					"description": "The next number from the game's random generator for this tick, from 0 up to but not 1, as `Random.nextFloat` and `RandomSource.nextFloat` give it. A port consumes the generator in the order its reference does, so a test that seeds it (see TestTickContext.display_tick) gets the same particles from a port and from its reference. Only legal on the context display_tick() was passed, while that call is running: a context saved for later is refused.",
 					"return_type": {
 						"name": "number"
 					}
@@ -2537,7 +1718,7 @@
 					]
 				},
 				"get_time": {
-					"description": "The world's time in ticks, which keeps counting up. In a test, the ticks Test.tick_block_entity has run are added to it, because they pass within one game tick.",
+					"description": "The world's time in ticks, which keeps counting up. In a test, the ticks TestTickContext.tick_block_entity has run are added to it, because they pass within one game tick.",
 					"return_type": {
 						"name": "number"
 					}
@@ -2755,6 +1936,9 @@
 							}
 						]
 					}
+				},
+				"close_screen": {
+					"description": "Closes the screen that is open, as the player pressing escape would. Call it from a press the overlay handled by closing the screen the press landed on, and return, so the press does not reach the screen that is gone. Only legal on the context click() was passed, while that call is running: a context saved for later is refused."
 				},
 				"delete_carried_item": {
 					"description": "Clears the Item on the mouse cursor of the screen that is open. The reference deletes the carried stack on a left click over its list instead of giving a new item; call take() afterward so the screen does not also act on the press. Only legal on the context click() was passed, while that call is running."
@@ -3222,7 +2406,7 @@
 			}
 		},
 		"Screenshot": {
-			"description": "A screenshot assertion under construction, returned by `Test.screenshot()`. Configure it with `tolerance`, then call `equals` to run the comparison.",
+			"description": "A screenshot assertion under construction, returned by `TestTickContext.screenshot()`. Configure it with `tolerance`, then call `equals` to run the comparison.",
 			"methods": {
 				"capture": {
 					"description": "Reads the given pixel rectangle of the current frame and remembers it on this screenshot, so a later `differs_from` can compare it with another capture of the same rectangle. Unlike `equals` this needs no reference images, which is what makes it the way to check that the game redrew something: one rendering is not the same on every Minecraft version and platform, so a reference image has to be accepted once per appearance, while two captures of one session agree with each other about everything except what the test changed. A pixel counts as changed only once a channel has moved by more than a small floor, so that a surface the game lights per vertex coming out a single part brighter between two captures is not reported as a change at all. A caller who wants only gross differences asks for a higher percent. Capturing replaces what this screenshot holds, so capture the earlier frame first and compare against it afterwards. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
@@ -3432,11 +2616,28 @@
 		"TestInitContext": {
 			"description": "The context of a test's init(). Only calls that have to be made before the test starts live on it, so a test cannot make them twice or after it has started. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
+				"get_origin": {
+					"description": "Gets the origin coordinates for running isolated tests: the camera's position plus 3, the same on every loader. The runner snaps the player to the centre of their block and levels their view at the start of every test, so the first call in a test captures that position and every later call in the same test returns it, which is what keeps a fixture and its check on one row. On a side with no test player to measure from, as on a dedicated server nobody has joined, the call reports an error naming `TestTickContext.get_origin` rather than answering a position, the way `TestTickContext.get_client_level` and `TestTickContext.get_player` report without a level or a player. See #188. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. TestTickContext has the same call for tick().",
+					"return_type": {
+						"name": "Vec3"
+					}
+				},
 				"set_max_ticks": {
 					"description": "Raises how many ticks the test may take before the runner fails it, which is 200 for a test that does not ask. A test with a real duration to wait for, such as an item travelling along a pipe a hundred game ticks at a time, needs more than that. The ticks are game ticks, as counted by TestTickContext.current_tick. The budget is a length of time that the runner counts in the ticks of a real-time clock: the runner runs every test with the game's clock faster than real time on a loader that can, and then multiplies the budget by that speed, so the same wait gets the same seconds at any speed. They have to be a whole number from 200 to 2147483647: a test can raise its budget but not lower it, and anything else is reported without changing the budget. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "ticks",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"stall": {
+					"description": "Blocks the thread the test runs on for the given number of milliseconds, the way a garbage collection pause or a world save does, and returns once they have passed. On 1.20.6 the game keeps ticking its client while the integrated server's thread is blocked, so a stall leaves the client with ticks the server has not acted on; the runner coalesces them to at most one frame's worth, but a test that waits for a packet or a frame calls this to prove it waits for the condition and not for a number of ticks. The time has to be from 0 to 10000, and anything else is reported without stalling. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. TestTickContext has the same call for tick().",
+					"parameters": [
+						{
+							"name": "milliseconds",
 							"type": {
 								"name": "number"
 							}
@@ -3465,11 +2666,304 @@
 						}
 					]
 				},
+				"block_collision": {
+					"description": "Whether the block at that position, as the game collides with it, has a collision box that overlaps the given box. The box is in block-local coordinates, 0 to 1 from the block's minimum corner, so a test can put a player-sized box in a block's corner and ask whether the player would be kept out of it. It asks the game for the block's own collision boxes, so it answers for any block the loader knows, not only for grug blocks. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"block_ray_trace": {
+					"description": "Test only: whether the game's own ray trace from one point to another first meets the block at that position. The two points are in block-local coordinates, 0 to 1 from the block's minimum corner, and may lie outside them so a ray can start outside the block. It asks each loader through the method its world's own block ray trace calls, which is the path a player's click takes, rather than reading the block's boxes itself, so it answers for any block the loader knows and a loader that clips against the wrong box fails here. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "start_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "start_y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "start_z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "end_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "end_y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "end_z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"block_selection": {
+					"description": "Whether the box the game targets and outlines for the block at that position contains the given point. The point is in block-local coordinates, 0 to 1 from the block's minimum corner. It asks the game for the block's own selection box, so it answers for any block the loader knows, not only for grug blocks. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "point_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "point_y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "point_z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"camera": {
+					"description": "Test only: the render camera of the client that draws the tests, which is the eye its player's origin is measured from. On a client that is its own camera; on a dedicated server it is the joined client's camera, asked for over the test-control channel, so a test can assert that the client draws from the point the room was built around rather than from wherever its own view has drifted to. With no camera to read, the call reports an error naming `TestTickContext.camera` rather than answering a position, the way `TestTickContext.get_origin` reports without a player. See #1161. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				},
+				"clear_carried_item": {
+					"description": "Test only: clears the mouse cursor of the container screen that is open, on the client and on the integrated server, so a test starts a press with nothing carried. A test with no container screen open does nothing. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused."
+				},
+				"clear_held_item": {
+					"description": "Test only: empties the player's selected hotbar slot. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					]
+				},
+				"click_screen": {
+					"description": "Presses a mouse button at a screen position, in the same scaled pixels a screen's own mouse handlers use, through the same path a real press takes, and answers whether an overlay took the press. True means an overlay took it, so the vanilla slot under it did not see it; false means no overlay took it, even when the screen handled the press itself, so a test can tell the overlay's take from a click on a vanilla slot. The button is 0 for the left button, 1 for the right and 2 for the middle, which is every button a click means on every loader, and any other number is an err rather than a press. Test only: it is how a test clicks what an overlay drew without a real mouse. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "button",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"client_saved_number": {
+					"description": "Test only: the number saved under a name by the client's own copy of a block entity, which is the copy its render_frame pass reads. A test that saves a number and waits for its frame to change can only see that something moved, which a section being built again or a light step can do too; this says whether the save reached the copy the frame is drawn from, so a test can wait for the data itself and then ask what the frame shows. On a client that copy is its own, and a dedicated server asks the joined client of the player who started the run over the test-control channel. The answer is 0 when the client holds no block entity there or the number was never saved, which is also a number a script may have saved, so a test whose number starts at 0 cannot tell the two apart and saves a value that is not the starting one. See #1162. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"close_screen": {
+					"description": "Closes whatever screen is open. On a client that is its own screen. On a dedicated server it is forwarded to the joined client of the player who started the run (#1094), which closes its own screen, and 1.20.6's server also closes the container menu the player the test runs as has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused."
+				},
 				"current_tick": {
 					"description": "Returns the current tick number within this test's execution, starting at 0. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"return_type": {
 						"name": "number"
 					}
+				},
+				"display_tick": {
+					"description": "Test only: runs the display tick of the block at that position as the game does for a block it samples around the player, with a random generator seeded by `seed`, and answers how many particles it spawned. It goes through the block's own random display tick rather than a grug call, so it answers for any block the loader knows. The particles spawned are kept for TestTickContext.particle_position until the next call. Whether they are drawn depends on the player's particle setting, which the screenshot runs set to minimal, and on Alpha and Beta, which have no such setting, the CI runs drop them. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "seed",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				},
 				"expect_error": {
 					"description": "Marks the current test as expecting the next host call to fail with an error whose message contains the given substring. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
@@ -3482,8 +2976,534 @@
 						}
 					]
 				},
+				"force_gc": {
+					"description": "Test only: asks the JVM for a full garbage collection, so a test can make a collected host entity deterministic instead of waiting for GC timing to line up. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused."
+				},
+				"get_carried_item": {
+					"description": "Test only: the Item on the mouse cursor of the container screen that is open, if it carries one, and an empty Option when the cursor is empty or no container screen is open. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
+					}
+				},
+				"get_client_level": {
+					"description": "Gets the level a test's edits and queries reach: the world the game simulates, the same one on every loader. On 1.20.6 that is the integrated server's level, not the client's mirror of it, which nothing ticks, so a block entity placed here ticks on its own. The name is historical. See #803. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "Level"
+					}
+				},
+				"get_held_count": {
+					"description": "Test only: how many items the player's selected hotbar slot holds, so a test can tell one item from a full stack. The item itself is what `Player.get_held_item` answers. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"get_item_max_stack": {
+					"description": "Test only: the largest stack the item can come in, so a test of an overlay can tell a full stack from one item without knowing which item this version's list puts first. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"get_origin": {
+					"description": "Gets the origin coordinates for running isolated tests: the camera's position plus 3, the same on every loader. The runner snaps the player to the centre of their block and levels their view at the start of every test, so the first call in a test captures that position and every later call in the same test returns it, which is what keeps a fixture and its check on one row. On a side with no test player to measure from, as on a dedicated server nobody has joined, the call reports an error naming `TestTickContext.get_origin` rather than answering a position, the way `TestTickContext.get_client_level` and `TestTickContext.get_player` report without a level or a player. See #188. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				},
+				"get_player": {
+					"description": "Gets the local client player, for tests that need to call a method taking a Player. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "Player"
+					}
+				},
+				"gui_height": {
+					"description": "Test only: the height of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's screen. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_left": {
+					"description": "Test only: the x position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's screen. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_top": {
+					"description": "Test only: the y position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's screen. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_width": {
+					"description": "Test only: the width of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's screen. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"high_block_round_trip": {
+					"description": "Test only: proves a block id above 255 survives the game's own chunk save and load. The loader's block-id search takes an id with every id in its low range taken by stand-ins, a block registers and is placed with it, and the chunk the tests run in is saved and read straight back through the game's own chunk loader. The answer is the id the loaded chunk holds, which the test checks is above 255, or -1 on a loader whose block ids never reach there: it has no such id to round trip, and -1 is a no-op rather than an err. See #518. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"hot_reload_count": {
+					"description": "How many changes to relative_path the engine has reported so far, so a test can wait until its own file write has been observed instead of assuming it was. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"light_applied": {
+					"description": "Test only: whether the client's copy of the world holds the same block light in the section this position falls in as the world the test edits, which is the light the client's frame pass draws that section with. A light change reaches a 1.20.6 client in a packet after the block changes a capture settle counts, so two frames of a room drawn from the light it had before the change can agree with each other, and a capture taken then lands a light step away from the room's real light. A test that captures a room whose light a change of its own touched waits for this before it captures, which is deterministic where a frame count is not. The answer is false while the world's own light engine still has work in its own queues, so the copies are not compared before the change has been worked out; a check still waiting in the chunk sorter's queue is not visible to that gate. The section is compared as a 53-bit fingerprint of its light, not one position's light, because a client-only run reads the client's copy from the server thread and only the section is published for another thread to read. The position has to be finite, because a coordinate that is not finite names no section at all, so a call with one is reported and answers false. A dedicated server asks the joined client for its own copy, and a client-only run of the four older loaders shares one world, so its answer is true there. A position in a chunk column the client was never sent is false, because that client cannot hold the world's light there, however empty the world's own section still is. 1.2.5's incremental light is history-dependent, so its server cannot verify the room's client copy and answers true for those sections. See #1207 and #1240. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					],
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"load_nbt": {
+					"description": "Test only: writes a block entity's NBT, applies the edits staged for it in the order they were staged, and has the world load a block entity from the result as a chunk load does: the old block entity is removed, and a new one is created from the NBT before it enters the world, so a mod whose block entity depends on that order loads as it would from a save. The handle names the removed block entity afterwards, so get the block entity at its position again. A path that does not fit the NBT and a block entity with nothing staged are reported, and then nothing is replaced. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						}
+					]
+				},
+				"mining_crack": {
+					"description": "Test only: whether the game draws the mining crack over the block's own geometry, and leaves the block's shape a full cube afterwards. A test cannot hold the crack on screen, because the versions whose overlay follows the local player's own mining clear that state on every tick the attack button is not held; so the versions that draw the overlay from an explicit call make one overlay pass for the block at the middle of the break, and 1.20.6 asks its baked model for the quads the overlay would draw. The block is left in place. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					],
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"normalization_forced": {
+					"description": "Whether the loader forced the GL capabilities that normalize normals for the running test, which the runner does before the first tick of a test whose file name ends with `_forced_normalization` (GrugForcedNormalization), on the loaders whose GUI item draw inherits the state. A marked test asks this to prove the hook really ran: the overlay's pin makes its capture identical whether or not the state was forced, so a loader that lost its hook would otherwise leave the capture green and unproven. False on 1.20.6-forge, whose item draw never inherits the state, and in a reference run. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"not_done": {
 					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused."
+				},
+				"notify_neighbors": {
+					"description": "Test only: notifies the neighbours of a position as if the block there had changed, so a test can deliver an on_neighbor_change without a non-quiet block write. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"open_inventory": {
+					"description": "Opens the player's own inventory screen, the way the inventory key does, so a test can drive an overlay that only appears there. The screen appears on the next frame, so a test waits for `screen_open` before it clicks. Test only: no mod needs to open the vanilla inventory. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					]
+				},
+				"overlay_drawn": {
+					"description": "Whether a frame has drawn the running test's own overlay on the eligible screen that is open now, which a test waits for after it opens the screen and before it clicks. The mark is cleared when an eligible screen opens, so a test waits for a frame of its own screen rather than for one another mod drew on an earlier one. Asking also asks the client for a frame, the way `TestTickContext.world_settled` does, because the runner skips the frames of a test that never captures. The answer is set on the render thread, so waiting for it is how a test tells a screen that was really drawn from one the game closed before a frame, which a run at maximum speed can otherwise hide. On a dedicated server the frame is the joined client's, and the overlay is the one of the mod whose test is running, which the server names to the client. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"particle_position": {
+					"description": "Test only: where the particle with that index, counted from 0, was spawned by the last TestTickContext.display_tick, as a position in the world. An index past the last particle reports an error. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "Vec3"
+					},
+					"parameters": [
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"press_screen_key": {
+					"description": "Presses a key on the screen that is open, through the same path a real key press takes, and answers whether an overlay took the key. True means an overlay took it, so the screen never saw it; false means no overlay took it, even when the screen handled the key itself. The key is the number OverlayKeyContext.key answers. The key is released again after the press when `release` is true; with `release` false it stays held, so pressing the same key again is a key repeat, which an overlay is not asked about (it answers false), until a press with `release` true lets go. On a dedicated server the press is forwarded to the joined client (#1094), which presses the key on its own screen. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "key",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "ctrl",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "release",
+							"type": {
+								"name": "bool"
+							}
+						}
+					]
+				},
+				"reload_count": {
+					"description": "How many times a loader has finished reloading after a change to relative_path was reported, so a test that checks what the reload rendered waits for the loader instead of a guessed number of ticks. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"round_trip_nbt": {
+					"description": "Serialises a block entity's NBT and reads it straight back, so tests can cover the save/load paths without a real world save. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						}
+					]
+				},
+				"screen_open": {
+					"description": "Whether a screen is open. On a client it is the client's own screen. On a dedicated server it is forwarded to the joined client of the player who started the run (#1094), so a server-run test sees that client's screen and not the container menu the server holds. A block's GUI is not necessarily open when `use_block` returns: on 1.20.6 the server opens it with a packet, and a settled world does not say the packet has arrived, so a test that captures the panel waits for this first. The answer is the client's own screen object, so it is true only once that screen exists, which is after the packet arrived. A screen that `close_screen` leaves in place on a loader that needs one does not count. See #418 and #168. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"screen_width": {
+					"description": "Test only: the width of the open screen in scaled pixels, so a test of an overlay can work out where the screen put its GUI and display area instead of assuming a window size. A test with no screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's window. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"screenshot": {
+					"description": "Starts a screenshot assertion for the current frame. Returns a builder whose `equals` captures a pixel rectangle and compares it against a directory of reference PNGs. The builder compares pixel-exactly by default; call `tolerance` first to allow a small percentage of differing pixels. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "Screenshot"
+					}
+				},
+				"scroll_screen": {
+					"description": "Turns the mouse wheel at a screen position, in the same scaled pixels a screen's own mouse handlers use, through the same path a real wheel takes, and answers whether an overlay took the movement. True means an overlay took it, so the screen never saw it; false means no overlay took it. The delta is the number OverlayScrollContext.delta answers: positive turns the wheel up, away from the player, and negative turns it down. On a dedicated server the movement is forwarded to the joined client (#1094), which turns the wheel on its own screen. Test only: it is how a test scrolls what an overlay drew without a real mouse. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "delta",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_box_radius": {
+					"description": "Rebuilds the sealed room the runner builds around the player before every test, with the given radius. The room is a hollow box of stone with a torch on every floor tile, so its light comes from torches rather than the sky, and a screenshot does not change with the time of day. The default room is small; a test whose fixture reaches further than that asks for a bigger one, up to a radius of 30: a wider room would reach chunks the client never receives. See #253 and #948. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "radius",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_carried_item": {
+					"description": "Test only: puts one of the item on the mouse cursor of the container screen that is open, replacing what was there. A test with no container screen open does nothing. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"set_held_item": {
+					"description": "Test only: puts one of the item in the player's selected hotbar slot, replacing what was there. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"set_mod_file_state": {
+					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it. The record of the original contents outlives the run, so a run that ends abruptly while a file is disturbed cannot leave that file unreadable for the next one. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "state",
+							"description": "One of \"normal\" (restores the bytes the file was first read with), \"invalid\" (fails to compile), \"no_trailing_newline\" (still valid JSON), \"deleted\" (the file is removed), or \"swapped\" (the bytes of the sibling file whose name carries \".swap\" before the extension, which is how a binary asset such as a texture can be replaced with different content).",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"set_nbt_item": {
+					"description": "Test only: stages a stack of one of the item, undamaged, in a block entity's own NBT, as the compound the game itself saves a stack as, at a path as for TestTickContext.set_nbt_number. Nothing changes until TestTickContext.load_nbt. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"set_nbt_number": {
+					"description": "Test only: stages a number in a block entity's own NBT, the data it saves and loads, so a test can set up state that has no grug saved data, such as a recreation test's reference branch setting the real mod's block entity to what the port sets through its saved data. The path is the keys from the block entity's compound to the one set, joined by dots; a part of only digits is an index into a list of compounds, a list's size appends a new compound, an index is always followed by a key, and a missing key on the way is created. The number is stored as the NBT type named: byte, short, int, long, float or double, an integer type taking only a whole number in its range. Nothing changes until TestTickContext.load_nbt. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "type",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"stall": {
+					"description": "Blocks the thread the test runs on for the given number of milliseconds, the way a garbage collection pause or a world save does, and returns once they have passed. On 1.20.6 the game keeps ticking its client while the integrated server's thread is blocked, so a stall leaves the client with ticks the server has not acted on; the runner coalesces them to at most one frame's worth, but a test that waits for a packet or a frame calls this to prove it waits for the condition and not for a number of ticks. The time has to be from 0 to 10000, and anything else is reported without stalling. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "milliseconds",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"tick_block_entity": {
+					"description": "Test only: runs a grug block entity's tick function the given number of times in a row, within the test's current tick, so a test can reach a state that takes the game minutes to build without waiting for them. The clock Level.get_time reads is left alone, as a machine accelerator leaves it. The ticks have to be a whole number from 0 to 2147483647, and the block entity a grug one, or it is reported. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "ticks",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"tick_level": {
+					"description": "Test only: runs the level's own tick the given number of times in a row, synchronously, at the point of the call, so a test can reach a state that takes the game minutes to build without waiting for those ticks to be drawn. It runs what the game's own tick of that level runs, in the loader's own order: the level's clock and weather, its scheduled block and fluid updates, its random block ticks, its entity ticks and its block entity ticks, including vanilla and reference ones. The clock moves one per tick and the level's random is drawn from exactly as it is on a real tick, unlike TestTickContext.tick_block_entity, which leaves both alone. It does not tick the client: no frame is drawn, no screen opens, no client packet is read by the server between the ticks and no resource reload is applied, so a test that waits for something drawn or received still waits for a real tick. The ticks have to be a whole number from 0 to 2147483647, or it is reported. The runner's own tick and budget do not move: ctx.current_tick is unchanged, and the game's own tick still runs around the test's tick, so two test ticks are one more world tick apart than the count. The budget counts the test's own ticks and this bypasses it, so the work an advance costs is bounded only by the run timeout, which is a new way for a test to hang. The answer is the number of ticks the advance ran, which is the count asked for on a loader that can advance its level, or 0 on one that cannot yet: a loader without an advance keeps a default that answers 0 and does nothing, and 0 is a documented no-op rather than an err, so a test that gets 0 falls back to waiting for the game's own ticks. A test that needs the advance reads the answer instead of assuming it. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "ticks",
+							"type": {
+								"name": "number"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"use_block": {
+					"description": "Right-clicks the block at the given coordinates with the player the test runs as, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. The click runs on the side the test runs on, the local player's own right-click on a client and the test player's on a dedicated server, so its effect lands in the world the test reads either way. The face is the one the test player's eye sees of the block, the same on both sides: the top of a block below the eye, the bottom of one above it, and the side facing the player of one at its level. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"world_settled": {
+					"description": "Whether the frame a capture would read is one the client had no work left in: no light it had not propagated, no chunk rebuild it did not get to, a window already at the screenshot resolution, and the first-person hand's equip height and swing at rest (the height it eases after the held item changes and the swing an attack interpolates with; the walk bob and an item's use animation are not part of the answer). The hand is drawn in the world pass, so an open screen shows it behind its panel, and it rises after the held item changes; a capture taken during that rise depends on how many ticks of it the run's frames reached, which is a difference between two runs of one test (#961). The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light update is still settling, so a capture taken too early can land a light step away from the reference. A screenshot test waits for this before capturing. It is sampled from each loader's own frame hook rather than from the game tick the call runs on, because the game draws fewer frames than it runs ticks and, on the loaders that read the back buffer, the frame a capture reads can be several ticks old. The answer covers the frames the client had drawn when it was given, not the frame the capture that follows is served by: a capture is served by the first frame drawn after it asks, and the integrated server's world keeps simulating in between, so a block or light update it sends after this answered is applied on the client's next tick and uploaded by that frame. Such an update can be in the capture although no frame counted here had it. A block the test places is counted before this can answer, because the answer waits for the client to show it. So a test whose scene can change on the server while it waits must not treat this as a promise that the served frame still shows the scene it checked. See #253, #257 and #1154. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					}
 				}
 			}
 		},

@@ -27,18 +27,18 @@
 
 export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        _setup()
+        _setup(ctx)
         ctx.not_done()
         return
     }
-    # The client draws the room after the runner built it, and Test.camera reads the client's own
+    # The client draws the room after the runner built it, and ctx.camera reads the client's own
     # camera, so this waits for that frame before reading either value.
-    if not Test.world_settled() {
+    if not ctx.world_settled() {
         ctx.not_done()
         return
     }
-    origin: Vec3 = Test.get_origin()
-    camera: Vec3 = Test.camera()
+    origin: Vec3 = ctx.get_origin()
+    camera: Vec3 = ctx.camera()
     if not _at_eye(camera, origin) and ctx.current_tick() < 100 {
         # The camera follows the teleport that put the test player at the room's start, so a camera
         # still moving is a wait here too. The bound fails a camera that never arrives, which is
@@ -46,7 +46,7 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         # The menu the click opened reaches the client a frame later, and the test reads the
         # client's screen, so this waits rather than assuming a tick count.
         ctx.not_done()
@@ -56,37 +56,37 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(_near(camera.y(), origin.y() - 3.0), "The camera should be the starter's y, the origin less its 3 block lift.")
     ctx.assert(_near(camera.z(), origin.z()), "The camera should be the starter's z, not another player's.")
 
-    player: Player = Test.get_player()
+    player: Player = ctx.get_player()
     diamond: Item = item(resource_location("minecraft:diamond"))
-    Test.set_held_item(player, diamond)
-    ctx.assert(Test.get_held_count(player) == 1, "The starter's hand should hold the item the test put there.")
+    ctx.set_held_item(player, diamond)
+    ctx.assert(ctx.get_held_count(player) == 1, "The starter's hand should hold the item the test put there.")
     held: Option[Item] = player.get_held_item()
     ctx.assert(held.has(), "The starter's hand should hold the item the test put there.")
     if held.has() {
         ctx.assert(equals(held.unwrap(), diamond), "The starter's hand should hold the diamond, not another item.")
     }
 
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     ctx.assert(level.get_block(origin.x(), origin.y(), origin.z()) == "grug:coverage_gui", "The room's block should be the one the test placed for the starter.")
 
-    Test.set_carried_item(diamond)
-    carried: Option[Item] = Test.get_carried_item()
+    ctx.set_carried_item(diamond)
+    carried: Option[Item] = ctx.get_carried_item()
     ctx.assert(carried.has(), "The starter's cursor should carry the item the test put on it.")
     if carried.has() {
         ctx.assert(equals(carried.unwrap(), diamond), "The starter's cursor should carry the diamond, not another item.")
     }
-    Test.clear_carried_item()
-    ctx.assert(not Test.get_carried_item().has(), "The starter's cursor should be empty after it is cleared.")
+    ctx.clear_carried_item()
+    ctx.assert(not ctx.get_carried_item().has(), "The starter's cursor should be empty after it is cleared.")
 
-    Test.close_screen()
-    ctx.assert(not Test.screen_open(), "Test.close_screen should leave no screen or menu open.")
+    ctx.close_screen()
+    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave no screen or menu open.")
 }
 
-local _setup() {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_gui")
-    Test.use_block(level, origin.x(), origin.y(), origin.z())
+    ctx.use_block(level, origin.x(), origin.y(), origin.z())
 }
 
 # Whether the camera is the room's eye, the origin less its 3 block lift, as camera-Test.grug

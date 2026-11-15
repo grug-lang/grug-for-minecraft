@@ -23,7 +23,7 @@ worst: number = 0
 export tick_any_side(ctx: TestTickContext) {
     if clock >= 0 {
         ran = ran + 1
-        advance: number = _now() - clock
+        advance: number = _now(ctx) - clock
         if ran - advance > worst {
             worst = ran - advance
         }
@@ -46,12 +46,12 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
     rounds = rounds - 1
-    Test.stall(800)
-    clock = _now()
+    ctx.stall(800)
+    clock = _now(ctx)
     ran = 0
     ctx.not_done()
 }
 
-local _now() number {
-    return Test.get_client_level().get_time()
+local _now(ctx: TestTickContext) number {
+    return ctx.get_client_level().get_time()
 }

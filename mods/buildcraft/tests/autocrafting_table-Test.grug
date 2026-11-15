@@ -1,7 +1,7 @@
 # This test runs on either side: the block's use export opens the GUI, which a server opens for its
 # player from the block entity's own container, and the capture is the joined client's frame
 # (#1098). Every loader implements screenshots, so CI runs the graphics half against all of them.
-# The same file is what a reference run loads. Test.is_reference() changes only the block name, so
+# The same file is what a reference run loads. me.is_reference() changes only the block name, so
 # both sides place the same blocks, do the same inventory work, and are compared against the same
 # goldens; that is what makes this a proof that the port matches BuildCraft rather than a test of
 # the port alone.
@@ -25,13 +25,13 @@ export tick_any_side(ctx: TestTickContext) {
 
         _test_graphics_setup(ctx)
         ctx.not_done()
-    } else if not Test.screen_open() {
+    } else if not ctx.screen_open() {
         # On a server the screen is opened by a packet from the server, so it is not open yet when
         # use_block returns, and a settled world does not say the packet has arrived: the world
         # can answer settled from its first tick, which is how the capture was once taken of the
         # world instead of the panel. See #418.
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # How long the opened GUI takes to reach the framebuffer is a condition rather than a tick
         # count. The setup places blocks, so the renderer has pending rebuilds until the frame that
         # drained them has been drawn, and the screen is drawn in that same frame; a capture is
@@ -42,14 +42,14 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else {
         _test_graphics_check(ctx)
-        Test.close_screen()
+        ctx.close_screen()
     }
 }
 
 local _test_logic(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
 
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -90,10 +90,10 @@ local _test_logic(ctx: TestTickContext) {
 }
 
 local _test_graphics_setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     diamond_item: Item = item(resource_location("minecraft:diamond"))
 
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -140,7 +140,7 @@ local _test_graphics_setup(ctx: TestTickContext) {
 
     # Right-click the block to open the real GUI, rather than redeclaring its layout here. A
     # hand-copied layout could silently drift away from what the block actually opens.
-    Test.use_block(level, x, y, z)
+    ctx.use_block(level, x, y, z)
 }
 
 local _test_graphics_check(ctx: TestTickContext) {
@@ -154,7 +154,7 @@ local _test_graphics_check(ctx: TestTickContext) {
     # from the edge. Insetting well past that costs none of the layout, which is all far inside.
     # To re-derive these: press M to force 1280x720, open this GUI, and hover a corner of the panel
     # to read the pixel off the chat readout.
-    Test.screenshot().equals(r"screenshots/autocrafting_table_gui", 386, 121, 894, 599)
+    ctx.screenshot().equals(r"screenshots/autocrafting_table_gui", 386, 121, 894, 599)
 
     # The screenshot only means something if it shows live block data, so check the inventory it was
     # rendered from. These block entities were set up on tick 0 and are read back here, several ticks
@@ -177,7 +177,7 @@ local _test_graphics_check(ctx: TestTickContext) {
 # here; resource and entity strings cannot be passed to or returned from helpers, and those call
 # sites would have to spell the branch out instead.
 local _autocrafting_table() string {
-    if Test.is_reference() {
+    if me.is_reference() {
         # 1.2.5 has no block registry names, so the reference name is the one the real block set
         # for itself: BuildCraft's autocrafting table calls setBlockName("autoWorkbenchBlock").
         return "buildcraft:autoWorkbenchBlock"

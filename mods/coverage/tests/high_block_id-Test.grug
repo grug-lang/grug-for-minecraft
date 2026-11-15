@@ -2,8 +2,8 @@
 # 128 up the game read it back negative: placing the block indexed the opacity table out of bounds and ended the
 # run. Placing it, reading it back, and replacing it with another block goes through the reads the loader masks.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

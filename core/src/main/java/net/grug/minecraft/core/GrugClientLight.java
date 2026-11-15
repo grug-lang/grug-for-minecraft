@@ -77,7 +77,7 @@ public final class GrugClientLight {
                 }
                 return client < 0 || client == simulated;
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.light_applied: " + e.getMessage());
+                failed.accept("TestTickContext.light_applied: " + e.getMessage());
                 return true;
             }
         }

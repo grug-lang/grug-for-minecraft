@@ -89,24 +89,30 @@ class HostFunctionsStaleIdTest {
         assertEquals(List.of(staleMessage("Level.explode", "level", level)), reports);
 
         reports.clear();
-        HostFunctions.Test_use_block(level, 1, 2, 3);
-        assertEquals(List.of(staleMessage("Test.use_block", "level", level)), reports);
+        HostFunctions.TestTickContext_use_block(GrugTestContexts.tick(), level, 1, 2, 3);
+        assertEquals(List.of(staleMessage("TestTickContext.use_block", "level", level)), reports);
 
         reports.clear();
-        HostFunctions.Test_notify_neighbors(level, 1, 2, 3);
-        assertEquals(List.of(staleMessage("Test.notify_neighbors", "level", level)), reports);
+        HostFunctions.TestTickContext_notify_neighbors(GrugTestContexts.tick(), level, 1, 2, 3);
+        assertEquals(
+                List.of(staleMessage("TestTickContext.notify_neighbors", "level", level)), reports);
 
         reports.clear();
         HostFunctions.drop_inventory(level, 1, 2, 3);
         assertEquals(List.of(staleMessage("drop_inventory", "level", level)), reports);
 
         reports.clear();
-        assertEquals(0.0, HostFunctions.Test_tick_level(level, 5));
-        assertEquals(List.of(staleMessage("Test.tick_level", "level", level)), reports);
+        assertEquals(
+                0.0, HostFunctions.TestTickContext_tick_level(GrugTestContexts.tick(), level, 5));
+        assertEquals(List.of(staleMessage("TestTickContext.tick_level", "level", level)), reports);
 
         reports.clear();
-        assertEquals(0.0, HostFunctions.Test_display_tick(level, 1, 2, 3, 4));
-        assertEquals(List.of(staleMessage("Test.display_tick", "level", level)), reports);
+        assertEquals(
+                0.0,
+                HostFunctions.TestTickContext_display_tick(
+                        GrugTestContexts.tick(), level, 1, 2, 3, 4));
+        assertEquals(
+                List.of(staleMessage("TestTickContext.display_tick", "level", level)), reports);
         assertEquals(0, GrugDisplayTicks.recordedCount());
 
         reports.clear();
@@ -120,28 +126,37 @@ class HostFunctionsStaleIdTest {
         long item = stale(GrugEntityType.Item);
         refuseAdapter();
 
-        HostFunctions.Test_clear_held_item(player);
-        assertEquals(List.of(staleMessage("Test.clear_held_item", "player", player)), reports);
+        HostFunctions.TestTickContext_clear_held_item(GrugTestContexts.tick(), player);
+        assertEquals(
+                List.of(staleMessage("TestTickContext.clear_held_item", "player", player)),
+                reports);
 
         reports.clear();
-        HostFunctions.Test_set_held_item(player, live(GrugEntityType.Item, "the item"));
-        assertEquals(List.of(staleMessage("Test.set_held_item", "player", player)), reports);
+        HostFunctions.TestTickContext_set_held_item(
+                GrugTestContexts.tick(), player, live(GrugEntityType.Item, "the item"));
+        assertEquals(
+                List.of(staleMessage("TestTickContext.set_held_item", "player", player)), reports);
 
         reports.clear();
-        HostFunctions.Test_set_held_item(live(GrugEntityType.Player, "the player"), item);
-        assertEquals(List.of(staleMessage("Test.set_held_item", "item", item)), reports);
+        HostFunctions.TestTickContext_set_held_item(
+                GrugTestContexts.tick(), live(GrugEntityType.Player, "the player"), item);
+        assertEquals(List.of(staleMessage("TestTickContext.set_held_item", "item", item)), reports);
 
         reports.clear();
-        assertEquals(0.0, HostFunctions.Test_get_held_count(player));
-        assertEquals(List.of(staleMessage("Test.get_held_count", "player", player)), reports);
+        assertEquals(
+                0.0, HostFunctions.TestTickContext_get_held_count(GrugTestContexts.tick(), player));
+        assertEquals(
+                List.of(staleMessage("TestTickContext.get_held_count", "player", player)), reports);
 
         reports.clear();
-        HostFunctions.Test_open_inventory(player);
-        assertEquals(List.of(staleMessage("Test.open_inventory", "player", player)), reports);
+        HostFunctions.TestTickContext_open_inventory(GrugTestContexts.tick(), player);
+        assertEquals(
+                List.of(staleMessage("TestTickContext.open_inventory", "player", player)), reports);
 
         reports.clear();
-        HostFunctions.Test_set_carried_item(item);
-        assertEquals(List.of(staleMessage("Test.set_carried_item", "item", item)), reports);
+        HostFunctions.TestTickContext_set_carried_item(GrugTestContexts.tick(), item);
+        assertEquals(
+                List.of(staleMessage("TestTickContext.set_carried_item", "item", item)), reports);
     }
 
     @Test
@@ -292,8 +307,8 @@ class HostFunctionsStaleIdTest {
         long item = stale(GrugEntityType.Item);
         refuseAdapter();
 
-        HostFunctions.Test_set_nbt_item(0, "path", item);
-        assertEquals(List.of(staleMessage("Test.set_nbt_item", "item", item)), reports);
+        HostFunctions.TestTickContext_set_nbt_item(GrugTestContexts.tick(), 0, "path", item);
+        assertEquals(List.of(staleMessage("TestTickContext.set_nbt_item", "item", item)), reports);
 
         reports.clear();
         assertEquals(0.0, HostFunctions.BlockEntity_count_item_in_inventory(0, item, 0));
@@ -383,8 +398,11 @@ class HostFunctionsStaleIdTest {
         assertEquals(List.of(staleMessage("Level.has_neighbor_signal", "level", level)), reports);
 
         reports.clear();
-        assertFalse(HostFunctions.Test_mining_crack(level, 0, 0, 0));
-        assertEquals(List.of(staleMessage("Test.mining_crack", "level", level)), reports);
+        assertFalse(
+                HostFunctions.TestTickContext_mining_crack(
+                        GrugTestContexts.tick(), level, 0, 0, 0));
+        assertEquals(
+                List.of(staleMessage("TestTickContext.mining_crack", "level", level)), reports);
 
         reports.clear();
         assertFalse(HostFunctions.Option_has(option));
@@ -508,8 +526,10 @@ class HostFunctionsStaleIdTest {
         assertEquals(List.of(), reports);
 
         adapterCalls.clear();
-        HostFunctions.Test_set_held_item(
-                live(GrugEntityType.Player, "the player"), live(GrugEntityType.Item, "the item"));
+        HostFunctions.TestTickContext_set_held_item(
+                GrugTestContexts.tick(),
+                live(GrugEntityType.Player, "the player"),
+                live(GrugEntityType.Item, "the item"));
         assertEquals(List.of("setHeldItem[the player, the item]"), adapterCalls);
 
         adapterCalls.clear();

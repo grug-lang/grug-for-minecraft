@@ -10,24 +10,24 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if not Test.screen_open() {
+    } else if not ctx.screen_open() {
         # On a server the screen is opened by a packet from the server, so it is not open when
         # use_block returns and a settled world does not say the packet arrived: the world can
         # answer settled from its first tick. Wait for the screen itself rather than counting
         # settled answers. #418, #421.
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # The panel is only on screen once a frame holding it has been drawn, as in the other GUI tests.
         ctx.not_done()
     } else {
-        Test.screenshot().equals(r"screenshots/item_icon", 466, 162, 514, 210)
-        Test.close_screen()
+        ctx.screenshot().equals(r"screenshots/item_icon", 466, 162, 514, 210)
+        ctx.close_screen()
     }
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -40,5 +40,5 @@ local _setup(ctx: TestTickContext) {
     icon: Item = item(resource_location("grug:coverage_item"))
     block.set_item_in_slot(0, icon, 1)
 
-    Test.use_block(level, x, y, z)
+    ctx.use_block(level, x, y, z)
 }

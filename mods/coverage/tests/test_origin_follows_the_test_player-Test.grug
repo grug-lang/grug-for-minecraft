@@ -20,7 +20,7 @@ origin_x: number = 0.0
 origin_z: number = 0.0
 
 export init(ctx: TestInitContext) {
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     origin_x = origin.x()
     origin_z = origin.z()
 }

@@ -4,8 +4,8 @@
 # at the first side that has a power receptor next to it: a wooden pipe or another engine. Each case
 # gets its own engine, 4 blocks apart in x so that the neighbours of one never touch another.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 15
     z: number = origin.z()
@@ -35,6 +35,6 @@ local _facing(ctx: TestTickContext, level: Level, x: number, y: number, z: numbe
     engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     engine: BlockEntity = engine_opt.unwrap()
-    Test.tick_block_entity(engine, 1)
+    ctx.tick_block_entity(engine, 1)
     return engine.get_saved_number("orientation")
 }

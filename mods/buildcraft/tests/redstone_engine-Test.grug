@@ -35,7 +35,7 @@ export tick_any_side(ctx: TestTickContext) {
     }
 
     if gain_phase != 3 {
-        if Test.is_reference() {
+        if me.is_reference() {
             gain_phase = 3
         } else {
             _check_gain(ctx)
@@ -53,17 +53,17 @@ export tick_any_side(ctx: TestTickContext) {
     # front, above its underside and the torch under it, because a redstone torch gives off particles
     # at random and they drift up past the underside.
     if stage == 0 {
-        Test.screenshot().equals(r"screenshots/redstone_engine_blue", 550, 150, 770, 305)
+        ctx.screenshot().equals(r"screenshots/redstone_engine_blue", 550, 150, 770, 305)
         _power(ctx)
         _draw_stage(ctx, 251, 1)
     } else if stage == 1 {
-        Test.screenshot().equals(r"screenshots/redstone_engine_green", 550, 150, 770, 305)
+        ctx.screenshot().equals(r"screenshots/redstone_engine_green", 550, 150, 770, 305)
         _draw_stage(ctx, 501, 2)
     } else if stage == 2 {
-        Test.screenshot().equals(r"screenshots/redstone_engine_yellow", 550, 150, 770, 305)
+        ctx.screenshot().equals(r"screenshots/redstone_engine_yellow", 550, 150, 770, 305)
         _draw_stage(ctx, 751, 3)
     } else {
-        Test.screenshot().equals(r"screenshots/redstone_engine_red", 550, 150, 770, 305)
+        ctx.screenshot().equals(r"screenshots/redstone_engine_red", 550, 150, 770, 305)
         return
     }
 
@@ -74,16 +74,16 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
 
-    Test.set_box_radius(6)
+    ctx.set_box_radius(6)
 
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     ex = origin.x()
     ey = origin.y() - 1.88
     ez = origin.z() + 4
 
-    _place_engine(level)
+    _place_engine(ctx, level)
     engine_opt: Option[BlockEntity] = level.get_block_entity(ex, ey, ez)
     ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     engine.set(engine_opt.unwrap())
@@ -94,7 +94,7 @@ local _setup(ctx: TestTickContext) {
     # but the torch itself.
     level.place_block(ex, ey - 2, ez, "minecraft:stone")
 
-    if not Test.is_reference() {
+    if not me.is_reference() {
         _check_thresholds(ctx)
     }
 }
@@ -136,7 +136,7 @@ local _check_thresholds(ctx: TestTickContext) {
 
     # The energy is saved data, so it has to survive the block entity being saved and loaded again.
     block_entity: BlockEntity = engine.unwrap()
-    Test.round_trip_nbt(block_entity)
+    ctx.round_trip_nbt(block_entity)
     ctx.assert(_energy() == 751, "The engine's energy should survive an NBT round trip.")
 
     _set_energy(0)
@@ -198,10 +198,10 @@ local _set_energy(energy: number) {
 # port's render_frame reads the energy on every frame, as the reference's RenderEngine does, so
 # nothing has to be drawn again. The torch keeps it from draining, as it does the port's.
 local _draw_stage(ctx: TestTickContext, energy: number, expected_stage: number) {
-    if Test.is_reference() {
-        Test.set_nbt_number(engine.unwrap(), "energy", "int", energy)
-        Test.load_nbt(engine.unwrap())
-        level: Level = Test.get_client_level()
+    if me.is_reference() {
+        ctx.set_nbt_number(engine.unwrap(), "energy", "int", energy)
+        ctx.load_nbt(engine.unwrap())
+        level: Level = ctx.get_client_level()
         engine.set(level.get_block_entity(ex, ey, ez).unwrap())
         return
     }
@@ -212,13 +212,13 @@ local _draw_stage(ctx: TestTickContext, energy: number, expected_stage: number) 
 # A redstone torch powers the block above it on every loader, so the torch goes right under the
 # engine, standing on a stone block.
 local _power(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     level.place_block(ex, ey - 1, ez, "minecraft:redstone_torch")
     ctx.assert(level.has_neighbor_signal(ex, ey, ez), "The torch under the engine should power it.")
 }
 
 local _unpower(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     level.place_block(ex, ey - 1, ez, "minecraft:air")
     ctx.assert(not level.has_neighbor_signal(ex, ey, ez), "The engine should be unpowered once the torch is gone.")
 }
@@ -226,7 +226,7 @@ local _unpower(ctx: TestTickContext) {
 # Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
 # light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
 local _ready(ctx: TestTickContext) bool {
-    if not Test.world_settled() {
+    if not ctx.world_settled() {
         settled_ticks = 0
         return false
     }
@@ -241,14 +241,14 @@ local _ready(ctx: TestTickContext) bool {
     }
     # The swap's blocks have to reach the client and the mesh they scheduled has to be drawn, which
     # is what the fixed tick hold used to stand in for. See coverage_render, #259 and #804.
-    return Test.world_settled()
+    return ctx.world_settled()
 }
 
 # Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
 # the capture's mesh is built from the settled light. See coverage_render-Test.grug.
 local _force_remesh(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -279,16 +279,16 @@ local _stage(energy: number) number {
 # player's eye sees of it, so the engine lands at ez; that block is cleared again so both scenes
 # hold the same blocks. The reference's placement ignores the face. ItemEngine names metadata 0
 # tile.engineWood, which is how the reference's engine item is found.
-local _place_engine(level: Level) {
-    if not Test.is_reference() {
+local _place_engine(ctx: TestTickContext, level: Level) {
+    if not me.is_reference() {
         level.place_block(ex, ey, ez, "grug:redstone_engine")
         return
     }
     level.place_block(ex, ey, ez + 1, "minecraft:stone")
-    player: Player = Test.get_player()
+    player: Player = ctx.get_player()
     held: Item = item(resource_location("buildcraft:engineWood"))
-    Test.set_held_item(player, held)
-    Test.use_block(level, ex, ey, ez + 1)
-    Test.clear_held_item(player)
+    ctx.set_held_item(player, held)
+    ctx.use_block(level, ex, ey, ez + 1)
+    ctx.clear_held_item(player)
     level.place_block(ex, ey, ez + 1, "minecraft:air")
 }

@@ -400,7 +400,7 @@ class PullRequestTest(SelectionCase):
         outputs = self.answer(
             self.select(
                 "pull_request",
-                {"mods/buildcraft/tests/screen-Test.grug": 'tick() { Test.screenshot("x") }\n'},
+                {"mods/buildcraft/tests/screen-Test.grug": 'tick() { ctx.screenshot("x") }\n'},
             )
         )
         self.assertEqual(outputs["reference"], "true")

@@ -8,14 +8,14 @@
 # touches, and glass is weak enough for the explosion to break and drops no item entity. Two feeders
 # are placed west and east of the receiver, so the north side is free.
 
-# Only the engines are ticked, with Test.tick_block_entity, and everything happens inside one tick()
-# call, so the game's own tick cannot run an engine in between. Test.tick_block_entity leaves the
+# Only the engines are ticked, with ctx.tick_block_entity, and everything happens inside one tick()
+# call, so the game's own tick cannot run an engine in between. ctx.tick_block_entity leaves the
 # clock alone, so the time Level.get_time reads stays where the test found it. The test waits for a
 # time 5 to 15 ticks past a multiple of 20, so no tick it gives lands on one, even if the integrated
 # server thread advances a few ticks during the call, and a powered engine gains nothing of its own
 # while it is ticked. The energy the test expects therefore changes only by strokes.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
 
     # Waits for a time 5 to 15 ticks past a multiple of 20. See the header.
     phase: number = Math.remainder(level.get_time(), 20)
@@ -24,7 +24,7 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
 
-    origin: Vec3 = Test.get_origin()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 15
     z: number = origin.z()
@@ -70,7 +70,7 @@ local _scenario(ctx: TestTickContext, level: Level, x: number, y: number, z: num
         i = i + 1
     }
 
-    Test.tick_block_entity(receiver, 1)
+    ctx.tick_block_entity(receiver, 1)
     return receiver
 }
 
@@ -80,11 +80,11 @@ local _scenario(ctx: TestTickContext, level: Level, x: number, y: number, z: num
 # pass, and the next tick, which adds 0.01, delivers. That saves the 50 ticks a whole stroke takes,
 # each of which draws the engine again (redstone_engine_stroke-Test.grug runs whole ones).
 local _deliver(ctx: TestTickContext, receiver: BlockEntity, feeder: BlockEntity, stored_before: number) {
-    Test.tick_block_entity(feeder, 1)
+    ctx.tick_block_entity(feeder, 1)
     feeder.set_saved_number("progress", 0.495)
     before: number = feeder.get_saved_number("energy")
     ctx.assert(receiver.get_energy_stored() == stored_before, "A feeder should not have handed its energy over before it passes halfway.")
-    Test.tick_block_entity(feeder, 1)
+    ctx.tick_block_entity(feeder, 1)
     ctx.assert(feeder.get_saved_number("energy") == before - 1, "A feeder should lose exactly 1 energy at its delivery.")
     ctx.assert(receiver.get_energy_stored() == stored_before + 1, "The delivery should add 1 to the receiver's store.")
 }

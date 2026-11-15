@@ -131,9 +131,10 @@ public final class GrugEntities {
      *
      * <p>{@link GrugObject#equals} compares the wrapped object, so two ids for the same level are
      * equal, and {@code List.remove(Object)} took the first of them: a display tick or a shape call
-     * made inside {@code Test.tick_level} added a level id and removed it again, and removed the
-     * test's own earlier id for that level instead, which unrooted it. The weak table then lost it
-     * and the test's next {@code Test.tick_level} reported the id as collected. See #1049.
+     * made inside {@code TestTickContext.tick_level} added a level id and removed it again, and
+     * removed the test's own earlier id for that level instead, which unrooted it. The weak table
+     * then lost it and the test's next {@code TestTickContext.tick_level} reported the id as
+     * collected. See #1049.
      *
      * <p>The iteration takes the list's monitor, which {@link #root} and {@link #clearRoots} also
      * take, so a root landing on another thread cannot change the list under it. See #1108.

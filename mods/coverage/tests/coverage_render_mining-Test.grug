@@ -5,7 +5,7 @@
 # The crack cannot be held on screen for a capture: the versions whose overlay follows the local
 # player's own mining clear that state on every tick the attack button is not held, and a test has
 # no way to hold it, so a screenshot of a mined block would show no crack whatever the hook did.
-# `Test.mining_crack` makes the same call the game makes for one overlay pass at the middle of the
+# `ctx.mining_crack` makes the same call the game makes for one overlay pass at the middle of the
 # break and answers whether it reached the block's own geometry, which is the question a hook that
 # cancels the overlay's tesselation call gets wrong.
 # The same answer covers the shape reset. The overlay sets the block's shared shape to each box, so
@@ -23,7 +23,7 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         # The game has to have the block on the client and its block entity running before the
         # overlay pass can draw anything, so the wait comes first. The settle answer now asks the
         # client's own copy of the block, so it stays false until the packet that carries it has
@@ -37,8 +37,8 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -56,13 +56,13 @@ local _setup(ctx: TestTickContext) {
 }
 
 local _check(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
 
     # The block entity is what the hook draws through, so a missing one would make the answer below
     # a report about the wrong thing. Asserting it here turns that into a readable failure.
     ctx.assert(render_block.has(), "The custom-rendered block lost its block entity.")
 
     # The crack over the block's own geometry, and the shape back to a full cube afterwards.
-    ctx.assert(Test.mining_crack(level, block_x, block_y, block_z), "The mining crack should be drawn over the block's own geometry.")
+    ctx.assert(ctx.mining_crack(level, block_x, block_y, block_z), "The mining crack should be drawn over the block's own geometry.")
     ctx.assert(level.get_block(block_x, block_y, block_z) == "grug:coverage_crack", "Showing the crack should not break the block.")
 }

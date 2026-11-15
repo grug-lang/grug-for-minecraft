@@ -1,10 +1,10 @@
-# Test.scroll_screen forwarded to a dedicated server's joined client (#1094): the wheel is turned on
+# ctx.scroll_screen forwarded to a dedicated server's joined client (#1094): the wheel is turned on
 # the client's screen through the client's own wheel path, at the centre of the coverage overlay's
 # box, and the answer is whether an overlay took the movement. The fixture is a vanilla chest rather
 # than grug:coverage_gui, because a loader leaves a mod's own GrugScreen out of the screens its
 # overlays are asked on, while the coverage overlay is asked on the game's own container screens.
 # This runs on 1.20.6 and on 1.2.5, the two servers that can right-click the chest for their
-# player; the other three cannot (Test.use_block only right-clicks a grug block there, so the
+# player; the other three cannot (ctx.use_block only right-clicks a grug block there, so the
 # vanilla chest cannot be opened), and they list this test as unsupported. The overlay takes a
 # wheel turned down, and the screen stays open. Only a multiplayer run that forwards client calls
 # runs a forwarded_ test.
@@ -13,22 +13,22 @@ started: bool = false
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
-        Test.close_screen()
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        ctx.close_screen()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         level.place_block(origin.x(), origin.y(), origin.z(), "minecraft:chest")
-        Test.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.use_block(level, origin.x(), origin.y(), origin.z())
         ctx.not_done()
         return
     }
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         ctx.not_done()
         return
     }
-    x: number = Math.floor(Test.screen_width() / 2)
-    y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
-    ctx.assert(Test.scroll_screen(x, y, -1), "A wheel turned down over the coverage overlay's box should be taken by the client.")
-    ctx.assert(Test.screen_open(), "The wheel should leave the client's screen open.")
-    Test.close_screen()
-    ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
+    x: number = Math.floor(ctx.screen_width() / 2)
+    y: number = ctx.gui_top() + Math.floor(ctx.gui_height() / 2)
+    ctx.assert(ctx.scroll_screen(x, y, -1), "A wheel turned down over the coverage overlay's box should be taken by the client.")
+    ctx.assert(ctx.screen_open(), "The wheel should leave the client's screen open.")
+    ctx.close_screen()
+    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
 }

@@ -6,13 +6,13 @@
 
 # The count is read while the pipe drops it. An entity per item lands at the same position and
 # velocity, and the versions that merge item entities would fold those back into one stack a game
-# tick later, so a test that waited could not tell the two apart. Test.tick_block_entity runs the
+# tick later, so a test that waited could not tell the two apart. ctx.tick_block_entity runs the
 # pipe's own tick without ticking entities, so here the drop is still exactly what the pipe made.
 drop_stack_count: number = 5
 
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # The other pipe tests use bands at +15, +20, +25, +35, +40, +45 and +50. The +45 and +50
     # bands are clamped to 120 for a high spawn, because Alpha's world is 128 blocks tall, so the
@@ -36,13 +36,13 @@ export tick_any_side(ctx: TestTickContext) {
     # 64 energy, so the pull takes the slot's whole stack as PipeItemsWood.doWork's
     # min(energy stored, stack size) does.
     pipe.receive_energy(64)
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
     ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling stack.")
     ctx.assert(pipe.get_saved_list_number("traveling", 0, "count") == drop_stack_count, "The travelling stack should hold the source's whole stack.")
 
     # 49 moves reach the pipe's centre, where every exit is the source it came from or no inventory at
     # all, so the stack is dropped there.
-    Test.tick_block_entity(pipe, 60)
+    ctx.tick_block_entity(pipe, 60)
     ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The pipe should have dropped its travelling stack.")
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
 

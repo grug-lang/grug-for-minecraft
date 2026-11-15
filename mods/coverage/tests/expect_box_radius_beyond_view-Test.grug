@@ -2,5 +2,5 @@
 # refused where it is asked for, and the room that stood stays whole. See #948.
 export tick_any_side(ctx: TestTickContext) {
     ctx.expect_error("has to be at most 30")
-    Test.set_box_radius(31)
+    ctx.set_box_radius(31)
 }

@@ -133,8 +133,8 @@ public final class GrugServerRun {
 
     /**
      * Runs the world's own tick {@code ticks} times from inside a test's tick, which is what {@code
-     * Test.tick_level} asks for (#780). The tick this runs would hand the world back to {@link
-     * #onWorldTick}, so that hook ignores the ticks run here. Answers how many ticks ran.
+     * TestTickContext.tick_level} asks for (#780). The tick this runs would hand the world back to
+     * {@link #onWorldTick}, so that hook ignores the ticks run here. Answers how many ticks ran.
      */
     public static int advance(World target, int ticks) {
         advancing = true;

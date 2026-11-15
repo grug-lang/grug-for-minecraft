@@ -28,19 +28,19 @@ export tick_any_side(ctx: TestTickContext) {
 # it. The advance stops as soon as the pipe has finished, so it runs the ticks the wait would have
 # waited for.
 local _advance_until_moved(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
+    level: Level = ctx.get_client_level()
     advanced: number = 0
     ran: number = 10
     while not _pipe_has_moved() and ran > 0 and advanced < 400 {
-        ran = Test.tick_level(level, 10)
+        ran = ctx.tick_level(level, 10)
         advanced = advanced + ran
     }
     ctx.assert(ran == 0 or _pipe_has_moved(), "The pipe should have moved within 400 advanced ticks.")
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 25
     z: number = origin.z()

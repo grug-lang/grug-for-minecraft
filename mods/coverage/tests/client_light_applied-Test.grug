@@ -1,4 +1,4 @@
-# Test.light_applied answers whether the client's copy of the world holds the block light of the
+# ctx.light_applied answers whether the client's copy of the world holds the block light of the
 # section a position falls in that the world the test edits has, which is the light its frame pass
 # draws that section with (#1207). The room's torches light it before the first tick, so the read
 # is true once their light has reached the client's copy; a torch the test puts beside the read
@@ -50,7 +50,7 @@ export init(ctx: TestInitContext) {
     # The room's own settle can take most of a test's budget on a slow client, and then the torch's
     # light has its own deadline, so the budget is the mesh test's rather than the default.
     ctx.set_max_ticks(2000)
-    second_copy = Test.loader_name() == "1.20.6-forge"
+    second_copy = me.loader_name() == "1.20.6-forge"
 }
 
 export tick_any_side(ctx: TestTickContext) {
@@ -58,8 +58,8 @@ export tick_any_side(ctx: TestTickContext) {
         # The read is inside the room the runner builds, so its light is the room's and not the
         # sky's. The radius is set once, before anything waits, so the waits are not about a room
         # that is rebuilt every tick.
-        Test.set_box_radius(6)
-        origin: Vec3 = Test.get_origin()
+        ctx.set_box_radius(6)
+        origin: Vec3 = ctx.get_origin()
         x = origin.x()
         y = origin.y() - 1
         z = origin.z()
@@ -69,9 +69,9 @@ export tick_any_side(ctx: TestTickContext) {
         # The room build's own light is the settle's job, and on a slow client it can take longer
         # than the light wait's deadline: this waits for the same settle a capture would, and only
         # then asks whether the read's section holds the room's light.
-        if Test.world_settled() {
+        if ctx.world_settled() {
             if _light_settled(ctx) {
-                level: Level = Test.get_client_level()
+                level: Level = ctx.get_client_level()
                 level.place_block(x, y, z, "minecraft:stone")
                 level.place_block(x, y + 1, z, "minecraft:torch")
                 # Only where the far chunk can exist: a 1.20.6 server loads and keeps it, while an
@@ -95,7 +95,7 @@ export tick_any_side(ctx: TestTickContext) {
             # received that chunk column, which the 1.20.6 client answers as no copy at all rather
             # than as an empty section (#1242).
             if second_copy {
-                ctx.assert(not Test.light_applied(x + 2000, y, z), "A section the client was never sent cannot hold the world's light.")
+                ctx.assert(not ctx.light_applied(x + 2000, y, z), "A section the client was never sent cannot hold the world's light.")
             }
         } else {
             ctx.not_done()
@@ -106,7 +106,7 @@ export tick_any_side(ctx: TestTickContext) {
 # Whether the client's copy holds the world's light at the read, with its own deadline so a client
 # that never takes the light fails with this message rather than with the tick budget.
 local _light_settled(ctx: TestTickContext) bool {
-    if Test.light_applied(x + 1, y + 1, z) {
+    if ctx.light_applied(x + 1, y + 1, z) {
         waited = 0
         return true
     }

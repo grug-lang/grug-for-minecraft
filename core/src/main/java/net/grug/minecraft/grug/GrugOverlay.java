@@ -78,18 +78,19 @@ public final class GrugOverlay {
 
     /**
      * Whether a frame has drawn the running test's own overlay on the screen that is open now,
-     * which is what {@code Test.overlay_drawn} answers. A loader sets it when it draws an overlay
-     * belonging to the running test's mod on an eligible screen, and clears it when an eligible
-     * screen opens, so a test waits for a frame of its own screen rather than reading an earlier
-     * test's mark. The frame really was rendered rather than one the test ran past at the game's
-     * maximum speed.
+     * which is what {@code TestTickContext.overlay_drawn} answers. A loader sets it when it draws
+     * an overlay belonging to the running test's mod on an eligible screen, and clears it when an
+     * eligible screen opens, so a test waits for a frame of its own screen rather than reading an
+     * earlier test's mark. The frame really was rendered rather than one the test ran past at the
+     * game's maximum speed.
      */
     private static volatile boolean overlayDrawn = false;
 
     /**
-     * Whether an overlay took the press {@code Test.click_screen} is driving. The loader's click
-     * handler records it, and the adapter clears it before it delivers a press, so the test answers
-     * with the overlay's own decision rather than with whether the screen handled the press too.
+     * Whether an overlay took the press {@code TestTickContext.click_screen} is driving. The
+     * loader's click handler records it, and the adapter clears it before it delivers a press, so
+     * the test answers with the overlay's own decision rather than with whether the screen handled
+     * the press too.
      */
     private static volatile boolean testPressTaken = false;
 
@@ -126,18 +127,18 @@ public final class GrugOverlay {
     }
 
     /**
-     * Marks that a frame drew the running test's overlay, so Test.overlay_drawn can answer true
-     * from then on. Called by a loader after it drew an overlay belonging to the running test's mod
-     * on an eligible screen, on the render thread.
+     * Marks that a frame drew the running test's overlay, so TestTickContext.overlay_drawn can
+     * answer true from then on. Called by a loader after it drew an overlay belonging to the
+     * running test's mod on an eligible screen, on the render thread.
      */
     public static void noteDrawn() {
         overlayDrawn = true;
     }
 
     /**
-     * Clears the drawn mark when an eligible screen opens, so Test.overlay_drawn speaks about the
-     * screen that is open now rather than about a frame an earlier test drew on an earlier screen.
-     * Called by a loader when an eligible screen initializes, on the client thread.
+     * Clears the drawn mark when an eligible screen opens, so TestTickContext.overlay_drawn speaks
+     * about the screen that is open now rather than about a frame an earlier test drew on an
+     * earlier screen. Called by a loader when an eligible screen initializes, on the client thread.
      */
     public static void screenOpened() {
         overlayDrawn = false;
@@ -150,9 +151,9 @@ public final class GrugOverlay {
 
     /**
      * Whether a frame has drawn the overlay of {@code mod}, the mod that owns the running test, on
-     * the screen that is open now: what {@code Test.overlay_drawn} answers on a client that runs
-     * the test itself, and what the client of a server-driven run answers when the server asks it
-     * (#1099).
+     * the screen that is open now: what {@code TestTickContext.overlay_drawn} answers on a client
+     * that runs the test itself, and what the client of a server-driven run answers when the server
+     * asks it (#1099).
      *
      * <p>The ask is also what makes the client draw, so a test that never captures still gets the
      * frames its wait is about, as the local call always did. A mod that is not the one the last
@@ -178,7 +179,7 @@ public final class GrugOverlay {
         testPressTaken = true;
     }
 
-    /** Whether an overlay took the press Test.click_screen is driving. */
+    /** Whether an overlay took the press TestTickContext.click_screen is driving. */
     public static boolean testPressTaken() {
         return testPressTaken;
     }

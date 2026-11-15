@@ -16,8 +16,8 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _damage_setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # The straight and corner pipe tests use bands at +25 and +35, so this one works in a clear
     # band. A high spawn can put +45 at y 128, outside Alpha's 128-block world height, so

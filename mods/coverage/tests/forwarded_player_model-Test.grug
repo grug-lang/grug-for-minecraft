@@ -31,21 +31,21 @@ export init(ctx: TestInitContext) {
 }
 
 export tick(ctx: TestTickContext) {
-    if Test.loader_name() != "1.20.6-forge" {
+    if me.loader_name() != "1.20.6-forge" {
         return
     }
     if ctx.current_tick() == 0 {
         # The room has no floor at the starter's level but the block they stand on, so the other
         # player gets a block of their own three blocks ahead, or they would fall to the torch floor.
         # The server stands them on it when this tick ends, so the capture below is the room alone.
-        origin: Vec3 = Test.get_origin()
-        Test.get_client_level().place_block(Math.floor(origin.x()), Math.floor(origin.y() - 4.12) - 1, Math.floor(origin.z()) + 3, "minecraft:stone")
+        origin: Vec3 = ctx.get_origin()
+        ctx.get_client_level().place_block(Math.floor(origin.x()), Math.floor(origin.y() - 4.12) - 1, Math.floor(origin.z()) + 3, "minecraft:stone")
         _wait_for_the_room(ctx)
-        empty.set(Test.screenshot().capture(624, 236, 656, 392))
+        empty.set(ctx.screenshot().capture(624, 236, 656, 392))
         ctx.not_done()
         return
     }
-    now: Screenshot = Test.screenshot().capture(624, 236, 656, 392)
+    now: Screenshot = ctx.screenshot().capture(624, 236, 656, 392)
     if now.change_from(empty.unwrap()) > 5.0 and previous.has() and now.change_from(previous.unwrap()) < 0.05 {
         steady = steady + 1
     } else {
@@ -57,15 +57,15 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    Test.screenshot().equals(r"screenshots/player_model", 624, 236, 656, 392)
+    ctx.screenshot().equals(r"screenshots/player_model", 624, 236, 656, 392)
 }
 
 # Asks the joined client whether it has drawn the room, as forwarded_capture_pinned_eye does.
 local _wait_for_the_room(ctx: TestTickContext) {
-    settled: bool = Test.world_settled()
+    settled: bool = ctx.world_settled()
     asks: number = 1
     while not settled and asks < 60 {
-        settled = Test.world_settled()
+        settled = ctx.world_settled()
         asks = asks + 1
     }
     ctx.assert(settled, "The client should have drawn the room before the baseline is taken.")

@@ -117,4 +117,31 @@ class HostFunctionsTestInitContextTest {
         assertEquals(1, drain().size());
         GrugTestState.closeTickContext();
     }
+
+    @Test
+    void stallsForTheTimeItIsGivenAndRefusesWhatIsOutOfRange() {
+        long context = contextId();
+
+        HostFunctions.TestInitContext_stall(context, 0);
+        assertTrue(drain().isEmpty(), "A legal stall reports nothing.");
+
+        HostFunctions.TestInitContext_stall(context, -1);
+        List<String> reports = drain();
+        assertEquals(1, reports.size());
+        assertTrue(reports.get(0).startsWith("TestInitContext.stall: "), reports.get(0));
+    }
+
+    @Test
+    void aContextSavedAfterItsCallIsRefusedByTheOtherCalls() {
+        long context = contextId();
+        GrugTestState.closeInitContext();
+
+        HostFunctions.TestInitContext_stall(context, 0);
+        HostFunctions.TestInitContext_get_origin(context);
+
+        List<String> reports = drain();
+        assertEquals(2, reports.size());
+        assertTrue(reports.get(0).contains("TestInitContext.stall"), reports.get(0));
+        assertTrue(reports.get(1).contains("TestInitContext.get_origin"), reports.get(1));
+    }
 }

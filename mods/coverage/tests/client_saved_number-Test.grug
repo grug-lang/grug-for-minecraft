@@ -36,7 +36,7 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _place(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         ctx.not_done()
     } else if ctx.current_tick() < placed_tick + 30 {
         ctx.not_done()
@@ -46,7 +46,7 @@ export tick_any_side(ctx: TestTickContext) {
         copy_tick = ctx.current_tick()
         ctx.not_done()
     } else if ctx.current_tick() >= copy_tick + 10 {
-        copy: number = Test.client_saved_number(mesh_block.unwrap(), "copied_marker")
+        copy: number = ctx.client_saved_number(mesh_block.unwrap(), "copied_marker")
         if copy != 7 {
             misses = misses + 1
             ctx.assert(misses < 40, "The saved number never reached the joined client's copy.")
@@ -59,8 +59,8 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _place(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

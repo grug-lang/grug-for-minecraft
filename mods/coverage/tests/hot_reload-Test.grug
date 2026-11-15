@@ -1,6 +1,6 @@
 # Puts a grug file into an invalid state, waits until the engine reports it saw the change, then
 # restores it, so Grug.update's hot-reload failure path runs.
-# Waiting on Test.hot_reload_count rather than sleeping a fixed number of ticks is what makes this
+# Waiting on ctx.hot_reload_count rather than sleeping a fixed number of ticks is what makes this
 # reliable: it does not matter how quickly the filesystem reports the modification, including on
 # filesystems with coarse timestamps.
 change_baseline: number = -1
@@ -10,12 +10,12 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.not_done()
     } else if ctx.current_tick() == 1 {
-        change_baseline = Test.hot_reload_count(path)
-        Test.set_mod_file_state(path, "invalid")
+        change_baseline = ctx.hot_reload_count(path)
+        ctx.set_mod_file_state(path, "invalid")
         ctx.not_done()
-    } else if Test.hot_reload_count(path) <= change_baseline {
+    } else if ctx.hot_reload_count(path) <= change_baseline {
         ctx.not_done()
     } else {
-        Test.set_mod_file_state(path, "normal")
+        ctx.set_mod_file_state(path, "normal")
     }
 }

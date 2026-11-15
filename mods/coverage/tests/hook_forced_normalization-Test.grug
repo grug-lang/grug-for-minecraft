@@ -17,7 +17,7 @@ waited: number = 0
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.overlay_supported() {
+        if not me.overlay_supported() {
             # This loader draws no overlays; the deviation is in about.json.
             return
         }
@@ -26,12 +26,12 @@ export tick_any_side(ctx: TestTickContext) {
         # lighting, so the runner has to have forced the state before this test's first tick. The
         # runner checks that a loader which reports applying it really turned the capabilities on,
         # which is the hole #1144 closes.
-        if Test.loader_name() == "1.20.6-forge" {
-            ctx.assert(not Test.normalization_forced(), "1.20.6-forge should not force a state its item draw does not inherit.")
+        if me.loader_name() == "1.20.6-forge" {
+            ctx.assert(not ctx.normalization_forced(), "1.20.6-forge should not force a state its item draw does not inherit.")
         } else {
-            ctx.assert(Test.normalization_forced(), "A loader whose item draw inherits the normalizing state should force it.")
+            ctx.assert(ctx.normalization_forced(), "A loader whose item draw inherits the normalizing state should force it.")
         }
-        Test.close_screen()
+        ctx.close_screen()
         ctx.not_done()
         return
     }
@@ -41,11 +41,11 @@ export tick_any_side(ctx: TestTickContext) {
     if not opened {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory screen opens.")
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         opened = true
         waited = 0
         ctx.not_done()
@@ -54,11 +54,11 @@ export tick_any_side(ctx: TestTickContext) {
 
     # The overlay draws the icons the forced state is about while the state is on, so wait for a
     # frame of the open screen before the test ends and puts the state back.
-    if not Test.overlay_drawn() {
+    if not ctx.overlay_drawn() {
         waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn while the forced state is on.")
         ctx.not_done()
         return
     }
-    Test.close_screen()
+    ctx.close_screen()
 }

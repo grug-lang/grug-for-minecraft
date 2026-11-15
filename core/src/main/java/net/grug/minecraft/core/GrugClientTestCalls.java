@@ -33,7 +33,7 @@ public final class GrugClientTestCalls {
             try {
                 return server.get().miningCrack(x, y, z);
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.mining_crack: " + e.getMessage());
+                failed.accept("TestTickContext.mining_crack: " + e.getMessage());
                 return false;
             }
         }
@@ -42,13 +42,13 @@ public final class GrugClientTestCalls {
         public void modFileState(String path, String state) {
             int index = net.grug.minecraft.grug.GrugModFileStates.indexOf(state);
             if (index < 0) {
-                failed.accept("Test.set_mod_file_state: unknown state " + state);
+                failed.accept("TestTickContext.set_mod_file_state: unknown state " + state);
                 return;
             }
             try {
                 server.get().modFileState(path, index);
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.set_mod_file_state: " + e.getMessage());
+                failed.accept("TestTickContext.set_mod_file_state: " + e.getMessage());
             }
         }
 
@@ -57,7 +57,7 @@ public final class GrugClientTestCalls {
             try {
                 return server.get().reloadCount(path, false);
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.hot_reload_count: " + e.getMessage());
+                failed.accept("TestTickContext.hot_reload_count: " + e.getMessage());
                 return 0;
             }
         }
@@ -67,7 +67,7 @@ public final class GrugClientTestCalls {
             try {
                 return server.get().reloadCount(path, true);
             } catch (GrugControlServer.ControlException e) {
-                failed.accept("Test.reload_count: " + e.getMessage());
+                failed.accept("TestTickContext.reload_count: " + e.getMessage());
                 return 0;
             }
         }

@@ -11,7 +11,7 @@
 # is that the client's frame changed after the save and changed back when the number was saved as 0
 # again, with no redraw in between.
 # Each save is waited for on the joined client's own copy of the number, not on a frame:
-# Test.client_saved_number answers what the copy the frame pass reads holds, so a capture taken after
+# ctx.client_saved_number answers what the copy the frame pass reads holds, so a capture taken after
 # it is of a frame that can show the save, and a copy that never holds the number is the send
 # failing rather than a capture taken a frame too early. #1179 is that other failure: there the copy
 # held the number and a capture read a frame from before it arrived, which this wait rules out.
@@ -74,7 +74,7 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _wall(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         ctx.not_done()
     } else if not empty.has() {
         _settle_empty(ctx)
@@ -111,9 +111,9 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 local _wall(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    Test.set_box_radius(6)
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    ctx.set_box_radius(6)
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
@@ -135,7 +135,7 @@ local _wall(ctx: TestTickContext) {
 # captured once the client has drawn the wall the setup placed, and the block goes in after it.
 local _settle_empty(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 {
-        empty.set(Test.screenshot().capture(500, 60, 780, 440))
+        empty.set(ctx.screenshot().capture(500, 60, 780, 440))
         room_tick = ctx.current_tick()
         attempts = 0
         _place(ctx)
@@ -143,13 +143,13 @@ local _settle_empty(ctx: TestTickContext) {
 }
 
 # The frame with the pedestal is the one everything else is compared against, so it is taken only
-# once the client has drawn the placed block: `Test.world_settled` says the client's renderer has
+# once the client has drawn the placed block: `ctx.world_settled` says the client's renderer has
 # nothing queued, and the wait after the placement leaves the block's own light time to arrive. A
 # frame that still looks like the room without the block is a section from a build, which draws as
 # nothing for a frame or two, so it is captured again.
 local _capture_before(ctx: TestTickContext) {
-    if ctx.current_tick() >= room_tick + 10 and ctx.current_tick() >= placed_tick + 60 and Test.world_settled() {
-        drawn: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+    if ctx.current_tick() >= room_tick + 10 and ctx.current_tick() >= placed_tick + 60 and ctx.world_settled() {
+        drawn: Screenshot = ctx.screenshot().capture(500, 60, 780, 440)
         room_tick = ctx.current_tick()
         if drawn.change_from(empty.unwrap()) < 1 {
             attempts = attempts + 1
@@ -168,7 +168,7 @@ local _capture_before(ctx: TestTickContext) {
 # is sent at, and a copy that never holds the number fails here rather than in a capture.
 local _wait_copy(ctx: TestTickContext, value: number) {
     if ctx.current_tick() >= copy_tick + 10 {
-        copy: number = Test.client_saved_number(mesh_block.unwrap(), "frame_marker")
+        copy: number = ctx.client_saved_number(mesh_block.unwrap(), "frame_marker")
         copy_tick = ctx.current_tick()
         if copy == value {
             if value == 1 {
@@ -185,11 +185,11 @@ local _wait_copy(ctx: TestTickContext, value: number) {
 }
 
 # The frame after the save, which has to show the stacks. The client's copy holds the number by now
-# and `Test.world_settled` makes it draw a frame from that copy, so a frame that still matches the
+# and `ctx.world_settled` makes it draw a frame from that copy, so a frame that still matches the
 # pedestal was drawn before the save and is captured again.
 local _capture_after(ctx: TestTickContext) {
-    if ctx.current_tick() >= room_tick + 10 and Test.world_settled() {
-        shot: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+    if ctx.current_tick() >= room_tick + 10 and ctx.world_settled() {
+        shot: Screenshot = ctx.screenshot().capture(500, 60, 780, 440)
         room_tick = ctx.current_tick()
         if shot.change_from(before.unwrap()) < 1 {
             attempts = attempts + 1
@@ -206,8 +206,8 @@ local _capture_after(ctx: TestTickContext) {
 # to that one. The second comparison is what a room that moved a little cannot pass: the move adds
 # the same share to both distances, so the stacks' share is still between them.
 local _capture_restored(ctx: TestTickContext) {
-    if ctx.current_tick() >= room_tick + 10 and Test.world_settled() {
-        shot: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+    if ctx.current_tick() >= room_tick + 10 and ctx.world_settled() {
+        shot: Screenshot = ctx.screenshot().capture(500, 60, 780, 440)
         room_tick = ctx.current_tick()
         moved: number = shot.change_from(after.unwrap())
         near_before: number = shot.change_from(before.unwrap())
@@ -230,8 +230,8 @@ local _save(value: number) {
 }
 
 local _place(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

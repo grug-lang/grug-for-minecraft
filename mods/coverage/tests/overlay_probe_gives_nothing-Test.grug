@@ -12,11 +12,11 @@ waited: number = 0
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.overlay_supported() {
+        if not me.overlay_supported() {
             # This loader draws no overlays; the deviation is in about.json.
             return
         }
-        Test.close_screen()
+        ctx.close_screen()
         ctx.not_done()
         return
     }
@@ -31,40 +31,40 @@ export tick_any_side(ctx: TestTickContext) {
     if not opened {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
-        if not Test.world_settled() {
+        if not ctx.world_settled() {
             ctx.not_done()
             return
         }
-        Test.open_inventory(Test.get_player())
+        ctx.open_inventory(ctx.get_player())
         opened = true
         waited = 0
         ctx.not_done()
         return
     }
 
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         waited = waited + 1
         ctx.assert(waited < 100, "The player's inventory screen should open.")
         ctx.not_done()
         return
     }
 
-    if not Test.overlay_drawn() {
+    if not ctx.overlay_drawn() {
         waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
         ctx.not_done()
         return
     }
 
-    Test.clear_carried_item()
-    ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the probe.")
+    ctx.clear_carried_item()
+    ctx.assert(ctx.get_held_count(ctx.get_player()) == 0, "The hand should be empty before the probe.")
     # The band the coverage overlay takes as the first hotbar slot: as wide as the 18-pixel slot
     # around gui_left + 17, and 15 pixels above the GUI's bottom edge. The overlay takes the press
     # without changing anything, which is the shape of the page-button press the hotkey test uses.
-    hotbar_x: number = Test.gui_left() + 17
-    hotbar_y: number = Test.gui_top() + Test.gui_height() - 15
-    ctx.assert(Test.click_screen(hotbar_x, hotbar_y, 0), "The overlay should take a press that gives nothing.")
-    ctx.assert(Test.get_held_count(Test.get_player()) == 0, "A taken press that gives nothing should leave the hand empty.")
-    ctx.assert(not Test.get_carried_item().has(), "A taken press that gives nothing should leave the cursor empty.")
-    Test.close_screen()
+    hotbar_x: number = ctx.gui_left() + 17
+    hotbar_y: number = ctx.gui_top() + ctx.gui_height() - 15
+    ctx.assert(ctx.click_screen(hotbar_x, hotbar_y, 0), "The overlay should take a press that gives nothing.")
+    ctx.assert(ctx.get_held_count(ctx.get_player()) == 0, "A taken press that gives nothing should leave the hand empty.")
+    ctx.assert(not ctx.get_carried_item().has(), "A taken press that gives nothing should leave the cursor empty.")
+    ctx.close_screen()
 }

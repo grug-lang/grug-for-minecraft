@@ -159,7 +159,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      * <p>A server has no local player, so a test that wants one to build fixtures around and to
      * right-click with is given one of the connected players. Which one does not matter: the tests
      * share one world and build in a room around the test player, so the choice only decides whose
-     * position {@code Test.get_origin} reports. The inherited origin goes through {@link
+     * position {@code TestTickContext.get_origin} reports. The inherited origin goes through {@link
      * #testPlayerEye}, so choosing the player here is all a server has to do.
      */
     @Override
@@ -224,7 +224,8 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.use_block: There is no player to right-click with.");
+                    Grug.statePtr,
+                    "TestTickContext.use_block: There is no player to right-click with.");
             return;
         }
 
@@ -240,7 +241,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         if (!(block instanceof GrugBlock)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.use_block: There is no grug block at "
+                    "TestTickContext.use_block: There is no grug block at "
                             + blockX
                             + ", "
                             + blockY
@@ -493,7 +494,8 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         Object playerObj = testPlayer();
         if (!(playerObj instanceof PlayerEntity)) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.set_carried_item: There is no player to set a cursor on.");
+                    Grug.statePtr,
+                    "TestTickContext.set_carried_item: There is no player to set a cursor on.");
             return;
         }
         PlayerEntity player = (PlayerEntity) playerObj;
@@ -657,7 +659,8 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         try {
             return GrugControlStation.server().worldSettled();
         } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.world_settled: " + e.getMessage());
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
             return true;
         }
     }

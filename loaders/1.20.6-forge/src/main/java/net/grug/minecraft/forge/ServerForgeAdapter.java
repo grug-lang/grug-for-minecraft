@@ -177,9 +177,9 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * <p>A server has no local player, so a test that wants one to build fixtures around and to
      * right-click with has to be given one of the connected players. Which one does not matter: the
      * tests share one world and build in bands above the origin, so the choice only decides whose
-     * position {@code Test.get_origin} reports. The inherited {@code testPlayerEye} and {@code
-     * getTestOrigin} both go through this answer, so choosing the player here is all a server has
-     * to do.
+     * position {@code TestTickContext.get_origin} reports. The inherited {@code testPlayerEye} and
+     * {@code getTestOrigin} both go through this answer, so choosing the player here is all a
+     * server has to do.
      */
     @Override
     public Object testPlayer() {
@@ -300,7 +300,8 @@ public class ServerForgeAdapter extends ForgeAdapter {
         Object playerObj = testPlayer();
         if (!(playerObj instanceof ServerPlayer)) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.use_block: There is no player to right-click with.");
+                    Grug.statePtr,
+                    "TestTickContext.use_block: There is no player to right-click with.");
             return;
         }
         ServerPlayer player = (ServerPlayer) playerObj;
@@ -566,7 +567,8 @@ public class ServerForgeAdapter extends ForgeAdapter {
         AbstractContainerMenu menu = serverMenu();
         if (menu == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.set_carried_item: There is no player with a menu open.");
+                    Grug.statePtr,
+                    "TestTickContext.set_carried_item: There is no player with a menu open.");
             return;
         }
         menu.setCarried(itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
@@ -625,7 +627,8 @@ public class ServerForgeAdapter extends ForgeAdapter {
         try {
             return GrugControlForge.server().worldSettled();
         } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.world_settled: " + e.getMessage());
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
             return true;
         }
     }
@@ -666,7 +669,8 @@ public class ServerForgeAdapter extends ForgeAdapter {
             return GrugLightSync.lightApplied(
                     lightEngineSettled(getLevel()), simulated, settled, client);
         } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.light_applied: " + e.getMessage());
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.light_applied: " + e.getMessage());
             return true;
         }
     }

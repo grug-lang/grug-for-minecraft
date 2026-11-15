@@ -10,8 +10,8 @@
 # no test can build because every placed pipe has one, so this covers the same _drop_moving call
 # through the route a test can reach. See #1013.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # Band 26, clear of the bands the other pipe tests use.
     y: number = origin.y() + 26
@@ -30,7 +30,7 @@ export tick_any_side(ctx: TestTickContext) {
     # chest as the only exit.
     _hold(pipe, item(resource_location("minecraft:diamond")))
 
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
     ctx.assert(_number(pipe, "to_center") == 0, "The first move should reach the centre and pick the chest.")
     ctx.assert(_number(pipe, "direction") == 5, "The only exit is the chest, so the pick should be east.")
 
@@ -41,9 +41,9 @@ export tick_any_side(ctx: TestTickContext) {
 
     # 50 moves from the centre leave the item on the pipe's east face, and the 51st is 0.01 past it,
     # where the drop happens.
-    Test.tick_block_entity(pipe, 50)
+    ctx.tick_block_entity(pipe, 50)
     ctx.assert(pipe.get_saved_list_size("traveling") == 1, "50 moves from the centre should still be inside the pipe.")
-    Test.tick_block_entity(pipe, 1)
+    ctx.tick_block_entity(pipe, 1)
     ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The 51st move should drop the item.")
 
     # The drop is at the face, not at the centre the item was sent from. A count measures a box

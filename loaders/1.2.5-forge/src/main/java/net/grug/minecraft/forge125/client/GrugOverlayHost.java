@@ -291,7 +291,7 @@ public final class GrugOverlayHost {
 
     /**
      * Asks the overlays about one wheel movement and answers whether one took it, recording the
-     * answer for {@code Test.scroll_screen}. The delta is in notches, positive up.
+     * answer for {@code TestTickContext.scroll_screen}. The delta is in notches, positive up.
      */
     public static boolean scroll(GuiScreen screen, int x, int y, double delta) {
         GuiContainer container = eligible(screen);
@@ -322,7 +322,7 @@ public final class GrugOverlayHost {
 
     /**
      * Asks the overlays about one press and answers whether one took it, recording the answer for
-     * {@code Test.click_screen}.
+     * {@code TestTickContext.click_screen}.
      */
     public static boolean click(GuiScreen screen, int x, int y, int button, boolean shift) {
         GuiContainer container = eligible(screen);
@@ -370,7 +370,7 @@ public final class GrugOverlayHost {
 
     /**
      * Asks the overlays about one key press and answers whether one took it, recording the answer
-     * for {@code Test.press_screen_key}.
+     * for {@code TestTickContext.press_screen_key}.
      *
      * <p>Only a letter or a digit key is asked, given as its upper case character code, which is
      * the same number on every loader. A key the game reports again while it is held is a repeat
@@ -408,7 +408,7 @@ public final class GrugOverlayHost {
         if (key == Keyboard.KEY_NONE) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.press_screen_key: The game has no key for character code "
+                    "TestTickContext.press_screen_key: The game has no key for character code "
                             + charCode
                             + ".");
             return false;
@@ -472,14 +472,14 @@ public final class GrugOverlayHost {
             ByteBuffer buffer = (ByteBuffer) field.get(null);
             if (Mouse.isGrabbed()) {
                 throw new IllegalStateException(
-                        "Test.click_screen: the mouse is grabbed, so a screen press cannot be"
-                                + " synthesized.");
+                        "TestTickContext.click_screen: the mouse is grabbed, so a screen press"
+                                + " cannot be synthesized.");
             }
             int start = buffer.limit();
             int readPosition = buffer.position();
             if (buffer.capacity() - start < Mouse.EVENT_SIZE) {
                 throw new IllegalStateException(
-                        "Test.click_screen: LWJGL's mouse event buffer is full.");
+                        "TestTickContext.click_screen: LWJGL's mouse event buffer is full.");
             }
             buffer.limit(buffer.capacity());
             buffer.position(start);
@@ -493,7 +493,8 @@ public final class GrugOverlayHost {
             buffer.position(readPosition);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(
-                    "Test.click_screen: LWJGL's mouse event buffer cannot be reached.", e);
+                    "TestTickContext.click_screen: LWJGL's mouse event buffer cannot be reached.",
+                    e);
         }
     }
 

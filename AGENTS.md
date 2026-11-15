@@ -484,6 +484,9 @@ use.
 ## Writing tests
 
 - `tick(ctx)` runs once per tick; `ctx.not_done()` keeps the test alive.
+- Every call that drives or reads the running test is a method of `ctx` (`ctx.screenshot()`,
+  `ctx.get_origin()`), so a helper that makes one takes `ctx` as a parameter. What describes the
+  loader or the harness is a method of the test itself (`me.is_reference()`, `me.loader_name()`).
 - The runner clears the test area before every test, so a test never compensates for an earlier one:
   it does not reset state a previous test left, close its screen, or guard against a leak. A test
   that opens a GUI is the one that closes it.

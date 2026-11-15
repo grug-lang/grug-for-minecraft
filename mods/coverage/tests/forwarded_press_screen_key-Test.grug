@@ -1,10 +1,10 @@
-# Test.press_screen_key forwarded to a dedicated server's joined client (#1094): the keys are
+# ctx.press_screen_key forwarded to a dedicated server's joined client (#1094): the keys are
 # pressed on the client's screen through the client's own key path, and the answer is whether an
 # overlay took the key. The fixture is a vanilla chest rather than grug:coverage_gui, because a
 # loader leaves a mod's own GrugScreen out of the screens its overlays are asked on, while the
 # coverage overlay is asked on the game's own container screens. This runs on 1.20.6, whose server
 # right-clicks the chest through the player's game mode, and on 1.2.5, whose server right-clicks it
-# through its own interaction manager; the other three servers cannot (Test.use_block only
+# through its own interaction manager; the other three servers cannot (ctx.use_block only
 # right-clicks a grug block there, so the vanilla chest cannot be opened), and they list this test
 # as unsupported. Ctrl+K is the key the coverage overlay takes, and K without
 # control is left to the screen. On 1.20.6 Escape (GLFW's 256) is also left to the screen, which
@@ -14,31 +14,31 @@
 started: bool = false
 
 export tick(ctx: TestTickContext) {
-    loader: string = Test.loader_name()
+    loader: string = me.loader_name()
     if not started {
         started = true
-        Test.close_screen()
-        level: Level = Test.get_client_level()
-        origin: Vec3 = Test.get_origin()
+        ctx.close_screen()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
         level.place_block(origin.x(), origin.y(), origin.z(), "minecraft:chest")
-        Test.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.use_block(level, origin.x(), origin.y(), origin.z())
         ctx.not_done()
         return
     }
-    if not Test.screen_open() {
+    if not ctx.screen_open() {
         ctx.not_done()
         return
     }
-    ctx.assert(Test.press_screen_key(75, true, true), "Ctrl+K should be taken by the coverage overlay on the client.")
-    ctx.assert(not Test.press_screen_key(75, false, true), "K without control should be left to the client's screen.")
+    ctx.assert(ctx.press_screen_key(75, true, true), "Ctrl+K should be taken by the coverage overlay on the client.")
+    ctx.assert(not ctx.press_screen_key(75, false, true), "K without control should be left to the client's screen.")
     if loader == "1.2.5-forge" {
-        Test.close_screen()
-        ctx.assert(not Test.screen_open(), "Test.close_screen should leave the client's screen closed.")
+        ctx.close_screen()
+        ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
         return
     }
-    ctx.assert(not Test.press_screen_key(256, false, true), "Escape should be left to the client's screen.")
-    ctx.assert(not Test.screen_open(), "Escape should have closed the client's screen.")
+    ctx.assert(not ctx.press_screen_key(256, false, true), "Escape should be left to the client's screen.")
+    ctx.assert(not ctx.screen_open(), "Escape should have closed the client's screen.")
     # Escape closed the client's screen; the server's menu is closed here, so the panel this test
     # opened does not outlive it.
-    Test.close_screen()
+    ctx.close_screen()
 }

@@ -21,10 +21,10 @@ import java.util.List;
 /**
  * Covers the four arms that answer a call a dedicated server cannot serve: {@code
  * ModLoaderAdapter.refuseWithoutAClient} refusing a call that needs a client, and {@code
- * Test.get_client_level}, {@code Test.get_player} and {@code Test.get_origin} reporting that the
- * server has no level, no player and no test origin yet. Those arms used to carry a
- * {@code @GrugGenerated} exclusion, because only a dedicated server reaches them and no CI run
- * launched one until #163. See #169 and #188.
+ * TestTickContext.get_client_level}, {@code TestTickContext.get_player} and {@code
+ * TestTickContext.get_origin} reporting that the server has no level, no player and no test origin
+ * yet. Those arms used to carry a {@code @GrugGenerated} exclusion, because only a dedicated server
+ * reaches them and no CI run launched one until #163. See #169 and #188.
  *
  * <p>No game and no loader is needed: the side, the empty world and the report all reach a stand-in
  * adapter installed on {@code GrugCore.adapter}, the same reflection seam the other core tests use,
@@ -65,12 +65,12 @@ class HostFunctionsOnADedicatedServerWithNothingJoinedTest {
     void aDedicatedServerRefusesAClientOnlyCallAndNamesTheFunctionAndTheSide() throws Exception {
         installAnEmptyDedicatedServer();
 
-        assertTrue(GrugCore.getAdapter().refuseWithoutAClient("Test.click_screen"));
+        assertTrue(GrugCore.getAdapter().refuseWithoutAClient("TestTickContext.click_screen"));
 
         assertEquals(
                 List.of(
-                        "Test.click_screen: This needs a client, and grug is running on a dedicated"
-                                + " server."),
+                        "TestTickContext.click_screen: This needs a client, and grug is running on"
+                                + " a dedicated server."),
                 reported);
     }
 
@@ -78,7 +78,7 @@ class HostFunctionsOnADedicatedServerWithNothingJoinedTest {
     void aClientRunsTheSameCallAndReportsNothing() throws Exception {
         installAnAdapter(GrugSide.CLIENT);
 
-        assertFalse(GrugCore.getAdapter().refuseWithoutAClient("Test.click_screen"));
+        assertFalse(GrugCore.getAdapter().refuseWithoutAClient("TestTickContext.click_screen"));
 
         assertEquals(List.of(), reported);
     }
@@ -87,12 +87,12 @@ class HostFunctionsOnADedicatedServerWithNothingJoinedTest {
     void thereIsNoLevelToTestInYetAndTheReportSaysWhichSideAndFunction() throws Exception {
         installAnEmptyDedicatedServer();
 
-        assertEquals(0L, HostFunctions.Test_get_client_level());
+        assertEquals(0L, HostFunctions.TestTickContext_get_client_level(GrugTestContexts.tick()));
 
         assertEquals(
                 List.of(
-                        "Test.get_client_level: There is no level to test in on a dedicated server"
-                                + " yet."),
+                        "TestTickContext.get_client_level: There is no level to test in on a"
+                                + " dedicated server yet."),
                 reported);
     }
 
@@ -100,12 +100,12 @@ class HostFunctionsOnADedicatedServerWithNothingJoinedTest {
     void thereIsNoPlayerToTestFromYetAndTheReportSaysWhichSideAndFunction() throws Exception {
         installAnEmptyDedicatedServer();
 
-        assertEquals(0L, HostFunctions.Test_get_player());
+        assertEquals(0L, HostFunctions.TestTickContext_get_player(GrugTestContexts.tick()));
 
         assertEquals(
                 List.of(
-                        "Test.get_player: There is no player to test from on a dedicated server"
-                                + " yet."),
+                        "TestTickContext.get_player: There is no player to test from on a dedicated"
+                                + " server yet."),
                 reported);
     }
 
@@ -113,12 +113,12 @@ class HostFunctionsOnADedicatedServerWithNothingJoinedTest {
     void thereIsNoOriginToMeasureYetAndTheReportSaysWhichSideAndFunction() throws Exception {
         installAnEmptyDedicatedServer();
 
-        assertEquals(0L, HostFunctions.Test_get_origin());
+        assertEquals(0L, HostFunctions.TestTickContext_get_origin(GrugTestContexts.tick()));
 
         assertEquals(
                 List.of(
-                        "Test.get_origin: There is no test player to measure an origin from on a"
-                                + " dedicated server yet."),
+                        "TestTickContext.get_origin: There is no test player to measure an origin"
+                                + " from on a dedicated server yet."),
                 reported);
     }
 

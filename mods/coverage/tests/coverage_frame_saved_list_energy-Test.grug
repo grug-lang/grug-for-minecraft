@@ -31,11 +31,11 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if not Test.world_settled() {
+    } else if not ctx.world_settled() {
         ctx.not_done()
     } else if step == 0 {
         # The row is off before anything is saved, which is what the list's capture is compared to.
-        before.set(Test.screenshot().capture(500, 60, 780, 440))
+        before.set(ctx.screenshot().capture(500, 60, 780, 440))
         frame_block.unwrap().append_saved_list_record("things")
         frame_block.unwrap().set_saved_list_item("things", 0, item(resource_location("minecraft:stick")))
         _next_step(ctx, 1)
@@ -46,7 +46,7 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else if step == 1 {
         # The list's item alone brought the row in.
-        listed: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        listed: Screenshot = ctx.screenshot().capture(500, 60, 780, 440)
         if listed.change_from(before.unwrap()) < 1 {
             _wait_for_change(ctx, "The list's item never reached the client's frame.")
         } else {
@@ -57,7 +57,7 @@ export tick_any_side(ctx: TestTickContext) {
     } else if step == 2 {
         # Nothing draws the row any more, so the frame has to be the empty one again. Without this
         # the energy's row could be the list's row that never left.
-        emptied: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        emptied: Screenshot = ctx.screenshot().capture(500, 60, 780, 440)
         if emptied.change_from(before.unwrap()) < 1 {
             _wait_for_change(ctx, "The removed list never left the client's frame.")
         } else {
@@ -67,7 +67,7 @@ export tick_any_side(ctx: TestTickContext) {
         }
     } else if step == 3 {
         # The energy store alone draws the row back.
-        energised: Screenshot = Test.screenshot().capture(500, 60, 780, 440)
+        energised: Screenshot = ctx.screenshot().capture(500, 60, 780, 440)
         if energised.change_from(before.unwrap()) < 1 {
             _wait_for_change(ctx, "The energy store never reached the client's frame.")
         } else {
@@ -97,9 +97,9 @@ local _wait_for_change(ctx: TestTickContext, message: string) {
 }
 
 local _setup(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    Test.set_box_radius(6)
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    ctx.set_box_radius(6)
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

@@ -193,7 +193,7 @@ EXCLUDED_CLASSES = {
     "GlBridge",
     "GrugContainer",
     "GrugItem",
-    # The screen Test.close_screen displays on 1.2.5 so the headless focus check does not open the
+    # The screen TestTickContext.close_screen displays on 1.2.5 so the headless focus check does not open the
     # in-game menu over a screenshot. Same reason as GrugScreen: GUI glue a headless CI cannot
     # measure beyond the run that uses it.
     "GrugEmptyScreen",

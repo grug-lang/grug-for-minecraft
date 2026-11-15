@@ -20,14 +20,14 @@ export tick(ctx: TestTickContext) {
     if not requested {
         requested = true
         waited = 0
-        Test.set_box_radius(_radius(step))
+        ctx.set_box_radius(_radius(step))
         ctx.not_done()
         return
     }
 
     waited = waited + 1
     ctx.assert(waited < 1000, "The world should settle after the room is rebuilt.")
-    if not Test.world_settled() {
+    if not ctx.world_settled() {
         ctx.not_done()
         return
     }
@@ -36,7 +36,7 @@ export tick(ctx: TestTickContext) {
     # room is compared with the same reference, so one built after a different radius that lit it
     # otherwise fails here.
     if _radius(step) == 3 {
-        Test.screenshot().equals(r"screenshots/room_light", 0, 0, 640, 360)
+        ctx.screenshot().equals(r"screenshots/room_light", 0, 0, 640, 360)
     }
 
     step = step + 1

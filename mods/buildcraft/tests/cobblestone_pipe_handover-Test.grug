@@ -7,8 +7,8 @@
 # its own centre and on to the chest. Both cobblestone pipes are ticked by hand, after one dose of
 # energy for the wooden pipe, so no engine timing can shift the counts.
 export tick_any_side(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
     # Band 16, clear of the bands the other pipe tests use.
     y: number = origin.y() + 16
@@ -30,30 +30,30 @@ export tick_any_side(ctx: TestTickContext) {
 
     source.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
     wooden.receive_energy(1)
-    Test.tick_block_entity(wooden, 1)
+    ctx.tick_block_entity(wooden, 1)
     ctx.assert(wooden.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
 
     # The pull, the 49 moves to the wooden pipe's centre and 50 of the 51 to its east face.
-    Test.tick_block_entity(wooden, 99)
+    ctx.tick_block_entity(wooden, 99)
     ctx.assert(first.get_saved_list_size("traveling") == 0, "The item should still be inside the wooden pipe after 50 moves from its centre.")
-    Test.tick_block_entity(wooden, 1)
+    ctx.tick_block_entity(wooden, 1)
     ctx.assert(first.get_saved_list_size("traveling") == 1, "The 51st move should hand the item to the first cobblestone pipe.")
     ctx.assert(_hundredths(_number(first, "x") - bx) == 1, "The item should enter 0.01 past the first pipe's west face.")
 
     # 48 moves from the entry reach the first pipe's centre, where the only exit is the second pipe.
-    Test.tick_block_entity(first, 47)
+    ctx.tick_block_entity(first, 47)
     ctx.assert(_number(first, "to_center") == 1, "47 moves should not reach the first pipe's centre.")
-    Test.tick_block_entity(first, 1)
+    ctx.tick_block_entity(first, 1)
     ctx.assert(_number(first, "to_center") == 0, "The 48th move should reach the centre.")
     ctx.assert(_hundredths(_number(first, "x") - bx) == 50, "The item should snap to the first pipe's centre.")
     ctx.assert(_number(first, "direction") == 5, "The only exit is the second cobblestone pipe, so the pick should be east.")
 
     # 50 moves from the centre leave the item on the first pipe's east face, which endReached does not
     # count as past it, and the 51st is 0.01 past it, where the second pipe takes it.
-    Test.tick_block_entity(first, 50)
+    ctx.tick_block_entity(first, 50)
     ctx.assert(first.get_saved_list_size("traveling") == 1, "50 moves from the centre should still be inside the first pipe.")
     ctx.assert(_hundredths(_number(first, "x") - bx) == 100, "50 moves should put the item on the first pipe's east face.")
-    Test.tick_block_entity(first, 1)
+    ctx.tick_block_entity(first, 1)
     ctx.assert(first.get_saved_list_size("traveling") == 0, "The 51st move should hand the item over.")
     ctx.assert(second.get_saved_list_size("traveling") == 1, "The second cobblestone pipe should have taken the item.")
     ctx.assert(_number(second, "direction") == 5, "The item should still travel east into the second pipe.")
@@ -64,16 +64,16 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(_number(second, "count") == 1, "The whole stack should have entered.")
 
     # 48 moves from the entry reach the second pipe's centre, then 51 more hand the item to the chest.
-    Test.tick_block_entity(second, 47)
+    ctx.tick_block_entity(second, 47)
     ctx.assert(_number(second, "to_center") == 1, "47 moves should not reach the second pipe's centre.")
-    Test.tick_block_entity(second, 1)
+    ctx.tick_block_entity(second, 1)
     ctx.assert(_number(second, "to_center") == 0, "The 48th move should reach the centre.")
     ctx.assert(_hundredths(_number(second, "x") - bx) == 150, "The item should snap to the second pipe's centre.")
     ctx.assert(_number(second, "direction") == 5, "The only exit is the chest, so the pick stays east.")
 
-    Test.tick_block_entity(second, 50)
+    ctx.tick_block_entity(second, 50)
     ctx.assert(second.get_saved_list_size("traveling") == 1, "50 moves from the centre should still be inside the second pipe.")
-    Test.tick_block_entity(second, 1)
+    ctx.tick_block_entity(second, 1)
     ctx.assert(second.get_saved_list_size("traveling") == 0, "The 51st move should hand the item to the chest.")
     ctx.assert(target.get_item_count_in_slot(0) == 1, "The east chest should hold the diamond.")
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")

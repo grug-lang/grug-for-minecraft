@@ -53,8 +53,8 @@ export tick_any_side(ctx: TestTickContext) {
 # Wheat and bread are items rather than blocks on every loader, so the recipe's result can be named
 # and compared, unlike a grid of diamonds, whose 3x3 recipe is the diamond block.
 local _setup_table(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x() + 12
     # Band 5, below the bands the pipe tests use, and the x offset keeps this clear of the origin.
     y: number = origin.y() + 5
@@ -101,8 +101,8 @@ local _check_rule(ctx: TestTickContext) {
 # before the chest and the pipe pulls from the table rather than the other way round. The engine is
 # below the pipe, where a torch powers it.
 local _setup_pipe(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x() + 12
     y: number = origin.y() + 5
     z: number = origin.z()
@@ -125,8 +125,8 @@ local _setup_pipe(ctx: TestTickContext) {
 }
 
 local _check(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
     x: number = origin.x() + 12
     y: number = origin.y() + 5
     z: number = origin.z()
