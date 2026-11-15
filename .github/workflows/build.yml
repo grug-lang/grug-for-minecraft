@@ -2453,7 +2453,9 @@ jobs:
       - name: Cancel the run at the first failed job
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/cancel-red.py "$GITHUB_RUN_ID" --own-job 'cancel red' --repo-slug "$GITHUB_REPOSITORY"
+        # A smoke or layer job is not a test of what a proof changes, and a NeoForge smoke hang
+        # (#1335) cancelled the #1068 proof 43766892846 before its dedicated legs reported.
+        run: python3 .github/scripts/cancel-red.py "$GITHUB_RUN_ID" --own-job 'cancel red' --repo-slug "$GITHUB_REPOSITORY" --exempt '\blayer\b'
 
   pr-gate:
     name: pr gate
