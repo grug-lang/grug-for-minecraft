@@ -90,10 +90,10 @@ export scroll(ctx: OverlayScrollContext) {
     }
 }
 
-# Two lines of text at the left edge of the frame, in the GUI's scaled pixels, once the key has been
-# pressed. A frame before any press shows no text.
+# Two lines of text at the left edge of the frame, in the GUI's scaled pixels, while the cross is on, so
+# a frame before the first press, or after the second, shows no text.
 export render_hud(ctx: OverlayHudContext) {
-    if world_presses > 0 {
+    if cross_on {
         ctx.add_text("L pressed", 4, 100, Color.rgb(255, 255, 255))
         ctx.add_text("world key seen", 4, 112, Color.rgb(255, 255, 255))
     }
