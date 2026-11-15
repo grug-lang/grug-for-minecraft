@@ -42,4 +42,13 @@ class GrugOperatorStatusTest {
 
         assertTrue(status.isOperator(true, true), "the list is the game's own and wins");
     }
+
+    @Test
+    void onlyAnEntryAtTheCheatLevelOrAboveMayCheat() {
+        assertFalse(GrugOperatorStatus.levelMayCheat(0));
+        assertFalse(
+                GrugOperatorStatus.levelMayCheat(1), "a level-1 entry is not a cheat permission");
+        assertTrue(GrugOperatorStatus.levelMayCheat(2));
+        assertTrue(GrugOperatorStatus.levelMayCheat(4));
+    }
 }

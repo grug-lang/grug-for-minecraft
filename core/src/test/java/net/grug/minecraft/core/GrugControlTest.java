@@ -3398,6 +3398,7 @@ class GrugControlTest {
         final List<Object> scheduled = new ArrayList<>();
         final List<Runnable> tasks = new ArrayList<>();
         final List<Object> runStarts = new ArrayList<>();
+        final List<String> order = new ArrayList<>();
         boolean playerPresent = true;
 
         @Override
@@ -3423,6 +3424,7 @@ class GrugControlTest {
         @Override
         public void onRunStarted(Object starter) {
             runStarts.add(starter);
+            order.add("grant " + starter);
         }
 
         void runTasks() {
@@ -3565,8 +3567,38 @@ class GrugControlTest {
 
         loop.server.onMessage("bob", GrugControlWire.runStart());
         loop.server.onMessage("carol", GrugControlWire.runStart());
+        assertTrue(loop.runStarts.isEmpty(), "the network thread grants nothing");
+        loop.runTasks();
 
         assertEquals(List.of("bob"), loop.runStarts, "an ignored start is not a start");
+    }
+
+    @Test
+    void theStartersGrantIsMadeBeforeTheirFirstGiveIsJudged() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        List<String> given = new ArrayList<>();
+        java.util.Set<Object> operators = new java.util.HashSet<>();
+        ModLoaderAdapter adapter = playerGiveAdapter(new Object(), given, operators);
+        // The grant makes the player an operator, as a CI server's does, so a give judged first
+        // would be refused.
+        PlayerGiveLink granting =
+                new PlayerGiveLink() {
+                    @Override
+                    public void onRunStarted(Object starter) {
+                        super.onRunStarted(starter);
+                        operators.add("player of " + starter);
+                    }
+                };
+        granting.server = new GrugControlServer(granting, 1000);
+
+        granting.server.onMessage("bob", GrugControlWire.runStart());
+        granting.server.onMessage("bob", GrugControlWire.giveRequest("grug:test", 1));
+        // The runner's own drain comes first, before the scheduled tasks.
+        withAdapter(adapter, granting.server::applyClientWork);
+
+        assertEquals(List.of("player of bob x1"), given);
+        assertTrue(granting.told.isEmpty());
     }
 
     @Test

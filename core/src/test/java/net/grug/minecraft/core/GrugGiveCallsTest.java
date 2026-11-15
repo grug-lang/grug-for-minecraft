@@ -1,6 +1,7 @@
 package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -451,5 +452,19 @@ class GrugGiveCallsTest {
 
         assertTrue(items.asked.isEmpty());
         assertEquals(2, items.given.size());
+    }
+
+    @Test
+    void aLoaderThatDoesNotOverrideAskServerToGiveAsksNobody() {
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        java.lang.reflect.InvocationHandler.invokeDefault(
+                                                proxy, method, args));
+
+        assertFalse(adapter.askServerToGive("minecraft:stone", 1));
     }
 }

@@ -3652,7 +3652,7 @@
 			]
 		},
 		"is_operator": {
-			"description": "Whether the player the test runs as is an operator, answered by the loader's own server code: the operator list (ops.txt, or the operator list of 1.20.6) on a dedicated server, and always true for the owner of a singleplayer world unless set_operator took it away, since a singleplayer world keeps no list on Alpha, Beta and 1.2.5 and 1.20.6 counts the owner only while cheats are on. A test that runs on a client joined to a server cannot know, because the server holds the list, so that call is an error of the test that made it rather than an answer; it needs a player.",
+			"description": "Whether the player the test runs as is an operator, answered by the loader's own server code: the operator list (ops.txt, or the operator list of 1.20.6, where only an entry of permission level 2 or higher counts, as the reference JEI's cheat check requires) on a dedicated server, and always true for the owner of a singleplayer world unless set_operator took it away, since a singleplayer world keeps no list on Alpha, Beta and 1.2.5 and 1.20.6 counts the owner only while cheats are on. A test that runs on a client joined to a server cannot know, because the server holds the list, so that call is an error of the test that made it rather than an answer; it needs a player.",
 			"return_type": {
 				"name": "bool"
 			}

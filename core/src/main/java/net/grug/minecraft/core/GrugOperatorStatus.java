@@ -17,6 +17,18 @@ package net.grug.minecraft.core;
  * never reads it.
  */
 public final class GrugOperatorStatus {
+    /**
+     * The permission level from which a player may use cheats: the reference JEI's {@code
+     * hasPermissionForCheatMode} needs level 2, the game's own gamemaster level. A level-1 entry of
+     * the operator list (a player who can only bypass spawn protection) is not an operator here.
+     */
+    public static final int CHEAT_LEVEL = 2;
+
+    /** Whether an entry of the operator list at {@code level} is an operator for #1331 and #882. */
+    public static boolean levelMayCheat(int level) {
+        return level >= CHEAT_LEVEL;
+    }
+
     private volatile boolean ownerRevoked;
 
     /**

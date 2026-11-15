@@ -35,6 +35,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ThreadedLevelLightEngine;
+import net.minecraft.server.players.ServerOpListEntry;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
@@ -684,15 +685,17 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     /**
      * Whether the operator list holds the player, or the player owns a singleplayer world and no
      * script has removed that. The list is the game's own {@code PlayerList.getOps}, read by the
-     * profile, which both the client's player and the server's carry.
+     * profile, which both the client's player and the server's carry. An entry counts only at the
+     * cheat level, as the reference's {@code hasPermissionForCheatMode} requires.
      */
     @Override
     public boolean isOperator(Object playerObj) {
         MinecraftServer server = serverHoldingPlayers();
         GameProfile profile = ((Player) playerObj).getGameProfile();
+        ServerOpListEntry entry = server.getPlayerList().getOps().get(profile);
         return operatorStatus.isOperator(
                 server.isSingleplayerOwner(profile),
-                server.getPlayerList().getOps().get(profile) != null);
+                entry != null && GrugOperatorStatus.levelMayCheat(entry.getLevel()));
     }
 
     /** Adds the player to the operator list, as the game's {@code /op} does. */
