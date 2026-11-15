@@ -48,8 +48,6 @@ jei/tests/item_list_forced_normalization-Test.grug
 # whole-frame joined-client difference #1213 tracks, and the leg stops at its
 # first failure, so wooden_pipe_shapes is unmeasured and listed with it. The client-only run of
 # this loader still runs both, which is where their goldens are checked.
-buildcraft/tests/wooden_pipe_items-Test.grug
-buildcraft/tests/wooden_pipe_shapes-Test.grug
 #
 # coverage_frame and coverage_render, promoted to tick_any_side by #1092 for b1.7.3-stationapi. Dispatch 43465548202 failed coverage_frame on this leg in 20093 of 44800 pixels
 # (#1092), and coverage_render is unmeasured behind it. The client-only run still checks both.
