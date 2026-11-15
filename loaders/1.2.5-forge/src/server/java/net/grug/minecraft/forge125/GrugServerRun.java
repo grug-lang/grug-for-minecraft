@@ -52,6 +52,21 @@ public final class GrugServerRun implements ITickHandler {
     private static boolean done = false;
     private static boolean advancing = false;
     private static int gameSpeed = 1;
+
+    /**
+     * Where the test save's own player stands, as feet: the position a client-only run's room is
+     * built around. A joined player starts from the world's random spawn, and the renderer's single
+     * precision arithmetic and the terrain's light differ at another absolute position, so the
+     * server places the joined player here before the run starts (#1213).
+     */
+    private static final double START_X = 37.5;
+
+    private static final double START_FEET_Y = 70.0;
+    private static final double START_Z = 24.5;
+
+    /** Whether the joined player has been placed at the start above. */
+    private static boolean placedAtStart = false;
+
     private static double holdY = 0;
     private static int healedHealth = 0;
     private static EntityPlayerMP testPlayer = null;
@@ -402,6 +417,25 @@ public final class GrugServerRun implements ITickHandler {
             EntityPlayerMP starter = GrugControlServer125.starterPlayer();
             if (starter != null) {
                 holdOnFloor(starter);
+                if (!placedAtStart && GrugControlServer125.server().hasStarter()) {
+                    placedAtStart = true;
+                    // The teleport takes the entity position, so the move is the feet's difference.
+                    starter.playerNetServerHandler.teleportTo(
+                            START_X,
+                            starter.posY + (START_FEET_Y - starter.boundingBox.minY),
+                            START_Z,
+                            0.0F,
+                            0.0F);
+                    starter.motionY = 0;
+                    System.out.println(
+                            "[GRUG CI] placed the test player at the save's start "
+                                    + START_X
+                                    + ", "
+                                    + START_FEET_Y
+                                    + ", "
+                                    + START_Z);
+                    return;
+                }
             }
             if (!players.isEmpty()
                     && GrugControlServer125.server().hasStarter()
