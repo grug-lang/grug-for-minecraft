@@ -695,7 +695,10 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
         ServerOpListEntry entry = server.getPlayerList().getOps().get(profile);
         return operatorStatus.isOperator(
                 server.isSingleplayerOwner(profile),
-                entry != null && GrugOperatorStatus.levelMayCheat(entry.getLevel()));
+                Optional.ofNullable(entry)
+                        .map(ServerOpListEntry::getLevel)
+                        .map(GrugOperatorStatus::levelMayCheat)
+                        .orElse(false));
     }
 
     /** Adds the player to the operator list, as the game's {@code /op} does. */
