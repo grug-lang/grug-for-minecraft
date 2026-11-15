@@ -43,9 +43,14 @@ coverage/tests/hook_forced_normalization-Test.grug
 # stays the client-only proof that this loader's item draw pins the state off.
 jei/tests/item_list_forced_normalization-Test.grug
 #
-# wooden_pipe_shapes, promoted to tick_any_side by #1096, stays listed and unmeasured: the cobblestone
-# and redstone_engine captures left this list once the joined player started at the save's own
-# position (#1213).
+# The wall-backed buildcraft captures #1161 and #1096 promoted to tick_any_side that still differ.
+# cobblestone_pipe_shapes left this list once the joined player started at the save's own
+# position (#1213). Dispatch 43758472869 then stopped this leg at redstone_engine_yellow (163 of
+# 34100 px, unanalysed), so the redstone_engine tests and wooden_pipe_shapes stay listed and
+# the rest are unmeasured.
+buildcraft/tests/redstone_engine-Test.grug
+buildcraft/tests/redstone_engine_animation-Test.grug
+buildcraft/tests/redstone_engine_facings-Test.grug
 buildcraft/tests/wooden_pipe_shapes-Test.grug
 #
 # The wall-backed world capture renamed to tick_any_side (coverage_render is not listed: it is
