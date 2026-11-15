@@ -130,12 +130,13 @@ public final class GrugControlServer {
         }
 
         /**
-         * Called once, on the server thread and before any give is applied, for a player who became
-         * the run's starter. The harness's CI servers make that player an operator here, so the
-         * gives a run's tests make pass the same permission check a player's would (#882). Core
-         * queues it with {@link GrugControlServer}'s own drain, ahead of the gives in the same
-         * drain, so a first give cannot be judged before the grant. Only when {@link
-         * #givesToSender}; the default does nothing.
+         * Called once, on the server thread and before any give is applied, for a player whose
+         * start is about to be judged, which happens only while no run has a starter. The harness's
+         * CI servers make that player an operator here, so the start passes the operator check that
+         * follows (#37) and the gives a run's tests make pass the same permission check a player's
+         * would (#882). Core queues it with {@link GrugControlServer}'s own drain, ahead of the
+         * start's judgement and of the gives in the same drain, so neither can be judged before the
+         * grant. Only when {@link #givesToSender}; the default does nothing.
          */
         default void onRunStarted(Object starter) {}
     }
@@ -218,11 +219,15 @@ public final class GrugControlServer {
     private final Queue<Give> gives;
 
     /**
-     * The starters {@link Link#onRunStarted} has still to be told about. The grant of operator
-     * status is made by the same drain that applies gives, ahead of them in every drain, so no give
-     * can be judged before its sender's grant (#882).
+     * The players whose start a loader with operator checks has still to judge (#37). A start is
+     * judged by the same drain that applies gives, on the server thread where the operator list is
+     * written, and ahead of the gives in every drain, so no give can be judged before its sender's
+     * grant (#882) and no run has a starter who is not an operator.
      */
-    private final Queue<Object> startGrants = new ConcurrentLinkedQueue<>();
+    private final Queue<Object> starts = new ConcurrentLinkedQueue<>();
+
+    /** What a player who is not an operator is told when their start is refused (#37). */
+    static final String START_REFUSAL = "You must be an operator to run tests.";
 
     /** One give a joined client asked for: the item's name and how many of it. */
     private static final class Give {
@@ -323,7 +328,7 @@ public final class GrugControlServer {
      * player, and a player's own to that player after the operator check (#882).
      */
     private void drainGives() {
-        grantStarters();
+        judgeStarts();
         Give give;
         while ((give = gives.poll()) != null) {
             // Grants are read again after each give is taken, not only before the loop: the network
@@ -331,7 +336,7 @@ public final class GrugControlServer {
             // so a give this poll returned was added after its sender's grant, and this read, which
             // is after the poll, sees that grant. A single read before the loop could miss a grant
             // added between it and the poll.
-            grantStarters();
+            judgeStarts();
             if (give.sender == null) {
                 link.applyGive(give.item, give.count);
                 continue;
@@ -350,11 +355,42 @@ public final class GrugControlServer {
         }
     }
 
-    /** Tells the link about each starter whose grant is still queued, on the server thread. */
-    private void grantStarters() {
-        Object started;
-        while ((started = startGrants.poll()) != null) {
-            link.onRunStarted(started);
+    /**
+     * Judges each start still queued, on the server thread (#37). The first start of a player who
+     * is an operator owns the run, as a start always has; a later one is ignored (#1027), and a
+     * start of a player who is not an operator is refused: the player is told so in chat, and the
+     * client is sent the end of the run so it puts back what its start changed, rather than the
+     * start being a silent no-op. A refused start leaves the run free for the next player's.
+     */
+    private void judgeStarts() {
+        Object candidate;
+        while ((candidate = starts.poll()) != null) {
+            if (starter.get() != null) {
+                // The first start owns the run, so a second player's start, or a reconnected
+                // client's, is ignored rather than moving the run to it (#1027). The client says it
+                // sent its start either way, so this line is what run-multiplayer.sh reads to know
+                // that two real starts reached the server and only one was accepted.
+                System.out.println(
+                        "[GRUG CONTROL] " + candidate + " sent a start, which was ignored");
+                continue;
+            }
+            Object player = link.playerOfSender(candidate);
+            if (player == null) {
+                // The player left before the start was judged: nobody is left to tell.
+                continue;
+            }
+            link.onRunStarted(candidate);
+            if (!GrugCore.getAdapter().isOperator(player)) {
+                System.out.println(
+                        "[GRUG CONTROL] "
+                                + candidate
+                                + " sent a start, which was refused: not an operator");
+                link.tell(candidate, START_REFUSAL);
+                link.sendToStarter(candidate, GrugControlWire.runEnd());
+                continue;
+            }
+            starter.set(candidate);
+            System.out.println("[GRUG CONTROL] " + candidate + " started the run");
         }
     }
 
@@ -430,18 +466,18 @@ public final class GrugControlServer {
         }
         boolean fromStarter = sender.equals(starter.get());
         if (message.type == GrugControlWire.RUN_START) {
-            if (link.mayStartRun(sender) && starter.compareAndSet(null, sender)) {
+            boolean may = link.mayStartRun(sender);
+            if (may && link.givesToSender()) {
+                // A loader with operator checks (#882, #37) judges the start where the operator
+                // list is written, on the server thread, and only then makes the sender the
+                // starter. The scheduled drain covers a server with no run, whose runner never
+                // calls applyClientWork; the add comes before the mark for the reason given below.
+                starts.add(sender);
+                clientWorkPending = true;
+                link.runOnServerThread(this::drainGives);
+            } else if (may && starter.compareAndSet(null, sender)) {
                 System.out.println("[GRUG CONTROL] " + sender + " started the run");
-                if (link.givesToSender()) {
-                    startGrants.add(sender);
-                    clientWorkPending = true;
-                    link.runOnServerThread(this::drainGives);
-                }
             } else {
-                // The first start owns the run, so a second player's start, or a reconnected
-                // client's, is ignored rather than moving the run to it (#1027). The client says it
-                // sent its start either way, so this line is what run-multiplayer.sh reads to know
-                // that two real starts reached the server and only one was accepted.
                 System.out.println("[GRUG CONTROL] " + sender + " sent a start, which was ignored");
             }
             return;

@@ -159,8 +159,9 @@ public final class GrugControlServer125 implements GrugControlRouter {
         }
 
         /**
-         * Any player who has finished login may start a run (first start wins in core); a
-         * connection whose player was not found has not finished login.
+         * Any player who has finished login may send a start, and a connection whose player was not
+         * found has not; core then judges it and accepts only an operator's (#37), the first
+         * accepted one winning.
          */
         @Override
         public boolean mayStartRun(Object sender) {

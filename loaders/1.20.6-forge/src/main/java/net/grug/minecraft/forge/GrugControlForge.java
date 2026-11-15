@@ -183,8 +183,8 @@ public final class GrugControlForge {
         }
 
         /**
-         * Any player who has finished login may start a run (first start wins in core). Operator-
-         * only starting is a possible later hardening.
+         * Any player who has finished login may send a start; core then judges it on the server
+         * thread and accepts only an operator's (#37), the first accepted one winning.
          */
         @Override
         public boolean mayStartRun(Object sender) {

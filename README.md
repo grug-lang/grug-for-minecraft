@@ -70,6 +70,10 @@ installed a release, and the game stays open afterwards so you can press R again
 A failing test stops the run there and reports why in your chat. If M had already forced the
 resolution, a run leaves it alone, so a second press of M is still the way back.
 
+In singleplayer the run is always allowed. On a server whose loader checks it (1.20.6 Forge and
+1.2.5 Forge), a run starts only for an operator: the server judges the start, and a player who is
+not an operator is told so in chat and gets no run. The older loaders have no such check yet.
+
 ## For Developers
 
 ### Requirements

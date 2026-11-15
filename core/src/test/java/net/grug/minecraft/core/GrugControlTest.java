@@ -3399,7 +3399,16 @@ class GrugControlTest {
         final List<Runnable> tasks = new ArrayList<>();
         final List<Object> runStarts = new ArrayList<>();
         final List<String> order = new ArrayList<>();
+        final List<Object> ended = new ArrayList<>();
         boolean playerPresent = true;
+
+        @Override
+        public boolean sendToStarter(Object starter, byte[] message) {
+            if (message[0] == GrugControlWire.RUN_END) {
+                ended.add(starter);
+            }
+            return true;
+        }
 
         @Override
         public boolean givesToSender() {
@@ -3561,16 +3570,109 @@ class GrugControlTest {
     }
 
     @Test
-    void aStartedRunTellsTheLoaderWhoStartedIt() {
+    void aStartedRunTellsTheLoaderWhoStartedItOnceTheyAreJudgedAnOperator() throws Exception {
         PlayerGiveLink loop = new PlayerGiveLink();
         loop.server = new GrugControlServer(loop, 1000);
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(
+                        new Object(), new ArrayList<>(), java.util.Set.of("player of bob"));
 
         loop.server.onMessage("bob", GrugControlWire.runStart());
         loop.server.onMessage("carol", GrugControlWire.runStart());
         assertTrue(loop.runStarts.isEmpty(), "the network thread grants nothing");
-        loop.runTasks();
+        assertFalse(loop.server.hasStarter(), "and no one is the starter before the judgement");
+        withAdapter(adapter, loop::runTasks);
 
         assertEquals(List.of("bob"), loop.runStarts, "an ignored start is not a start");
+        assertEquals("bob", loop.server.starter());
+        assertTrue(loop.told.isEmpty());
+    }
+
+    @Test
+    void aStartFromAPlayerWhoIsNotAnOperatorIsRefusedToldAndEndedForThem() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(new Object(), new ArrayList<>(), java.util.Set.of());
+
+        loop.server.onMessage("bob", GrugControlWire.runStart());
+        withAdapter(adapter, loop::runTasks);
+
+        assertFalse(loop.server.hasStarter());
+        assertEquals(List.of("bob: You must be an operator to run tests."), loop.told);
+        assertEquals(1, loop.ended.size(), "the client is told the run is over");
+        assertEquals("bob", loop.ended.get(0));
+    }
+
+    @Test
+    void aRefusedStartLeavesTheRunToTheNextOperator() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(
+                        new Object(), new ArrayList<>(), java.util.Set.of("player of carol"));
+
+        loop.server.onMessage("bob", GrugControlWire.runStart());
+        loop.server.onMessage("carol", GrugControlWire.runStart());
+        withAdapter(adapter, loop::runTasks);
+
+        assertEquals("carol", loop.server.starter());
+        assertEquals(1, loop.told.size());
+        assertTrue(loop.told.get(0).startsWith("bob: "));
+    }
+
+    @Test
+    void aStartFromAPlayerWhoLeftBeforeItWasJudgedIsDropped() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(
+                        new Object(), new ArrayList<>(), java.util.Set.of("player of bob"));
+
+        loop.server.onMessage("bob", GrugControlWire.runStart());
+        loop.playerPresent = false;
+        withAdapter(adapter, loop::runTasks);
+
+        assertFalse(loop.server.hasStarter());
+        assertTrue(loop.told.isEmpty());
+        assertTrue(loop.runStarts.isEmpty());
+    }
+
+    @Test
+    void aStartFromAPlayerWhoHasNotFinishedLoginIsIgnoredAtOnce() {
+        PlayerGiveLink loop =
+                new PlayerGiveLink() {
+                    @Override
+                    public boolean mayStartRun(Object sender) {
+                        return false;
+                    }
+                };
+        loop.server = new GrugControlServer(loop, 1000);
+
+        loop.server.onMessage("bob", GrugControlWire.runStart());
+
+        assertTrue(loop.tasks.isEmpty(), "nothing is queued to judge");
+        assertFalse(loop.server.hasStarter());
+    }
+
+    @Test
+    void aStartWithTheStarterAlreadyChosenIsIgnoredWhenJudged() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(
+                        new Object(),
+                        new ArrayList<>(),
+                        java.util.Set.of("player of bob", "player of carol"));
+
+        loop.server.onMessage("bob", GrugControlWire.runStart());
+        withAdapter(adapter, loop::runTasks);
+        loop.server.onMessage("carol", GrugControlWire.runStart());
+        withAdapter(adapter, loop::runTasks);
+
+        assertEquals("bob", loop.server.starter());
+        assertEquals(List.of("bob"), loop.runStarts);
+        assertTrue(loop.told.isEmpty(), "an ignored start is not a refusal");
     }
 
     @Test
