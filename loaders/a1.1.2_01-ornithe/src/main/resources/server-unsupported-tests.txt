@@ -86,14 +86,13 @@ jei/tests/jei-Test.grug
 # Test.open_inventory, because it has no override that forwards the open to the joined client.
 coverage/tests/hook_forced_normalization-Test.grug
 #
-# The four wall-backed buildcraft captures #1161 promoted to tick_any_side. #1213's tilt hook took
-# this loader's joined cobblestone_pipe_straight capture from 35994 to 1 of 115200 pixels against
-# its own golden (proof run 43738170564): the single pixel is (308,59), (30,21,7) against
-# (13,11,9), on an edge. The joined pin wrote the server's decimal eye 79.62 where the client-only
-# player has its feet plus the float eye height (65.62000000476837), 5e-9 blocks apart, and that is
-# the candidate; the leg stops at its first failure, so the other captures of the four are
-# unmeasured. They stay client-only until a proof of the float eye shows the leg matching.
-buildcraft/tests/cobblestone_pipe_shapes-Test.grug
+# Three of the four wall-backed buildcraft captures #1161 promoted to tick_any_side (#1213 cleared
+# the fourth, cobblestone_pipe_shapes: its joined capture was 35994 px off the golden before the
+# tilt hook and one pixel off before the pin used the client's float eye height, 65.62000000476837
+# where the server's decimal eye is 65.62, and proof run 43740015080 passes it). The same run stops
+# at redstone_engine's redstone_engine_red, 2500 of 34100 pixels, which is still unmeasured: a leg
+# stops at its first failure, so redstone_engine_animation and redstone_engine_facings are listed
+# with it. They stay client-only on this loader.
 buildcraft/tests/redstone_engine-Test.grug
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
