@@ -76,6 +76,12 @@ public abstract class MinecraftMixin implements GrugClientAccess {
         }
     }
 
+    @Inject(method = "tick", at = @At("RETURN"))
+    private void grug$afterClientTick(CallbackInfo ci) {
+        net.grug.minecraft.ornithe.control.GrugControlAlphaClient.afterClientTick(
+                (Minecraft) (Object) this);
+    }
+
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
         grug$hooks.tick();

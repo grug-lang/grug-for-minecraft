@@ -141,6 +141,23 @@ public final class GrugControlBetaClient {
     }
 
     /**
+     * Runs at the end of the client tick, after the world's physics, while a capture is pending.
+     * The pin zeroes the player's velocity at the head of the tick and the physics then applies
+     * gravity, so the pinned player is never on the ground and its camera tilt becomes {@code
+     * atan(-velocityY * 0.2) * 15}, 0.235 degrees, which draws the world 2 px lower than the
+     * client-only golden, whose grounded player has no tilt (#1213, measured field by field on the
+     * joined and client-only legs). The tilt is written back to zero so the frame the next tick's
+     * capture reads is drawn level.
+     */
+    public static void afterClientTick(Minecraft mc) {
+        if (!pending || eye == null) return;
+        PlayerEntity player = GrugClientPlayer.of(mc);
+        if (player == null) return;
+        player.tilt = 0.0F;
+        player.lastTilt = 0.0F;
+    }
+
+    /**
      * The client starts its run only once the chunks around its player have stopped arriving: the
      * count of loaded chunks in a square of {@link #SETTLE_RADIUS} chunks has held for {@link
      * #SETTLE_QUIET_TICKS} ticks, with the 3x3 around the player at least. The server freezes at
