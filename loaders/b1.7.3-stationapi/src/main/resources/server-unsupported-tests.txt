@@ -53,6 +53,11 @@ buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
 buildcraft/tests/wooden_pipe_shapes-Test.grug
 #
+# wooden_pipe_items drew a pipe with arms where its golden has the bare centre box, once, in run
+# 43759766288 at the golden's own position (1923 of 44800 px), after passing in two earlier runs
+# of this leg. It is tracked in #1351.
+buildcraft/tests/wooden_pipe_items-Test.grug
+#
 # The wall-backed world capture renamed to tick_any_side (coverage_render is not listed: it is
 # unmeasured here and stays off the list until a dispatch shows it fail). Dispatch 43480583214, with the light
 # of the placed blocks recomputed and resent (#1092), still fails coverage_frame in 2800 of 44800
