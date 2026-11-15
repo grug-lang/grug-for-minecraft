@@ -1,0 +1,68 @@
+# Covers the world overlay pieces of the Overlay entity (#1353): the world key export, the HUD text
+# and the world line draw, all through the loader's own frame hooks and not a screen. The key is
+# pressed through ctx.press_world_key, which takes the path a real press takes while no screen is
+# open; the overlay turns a cross on, writes two lines of text and draws two diagonals four blocks
+# ahead of the camera. The screenshots are the assertion: one crop holds the cross against a stone
+# wall, the other the text, so a missing hook shows as an empty crop that does not match.
+# On a loader that has no world overlay hooks the test returns before it builds anything.
+started: bool = false
+pressed: bool = false
+settled_ticks: number = 0
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.world_overlay_supported() {
+            return
+        }
+        ctx.set_box_radius(6)
+        origin: Vec3 = ctx.get_origin()
+        _wall(ctx.get_client_level(), origin.x() - 6, origin.y() - 9, origin.z() + 6)
+        ctx.not_done()
+        return
+    }
+
+    waited = waited + 1
+    ctx.assert(waited < 1500, "The world overlay test should finish.")
+
+    if not ctx.world_settled() {
+        settled_ticks = 0
+        ctx.not_done()
+        return
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+        return
+    }
+
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(76, false)
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.world_overlay_drawn() {
+        ctx.not_done()
+        return
+    }
+
+    # The text and the cross are each compared against the loader's own accepted capture.
+    ctx.screenshot().equals(r"screenshots/overlay_world_cross", 480, 200, 800, 520)
+    ctx.screenshot().equals(r"screenshots/overlay_world_text", 0, 280, 300, 360)
+}
+
+# Thirteen blocks square of minecraft:stone at (x0, y0, z), as coverage_frame's wall is.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 13 {
+        wx: number = x0
+        while wx < x0 + 13 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}

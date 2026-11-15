@@ -1,3 +1,9 @@
+# How many times the world key L was pressed, and whether the world pass draws the cross. The
+# first press turns the cross on and each press after it flips it, so a test can tell a press that
+# arrived from one that did not by what the next frame shows. See #1353.
+world_presses: number = 0
+cross_on: bool = false
+
 # Covers the overlay host functions through a real screen: the context's numbers and modifiers,
 # draw_item, draw_box, take, the cursor the reference deletes, give_item and give_item_stack, and
 # the loader's item list behind item_at. The box sits at the centre of the screen, where the
@@ -81,5 +87,35 @@ export scroll(ctx: OverlayScrollContext) {
     over_box: bool = ctx.mouse_x() >= box_x and ctx.mouse_x() < box_x + 18 and ctx.mouse_y() >= box_y and ctx.mouse_y() < box_y + 18
     if inside_screen and inside_gui and over_box and (ctx.delta() < 0 or ctx.delta() >= 3) {
         ctx.take()
+    }
+}
+
+# Two lines of text at the left edge of the frame, in the GUI's scaled pixels, once the key has been
+# pressed. A frame before any press shows no text.
+export render_hud(ctx: OverlayHudContext) {
+    if world_presses > 0 {
+        ctx.add_text("L pressed", 4, 100, Color.rgb(255, 255, 255))
+        ctx.add_text("world key seen", 4, 112, Color.rgb(255, 255, 255))
+    }
+}
+
+# Two crossing diagonals four blocks in front of the camera along +z, two blocks tall and wide and
+# centred on the camera, in red, like the crosses SafeSquares draws on a safe square. Drawn only
+# while the cross is on.
+export render_world(ctx: OverlayWorldContext) {
+    if cross_on {
+        x: number = ctx.camera_x()
+        y: number = ctx.camera_y()
+        z: number = ctx.camera_z() + 4
+        ctx.draw_line(x - 1, y - 1, z, x + 1, y + 1, z, Color.rgb(255, 0, 0))
+        ctx.draw_line(x - 1, y + 1, z, x + 1, y - 1, z, Color.rgb(255, 0, 0))
+    }
+}
+
+# The world key L (76) flips the cross, whatever else is held. Any other key is left alone.
+export world_key(ctx: OverlayWorldKeyContext) {
+    if ctx.key() == 76 {
+        world_presses = world_presses + 1
+        cross_on = not cross_on
     }
 }

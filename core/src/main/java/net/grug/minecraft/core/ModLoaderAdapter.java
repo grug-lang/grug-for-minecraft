@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugOverlay;
+import net.grug.minecraft.grug.GrugWorldOverlay;
 import net.grug.minecraft.grug.Vec3;
 
 import java.awt.image.BufferedImage;
@@ -999,6 +1000,34 @@ public interface ModLoaderAdapter {
      */
     default boolean overlayDrawnForTest(String mod) {
         return GrugOverlay.drawnForTest(mod);
+    }
+
+    /**
+     * Whether this loader asks an overlay's world key, HUD and world exports, which is what {@code
+     * Test.world_overlay_supported} answers. Only a client that registers the hooks says so.
+     */
+    default boolean worldOverlaySupportedForTest() {
+        return GrugWorldOverlay.supported();
+    }
+
+    /**
+     * Whether a frame has drawn the running test's overlay HUD or world export since the last
+     * {@code press_world_key}, which is what {@code TestTickContext.world_overlay_drawn} answers.
+     */
+    default boolean worldOverlayDrawnForTest() {
+        return GrugWorldOverlay.drawnForTest();
+    }
+
+    /**
+     * Delivers one press of a letter or digit key to the overlays' world_key export, through the
+     * path a real press takes while no screen is open.
+     */
+    @GrugGenerated("default only: the loaders that draw a world overlay drive a synthetic press")
+    default void pressWorldKey(int key, boolean ctrl) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "TestTickContext.press_world_key: This loader cannot press a key in the world"
+                        + " yet.");
     }
 
     /**

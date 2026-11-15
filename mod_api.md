@@ -65,7 +65,10 @@ export init()
 export click(ctx: OverlayClickContext)
 export key(ctx: OverlayKeyContext)
 export render(ctx: OverlayRenderContext)
+export render_hud(ctx: OverlayHudContext)
+export render_world(ctx: OverlayWorldContext)
 export scroll(ctx: OverlayScrollContext)
+export world_key(ctx: OverlayWorldKeyContext)
 
 ## Test
 export init(ctx: TestInitContext)
@@ -76,6 +79,7 @@ export tick_any_side(ctx: TestTickContext)
 .on_dedicated_server() bool
 .overlay_supported() bool
 .registers_mod_recipes() bool
+.world_overlay_supported() bool
 
 # Classes
 
@@ -178,6 +182,11 @@ Option.new() Option[$Value]
 .shift() bool
 .take()
 
+## OverlayHudContext
+.add_text(text: string, x: number, y: number, color: Color)
+.screen_height() number
+.screen_width() number
+
 ## OverlayKeyContext
 .ctrl() bool
 .key() number
@@ -206,6 +215,17 @@ Option.new() Option[$Value]
 .screen_height() number
 .screen_width() number
 .take()
+
+## OverlayWorldContext
+.camera_x() number
+.camera_y() number
+.camera_z() number
+.draw_line(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, color: Color)
+.partial_tick() number
+
+## OverlayWorldKeyContext
+.ctrl() bool
+.key() number
 
 ## Player
 .get_held_item() Option[Item]
@@ -273,6 +293,7 @@ Option.new() Option[$Value]
 .overlay_drawn() bool
 .particle_position(index: number) Vec3
 .press_screen_key(key: number, ctrl: bool, release: bool) bool
+.press_world_key(key: number, ctrl: bool)
 .reload_count(relative_path: string) number
 .round_trip_nbt(block_entity: BlockEntity)
 .screen_open() bool
@@ -289,6 +310,7 @@ Option.new() Option[$Value]
 .tick_block_entity(block_entity: BlockEntity, ticks: number)
 .tick_level(level: Level, ticks: number) number
 .use_block(level: Level, x: number, y: number, z: number)
+.world_overlay_drawn() bool
 .world_settled() bool
 
 ## Vec3
