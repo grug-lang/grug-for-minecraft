@@ -61,3 +61,6 @@ buildcraft/tests/redstone_engine-Test.grug
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
 buildcraft/tests/wooden_pipe_items-Test.grug
+#
+# Proof 43764853785 (#1096) failed wooden_pipe_shapes' wooden_pipe_corner capture in 965 of 115200 px, so it stays listed with wooden_pipe_items (#1351). The client-only run checks both goldens.
+buildcraft/tests/wooden_pipe_shapes-Test.grug
