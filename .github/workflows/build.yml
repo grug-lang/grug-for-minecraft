@@ -564,6 +564,7 @@ jobs:
             .github/scripts/main_selection_test.py \
             .github/scripts/smoke_selection_test.py \
             .github/scripts/main_dispatch_test.py \
+            .github/scripts/cancel_red_test.py \
             .github/scripts/select_coverage_tests_test.py \
             .github/scripts/added_loaders_test.py \
             .github/scripts/reference_needed_test.py \
@@ -2408,6 +2409,31 @@ jobs:
   # or was cancelled. A needed job that was skipped counts as passing, as GitHub's own required
   # checks do. Only the jobs that run on a pull request are needed; the ones that run on main, a
   # schedule or a dispatch never block a merge.
+  # A proof dispatch (`base` or `mods` set, on a branch) is decided by its first red leg, and the
+  # legs that go green afterwards were most of a red dispatch's runner minutes (#1343). This job
+  # watches the run and cancels it at the first failed job. It never starts for a no-input dispatch,
+  # the four-hourly check and the release (all full runs on main or without inputs), a push, the
+  # schedule or a pull request, which want every job's result. Its token is the only one in the
+  # workflow with actions: write, and it runs code from the dispatched ref only for this one call.
+  cancel-red:
+    name: cancel red
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+      && (inputs.base != '' || inputs.mods != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cancel the run at the first failed job
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/cancel-red.py "$GITHUB_RUN_ID" --own-job 'cancel red' --repo-slug "$GITHUB_REPOSITORY"
+
   pr-gate:
     name: pr gate
     if: always() && github.event_name == 'pull_request'
