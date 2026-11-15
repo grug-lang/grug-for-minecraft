@@ -408,4 +408,15 @@ class GrugPlayerFloorTest {
         assertTrue(GrugPlayerFloor.standsOn(feet, 71.0));
         assertFalse(GrugPlayerFloor.insideABlock(level, -23.5, feet, -64.5));
     }
+
+    /**
+     * A client 0.2 under the held height (inside the hold's quarter-block tolerance) must not move
+     * the room's floor a block down (#1068).
+     */
+    @Test
+    void buildAnchorNeverSitsBelowTheHeldFeet() {
+        assertEquals(70.0, GrugPlayerFloor.buildAnchor(69.8, 70.0));
+        assertEquals(70.0, GrugPlayerFloor.buildAnchor(70.0, 70.0));
+        assertEquals(71.3, GrugPlayerFloor.buildAnchor(71.3, 70.0));
+    }
 }
