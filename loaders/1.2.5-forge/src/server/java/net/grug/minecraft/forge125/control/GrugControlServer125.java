@@ -2,11 +2,13 @@ package net.grug.minecraft.forge125.control;
 
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.GrugServerRun;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.EntityPlayerMP;
 import net.minecraft.src.NetHandler;
 import net.minecraft.src.NetworkManager;
+import net.minecraft.src.Packet3Chat;
 
 import java.lang.ref.WeakReference;
 import java.util.Collections;
@@ -50,6 +52,15 @@ public final class GrugControlServer125 implements GrugControlRouter {
         WeakReference<EntityPlayerMP> ref = PLAYERS.get(connection);
         return ref == null ? null : ref.get();
     }
+
+    /** Whether this thread is inside {@link #onHandle}, which the game thread runs. */
+    private static final ThreadLocal<Boolean> ON_GAME_THREAD =
+            new ThreadLocal<Boolean>() {
+                @Override
+                protected Boolean initialValue() {
+                    return Boolean.FALSE;
+                }
+            };
 
     private GrugControlServer125() {}
 
@@ -111,6 +122,48 @@ public final class GrugControlServer125 implements GrugControlRouter {
             }
         }
 
+        /** This loader gives to the player who asked, after the operator check (#882). */
+        @Override
+        public boolean givesToSender() {
+            return true;
+        }
+
+        @Override
+        public Object playerOfSender(Object sender) {
+            return playerOf((NetworkManager) sender);
+        }
+
+        /** Shows the player the error in red chat, the way the game shows a refused command. */
+        @Override
+        public void tell(Object sender, String message) {
+            EntityPlayerMP player = playerOf((NetworkManager) sender);
+            if (player != null) {
+                player.playerNetServerHandler.sendPacket(new Packet3Chat("\u00a7c" + message));
+            }
+        }
+
+        /**
+         * A message handled by the game thread's own {@code onHandle} is already on the server
+         * thread, so the task runs at once. One read on a connection's reader thread is not: it is
+         * left for the drain the runner makes before its next tick, which core marks pending.
+         */
+        @Override
+        public void runOnServerThread(Runnable task) {
+            if (ON_GAME_THREAD.get()) {
+                task.run();
+            }
+        }
+
+        /** A CI server makes the player who starts a run an operator (#882); a real one never. */
+        @Override
+        public void onRunStarted(Object starter) {
+            if (!"true".equals(System.getenv("GRUG_CI"))) return;
+            EntityPlayerMP player = playerOf((NetworkManager) starter);
+            if (player != null) {
+                GrugCore.getAdapter().makeOperator(player);
+            }
+        }
+
         /**
          * Any player who has finished login may start a run (first start wins in core); a
          * connection whose player was not found has not finished login.
@@ -146,6 +199,11 @@ public final class GrugControlServer125 implements GrugControlRouter {
         if (connection != null && player != null) {
             PLAYERS.put(connection, new WeakReference<EntityPlayerMP>(player));
         }
-        server().onMessage(connection, bytes);
+        ON_GAME_THREAD.set(Boolean.TRUE);
+        try {
+            server().onMessage(connection, bytes);
+        } finally {
+            ON_GAME_THREAD.set(Boolean.FALSE);
+        }
     }
 }

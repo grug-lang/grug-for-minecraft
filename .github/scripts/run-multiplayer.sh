@@ -793,7 +793,11 @@ while :; do
         overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
         excluded="jei/tests/item_list_forced_normalization"
         ;;
-      1.2.5-forge|b1.7.3-stationapi)
+      1.2.5-forge)
+        overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        excluded="jei/tests/item_list_forced_normalization"
+        ;;
+      b1.7.3-stationapi)
         overlay_tests="coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
         # The forced-normalization item list: a dedicated server cannot force that GL state, and
         # the joined client's capture differs from the golden in 5967, all 12672 and 11614 of 12672
