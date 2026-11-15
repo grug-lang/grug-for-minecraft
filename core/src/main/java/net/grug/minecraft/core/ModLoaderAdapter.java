@@ -226,7 +226,6 @@ public interface ModLoaderAdapter {
      * not a client joined to a server that gives this way: a singleplayer world, a dedicated
      * server, or a loader whose own request is still to come, which keeps the older paths.
      */
-    @GrugGenerated("a joined client: only a loader's client half sends one")
     default boolean askServerToGive(String itemName, int count) {
         return false;
     }

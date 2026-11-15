@@ -130,9 +130,12 @@ public final class GrugControlServer {
         }
 
         /**
-         * Called once, on the network thread, after {@code starter} became the run's starter. The
-         * harness's CI servers make that player an operator here, so the gives a run's tests make
-         * pass the same permission check a player's would (#882). The default does nothing.
+         * Called once, on the server thread and before any give is applied, for a player who became
+         * the run's starter. The harness's CI servers make that player an operator here, so the
+         * gives a run's tests make pass the same permission check a player's would (#882). Core
+         * queues it with {@link GrugControlServer}'s own drain, ahead of the gives in the same
+         * drain, so a first give cannot be judged before the grant. Only when {@link
+         * #givesToSender}; the default does nothing.
          */
         default void onRunStarted(Object starter) {}
     }
@@ -213,6 +216,13 @@ public final class GrugControlServer {
      * server thread, because a give changes the world and only that thread may.
      */
     private final Queue<Give> gives;
+
+    /**
+     * The starters {@link Link#onRunStarted} has still to be told about. The grant of operator
+     * status is made by the same drain that applies gives, ahead of them in every drain, so no give
+     * can be judged before its sender's grant (#882).
+     */
+    private final Queue<Object> startGrants = new ConcurrentLinkedQueue<>();
 
     /** One give a joined client asked for: the item's name and how many of it. */
     private static final class Give {
@@ -313,8 +323,15 @@ public final class GrugControlServer {
      * player, and a player's own to that player after the operator check (#882).
      */
     private void drainGives() {
+        grantStarters();
         Give give;
         while ((give = gives.poll()) != null) {
+            // Grants are read again after each give is taken, not only before the loop: the network
+            // thread adds a start's grant before any give that follows it on the same connection,
+            // so a give this poll returned was added after its sender's grant, and this read, which
+            // is after the poll, sees that grant. A single read before the loop could miss a grant
+            // added between it and the poll.
+            grantStarters();
             if (give.sender == null) {
                 link.applyGive(give.item, give.count);
                 continue;
@@ -330,6 +347,14 @@ public final class GrugControlServer {
             if (refusal != null) {
                 link.tell(give.sender, refusal);
             }
+        }
+    }
+
+    /** Tells the link about each starter whose grant is still queued, on the server thread. */
+    private void grantStarters() {
+        Object started;
+        while ((started = startGrants.poll()) != null) {
+            link.onRunStarted(started);
         }
     }
 
@@ -407,7 +432,11 @@ public final class GrugControlServer {
         if (message.type == GrugControlWire.RUN_START) {
             if (link.mayStartRun(sender) && starter.compareAndSet(null, sender)) {
                 System.out.println("[GRUG CONTROL] " + sender + " started the run");
-                link.onRunStarted(sender);
+                if (link.givesToSender()) {
+                    startGrants.add(sender);
+                    clientWorkPending = true;
+                    link.runOnServerThread(this::drainGives);
+                }
             } else {
                 // The first start owns the run, so a second player's start, or a reconnected
                 // client's, is ignored rather than moving the run to it (#1027). The client says it

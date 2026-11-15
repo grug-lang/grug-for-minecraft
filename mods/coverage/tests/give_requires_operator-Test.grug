@@ -19,7 +19,8 @@ opened: bool = false
 waited: number = 0
 step: number = 0
 was_operator: bool = false
-refused: bool = false
+first_pressed: bool = false
+second_pressed: bool = false
 
 export tick_any_side(ctx: TestTickContext) {
     if not started {
@@ -76,30 +77,46 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The hand should be empty before the first press.")
         was_operator = is_operator()
         set_operator(false)
-        ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take a left click on its item.")
+        first_pressed = Test.click_screen(box_x, box_y, 0)
         step = 1
         ctx.not_done()
         return
     }
 
     if step == 1 {
-        # The server applied the press above before this tick, while the player was not an operator.
-        refused = not Test.get_player().get_held_item().has()
+        # The first press has reached the server by now, but this test does not read its absence:
+        # the server applies the presses in the order they were sent, each under the status it
+        # finds, so a press that was not applied yet would be applied under the status this tick
+        # sets and would show as a second item below. A refused press shows as no item at all.
         set_operator(true)
-        ctx.assert(Test.click_screen(box_x, box_y, 0), "The overlay should take a left click on its item.")
+        second_pressed = Test.click_screen(box_x, box_y, 0)
+        waited = 0
         step = 2
         ctx.not_done()
         return
     }
 
-    # The server applied the second press before this tick, while the player was an operator. The
-    # status goes back first, so a failed assert below leaves the list as it was found.
-    set_operator(was_operator)
+    # Both presses are the server's before the operator's item shows, so the status stays until it
+    # does: the wait is on the item, with a bound that says it never came.
     held: Option[Item] = Test.get_player().get_held_item()
-    ctx.assert(refused, "A player who is not an operator should be given nothing.")
-    ctx.assert(held.has(), "An operator should be given the item the overlay drew.")
-    ctx.assert(equals(held.unwrap(), item_at(0)), "The overlay should give the item it drew, not another one.")
-    ctx.assert(Test.get_held_count(Test.get_player()) == 1, "A left click should give one item, and the refused press none.")
+    if not held.has() and waited < 200 {
+        waited = waited + 1
+        ctx.not_done()
+        return
+    }
+
+    # Every read is taken before the status goes back and asserted after it, so a failed assert
+    # never leaves the operator list changed for the next test.
+    count: number = Test.get_held_count(Test.get_player())
+    has_item: bool = held.has()
+    drew_item: bool = has_item and equals(held.unwrap(), item_at(0))
+    set_operator(was_operator)
     Test.clear_held_item(Test.get_player())
     Test.close_screen()
+
+    ctx.assert(first_pressed, "The overlay should take the first left click on its item.")
+    ctx.assert(second_pressed, "The overlay should take the second left click on its item.")
+    ctx.assert(has_item, "An operator should be given the item the overlay drew.")
+    ctx.assert(drew_item, "The overlay should give the item it drew, not another one.")
+    ctx.assert(count == 1, "Only the operator's press should give an item: the refused press gives none.")
 }

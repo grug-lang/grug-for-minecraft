@@ -178,11 +178,8 @@ public final class GrugControlForge {
         @Override
         public void onRunStarted(Object starter) {
             if (!"true".equals(System.getenv("GRUG_CI"))) return;
-            runOnServerThread(
-                    () -> {
-                        Object player = playerOfSender(starter);
-                        if (player != null) GrugCore.getAdapter().makeOperator(player);
-                    });
+            Object player = playerOfSender(starter);
+            if (player != null) GrugCore.getAdapter().makeOperator(player);
         }
 
         /**
