@@ -54,13 +54,7 @@ public final class GrugControlServer125 implements GrugControlRouter {
     }
 
     /** Whether this thread is inside {@link #onHandle}, which the game thread runs. */
-    private static final ThreadLocal<Boolean> ON_GAME_THREAD =
-            new ThreadLocal<Boolean>() {
-                @Override
-                protected Boolean initialValue() {
-                    return Boolean.FALSE;
-                }
-            };
+    private static final ThreadLocal<Boolean> ON_GAME_THREAD = new ThreadLocal<Boolean>();
 
     private GrugControlServer125() {}
 
@@ -149,7 +143,7 @@ public final class GrugControlServer125 implements GrugControlRouter {
          */
         @Override
         public void runOnServerThread(Runnable task) {
-            if (ON_GAME_THREAD.get()) {
+            if (Boolean.TRUE.equals(ON_GAME_THREAD.get())) {
                 task.run();
             }
         }
