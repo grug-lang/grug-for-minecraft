@@ -49,7 +49,7 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.close_screen()
         i = i + 1
     }
-    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave no screen open.")
+    ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave no screen open.")
 
     if ctx.current_tick() < 9 {
         ctx.not_done()

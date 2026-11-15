@@ -31,6 +31,6 @@ export tick_any_side(ctx: TestTickContext) {
     } else {
         # Reaching here is the assertion that the menu the click opened exists for this player.
         ctx.close_screen()
-        ctx.assert(not ctx.screen_open(), "Test.close_screen should leave no screen or menu open.")
+        ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave no screen or menu open.")
     }
 }

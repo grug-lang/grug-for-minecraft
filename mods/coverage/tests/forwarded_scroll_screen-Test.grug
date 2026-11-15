@@ -30,5 +30,5 @@ export tick(ctx: TestTickContext) {
     ctx.assert(ctx.scroll_screen(x, y, -1), "A wheel turned down over the coverage overlay's box should be taken by the client.")
     ctx.assert(ctx.screen_open(), "The wheel should leave the client's screen open.")
     ctx.close_screen()
-    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
+    ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave the client's screen closed.")
 }
