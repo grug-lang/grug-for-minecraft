@@ -395,6 +395,7 @@ public class GrugClientHooks implements ITickHandler {
      */
     private void gameTick(Minecraft minecraft) {
         GrugControl125Client.onClientTick(minecraft, this);
+        GrugOverlayHost.pollWorldKeys(minecraft);
         // The grug sprites cannot be handed to the texture manager before the atlas exists: FML
         // asks
         // the client handler how large a tile is, and that answer is the size setupTexture recorded

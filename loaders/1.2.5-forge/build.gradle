@@ -49,6 +49,7 @@ def fogToolClasses = new File(buildDirFile, 'tools/disable-fog')
 def skipFrameToolClasses = new File(buildDirFile, 'tools/skip-frame')
 def guiInputToolClasses = new File(buildDirFile, 'tools/gui-input')
 def gameDirToolClasses = new File(buildDirFile, 'tools/game-dir')
+def worldOverlayToolClasses = new File(buildDirFile, 'tools/world-overlay')
 def reobfSrgFile = new File(buildDirFile, 'reobf.srg')
 def devJar = new File(buildDirFile, 'libs/grug-1.2.5-forge-dev.jar')
 def fixedJar = new File(buildDirFile, 'grug-1.2.5-forge-fixed.jar')
@@ -58,6 +59,7 @@ def runtimeFogJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-fog.jar')
 def runtimeSkipFrameJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-skip-frame.jar')
 def runtimeGuiInputJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-gui-input.jar')
 def runtimeGameDirJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-game-dir.jar')
+def runtimeWorldOverlayJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-world-overlay.jar')
 def runtimeJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime.jar')
 def nativesDir = new File(buildDirFile, 'natives')
 def windows = System.getProperty('os.name').startsWith('Windows')
@@ -380,6 +382,15 @@ tasks.register('compilePatchGuiInputTool', JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
+tasks.register('compileWorldOverlayTool', JavaCompile) {
+    description = 'Compiles tools/PatchWorldOverlay.java.'
+    source = fileTree(toolsDir) { include 'PatchWorldOverlay.java' }
+    classpath = configurations.fogPatchTool
+    destinationDirectory.set(worldOverlayToolClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
 tasks.register('compileGameDirTool', JavaCompile) {
     description = 'Compiles tools/GameDir.java.'
     source = fileTree(toolsDir) { include 'GameDir.java' }
@@ -500,16 +511,31 @@ tasks.register('patchRuntimeGameDir', JavaExec) {
     }
 }
 
+// The overlays' world and HUD exports (#1353) draw in the game's own frame, so the renderer and the
+// HUD call a hook the loader sets; see tools/PatchWorldOverlay.java.
+tasks.register('patchRuntimeWorldOverlay', JavaExec) {
+    description = 'Adds the world and HUD overlay hooks to EntityRenderer and GuiIngame.'
+    dependsOn 'patchRuntimeGameDir', 'compileWorldOverlayTool'
+    inputs.file runtimeGameDirJar
+    outputs.file runtimeWorldOverlayJar
+    classpath = files(worldOverlayToolClasses) + configurations.fogPatchTool
+    mainClass.set('PatchWorldOverlay')
+    doFirst {
+        runtimeWorldOverlayJar.parentFile.mkdirs()
+        args = [runtimeGameDirJar.absolutePath, runtimeWorldOverlayJar.absolutePath]
+    }
+}
+
 tasks.register('obfuscateRuntime', Exec) {
     description = 'Reobfuscates the MCP dev classes into the pack-style runtime jar.'
-    dependsOn 'patchRuntimeGameDir', 'reobfSrg'
-    inputs.file runtimeGameDirJar
+    dependsOn 'patchRuntimeWorldOverlay', 'reobfSrg'
+    inputs.file runtimeWorldOverlayJar
     inputs.file reobfSrgFile
     outputs.file runtimeJar
     doFirst {
         runtimeJar.parentFile.mkdirs()
         commandLine 'java', '-jar', configurations.specialSourceTool.singleFile.absolutePath,
-            '--in-jar', runtimeGameDirJar.absolutePath,
+            '--in-jar', runtimeWorldOverlayJar.absolutePath,
             '--out-jar', runtimeJar.absolutePath,
             '--srg-in', reobfSrgFile.absolutePath
     }
