@@ -10,15 +10,21 @@ import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugTestState;
+import net.grug.minecraft.grug.GrugWorldKeys;
+import net.grug.minecraft.grug.GrugWorldOverlay;
 import net.minecraft.client.Minecraft;
+import net.minecraft.src.EntityLiving;
+import net.minecraft.src.EntityRenderer;
 import net.minecraft.src.Gui;
 import net.minecraft.src.GuiContainer;
+import net.minecraft.src.GuiIngame;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.RenderHelper;
 import net.minecraft.src.RenderItem;
+import net.minecraft.src.ScaledResolution;
 
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -32,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -81,6 +88,9 @@ public final class GrugOverlayHost {
         final long clickFnId;
         final long keyFnId;
         final long scrollFnId;
+        final long hudFnId;
+        final long worldFnId;
+        final long worldKeyFnId;
         final String mod;
 
         Overlay(
@@ -90,6 +100,9 @@ public final class GrugOverlayHost {
                 long clickFnId,
                 long keyFnId,
                 long scrollFnId,
+                long hudFnId,
+                long worldFnId,
+                long worldKeyFnId,
                 String mod) {
             this.entityHandle = entityHandle;
             this.owner = owner;
@@ -97,6 +110,9 @@ public final class GrugOverlayHost {
             this.clickFnId = clickFnId;
             this.keyFnId = keyFnId;
             this.scrollFnId = scrollFnId;
+            this.hudFnId = hudFnId;
+            this.worldFnId = worldFnId;
+            this.worldKeyFnId = worldKeyFnId;
             this.mod = mod;
         }
     }
@@ -110,6 +126,7 @@ public final class GrugOverlayHost {
         overlayMods = new TreeMap<>(mods);
         installRuntimeHooks();
         GrugOverlay.noteSupported();
+        GrugWorldOverlay.noteSupported();
     }
 
     /**
@@ -129,6 +146,10 @@ public final class GrugOverlayHost {
             key.set(null, (Predicate<Object>) GrugOverlayHost::handleKeyEvent);
             Field open = GuiScreen.class.getField("grugScreenOpenHook");
             open.set(null, (Consumer<Object>) GrugOverlayHost::screenOpened);
+            EntityRenderer.class
+                    .getField("grugWorldHook")
+                    .set(null, (DoubleConsumer) GrugOverlayHost::drawWorld);
+            GuiIngame.class.getField("grugHudHook").set(null, (Runnable) GrugOverlayHost::drawHud);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             // The runtime jar is built with the patch, so this only says the launch is not the one
             // the loader was built for; fail rather than silently leaving the overlay without a
@@ -153,6 +174,9 @@ public final class GrugOverlayHost {
                             Grug.getExportFnId("Overlay", "click"),
                             Grug.getExportFnId("Overlay", "key"),
                             Grug.getExportFnId("Overlay", "scroll"),
+                            Grug.getExportFnId("Overlay", "render_hud"),
+                            Grug.getExportFnId("Overlay", "render_world"),
+                            Grug.getExportFnId("Overlay", "world_key"),
                             overlayMods.getOrDefault(entry.getKey(), "")));
         }
     }
@@ -514,5 +538,139 @@ public final class GrugOverlayHost {
     private static void readMouse(Minecraft minecraft, GuiScreen screen) {
         mouseX = Mouse.getX() * screen.width / minecraft.displayWidth;
         mouseY = screen.height - Mouse.getY() * screen.height / minecraft.displayHeight - 1;
+    }
+
+    private static final GrugWorldKeys worldKeys = new GrugWorldKeys();
+
+    /**
+     * Draws every overlay's HUD export after the game's own HUD, in the GUI's scaled pixels, while
+     * no screen is open and F1 has not hidden the HUD. The patched {@code
+     * GuiIngame.renderGameOverlay} calls it at each return, with the GUI's projection still set.
+     */
+    public static void drawHud() {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft.theWorld == null
+                || minecraft.currentScreen != null
+                || minecraft.gameSettings.hideGUI) {
+            return;
+        }
+        ensureCreated();
+        ScaledResolution resolution =
+                new ScaledResolution(
+                        minecraft.gameSettings, minecraft.displayWidth, minecraft.displayHeight);
+        String testMod = GrugTestState.currentTestMod;
+        for (Overlay overlay : overlays) {
+            List<GrugWorldOverlay.Text> texts =
+                    GrugWorldOverlay.hud(
+                            overlay.entityHandle,
+                            overlay.hudFnId,
+                            resolution.getScaledWidth(),
+                            resolution.getScaledHeight());
+            for (GrugWorldOverlay.Text text : texts) {
+                minecraft.fontRenderer.drawStringWithShadow(
+                        text.text(), (int) text.x(), (int) text.y(), 0xFF000000 | text.rgb());
+            }
+            if (!texts.isEmpty() && overlay.mod.equals(testMod)) {
+                GrugWorldOverlay.noteDrawn();
+            }
+        }
+    }
+
+    /**
+     * Draws every overlay's world export as lines, depth-tested against the level. The patched
+     * {@code EntityRenderer.renderRainSnow} calls it with the partial tick, after the level and its
+     * entities and before the clouds and the hand, with the camera's model-view matrix set, so the
+     * vertices are camera-relative.
+     */
+    public static void drawWorld(double partialTick) {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        EntityLiving view = minecraft.renderViewEntity;
+        if (minecraft.theWorld == null || view == null) return;
+        ensureCreated();
+        double cameraX = view.lastTickPosX + (view.posX - view.lastTickPosX) * partialTick;
+        double cameraY = view.lastTickPosY + (view.posY - view.lastTickPosY) * partialTick;
+        double cameraZ = view.lastTickPosZ + (view.posZ - view.lastTickPosZ) * partialTick;
+        String testMod = GrugTestState.currentTestMod;
+        for (Overlay overlay : overlays) {
+            List<GrugWorldOverlay.Line> lines =
+                    GrugWorldOverlay.world(
+                            overlay.entityHandle,
+                            overlay.worldFnId,
+                            partialTick,
+                            cameraX,
+                            cameraY,
+                            cameraZ);
+            if (lines.isEmpty()) continue;
+            if (overlay.mod.equals(testMod)) {
+                GrugWorldOverlay.noteDrawn();
+            }
+            boolean texture = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
+            boolean lighting = GL11.glIsEnabled(GL11.GL_LIGHTING);
+            boolean fog = GL11.glIsEnabled(GL11.GL_FOG);
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
+            GL11.glDisable(GL11.GL_LIGHTING);
+            GL11.glDisable(GL11.GL_FOG);
+            GL11.glLineWidth(2.0F);
+            try {
+                GL11.glBegin(GL11.GL_LINES);
+                for (GrugWorldOverlay.Line line : lines) {
+                    int rgb = line.rgb();
+                    GL11.glColor4f(
+                            ((rgb >> 16) & 0xFF) / 255.0F,
+                            ((rgb >> 8) & 0xFF) / 255.0F,
+                            (rgb & 0xFF) / 255.0F,
+                            1.0F);
+                    GL11.glVertex3f(
+                            (float) (line.x1() - cameraX),
+                            (float) (line.y1() - cameraY),
+                            (float) (line.z1() - cameraZ));
+                    GL11.glVertex3f(
+                            (float) (line.x2() - cameraX),
+                            (float) (line.y2() - cameraY),
+                            (float) (line.z2() - cameraZ));
+                }
+                GL11.glEnd();
+            } finally {
+                GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+                GL11.glLineWidth(1.0F);
+                if (fog) GL11.glEnable(GL11.GL_FOG);
+                if (lighting) GL11.glEnable(GL11.GL_LIGHTING);
+                if (texture) GL11.glEnable(GL11.GL_TEXTURE_2D);
+            }
+        }
+    }
+
+    /**
+     * Polls the letter and digit keys once per client tick and asks the overlays' world_key export
+     * about each fresh press made with no screen open. A key held across ticks, or through a
+     * screen, fires once at most.
+     */
+    public static void pollWorldKeys(Minecraft minecraft) {
+        if (minecraft.theWorld == null) return;
+        boolean open = minecraft.currentScreen == null;
+        for (int code = '0'; code <= 'Z'; code++) {
+            if (!GrugWorldKeys.tracked(code)) continue;
+            int key = Keyboard.getKeyIndex(String.valueOf((char) code));
+            boolean down = Keyboard.isKeyDown(key);
+            if (worldKeys.deliver(code, down, open)) {
+                deliverWorldKey(
+                        code,
+                        Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
+                                || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL));
+            }
+        }
+    }
+
+    private static void deliverWorldKey(int code, boolean ctrl) {
+        ensureCreated();
+        for (Overlay overlay : overlays) {
+            GrugWorldOverlay.key(overlay.entityHandle, overlay.worldKeyFnId, code, ctrl);
+        }
+    }
+
+    /** Test only: delivers one press of the key whose character code is {@code code}. */
+    public static void pressWorldKey(int code, boolean ctrl) {
+        GrugWorldOverlay.clearDrawn();
+        deliverWorldKey(code, ctrl);
     }
 }

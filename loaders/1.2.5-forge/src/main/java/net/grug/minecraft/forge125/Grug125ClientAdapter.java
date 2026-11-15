@@ -520,6 +520,11 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     }
 
     @Override
+    public void pressWorldKey(int key, boolean ctrl) {
+        GrugOverlayHost.pressWorldKey(key, ctrl);
+    }
+
+    @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
