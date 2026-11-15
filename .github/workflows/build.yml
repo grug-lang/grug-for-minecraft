@@ -136,10 +136,6 @@ jobs:
 
       # One unsupported game per mechanism a mod loader reads the jar by, from universal_jar.py's
       # GAMES, which requires every mechanism to keep one (#493).
-      - name: Discover smoke games
-        id: smoke
-        run: echo "matrix=$(python3 .github/scripts/universal_jar.py smoke-matrix)" >> "$GITHUB_OUTPUT"
-
       # The base a dispatch compares its branch with, resolved once (#1170). The affected-loaders and
       # Windows steps below both need a commit this one-commit-deep checkout holds, and the three
       # shapes a person types each need their own route: a full SHA is the commit itself, an
@@ -218,6 +214,20 @@ jobs:
             exit 1
           fi
           cat "$RUNNER_TEMP/selection.out" >> "$GITHUB_OUTPUT"
+
+      # The smoke games this run boots (#1344): every game, except that a push whose diff is confined
+      # to some loaders' code boots only the games of those loaders' mechanisms. The base is the one
+      # the selection step above fetched; any failure of the script boots every game, and an empty
+      # list skips the job, since GitHub refuses an empty matrix.
+      - name: Choose the smoke games
+        id: smoke
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.before }}
+        run: |
+          matrix=$(python3 .github/scripts/smoke-selection.py "$EVENT" "$BASE") \
+            || matrix=$(python3 .github/scripts/universal_jar.py smoke-matrix)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
       # The coverage tests the gate may carry over instead of rerunning (#786). A pull request
       # carries over only the tests select-coverage-tests.py proves its diff cannot affect, from
@@ -552,6 +562,7 @@ jobs:
             .github/scripts/affected_loaders_test.py \
             .github/scripts/mod_loaders_test.py \
             .github/scripts/main_selection_test.py \
+            .github/scripts/smoke_selection_test.py \
             .github/scripts/main_dispatch_test.py \
             .github/scripts/select_coverage_tests_test.py \
             .github/scripts/added_loaders_test.py \
@@ -2027,6 +2038,7 @@ jobs:
       && github.event_name != 'pull_request'
       && needs.discover.outputs.no-tests != 'true'
       && needs.discover.outputs.smoke-needed != 'false'
+      && needs.discover.outputs.smoke != '[]'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
