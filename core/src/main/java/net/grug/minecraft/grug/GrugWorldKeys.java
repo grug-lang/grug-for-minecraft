@@ -36,4 +36,13 @@ public final class GrugWorldKeys {
         down[index] = isDown;
         return isDown && !was;
     }
+
+    /**
+     * Records the key's state for this poll and answers whether the export is to be asked: the key
+     * just went down and no screen is open. A key that went down while a screen was open, or is
+     * still held from before it closed, is recorded and never delivered.
+     */
+    public boolean deliver(int code, boolean isDown, boolean screenClosed) {
+        return pressed(code, isDown) && screenClosed;
+    }
 }
