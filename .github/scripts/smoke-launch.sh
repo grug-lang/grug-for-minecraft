@@ -16,6 +16,11 @@
 # to look at.
 #
 # <work-dir> receives game/ (the game directory), launch.log and title.png.
+#
+# The script's own deadline, GRUG_SMOKE_TIMEOUT, defaults to 480 seconds, under the smoke job's
+# 10-minute timeout in build.yml, so a game that never decides is reported here with the log's tail
+# and not cancelled with nothing printed (#1335). GRUG_SMOKE_HEARTBEAT (30 seconds) is how often the
+# script says how far the launch has got.
 
 set -euo pipefail
 
@@ -186,7 +191,39 @@ fail() {
   exit 1
 }
 
-deadline=$((SECONDS + ${GRUG_SMOKE_TIMEOUT:-900}))
+deadline=$((SECONDS + ${GRUG_SMOKE_TIMEOUT:-480}))
+
+# Prints a line every GRUG_SMOKE_HEARTBEAT seconds with the elapsed time and the log's size, so a
+# launch that stalls is attributable to the phase its log reached from the job log alone.
+heartbeat_every=${GRUG_SMOKE_HEARTBEAT:-30}
+next_heartbeat=$((SECONDS + heartbeat_every))
+heartbeat() {
+  if [ "$SECONDS" -lt "$next_heartbeat" ]; then return; fi
+  next_heartbeat=$((SECONDS + heartbeat_every))
+  local state=running
+  kill -0 "$GAME_PID" 2>/dev/null || state=exited
+  echo "==> ${RECIPE}: ${SECONDS}s, game ${state}, log $(stat -c %s "$LOG") bytes, last line: $(tail -n 1 "$LOG" | tr -d '\r' | head -c 120)"
+}
+
+# The files a game that stops with grug's error can say so in. Its own logs count as well as the
+# launcher's capture of its output: on 2026-11-15 a NeoForge 21.1 client wrote the error to
+# logs/latest.log and its crash report and then stopped writing to the launcher's pipe, so the
+# capture never held it (#1335).
+grug_error_files() {
+  echo "$LOG"
+  local f
+  for f in "${GAME_DIR}/logs/latest.log" "${GAME_DIR}"/crash-reports/*; do
+    if [ -f "$f" ]; then echo "$f"; fi
+  done
+}
+grug_error_line() {
+  local f line
+  while IFS= read -r f; do
+    line=$(grep -a -m1 -o -e "${GRUG_ERROR}.*" "$f" 2>/dev/null | head -c 300 || true)
+    if [ -n "$line" ]; then echo "$line"; return 0; fi
+  done < <(grug_error_files)
+  return 1
+}
 
 # Waits until the log has been quiet for $1 seconds, failing on a problem, and, for an inert game, if
 # the game exits. A cold cache downloads the game, its libraries and its assets first.
@@ -201,6 +238,7 @@ settle() {
       return
     fi
     if [ "$SECONDS" -ge "$settle_deadline" ]; then fail "the log never went quiet"; fi
+    heartbeat
     sleep 1
   done
 }
@@ -210,13 +248,14 @@ if [ "$EXPECT" = error ]; then
     # Sampled before the log is read, so a game that printed the error and exited is not missed.
     alive=true
     kill -0 "$GAME_PID" 2>/dev/null || alive=false
-    grep -q -F -e "$GRUG_ERROR" "$LOG" && break
+    error_line=$(grug_error_line) && break
     if [ -n "$(problems)" ]; then fail "$(problems)"; fi
     if [ "$alive" = false ]; then fail "the game exited without grug's error"; fi
     if [ "$SECONDS" -ge "$deadline" ]; then fail "grug's error did not appear within the timeout"; fi
+    heartbeat
     sleep 2
   done
-  echo "==> ${RECIPE}: stopped with grug's error: $(grep -m1 -o "${GRUG_ERROR}.*" "$LOG" | head -c 300)"
+  echo "==> ${RECIPE}: stopped with grug's error: ${error_line}"
   # Gives the loader time to put its error screen or window up before the capture.
   settle 5
   import -window root "${WORK}/title.png"
@@ -231,6 +270,7 @@ while true; do
   if [ -n "$(problems)" ]; then fail "$(problems)"; fi
   if [ "$alive" = false ]; then fail "the game exited before loading ended"; fi
   if [ "$SECONDS" -ge "$deadline" ]; then fail "loading did not end within the timeout"; fi
+  heartbeat
   sleep 2
 done
 echo "==> ${RECIPE}: loading ended ($(grep -E -m1 -o -e "$READY" "$LOG"))"
