@@ -101,3 +101,7 @@ coverage/tests/hook_forced_normalization-Test.grug
 # (#1092), and coverage_render is unmeasured behind it. The client-only run still checks both.
 coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
+#
+# Proof 43763297057 passed cobblestone_pipe_shapes and redstone_engine on this leg and failed redstone_engine_animation's redstone_engine_stroke_facings capture in 1 of 62400 px (#1213), so redstone_engine_animation stays listed, and redstone_engine_facings comes after it and is unmeasured. The client-only run still checks both goldens.
+buildcraft/tests/redstone_engine_animation-Test.grug
+buildcraft/tests/redstone_engine_facings-Test.grug
