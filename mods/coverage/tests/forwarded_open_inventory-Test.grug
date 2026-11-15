@@ -14,7 +14,7 @@ export tick(ctx: TestTickContext) {
     if loader == "a1.1.2_01-ornithe" {
         # A server that cannot forward the call names the function rather than reaching for the
         # client's own game class, which a server refuses to load.
-        ctx.expect_error("Test.open_inventory: This needs a client")
+        ctx.expect_error("TestTickContext.open_inventory: This needs a client")
         ctx.open_inventory(ctx.get_player())
         return
     }
@@ -50,5 +50,5 @@ export tick(ctx: TestTickContext) {
         return
     }
     ctx.close_screen()
-    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
+    ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave the client's screen closed.")
 }

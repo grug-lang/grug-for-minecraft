@@ -11,7 +11,7 @@ export tick(ctx: TestTickContext) {
     if not started {
         started = true
         ctx.close_screen()
-        ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
+        ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave the client's screen closed.")
         # The client has no container screen open, so this is its own measurement. The old server
         # answered the call itself and refused without a client, which fails this assertion.
         ctx.assert(ctx.gui_width() == 0, "A client with no container screen open should measure 0 wide.")
@@ -28,5 +28,5 @@ export tick(ctx: TestTickContext) {
     }
     ctx.assert(ctx.gui_width() == 176, "The client's coverage_gui panel is 176 pixels wide.")
     ctx.close_screen()
-    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
+    ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave the client's screen closed.")
 }

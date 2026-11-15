@@ -3,5 +3,5 @@
 # sees it say false. An earlier test may have left a screen open, so the test closes it first. See #418.
 export tick_any_side(ctx: TestTickContext) {
     ctx.close_screen()
-    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave no screen open.")
+    ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave no screen open.")
 }

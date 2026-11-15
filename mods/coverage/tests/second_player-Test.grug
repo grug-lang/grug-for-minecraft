@@ -79,7 +79,7 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(not ctx.get_carried_item().has(), "The starter's cursor should be empty after it is cleared.")
 
     ctx.close_screen()
-    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave no screen or menu open.")
+    ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave no screen or menu open.")
 }
 
 local _setup(ctx: TestTickContext) {

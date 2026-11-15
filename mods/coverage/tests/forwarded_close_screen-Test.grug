@@ -12,7 +12,7 @@ export tick(ctx: TestTickContext) {
     if not started {
         started = true
         ctx.close_screen()
-        ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
+        ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave the client's screen closed.")
         ctx.assert(ctx.gui_width() == 0, "A client with no container screen open should measure 0 wide.")
         if loader != "1.20.6-forge" {
             return
@@ -34,6 +34,6 @@ export tick(ctx: TestTickContext) {
     ctx.assert(ctx.gui_top() > 0, "The client's panel is centred, so its top edge is inside the screen.")
     ctx.assert(ctx.screen_width() > ctx.gui_width(), "The client's window is wider than the panel.")
     ctx.close_screen()
-    ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
+    ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave the client's screen closed.")
     ctx.assert(ctx.gui_width() == 0, "The closed client's screen should measure 0 wide.")
 }

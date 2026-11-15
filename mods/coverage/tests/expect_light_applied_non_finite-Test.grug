@@ -15,14 +15,14 @@ export tick_any_side(ctx: TestTickContext) {
     nan: number = infinity - infinity
     negative_infinity: number = 0 - infinity
 
-    ctx.expect_error("Test.light_applied: The position has to be finite")
+    ctx.expect_error("TestTickContext.light_applied: The position has to be finite")
     ctx.light_applied(nan, 0, 0)
-    ctx.expect_error("Test.light_applied: The position has to be finite")
+    ctx.expect_error("TestTickContext.light_applied: The position has to be finite")
     ctx.light_applied(infinity, 0, 0)
-    ctx.expect_error("Test.light_applied: The position has to be finite")
+    ctx.expect_error("TestTickContext.light_applied: The position has to be finite")
     ctx.light_applied(negative_infinity, 0, 0)
-    ctx.expect_error("Test.light_applied: The position has to be finite")
+    ctx.expect_error("TestTickContext.light_applied: The position has to be finite")
     ctx.light_applied(0, infinity, 0)
-    ctx.expect_error("Test.light_applied: The position has to be finite")
+    ctx.expect_error("TestTickContext.light_applied: The position has to be finite")
     ctx.light_applied(0, 0, infinity)
 }

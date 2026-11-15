@@ -10,6 +10,6 @@ export tick_any_side(ctx: TestTickContext) {
     level.place_block(x, y, z, "grug:coverage_init_block")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
 
-    ctx.expect_error("Test.load_nbt: Nothing was staged for this block entity.")
+    ctx.expect_error("TestTickContext.load_nbt: Nothing was staged for this block entity.")
     ctx.load_nbt(be)
 }

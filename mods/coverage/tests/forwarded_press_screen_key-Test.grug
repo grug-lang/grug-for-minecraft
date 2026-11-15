@@ -33,7 +33,7 @@ export tick(ctx: TestTickContext) {
     ctx.assert(not ctx.press_screen_key(75, false, true), "K without control should be left to the client's screen.")
     if loader == "1.2.5-forge" {
         ctx.close_screen()
-        ctx.assert(not ctx.screen_open(), "Test.close_screen should leave the client's screen closed.")
+        ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave the client's screen closed.")
         return
     }
     ctx.assert(not ctx.press_screen_key(256, false, true), "Escape should be left to the client's screen.")
