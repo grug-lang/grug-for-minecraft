@@ -107,6 +107,8 @@ class GrugWorldOverlayTest {
         assertTrue(GrugWorldOverlay.hud(0, Grug.INVALID_GRUG_EXPORT_FN_ID, 10, 20).isEmpty());
         assertTrue(GrugWorldOverlay.world(0, 5, 0, 1, 2, 3).isEmpty());
         GrugWorldOverlay.key(0, Grug.INVALID_GRUG_EXPORT_FN_ID, 'L', false);
+        // A live entity whose file has no such export is skipped too, without a native call.
+        assertTrue(GrugWorldOverlay.hud(1, Grug.INVALID_GRUG_EXPORT_FN_ID, 10, 20).isEmpty());
         assertFalse(GrugWorldOverlay.isOpen());
     }
 
