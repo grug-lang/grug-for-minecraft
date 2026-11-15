@@ -104,17 +104,6 @@ public final class GrugPlayerFloor {
     }
 
     /**
-     * The height a room is built around while a server holds the player at {@code heldFeetY}: never
-     * below it. The room's stand block goes in the block under this height, and the hold keeps the
-     * feet at the held height once they are more than a quarter block under it, so a build anchored
-     * at feet a fraction under the held height put the stand block a block too low and left the
-     * player hovering above it, which the game's own floating check kicks after 4 s (#1068).
-     */
-    public static double buildAnchor(double feetY, double heldFeetY) {
-        return Math.max(feetY, heldFeetY);
-    }
-
-    /**
      * Whether the feet are on the floor, within {@link #TOLERANCE}. A player below it is inside the
      * ground and one above it is still falling, and neither may start a run.
      */
