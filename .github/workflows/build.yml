@@ -108,6 +108,8 @@ jobs:
       base-run: ${{ steps.carry-over.outputs.base-run }}
       # The loader directories the Windows jobs run on, a JSON list (#632).
       windows: ${{ steps.windows.outputs.dirs }}
+      # Whether the dedicated-server legs run, true or false (#1342).
+      dedicated: ${{ steps.dedicated.outputs.dedicated }}
     steps:
       # The run timeout of a repeats run is 300 s plus 200 s per extra pass (see the loader job), and
       # the job's own limit is 90 minutes, so 26 passes is the most whose deadline the script reaches
@@ -330,6 +332,21 @@ jobs:
             echo "Running the Windows jobs nowhere: a $EVENT run is not a full run."
           fi
           echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
+
+      # Whether the dedicated-server legs run (#1342). They are 31% of a full dispatch's runner
+      # minutes, and a proof or measurement dispatch that names a base whose diff is confined to mod
+      # ports and prose cannot reach server code, so dedicated-needed.py skips them and says why in
+      # this log. A dispatch with no base or on main (the four-hourly check and the release), and any
+      # doubt, keep them. The step above resolved the base, so both read the same commit.
+      - name: Decide whether the dedicated-server legs run
+        id: dedicated
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ steps.base.outputs.base }}
+          REF: ${{ github.ref }}
+        run: |
+          needed=$(python3 .github/scripts/dedicated-needed.py --event "$EVENT" --ref "$REF" "$BASE" HEAD) || needed=true
+          echo "dedicated=$needed" >> "$GITHUB_OUTPUT"
 
   # grug-rs builds once per run and the loader jobs link the very same libgruggers.a. It depends on
   # nothing in this repository except the revision core/build.gradle.kts pins, so before this job each
@@ -564,6 +581,7 @@ jobs:
             .github/scripts/sweep_caches_test.py \
             .github/scripts/markdown_columns_test.py \
             .github/scripts/windows_needed_test.py \
+            .github/scripts/dedicated_needed_test.py \
             .github/scripts/dispatch_base_test.py \
             .github/scripts/seed_ploceus_meta_test.py \
             .github/scripts/smoke_launch_test.py
@@ -944,7 +962,10 @@ jobs:
   # build job, whose entries it shares.
   multiplayer:
     name: ${{ matrix.loader }} on a dedicated server
-    if: github.event_name == 'workflow_dispatch' && needs.discover.outputs.no-tests != 'true'
+    # A base dispatch whose diff cannot reach server code skips the legs (#1342); coverage and
+    # server-reachable accept the skipped result, and the gate counts server exec data only when a
+    # leg uploaded it.
+    if: github.event_name == 'workflow_dispatch' && needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.dedicated != 'false'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
