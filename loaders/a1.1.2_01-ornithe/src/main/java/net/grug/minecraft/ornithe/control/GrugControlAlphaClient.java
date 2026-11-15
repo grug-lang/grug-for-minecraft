@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -146,7 +147,12 @@ public final class GrugControlAlphaClient {
                             + eye.z()
                             + "); pinning it for the capture");
         }
-        player.updatePositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
+        // The client-only player's eye is its feet plus the float eye height, 65.62000000476837
+        // for a floor at 64, while the server's decimal eye is 65.62: 5e-9 blocks, which flips a
+        // texel that sits on a pixel boundary (#1213, one pixel of cobblestone_pipe_straight). The
+        // pin writes the client's own arithmetic.
+        double feet = Math.rint((eye.y() - GrugTestOrigin.EYE_HEIGHT) * 1.0e4) / 1.0e4;
+        player.updatePositionAndAngles(eye.x(), feet + (double) 1.62F, eye.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
