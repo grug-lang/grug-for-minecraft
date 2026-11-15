@@ -662,13 +662,16 @@ while :; do
     # is where all four goldens are checked. Requiring them on the four legs would only restate an
     # open rendering defect, so the list is per loader.
     # Proof 43763297057 (#1096) measured the rest: every leg passes cobblestone_pipe_shapes, and
-    # a1.1.2_01, b1.7.3-ornithe and 1.2.5-forge also pass redstone_engine. The loaders list the
+    # a1.1.2_01, b1.7.3-ornithe and 1.2.5-forge also pass redstone_engine, and proof 43764853785 added wooden_pipe_items on 1.2.5-forge. The loaders list the
     # captures that still differ in server-unsupported-tests.txt, so a leg requires exactly the ones
     # it does not list, and the client-only run checks the goldens of the listed ones.
     wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes"
     case "$LOADER" in
       a1.1.2_01-ornithe|b1.7.3-ornithe|1.2.5-forge)
         wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine"
+        ;;&
+      1.2.5-forge)
+        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items"
         ;;
       1.20.6-forge)
         wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
