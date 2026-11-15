@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugMissingClientMod;
 import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
+import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.control.GrugControlBetaClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.TickTimer;
@@ -79,6 +80,7 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     private void grug$onClientTick(CallbackInfo ci) {
         grug$hooks.tick();
         GrugControlBetaClient.onClientTick((Minecraft) (Object) this, grug$hooks);
+        GrugOverlayHost.pollWorldKeys((Minecraft) (Object) this);
     }
 
     /**

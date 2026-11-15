@@ -713,8 +713,8 @@ public final class GrugOverlay {
     @GrugGenerated(
             "the call into the VM and its context entity: needs a live grug entity, which only a"
                     + " game has")
-    private static void callExport(
-            long entityHandle, long exportFnId, GrugEntityType contextType, Context context) {
+    static void callExport(
+            long entityHandle, long exportFnId, GrugEntityType contextType, Object context) {
         GrugEntities.withFreshOwner(
                 () -> {
                     long contextHandle = GrugEntities.addEntity(contextType, context);

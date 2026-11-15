@@ -3380,6 +3380,184 @@ public class HostFunctions {
         GrugOverlay.take();
     }
 
+    /** The same rule for the context an overlay's {@code render_hud()} was passed. */
+    private static boolean requireHudContext(String method, long contextId) {
+        if (!GrugWorldOverlay.isHud()) {
+            reportRefusedContext(method, "render_hud");
+            return false;
+        }
+        return requireContext(method, "render_hud", contextId, GrugWorldOverlay.context());
+    }
+
+    /** The same rule for the context an overlay's {@code render_world()} was passed. */
+    private static boolean requireWorldContext(String method, long contextId) {
+        if (!GrugWorldOverlay.isWorld()) {
+            reportRefusedContext(method, "render_world");
+            return false;
+        }
+        return requireContext(method, "render_world", contextId, GrugWorldOverlay.context());
+    }
+
+    /** The same rule for the context an overlay's {@code world_key()} was passed. */
+    private static boolean requireWorldKeyContext(String method, long contextId) {
+        if (!GrugWorldOverlay.isKey()) {
+            reportRefusedContext(method, "world_key");
+            return false;
+        }
+        return requireContext(method, "world_key", contextId, GrugWorldOverlay.context());
+    }
+
+    public static double OverlayHudContext_screen_width(long contextId) {
+        if (!requireHudContext("OverlayHudContext.screen_width", contextId)) return 0.0;
+        return GrugWorldOverlay.screenWidth();
+    }
+
+    public static double OverlayHudContext_screen_height(long contextId) {
+        if (!requireHudContext("OverlayHudContext.screen_height", contextId)) return 0.0;
+        return GrugWorldOverlay.screenHeight();
+    }
+
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    public static void OverlayHudContext_add_text(
+            long contextId, String text, double x, double y, long colorId) {
+        if (!requireHudContext("OverlayHudContext.add_text", contextId)) return;
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "OverlayHudContext.add_text: The position has to be finite, and was "
+                            + x
+                            + ", "
+                            + y
+                            + ".");
+            return;
+        }
+        withEntity(
+                "OverlayHudContext.add_text",
+                "color",
+                colorId,
+                color -> GrugWorldOverlay.recordText(text, x, y, ((Color) color).getRGB()));
+    }
+
+    public static double OverlayWorldContext_partial_tick(long contextId) {
+        if (!requireWorldContext("OverlayWorldContext.partial_tick", contextId)) return 0.0;
+        return GrugWorldOverlay.partialTick();
+    }
+
+    public static double OverlayWorldContext_camera_x(long contextId) {
+        if (!requireWorldContext("OverlayWorldContext.camera_x", contextId)) return 0.0;
+        return GrugWorldOverlay.cameraX();
+    }
+
+    public static double OverlayWorldContext_camera_y(long contextId) {
+        if (!requireWorldContext("OverlayWorldContext.camera_y", contextId)) return 0.0;
+        return GrugWorldOverlay.cameraY();
+    }
+
+    public static double OverlayWorldContext_camera_z(long contextId) {
+        if (!requireWorldContext("OverlayWorldContext.camera_z", contextId)) return 0.0;
+        return GrugWorldOverlay.cameraZ();
+    }
+
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    public static void OverlayWorldContext_draw_line(
+            long contextId,
+            double x1,
+            double y1,
+            double z1,
+            double x2,
+            double y2,
+            double z2,
+            long colorId) {
+        if (!requireWorldContext("OverlayWorldContext.draw_line", contextId)) return;
+        String problem = worldLineProblem(x1, y1, z1, x2, y2, z2);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "OverlayWorldContext.draw_line: " + problem);
+            return;
+        }
+        withEntity(
+                "OverlayWorldContext.draw_line",
+                "color",
+                colorId,
+                color ->
+                        GrugWorldOverlay.recordLine(
+                                x1, y1, z1, x2, y2, z2, ((Color) color).getRGB()));
+    }
+
+    /** Why draw_line refuses these endpoints, or null when it can record the line. */
+    static String worldLineProblem(
+            double x1, double y1, double z1, double x2, double y2, double z2) {
+        if (!Double.isFinite(x1)
+                || !Double.isFinite(y1)
+                || !Double.isFinite(z1)
+                || !Double.isFinite(x2)
+                || !Double.isFinite(y2)
+                || !Double.isFinite(z2)) {
+            return "The line was not recorded. Its endpoints have to be finite, and were "
+                    + x1
+                    + ", "
+                    + y1
+                    + ", "
+                    + z1
+                    + " and "
+                    + x2
+                    + ", "
+                    + y2
+                    + ", "
+                    + z2
+                    + ".";
+        }
+        return null;
+    }
+
+    public static double OverlayWorldKeyContext_key(long contextId) {
+        if (!requireWorldKeyContext("OverlayWorldKeyContext.key", contextId)) return 0.0;
+        return GrugWorldOverlay.keyCode();
+    }
+
+    public static boolean OverlayWorldKeyContext_ctrl(long contextId) {
+        if (!requireWorldKeyContext("OverlayWorldKeyContext.ctrl", contextId)) return false;
+        return GrugWorldOverlay.ctrl();
+    }
+
+    /**
+     * Whether this loader asks an overlay's world key, HUD and world exports, which a test asks
+     * before it presses a key and waits for a draw, so a loader without the hooks skips it.
+     */
+    public static boolean Test_world_overlay_supported(long testId) {
+        return GrugCore.getAdapter().worldOverlaySupportedForTest();
+    }
+
+    /**
+     * Test only: whether a frame has drawn something of the running test's mod through the world
+     * overlay's HUD or world export since the last {@code press_world_key}. Asking also asks for a
+     * frame, because the runner skips the frames of a test that never captures.
+     */
+    public static boolean TestTickContext_world_overlay_drawn(long contextId) {
+        if (!requireTickContext("TestTickContext.world_overlay_drawn", contextId)) return false;
+        return GrugCore.getAdapter().worldOverlayDrawnForTest();
+    }
+
+    /**
+     * Test only: delivers one press of a letter or digit key to the overlays' world_key export, the
+     * way the game delivers a real one while no screen is open. The key is the number
+     * OverlayWorldKeyContext.key answers.
+     */
+    @GrugGenerated("asks the adapter to press a key in the game's world: a unit test has no game")
+    public static void TestTickContext_press_world_key(long contextId, double key, boolean ctrl) {
+        if (!requireTickContext("TestTickContext.press_world_key", contextId)) return;
+        if (!Double.isFinite(key) || key != Math.floor(key) || !GrugWorldKeys.tracked((int) key)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.press_world_key: The key has to be the upper case character"
+                            + " code of a letter or a digit, and was "
+                            + key
+                            + ".");
+            return;
+        }
+        GrugCore.getAdapter().pressWorldKey((int) key, ctrl);
+    }
+
     public static double OverlayScrollContext_screen_width(long contextId) {
         if (!requireOverlayScrollContext("OverlayScrollContext.screen_width", contextId))
             return 0.0;
