@@ -52,6 +52,14 @@ public class GrugSavedDataPacket extends Packet {
      */
     private static final GrugClientDataCache<byte[]> RECEIVED = new GrugClientDataCache<>(4096);
 
+    /**
+     * Whether the client is also told to build the block's mesh again, which a chunk-mesh block
+     * needs before it reads the data. A change to saved data is sent without it, so the client only
+     * reads the data and no section is rebuilt; a block that draws per frame reads it on the next
+     * frame.
+     */
+    private boolean redraw;
+
     /** Remembers data received for a block at a position, in a world, before it is applied. */
     @GrugGenerated("reaches the game's NBT writer, which only a running game has")
     private static void remember(World world, int x, int y, int z, int blockId, NbtCompound data) {
