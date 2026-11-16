@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 /**
  * The decisions behind which items a loader lists, apart from the game, so a unit test enters every
@@ -34,5 +35,16 @@ public final class GrugItemList {
     public static <T> List<T> listedFor(
             boolean mayUseOperatorItems, List<T> all, List<T> filtered) {
         return mayUseOperatorItems ? all : filtered;
+    }
+
+    /**
+     * Whether a player may use the operator tab's items: the game must let them use game master
+     * blocks, and where this process holds the operator list (singleplayer) the host's own notion
+     * of an operator must agree, because a script's revoke of the world's owner changes that and
+     * not the game's permission level. A client joined to a server has only the game's answer.
+     */
+    public static boolean mayUseOperatorItems(
+            boolean gameMasterBlocks, boolean holdsOperatorList, BooleanSupplier operator) {
+        return gameMasterBlocks && (!holdsOperatorList || operator.getAsBoolean());
     }
 }

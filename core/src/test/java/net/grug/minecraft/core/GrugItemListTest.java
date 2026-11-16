@@ -1,7 +1,9 @@
 package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -31,5 +33,24 @@ class GrugItemListTest {
         List<String> filtered = List.of("apple");
         assertSame(all, GrugItemList.listedFor(true, all, filtered));
         assertSame(filtered, GrugItemList.listedFor(false, all, filtered));
+    }
+
+    @Test
+    void theGameAndTheHostsOperatorListBothHaveToAgreeWhereTheListIsHeld() {
+        assertTrue(GrugItemList.mayUseOperatorItems(true, true, () -> true));
+        assertFalse(GrugItemList.mayUseOperatorItems(true, true, () -> false));
+        assertFalse(GrugItemList.mayUseOperatorItems(false, true, () -> true));
+        assertFalse(GrugItemList.mayUseOperatorItems(false, false, () -> true));
+    }
+
+    @Test
+    void aJoinedClientAsksOnlyTheGameAndNeverTheList() {
+        assertTrue(
+                GrugItemList.mayUseOperatorItems(
+                        true,
+                        false,
+                        () -> {
+                            throw new AssertionError("a joined client holds no operator list");
+                        }));
     }
 }
