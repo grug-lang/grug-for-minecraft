@@ -502,7 +502,8 @@ class RepositoryUrlsTest(unittest.TestCase):
             [
                 "buildcraft/about.json",
                 "coverage/about.json",
-                "examplemod/about.json",
+                "jei/about.json",
+                "safesquares/about.json",
                 "jei/about.json",
             ],
         )
