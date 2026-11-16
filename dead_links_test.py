@@ -504,6 +504,7 @@ class RepositoryUrlsTest(unittest.TestCase):
                 "coverage/about.json",
                 "examplemod/about.json",
                 "jei/about.json",
+                "mobcap/about.json",
                 "safesquares/about.json",
             ],
         )
