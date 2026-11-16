@@ -3,11 +3,6 @@
 # tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
-# Block selection. The b1.7.3 server Block has no getOutlineShape (the selection box is a client
-# matter), so these tests fail with NoSuchMethodError there.
-buildcraft/tests/wooden_pipe_boxes-Test.grug
-coverage/tests/block_shape-Test.grug
-#
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
 # client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
 # block, so this server cannot open one. 1.2.5's interaction manager and 1.20.6's game mode
@@ -54,7 +49,7 @@ jei/tests/item_list_forced_normalization-Test.grug
 coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
 #
-# Proof 43763297057 passed cobblestone_pipe_shapes and redstone_engine on this leg and failed redstone_engine_animation's redstone_engine_progress capture in 369 of 62400 px (#1213); diagnostic run 43807865292 passed redstone_engine_animation here, so it is off the list, and redstone_engine_facings is unmeasured and stays listed. The client-only run still checks both goldens.
+# Proof 43763297057 passed cobblestone_pipe_shapes and redstone_engine on this leg and failed redstone_engine_animation's redstone_engine_progress capture in 369 of 62400 px (#1213); proof 43829659464 failed redstone_engine_animation's redstone_engine_progress capture here in 10104 of 62400 px (#1213), and redstone_engine_facings comes after it and is unmeasured, so it stays listed. The client-only run still checks both goldens.
 buildcraft/tests/redstone_engine_facings-Test.grug
 #
 # Proof 43764853785 (#1096) failed wooden_pipe_items on this leg in 1923 of 44800 px, the same count as the pipe with arms where the golden has the bare centre box on stationapi (#1351), so it stays listed. wooden_pipe_shapes comes after it and is unmeasured, so it stays listed too. The client-only run checks both goldens.

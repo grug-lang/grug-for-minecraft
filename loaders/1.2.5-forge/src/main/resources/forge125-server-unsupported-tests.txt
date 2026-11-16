@@ -40,18 +40,9 @@ coverage/tests/hook_forced_normalization-Test.grug
 # stays the client-only proof that this loader's item draw pins the state off.
 jei/tests/item_list_forced_normalization-Test.grug
 #
-# The four wall-backed buildcraft captures #1161 promoted to tick_any_side. Two stay client-only on
-# this loader until #1213 finds why: dispatch 42430865929 stopped at redstone_engine_animation's
-# redstone_engine_stroke_facings, 1 of 62400 pixels (the joined client's far plane, 512 against the
-# flat run's 64, which the joined run now sets the same way; redstone_engine_animation is therefore
-# off this list and redstone_engine_facings still listed), after the particle pin cleared the 633-pixel
-# redstone_engine_yellow difference. That dispatch also ran the two before it, and both passed:
-# redstone_engine is the proof that the joined client pins the particles the way its client-only
-# run does (#1161), and cobblestone_pipe_shapes passed at 00:45:41, before the leg's first promoted
-# failure at 00:46:07. Neither is listed, so both keep their captures on this server.
-# redstone_engine_facings comes after that failure, so it is unmeasured and listed until a dispatch
-# reaches it. The client-only run of this loader still runs all four, which is where their goldens
-# are checked.
+# The four wall-backed buildcraft captures #1161 promoted to tick_any_side all pass on this server
+# now: proof 43829659464 passed redstone_engine_animation, redstone_engine_facings and
+# wooden_pipe_items here, so none of them is listed (#1213).
 #
 # wooden_pipe_shapes, which #1096 promoted to tick_any_side. Dispatch 43422357886 failed its
 # wooden_pipe_straight capture against this loader's flat golden in 1449 of 115200 pixels, the
@@ -63,8 +54,5 @@ jei/tests/item_list_forced_normalization-Test.grug
 coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
 #
-# Proof 43764853785 (#1096): wooden_pipe_items passes on this leg, and wooden_pipe_shapes fails its wooden_pipe_straight capture in 9648 of 115200 px (#1213), so it stays listed. The client-only run checks its golden.
+# Proof 43764853785 (#1096): wooden_pipe_items passes on this leg, and wooden_pipe_shapes fails its capture in 9648 of 115200 px (#1213), measured as 2869 of 115200 px on wooden_pipe_corner in proof 43829659464, so it stays listed. The client-only run checks its golden.
 buildcraft/tests/wooden_pipe_shapes-Test.grug
-#
-# Proof 43785321576 (#1096) failed redstone_engine_animation's redstone_engine_stroke_facings capture in 1 of 62400 px at (346,62), the deterministic pixel of #1213, so it stays listed, and redstone_engine_facings comes after it and is unmeasured. The client-only run still checks both goldens.
-buildcraft/tests/redstone_engine_facings-Test.grug
