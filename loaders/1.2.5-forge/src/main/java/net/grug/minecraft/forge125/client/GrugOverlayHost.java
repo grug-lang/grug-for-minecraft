@@ -673,7 +673,7 @@ public final class GrugOverlayHost {
         for (int code = '0'; code <= 'Z'; code++) {
             if (!GrugWorldKeys.tracked(code)) continue;
             int key = Keyboard.getKeyIndex(String.valueOf((char) code));
-            boolean down = Keyboard.isKeyDown(key);
+            boolean down = key != Keyboard.KEY_NONE && Keyboard.isKeyDown(key);
             if (worldKeys.deliver(code, down, open)) {
                 deliverWorldKey(
                         code,
