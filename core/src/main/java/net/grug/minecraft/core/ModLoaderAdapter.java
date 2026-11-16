@@ -566,13 +566,6 @@ public interface ModLoaderAdapter {
     boolean isWorldSettled();
 
     /**
-     * Recomputes this client's own copy of the light in the box, as the server's {@link
-     * #relightRoom} does for its copy, until a whole sweep changes nothing (#1213). Only a loader
-     * whose client keeps history-dependent incremental light overrides it.
-     */
-    default void relightClientRoom(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {}
-
-    /**
      * The block light of the section a position falls in, in the client's own copy of the world, as
      * {@link GrugLightSync#lightFingerprint}, {@link GrugClientLight#CANNOT_VERIFY} when this
      * adapter holds a section it cannot reproduce, or {@link GrugClientLight#NOT_RECEIVED} when the

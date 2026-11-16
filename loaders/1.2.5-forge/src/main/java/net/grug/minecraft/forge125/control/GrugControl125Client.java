@@ -203,7 +203,8 @@ public final class GrugControl125Client implements GrugControlRouter {
             // from the blocks it holds now, and the frames that show it are waited for (#1213).
             relit = true;
             int[] box = GrugClientRelight.box(eye.x(), eye.y(), eye.z());
-            GrugCore.getAdapter().relightClientRoom(box[0], box[1], box[2], box[3], box[4], box[5]);
+            ((Grug125ClientAdapter) GrugCore.getAdapter())
+                    .relightClientRoom(box[0], box[1], box[2], box[3], box[4], box[5]);
             return;
         }
         pending = false;
