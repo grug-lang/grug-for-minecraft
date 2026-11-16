@@ -26,6 +26,25 @@ class GrugStaleBlockEntityTest {
     }
 
     @Test
+    void aForeignBlockEntityUnderAGrugBlockOrNoEntityBlockIsStaleOnAClient() {
+        assertTrue(GrugStaleBlockEntity.shouldDropForeign(false, true, true, true));
+        assertTrue(GrugStaleBlockEntity.shouldDropForeign(false, false, false, true));
+    }
+
+    @Test
+    void aForeignBlockEntityIsKeptUnderAnEntityBlockOrOnAServer() {
+        assertFalse(GrugStaleBlockEntity.shouldDropForeign(false, false, true, true));
+        assertFalse(GrugStaleBlockEntity.shouldDropForeign(false, true, true, false));
+        assertFalse(GrugStaleBlockEntity.shouldDropForeign(false, false, false, false));
+    }
+
+    @Test
+    void aGrugBlockEntityIsNeverTheForeignCase() {
+        assertFalse(GrugStaleBlockEntity.shouldDropForeign(true, true, true, true));
+        assertFalse(GrugStaleBlockEntity.shouldDropForeign(true, false, false, true));
+    }
+
+    @Test
     void nothingIsDroppedWhileAGrugBlockRemovesItself() {
         boolean[] during = new boolean[2];
         GrugStaleBlockEntity.duringRemoval(

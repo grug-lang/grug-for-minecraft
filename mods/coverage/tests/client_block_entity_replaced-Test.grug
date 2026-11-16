@@ -1,0 +1,49 @@
+# A grug block placed where a vanilla block entity was gets its own block entity on the joined
+# client, not the old one (#1354). A client joined to a server is told only that a block changed,
+# and the game never removes the block entity of the block that was there, so the client's chunk
+# kept a chest where a grug block now stood and handed the chest to everything that asked for the
+# position: the custom-rendered coverage_render blocks drew as plain cubes on b1.7.3-stationapi's
+# dedicated leg, because an earlier test had left chests at the positions its fixture uses.
+# The chest goes in first and the test waits for the joined client to hold it, then the grug block
+# replaces it and the test reads the joined client's copy of a saved number. A copy that is still
+# the chest is not a grug block entity, so the read reports an error and fails the test. In
+# singleplayer the copy is this process's own, so the server legs are the ones that prove the fix.
+# The waits are the ones client_saved_number-Test uses: the settle wait says the client has drawn a
+# frame from the world the placement changed, and the extra ticks are the packet's own flight.
+placed_tick: number = 0
+replaced: bool = false
+read_tick: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(600)
+}
+
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() - 1.88
+    z: number = origin.z() + 4
+
+    if ctx.current_tick() == 0 {
+        level.place_block(x, y, z, "minecraft:chest")
+        placed_tick = ctx.current_tick()
+        ctx.not_done()
+    } else if not ctx.world_settled() {
+        ctx.not_done()
+    } else if ctx.current_tick() < placed_tick + 30 {
+        ctx.not_done()
+    } else if not replaced {
+        level.place_block(x, y, z, "grug:coverage_mesh_saved")
+        replaced = true
+        read_tick = ctx.current_tick()
+        ctx.not_done()
+    } else if ctx.current_tick() < read_tick + 30 {
+        ctx.not_done()
+    } else {
+        be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        ctx.assert(be_opt.has(), "The grug block should have a block entity.")
+        copy: number = ctx.client_saved_number(be_opt.unwrap(), "replaced_marker")
+        ctx.assert(copy == 0, "The client's copy of the replaced block should hold no saved data.")
+    }
+}

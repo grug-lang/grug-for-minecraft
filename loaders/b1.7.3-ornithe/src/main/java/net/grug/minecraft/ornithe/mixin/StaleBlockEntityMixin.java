@@ -6,6 +6,7 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.world.World;
 import net.minecraft.world.chunk.WorldChunk;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -29,6 +30,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
                 + " its client without it")
 @Mixin(WorldChunk.class)
 public abstract class StaleBlockEntityMixin {
+    @Shadow public World world;
+
     @Shadow
     public abstract int getBlockAt(int x, int y, int z);
 
@@ -41,7 +44,23 @@ public abstract class StaleBlockEntityMixin {
     @Inject(method = "getBlockEntityAt", at = @At("RETURN"), cancellable = true)
     private void grug$dropStaleGrugBlockEntity(
             int x, int y, int z, CallbackInfoReturnable<BlockEntity> cir) {
-        if (!(cir.getReturnValue() instanceof GrugBlockEntity)) {
+        BlockEntity found = cir.getReturnValue();
+        if (found == null) {
+            return;
+        }
+        // The other way round (#1354): a vanilla block entity that outlived its block, which the
+        // chunk would hand to a grug block placed there or to a block with no entity at all.
+        int id = getBlockAt(x, y, z);
+        if (GrugStaleBlockEntity.shouldDropForeign(
+                found instanceof GrugBlockEntity,
+                Block.BY_ID[id] instanceof GrugBlock,
+                Block.HAS_BLOCK_ENTITY[id],
+                world != null && world.isMultiplayer)) {
+            removeBlockEntityAt(x, y, z);
+            cir.setReturnValue(getBlockEntityAt(x, y, z));
+            return;
+        }
+        if (!(found instanceof GrugBlockEntity)) {
             return;
         }
         if (GrugStaleBlockEntity.shouldDrop(
