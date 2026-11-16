@@ -474,8 +474,9 @@ public final class GrugOverlayHost {
      * overlays' world_key export about each fresh press. A key held across ticks fires once.
      */
     public static void pollWorldKeys(Minecraft minecraft) {
-        if (minecraft.world == null) return;
-        boolean open = minecraft.screen == null;
+        // The state is recorded on every poll, with no world loaded too, so a key still held when a
+        // world loads is not taken for a fresh press; only the delivery waits for a world.
+        boolean open = minecraft.screen == null && minecraft.world != null;
         for (int code = '0'; code <= 'Z'; code++) {
             if (!GrugWorldKeys.tracked(code)) continue;
             int key = Keyboard.getKeyIndex(String.valueOf((char) code));
