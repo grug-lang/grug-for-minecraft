@@ -810,6 +810,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 && !world.isSolidBlock(bx, by + 1, bz);
     }
 
+    /** The mobs {@link #spawnMob} added, which the next room build removes with the items. */
+    private final java.util.List<Entity> spawnedMobs = new java.util.ArrayList<>();
+
     /** The game's category of a mod-facing name, in {@code GrugMobCap.CATEGORIES} order. */
     private static MobCategory mobCategory(String category) {
         return MobCategory.values()[GrugMobCap.indexOf(category)];
@@ -848,6 +851,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
         entity.setPositionAndAngles(x, y, z, 0.0F, 0.0F);
         world.addEntity(entity);
+        spawnedMobs.add(entity);
         return true;
     }
 
@@ -1344,6 +1348,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void clearItemEntities(
             Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
         World world = (World) levelObj;
+        for (Entity mob : spawnedMobs) {
+            mob.remove();
+            world.getChunk((int) Math.floor(mob.x), (int) Math.floor(mob.z)).removeEntity(mob);
+            world.entities.remove(mob);
+        }
+        spawnedMobs.clear();
         // The game's own box query, so the filtering is its branches and not ours: the six
         // comparisons this used to make are twelve branch outcomes, and the suite's few items only
         // ever exercise one side of each, which the coverage gate then reports as missed. It
