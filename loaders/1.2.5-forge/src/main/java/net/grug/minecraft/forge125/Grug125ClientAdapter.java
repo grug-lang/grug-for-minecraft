@@ -904,6 +904,14 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         return captureChecked("Screenshot.capture", x1, y1, x2, y2);
     }
 
+    @GrugGenerated("a joined client's own light sweep, which only the multiplayer job runs")
+    @Override
+    public void relightClientRoom(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        World world = ModLoader.getMinecraftInstance().theWorld;
+        net.grug.minecraft.core.GrugRelight.sweepUntilStable(
+                () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), 16);
+    }
+
     /**
      * The forwarded capture of the test-control channel (#1040), taken by a joined client on its
      * own tick with the window already checked against the screenshot size.
