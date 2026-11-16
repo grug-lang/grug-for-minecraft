@@ -1,0 +1,52 @@
+# Covers the mob cap overlay's corner lines through the loader's own HUD hook: K shows them, and the
+# golden holds the three labels. Only the labels are captured, because the numbers beside them are
+# the whole world's mob counts, which the game's own spawner changes between runs; the numbers are
+# checked against a known spawn by mods/coverage's mob_cap-Test. On a
+# loader with no world overlay hooks the test returns before it presses anything.
+started: bool = false
+pressed: bool = false
+settled_ticks: number = 0
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.world_overlay_supported() {
+            return
+        }
+        ctx.set_box_radius(6)
+        ctx.not_done()
+        return
+    }
+
+    waited = waited + 1
+    ctx.assert(waited < 1500, "The mob cap overlay test should finish.")
+
+    if not ctx.world_settled() {
+        settled_ticks = 0
+        ctx.not_done()
+        return
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+        return
+    }
+
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(75, false)
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.world_overlay_drawn() {
+        ctx.not_done()
+        return
+    }
+    ctx.screenshot().equals(r"screenshots/overlay_labels", 0, 0, 150, 110)
+
+    # The overlay is one entity for the whole run: K hides the lines again, or they would sit in
+    # every later test's captures.
+    ctx.press_world_key(75, false)
+}

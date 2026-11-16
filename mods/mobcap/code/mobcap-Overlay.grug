@@ -9,7 +9,14 @@
 
 digit_width: number = 6
 
+# The K key (75) shows and hides the lines, which start hidden: an overlay is one entity for the whole
+# run, so lines that were always on would sit in every other mod's captures.
+active: bool = false
+
 export render_hud(ctx: OverlayHudContext) {
+    if not active {
+        return
+    }
     level: Level = ctx.get_level()
     white: Color = Color.rgb(255, 255, 255)
     ctx.add_text("Hostile", 4, 4, white)
@@ -18,6 +25,12 @@ export render_hud(ctx: OverlayHudContext) {
     _numbers(ctx, level.count_mobs("passive"), level.get_mob_cap("passive"), 16, white)
     ctx.add_text("Water", 4, 28, white)
     _numbers(ctx, level.count_mobs("water"), level.get_mob_cap("water"), 28, white)
+}
+
+export world_key(ctx: OverlayWorldKeyContext) {
+    if ctx.key() == 75 {
+        active = not active
+    }
 }
 
 # Draws "count / cap" starting at the number column, on the line at y.
