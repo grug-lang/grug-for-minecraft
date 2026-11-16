@@ -54,6 +54,25 @@ class GrugServerJoinTest {
     }
 
     @Test
+    void aValueAboveIntRangeIsHonouredNotThrown() {
+        Map<String, String> env = new HashMap<>();
+        env.put("GRUG_CI", "true");
+        env.put("GRUG_CI_JOIN_TIMEOUT_MILLIS", "2148000000");
+
+        assertEquals(2_148_000_000L, timeout(env));
+    }
+
+    @Test
+    void aNonNumericOrOverflowingValueFallsBackToTheDefault() {
+        Map<String, String> env = new HashMap<>();
+        env.put("GRUG_CI", "true");
+        env.put("GRUG_CI_JOIN_TIMEOUT_MILLIS", "soon");
+        assertEquals(GrugServerJoin.DEFAULT_TIMEOUT_MILLIS, timeout(env));
+        env.put("GRUG_CI_JOIN_TIMEOUT_MILLIS", "99999999999999999999");
+        assertEquals(GrugServerJoin.DEFAULT_TIMEOUT_MILLIS, timeout(env));
+    }
+
+    @Test
     void theRealEnvironmentGivesAPositiveTimeout() {
         assertTrue(GrugServerJoin.timeoutMillis() > 0);
     }

@@ -31,8 +31,30 @@ public final class GrugServerJoin {
 
     /** The same, reading variables through {@code env}. */
     static long timeoutFrom(Function<String, String> env) {
-        int millis = GrugControlFaults.intFrom(env, "GRUG_CI_JOIN_TIMEOUT_MILLIS", 0);
-        return millis > 0 ? millis : DEFAULT_TIMEOUT_MILLIS;
+        if (!"true".equals(env.apply("GRUG_CI")) && env.apply("GRUG_CI_CONNECT") == null) {
+            return DEFAULT_TIMEOUT_MILLIS;
+        }
+        return parseMillis(env.apply("GRUG_CI_JOIN_TIMEOUT_MILLIS"));
+    }
+
+    /**
+     * The positive number of milliseconds in a value, or the default for a value that is null,
+     * blank, not a number, zero, negative or too large for a {@code long}. It never throws, because
+     * the loaders read it in a static initializer, where an exception would be an {@code
+     * ExceptionInInitializerError} that takes the server down. The value is parsed as a {@code
+     * long}, so the script's export for any realistic deadline (one above 2685 s overflows an
+     * {@code int}) is honoured as given rather than capped.
+     */
+    static long parseMillis(String value) {
+        if (value == null) {
+            return DEFAULT_TIMEOUT_MILLIS;
+        }
+        try {
+            long millis = Long.parseLong(value.trim());
+            return millis > 0 ? millis : DEFAULT_TIMEOUT_MILLIS;
+        } catch (NumberFormatException e) {
+            return DEFAULT_TIMEOUT_MILLIS;
+        }
     }
 
     /** Whether the wait that began at {@code waitStartMillis} has lasted the whole timeout. */
