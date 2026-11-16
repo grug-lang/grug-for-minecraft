@@ -2,6 +2,7 @@
 """Tests cancel-red.py: a proof dispatch is cancelled at its first non-exempt failed job (#1343)."""
 
 import importlib.util
+import re
 import unittest
 from pathlib import Path
 
@@ -44,6 +45,30 @@ class FailingJobTest(unittest.TestCase):
         ]
         self.assertEqual(cancel_red.failing_job(jobs, OWN, [r"^build \("])["name"], "core")
         self.assertIsNone(cancel_red.failing_job(jobs[:1], OWN, [r"^build \("]))
+
+
+class WorkflowExemptTest(unittest.TestCase):
+    """The exemptions build.yml really passes (#1385)."""
+
+    @staticmethod
+    def exempt():
+        text = (HERE.parent / "workflows" / "build.yml").read_text()
+        line = next(l for l in text.splitlines() if "cancel-red.py" in l and "--exempt" in l)
+        return re.findall(r"--exempt '([^']*)'", line)
+
+    def test_windows_boot_flake_does_not_cancel(self):
+        for name in ("1.20.6-forge (Windows)", "1.20.6-forge installed (Windows)"):
+            jobs = [job(name, conclusion="failure")]
+            self.assertIsNone(cancel_red.failing_job(jobs, OWN, self.exempt()), name)
+
+    def test_real_failures_still_cancel(self):
+        for name in ("adapter.dll (Windows)", "core", "1.20.6-forge", "1.7.10-forge dedicated"):
+            jobs = [job(name, conclusion="failure")]
+            self.assertIsNotNone(cancel_red.failing_job(jobs, OWN, self.exempt()), name)
+
+    def test_without_a_layer_stays_exempt(self):
+        jobs = [job("1.7.10-forge without a layer", conclusion="failure")]
+        self.assertIsNone(cancel_red.failing_job(jobs, OWN, self.exempt()))
 
 
 class AllDoneTest(unittest.TestCase):
