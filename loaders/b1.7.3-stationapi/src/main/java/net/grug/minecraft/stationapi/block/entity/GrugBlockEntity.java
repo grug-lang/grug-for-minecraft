@@ -209,6 +209,12 @@ public class GrugBlockEntity extends BlockEntity
         // the script wrote, so they never wait.
         GrugSavedDataSync.clientCopyCreated(this, world != null && world.isRemote);
         initGrug();
+        // A copy made again for a block this client already received data for starts from it, so
+        // it does not wait for an update the server sent to the copy that was dropped (#1354).
+        if (world != null && world.isRemote) {
+            NbtCompound last = GrugSavedDataPacket.lastApplied(x, y, z, world.getBlockId(x, y, z));
+            if (last != null) readSavedData(last);
+        }
     }
 
     /**
