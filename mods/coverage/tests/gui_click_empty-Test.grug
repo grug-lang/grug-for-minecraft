@@ -8,8 +8,7 @@
 # been told about it yet when the press predicts, and the assertion reads the server's menu, the one
 # the click is applied to and the one the runner's hold settles (#1196). That divergent state is
 # what the installed client was in when this failed, and three rounds make it every run rather than
-# a loaded runner's accident. The a1.1.2_01 server applies the clicks a client's screen sends and
-# forwards ctx.click_screen to the joined client, so it runs there too.
+# a loaded runner's accident. The a1.1.2_01 dedicated leg does not apply the click yet (#1393), so it lists this test.
 started: bool = false
 clicked: bool = false
 unchanged_checked: bool = false

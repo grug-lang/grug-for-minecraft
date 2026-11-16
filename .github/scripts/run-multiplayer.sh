@@ -749,9 +749,8 @@ while :; do
       a1.1.2_01-ornithe)
         # Its server has no recipe manager, so the two autocrafting-table tests stay unsupported
         # there (#1098): inserting into the table's grid asks for a recipe result the server
-        # cannot compute. The two container-click tests run since this server forwards
-        # Test.click_screen to the joined client.
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty"
+        # cannot compute. The two container-click tests stay unsupported there too (#1393).
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder"
         ;;
       *)
         gui_tests=""
