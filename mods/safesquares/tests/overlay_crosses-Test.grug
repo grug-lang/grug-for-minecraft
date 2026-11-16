@@ -1,8 +1,9 @@
 # Covers the overlay's two crosses in one capture: red where a hostile mob can spawn at any time
-# and yellow where one can spawn only at night. The test room's floor torches are replaced with
-# air, so the room is dark and every floor square is a spawn space with no block light, and one
-# block of the roof is opened, so the sky lights the floor under the hole and a few squares around
-# it (Beta spreads sky light one less per block) while the far side of the room gets none. Squares
+# and yellow where one can spawn only at night. A stone platform over the room at the player's
+# block hides the torch floor, so the platform's squares are dark spawn spaces with no block light,
+# and they are low in a level camera's view (the camera cannot be pitched), where the room's own
+# floor, four blocks lower, is below the frame. One block of the roof is opened, so the sky lights
+# the platform under the hole and a few squares around it (Beta spreads sky light one less per block) while the far side of the room gets none. Squares
 # under the hole are yellow (the sky lights them by day only), and the rest are red. The test reads
 # one square of each kind from the light the client holds and waits for both before it turns the
 # overlay on, so a capture that cannot hold both crosses fails here rather than as a golden that
@@ -31,8 +32,10 @@ export tick(ctx: TestTickContext) {
         # The origin is the camera plus 3, and the eye is 1.62 above the feet the room is built around.
         py: number = Math.floor(origin.y() - 4.12)
         pz: number = Math.floor(origin.z())
-        # The room's torches stand one above the floor, which is four below the player's feet.
-        fy = py - 3
+        # The squares are on a stone platform the test lays over the room at the block the player stands
+        # on, so they are 1.62 below the eye: the room's own floor is four blocks lower, which a level
+        # camera cannot see at this distance, and its torches would light them from below.
+        fy = py
         hx = px + 5
         hz = pz + 5
 
@@ -40,7 +43,7 @@ export tick(ctx: TestTickContext) {
         while x <= px + 6 {
             z: number = pz - 6
             while z <= pz + 6 {
-                level.place_block(x, fy, z, "minecraft:air")
+                level.place_block(x, fy - 1, z, "minecraft:stone")
                 z = z + 1
             }
             x = x + 1
@@ -61,19 +64,19 @@ export tick(ctx: TestTickContext) {
     if state == 1 {
         # Yellow under the hole, red on the far side of the room from it, both on a bare floor.
         ctx.assert(not (late and level.get_block_light(hx, fy, hz) != 0), "Wait 1: the square under the hole should lose its block light.")
-        ctx.assert(not (late and level.get_block_light(hx - 10, fy, hz - 4) != 0), "Wait 2: the far square should lose its block light.")
+        ctx.assert(not (late and level.get_block_light(hx - 10, fy, hz - 2) != 0), "Wait 2: the far square should lose its block light.")
         ctx.assert(not (late and level.get_sky_light(hx, fy, hz) <= 7), "Wait 3: the square under the hole should get sky light above 7.")
-        ctx.assert(not (late and level.get_sky_light(hx - 10, fy, hz - 4) > 7), "Wait 4: the far square should have sky light of at most 7.")
-        if level.get_block_light(hx, fy, hz) != 0 or level.get_block_light(hx - 10, fy, hz - 4) != 0 {
+        ctx.assert(not (late and level.get_sky_light(hx - 10, fy, hz - 2) > 7), "Wait 4: the far square should have sky light of at most 7.")
+        if level.get_block_light(hx, fy, hz) != 0 or level.get_block_light(hx - 10, fy, hz - 2) != 0 {
             ctx.not_done()
             return
         }
-        if level.get_sky_light(hx, fy, hz) <= 7 or level.get_sky_light(hx - 10, fy, hz - 4) > 7 {
+        if level.get_sky_light(hx, fy, hz) <= 7 or level.get_sky_light(hx - 10, fy, hz - 2) > 7 {
             ctx.not_done()
             return
         }
         ctx.assert(level.is_hostile_spawn_space(hx, fy, hz), "The square under the hole should be a spawn space.")
-        ctx.assert(level.is_hostile_spawn_space(hx - 10, fy, hz - 4), "The square far from the hole should be a spawn space.")
+        ctx.assert(level.is_hostile_spawn_space(hx - 10, fy, hz - 2), "The square far from the hole should be a spawn space.")
         state = 2
         ctx.not_done()
         return
@@ -102,7 +105,7 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    ctx.screenshot().equals(r"screenshots/overlay_crosses", 200, 260, 1080, 720)
+    ctx.screenshot().equals(r"screenshots/overlay_crosses", 100, 430, 1180, 640)
 
     # The overlay is one entity for the whole run: L turns it off again, or its crosses would sit in
     # every later test's captures.
