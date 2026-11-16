@@ -1,0 +1,103 @@
+# Covers the overlay's two crosses in one capture: red where a hostile mob can spawn at any time
+# and yellow where one can spawn only at night. The test room's floor torches are replaced with
+# air, so the room is dark and every floor square is a spawn space with no block light, and one
+# block of the roof is opened, so the sky lights the floor under the hole and a few squares around
+# it (Beta spreads sky light one less per block) while the far side of the room gets none. Squares
+# under the hole are yellow (the sky lights them by day only), and the rest are red. The test reads
+# one square of each kind from the light the client holds and waits for both before it turns the
+# overlay on, so a capture that cannot hold both crosses fails here rather than as a golden that
+# was accepted with only one. The golden is the position check: every cross in the crop is drawn
+# where the square is, from the camera, which looks towards +z, so the hole's side is on the left.
+# Beta stores sky light as at full day, so the reads and the capture do not change with the clock.
+state: number = 0
+waited: number = 0
+settled_ticks: number = 0
+fy: number = 0
+hx: number = 0
+hz: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    waited = waited + 1
+    ctx.assert(waited < 1500, "The overlay test should finish.")
+
+    if state == 0 {
+        if not me.world_overlay_supported() {
+            return
+        }
+        ctx.set_box_radius(6)
+        origin: Vec3 = ctx.get_origin()
+        px: number = Math.floor(origin.x())
+        py: number = Math.floor(origin.y())
+        pz: number = Math.floor(origin.z())
+        # The room's torches stand one above the floor, which is four below the player's feet.
+        fy = py - 3
+        hx = px + 5
+        hz = pz + 5
+
+        x: number = px - 6
+        while x <= px + 6 {
+            z: number = pz - 6
+            while z <= pz + 6 {
+                level.place_block(x, fy, z, "minecraft:air")
+                z = z + 1
+            }
+            x = x + 1
+        }
+
+        # The roof is the room's top layer, at py + 13; terrain over the hole would shade it, so the
+        # column over it is cleared too.
+        hy: number = py + 13
+        while hy <= py + 45 {
+            level.place_block(hx, hy, hz, "minecraft:air")
+            hy = hy + 1
+        }
+        state = 1
+        ctx.not_done()
+        return
+    }
+
+    if state == 1 {
+        # Yellow under the hole, red on the far side of the room from it, both on a bare floor.
+        if level.get_block_light(hx, fy, hz) != 0 or level.get_block_light(hx - 10, fy, hz - 4) != 0 {
+            ctx.not_done()
+            return
+        }
+        if level.get_sky_light(hx, fy, hz) <= 7 or level.get_sky_light(hx - 10, fy, hz - 4) > 7 {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(level.is_hostile_spawn_space(hx, fy, hz), "The square under the hole should be a spawn space.")
+        ctx.assert(level.is_hostile_spawn_space(hx - 10, fy, hz - 4), "The square far from the hole should be a spawn space.")
+        state = 2
+        ctx.not_done()
+        return
+    }
+
+    if state == 2 {
+        if not ctx.world_settled() {
+            settled_ticks = 0
+            ctx.not_done()
+            return
+        }
+        if settled_ticks < 5 {
+            settled_ticks = settled_ticks + 1
+            ctx.not_done()
+            return
+        }
+        ctx.press_world_key(76, false)
+        state = 3
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.world_overlay_drawn() {
+        ctx.not_done()
+        return
+    }
+    ctx.screenshot().equals(r"screenshots/overlay_crosses", 200, 260, 1080, 720)
+
+    # The overlay is one entity for the whole run: L turns it off again, or its crosses would sit in
+    # every later test's captures.
+    ctx.press_world_key(76, false)
+}
