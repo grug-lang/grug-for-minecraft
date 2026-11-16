@@ -678,6 +678,10 @@ while :; do
       1.2.5-forge)
         wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items"
         ;;
+      b1.7.3-stationapi)
+        # Proof 43821458574 (#1096, #1351) passed wooden_pipe_items here once #1360 dropped the stale entities.
+        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items"
+        ;;
       1.20.6-forge)
         wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
         ;;
