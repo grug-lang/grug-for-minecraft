@@ -685,6 +685,9 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated(
+            "the whole registry list only the server's give by name reads: only the multiplayer"
+                    + " job joins a client, and the listed list is the one a run counts")
     public int itemCount() {
         return itemsByName().size();
     }
