@@ -7,6 +7,7 @@ import cpw.mods.fml.server.FMLServerHandler;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.core.GrugServerJoin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.block.entity.GrugSavedDataPacket;
@@ -39,7 +40,7 @@ import java.util.List;
 @GrugGenerated("a dedicated server, whose coverage no CI run merges")
 public final class GrugServerRun implements ITickHandler {
     /** How long to wait for a client to join before failing the run. */
-    static final long PLAYER_JOIN_TIMEOUT_MILLIS = 240_000;
+    static final long PLAYER_JOIN_TIMEOUT_MILLIS = GrugServerJoin.timeoutMillis();
 
     private static final EnumSet<TickType> TICKS = EnumSet.of(TickType.GAME);
 
@@ -448,7 +449,8 @@ public final class GrugServerRun implements ITickHandler {
                 testPlayer = starter;
                 holdY = testPlayer.posY;
                 runner = new GrugTestRunner();
-            } else if (System.currentTimeMillis() - waitStartMillis >= PLAYER_JOIN_TIMEOUT_MILLIS) {
+            } else if (GrugServerJoin.timedOut(
+                    waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS)) {
                 System.out.println("[GRUG CI] FAIL world readiness");
                 System.out.println(
                         "[GRUG CI] No player joined the dedicated server within "

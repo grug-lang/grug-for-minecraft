@@ -127,6 +127,11 @@ if [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOAD
 fi
 export GRUG_CI_CONTROL_TIMEOUT_MILLIS=$CONTROL_TIMEOUT_MILLIS
 
+# The server gives up waiting for a client at four fifths of this script's own deadline (#1023), so
+# its "no player joined" failure is always reported before the generic timeout below can hide it.
+# GrugServerJoin holds the same fraction as its default and decides the timeout.
+export GRUG_CI_JOIN_TIMEOUT_MILLIS=$(( ${GRUG_CI_RUN_TIMEOUT:-300} * 800 ))
+
 gradle_args=(-Dgrug.activeLoader="$LOADER" --stacktrace --no-daemon)
 if [ -n "${GRUG_PREBUILT_GRUG_RS:-}" ]; then
   gradle_args+=(-Pgrug.prebuiltGrugRs="$GRUG_PREBUILT_GRUG_RS")
@@ -848,6 +853,16 @@ while :; do
       fi
       require_second_player
     fi
+    # The server stops itself right after the marker, which is what ends the process this script
+    # watches (#1023), so a server still up after the grace period is a run that did not end.
+    halt_deadline=$((SECONDS + ${GRUG_CI_HALT_TIMEOUT:-60}))
+    while kill -0 "$server_pid" 2>/dev/null; do
+      if [ "$SECONDS" -ge "$halt_deadline" ]; then
+        echo "==> The suite passed, but the dedicated server did not halt within ${GRUG_CI_HALT_TIMEOUT:-60}s." >&2
+        exit 1
+      fi
+      sleep 1
+    done
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0
   fi
