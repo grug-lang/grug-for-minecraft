@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugServerJoin;
+import net.grug.minecraft.core.GrugStarterPlacement;
 import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
@@ -57,8 +58,8 @@ public final class GrugServerRun {
     private static final double START_FEET_Y = 64.0;
     private static final double START_Z = 148.5;
 
-    /** Whether the joined player has been placed at the start above. */
-    private static boolean placedAtStart = false;
+    /** Remembers the starter placed at the start above, so each new starter is placed once. */
+    private static final GrugStarterPlacement STARTER_PLACEMENT = new GrugStarterPlacement();
 
     /**
      * The feet height the run started at, which the hold puts the player back on. It is {@code y}
@@ -199,8 +200,7 @@ public final class GrugServerRun {
             Object testPlayer = GrugCore.getAdapter().testPlayer();
             if (testPlayer instanceof PlayerEntity) {
                 holdOnFloor((PlayerEntity) testPlayer);
-                if (!placedAtStart && GrugControlAlpha.server().hasStarter()) {
-                    placedAtStart = true;
+                if (STARTER_PLACEMENT.shouldPlace(GrugControlAlpha.server().starter())) {
                     moveTo((PlayerEntity) testPlayer, START_FEET_Y, START_X, START_Z, 0.0F, 0.0F);
                     System.out.println(
                             "[GRUG CI] placed the test player at the save's start "

@@ -8,6 +8,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugServerJoin;
+import net.grug.minecraft.core.GrugStarterPlacement;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.block.entity.GrugSavedDataPacket;
@@ -65,8 +66,8 @@ public final class GrugServerRun implements ITickHandler {
     private static final double START_FEET_Y = 70.0;
     private static final double START_Z = 24.5;
 
-    /** Whether the joined player has been placed at the start above. */
-    private static boolean placedAtStart = false;
+    /** Remembers the starter placed at the start above, so each new starter is placed once. */
+    private static final GrugStarterPlacement STARTER_PLACEMENT = new GrugStarterPlacement();
 
     private static double holdY = 0;
     private static int healedHealth = 0;
@@ -418,8 +419,7 @@ public final class GrugServerRun implements ITickHandler {
             EntityPlayerMP starter = GrugControlServer125.starterPlayer();
             if (starter != null) {
                 holdOnFloor(starter);
-                if (!placedAtStart && GrugControlServer125.server().hasStarter()) {
-                    placedAtStart = true;
+                if (STARTER_PLACEMENT.shouldPlace(GrugControlServer125.server().starter())) {
                     // The teleport takes the entity position, so the move is the feet's difference.
                     starter.playerNetServerHandler.teleportTo(
                             START_X,
