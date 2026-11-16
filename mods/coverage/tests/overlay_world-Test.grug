@@ -39,6 +39,8 @@ export tick(ctx: TestTickContext) {
 
     if not pressed {
         pressed = true
+        # M is not the overlay's key, so it changes nothing; L then turns the cross on.
+        ctx.press_world_key(77, false)
         ctx.press_world_key(76, false)
         ctx.not_done()
         return
@@ -53,9 +55,9 @@ export tick(ctx: TestTickContext) {
     ctx.screenshot().equals(r"screenshots/overlay_world_cross", 480, 200, 800, 520)
     ctx.screenshot().equals(r"screenshots/overlay_world_text", 0, 280, 300, 360)
 
-    # The overlay is one entity for the whole run, so a second press turns the cross and the text
-    # off again; left on, they would sit in every later test's captures.
-    ctx.press_world_key(76, false)
+    # The overlay is one entity for the whole run, so Control and L turns the cross and the text off
+    # again; left on, they would sit in every later test's captures.
+    ctx.press_world_key(76, true)
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), as coverage_frame's wall is.
