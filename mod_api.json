@@ -2302,7 +2302,7 @@
 					}
 				},
 				"draw_line": {
-					"description": "Draws one straight line, two pixels wide, between two positions in the world, in blocks, in the color. The line is a plain colored line that no texture or light changes, and blocks nearer than it hide it as they hide anything else. A line is how a mod marks a position without a block there: crossing diagonals mark a block's top face, and a ring is a loop of short lines. The endpoints have to be finite, or they are reported and the line is not drawn. Only legal on the context render_world() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Draws one straight line between two positions in the world, in blocks, in the color. It is a thin line: two pixels wide on the older versions and the game's own line width on 1.20.6, which is 2.5 pixels in a window up to 1920 pixels wide and grows with a wider one. The line is a plain colored line that no texture or light changes, and blocks nearer than it hide it as they hide anything else. A line is how a mod marks a position without a block there: crossing diagonals mark a block's top face, and a ring is a loop of short lines. The endpoints have to be finite, or they are reported and the line is not drawn. Only legal on the context render_world() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "x1",
