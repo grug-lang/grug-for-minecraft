@@ -35,22 +35,28 @@ class GrugItemListTest {
         assertSame(filtered, GrugItemList.listedFor(false, all, filtered));
     }
 
+    private static final java.util.function.BooleanSupplier YES = () -> true;
+    private static final java.util.function.BooleanSupplier NO = () -> false;
+    private static final java.util.function.BooleanSupplier NEVER =
+            () -> {
+                throw new AssertionError("must not be asked");
+            };
+
     @Test
     void theGameAndTheHostsOperatorListBothHaveToAgreeWhereTheListIsHeld() {
-        assertTrue(GrugItemList.mayUseOperatorItems(true, true, () -> true));
-        assertFalse(GrugItemList.mayUseOperatorItems(true, true, () -> false));
-        assertFalse(GrugItemList.mayUseOperatorItems(false, true, () -> true));
-        assertFalse(GrugItemList.mayUseOperatorItems(false, false, () -> true));
+        assertTrue(GrugItemList.mayUseOperatorItems(true, YES, true, YES));
+        assertFalse(GrugItemList.mayUseOperatorItems(true, YES, true, NO));
+        assertFalse(GrugItemList.mayUseOperatorItems(true, NO, true, NEVER));
     }
 
     @Test
     void aJoinedClientAsksOnlyTheGameAndNeverTheList() {
-        assertTrue(
-                GrugItemList.mayUseOperatorItems(
-                        true,
-                        false,
-                        () -> {
-                            throw new AssertionError("a joined client holds no operator list");
-                        }));
+        assertTrue(GrugItemList.mayUseOperatorItems(true, YES, false, NEVER));
+        assertFalse(GrugItemList.mayUseOperatorItems(true, NO, false, NEVER));
+    }
+
+    @Test
+    void noPlayerMeansNoOperatorItemsAndNothingIsAsked() {
+        assertFalse(GrugItemList.mayUseOperatorItems(false, NEVER, true, NEVER));
     }
 }

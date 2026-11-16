@@ -2720,14 +2720,14 @@ public class HostFunctions {
     public static long item_at(double index) {
         String problem = itemIndexProblem(index);
         if (problem == null) {
-            problem = itemAtIndexProblem((int) index, GrugCore.getAdapter().itemCount());
+            problem = itemAtIndexProblem((int) index, GrugCore.getAdapter().listedItemCount());
         }
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
             return 0;
         }
 
-        Object item = GrugCore.getAdapter().itemByIndex((int) index);
+        Object item = GrugCore.getAdapter().listedItemByIndex((int) index);
         if (item == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -2772,7 +2772,7 @@ public class HostFunctions {
     /** How many items the host lists, or a refusal for a loader that has no list to enumerate. */
     @GrugGenerated("reads the adapter's item list: a unit test has no game")
     public static double item_count() {
-        int count = GrugCore.getAdapter().itemCount();
+        int count = GrugCore.getAdapter().listedItemCount();
         if (itemListMissing(count)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "item_count: This loader has no item list to enumerate.");
