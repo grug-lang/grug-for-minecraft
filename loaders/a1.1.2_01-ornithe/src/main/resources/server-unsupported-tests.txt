@@ -33,6 +33,10 @@ coverage/tests/take_crafting_result_empty-Test.grug
 coverage/tests/take_crafting_result_on_a_chest-Test.grug
 coverage/tests/update_recipe_output_on_a_chest-Test.grug
 #
+# The container clicks. Proof run 43939781490 failed gui_click on this leg at its assertion that the click put the diamond in the grid's first slot; the cause is not found (#1393), and gui_click_empty comes after it unmeasured.
+coverage/tests/gui_click-Test.grug
+coverage/tests/gui_click_empty-Test.grug
+#
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
 # client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
 # block, so this server cannot open one. 1.2.5's interaction manager and 1.20.6's game mode

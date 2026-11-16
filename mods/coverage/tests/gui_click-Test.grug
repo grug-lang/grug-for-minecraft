@@ -10,8 +10,7 @@
 # The cursor carries a diamond here, so on 1.20.6 the press only starts a drag and the release is
 # what sends the click packet: this test proves the release half, and the diamond landing in the
 # grid proves the click was applied. gui_click_empty proves the other half, the press path an empty
-# cursor takes. The a1.1.2_01 server applies the clicks a client's screen sends and forwards
-# ctx.click_screen to the joined client, so it runs there too.
+# cursor takes. The a1.1.2_01 dedicated leg does not apply the click yet (#1393), so it lists this test.
 started: bool = false
 clicked: bool = false
 
