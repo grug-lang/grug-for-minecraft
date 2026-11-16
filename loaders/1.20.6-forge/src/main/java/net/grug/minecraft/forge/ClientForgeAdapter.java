@@ -104,6 +104,15 @@ public class ClientForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * The creative operator tab's own rule: its items are listed to a player in creative mode with
+     * permission level 2 or more (#892), which is what the reference JEI's list is built from.
+     */
+    @Override
+    protected boolean mayUseOperatorItems() {
+        return Minecraft.getInstance().player.canUseGameMasterBlocks();
+    }
+
+    /**
      * Runs the world and the client's tick faster than real time, together.
      *
      * <p>Two clocks keep time here, and both are moved. The integrated server ticks the world, the
