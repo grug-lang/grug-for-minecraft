@@ -513,6 +513,30 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * Opens the player's own inventory on the client of the player who started the run, whose own
+     * inventory it is (#1094). Alpha's own inventory screen is the client's alone, so the only menu
+     * this server can hold is a block entity's, and it is closed first so both sides are on the
+     * player's inventory.
+     */
+    @Override
+    public void openInventory(Object playerObj) {
+        if (playerObj instanceof PlayerEntity) {
+            closeMenu((PlayerEntity) playerObj);
+        }
+        screens.openInventory();
+    }
+
+    /**
+     * Clicked on the client's screen, by the client of the player who started the run (#1094). The
+     * press happens on the client and a block entity's menu click it sends is applied here by
+     * {@link #clickFromClient} on a later tick, never inside this call.
+     */
+    @Override
+    public boolean clickScreen(double x, double y, double button) {
+        return screens.clickScreen(x, y, (int) button);
+    }
+
+    /**
      * Closes this server's menu and the joined client's screen (#1094, #1098): Alpha's client
      * closes with Escape alone and sends this server nothing, so the menu is closed here as well,
      * which drops its carried stack where the player stands. A screen a test opened otherwise
