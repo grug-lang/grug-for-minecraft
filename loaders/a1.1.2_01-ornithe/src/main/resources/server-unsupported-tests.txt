@@ -51,7 +51,7 @@ jei/tests/item_list_forced_normalization-Test.grug
 # The overlay's click and the cursor it deletes. An overlay's click export runs on the joined
 # client, so its carried_item read and delete_carried_item call touch the client's copy of the
 # cursor while the test sets and reads the server's, and no client-to-server cursor write exists
-# yet (#882). These two stay out on every leg, this one included.
+# yet (#1389). These two stay out on every leg, this one included.
 coverage/tests/overlay-Test.grug
 jei/tests/jei-Test.grug
 #
