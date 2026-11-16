@@ -8,10 +8,8 @@
 # been told about it yet when the press predicts, and the assertion reads the server's menu, the one
 # the click is applied to and the one the runner's hold settles (#1196). That divergent state is
 # what the installed client was in when this failed, and three rounds make it every run rather than
-# a loaded runner's accident. The a1.1.2_01 server now applies the clicks a client's screen sends,
-# but ctx.click_screen, the call that presses on a screen, still refuses there, because that
-# screen is the joined client's own and carrying the press to it is the later dispatch that carries
-# #1094 PR2, so the test stays unsupported on that server.
+# a loaded runner's accident. The a1.1.2_01 server applies the clicks a client's screen sends and
+# forwards ctx.click_screen to the joined client, so it runs there too.
 started: bool = false
 clicked: bool = false
 unchanged_checked: bool = false
