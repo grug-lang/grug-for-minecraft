@@ -103,7 +103,9 @@ export render_hud(ctx: OverlayHudContext) {
 # centred on the camera, in red, like the crosses SafeSquares draws on a safe square. Drawn only
 # while the cross is on.
 export render_world(ctx: OverlayWorldContext) {
-    if cross_on and ctx.partial_tick() >= 0 {
+    # The frame's level, which is a world with a clock that never runs backwards: that is all the
+    # read here asks of it, and the light overlay mod reads its light and spawn spaces from it.
+    if cross_on and ctx.partial_tick() >= 0 and ctx.get_level().get_time() >= 0 {
         x: number = ctx.camera_x()
         y: number = ctx.camera_y()
         z: number = ctx.camera_z() + 4

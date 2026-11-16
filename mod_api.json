@@ -1762,6 +1762,58 @@
 						}
 					]
 				},
+				"get_block_light": {
+					"description": "The light level, from 0 to 15, that the blocks around the specified coordinates give the space there (torches, lava, glowstone and the like), without the sky's light. This is the game's stored block light, so it does not change with the time of day.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_sky_light": {
+					"description": "The light level, from 0 to 15, that the sky gives the space at the specified coordinates as if it were full day: 15 under open sky and less under cover. This is the game's stored sky light, so it does not change with the time of day or the weather.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"get_time": {
 					"description": "The world's time in ticks, which keeps counting up. In a test, the ticks TestTickContext.tick_block_entity has run are added to it, because they pass within one game tick.",
 					"return_type": {
@@ -1796,6 +1848,32 @@
 				},
 				"is_air": {
 					"description": "Whether the block at the specified coordinates is air.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"is_hostile_spawn_space": {
+					"description": "Whether the space at the specified coordinates passes the game's own ground check for a hostile mob to spawn there, which does not look at light: the block below is solid, and the space itself and the one above it are not solid and the space is not liquid. A mob's spawn also needs the light and the game's other rules, so this is where a mob may stand, not where one will appear.",
 					"return_type": {
 						"name": "bool"
 					},
@@ -2347,6 +2425,12 @@
 							}
 						}
 					]
+				},
+				"get_level": {
+					"description": "The Level the frame is drawn in: the world the game simulates, the same one on every loader and the one TestTickContext.get_client_level returns. It lets an overlay read the world around the camera to decide what to draw. Reports an error and answers no Level when there is no world yet.",
+					"return_type": {
+						"name": "Level"
+					}
 				},
 				"partial_tick": {
 					"description": "How much of the current tick has already elapsed, from 0 up to but not including 1, for this frame, the number the camera position is interpolated with.",

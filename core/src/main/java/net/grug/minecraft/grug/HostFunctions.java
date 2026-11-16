@@ -70,17 +70,18 @@ public class HostFunctions {
 
     public static long TestTickContext_get_client_level(long contextId) {
         if (!requireTickContext("TestTickContext.get_client_level", contextId)) return 0;
-        return addLevel(GrugCore.getAdapter().getLevel());
+        return addLevel("TestTickContext.get_client_level", GrugCore.getAdapter().getLevel());
     }
 
-    private static long addLevel(Object level) {
+    private static long addLevel(String method, Object level) {
         if (level == null) {
             // Which side it is matters to whoever reads this: a client has a world the moment one
             // is loaded, and a dedicated server has its level from the moment it starts, so an
             // empty one means a server with no world yet.
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "TestTickContext.get_client_level: There is no level to test in on "
+                    method
+                            + ": There is no level to test in on "
                             + GrugCore.getAdapter().getSide().description()
                             + " yet.");
             return 0;
@@ -2115,6 +2116,33 @@ public class HostFunctions {
                 false);
     }
 
+    public static double Level_get_block_light(long levelId, double x, double y, double z) {
+        return withEntity(
+                "Level.get_block_light",
+                "level",
+                levelId,
+                level -> (double) GrugCore.getAdapter().getBlockLight(level, x, y, z),
+                0.0);
+    }
+
+    public static double Level_get_sky_light(long levelId, double x, double y, double z) {
+        return withEntity(
+                "Level.get_sky_light",
+                "level",
+                levelId,
+                level -> (double) GrugCore.getAdapter().getSkyLight(level, x, y, z),
+                0.0);
+    }
+
+    public static boolean Level_is_hostile_spawn_space(long levelId, double x, double y, double z) {
+        return withEntity(
+                "Level.is_hostile_spawn_space",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().isHostileSpawnSpace(level, x, y, z),
+                false);
+    }
+
     public static double Level_count_item_entities(
             long levelId, double x, double y, double z, double radius) {
         return withEntity(
@@ -3436,6 +3464,11 @@ public class HostFunctions {
                 "color",
                 colorId,
                 color -> GrugWorldOverlay.recordText(text, x, y, ((Color) color).getRGB()));
+    }
+
+    public static long OverlayWorldContext_get_level(long contextId) {
+        if (!requireWorldContext("OverlayWorldContext.get_level", contextId)) return 0;
+        return addLevel("OverlayWorldContext.get_level", GrugCore.getAdapter().getLevel());
     }
 
     public static double OverlayWorldContext_partial_tick(long contextId) {
