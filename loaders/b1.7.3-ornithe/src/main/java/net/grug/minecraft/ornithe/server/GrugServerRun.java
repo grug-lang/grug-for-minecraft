@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugServerJoin;
+import net.grug.minecraft.core.GrugStarterPlacement;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -57,8 +58,8 @@ public final class GrugServerRun {
     private static final double START_FEET_Y = 70.0;
     private static final double START_Z = -63.5;
 
-    /** Whether the joined player has been placed at the start above. */
-    private static boolean placedAtStart = false;
+    /** Remembers the starter placed at the start above, so each new starter is placed once. */
+    private static final GrugStarterPlacement STARTER_PLACEMENT = new GrugStarterPlacement();
 
     private static int gameSpeed = 1;
 
@@ -228,9 +229,7 @@ public final class GrugServerRun {
                 holdPlayer(waiting);
             }
             if (waiting instanceof ServerPlayerEntity
-                    && !placedAtStart
-                    && GrugControlBeta.server().hasStarter()) {
-                placedAtStart = true;
+                    && STARTER_PLACEMENT.shouldPlace(GrugControlBeta.server().starter())) {
                 ServerPlayerEntity placed = (ServerPlayerEntity) waiting;
                 placed.networkHandler.teleport(START_X, START_FEET_Y, START_Z, 0.0F, 0.0F);
                 placed.velocityY = 0.0;
