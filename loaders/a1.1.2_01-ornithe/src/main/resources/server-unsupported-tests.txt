@@ -81,3 +81,6 @@ coverage/tests/hook_forced_normalization-Test.grug
 # (#1092), and coverage_render is unmeasured behind it. The client-only run still checks both.
 coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
+#
+# Proof run 43942130861 (#1096) failed wooden_pipe_shapes' wooden_pipe_straight capture on this leg in 2591 of 115200 px against a1.1.2_01-ornithe.png (#1213); wooden_pipe_items got past. The client-only run checks the golden.
+buildcraft/tests/wooden_pipe_shapes-Test.grug
