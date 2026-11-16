@@ -414,6 +414,33 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * The number of living entities in the level that the game's spawner counts toward the cap of
+     * the category, one of {@code GrugMobCap.CATEGORIES} (#1252).
+     */
+    @GrugGenerated("no mob count: a loader that has not added it keeps this default")
+    default int countMobs(Object levelObj, String category) {
+        throw Grug.fatal("Level.count_mobs is not supported on this loader");
+    }
+
+    /**
+     * The cap of the category as the game's spawner computes it for the level's players right now
+     * (#1252).
+     */
+    @GrugGenerated("no mob cap: a loader that has not added it keeps this default")
+    default int getMobCap(Object levelObj, String category) {
+        throw Grug.fatal("Level.get_mob_cap is not supported on this loader");
+    }
+
+    /**
+     * Creates a mob by its saved id (the id the game writes in a world save, such as {@code Pig})
+     * at the position and adds it to the level, answering whether the id names a mob (#1252).
+     */
+    @GrugGenerated("no mob spawn: a loader that has not added it keeps this default")
+    default boolean spawnMob(Object levelObj, String id, double x, double y, double z) {
+        throw Grug.fatal("TestTickContext.spawn_mob is not supported on this loader");
+    }
+
+    /**
      * Whether the block at the position is the one {@link #placeBlock} would put there for {@code
      * blockName}, ignoring its state. The room build leaves a room that is already whole in place
      * when every one of its blocks answers true, and rebuilds it otherwise, so a loader whose block

@@ -2143,6 +2143,61 @@ public class HostFunctions {
                 false);
     }
 
+    public static double Level_count_mobs(long levelId, String category) {
+        if (rejectMobCategory("Level.count_mobs", category)) return 0.0;
+        return withEntity(
+                "Level.count_mobs",
+                "level",
+                levelId,
+                level -> (double) GrugCore.getAdapter().countMobs(level, category),
+                0.0);
+    }
+
+    public static double Level_get_mob_cap(long levelId, String category) {
+        if (rejectMobCategory("Level.get_mob_cap", category)) return 0.0;
+        return withEntity(
+                "Level.get_mob_cap",
+                "level",
+                levelId,
+                level -> (double) GrugCore.getAdapter().getMobCap(level, category),
+                0.0);
+    }
+
+    /** Reports a category that is not one of the three and answers whether it refused it. */
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    private static boolean rejectMobCategory(String method, String category) {
+        if (GrugMobCap.indexOf(category) >= 0) {
+            return false;
+        }
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                method
+                        + ": The category has to be one of "
+                        + String.join(", ", GrugMobCap.CATEGORIES)
+                        + ", and was \""
+                        + category
+                        + "\".");
+        return true;
+    }
+
+    public static void TestTickContext_spawn_mob(
+            long contextId, long levelId, String id, double x, double y, double z) {
+        if (!requireTickContext("TestTickContext.spawn_mob", contextId)) return;
+        withEntity(
+                "TestTickContext.spawn_mob",
+                "level",
+                levelId,
+                level -> spawnMobOrReport(level, id, x, y, z));
+    }
+
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    private static void spawnMobOrReport(Object level, String id, double x, double y, double z) {
+        if (!GrugCore.getAdapter().spawnMob(level, id, x, y, z)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "TestTickContext.spawn_mob: \"" + id + "\" is not a mob id.");
+        }
+    }
+
     public static double Level_count_item_entities(
             long levelId, double x, double y, double z, double radius) {
         return withEntity(
@@ -3464,6 +3519,11 @@ public class HostFunctions {
                 "color",
                 colorId,
                 color -> GrugWorldOverlay.recordText(text, x, y, ((Color) color).getRGB()));
+    }
+
+    public static long OverlayHudContext_get_level(long contextId) {
+        if (!requireHudContext("OverlayHudContext.get_level", contextId)) return 0;
+        return addLevel("OverlayHudContext.get_level", GrugCore.getAdapter().getLevel());
     }
 
     public static long OverlayWorldContext_get_level(long contextId) {

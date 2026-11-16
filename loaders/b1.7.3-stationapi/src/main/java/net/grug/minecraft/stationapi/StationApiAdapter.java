@@ -22,6 +22,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
@@ -46,7 +47,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.chunk.ChunkBuilder;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityRegistry;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.MobEntity;
+import net.minecraft.entity.SpawnGroup;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
@@ -54,6 +58,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.CraftingRecipeManager;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
@@ -1222,6 +1227,47 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 && !world.shouldSuffocate(bx, by, bz)
                 && !world.getMaterial(bx, by, bz).isFluid()
                 && !world.shouldSuffocate(bx, by + 1, bz);
+    }
+
+    /** The game's category of a mod-facing name, in {@code GrugMobCap.CATEGORIES} order. */
+    private static SpawnGroup spawnGroup(String category) {
+        return SpawnGroup.values()[GrugMobCap.indexOf(category)];
+    }
+
+    /** {@code World.countEntities} of the category's class, which is what the spawner counts. */
+    @Override
+    public int countMobs(Object levelObj, String category) {
+        return ((World) levelObj).countEntities(spawnGroup(category).getCreatureClass());
+    }
+
+    /**
+     * {@code getCapacity() * mobSpawningChunks.size() / 256}, the spawner's own bound: its chunk
+     * set is every chunk within 8 of a player's chunk.
+     */
+    @Override
+    public int getMobCap(Object levelObj, String category) {
+        World world = (World) levelObj;
+        int n = world.players.size();
+        int[] xs = new int[n];
+        int[] zs = new int[n];
+        for (int i = 0; i < n; i++) {
+            PlayerEntity player = (PlayerEntity) world.players.get(i);
+            xs[i] = MathHelper.floor(player.x / 16.0);
+            zs[i] = MathHelper.floor(player.z / 16.0);
+        }
+        return GrugMobCap.cap(GrugMobCap.indexOf(category), GrugMobCap.eligibleChunks(xs, zs));
+    }
+
+    @Override
+    public boolean spawnMob(Object levelObj, String id, double x, double y, double z) {
+        World world = (World) levelObj;
+        Entity entity = EntityRegistry.create(id, world);
+        if (!(entity instanceof MobEntity)) {
+            return false;
+        }
+        entity.setPositionAndAngles(x, y, z, 0.0F, 0.0F);
+        world.spawnEntity(entity);
+        return true;
     }
 
     @Override

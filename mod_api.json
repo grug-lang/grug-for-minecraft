@@ -1639,6 +1639,20 @@
 						}
 					]
 				},
+				"count_mobs": {
+					"description": "The number of living mobs in the world that the game's own spawner counts toward the cap of the category: every entity of the category's class, wherever it is in the world and however far from the player, which is also what the game compares with the cap before it lets that category spawn. The category is one of \"hostile\" (monsters), \"passive\" (animals) or \"water\" (squids). Reports an error and answers 0 for any other name.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "category",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"explode": {
 					"description": "Creates an explosion at the given coordinates with the given power, which destroys blocks and damages entities as the game's own explosions do.",
 					"parameters": [
@@ -1784,6 +1798,20 @@
 							"name": "z",
 							"type": {
 								"name": "number"
+							}
+						}
+					]
+				},
+				"get_mob_cap": {
+					"description": "The cap of the category as the game's own spawner works it out right now, so the world may spawn more of the category only while Level.count_mobs is at most this number. It is the category's base cap (70 for \"hostile\", 15 for \"passive\", 5 for \"water\") times the number of chunks within 8 chunks of any player, divided by 256, rounded down, so one player alone gives 79, 16 and 5. The category is one of \"hostile\", \"passive\" or \"water\". Reports an error and answers 0 for any other name.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "category",
+							"type": {
+								"name": "string"
 							}
 						}
 					]
@@ -2156,6 +2184,12 @@
 							}
 						}
 					]
+				},
+				"get_level": {
+					"description": "The Level the frame is drawn in: the world the game simulates, the same one on every loader and the one TestTickContext.get_client_level returns. It lets an overlay read the world to decide what text to draw. Reports an error and answers no Level when there is no world yet.",
+					"return_type": {
+						"name": "Level"
+					}
 				},
 				"screen_height": {
 					"description": "The height of the frame in scaled GUI pixels, the number a text's y is measured in, so a mod can put a text at the bottom of the screen on any window size and GUI scale.",
@@ -3701,6 +3735,41 @@
 						},
 						{
 							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"spawn_mob": {
+					"description": "Test only: creates the mob the saved id names (the id the game writes in a world save: \"Zombie\", \"Creeper\", \"Pig\", \"Squid\" and the like) at the specified coordinates in the Level and adds it to the world, as the game's own spawner does after it passes its checks. It does not check that the spawner would allow the mob there, and it adds whatever the id names; an id that is not a mob reports an error. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "id",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
 							"type": {
 								"name": "number"
 							}

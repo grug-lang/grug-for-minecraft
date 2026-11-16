@@ -1,0 +1,69 @@
+# Mob cap for Beta 1.7.3: three lines in the top left corner of the screen, one per spawn category
+# of the game's own spawner, each the number of living mobs the game counts toward the cap against
+# the cap itself, such as "Hostile 41 / 70". The game lets a category spawn only while its count is
+# at most its cap, so a mob farm designer sees a category that is full, and so no longer spawning,
+# at a glance (#1252). Level.get_mob_cap is the spawner's own bound, which grows with the number of
+# chunks around the player: one player alone gives 79 hostile, 16 passive and 5 water. grug has no
+# way to turn a number into text, so each digit is drawn as its own one character text at the
+# width the default font gives a digit, 6 GUI pixels.
+
+digit_width: number = 6
+
+export render_hud(ctx: OverlayHudContext) {
+    level: Level = ctx.get_level()
+    white: Color = Color.rgb(255, 255, 255)
+    ctx.add_text("Hostile", 4, 4, white)
+    _numbers(ctx, level.count_mobs("hostile"), level.get_mob_cap("hostile"), 4, white)
+    ctx.add_text("Passive", 4, 16, white)
+    _numbers(ctx, level.count_mobs("passive"), level.get_mob_cap("passive"), 16, white)
+    ctx.add_text("Water", 4, 28, white)
+    _numbers(ctx, level.count_mobs("water"), level.get_mob_cap("water"), 28, white)
+}
+
+# Draws "count / cap" starting at the number column, on the line at y.
+local _numbers(ctx: OverlayHudContext, count: number, cap: number, y: number, color: Color) {
+    x: number = 52
+    x = x + _number(ctx, count, x, y, color)
+    ctx.add_text("/", x + digit_width, y, color)
+    _number(ctx, cap, x + 3 * digit_width, y, color)
+}
+
+# Draws a whole number of up to three digits at x without leading zeros, and answers the width it
+# took.
+local _number(ctx: OverlayHudContext, value: number, x: number, y: number, color: Color) number {
+    width: number = 0
+    if value >= 100 {
+        _digit(ctx, Math.floor(value / 100), x, y, color)
+        width = width + digit_width
+    }
+    if value >= 10 {
+        _digit(ctx, Math.remainder(Math.floor(value / 10), 10), x + width, y, color)
+        width = width + digit_width
+    }
+    _digit(ctx, Math.remainder(value, 10), x + width, y, color)
+    return width + digit_width
+}
+
+local _digit(ctx: OverlayHudContext, digit: number, x: number, y: number, color: Color) {
+    if digit == 0 {
+        ctx.add_text("0", x, y, color)
+    } else if digit == 1 {
+        ctx.add_text("1", x, y, color)
+    } else if digit == 2 {
+        ctx.add_text("2", x, y, color)
+    } else if digit == 3 {
+        ctx.add_text("3", x, y, color)
+    } else if digit == 4 {
+        ctx.add_text("4", x, y, color)
+    } else if digit == 5 {
+        ctx.add_text("5", x, y, color)
+    } else if digit == 6 {
+        ctx.add_text("6", x, y, color)
+    } else if digit == 7 {
+        ctx.add_text("7", x, y, color)
+    } else if digit == 8 {
+        ctx.add_text("8", x, y, color)
+    } else {
+        ctx.add_text("9", x, y, color)
+    }
+}
