@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 
 import net.grug.minecraft.core.GrugCaptureWait;
+import net.grug.minecraft.core.GrugItemList;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
@@ -105,11 +106,17 @@ public class ClientForgeAdapter extends ForgeAdapter {
 
     /**
      * The creative operator tab's own rule: its items are listed to a player in creative mode with
-     * permission level 2 or more (#892), which is what the reference JEI's list is built from.
+     * permission level 2 or more (#892), which is what the reference JEI's list is built from. In
+     * singleplayer the host's operator status must agree too: the owner's game permission does not
+     * change when a script revokes the status, so the game's answer alone never hides the items.
      */
     @Override
     protected boolean mayUseOperatorItems() {
-        return Minecraft.getInstance().player.canUseGameMasterBlocks();
+        net.minecraft.client.player.LocalPlayer player = Minecraft.getInstance().player;
+        return GrugItemList.mayUseOperatorItems(
+                player.canUseGameMasterBlocks(),
+                Minecraft.getInstance().getSingleplayerServer() != null,
+                () -> isOperator(player));
     }
 
     /**
