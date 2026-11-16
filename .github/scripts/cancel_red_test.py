@@ -53,7 +53,7 @@ class WorkflowExemptTest(unittest.TestCase):
     @staticmethod
     def exempt():
         text = (HERE.parent / "workflows" / "build.yml").read_text()
-        line = next(l for l in text.splitlines() if "cancel-red.py" in l and "--exempt" in l)
+        line = next(ln for ln in text.splitlines() if "cancel-red.py" in ln and "--exempt" in ln)
         return re.findall(r"--exempt '([^']*)'", line)
 
     def test_windows_boot_flake_does_not_cancel(self):
