@@ -6,6 +6,7 @@ import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugGiveCalls;
+import net.grug.minecraft.core.GrugItemList;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOperatorStatus;
 import net.grug.minecraft.core.GrugRenderSettle;
@@ -602,6 +603,35 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
      */
     private List<Item> itemsByNameCache;
 
+    /** The list without the operator tab's items, built with {@link #itemsByNameCache}. */
+    private List<Item> itemsByNameWithoutOperatorCache;
+
+    /**
+     * The items only the creative operator tab lists (#892): JEI shows them to a player who may use
+     * game master blocks and to nobody else. The tab also lists presets of paintings and the light
+     * block's levels, which are stacks of items listed here once.
+     */
+    private static final java.util.Set<Item> OPERATOR_ONLY_ITEMS =
+            java.util.Set.of(
+                    Items.COMMAND_BLOCK,
+                    Items.CHAIN_COMMAND_BLOCK,
+                    Items.REPEATING_COMMAND_BLOCK,
+                    Items.COMMAND_BLOCK_MINECART,
+                    Items.JIGSAW,
+                    Items.STRUCTURE_BLOCK,
+                    Items.STRUCTURE_VOID,
+                    Items.BARRIER,
+                    Items.DEBUG_STICK,
+                    Items.LIGHT);
+
+    /**
+     * Whether the player whose list this is may use the operator tab's items. A dedicated server
+     * lists for nobody, so it keeps the whole list, which is what its give lookup names items from.
+     */
+    protected boolean mayUseOperatorItems() {
+        return true;
+    }
+
     private List<Item> itemsByName() {
         if (itemsByNameCache == null) {
             List<Item> items = new ArrayList<>();
@@ -622,8 +652,11 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
                         return keyA.compareTo(keyB);
                     });
             itemsByNameCache = items;
+            itemsByNameWithoutOperatorCache =
+                    GrugItemList.withoutOperatorOnly(items, OPERATOR_ONLY_ITEMS);
         }
-        return itemsByNameCache;
+        return GrugItemList.listedFor(
+                mayUseOperatorItems(), itemsByNameCache, itemsByNameWithoutOperatorCache);
     }
 
     @Override

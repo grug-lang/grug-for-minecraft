@@ -1,0 +1,65 @@
+# The item list is built from the creative tabs in the reference, whose operator tab shows its
+# items only to a player who may use game master blocks, so barrier and the command block are not
+# in the list of a player who is not an operator (#892). The port lists the registry, so without the
+# gate every player's list holds them. The test removes the operator status, waits for the client to
+# learn it (the permission level reaches it in a packet) and reads the list, then puts the status
+# back before anything asserts.
+
+# Only 1.20.6 has an operator tab, and a dedicated server lists for nobody, so only the client
+# side of 1.20.6 runs this.
+
+started: bool = false
+was_operator: bool = false
+waited: number = 0
+
+export tick_any_side(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if me.loader_name() != "1.20.6-forge" or me.on_dedicated_server() {
+            return
+        }
+        was_operator = is_operator()
+        set_operator(false)
+        ctx.not_done()
+        return
+    }
+
+    if me.loader_name() != "1.20.6-forge" or me.on_dedicated_server() {
+        return
+    }
+
+    barrier: Item = item(resource_location("minecraft:barrier"))
+    command_block: Item = item(resource_location("minecraft:command_block"))
+    stone: Item = item(resource_location("minecraft:stone"))
+    count: number = item_count()
+    has_barrier: bool = false
+    has_command_block: bool = false
+    has_stone: bool = false
+    index: number = 0
+    while index < count {
+        listed: Item = item_at(index)
+        if equals(listed, barrier) {
+            has_barrier = true
+        }
+        if equals(listed, command_block) {
+            has_command_block = true
+        }
+        if equals(listed, stone) {
+            has_stone = true
+        }
+        index = index + 1
+    }
+
+    # The client's permission level follows the server's by a packet, so the list may still show
+    # the operator items for a few ticks; the bound is the failure, not a wait.
+    waited = waited + 1
+    if (has_barrier or has_command_block) and waited < 200 {
+        ctx.not_done()
+        return
+    }
+
+    set_operator(was_operator)
+    ctx.assert(has_stone, "The list of a player who is not an operator should still hold stone.")
+    ctx.assert(not has_barrier, "The list of a player who is not an operator holds barrier.")
+    ctx.assert(not has_command_block, "The list of a player who is not an operator holds the command block.")
+}

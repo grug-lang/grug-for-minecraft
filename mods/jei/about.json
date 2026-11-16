@@ -98,8 +98,8 @@
 					"tracking_issue": 870
 				},
 				{
-					"what": "The list is one entry per registered item except air, where JEI lists the stacks of the creative tabs: a potion, a splash potion and a lingering potion are separate entries there, and an op-only tab hides its items from a player who may not use them. The potion, splash and lingering variants are therefore missing from the port, and barrier, command block and the other op-only items are listed to every player.",
-					"why": "The host exposes one Item per registry key and no creative-tab stacks, ingredient subtypes or per-player tab permissions; listing those stacks is a change to the item list itself.",
+					"what": "The list is one entry per registered item except air, where JEI lists the stacks of the creative tabs: a potion, a splash potion and a lingering potion are separate entries there. The potion, splash and lingering variants, and every other stack that differs only in damage or components, are therefore missing from the port. The operator tab's items (barrier, the command blocks, jigsaw, structure block, structure void, debug stick and light) are hidden from a player who may not use them on 1.20.6, as in the reference.",
+					"why": "The host exposes one Item per registry key and no stack with damage or components in the item list, so listing those stacks needs a stack-valued item list and an overlay that draws and gives a stack, which is the remaining piece of this issue.",
 					"tracking_issue": 892
 				},
 				{
