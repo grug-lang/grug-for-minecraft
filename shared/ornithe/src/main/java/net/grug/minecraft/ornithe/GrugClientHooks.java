@@ -276,9 +276,13 @@ public class GrugClientHooks {
 
     /**
      * What a run's start does to the window, for a joined client that starts its own run on a
-     * server (#1040): the screenshot size and the particle switch. The view is left alone: the
-     * joined client overflowed its stack in Alpha's recursive light update after it shrank the
-     * view, which a client that keeps the default view did not.
+     * server (#1040): the screenshot size, the particle switch and the view distance setting. The
+     * setting alone is set, without {@code worldRenderer.reload()}: the joined client overflowed
+     * its stack in Alpha's recursive light update after it shrank the view and reloaded, which a
+     * client that keeps the loaded renderers did not. The setting sets the projection's far plane,
+     * 32 blocks at the smallest distance and 256 at the default on Alpha, and a different far plane
+     * changes the depth buffer's steps: redstone_engine_stroke_facings lost one edge pixel on the
+     * a1 joined client for that alone (#1213).
      *
      * <p>Answers whether the run started. One run owns the window and the switch at a time, so a
      * client-only run this client started by hand refuses this one (#1213): nothing is taken, and
@@ -288,6 +292,10 @@ public class GrugClientHooks {
      */
     public boolean beginControlRun() {
         controlRunStarted = window.beginRun();
+        if (controlRunStarted && savedViewDistance < 0) {
+            savedViewDistance = minecraft.options.viewDistance;
+            minecraft.options.viewDistance = TINY_VIEW_DISTANCE;
+        }
         return controlRunStarted;
     }
 
@@ -302,6 +310,10 @@ public class GrugClientHooks {
         }
         controlRunStarted = false;
         window.endRun();
+        if (savedViewDistance >= 0) {
+            minecraft.options.viewDistance = savedViewDistance;
+            savedViewDistance = -1;
+        }
     }
 
     /**
