@@ -14,7 +14,7 @@ coverage/tests/forwarded_scroll_screen-Test.grug
 # answer from the joined client (#1099), so the overlay tests do run on this server now, but these
 # two still cannot. An overlay's click export runs on that client, so its carried_item read and
 # delete_carried_item call touch the client's copy of the cursor while the test sets and reads the
-# server's, and no client-to-server cursor write exists yet (#882).
+# server's, and no client-to-server cursor write exists yet (#1389).
 coverage/tests/overlay-Test.grug
 jei/tests/jei-Test.grug
 #
