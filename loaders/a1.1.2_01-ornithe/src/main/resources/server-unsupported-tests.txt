@@ -33,14 +33,6 @@ coverage/tests/take_crafting_result_empty-Test.grug
 coverage/tests/take_crafting_result_on_a_chest-Test.grug
 coverage/tests/update_recipe_output_on_a_chest-Test.grug
 #
-# The GUI a server opens for its player. The three GUI capture tests run here since this server
-# builds the block entity's own menu and sends it to the joined client (#1098): remote_gui,
-# item_icon and gui_builder. The two container-click tests still do
-# not: they press a slot through Test.click_screen, which this loader forwards to the client's
-# screen but has no server-side click from, so they wait for that half of #1098.
-coverage/tests/gui_click-Test.grug
-coverage/tests/gui_click_empty-Test.grug
-#
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
 # client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
 # block, so this server cannot open one. 1.2.5's interaction manager and 1.20.6's game mode
@@ -52,12 +44,8 @@ coverage/tests/forwarded_scroll_screen-Test.grug
 # Test.open_inventory and Test.click_screen to the joined client now (#882), so the other overlay
 # and item-list tests run on this leg. overlay_screen_open asserts a just-opened screen has drawn no
 # frame, which a joined client cannot promise, and item_list_forced_normalization needs a GL state a
-# dedicated server cannot force. The two give_queue tests stay out as they were: they exist to
-# observe the queue of the overlay tests that used to be skipped here, and that is not what this
-# change proves.
+# dedicated server cannot force.
 coverage/tests/overlay_screen_open-Test.grug
-coverage/tests/give_queue_a_ends_with_a_give-Test.grug
-coverage/tests/give_queue_b_starts_clean-Test.grug
 jei/tests/item_list_forced_normalization-Test.grug
 #
 # The overlay's click and the cursor it deletes. An overlay's click export runs on the joined

@@ -726,9 +726,9 @@ while :; do
     esac
     # The remote GUI test (#168), the GUI capture tests and the two container-click tests run on the
     # servers that can open a container for their player, 1.20.6, 1.2.5, b1.7.3-ornithe,
-    # b1.7.3-stationapi and a1.1.2_01 (#1098). a1.1.2_01's server has the container now but still
-    # refuses Test.click_screen, so its arm leaves out the two container-click tests: the other four
-    # legs must show they ran. A capture compares against the unchanged client-only golden, so a leg
+    # b1.7.3-stationapi and a1.1.2_01 (#1098). a1.1.2_01's arm leaves out the two
+    # autocrafting-table tests, whose server has no recipe manager; every other test here must show
+    # it ran on every leg. A capture compares against the unchanged client-only golden, so a leg
     # whose panel draws differently fails in the test itself; this check catches the test not
     # running at all on that leg (renamed, listed as unsupported, or no longer recognised as
     # declared), which the run would otherwise pass with it silently skipped.
@@ -749,8 +749,9 @@ while :; do
       a1.1.2_01-ornithe)
         # Its server has no recipe manager, so the two autocrafting-table tests stay unsupported
         # there (#1098): inserting into the table's grid asks for a recipe result the server
-        # cannot compute.
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder"
+        # cannot compute. The two container-click tests run since this server forwards
+        # Test.click_screen to the joined client.
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty"
         ;;
       *)
         gui_tests=""
