@@ -559,20 +559,33 @@ public final class GrugOverlayHost {
                 new ScaledResolution(
                         minecraft.gameSettings, minecraft.displayWidth, minecraft.displayHeight);
         String testMod = GrugTestState.currentTestMod;
-        for (Overlay overlay : overlays) {
-            List<GrugWorldOverlay.Text> texts =
-                    GrugWorldOverlay.hud(
-                            overlay.entityHandle,
-                            overlay.hudFnId,
-                            resolution.getScaledWidth(),
-                            resolution.getScaledHeight());
-            for (GrugWorldOverlay.Text text : texts) {
-                minecraft.fontRenderer.drawStringWithShadow(
-                        text.text(), (int) text.x(), (int) text.y(), 0xFF000000 | text.rgb());
+        // The game's HUD leaves lighting, the depth test and the blend state as its last element
+        // wanted them, so the text pins what a glyph needs and puts the frame's state back.
+        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_CURRENT_BIT);
+        try {
+            GL11.glDisable(GL11.GL_LIGHTING);
+            GL11.glDisable(GL11.GL_DEPTH_TEST);
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+            for (Overlay overlay : overlays) {
+                List<GrugWorldOverlay.Text> texts =
+                        GrugWorldOverlay.hud(
+                                overlay.entityHandle,
+                                overlay.hudFnId,
+                                resolution.getScaledWidth(),
+                                resolution.getScaledHeight());
+                for (GrugWorldOverlay.Text text : texts) {
+                    minecraft.fontRenderer.drawStringWithShadow(
+                            text.text(), (int) text.x(), (int) text.y(), 0xFF000000 | text.rgb());
+                }
+                if (!texts.isEmpty() && overlay.mod.equals(testMod)) {
+                    GrugWorldOverlay.noteDrawn();
+                }
             }
-            if (!texts.isEmpty() && overlay.mod.equals(testMod)) {
-                GrugWorldOverlay.noteDrawn();
-            }
+        } finally {
+            GL11.glPopAttrib();
         }
     }
 

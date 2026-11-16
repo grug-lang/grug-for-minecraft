@@ -54,11 +54,17 @@ public class GameRendererMixin {
     }
 
     /**
-     * The world overlay hook: the rain pass is the last world draw before the clouds, the depth
-     * clear and the hand, so a line drawn at its return is depth-tested against the world. It is a
-     * method of this class, so it needs no call-site target.
+     * The world overlay hook: the cloud pass is the last world draw before the depth clear and the
+     * hand, so a line drawn just before it is depth-tested against the world. Alpha's {@code
+     * renderRain} is only called while the level is snow covered, so it cannot carry the hook.
      */
-    @Inject(method = "renderRain(F)V", at = @At("RETURN"))
+    @Inject(
+            method = "renderWorld(F)V",
+            at =
+                    @At(
+                            value = "INVOKE",
+                            target =
+                                    "Lnet/minecraft/client/render/world/WorldRenderer;renderClouds(F)V"))
     private void grug$drawWorldOverlay(float partialTicks, CallbackInfo ci) {
         GrugOverlayHost.drawWorld(MinecraftInstance.get(), partialTicks);
     }
