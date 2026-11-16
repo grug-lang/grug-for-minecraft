@@ -51,3 +51,6 @@ coverage/tests/coverage_render-Test.grug
 #
 # Proof 43763297057 passed cobblestone_pipe_shapes and redstone_engine on this leg and failed redstone_engine_animation's redstone_engine_progress capture in 369 of 62400 px (#1213); proof 43829659464 failed redstone_engine_animation's redstone_engine_progress capture here in 10104 of 62400 px (#1213), and redstone_engine_facings comes after it and is unmeasured, so it stays listed. The client-only run still checks both goldens.
 buildcraft/tests/redstone_engine_facings-Test.grug
+#
+# Dispatch 43937950148 (#1096) failed wooden_pipe_shapes' wooden_pipe_straight capture on this leg in 4323 of 115200 px against b1.7.3-ornithe.png (#1213); wooden_pipe_items and every other wooden_pipe capture passed. The client-only run checks the golden.
+buildcraft/tests/wooden_pipe_shapes-Test.grug
