@@ -66,8 +66,8 @@ public class GrugSavedDataPacket extends Packet {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try {
             NbtIo.write(data, new DataOutputStream(bytes));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
         }
         RECEIVED.put(world, x, y, z, blockId, bytes.toByteArray());
     }
@@ -79,8 +79,8 @@ public class GrugSavedDataPacket extends Packet {
         if (bytes == null) return null;
         try {
             return NbtIo.read(new DataInputStream(new ByteArrayInputStream(bytes)));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
         }
     }
 
