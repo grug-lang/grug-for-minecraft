@@ -9,7 +9,6 @@
   "client": [
     "BlockEntityRenderDispatcherMixin",
     "BlockRendererMixin",
-    "StaleBlockEntityMixin",
     "TesselatorMixin",
     "ItemRendererMixin"
   ],
