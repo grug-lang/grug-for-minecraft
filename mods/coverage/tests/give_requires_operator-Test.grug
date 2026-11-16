@@ -10,7 +10,7 @@
 # next tick starts and no tick count is waited for. The status is put back before anything asserts,
 # so a failed assert never leaves the operator list changed for the next test.
 
-# Only the 1.20.6 and 1.2.5 dedicated legs run it for now: the older loaders still give to the run's starter
+# Only the 1.20.6, 1.2.5, b1.7.3-ornithe and b1.7.3-stationapi dedicated legs run it for now: a1.1.2_01 still gives to the run's starter
 # without the check, and a client-only run gives to its own player, who is the world's owner. The
 # others return on their first tick (#882).
 
@@ -25,7 +25,7 @@ second_pressed: bool = false
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
-        if not me.on_dedicated_server() or (me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge") or not me.overlay_supported() {
+        if not me.on_dedicated_server() or (me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge" and me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi") or not me.overlay_supported() {
             # See the top of this file for where this test runs.
             return
         }
