@@ -3,6 +3,7 @@ package net.grug.minecraft.forge;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugRunPlayers;
+import net.grug.minecraft.core.GrugServerJoin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -39,7 +40,7 @@ public final class GrugServerRun {
      * How long to wait for a client to join before failing the run. A client takes its time to
      * start and connect, so this is wide; it only has to be shorter than the run's own limit.
      */
-    static final long PLAYER_JOIN_TIMEOUT_MILLIS = 240_000;
+    static final long PLAYER_JOIN_TIMEOUT_MILLIS = GrugServerJoin.timeoutMillis();
 
     /**
      * How far from the starter a second player is put before the tests read the room (#1027). It
@@ -101,7 +102,8 @@ public final class GrugServerRun {
                                 + " ms. Firing tests!");
                 runner = new GrugTestRunner();
                 moveStrangersAway(server);
-            } else if (System.currentTimeMillis() - waitStartMillis >= PLAYER_JOIN_TIMEOUT_MILLIS) {
+            } else if (GrugServerJoin.timedOut(
+                    waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS)) {
                 System.out.println("[GRUG CI] FAIL world readiness");
                 System.out.println(
                         "[GRUG CI] No player joined the dedicated server within "

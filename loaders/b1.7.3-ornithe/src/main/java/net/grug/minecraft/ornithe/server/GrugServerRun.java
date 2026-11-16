@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.server;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.core.GrugServerJoin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -32,7 +33,7 @@ import java.util.List;
 @GrugGenerated("a dedicated server, whose coverage no CI run merges until #167 stage 4")
 public final class GrugServerRun {
     /** How long to wait for a client to join before failing the run. */
-    static final long PLAYER_JOIN_TIMEOUT_MILLIS = 240_000;
+    static final long PLAYER_JOIN_TIMEOUT_MILLIS = GrugServerJoin.timeoutMillis();
 
     /** The player as the snap found them, so the end of the test can put them back (#1161). */
     private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
@@ -253,7 +254,8 @@ public final class GrugServerRun {
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
                 runner = new GrugTestRunner();
-            } else if (System.currentTimeMillis() - waitStartMillis >= PLAYER_JOIN_TIMEOUT_MILLIS) {
+            } else if (GrugServerJoin.timedOut(
+                    waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS)) {
                 System.out.println("[GRUG CI] FAIL world readiness");
                 System.out.println(
                         "[GRUG CI] No player joined the dedicated server within "

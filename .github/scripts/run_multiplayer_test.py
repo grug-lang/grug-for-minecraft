@@ -124,6 +124,7 @@ SECOND_GRADLEW = """\
 printf '%s\\n' "$*" >> "${FAKE_GRADLE_LOG:?}"
 case "$*" in
   *runServer*)
+    [ -n "${FAKE_JOIN_FILE:-}" ] && printf 'join timeout %s\\n' "$GRUG_CI_JOIN_TIMEOUT_MILLIS" > "$FAKE_JOIN_FILE"
     printf 'Done (1.2s)! For help, type "help"\\n'
     if [ "${FAKE_RUN_PASSES:-0}" = "1" ]; then
       # A run that passes, which is what require_second_player reads: the suite is declared passed
@@ -132,6 +133,8 @@ case "$*" in
       printf 'segment\\n' > loaders/1.20.6-forge/build/jacoco-server/run.exec
       sleep 6
       cat "${FAKE_SERVER_LINES_FILE:?}"
+      # A server that printed the marker and then never halted.
+      [ "${FAKE_SERVER_STAYS:-0}" = "1" ] && exec sleep 600
       exit 0
     fi
     if [ "${FAKE_STARTER_LEAVES:-0}" = "1" ]; then
@@ -567,6 +570,33 @@ class SecondPlayerTest(unittest.TestCase):
             "Two real clients: exactly one starter, its answers, and both connections survived",
             result.stdout,
         )
+
+    def test_a_server_that_does_not_halt_after_the_marker_fails_the_run(self):
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines())
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_STAYS="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+            GRUG_CI_HALT_TIMEOUT="2",
+        )
+
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn("did not halt", result.stderr)
+
+    def test_the_server_is_told_four_fifths_of_the_runs_deadline_to_wait_for_a_player(self):
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines())
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            FAKE_JOIN_FILE=str(self.tmp / "join-timeout.txt"),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("join timeout 48000", (self.tmp / "join-timeout.txt").read_text())
 
     def starter_leaves(self, lines, **env):
         lines_file = self.tmp / "server-lines.log"
