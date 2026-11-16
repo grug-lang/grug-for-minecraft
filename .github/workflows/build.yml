@@ -2454,8 +2454,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         # A smoke or layer job is not a test of what a proof changes, and a NeoForge smoke hang
-        # (#1335) cancelled the #1068 proof 43766892846 before its dedicated legs reported.
-        run: python3 .github/scripts/cancel-red.py "$GITHUB_RUN_ID" --own-job 'cancel red' --repo-slug "$GITHUB_REPOSITORY" --exempt '\blayer\b'
+        # (#1335) cancelled the #1068 proof 43766892846 before its dedicated legs reported. The
+        # Windows boot jobs (`<loader> (Windows)` and `<loader> installed (Windows)`) fetch the Forge
+        # userdev and Maven Central on a runner that often answers 429 or fails to resolve it (#1385,
+        # runs 43929769694 and 43918504625), and one such flake discarded the other legs. They stay
+        # red in the run when they fail, they only do not cancel it; `adapter.dll (Windows)` is a
+        # compile of this repository's code and still cancels.
+        run: python3 .github/scripts/cancel-red.py "$GITHUB_RUN_ID" --own-job 'cancel red' --repo-slug "$GITHUB_REPOSITORY" --exempt '\blayer\b' --exempt '^(?!adapter\.dll)[^ ]+ (installed )?\(Windows\)$'
 
   pr-gate:
     name: pr gate
