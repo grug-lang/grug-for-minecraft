@@ -260,6 +260,21 @@ public class GrugBlockEntity extends BlockEntity
     }
 
     /**
+     * Whether this block entity was made for another grug block than the one now at its position,
+     * so a joined client's chunk should hand out a fresh one instead (#1354): a kept tile has no
+     * saved data of its own for the new block, and the render path would draw nothing for it until
+     * data that may already have been applied arrives.
+     */
+    @GrugGenerated("a client's kept tile: only a live joined client has one")
+    public boolean madeForAnotherBlock() {
+        if (!initStarted || world == null) return false;
+        Block block = Block.BLOCKS[world.getBlockId(x, y, z)];
+        if (!(block instanceof GrugBlock)) return false;
+        return GrugStaleBlockEntity.shouldReinit(
+                initedEntityFileId, ((GrugBlock) block).getEntityFileId());
+    }
+
+    /**
      * Drops the grug entity when the block at this position is not the one it was made for.
      *
      * <p>A client joined to a server is told only that a block changed, and this version keeps the
