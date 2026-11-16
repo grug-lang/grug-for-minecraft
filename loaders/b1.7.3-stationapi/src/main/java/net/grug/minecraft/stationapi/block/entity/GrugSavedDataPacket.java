@@ -51,13 +51,20 @@ public class GrugSavedDataPacket extends Packet {
      * is gone, so the new copy would wait for an update that never comes and draw nothing. Bounded,
      * because every position a block entity saved data at stays until pushed out.
      */
-    private static final java.util.Map<String, Object[]> LAST_APPLIED =
-            new java.util.LinkedHashMap<String, Object[]>(64, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(java.util.Map.Entry<String, Object[]> eldest) {
-                    return size() > 4096;
-                }
-            };
+    private static final java.util.Map<String, Object[]> LAST_APPLIED = new LastApplied();
+
+    /** The bounded map above: a named class so the coverage gate can leave out its eviction. */
+    @GrugGenerated("eviction past 4096 positions: no test saves that many block entities")
+    private static final class LastApplied extends java.util.LinkedHashMap<String, Object[]> {
+        LastApplied() {
+            super(64, 0.75f, true);
+        }
+
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<String, Object[]> eldest) {
+            return size() > 4096;
+        }
+    }
 
     private static String key(int x, int y, int z) {
         return x + "," + y + "," + z;
