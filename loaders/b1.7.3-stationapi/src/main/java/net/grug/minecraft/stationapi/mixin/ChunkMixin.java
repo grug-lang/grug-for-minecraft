@@ -62,7 +62,7 @@ public abstract class ChunkMixin {
         Chunk self = (Chunk) (Object) this;
         int id = self.getBlockId(x, y, z);
         if (id < 0 || id >= Block.BLOCKS.length || id >= Block.BLOCKS_WITH_ENTITY.length) return;
-        if (GrugStaleBlockEntity.shouldDropForeign(
+        if (GrugStaleBlockEntity.shouldDropOnClient(
                 found instanceof GrugBlockEntity,
                 Block.BLOCKS[id] instanceof GrugBlock,
                 Block.BLOCKS_WITH_ENTITY[id],

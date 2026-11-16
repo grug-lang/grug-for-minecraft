@@ -27,21 +27,23 @@ class GrugStaleBlockEntityTest {
 
     @Test
     void aForeignBlockEntityUnderAGrugBlockOrNoEntityBlockIsStaleOnAClient() {
-        assertTrue(GrugStaleBlockEntity.shouldDropForeign(false, true, true, true));
-        assertTrue(GrugStaleBlockEntity.shouldDropForeign(false, false, false, true));
+        assertTrue(GrugStaleBlockEntity.shouldDropOnClient(false, true, true, true));
+        assertTrue(GrugStaleBlockEntity.shouldDropOnClient(false, false, false, true));
     }
 
     @Test
     void aForeignBlockEntityIsKeptUnderAnEntityBlockOrOnAServer() {
-        assertFalse(GrugStaleBlockEntity.shouldDropForeign(false, false, true, true));
-        assertFalse(GrugStaleBlockEntity.shouldDropForeign(false, true, true, false));
-        assertFalse(GrugStaleBlockEntity.shouldDropForeign(false, false, false, false));
+        assertFalse(GrugStaleBlockEntity.shouldDropOnClient(false, false, true, true));
+        assertFalse(GrugStaleBlockEntity.shouldDropOnClient(false, true, true, false));
+        assertFalse(GrugStaleBlockEntity.shouldDropOnClient(false, false, false, false));
     }
 
     @Test
-    void aGrugBlockEntityIsNeverTheForeignCase() {
-        assertFalse(GrugStaleBlockEntity.shouldDropForeign(true, true, true, true));
-        assertFalse(GrugStaleBlockEntity.shouldDropForeign(true, false, false, true));
+    void aGrugBlockEntityIsStaleOnAClientOnlyUnderAnotherBlock() {
+        assertFalse(GrugStaleBlockEntity.shouldDropOnClient(true, true, true, true));
+        assertTrue(GrugStaleBlockEntity.shouldDropOnClient(true, false, false, true));
+        assertTrue(GrugStaleBlockEntity.shouldDropOnClient(true, false, true, true));
+        assertFalse(GrugStaleBlockEntity.shouldDropOnClient(true, false, false, false));
     }
 
     @Test

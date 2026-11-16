@@ -51,7 +51,7 @@ public abstract class StaleBlockEntityMixin {
         // The other way round (#1354): a vanilla block entity that outlived its block, which the
         // chunk would hand to a grug block placed there or to a block with no entity at all.
         int id = getBlockAt(x, y, z);
-        if (GrugStaleBlockEntity.shouldDropForeign(
+        if (GrugStaleBlockEntity.shouldDropOnClient(
                 found instanceof GrugBlockEntity,
                 Block.BY_ID[id] instanceof GrugBlock,
                 Block.HAS_BLOCK_ENTITY[id],
