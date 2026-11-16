@@ -1,0 +1,85 @@
+# SafeSquares for Beta 1.7.3: the L key turns on a cross on every square where a hostile mob can
+# spawn, red where one can spawn at any time and yellow where one can spawn only at night. It is a
+# port of SafeSquares 1.2.0 (see about.json), whose Checker draws the same two kinds from the same
+# three tests:
+# 1. The square passes the spawner's ground test (Level.is_hostile_spawn_space), which the
+#    reference asks of NaturalSpawner with the air material.
+# 2. The block light is at most the safe level, the reference's chunk light read with the sky
+#    subtracted away. A square with more block light than that is never marked.
+# 3. Then the square is red when the sky light is at most the safe level as well, and yellow when
+#    the sky lights it, because the sky's light is gone at night.
+# Beta stores sky light as it is at full day and subtracts the time of day when it is read, which
+# is what makes the reference's plain light read tell the two apart, and Level.get_sky_light is the
+# stored value.
+
+# The reference's default config: the light level a mob can still spawn at, the half width of the
+# cross (its crossScale of 1.0 halved), and how high above the block it floats.
+safe_light_level: number = 7
+cross_half: number = 0.5
+cross_epsilon: number = 0.125
+
+# How far from the camera's block the squares are found. The reference's is 16, which is too many
+# host calls for one frame, so this is a recorded deviation.
+radius: number = 8
+
+active: bool = false
+
+export render_world(ctx: OverlayWorldContext) {
+    if not active {
+        return
+    }
+    level: Level = ctx.get_level()
+    cx: number = Math.floor(ctx.camera_x())
+    cy: number = Math.floor(ctx.camera_y())
+    cz: number = Math.floor(ctx.camera_z())
+
+    y: number = cy - radius
+    while y <= cy + radius {
+        x: number = cx - radius
+        while x <= cx + radius {
+            z: number = cz - radius
+            while z <= cz + radius {
+                _draw_square(level, ctx, x, y, z)
+                z = z + 1
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+}
+
+export world_key(ctx: OverlayWorldKeyContext) {
+    if ctx.key() == 76 {
+        active = not active
+    }
+}
+
+# Draws the cross on the square at x, y, z when it is one a hostile mob can spawn in.
+local _draw_square(level: Level, ctx: OverlayWorldContext, x: number, y: number, z: number) {
+    if not level.is_hostile_spawn_space(x, y, z) {
+        return
+    }
+    block_light: number = level.get_block_light(x, y, z)
+    if block_light > safe_light_level {
+        return
+    }
+    sky_light: number = level.get_sky_light(x, y, z)
+    if sky_light > safe_light_level {
+        # Dark at night only: SafeSquares' yellow, #DDDD00.
+        _cross(ctx, x, y, z, Color.rgb(221, 221, 0))
+    } else {
+        # Dark at any time: SafeSquares' red, #FF2222.
+        _cross(ctx, x, y, z, Color.rgb(255, 34, 34))
+    }
+}
+
+# Two crossing diagonals over the square, as the reference's GL_LINES pairs are.
+local _cross(ctx: OverlayWorldContext, x: number, y: number, z: number, color: Color) {
+    x1: number = x + 0.5 - cross_half
+    x2: number = x + 0.5 + cross_half
+    z1: number = z + 0.5 - cross_half
+    z2: number = z + 0.5 + cross_half
+    ly: number = y + cross_epsilon
+    ctx.draw_line(x1, ly, z1, x2, ly, z2, color)
+    ctx.draw_line(x1, ly, z2, x2, ly, z1, color)
+}

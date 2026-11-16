@@ -1,0 +1,92 @@
+# Covers Level.get_block_light, Level.get_sky_light and Level.is_hostile_spawn_space, the reads the
+# light level overlay (#1255) marks squares from. The spawn space reads are made on a stone floor
+# with air above, then with a block over the space, and with water in it; the block light read is
+# a torch's own light and its neighbour's, and the sky light read compares the space under a roof
+# with the one over it. The three reads exist on the two Beta 1.7.3 loaders so far, so every other
+# loader returns before it builds anything (#1255 lists the rest).
+state: number = 0
+waited: number = 0
+x: number = 0
+y: number = 0
+z: number = 0
+
+export tick(ctx: TestTickContext) {
+    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
+        return
+    }
+    level: Level = ctx.get_client_level()
+    waited = waited + 1
+    ctx.assert(waited < 1500, "The light reads should settle.")
+
+    if state == 0 {
+        ctx.set_box_radius(6)
+        origin: Vec3 = ctx.get_origin()
+        x = origin.x()
+        y = origin.y() + 20
+        z = origin.z()
+        # Terrain can reach 20 blocks above the origin, so climb until a column of four spaces is air.
+        steps: number = 0
+        while not (level.is_air(x, y, z) and level.is_air(x, y + 1, z) and level.is_air(x, y + 2, z) and level.is_air(x, y + 3, z)) and steps < 64 {
+            y = y + 1
+            steps = steps + 1
+        }
+        ctx.assert(level.is_air(x, y + 3, z), "The test column should be air.")
+
+        # A stone floor with air over it is a space a hostile mob may stand in, and the stone itself
+        # is not, nor is the air with no floor under it.
+        level.place_block(x, y, z, "minecraft:stone")
+        ctx.assert(level.is_hostile_spawn_space(x, y + 1, z), "Air over a stone floor should be a hostile spawn space.")
+        ctx.assert(not level.is_hostile_spawn_space(x, y, z), "A solid block should not be a hostile spawn space.")
+        ctx.assert(not level.is_hostile_spawn_space(x, y + 2, z), "Air with no solid floor should not be a hostile spawn space.")
+
+        # A solid block over the space takes it away.
+        level.place_block(x, y + 2, z, "minecraft:stone")
+        ctx.assert(not level.is_hostile_spawn_space(x, y + 1, z), "A solid block over the space should end it.")
+        level.place_block(x, y + 2, z, "minecraft:air")
+        ctx.assert(level.is_hostile_spawn_space(x, y + 1, z), "Removing the block should give the space back.")
+
+        # Water in the space takes it away.
+        level.place_block(x, y + 1, z, "minecraft:flowing_water")
+        ctx.assert(not level.is_hostile_spawn_space(x, y + 1, z), "Water should not be a hostile spawn space.")
+        level.place_block(x, y + 1, z, "minecraft:torch")
+        state = 1
+        ctx.not_done()
+    } else if state == 1 {
+        # The torch gives its own space 14 and each block away one less, and the sky gives it
+        # nothing to the block light read.
+        if level.get_block_light(x, y + 1, z) != 14 or level.get_block_light(x + 1, y + 1, z) != 13 {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(level.get_block_light(x + 3, y + 1, z) == 11, "Block light should fall by one per block.")
+        level.place_block(x, y + 1, z, "minecraft:air")
+        state = 2
+        ctx.not_done()
+    } else if state == 2 {
+        # A nine by nine stone roof four blocks over the floor shades its middle: the sky light there
+        # is less than it is over the roof, and less than the full 15 the open sky gives.
+        if level.get_block_light(x, y + 1, z) != 0 {
+            ctx.not_done()
+            return
+        }
+        ry: number = y + 4
+        rx: number = x - 4
+        while rx <= x + 4 {
+            rz: number = z - 4
+            while rz <= z + 4 {
+                level.place_block(rx, ry, rz, "minecraft:stone")
+                rz = rz + 1
+            }
+            rx = rx + 1
+        }
+        state = 3
+        ctx.not_done()
+    } else if state == 3 {
+        if level.get_sky_light(x, y + 1, z) >= 15 {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(level.get_sky_light(x, y + 5, z) > level.get_sky_light(x, y + 1, z), "The sky light should be less under a roof than over it.")
+        ctx.assert(level.get_block_light(x, y + 1, z) == 0, "A space with no light block near it should have no block light.")
+    }
+}

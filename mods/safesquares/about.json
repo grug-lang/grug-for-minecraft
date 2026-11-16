@@ -1,0 +1,87 @@
+{
+	"name": "SafeSquares",
+	"version": "1.0.0",
+	"game_version": "beta-1.7.3",
+	"loaders": [
+		"b1.7.3-ornithe",
+		"b1.7.3-stationapi"
+	],
+	"authors": [
+		"MyNameIsTrez"
+	],
+	"repository": {
+		"url": "https://github.com/grug-lang/grug-for-minecraft"
+	},
+	"licenses": [
+		{
+			"name": "MIT",
+			"url": "https://github.com/Lemmmy/SafeSquares/blob/3d0deaa449c7771d80472dede16a85172ded797d/LICENSE",
+			"note": "The port recreates SafeSquares' overlay and carries the reference's MIT notice (Copyright (c) 2026 Lemmmy)."
+		}
+	],
+	"derived_from": [
+		{
+			"name": "SafeSquares",
+			"repository": {
+				"url": "https://github.com/Lemmmy/SafeSquares"
+			},
+			"revision": "3d0deaa449c7771d80472dede16a85172ded797d",
+			"licenses": [
+				{
+					"name": "MIT",
+					"url": "https://github.com/Lemmmy/SafeSquares/blob/3d0deaa449c7771d80472dede16a85172ded797d/LICENSE",
+					"note": "The reference, SafeSquares 1.2.0 for Beta 1.7.3, is MIT (Copyright (c) 2026 Lemmmy); the commit is the one that bumped the version to 1.2.0."
+				}
+			],
+			"credits": [
+				"Lemmmy"
+			],
+			"sources": [
+				"https://modrinth.com/mod/safesquares",
+				"https://github.com/Lemmmy/SafeSquares"
+			],
+			"artifacts": [
+				{
+					"name": "safesquares-1.2.0.jar",
+					"url": "https://cdn.modrinth.com/data/ehwXJjPd/versions/pasKFNFr/safesquares-1.2.0.jar",
+					"sha256": "dd5bce7b2e4d032462e3da6cf715174de1ce99755d26370800cf40f971913a17",
+					"size": 35069
+				}
+			],
+			"runtime": {
+				"minecraft": "b1.7.3",
+				"loader": "b1.7.3-stationapi",
+				"loader_version": "0.17.3",
+				"java": "17"
+			},
+			"install": {
+				"type": "mods_folder",
+				"files": [
+					"safesquares-1.2.0.jar"
+				]
+			},
+			"deviations": [
+				{
+					"what": "The marks are found within 8 blocks of the camera in every direction, where the reference's default render distance is 16, and they are found again every frame, where the reference scans every 8 ticks.",
+					"why": "A grug mod has no array to keep a scanned grid in, so each frame scans the cube afresh through host calls, and a cube of 33 blocks a side is too many calls for one frame. A larger radius and a stored grid need a host call that returns a batch of squares.",
+					"tracking_issue": 1255
+				},
+				{
+					"what": "The key is the letter L and cannot be rebound, the cross is a fixed full block wide, 0.125 above the block, two pixels thick and in the reference's default colors, and the mod has no configuration.",
+					"why": "The host has no key binding or configuration API for a mod to register a rebindable key or read options.",
+					"tracking_issue": 1255
+				},
+				{
+					"what": "The scan is centred on the camera's block, which is the player's eyes, where the reference centres it on the player's position.",
+					"why": "The world draw hands a mod the camera and not the player.",
+					"tracking_issue": 1255
+				},
+				{
+					"what": "Only the Beta 1.7.3 loaders have the light and spawn reads the overlay needs; Alpha 1.1.2_01, Release 1.2.5 and 1.20.6 have not.",
+					"why": "The reads are added to one loader at a time, and the other three have not got theirs yet.",
+					"tracking_issue": 1255
+				}
+			]
+		}
+	]
+}

@@ -370,6 +370,35 @@ public interface ModLoaderAdapter {
     boolean isAir(Object levelObj, double x, double y, double z);
 
     /**
+     * The block light, 0 to 15, stored for the space at the position: the light the blocks give it,
+     * without the sky's. A loader that cannot read it says so rather than answering 0, which would
+     * read as a dark space (#1255).
+     */
+    @GrugGenerated("no light read: a loader that has not added it keeps this default")
+    default int getBlockLight(Object levelObj, double x, double y, double z) {
+        throw Grug.fatal("Level.get_block_light is not supported on this loader");
+    }
+
+    /**
+     * The sky light, 0 to 15, stored for the space at the position, as it is at full day: the time
+     * of day and the weather do not change it (#1255).
+     */
+    @GrugGenerated("no light read: a loader that has not added it keeps this default")
+    default int getSkyLight(Object levelObj, double x, double y, double z) {
+        throw Grug.fatal("Level.get_sky_light is not supported on this loader");
+    }
+
+    /**
+     * Whether the game's own spawner accepts the space at the position as one a hostile mob may
+     * stand in, ignoring light: the block below is solid, and the space and the one above it are
+     * not solid and the space is not liquid (#1255).
+     */
+    @GrugGenerated("no spawn rule: a loader that has not added it keeps this default")
+    default boolean isHostileSpawnSpace(Object levelObj, double x, double y, double z) {
+        throw Grug.fatal("Level.is_hostile_spawn_space is not supported on this loader");
+    }
+
+    /**
      * Whether the block at the position is the one {@link #placeBlock} would put there for {@code
      * blockName}, ignoring its state. The room build leaves a room that is already whole in place
      * when every one of its blocks answers true, and rebuilds it otherwise, so a loader whose block

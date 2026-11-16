@@ -148,9 +148,12 @@ Color.rgb(r: number, g: number, b: number) Color
 .find_item_entity(x: number, y: number, z: number, radius: number) Option[ItemEntity]
 .get_block(x: number, y: number, z: number) string
 .get_block_entity(x: number, y: number, z: number) Option[BlockEntity]
+.get_block_light(x: number, y: number, z: number) number
+.get_sky_light(x: number, y: number, z: number) number
 .get_time() number
 .has_neighbor_signal(x: number, y: number, z: number) bool
 .is_air(x: number, y: number, z: number) bool
+.is_hostile_spawn_space(x: number, y: number, z: number) bool
 .place_block(x: number, y: number, z: number, block_name: string)
 .random_float() number
 .random_gaussian() number
@@ -221,6 +224,7 @@ Option.new() Option[$Value]
 .camera_y() number
 .camera_z() number
 .draw_line(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, color: Color)
+.get_level() Level
 .partial_tick() number
 
 ## OverlayWorldKeyContext

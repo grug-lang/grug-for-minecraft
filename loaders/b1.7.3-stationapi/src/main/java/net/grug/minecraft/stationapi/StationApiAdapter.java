@@ -1192,6 +1192,39 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public int getBlockLight(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        return world.getBrightness(
+                LightType.BLOCK, (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    @Override
+    public int getSkyLight(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        return world.getBrightness(
+                LightType.SKY, (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    /**
+     * {@code NaturalSpawner.isValidSpawnPos} for a category whose spawnable material is not water,
+     * which is every hostile one. It is private, so its test is repeated here from the decompiled
+     * class: a solid block below, no solid block and no liquid in the space, and no solid block
+     * above it, with {@code shouldSuffocate} as this mapping's name for the game's solid block
+     * test.
+     */
+    @Override
+    public boolean isHostileSpawnSpace(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        int bx = (int) Math.floor(x);
+        int by = (int) Math.floor(y);
+        int bz = (int) Math.floor(z);
+        return world.shouldSuffocate(bx, by - 1, bz)
+                && !world.shouldSuffocate(bx, by, bz)
+                && !world.getMaterial(bx, by, bz).isFluid()
+                && !world.shouldSuffocate(bx, by + 1, bz);
+    }
+
+    @Override
     public double countItemEntities(Object levelObj, double x, double y, double z, double radius) {
         World world = (World) levelObj;
         double radiusSquared = radius * radius;
