@@ -313,6 +313,9 @@ public final class GrugControlServer {
      * nothing, which costs one empty drain and keeps the rule simple.
      */
     public void applyClientWork() {
+        if (clientWorkPending) {
+            System.out.println("[GRUG DIAG 1393] core applyClientWork: pending, draining");
+        }
         if (!clientWorkPending) {
             return;
         }

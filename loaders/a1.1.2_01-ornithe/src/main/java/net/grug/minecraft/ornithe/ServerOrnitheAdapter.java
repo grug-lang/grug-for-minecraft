@@ -155,15 +155,63 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     public static void clickFromClient(PacketHandler handler, int windowId, int slot, int button) {
         PlayerEntity player = GrugControlAlpha.playerOf(handler);
         Connection connection = GrugControlAlpha.connectionOf(handler);
+        System.out.println(
+                "[GRUG DIAG 1393] clickFromClient player="
+                        + player
+                        + " connection="
+                        + connection
+                        + " window="
+                        + windowId
+                        + " slot="
+                        + slot
+                        + " button="
+                        + button);
         if (player == null || connection == null) {
+            System.out.println("[GRUG DIAG 1393] clickFromClient dropped: no player or connection");
             return;
         }
         GrugAlphaMenu menu = MENUS.get(player);
+        System.out.println(
+                "[GRUG DIAG 1393] menu="
+                        + (menu == null
+                                ? "none"
+                                : "window "
+                                        + menu.windowId
+                                        + " cursor="
+                                        + describeStack(menu.cursor)
+                                        + " slot0="
+                                        + describeMenuSlot(menu, 0)
+                                        + " slots="
+                                        + menu.slots.size()));
         if (menu == null || menu.windowId != windowId) {
+            System.out.println(
+                    "[GRUG DIAG 1393] clickFromClient dropped: no menu or another window id");
             return;
         }
         menu.click(player, slot, button);
+        System.out.println(
+                "[GRUG DIAG 1393] after click cursor="
+                        + describeStack(menu.cursor)
+                        + " slot0="
+                        + describeMenuSlot(menu, 0)
+                        + " clicked="
+                        + describeMenuSlot(menu, slot));
         connection.send(GrugScreenContentPacket.of(menu));
+    }
+
+    private static String describeStack(ItemStack stack) {
+        return stack == null ? "empty" : stack.id + "x" + stack.size;
+    }
+
+    private static String describeMenuSlot(GrugAlphaMenu menu, int index) {
+        if (index < 0 || index >= menu.slots.size()) {
+            return "out of range";
+        }
+        GrugAlphaMenu.Slot slot = menu.slots.get(index);
+        return describeStack(slot.inventory.getItem(slot.index))
+                + " (inventory slot "
+                + slot.index
+                + ")";
     }
 
     /** Closes the menu a joined client closed, dropping the stack it carried where it stands. */

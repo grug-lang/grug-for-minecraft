@@ -189,8 +189,15 @@ public final class GrugControlAlpha {
         @Override
         public void applyClientWork() {
             Object starter = server().starter();
+            System.out.println(
+                    "[GRUG DIAG 1393] applyClientWork starter="
+                            + starter
+                            + " thread="
+                            + Thread.currentThread().getName());
             if (starter instanceof Connection) {
                 ((Connection) starter).tick();
+                System.out.println(
+                        "[GRUG DIAG 1393] applyClientWork ticked the starter's connection");
             }
         }
 

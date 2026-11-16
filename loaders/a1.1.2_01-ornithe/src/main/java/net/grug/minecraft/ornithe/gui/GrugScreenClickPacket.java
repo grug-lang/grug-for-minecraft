@@ -63,6 +63,19 @@ public class GrugScreenClickPacket extends Packet {
 
     @Override
     public void handle(PacketHandler handler) {
+        System.out.println(
+                "[GRUG DIAG 1393] click packet handle() window="
+                        + windowId
+                        + " slot="
+                        + slot
+                        + " button="
+                        + button
+                        + " side="
+                        + (GrugCore.getAdapter() == null
+                                ? "no adapter"
+                                : String.valueOf(GrugCore.getAdapter().getSide()))
+                        + " thread="
+                        + Thread.currentThread().getName());
         if (GrugCore.getAdapter() == null
                 || GrugCore.getAdapter().getSide() != GrugSide.DEDICATED_SERVER) {
             return;

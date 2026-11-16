@@ -175,14 +175,53 @@ public class GrugScreen extends InventoryMenuScreen {
             return;
         }
         int slot = slotAt(mouseX, mouseY);
+        System.out.println(
+                "[GRUG DIAG 1393] client press mouse="
+                        + mouseX
+                        + ","
+                        + mouseY
+                        + " button="
+                        + button
+                        + " windowId="
+                        + windowId
+                        + " slot="
+                        + slot
+                        + " outsidePanel="
+                        + outsidePanel(mouseX, mouseY)
+                        + " slots="
+                        + menuSlots.size()
+                        + " guiLeft="
+                        + ((width - backgroundWidth) / 2)
+                        + " guiTop="
+                        + ((height - backgroundHeight) / 2)
+                        + " slot0="
+                        + (menuSlots.isEmpty()
+                                ? "none"
+                                : ((InventoryMenuSlot) menuSlots.get(0)).x
+                                        + ","
+                                        + ((InventoryMenuSlot) menuSlots.get(0)).y));
         if (slot == GrugScreenClickPacket.OUTSIDE && !outsidePanel(mouseX, mouseY)) {
+            System.out.println(
+                    "[GRUG DIAG 1393] client press sends nothing: on the panel but on no slot");
             // The game's own handler drops the cursor only for a click outside the panel; one on
             // the panel's background but on no slot does nothing, so this sends nothing either.
             return;
         }
         Connection connection = GrugControlAlphaClient.clientConnectionForScreens();
+        System.out.println(
+                "[GRUG DIAG 1393] client connection="
+                        + connection
+                        + " thread="
+                        + Thread.currentThread().getName());
         if (connection != null) {
             connection.send(new GrugScreenClickPacket(windowId, slot, button));
+            System.out.println(
+                    "[GRUG DIAG 1393] client queued the click packet window="
+                            + windowId
+                            + " slot="
+                            + slot
+                            + " button="
+                            + button);
         }
     }
 
