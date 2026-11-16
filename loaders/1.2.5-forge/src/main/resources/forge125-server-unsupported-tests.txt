@@ -49,5 +49,8 @@ jei/tests/item_list_forced_normalization-Test.grug
 # joined-client residue #1213 tracks. wooden_pipe_items passed on this server in the same run, so it
 # is not listed. The client-only run of this loader still checks the golden.
 #
+# coverage_frame: dispatch 43936815192 failed its capture on this leg in 2800 of 44800 px against 1.2.5-forge.png (#1392). coverage_render is unmeasured behind it and runs. The client-only run still checks both.
+coverage/tests/coverage_frame-Test.grug
+#
 # Proof 43764853785 (#1096): wooden_pipe_items passes on this leg, and wooden_pipe_shapes fails its capture in 9648 of 115200 px (#1213), measured as 2869 of 115200 px on wooden_pipe_corner in proof 43829659464, so it stays listed. The client-only run checks its golden.
 buildcraft/tests/wooden_pipe_shapes-Test.grug
