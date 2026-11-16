@@ -38,13 +38,20 @@ public final class GrugItemList {
     }
 
     /**
-     * Whether a player may use the operator tab's items: the game must let them use game master
-     * blocks, and where this process holds the operator list (singleplayer) the host's own notion
-     * of an operator must agree, because a script's revoke of the world's owner changes that and
-     * not the game's permission level. A client joined to a server has only the game's answer.
+     * Whether a player may use the operator tab's items: there must be a player to ask, the game
+     * must let them use game master blocks, and where this process holds the operator list
+     * (singleplayer) the host's own notion of an operator must agree, because a script's revoke of
+     * the world's owner changes that and not the game's permission level. With no player (a world
+     * loading or closing) nothing is allowed, and a client joined to a server has only the game's
+     * answer.
      */
     public static boolean mayUseOperatorItems(
-            boolean gameMasterBlocks, boolean holdsOperatorList, BooleanSupplier operator) {
-        return gameMasterBlocks && (!holdsOperatorList || operator.getAsBoolean());
+            boolean hasPlayer,
+            BooleanSupplier gameMasterBlocks,
+            boolean holdsOperatorList,
+            BooleanSupplier operator) {
+        return hasPlayer
+                && gameMasterBlocks.getAsBoolean()
+                && (!holdsOperatorList || operator.getAsBoolean());
     }
 }

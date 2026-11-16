@@ -658,8 +658,30 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
             itemsByNameWithoutOperatorCache =
                     GrugItemList.withoutOperatorOnly(items, OPERATOR_ONLY_ITEMS);
         }
-        return GrugItemList.listedFor(
-                mayUseOperatorItems(), itemsByNameCache, itemsByNameWithoutOperatorCache);
+        return itemsByNameCache;
+    }
+
+    /**
+     * The list the local player sees: the whole one, without the operator tab's items if they may
+     * not use them.
+     */
+    private List<Item> listedItems() {
+        List<Item> all = itemsByName();
+        return GrugItemList.listedFor(mayUseOperatorItems(), all, itemsByNameWithoutOperatorCache);
+    }
+
+    @Override
+    public int listedItemCount() {
+        return listedItems().size();
+    }
+
+    @Override
+    @GrugGenerated(
+            "the out-of-range guard: the host function checks the range first, so a run"
+                    + " never reaches this arm")
+    public Object listedItemByIndex(int index) {
+        List<Item> items = listedItems();
+        return index >= 0 && index < items.size() ? items.get(index) : null;
     }
 
     @Override

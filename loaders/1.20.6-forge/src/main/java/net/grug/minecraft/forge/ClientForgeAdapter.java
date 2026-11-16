@@ -114,7 +114,10 @@ public class ClientForgeAdapter extends ForgeAdapter {
     protected boolean mayUseOperatorItems() {
         net.minecraft.client.player.LocalPlayer player = Minecraft.getInstance().player;
         return GrugItemList.mayUseOperatorItems(
-                player.canUseGameMasterBlocks(), holdsOperatorList(), () -> isOperator(player));
+                player != null,
+                () -> player.canUseGameMasterBlocks(),
+                holdsOperatorList(),
+                () -> isOperator(player));
     }
 
     /**

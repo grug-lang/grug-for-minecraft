@@ -180,6 +180,21 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * How many items the list a player sees holds, which a loader may make shorter than {@link
+     * #itemCount} by what that player may use (#892); the answer for {@code item_count}. The give
+     * lookup on the server keeps using {@link #itemCount}, the whole registry, so a give by name
+     * does not depend on whose client drew the list.
+     */
+    default int listedItemCount() {
+        return itemCount();
+    }
+
+    /** The item at index in the list {@link #listedItemCount} counts, for {@code item_at}. */
+    default Object listedItemByIndex(int index) {
+        return itemByIndex(index);
+    }
+
+    /**
      * The name a give carries to identify this item, or null when this loader cannot name it.
      *
      * <p>A client joined to a server that drives a run names the item to the server this way, and
