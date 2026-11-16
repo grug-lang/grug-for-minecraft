@@ -1871,7 +1871,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // The game itself asks this after the block's state has set its bounding box, which is
         // what the world relies on before it draws the outline.
         block.updateBoundingBox(world, blockX, blockY, blockZ);
-        Box box = block.getBoundingBox(world, blockX, blockY, blockZ);
+        // A dedicated server's Block has no outline method, so a grug block answers through its own
+        // selectionBox, which is the same box.
+        Box box =
+                block instanceof GrugBlock
+                        ? ((GrugBlock) block).selectionBox(world, blockX, blockY, blockZ)
+                        : block.getBoundingBox(world, blockX, blockY, blockZ);
+        ;
         if (box == null) {
             return false;
         }

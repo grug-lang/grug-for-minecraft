@@ -232,6 +232,27 @@ public class GrugBlock extends TemplateBlockWithEntity {
     }
 
     /**
+     * The box the game targets and outlines at one position, read without asking the {@code Block}
+     * class for its outline method: a dedicated server's {@code Block} has no such method, so a
+     * test that asks the server what a player would target has to reach this block's own answer. It
+     * is the same box {@link #getBoundingBox} returns, and for a block that declared no shape it is
+     * the block's own bounds, which is what the inherited method answers.
+     */
+    public Box selectionBox(World world, int x, int y, int z) {
+        GrugShape shape = shapeAt(world, x, y, z);
+        if (shape == null) {
+            return Box.createCached(
+                    x + this.minX,
+                    y + this.minY,
+                    z + this.minZ,
+                    x + this.maxX,
+                    y + this.maxY,
+                    z + this.maxZ);
+        }
+        return union(x, y, z, shape.selection());
+    }
+
+    /**
      * The same box, for the callers that ask a block for one collision box instead of its list, and
      * the one {@link #addIntersectingBoundingBox} answers for when a version asks a block for its
      * shape.

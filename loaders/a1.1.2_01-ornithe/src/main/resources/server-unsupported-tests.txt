@@ -33,11 +33,6 @@ coverage/tests/take_crafting_result_empty-Test.grug
 coverage/tests/take_crafting_result_on_a_chest-Test.grug
 coverage/tests/update_recipe_output_on_a_chest-Test.grug
 #
-# Block selection. The a0.2.1 server Block has no getOutlineShape (the selection box is a client
-# matter), so these tests fail with NoSuchMethodError there.
-buildcraft/tests/wooden_pipe_boxes-Test.grug
-coverage/tests/block_shape-Test.grug
-#
 # The GUI a server opens for its player. The three GUI capture tests run here since this server
 # builds the block entity's own menu and sends it to the joined client (#1098): remote_gui,
 # item_icon and gui_builder. The two container-click tests still do
@@ -101,9 +96,6 @@ coverage/tests/hook_forced_normalization-Test.grug
 # (#1092), and coverage_render is unmeasured behind it. The client-only run still checks both.
 coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
-#
-# Proof 43763297057 passed cobblestone_pipe_shapes and redstone_engine on this leg and failed redstone_engine_animation's redstone_engine_stroke_facings capture in 1 of 62400 px (#1213), the joined client's far plane being 256 against the flat run's 32 (run 43807865292), which the joined run now sets to the flat one, so redstone_engine_animation is off the list and redstone_engine_facings comes after it and is unmeasured. The client-only run still checks both goldens.
-buildcraft/tests/redstone_engine_facings-Test.grug
 #
 # Proof 43764853785 (#1096) failed wooden_pipe_items on this leg in 1923 of 44800 px, the same count as the pipe with arms where the golden has the bare centre box on stationapi (#1351), so it stays listed. wooden_pipe_shapes comes after it and is unmeasured, so it stays listed too. The client-only run checks both goldens.
 buildcraft/tests/wooden_pipe_items-Test.grug

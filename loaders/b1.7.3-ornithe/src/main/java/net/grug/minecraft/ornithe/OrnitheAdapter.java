@@ -1936,7 +1936,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // The game itself asks this after the block's state has set its shape, which is what the
         // world relies on before it draws the outline.
         block.updateShape(world, blockX, blockY, blockZ);
-        Box box = block.getOutlineShape(world, blockX, blockY, blockZ);
+        // A dedicated server's Block has no outline method, so a grug block answers through its own
+        // selectionBox, which is the same box.
+        Box box =
+                block instanceof GrugBlock
+                        ? ((GrugBlock) block).selectionBox(world, blockX, blockY, blockZ)
+                        : block.getOutlineShape(world, blockX, blockY, blockZ);
+        ;
         if (box == null) {
             return false;
         }
