@@ -628,6 +628,9 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
      * Whether the player whose list this is may use the operator tab's items. A dedicated server
      * lists for nobody, so it keeps the whole list, which is what its give lookup names items from.
      */
+    @GrugGenerated(
+            "the dedicated server's arm: the coverage gate counts the client runner, whose adapter"
+                    + " overrides this")
     protected boolean mayUseOperatorItems() {
         return true;
     }

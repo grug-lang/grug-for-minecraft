@@ -114,9 +114,17 @@ public class ClientForgeAdapter extends ForgeAdapter {
     protected boolean mayUseOperatorItems() {
         net.minecraft.client.player.LocalPlayer player = Minecraft.getInstance().player;
         return GrugItemList.mayUseOperatorItems(
-                player.canUseGameMasterBlocks(),
-                Minecraft.getInstance().getSingleplayerServer() != null,
-                () -> isOperator(player));
+                player.canUseGameMasterBlocks(), holdsOperatorList(), () -> isOperator(player));
+    }
+
+    /**
+     * Whether this process holds the operator list: singleplayer does, a joined client does not.
+     */
+    @GrugGenerated(
+            "the joined arm: only the multiplayer job launches a client joined to a server, and"
+                    + " the coverage gate counts none of it")
+    private static boolean holdsOperatorList() {
+        return Minecraft.getInstance().getSingleplayerServer() != null;
     }
 
     /**
