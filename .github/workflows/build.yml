@@ -1130,7 +1130,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: multiplayer-${{ matrix.loader }}-logs
+          name: multiplayer-${{ matrix.loader }}-logs-${{ github.run_attempt }}
           # The server's unmatched captures are here too: a GUI test on a dedicated server
           # compares the joined client's frame, and its diff is what says why it failed (#1098).
           # The second player of the 1.20.6 leg (#1027) writes its own game directory, and
