@@ -839,7 +839,9 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void pressWorldKey(int key, boolean ctrl) {
         if (refuseWithoutAClient("TestTickContext.press_world_key")) return;
-        GrugOverlayHost.pressWorldKey(key, ctrl);
+        // The runner calls from the server thread, and the overlay host's lazily created entity
+        // list belongs to the client thread, which renders and polls keys.
+        onClientThread(() -> GrugOverlayHost.pressWorldKey(key, ctrl));
     }
 
     @Override
