@@ -778,9 +778,7 @@ while :; do
     fi
     # The overlay and item-list tests #1099 promoted. A joined client answers overlay_supported and
     # overlay_drawn now, and the give an overlay's click makes is named to the server, so these
-    # eight tests open the client's screen and drive the overlay on it. The a1.1.2_01 leg runs none
-    # of them: its server has no openInventory override that forwards the call, so the inherited
-    # client method refuses with refuseWithoutAClient.
+    # eight tests open the client's screen and drive the overlay on it.
     # Three stay client-only on every leg, each in that loader's list with the reason:
     # overlay_screen_open asserts a just-opened screen has drawn no frame, which a joined client
     # cannot promise, and overlay-Test and jei-Test delete the item on the cursor, which only the
@@ -806,6 +804,13 @@ while :; do
         # The forced-normalization item list: a dedicated server cannot force that GL state, and
         # the joined client's capture differs from the golden in 5967, all 12672 and 11614 of 12672
         # pixels (1.20.6, 1.2.5, stationapi).
+        excluded="jei/tests/item_list_forced_normalization"
+        ;;
+      a1.1.2_01-ornithe)
+        overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_scroll jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        # Only the forced-normalization item list is client-only here: a dedicated server cannot
+        # force that GL state. paging and scroll are back after #1238 gave the coverage mod's two
+        # fixtures drawable item models, and this leg runs both.
         excluded="jei/tests/item_list_forced_normalization"
         ;;
       b1.7.3-ornithe)
