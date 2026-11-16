@@ -212,8 +212,12 @@ public class GrugBlockEntity extends BlockEntity
         // A copy made again for a block this client already received data for starts from it, so
         // it does not wait for an update the server sent to the copy that was dropped (#1354).
         if (world != null && world.isRemote) {
-            NbtCompound last = GrugSavedDataPacket.lastApplied(x, y, z, world.getBlockId(x, y, z));
-            if (last != null) readSavedData(last);
+            NbtCompound last =
+                    GrugSavedDataPacket.lastReceived(world, x, y, z, world.getBlockId(x, y, z));
+            if (last != null) {
+                readSavedData(last);
+                GrugCore.getAdapter().redraw(this);
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package net.grug.minecraft.stationapi.block.entity;
 
+import net.grug.minecraft.core.GrugClientDataCache;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -45,45 +46,34 @@ public class GrugSavedDataPacket extends Packet {
     private NbtCompound data = new NbtCompound();
 
     /**
-     * The data this client last applied per position and block, so a copy the chunk makes again for
-     * the same block starts from it (#1354). The game drops a block entity and asks the chunk for a
-     * new one in ways this loader does not see, and the server sent its first data to the copy that
-     * is gone, so the new copy would wait for an update that never comes and draw nothing. Bounded,
-     * because every position a block entity saved data at stays until pushed out.
+     * The data this client last received per position and block, as bytes so a copy that reads it
+     * shares nothing with the copy that was given it (#1354). See {@link GrugClientDataCache}.
      */
-    private static final java.util.Map<String, Object[]> LAST_APPLIED = new LastApplied();
+    private static final GrugClientDataCache<byte[]> RECEIVED = new GrugClientDataCache<>(4096);
 
-    /** The bounded map above: a named class so the coverage gate can leave out its eviction. */
-    @GrugGenerated("eviction past 4096 positions: no test saves that many block entities")
-    private static final class LastApplied extends java.util.LinkedHashMap<String, Object[]> {
-        LastApplied() {
-            super(64, 0.75f, true);
+    /** Remembers data received for a block at a position, in a world, before it is applied. */
+    @GrugGenerated("reaches the game's NBT writer, which only a running game has")
+    private static void remember(World world, int x, int y, int z, int blockId, NbtCompound data) {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try {
+            NbtIo.write(data, new DataOutputStream(bytes));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
+        RECEIVED.put(world, x, y, z, blockId, bytes.toByteArray());
+    }
 
-        @Override
-        protected boolean removeEldestEntry(java.util.Map.Entry<String, Object[]> eldest) {
-            return size() > 4096;
+    /** A copy of the data last received at the position for that block, or null when none. */
+    @GrugGenerated("reaches the game's NBT reader, which only a running game has")
+    public static NbtCompound lastReceived(World world, int x, int y, int z, int blockId) {
+        byte[] bytes = RECEIVED.get(world, x, y, z, blockId);
+        if (bytes == null) return null;
+        try {
+            return NbtIo.read(new DataInputStream(new ByteArrayInputStream(bytes)));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
-
-    private static String key(int x, int y, int z) {
-        return x + "," + y + "," + z;
-    }
-
-    /** The data last applied at the position for that block, or null when there is none. */
-    public static synchronized NbtCompound lastApplied(int x, int y, int z, int blockId) {
-        Object[] last = LAST_APPLIED.get(key(x, y, z));
-        if (last == null || (int) last[0] != blockId) return null;
-        return (NbtCompound) last[1];
-    }
-
-    /**
-     * Whether the client is also told to build the block's mesh again, which a chunk-mesh block
-     * needs before it reads the data. A change to saved data is sent without it, so the client only
-     * reads the data and no section is rebuilt; a block that draws per frame reads it on the next
-     * frame.
-     */
-    private boolean redraw;
 
     /** Empty, for the game's packet table, which makes one of each packet to read it into. */
     public GrugSavedDataPacket() {}
@@ -158,14 +148,15 @@ public class GrugSavedDataPacket extends Packet {
             return;
         }
         World world = (World) level;
+        // Remembered before the block check, for the block the packet was sent for: a copy made
+        // later for that block starts from it, which a packet that arrived first would otherwise
+        // have lost.
+        remember(world, x, y, z, blockId, data);
         if (world.getBlockId(x, y, z) != blockId) {
             return;
         }
         BlockEntity blockEntity = world.getBlockEntity(x, y, z);
         if (blockEntity instanceof GrugBlockEntity) {
-            synchronized (GrugSavedDataPacket.class) {
-                LAST_APPLIED.put(key(x, y, z), new Object[] {blockId, data});
-            }
             ((GrugBlockEntity) blockEntity).readSavedData(data);
             if (redraw) {
                 // The client builds its own mesh again from the data it just read, which is the

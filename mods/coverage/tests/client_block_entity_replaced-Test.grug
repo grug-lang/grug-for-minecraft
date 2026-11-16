@@ -5,14 +5,19 @@
 # position: the custom-rendered coverage_render blocks drew as plain cubes on b1.7.3-stationapi's
 # dedicated leg, because an earlier test had left chests at the positions its fixture uses.
 # The chest goes in first and the test waits for the joined client to hold it, then the grug block
-# replaces it and the test reads the joined client's copy of a saved number. A copy that is still
-# the chest is not a grug block entity, so the read reports an error and fails the test. In
+# replaces it, the test saves a number on the block entity and waits for the joined client's copy
+# to hold it. A copy that is still the chest is not a grug block entity, so the read reports an
+# error and fails the test, and the number only arrives when the client's copy for this block can
+# take data at all, so a read of 0 never passes. This does not reach the loader's cache of data a
+# client received, which the core unit tests cover, and it was not shown failing without the fix. In
 # singleplayer the copy is this process's own, so the server legs are the ones that prove the fix.
 # The waits are the ones client_saved_number-Test uses: the settle wait says the client has drawn a
 # frame from the world the placement changed, and the extra ticks are the packet's own flight.
 placed_tick: number = 0
 replaced: bool = false
 read_tick: number = 0
+saved: bool = false
+misses: number = 0
 
 export init(ctx: TestInitContext) {
     ctx.set_max_ticks(600)
@@ -40,10 +45,23 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else if ctx.current_tick() < read_tick + 30 {
         ctx.not_done()
-    } else {
+    } else if not saved {
         be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
         ctx.assert(be_opt.has(), "The grug block should have a block entity.")
+        be_opt.unwrap().set_saved_number("replaced_marker", 7)
+        saved = true
+        read_tick = ctx.current_tick()
+        ctx.not_done()
+    } else if ctx.current_tick() >= read_tick + 10 {
+        be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
         copy: number = ctx.client_saved_number(be_opt.unwrap(), "replaced_marker")
-        ctx.assert(copy == 0, "The client's copy of the replaced block should hold no saved data.")
+        if copy != 7 {
+            misses = misses + 1
+            ctx.assert(misses < 40, "The saved number never reached the joined client's copy.")
+            read_tick = ctx.current_tick()
+            ctx.not_done()
+        }
+    } else {
+        ctx.not_done()
     }
 }
