@@ -61,7 +61,14 @@ repositories {
     maven("https://maven.glass-launcher.net/babric")
     maven("https://maven.minecraftforge.net/")
     maven("https://jitpack.io/")
-    mavenCentral()
+    mavenCentral {
+        // typetools 0.8.x is not on Maven Central (its newest is 0.7.0), only on the Forge maven, so
+        // asking Central about it is a wasted request that its rate limit can turn into a failed
+        // build (#1370).
+        content {
+            excludeGroup("net.jodah")
+        }
+    }
 
     exclusiveContent {
         forRepository {
@@ -118,6 +125,16 @@ tasks.withType<Test> {
 
 configurations.all {
     exclude("babric")
+
+    // StationAPI > UnsafeEvents asks for net.jodah:typetools:0.8.+, a dynamic version, and Gradle
+    // lists a repository's versions to resolve one: a rate limited listing fails the configuration
+    // (#1370). 0.8.3 is the newest 0.8.x on the Forge maven; the request is rewritten before it
+    // is resolved, so no version listing happens.
+    resolutionStrategy.eachDependency {
+        if (requested.group == "net.jodah" && requested.name == "typetools") {
+            useVersion("0.8.3")
+        }
+    }
 }
 
 tasks.withType<ProcessResources> {
