@@ -1,23 +1,14 @@
-# ctx.open_inventory asked of a dedicated server's joined client (#1094). On every server but
-# a1.1.2_01's, the server forwards the call, the client opens its own inventory screen, and this
-# waits for that screen and closes it: the screen is the client's, not a menu the server made up.
-# The a1.1.2_01 server has no openInventory override that forwards the call, so the inherited
-# client method keeps refusing with a host function error naming the function instead of reaching
-# for the client's own game class, which a server refuses to load (#1064, #1098). See
-# forwarded_screen_width-Test for why this is a forwarded_ test.
+# ctx.open_inventory asked of a dedicated server's joined client (#1094). The server
+# forwards the call, the client opens its own inventory screen, and this waits for that screen and
+# closes it: the screen is the client's, not a menu the server made up. A server that dropped the
+# forwarding would refuse with a host function error naming the function, and the screen would
+# never open, which fails the wait below (#1064, #1098). See forwarded_screen_width-Test for why
+# this is a forwarded_ test.
 started: bool = false
 opened: bool = false
 waited: number = 0
 
 export tick(ctx: TestTickContext) {
-    loader: string = me.loader_name()
-    if loader == "a1.1.2_01-ornithe" {
-        # A server that cannot forward the call names the function rather than reaching for the
-        # client's own game class, which a server refuses to load.
-        ctx.expect_error("TestTickContext.open_inventory: This needs a client")
-        ctx.open_inventory(ctx.get_player())
-        return
-    }
     if not started {
         started = true
         ctx.close_screen()
