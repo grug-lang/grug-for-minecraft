@@ -144,11 +144,13 @@ Color.rgb(r: number, g: number, b: number) Color
 
 ## Level
 .count_item_entities(x: number, y: number, z: number, radius: number) number
+.count_mobs(category: string) number
 .explode(x: number, y: number, z: number, power: number)
 .find_item_entity(x: number, y: number, z: number, radius: number) Option[ItemEntity]
 .get_block(x: number, y: number, z: number) string
 .get_block_entity(x: number, y: number, z: number) Option[BlockEntity]
 .get_block_light(x: number, y: number, z: number) number
+.get_mob_cap(category: string) number
 .get_sky_light(x: number, y: number, z: number) number
 .get_time() number
 .has_neighbor_signal(x: number, y: number, z: number) bool
@@ -187,6 +189,7 @@ Option.new() Option[$Value]
 
 ## OverlayHudContext
 .add_text(text: string, x: number, y: number, color: Color)
+.get_level() Level
 .screen_height() number
 .screen_width() number
 
@@ -310,6 +313,7 @@ Option.new() Option[$Value]
 .set_mod_file_state(relative_path: string, state: string)
 .set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
 .set_nbt_number(block_entity: BlockEntity, path: string, type: string, value: number)
+.spawn_mob(level: Level, id: string, x: number, y: number, z: number)
 .stall(milliseconds: number)
 .tick_block_entity(block_entity: BlockEntity, ticks: number)
 .tick_level(level: Level, ticks: number) number
