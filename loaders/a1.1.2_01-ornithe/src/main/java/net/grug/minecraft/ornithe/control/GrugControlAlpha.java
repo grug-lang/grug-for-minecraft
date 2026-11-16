@@ -10,6 +10,7 @@ import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketHandler;
+import net.minecraft.network.packet.ChatMessagePacket;
 import net.minecraft.world.World;
 
 import java.lang.reflect.Field;
@@ -65,6 +66,10 @@ public final class GrugControlAlpha {
     /** The player each connection belongs to, learnt when its first control message is handled. */
     private static final Map<Connection, PlayerEntity> PLAYERS =
             Collections.synchronizedMap(new WeakHashMap<>());
+
+    /** Whether this thread is inside {@link #onHandle}, which the game thread runs. */
+    private static final ThreadLocal<Boolean> ON_GAME_THREAD =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     /** The player who started the run, or null when none has or they have left. */
     public static PlayerEntity starterPlayer() {
@@ -198,6 +203,47 @@ public final class GrugControlAlpha {
         public boolean mayStartRun(Object sender) {
             return PLAYERS.get((Connection) sender) != null;
         }
+
+        /** This loader gives to the player who asked, after the operator check (#882). */
+        @Override
+        public boolean givesToSender() {
+            return true;
+        }
+
+        @Override
+        public Object playerOfSender(Object sender) {
+            return PLAYERS.get((Connection) sender);
+        }
+
+        /** Shows the player the error in red chat, the way the game shows a refused command. */
+        @Override
+        public void tell(Object sender, String message) {
+            if (PLAYERS.get((Connection) sender) != null) {
+                ((Connection) sender).send(new ChatMessagePacket("\u00a7c" + message));
+            }
+        }
+
+        /**
+         * A message the game thread's own {@code onHandle} handles is already on the server thread,
+         * so the task runs at once. One read on a connection's reader thread is not: it is left for
+         * the drain the runner makes before its next tick, which core marks pending.
+         */
+        @Override
+        public void runOnServerThread(Runnable task) {
+            if (ON_GAME_THREAD.get()) {
+                task.run();
+            }
+        }
+
+        /** A CI server makes the player who starts a run an operator (#882); a real one never. */
+        @Override
+        public void onRunStarted(Object starter) {
+            if (!"true".equals(System.getenv("GRUG_CI"))) return;
+            PlayerEntity player = PLAYERS.get((Connection) starter);
+            if (player != null) {
+                GrugCore.getAdapter().makeOperator(player);
+            }
+        }
     }
 
     private static boolean onServer() {
@@ -236,7 +282,12 @@ public final class GrugControlAlpha {
             if (connection != null && player != null) {
                 PLAYERS.put(connection, player);
             }
-            server().onMessage(connection, bytes);
+            ON_GAME_THREAD.set(Boolean.TRUE);
+            try {
+                server().onMessage(connection, bytes);
+            } finally {
+                ON_GAME_THREAD.set(Boolean.FALSE);
+            }
         } else {
             GrugControlAlphaClient.onMessage(bytes);
         }
