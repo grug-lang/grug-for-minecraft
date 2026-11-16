@@ -51,6 +51,18 @@ empty_prev: Option[Screenshot] = Option.new()
 before: Option[Screenshot] = Option.new()
 after: Option[Screenshot] = Option.new()
 
+# Whether the save of 1 has been captured, since an Option cannot be emptied again for a second pass.
+after_taken: bool = false
+
+# Whether restored_prev holds a capture of the current pass.
+restored_prev_taken: bool = false
+
+# The last restored capture, so two that agree tell a room that stopped changing from one still moving.
+restored_prev: Option[Screenshot] = Option.new()
+
+# How many times the before frame was taken again because the room's light stepped after it (#1179).
+rebaselines: number = 0
+
 # Whether the number has been saved as 1, and whether it has been saved as 0 again.
 saved: bool = false
 cleared: bool = false
@@ -98,7 +110,7 @@ export tick_any_side(ctx: TestTickContext) {
         saved_tick = ctx.current_tick()
         attempts = 0
         ctx.not_done()
-    } else if not after.has() {
+    } else if not after_taken {
         _capture_after(ctx)
         ctx.not_done()
     } else if not cleared {
@@ -119,11 +131,40 @@ export tick_any_side(ctx: TestTickContext) {
             ctx.assert(mesh_block.unwrap().get_saved_number("mesh_marker") == 0, "The number should be saved as 0.")
         } else {
             attempts = attempts + 1
-            ctx.assert(attempts < 8, "Saving 0 did not take the plate away again.")
+            if _light_stepped(restored) {
+                # The restored frames agree with each other and not with the before frame, so the
+                # whole room was lit differently after the before capture was taken (#1179: 1.2.5's
+                # client lights a changed room a few frames late, and the loaders that cannot read
+                # the client's light answer true to light_applied). Whether the plate left cannot be
+                # read against a frame of another light, so this settled frame becomes the before
+                # frame and the save of 1 and then of 0 is proved again against it. A plate that
+                # never left stays in the new before frame and then fails the save of 1, which
+                # changes nothing against it.
+                rebaselines = rebaselines + 1
+                print("the room's light stepped after the before capture, taking the before frame again")
+                before.set(restored)
+                after_taken = false
+                restored_prev_taken = false
+                saved = false
+                cleared = false
+                attempts = 0
+            } else {
+                ctx.assert(attempts < 8, "Saving 0 did not take the plate away again.")
+                restored_prev.set(restored)
+                restored_prev_taken = true
+            }
             cleared_tick = ctx.current_tick()
             ctx.not_done()
         }
     }
+}
+
+# Whether the restored frame is the second of two that agree and the rebaseline budget is left.
+local _light_stepped(restored: Screenshot) bool {
+    if rebaselines >= 2 or not restored_prev_taken {
+        return false
+    }
+    return restored.change_from(restored_prev.unwrap()) < 1
 }
 
 # Whether the client's copy holds the room's light, so a capture now is drawn with the room as the
@@ -220,6 +261,7 @@ local _capture_after(ctx: TestTickContext) {
             saved_tick = ctx.current_tick()
         } else {
             after.set(shot)
+            after_taken = true
             attempts = 0
         }
     }
