@@ -34,9 +34,10 @@ export tick(ctx: TestTickContext) {
 
         # A stone floor with air over it is a space a hostile mob may stand in, and the stone itself
         # is not, nor is the air with no floor under it.
+        level.place_block(x, y - 1, z, "minecraft:stone")
         level.place_block(x, y, z, "minecraft:stone")
         ctx.assert(level.is_hostile_spawn_space(x, y + 1, z), "Air over a stone floor should be a hostile spawn space.")
-        ctx.assert(not level.is_hostile_spawn_space(x, y, z), "A solid block should not be a hostile spawn space.")
+        ctx.assert(not level.is_hostile_spawn_space(x, y, z), "A solid block, even on a solid floor, should not be a hostile spawn space.")
         ctx.assert(not level.is_hostile_spawn_space(x, y + 2, z), "Air with no solid floor should not be a hostile spawn space.")
 
         # A solid block over the space takes it away.
