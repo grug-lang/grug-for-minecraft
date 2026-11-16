@@ -62,14 +62,11 @@ public abstract class ChunkMixin {
         Chunk self = (Chunk) (Object) this;
         int id = self.getBlockId(x, y, z);
         if (id < 0 || id >= Block.BLOCKS.length || id >= Block.BLOCKS_WITH_ENTITY.length) return;
-        boolean kept =
-                found instanceof GrugBlockEntity g && world.isRemote && g.madeForAnotherBlock();
-        if (kept
-                || GrugStaleBlockEntity.shouldDropOnClient(
-                        found instanceof GrugBlockEntity,
-                        Block.BLOCKS[id] instanceof GrugBlock,
-                        Block.BLOCKS_WITH_ENTITY[id],
-                        world.isRemote)) {
+        if (GrugStaleBlockEntity.shouldDropOnClient(
+                found instanceof GrugBlockEntity,
+                Block.BLOCKS[id] instanceof GrugBlock,
+                Block.BLOCKS_WITH_ENTITY[id],
+                world.isRemote)) {
             self.removeBlockEntityAt(x, y, z);
             cir.setReturnValue(self.getBlockEntity(x, y, z));
         }
