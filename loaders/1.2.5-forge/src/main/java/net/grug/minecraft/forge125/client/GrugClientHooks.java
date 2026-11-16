@@ -347,9 +347,12 @@ public class GrugClientHooks implements ITickHandler {
 
     /**
      * What a run's start does to the window, for a joined client that starts its own run on a
-     * server (#1040): the screenshot size. The view distance is left alone, as on the other
-     * loaders, but the particles are pinned to minimal as a client-only run pins them, because a
-     * capture taken on the server has to be the same picture (#1161).
+     * server (#1040): the screenshot size, the same smallest view distance and fog switch a
+     * client-only run sets, and the particles pinned to minimal. A capture taken on the server has
+     * to be the same picture (#1161). The view distance sets the projection's far plane, which is
+     * 64 blocks at the smallest distance and 512 at the default, and a far plane that differs
+     * changes the depth buffer's steps: redstone_engine_stroke_facings lost one edge pixel on a
+     * joined client for that alone (#1213).
      *
      * <p>Answers whether the run started. One run owns the window at a time, so a client-only run
      * this client started by hand refuses this one (#1213): nothing is taken, and the joined client
@@ -358,19 +361,22 @@ public class GrugClientHooks implements ITickHandler {
     public boolean beginControlRun() {
         controlRun = window.beginRun();
         if (controlRun) {
-            minimiseParticlesForRun(ModLoader.getMinecraftInstance());
+            shrinkViewForRun(ModLoader.getMinecraftInstance());
         }
         return controlRun;
     }
 
-    /** Puts the window and the particle setting back when this client has left the server's run. */
+    /**
+     * Puts the window, the view distance and the particle setting back when this client has left
+     * the server's run.
+     */
     public void endControlRun() {
         if (!controlRun) {
             return;
         }
         controlRun = false;
         window.endRun();
-        restoreParticlesAfterRun(ModLoader.getMinecraftInstance());
+        restoreViewAfterRun(ModLoader.getMinecraftInstance());
     }
 
     /**

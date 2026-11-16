@@ -42,7 +42,9 @@ jei/tests/item_list_forced_normalization-Test.grug
 #
 # The four wall-backed buildcraft captures #1161 promoted to tick_any_side. Two stay client-only on
 # this loader until #1213 finds why: dispatch 42430865929 stopped at redstone_engine_animation's
-# redstone_engine_stroke_facings, 1 of 62400 pixels, after the particle pin cleared the 633-pixel
+# redstone_engine_stroke_facings, 1 of 62400 pixels (the joined client's far plane, 512 against the
+# flat run's 64, which the joined run now sets the same way; redstone_engine_animation is therefore
+# off this list and redstone_engine_facings still listed), after the particle pin cleared the 633-pixel
 # redstone_engine_yellow difference. That dispatch also ran the two before it, and both passed:
 # redstone_engine is the proof that the joined client pins the particles the way its client-only
 # run does (#1161), and cobblestone_pipe_shapes passed at 00:45:41, before the leg's first promoted
@@ -65,5 +67,4 @@ coverage/tests/coverage_render-Test.grug
 buildcraft/tests/wooden_pipe_shapes-Test.grug
 #
 # Proof 43785321576 (#1096) failed redstone_engine_animation's redstone_engine_stroke_facings capture in 1 of 62400 px at (346,62), the deterministic pixel of #1213, so it stays listed, and redstone_engine_facings comes after it and is unmeasured. The client-only run still checks both goldens.
-buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
