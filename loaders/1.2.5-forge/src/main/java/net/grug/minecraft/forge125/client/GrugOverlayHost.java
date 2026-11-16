@@ -667,8 +667,9 @@ public final class GrugOverlayHost {
      * screen, fires once at most.
      */
     public static void pollWorldKeys(Minecraft minecraft) {
-        if (minecraft.theWorld == null) return;
-        boolean open = noScreen(minecraft);
+        // The state is recorded on every poll, with no world loaded too, so a key still held when a
+        // world loads is not taken for a fresh press; only the delivery waits for a world.
+        boolean open = noScreen(minecraft) && minecraft.theWorld != null;
         for (int code = '0'; code <= 'Z'; code++) {
             if (!GrugWorldKeys.tracked(code)) continue;
             int key = Keyboard.getKeyIndex(String.valueOf((char) code));

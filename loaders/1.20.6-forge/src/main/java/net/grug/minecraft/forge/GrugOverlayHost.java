@@ -458,8 +458,9 @@ public final class GrugOverlayHost {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null) return;
-        boolean open = minecraft.screen == null;
+        // The state is recorded on every tick, with no level loaded too, so a key still held when a
+        // level loads is not taken for a fresh press; only the delivery waits for a level.
+        boolean open = minecraft.screen == null && minecraft.level != null;
         long window = minecraft.getWindow().getWindow();
         for (int code = '0'; code <= 'Z'; code++) {
             if (!GrugWorldKeys.tracked(code)) continue;
