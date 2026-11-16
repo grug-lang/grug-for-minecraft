@@ -23,6 +23,7 @@
     "MinecraftMixin",
     "TitleScreenMixin",
     "GameRendererMixin",
+    "ParticleManagerMixin",
     "HandledScreenMixin",
     "ScreenMixin",
     "SpriteContentsMixin",
