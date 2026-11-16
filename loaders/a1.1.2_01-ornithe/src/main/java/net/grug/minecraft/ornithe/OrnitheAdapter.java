@@ -655,6 +655,32 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return index >= 0 && index < items.size() ? items.get(index) : null;
     }
 
+    /**
+     * The item's name, which is how a client joined to a server names an item it gives (#882):
+     * Alpha has no registry keys, so a grug item or the item of a grug block is named by the id its
+     * grug file declares, which both processes compute from the same mods, and a vanilla item by
+     * its id, which the game fixes. Both sides of a give compute it with this method, so the names
+     * match even where the two item lists index a grug item differently.
+     */
+    @Override
+    @GrugGenerated(
+            "the joined-client give (#1099): only the multiplayer job launches a client joined to a"
+                    + " server, and the server that applies its give, so a run the coverage"
+                    + " gate counts never names an item and gives it to its own player")
+    public String itemName(Object itemObj) {
+        Item item = (Item) itemObj;
+        if (item instanceof GrugItem) {
+            net.grug.minecraft.grug.GrugItemData data =
+                    GrugDeclarations.itemDataByFileId.get(((GrugItem) item).itemFileId);
+            return data == null ? null : data.id;
+        }
+        Block block = item.id < Block.BY_ID.length ? Block.BY_ID[item.id] : null;
+        if (block instanceof GrugBlock) {
+            return blockName(item.id);
+        }
+        return "vanilla:" + item.id;
+    }
+
     @Override
     public int getItemMaxStack(Object itemObj) {
         return ((Item) itemObj).getMaxStackSize();
