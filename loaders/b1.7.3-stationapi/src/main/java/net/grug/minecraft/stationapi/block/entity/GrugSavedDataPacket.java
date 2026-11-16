@@ -45,6 +45,32 @@ public class GrugSavedDataPacket extends Packet {
     private NbtCompound data = new NbtCompound();
 
     /**
+     * The data this client last applied per position and block, so a copy the chunk makes again for
+     * the same block starts from it (#1354). The game drops a block entity and asks the chunk for a
+     * new one in ways this loader does not see, and the server sent its first data to the copy that
+     * is gone, so the new copy would wait for an update that never comes and draw nothing. Bounded,
+     * because every position a block entity saved data at stays until pushed out.
+     */
+    private static final java.util.Map<String, Object[]> LAST_APPLIED =
+            new java.util.LinkedHashMap<String, Object[]>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, Object[]> eldest) {
+                    return size() > 4096;
+                }
+            };
+
+    private static String key(int x, int y, int z) {
+        return x + "," + y + "," + z;
+    }
+
+    /** The data last applied at the position for that block, or null when there is none. */
+    public static synchronized NbtCompound lastApplied(int x, int y, int z, int blockId) {
+        Object[] last = LAST_APPLIED.get(key(x, y, z));
+        if (last == null || (int) last[0] != blockId) return null;
+        return (NbtCompound) last[1];
+    }
+
+    /**
      * Whether the client is also told to build the block's mesh again, which a chunk-mesh block
      * needs before it reads the data. A change to saved data is sent without it, so the client only
      * reads the data and no section is rebuilt; a block that draws per frame reads it on the next
@@ -130,6 +156,9 @@ public class GrugSavedDataPacket extends Packet {
         }
         BlockEntity blockEntity = world.getBlockEntity(x, y, z);
         if (blockEntity instanceof GrugBlockEntity) {
+            synchronized (GrugSavedDataPacket.class) {
+                LAST_APPLIED.put(key(x, y, z), new Object[] {blockId, data});
+            }
             ((GrugBlockEntity) blockEntity).readSavedData(data);
             if (redraw) {
                 // The client builds its own mesh again from the data it just read, which is the
