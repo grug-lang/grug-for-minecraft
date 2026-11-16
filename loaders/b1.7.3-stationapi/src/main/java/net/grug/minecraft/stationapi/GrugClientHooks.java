@@ -259,6 +259,23 @@ public class GrugClientHooks {
         return true;
     }
 
+    /** True once per run, so the particle manager drops what was alive when it began. */
+    @GrugGenerated(
+            "dev-only: the particle clear a run asks for, read from the game's particle manager")
+    public static boolean takeParticleClear() {
+        return instance != null && instance.window.takeParticleClear();
+    }
+
+    /**
+     * Whether a run has turned particles off, which {@code ParticleManagerMixin} reads. Beta has no
+     * particle setting to lower, so a run's "minimal" is the switch the window's run state carries,
+     * on exactly while the run that took the window is going, whatever started it. Off between
+     * runs, so ordinary play is unaffected.
+     */
+    public static boolean isParticleMinimised() {
+        return instance != null && instance.window.particlesMinimised();
+    }
+
     /** The static form of {@link #isTestRunActive()}, for {@code InGameHudMixin}. */
     public static boolean isRunActive() {
         return instance.isTestRunActive();

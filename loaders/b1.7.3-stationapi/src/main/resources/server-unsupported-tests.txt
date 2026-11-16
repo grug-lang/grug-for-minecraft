@@ -44,10 +44,13 @@ coverage/tests/hook_forced_normalization-Test.grug
 jei/tests/item_list_forced_normalization-Test.grug
 #
 # The wall-backed buildcraft captures that still differ. cobblestone_pipe_shapes passes here (#1213).
-# Proof 43763297057 (#1096) failed redstone_engine_green in 33 of 34100 px, so the three
-# redstone_engine tests stay listed. It also failed wooden_pipe_items in 1923 of 44800 px, a pipe with
-# arms where the golden has the bare centre box (#1351), so that one stays listed; wooden_pipe_shapes
-# is not listed and is unmeasured, because the leg stopped at wooden_pipe_items.
+# The three redstone_engine tests are off this list (#1161): proof 43819785598 failed
+# redstone_engine_green in 1104 of 34100 px, all of it the engine's redstone dust, because the joined
+# client runs without GRUG_CI and this loader dropped particles by that variable only; its particle
+# manager now honours the run's switch as the Ornithe loaders' does. wooden_pipe_items failed in 1923
+# of 44800 px, a pipe with arms where the golden has the bare centre box (#1351), so that one stays
+# listed; wooden_pipe_shapes is not listed and is unmeasured, because the leg stopped at
+# wooden_pipe_items.
 #
 # The wall-backed world capture renamed to tick_any_side (coverage_render is not listed: it is
 # unmeasured here and stays off the list until a dispatch shows it fail). Dispatch 43480583214, with the light
@@ -57,9 +60,6 @@ jei/tests/item_list_forced_normalization-Test.grug
 # golden comes from the client replaying them, so a stable relight of the final state is darker
 # there. The client-only run of this loader still checks the golden.
 coverage/tests/coverage_frame-Test.grug
-buildcraft/tests/redstone_engine-Test.grug
-buildcraft/tests/redstone_engine_animation-Test.grug
-buildcraft/tests/redstone_engine_facings-Test.grug
 buildcraft/tests/wooden_pipe_items-Test.grug
 #
 # Proof 43764853785 (#1096) failed wooden_pipe_shapes' wooden_pipe_corner capture in 965 of 115200 px, so it stays listed with wooden_pipe_items (#1351). The client-only run checks both goldens.

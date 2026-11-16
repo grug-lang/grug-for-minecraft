@@ -21,6 +21,7 @@
     "TessellatorMixin",
     "InGameHudMixin",
     "MinecraftMixin",
+    "ParticleManagerMixin",
     "TitleScreenMixin",
     "GameRendererMixin",
     "HandledScreenMixin",
