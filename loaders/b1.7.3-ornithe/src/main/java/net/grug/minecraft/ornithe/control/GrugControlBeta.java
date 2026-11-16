@@ -65,6 +65,10 @@ public final class GrugControlBeta {
     private static final Map<Connection, PlayerEntity> PLAYERS =
             Collections.synchronizedMap(new WeakHashMap<>());
 
+    /** Whether this thread is inside {@link #onHandle}, which the game thread runs. */
+    private static final ThreadLocal<Boolean> ON_GAME_THREAD =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     /** The player who started the run, or null when none has or they have left. */
     public static PlayerEntity starterPlayer() {
         Object starter = server().starter();
@@ -123,6 +127,48 @@ public final class GrugControlBeta {
         public boolean mayStartRun(Object sender) {
             return PLAYERS.get((Connection) sender) != null;
         }
+
+        /** This loader gives to the player who asked, after the operator check (#882). */
+        @Override
+        public boolean givesToSender() {
+            return true;
+        }
+
+        @Override
+        public Object playerOfSender(Object sender) {
+            return PLAYERS.get((Connection) sender);
+        }
+
+        /** Shows the player the error in red chat, the way the game shows a refused command. */
+        @Override
+        public void tell(Object sender, String message) {
+            PlayerEntity player = PLAYERS.get((Connection) sender);
+            if (player != null) {
+                player.addMessage("\u00a7c" + message);
+            }
+        }
+
+        /**
+         * A message the game thread's own {@code onHandle} handles is already on the server thread,
+         * so the task runs at once. One read on a connection's reader thread is not: it is left for
+         * the drain the runner makes before its next tick, which core marks pending.
+         */
+        @Override
+        public void runOnServerThread(Runnable task) {
+            if (ON_GAME_THREAD.get()) {
+                task.run();
+            }
+        }
+
+        /** A CI server makes the player who starts a run an operator (#882); a real one never. */
+        @Override
+        public void onRunStarted(Object starter) {
+            if (!"true".equals(System.getenv("GRUG_CI"))) return;
+            PlayerEntity player = PLAYERS.get((Connection) starter);
+            if (player != null) {
+                GrugCore.getAdapter().makeOperator(player);
+            }
+        }
     }
 
     private static boolean onServer() {
@@ -161,7 +207,12 @@ public final class GrugControlBeta {
             if (connection != null && player != null) {
                 PLAYERS.put(connection, player);
             }
-            server().onMessage(connection, bytes);
+            ON_GAME_THREAD.set(Boolean.TRUE);
+            try {
+                server().onMessage(connection, bytes);
+            } finally {
+                ON_GAME_THREAD.set(Boolean.FALSE);
+            }
         } else {
             GrugControlBetaClient.onMessage(bytes);
         }
