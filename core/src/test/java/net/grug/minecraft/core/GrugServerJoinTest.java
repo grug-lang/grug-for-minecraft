@@ -41,6 +41,15 @@ class GrugServerJoinTest {
     }
 
     @Test
+    void aConnectRunWithoutGrugCiUsesTheExportedValueToo() {
+        Map<String, String> env = new HashMap<>();
+        env.put("GRUG_CI_CONNECT", "localhost");
+        env.put("GRUG_CI_JOIN_TIMEOUT_MILLIS", "7000");
+
+        assertEquals(7000, timeout(env));
+    }
+
+    @Test
     void anAbsentBlankOrNonPositiveValueFallsBackToTheDefault() {
         Map<String, String> env = new HashMap<>();
         env.put("GRUG_CI", "true");
