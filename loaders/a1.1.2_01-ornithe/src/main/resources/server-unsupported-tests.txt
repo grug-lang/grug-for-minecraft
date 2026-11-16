@@ -48,23 +48,17 @@ coverage/tests/gui_click_empty-Test.grug
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
-# The overlay and item-list tests. The joined client draws the overlay, so Test.overlay_supported
-# answers true here now that the answer is the client's (#1099), and each of these tests then opens
-# the player's inventory. This server has no openInventory override that forwards the open to the
-# joined client, so the inherited client method refuses with refuseWithoutAClient ("This needs a
-# client") and the test fails before it draws anything. They run on the other four legs, whose
-# server forwards Test.open_inventory.
-coverage/tests/overlay_click_hook-Test.grug
-coverage/tests/overlay_key-Test.grug
-coverage/tests/overlay_probe_gives_nothing-Test.grug
+# The overlay and item-list tests that stay client-only here. This server forwards
+# Test.open_inventory and Test.click_screen to the joined client now (#882), so the other overlay
+# and item-list tests run on this leg. overlay_screen_open asserts a just-opened screen has drawn no
+# frame, which a joined client cannot promise, and item_list_forced_normalization needs a GL state a
+# dedicated server cannot force. The two give_queue tests stay out as they were: they exist to
+# observe the queue of the overlay tests that used to be skipped here, and that is not what this
+# change proves.
 coverage/tests/overlay_screen_open-Test.grug
-coverage/tests/overlay_scroll-Test.grug
 coverage/tests/give_queue_a_ends_with_a_give-Test.grug
 coverage/tests/give_queue_b_starts_clean-Test.grug
-jei/tests/hotkey-Test.grug
 jei/tests/item_list_forced_normalization-Test.grug
-jei/tests/paging-Test.grug
-jei/tests/scroll-Test.grug
 #
 # The overlay's click and the cursor it deletes. An overlay's click export runs on the joined
 # client, so its carried_item read and delete_carried_item call touch the client's copy of the
@@ -77,8 +71,7 @@ jei/tests/jei-Test.grug
 # never forces it on a dedicated server and Test.normalization_forced answers false there: on every
 # loader but 1.20.6 that fails the assertion that the marked loader forced it, and on 1.20.6 the
 # assertion holds without proving the client hooked anything. It stays client-only on every leg now
-# that Test.overlay_supported answers from the joined client (#1099); this leg's server also refuses
-# Test.open_inventory, because it has no override that forwards the open to the joined client.
+# that Test.overlay_supported answers from the joined client (#1099).
 coverage/tests/hook_forced_normalization-Test.grug
 #
 # The three wall-backed buildcraft captures #1161 promoted to tick_any_side that still differ.
