@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125.control;
 
+import net.grug.minecraft.core.GrugClientRelight;
 import net.grug.minecraft.core.GrugControlClient;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugCore;
@@ -70,6 +71,7 @@ public final class GrugControl125Client implements GrugControlRouter {
     private static Consumer<BufferedImage> done;
     private static Consumer<String> failed;
     private static int waited;
+    private static boolean relit;
     private static boolean pending = false;
 
     private GrugControl125Client() {}
@@ -116,6 +118,7 @@ public final class GrugControl125Client implements GrugControlRouter {
         done = onDone;
         failed = onFailed;
         waited = 0;
+        relit = false;
         pending = true;
     }
 
@@ -195,6 +198,14 @@ public final class GrugControl125Client implements GrugControlRouter {
         boolean cameraHere = GrugTestCamera.cameraAt(GrugCore.getAdapter().testCamera(), eye);
         if (GrugTestCamera.waitsForCapture(waited, MIN_TICKS, MAX_TICKS, settled, cameraHere))
             return;
+        if (GrugClientRelight.sweepNow(true, relit)) {
+            // The client's incremental light depends on the changes it saw, so it is recomputed
+            // from the blocks it holds now, and the frames that show it are waited for (#1213).
+            relit = true;
+            int[] box = GrugClientRelight.box(eye.x(), eye.y(), eye.z());
+            GrugCore.getAdapter().relightClientRoom(box[0], box[1], box[2], box[3], box[4], box[5]);
+            return;
+        }
         pending = false;
         if (mc.displayWidth != GrugScreenshots.WIDTH
                 || mc.displayHeight != GrugScreenshots.HEIGHT) {

@@ -39,6 +39,15 @@ export tick(ctx: TestTickContext) {
         ctx.screenshot().equals(r"screenshots/room_light", 0, 0, 640, 360)
     }
 
+    # The wide room before the last default one is left with a torch lit in it, which the next build
+    # clears. A joined 1.2.5 client keeps the light it had from that torch unless it recomputes its
+    # own copy, so the last capture then differs from the others at one side. See #1213.
+    if step == 6 {
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        level.place_block(origin.x() + 5, origin.y() + 2, origin.z() + 5, "minecraft:torch")
+    }
+
     step = step + 1
     if step < 8 {
         requested = false

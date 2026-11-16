@@ -885,7 +885,7 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
      * on the changes that came before; a cell recomputed from its neighbours is exact, so sweeping
      * until nothing moves ends at the one field the blocks define. See {@link GrugRelight}.
      */
-    private static long relightSweep(
+    static long relightSweep(
             World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         for (int y = minY; y <= maxY; y++) {
             for (int z = minZ; z <= maxZ; z++) {
