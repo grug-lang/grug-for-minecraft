@@ -48,8 +48,9 @@ jei/tests/item_list_forced_normalization-Test.grug
 # 1104 of 34100 px of the torch's dust particles (#1372), which the joined client now drops as a
 # client-only run does, so redstone_engine is off the list for a proof to measure and the other two
 # redstone_engine tests stay listed, unmeasured. It also failed wooden_pipe_items in 1923 of 44800 px, a pipe with
-# arms where the golden has the bare centre box (#1351), so that one stays listed; wooden_pipe_shapes
-# is not listed and is unmeasured, because the leg stopped at wooden_pipe_items.
+# arms where the golden has the bare centre box (#1351), but proof 43821458574 passed it on this
+# leg, so it is off the list; the same proof failed wooden_pipe_shapes' wooden_pipe_straight in 2430
+# of 115200 px, so that one stays listed.
 #
 # The wall-backed world capture renamed to tick_any_side (coverage_render is not listed: it is
 # unmeasured here and stays off the list until a dispatch shows it fail). Dispatch 43480583214, with the light
@@ -61,7 +62,6 @@ jei/tests/item_list_forced_normalization-Test.grug
 coverage/tests/coverage_frame-Test.grug
 buildcraft/tests/redstone_engine_animation-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
-buildcraft/tests/wooden_pipe_items-Test.grug
 #
 # Proof 43764853785 (#1096) failed wooden_pipe_shapes' wooden_pipe_corner capture in 965 of 115200 px, so it stays listed with wooden_pipe_items (#1351). The client-only run checks both goldens.
 buildcraft/tests/wooden_pipe_shapes-Test.grug
