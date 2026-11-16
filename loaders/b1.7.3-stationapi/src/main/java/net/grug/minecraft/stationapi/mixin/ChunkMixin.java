@@ -67,6 +67,9 @@ public abstract class ChunkMixin {
                 Block.BLOCKS[id] instanceof GrugBlock,
                 Block.BLOCKS_WITH_ENTITY[id],
                 world.isRemote)) {
+            // removeBlockEntityAt frees the entity through markRemoved only when this chunk is
+            // loaded, so it is freed here whatever the chunk's state is (a second free is a no-op).
+            if (found instanceof GrugBlockEntity) ((GrugBlockEntity) found).destroyGrugEntity();
             self.removeBlockEntityAt(x, y, z);
             cir.setReturnValue(self.getBlockEntity(x, y, z));
         }
