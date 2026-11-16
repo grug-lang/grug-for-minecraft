@@ -102,8 +102,7 @@ coverage/tests/hook_forced_normalization-Test.grug
 coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
 #
-# Proof 43763297057 passed cobblestone_pipe_shapes and redstone_engine on this leg and failed redstone_engine_animation's redstone_engine_stroke_facings capture in 1 of 62400 px (#1213), so redstone_engine_animation stays listed, and redstone_engine_facings comes after it and is unmeasured. The client-only run still checks both goldens.
-buildcraft/tests/redstone_engine_animation-Test.grug
+# Proof 43763297057 passed cobblestone_pipe_shapes and redstone_engine on this leg and failed redstone_engine_animation's redstone_engine_stroke_facings capture in 1 of 62400 px (#1213), the joined client's far plane being 256 against the flat run's 32 (run 43807865292), which the joined run now sets to the flat one, so redstone_engine_animation is off the list and redstone_engine_facings comes after it and is unmeasured. The client-only run still checks both goldens.
 buildcraft/tests/redstone_engine_facings-Test.grug
 #
 # Proof 43764853785 (#1096) failed wooden_pipe_items on this leg in 1923 of 44800 px, the same count as the pipe with arms where the golden has the bare centre box on stationapi (#1351), so it stays listed. wooden_pipe_shapes comes after it and is unmeasured, so it stays listed too. The client-only run checks both goldens.
