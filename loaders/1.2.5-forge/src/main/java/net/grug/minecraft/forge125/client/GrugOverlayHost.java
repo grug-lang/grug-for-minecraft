@@ -543,15 +543,23 @@ public final class GrugOverlayHost {
     private static final GrugWorldKeys worldKeys = new GrugWorldKeys();
 
     /**
+     * Whether the player has no screen open. A headless client is never the active window, so this
+     * loader keeps a {@link GrugEmptyScreen} up instead of null (see its comment), and it counts as
+     * no screen: the world is in view and the HUD is drawn under it.
+     */
+    private static boolean noScreen(Minecraft minecraft) {
+        return minecraft.currentScreen == null
+                || minecraft.currentScreen instanceof GrugEmptyScreen;
+    }
+
+    /**
      * Draws every overlay's HUD export after the game's own HUD, in the GUI's scaled pixels, while
      * no screen is open and F1 has not hidden the HUD. The patched {@code
      * GuiIngame.renderGameOverlay} calls it at each return, with the GUI's projection still set.
      */
     public static void drawHud() {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
-        if (minecraft.theWorld == null
-                || minecraft.currentScreen != null
-                || minecraft.gameSettings.hideGUI) {
+        if (minecraft.theWorld == null || !noScreen(minecraft) || minecraft.gameSettings.hideGUI) {
             return;
         }
         ensureCreated();
@@ -660,7 +668,7 @@ public final class GrugOverlayHost {
      */
     public static void pollWorldKeys(Minecraft minecraft) {
         if (minecraft.theWorld == null) return;
-        boolean open = minecraft.currentScreen == null;
+        boolean open = noScreen(minecraft);
         for (int code = '0'; code <= 'Z'; code++) {
             if (!GrugWorldKeys.tracked(code)) continue;
             int key = Keyboard.getKeyIndex(String.valueOf((char) code));
