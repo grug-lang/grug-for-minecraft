@@ -419,7 +419,7 @@ public final class GrugServerRun implements ITickHandler {
             EntityPlayerMP starter = GrugControlServer125.starterPlayer();
             if (starter != null) {
                 holdOnFloor(starter);
-                if (STARTER_PLACEMENT.shouldPlace(GrugControlServer125.server().starter())) {
+                if (STARTER_PLACEMENT.shouldPlace(starter)) {
                     // The teleport takes the entity position, so the move is the feet's difference.
                     starter.playerNetServerHandler.teleportTo(
                             START_X,
