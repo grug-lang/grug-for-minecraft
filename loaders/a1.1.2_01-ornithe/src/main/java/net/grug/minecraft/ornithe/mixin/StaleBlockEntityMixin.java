@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Drops a vanilla block entity that outlived its block on a client joined to a server (#1354).
+ * Drops a block entity that outlived its block on a client joined to a server (#1354).
  *
  * <p>Such a client is told only that a block changed, and the game never removes the block entity
  * of the block that was there. The chunk hands out what it holds before it looks at the block, so a
@@ -48,7 +48,7 @@ public abstract class StaleBlockEntityMixin {
             return;
         }
         int id = getBlockAt(x, y, z);
-        if (GrugStaleBlockEntity.shouldDropForeign(
+        if (GrugStaleBlockEntity.shouldDropOnClient(
                 found instanceof GrugBlockEntity,
                 Block.BY_ID[id] instanceof GrugBlock,
                 Block.HAS_BLOCK_ENTITY[id],

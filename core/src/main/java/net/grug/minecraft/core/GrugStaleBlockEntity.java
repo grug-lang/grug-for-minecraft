@@ -39,23 +39,27 @@ public final class GrugStaleBlockEntity {
     }
 
     /**
-     * Whether a block entity that is not a grug one is stale on a joined client (#1354): the server
-     * told the client only that a block changed, and the game never removes the block entity of the
-     * block that was there, so a chest left by an earlier test stays in the client's chunk.
+     * Whether a block entity is stale on a joined client (#1354, #1351): the server told the client
+     * only that a block changed, and the game never removes the block entity of the block that was
+     * there, so a chest left by an earlier test stays in the client's chunk.
      *
      * <p>The chunk hands out whatever it holds before it looks at the block, so a grug block placed
      * where the chest was is handed the chest, and every read of the position (a block drawing as
      * its placeholder cube, a pipe seeing an inventory beside it) answers for a block that is gone.
-     * It is stale when the block there is a grug block, or has no block entity at all. Only a
-     * remote world is touched: on a server the game removes the entity in the old block's own
-     * removal, which reads it after the id has changed.
+     * A vanilla one is stale when the block there is a grug block, or has no block entity at all,
+     * and a grug one when the block there is no grug block. Only a remote world is touched: on a
+     * server the game removes the entity in the old block's own removal, which reads it after the
+     * id has changed.
      */
-    public static boolean shouldDropForeign(
+    public static boolean shouldDropOnClient(
             boolean isGrugBlockEntity,
             boolean blockIsGrugBlock,
             boolean blockHasEntity,
             boolean remoteWorld) {
-        return remoteWorld && !isGrugBlockEntity && (blockIsGrugBlock || !blockHasEntity);
+        if (!remoteWorld) return false;
+        // A grug block entity is stale under any block that is no grug block, and any other
+        // block entity under a grug block or a block that has none.
+        return isGrugBlockEntity ? !blockIsGrugBlock : (blockIsGrugBlock || !blockHasEntity);
     }
 
     /**
