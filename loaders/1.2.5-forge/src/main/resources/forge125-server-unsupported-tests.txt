@@ -63,3 +63,7 @@ coverage/tests/coverage_render-Test.grug
 #
 # Proof 43764853785 (#1096): wooden_pipe_items passes on this leg, and wooden_pipe_shapes fails its wooden_pipe_straight capture in 9648 of 115200 px (#1213), so it stays listed. The client-only run checks its golden.
 buildcraft/tests/wooden_pipe_shapes-Test.grug
+#
+# Proof 43785321576 (#1096) failed redstone_engine_animation's redstone_engine_stroke_facings capture in 1 of 62400 px at (346,62), the deterministic pixel of #1213, so it stays listed, and redstone_engine_facings comes after it and is unmeasured. The client-only run still checks both goldens.
+buildcraft/tests/redstone_engine_animation-Test.grug
+buildcraft/tests/redstone_engine_facings-Test.grug

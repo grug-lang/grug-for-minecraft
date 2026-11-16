@@ -671,9 +671,7 @@ while :; do
         wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine"
         ;;&
       1.2.5-forge)
-        # 1.2.5-forge's redstone_engine_animation and redstone_engine_facings passed in main's proofs
-        # after #1356, which the 1 px of #1213 had blocked in proofs 43763297057 and 43764853785.
-        wall_backed_tests="$wall_backed_tests buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings buildcraft/tests/wooden_pipe_items"
+        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items"
         ;;
       1.20.6-forge)
         wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
