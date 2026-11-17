@@ -116,7 +116,8 @@ public final class GrugModelRenderer {
     /** The texture each model texture path was uploaded as. */
     private static final Map<String, Integer> TEXTURES = new HashMap<>();
 
-    private static final GrugPendingUploads PENDING_UPLOADS = new GrugPendingUploads();
+    private static final net.grug.minecraft.core.GrugPendingUploads PENDING_UPLOADS =
+            new net.grug.minecraft.core.GrugPendingUploads();
 
     /**
      * Uploads the textures a chunk compile created, for real. Called at the start of a frame,

@@ -1,4 +1,4 @@
-package net.grug.minecraft.ornithe.client;
+package net.grug.minecraft.core;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -15,16 +15,16 @@ import java.util.Set;
  * that binds it, which draws white (#1096). A texture created there is queued here, and the frame
  * hook uploads it for real.
  */
-final class GrugPendingUploads {
+public final class GrugPendingUploads {
     private final Set<String> paths = new LinkedHashSet<>();
 
     /** Queues a texture, once however often it is asked for. */
-    void add(String path) {
+    public void add(String path) {
         paths.add(path);
     }
 
     /** The queued textures in the order they were first queued, which are no longer queued. */
-    List<String> drain() {
+    public List<String> drain() {
         List<String> drained = new ArrayList<>(paths);
         paths.clear();
         return drained;
