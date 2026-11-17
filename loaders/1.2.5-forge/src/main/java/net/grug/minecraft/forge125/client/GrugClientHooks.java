@@ -290,6 +290,9 @@ public class GrugClientHooks implements ITickHandler {
         }
         if (types.contains(TickType.RENDER)) {
             publishFrameRequest();
+            // Before the frame draws its level, so outside every display list, which is where a
+            // texture a chunk compile created is really uploaded (GrugPendingUploads, #1096).
+            GrugModelRenderer.flushPendingUploads(minecraft.renderEngine);
             renderTick(minecraft);
         }
     }

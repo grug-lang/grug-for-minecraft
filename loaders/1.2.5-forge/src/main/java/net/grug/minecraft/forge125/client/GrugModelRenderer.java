@@ -430,6 +430,23 @@ public final class GrugModelRenderer {
         GL11.glPopAttrib();
     }
 
+    private static final net.grug.minecraft.core.GrugPendingUploads PENDING_UPLOADS =
+            new net.grug.minecraft.core.GrugPendingUploads();
+
+    /**
+     * Uploads the textures a chunk compile created, for real. Called at the start of a frame,
+     * outside every display list.
+     */
+    public static void flushPendingUploads(RenderEngine engine) {
+        for (String path : PENDING_UPLOADS.drain()) {
+            Integer id = TEXTURES.get(path);
+            BufferedImage image = read(path);
+            if (id != null && image != null) {
+                engine.setupTexture(image, id);
+            }
+        }
+    }
+
     /**
      * Reads every model texture again into the texture it was uploaded as, so a hot reload of one
      * shows without the chunk being compiled again: the display list refers to the texture, not to
@@ -471,6 +488,9 @@ public final class GrugModelRenderer {
 
         int texture = ModLoader.getMinecraftInstance().renderEngine.allocateAndSetupTexture(image);
         TEXTURES.put(path, texture);
+        // This runs inside a chunk compile, where the upload above is only recorded into that
+        // display list (see GrugPendingUploads), so it is made again outside every list.
+        PENDING_UPLOADS.add(path);
         ForgeHooksClient.textures.put(name, texture);
         return name;
     }
