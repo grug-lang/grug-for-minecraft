@@ -71,16 +71,7 @@ coverage/tests/hook_forced_normalization-Test.grug
 # the save's own start and the joined client stopped running a block entity's tick (#1213). The
 # leg stops at its first failure at redstone_engine_red (2500 of 34100 px, unanalysed).
 #
-# The two wooden pipe captures #1096 promoted to tick_any_side. Dispatch 43422357886 failed
-# wooden_pipe_items' capture against this loader's flat golden in 14250 of 44800 pixels, the same
-# whole-frame joined-client difference #1213 tracks for the three above, and the leg stops at its
-# first failure, so wooden_pipe_shapes is unmeasured and listed with it. The client-only run of
-# this loader still runs both, which is where their goldens are checked.
-#
 # coverage_frame and coverage_render, promoted to tick_any_side by #1092 for b1.7.3-stationapi. Dispatch 43465548202 failed coverage_frame on this leg in 17243 of 44800 pixels
 # (#1092), and coverage_render is unmeasured behind it. The client-only run still checks both.
 coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
-#
-# Proof run 43942130861 (#1096) failed wooden_pipe_shapes' wooden_pipe_straight capture on this leg in 2591 of 115200 px against a1.1.2_01-ornithe.png (#1213); wooden_pipe_items got past. The client-only run checks the golden.
-buildcraft/tests/wooden_pipe_shapes-Test.grug
