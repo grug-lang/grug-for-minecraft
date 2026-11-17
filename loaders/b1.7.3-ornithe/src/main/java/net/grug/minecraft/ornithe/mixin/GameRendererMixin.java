@@ -48,6 +48,9 @@ public class GameRendererMixin {
      */
     @Inject(method = "render(F)V", at = @At("HEAD"), cancellable = true)
     private void grug$skipUnwantedFrame(float partialTicks, CallbackInfo ci) {
+        // Outside every display list, which is where a texture a chunk compile created is really
+        // uploaded (GrugPendingUploads, #1096).
+        net.grug.minecraft.ornithe.client.GrugModelRenderer.flushPendingUploads();
         if (!GrugFrameRequest.wanted()) {
             ci.cancel();
         }
