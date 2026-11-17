@@ -27,10 +27,12 @@ import net.grug.minecraft.ornithe.gui.GrugScreenPacket;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.server.EntityMap;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
@@ -787,5 +789,26 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     public boolean setGameSpeed(double speed) {
         GrugServerRun.setGameSpeed(GrugGameSpeed.wholeSteps(speed));
         return true;
+    }
+
+    /**
+     * Sweeps the items as the client-only game does, then tells the joined client they are gone.
+     * The sweep takes a dead item out of the world's lists itself, so the world's own update never
+     * reaches the entity tracker for it and no destroy packet is sent: the joined client kept a
+     * ghost of every swept item, such as a diamond a pipe test dropped, and drew it into later
+     * captures (#1096, #1068).
+     */
+    @Override
+    public void clearItemEntities(
+            Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
+        World world = (World) levelObj;
+        List<ItemEntity> items =
+                new ArrayList<>(
+                        world.getEntitiesOfType(ItemEntity.class, Box.of(x1, y1, z1, x2, y2, z2)));
+        super.clearItemEntities(levelObj, x1, y1, z1, x2, y2, z2);
+        EntityMap tracker = MinecraftServerInstance.get().getEntityMap(0);
+        for (ItemEntity item : items) {
+            tracker.onEntityRemoved(item);
+        }
     }
 }
