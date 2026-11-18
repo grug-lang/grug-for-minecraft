@@ -178,6 +178,15 @@ public class GrugBlockEntity extends BlockEntity
         if (!(block instanceof GrugBlock)) return false;
         GrugBlock grugBlock = (GrugBlock) block;
 
+        System.out.println(
+                "[GRUG DIAG 1393] stacks reallocated by trySizeInventory id="
+                        + System.identityHashCode(this)
+                        + " at "
+                        + x
+                        + ","
+                        + y
+                        + ","
+                        + z);
         stacks = new ItemStack[grugBlock.getInventorySize()];
         return true;
     }
@@ -398,6 +407,31 @@ public class GrugBlockEntity extends BlockEntity
             return;
         }
 
+        if (slot == 0) {
+            StackTraceElement[] st = new Throwable().getStackTrace();
+            StringBuilder how = new StringBuilder();
+            for (int i = 1; i < Math.min(st.length, 7); i++) {
+                how.append(' ')
+                        .append(st[i].getClassName())
+                        .append('.')
+                        .append(st[i].getMethodName());
+            }
+            System.out.println(
+                    "[GRUG DIAG 1393] setItem slot 0 id="
+                            + System.identityHashCode(this)
+                            + " at "
+                            + x
+                            + ","
+                            + y
+                            + ","
+                            + z
+                            + " new="
+                            + (stack == null ? "empty" : stack.id + "x" + stack.size)
+                            + " thread="
+                            + Thread.currentThread().getName()
+                            + " via"
+                            + how);
+        }
         stacks[slot] = stack;
         if (stack != null && stack.size > getMaxStackSize()) {
             stack.size = getMaxStackSize();
@@ -515,6 +549,8 @@ public class GrugBlockEntity extends BlockEntity
         // arrives here, so the copy has its data and is not waiting for anything else.
         GrugSavedDataSync.clientCopyReceived(this);
 
+        System.out.println(
+                "[GRUG DIAG 1393] readNbt reallocates stacks id=" + System.identityHashCode(this));
         if (nbt.contains("GrugInvSize")) {
             stacks = new ItemStack[nbt.getInt("GrugInvSize")];
             sized = true;
