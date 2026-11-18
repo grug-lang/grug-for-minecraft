@@ -834,9 +834,31 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
                             + " position in a chunk the client has not received is discarded.");
             return;
         }
+        faceChestOnRemoteWorld(world, posX, posY, posZ, blockId);
         // The client learns of the block from a packet it has not read yet, so the settle wait has
         // to ask the client's own copy rather than trust the frames that passed. See #804.
         blockSync.owe(posX, posY, posZ, getBlock(world, posX, posY, posZ));
+    }
+
+    /**
+     * Gives a chest placed in a joined client's world the facing a single-player world gives it.
+     * BlockChest.unifyAdjacentChests, which picks the facing from the neighbours, does nothing when
+     * {@code isRemote} is set, because a real client is told the facing by its server. A placement
+     * made in the client's own copy has no server to tell it, so the chest stays at metadata 0 and
+     * the renderer draws its latch on the south face, where the single-player run turns it away
+     * from the open side. The reference's own method runs with the flag cleared, so the facing is
+     * the one it would have chosen. See #1096.
+     */
+    private static void faceChestOnRemoteWorld(World world, int x, int y, int z, int blockId) {
+        if (!world.isRemote || blockId != Block.chest.blockID) {
+            return;
+        }
+        world.isRemote = false;
+        try {
+            Block.chest.onBlockAdded(world, x, y, z);
+        } finally {
+            world.isRemote = true;
+        }
     }
 
     /**
