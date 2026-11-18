@@ -27,6 +27,7 @@ import net.grug.minecraft.ornithe.server.GrugPlayerManagerAccess;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.entity.mob.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
@@ -886,5 +887,26 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     public boolean setGameSpeed(double speed) {
         GrugServerRun.setGameSpeed((int) speed);
         return true;
+    }
+
+    /**
+     * Sweeps the items as the client-only game does, then tells the joined client they are gone.
+     * The sweep takes a dead item out of the world's lists itself, so the world's own update never
+     * reaches the entity tracker for it and no destroy packet is sent: the joined client kept a
+     * ghost of every swept item, such as a diamond a pipe test dropped, and drew it into later
+     * captures (#1096, #1068). The tracker is a server-only class, so it is reached by intermediary
+     * name through {@link GrugPlayerManagerAccess}.
+     */
+    @Override
+    public void clearItemEntities(
+            Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
+        World world = (World) levelObj;
+        List<ItemEntity> items =
+                new ArrayList<>(
+                        world.getEntitiesOfType(ItemEntity.class, Box.of(x1, y1, z1, x2, y2, z2)));
+        super.clearItemEntities(levelObj, x1, y1, z1, x2, y2, z2);
+        for (ItemEntity item : items) {
+            GrugPlayerManagerAccess.untrack(item);
+        }
     }
 }
