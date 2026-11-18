@@ -1,5 +1,5 @@
-# Covers TestTickContext.remove_mobs (#1252), which the mob cap overlay's test uses to start from a
-# world with none of a category. Everything happens in the one tick, so the game's own spawner does
+# Covers TestTickContext.remove_entities (#1252), which the mob cap overlay's test uses to start from a
+# world with none of a category of mobs, and which takes "item" the same way. Everything happens in the one tick, so the game's own spawner does
 # not add mobs between the reads: a known set is spawned, then each category is removed in turn and
 # is 0 while the others keep their count. The reads exist on the two Beta 1.7.3 loaders so far, so
 # every other loader returns before it spawns anything.
@@ -26,18 +26,26 @@ export tick(ctx: TestTickContext) {
     ctx.assert(passive >= 2, "Two pigs should be two passive mobs.")
     ctx.assert(water >= 1, "A squid should be a water mob.")
 
-    ctx.remove_mobs(level, "passive")
+    ctx.remove_entities(level, "passive")
     ctx.assert(level.count_mobs("passive") == 0, "No passive mob should be left after removing them.")
     ctx.assert(level.count_mobs("hostile") == hostile, "Removing the passive mobs should leave the hostile ones.")
     ctx.assert(level.count_mobs("water") == water, "Removing the passive mobs should leave the water ones.")
 
-    ctx.remove_mobs(level, "water")
+    ctx.remove_entities(level, "water")
     ctx.assert(level.count_mobs("water") == 0, "No water mob should be left after removing them.")
     ctx.assert(level.count_mobs("hostile") == hostile, "Removing the water mobs should leave the hostile ones.")
 
-    ctx.remove_mobs(level, "hostile")
+    ctx.remove_entities(level, "hostile")
     ctx.assert(level.count_mobs("hostile") == 0, "No hostile mob should be left after removing them.")
 
-    ctx.remove_mobs(level, "hostile")
+    ctx.remove_entities(level, "hostile")
     ctx.assert(level.count_mobs("hostile") == 0, "Removing from an empty category should leave it empty.")
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    spawned: ItemEntity = item_entity(level, x, y + 20, z, item_stack(diamond, 0, 1))
+    spawned.entity().set_delta_movement(Vec3.zero())
+    spawned.entity().spawn(level)
+    ctx.assert(level.count_item_entities(x, y + 20, z, 2) == 1, "A spawned item should be counted.")
+    ctx.remove_entities(level, "item")
+    ctx.assert(level.count_item_entities(x, y + 20, z, 2) == 0, "No item should be left after removing them.")
 }

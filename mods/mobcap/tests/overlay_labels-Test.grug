@@ -71,7 +71,7 @@ local _fill(ctx: TestTickContext, id: string, category: string) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     target: number = level.get_mob_cap(category) + 1
-    ctx.remove_mobs(level, category)
+    ctx.remove_entities(level, category)
     i: number = 0
     while level.count_mobs(category) < target {
         ctx.spawn_mob(level, id, origin.x() + 1 + Math.remainder(i, 5), origin.y(), origin.z() + 1 + Math.remainder(Math.floor(i / 5), 5))

@@ -305,7 +305,7 @@ String.from_number(value: number) string
 .press_screen_key(key: number, ctrl: bool, release: bool) bool
 .press_world_key(key: number, ctrl: bool)
 .reload_count(relative_path: string) number
-.remove_mobs(level: Level, category: string)
+.remove_entities(level: Level, kind: string)
 .round_trip_nbt(block_entity: BlockEntity)
 .screen_open() bool
 .screen_width() number

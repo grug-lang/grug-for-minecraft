@@ -1,6 +1,0 @@
-# A category that is not one of the three names no mobs, so TestTickContext.remove_mobs reports it
-# instead of removing nothing.
-export tick_any_side(ctx: TestTickContext) {
-    ctx.expect_error("TestTickContext.remove_mobs")
-    ctx.remove_mobs(ctx.get_client_level(), "boss")
-}

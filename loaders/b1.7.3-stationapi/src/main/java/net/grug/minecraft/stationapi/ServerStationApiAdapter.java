@@ -774,12 +774,13 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     }
 
     /**
-     * Removes the mobs as the client-only game does, then tells the joined client they are gone.
+     * Removes the entities as the client-only game does, then tells the joined client they are
+     * gone.
      */
     @Override
-    public void removeMobs(Object levelObj, String category) {
-        List<net.minecraft.entity.Entity> mobs = mobsOf((World) levelObj, category);
-        super.removeMobs(levelObj, category);
+    public void removeEntities(Object levelObj, String kind) {
+        List<net.minecraft.entity.Entity> mobs = entitiesOf((World) levelObj, kind);
+        super.removeEntities(levelObj, kind);
         EntityTracker tracker =
                 ((net.minecraft.server.MinecraftServer)
                                 net.fabricmc.loader.api.FabricLoader.getInstance()

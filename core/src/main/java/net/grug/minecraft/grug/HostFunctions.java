@@ -2198,14 +2198,16 @@ public class HostFunctions {
         }
     }
 
-    public static void TestTickContext_remove_mobs(long contextId, long levelId, String category) {
-        if (!requireTickContext("TestTickContext.remove_mobs", contextId)) return;
-        if (rejectMobCategory("TestTickContext.remove_mobs", category)) return;
+    public static void TestTickContext_remove_entities(long contextId, long levelId, String kind) {
+        if (!requireTickContext("TestTickContext.remove_entities", contextId)) return;
+        if (!"item".equals(kind) && rejectMobCategory("TestTickContext.remove_entities", kind)) {
+            return;
+        }
         withEntity(
-                "TestTickContext.remove_mobs",
+                "TestTickContext.remove_entities",
                 "level",
                 levelId,
-                level -> GrugCore.getAdapter().removeMobs(level, category));
+                level -> GrugCore.getAdapter().removeEntities(level, kind));
     }
 
     public static double Level_count_item_entities(
