@@ -2,6 +2,12 @@
 	"name": "SafeSquares",
 	"version": "1.0.0",
 	"game_version": "beta-1.7.3",
+	"loaders": [
+		"a1.1.2_01-ornithe",
+		"b1.7.3-ornithe",
+		"b1.7.3-stationapi",
+		"1.2.5-forge"
+	],
 	"authors": [
 		"MyNameIsTrez"
 	],
@@ -75,6 +81,11 @@
 				{
 					"what": "On Release 1.2.5 and 1.20.6 the overlay's ground test is that version's own spawner test and not the reference's, and on 1.20.6 the light rule is a chance and not a threshold: the game spawns a zombie only when a random draw of the sky light fails and the light at the time of day is at most a random 0 to 7, where the reference's spawner needs the light to be at most 7 and nothing more.",
 					"why": "The reference's rule is Beta 1.7.3's. Release 1.2.5 asks the block below to accept a creature and not be bedrock, and 1.20.6 asks the zombie's spawn placement and that its box is free of collisions. The overlay marks a square where a spawn is possible at all, in the reference's two colors, and does not show the chance.",
+					"tracking_issue": 1255
+				},
+				{
+					"what": "The overlay does not load on 1.20.6-forge.",
+					"why": "The first run of the overlay's test there froze the game at its start, with no failure printed for three minutes while the server fell thousands of ticks behind, and the cause is not found; the light and spawn reads themselves pass their coverage test on 1.20.6.",
 					"tracking_issue": 1255
 				}
 			]
