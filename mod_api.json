@@ -2915,6 +2915,25 @@
 				}
 			}
 		},
+		"String": {
+			"description": "Functions on text that need no instance.",
+			"static_methods": {
+				"from_number": {
+					"description": "The text of a number, which is how a mod puts a count or a measurement on screen, since `+` does not join strings and a number is not text. A whole number prints as an integer with no decimal point and no exponent, however large: String.from_number(41) is \"41\", String.from_number(-7) is \"-7\", String.from_number(1e20) is \"100000000000000000000\" and negative zero is \"0\". A number with a fraction prints as Java's shortest text that reads back as the same double (Double.toString): String.from_number(2.5) is \"2.5\" and String.from_number(0.1) is \"0.1\", with an exponent only for a magnitude below 0.001 or at least 10 million, such as \"1.0E-4\". NaN and the infinities print as \"NaN\", \"Infinity\" and \"-Infinity\". The text never depends on the player's locale, so the same number is the same text on every machine.",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			}
+		},
 		"TestInitContext": {
 			"description": "The context of a test's init(). Only calls that have to be made before the test starts live on it, so a test cannot make them twice or after it has started. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
