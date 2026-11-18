@@ -45,6 +45,13 @@ export tick(ctx: TestTickContext) {
         # Water in the space takes it away.
         level.place_block(x, y + 1, z, "minecraft:water")
         ctx.assert(not level.is_hostile_spawn_space(x, y + 1, z), "Water should not be a hostile spawn space.")
+        # 1.20.6 also asks that a zombie's box fits in the space, which the fence's tall collision
+        # box does not allow, though it is neither a full block nor a fluid. The older versions' test
+        # asks no such thing.
+        level.place_block(x, y + 1, z, "minecraft:oak_fence")
+        if me.loader_name() == "1.20.6-forge" {
+            ctx.assert(not level.is_hostile_spawn_space(x, y + 1, z), "A fence should leave no room for a zombie's box.")
+        }
         level.place_block(x, y + 1, z, "minecraft:torch")
         # A torch is not a normal cube and not a liquid, and the reference's spawner test asks only
         # those two things of the space itself, so a torch's space still passes it.
