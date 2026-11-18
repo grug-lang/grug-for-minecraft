@@ -258,6 +258,9 @@ Option.new() Option[$Value]
 .add_collision_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 .add_selection_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 
+## String
+String.from_number(value: number) string
+
 ## TestInitContext
 .get_origin() Vec3
 .set_max_ticks(ticks: number)

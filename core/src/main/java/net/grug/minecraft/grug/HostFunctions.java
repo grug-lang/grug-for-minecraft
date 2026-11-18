@@ -3961,4 +3961,20 @@ public class HostFunctions {
         }
         return value % divisor;
     }
+
+    /**
+     * The text of a number: a whole number as an integer with no decimal point or exponent, other
+     * numbers as Java's shortest text that reads back as the same double, in no locale.
+     */
+    public static String String_from_number(double value) {
+        return numberText(value);
+    }
+
+    /** What {@link #String_from_number} answers, split out so a unit test can reach every case. */
+    static String numberText(double value) {
+        if (Double.isFinite(value) && value == Math.rint(value)) {
+            return new java.math.BigDecimal(value).toBigInteger().toString();
+        }
+        return Double.toString(value);
+    }
 }
