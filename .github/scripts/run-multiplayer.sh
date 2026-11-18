@@ -678,6 +678,10 @@ while :; do
       1.2.5-forge)
         wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items"
         ;;
+      b1.7.3-ornithe)
+        # Proof 44202563938 (#1096) passed wooden_pipe_shapes here once the item sweep told the joined client.
+        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_shapes"
+        ;;
       a1.1.2_01-ornithe)
         # Proof 44189598116 (#1096) passed wooden_pipe_shapes here once a model texture first made
         # inside a chunk compile was uploaded outside the display list.
@@ -685,7 +689,8 @@ while :; do
         ;;
       b1.7.3-stationapi)
         # Proof 43821458574 (#1096, #1351) passed wooden_pipe_items here once #1360 dropped the stale entities.
-        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items"
+        # Proof 44202563938 (#1096) passed wooden_pipe_shapes once the item sweep told the joined client.
+        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
         ;;
       1.20.6-forge)
         wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"

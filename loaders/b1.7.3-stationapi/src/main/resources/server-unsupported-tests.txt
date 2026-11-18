@@ -59,4 +59,3 @@ coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
 #
 # Proof 43764853785 (#1096) failed wooden_pipe_shapes' wooden_pipe_corner capture in 965 of 115200 px, so it stays listed (#1351); proof 43821458574 measured 2430 of 115200 px of wooden_pipe_straight. The client-only run checks both goldens.
-buildcraft/tests/wooden_pipe_shapes-Test.grug

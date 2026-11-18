@@ -53,4 +53,3 @@ coverage/tests/coverage_render-Test.grug
 buildcraft/tests/redstone_engine_facings-Test.grug
 #
 # Dispatch 43937950148 (#1096) failed wooden_pipe_shapes' wooden_pipe_straight capture on this leg in 4323 of 115200 px against b1.7.3-ornithe.png (#1213); wooden_pipe_items and every other wooden_pipe capture passed. The client-only run checks the golden.
-buildcraft/tests/wooden_pipe_shapes-Test.grug
