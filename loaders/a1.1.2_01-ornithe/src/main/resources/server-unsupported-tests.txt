@@ -33,7 +33,7 @@ coverage/tests/take_crafting_result_empty-Test.grug
 coverage/tests/take_crafting_result_on_a_chest-Test.grug
 coverage/tests/update_recipe_output_on_a_chest-Test.grug
 #
-# The container clicks. Proof run 43939781490 failed gui_click on this leg at its assertion that the click put the diamond in the grid's first slot; the cause is not found (#1393), and gui_click_empty comes after it unmeasured.
+# The container clicks. Proof run 43939781490 failed gui_click on this leg at its assertion that the click put the diamond in the grid's first slot; the cause is the client's copy of the block entity sending its empty inventory to the server in a block entity update packet (#1393, fixed by GrugClientCopyEcho), and gui_click_empty comes after it unmeasured. The lines stay until a proof run shows the leg green.
 coverage/tests/gui_click-Test.grug
 coverage/tests/gui_click_empty-Test.grug
 #

@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.block.entity;
 
+import net.grug.minecraft.core.GrugClientCopyEcho;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugStaleBlockEntity;
 import net.grug.minecraft.grug.ExportFns;
@@ -214,6 +215,17 @@ public class GrugBlockEntity extends BlockEntity
         // script wrote, so they never wait.
         GrugSavedDataSync.clientCopyCreated(this, world != null && world.isMultiplayer);
         initGrug();
+    }
+
+    /**
+     * The game's {@code markDirty} sends a joined client's copy to the server, which reads its
+     * empty inventory over its own slots (#1393), so a client's copy never sends.
+     */
+    @Override
+    public void markDirty() {
+        if (GrugClientCopyEcho.mayMarkDirty(world != null && world.isMultiplayer)) {
+            super.markDirty();
+        }
     }
 
     @Override
