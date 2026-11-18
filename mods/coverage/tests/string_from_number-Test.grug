@@ -8,6 +8,6 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.assert(String.from_number(-7) == "-7", "String.from_number(-7) should be -7.")
         ctx.assert(String.from_number(2.5) == "2.5", "String.from_number(2.5) should be 2.5.")
         ctx.assert(String.from_number(-0.25) == "-0.25", "String.from_number(-0.25) should be -0.25.")
-        ctx.assert(String.from_number(100000000000000000000) == "100000000000000000000", "String.from_number(1e20) should have no exponent.")
+        ctx.assert(String.from_number(10000000000 * 10000000000) == "100000000000000000000", "String.from_number(1e20) should have no exponent.")
     }
 }
