@@ -431,6 +431,15 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Removes every living entity of the category from the level, as the item sweep does for items,
+     * so a test starts from a world with none of them (#1252).
+     */
+    @GrugGenerated("no mob removal: a loader that has not added it keeps this default")
+    default void removeMobs(Object levelObj, String category) {
+        throw Grug.fatal("TestTickContext.remove_mobs is not supported on this loader");
+    }
+
+    /**
      * Whether the block at the position is the one {@link #placeBlock} would put there for {@code
      * blockName}, ignoring its state. The room build leaves a room that is already whole in place
      * when every one of its blocks answers true, and rebuilds it otherwise, so a loader whose block

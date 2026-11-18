@@ -2198,6 +2198,16 @@ public class HostFunctions {
         }
     }
 
+    public static void TestTickContext_remove_mobs(long contextId, long levelId, String category) {
+        if (!requireTickContext("TestTickContext.remove_mobs", contextId)) return;
+        if (rejectMobCategory("TestTickContext.remove_mobs", category)) return;
+        withEntity(
+                "TestTickContext.remove_mobs",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().removeMobs(level, category));
+    }
+
     public static double Level_count_item_entities(
             long levelId, double x, double y, double z, double radius) {
         return withEntity(

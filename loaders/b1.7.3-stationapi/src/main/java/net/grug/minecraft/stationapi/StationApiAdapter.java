@@ -1268,6 +1268,35 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return GrugMobCap.cap(GrugMobCap.indexOf(category), GrugMobCap.eligibleChunks(xs, zs));
     }
 
+    /**
+     * Every entity of the category in the world's own list, in a list that is safe to remove from.
+     */
+    protected List<Entity> mobsOf(World world, String category) {
+        Class<?> type = spawnGroup(category).getCreatureClass();
+        List<Entity> mobs = new ArrayList<>();
+        for (Object entity : new ArrayList<Object>(world.entities)) {
+            if (type.isInstance(entity)) {
+                mobs.add((Entity) entity);
+            }
+        }
+        return mobs;
+    }
+
+    /**
+     * Removes the mobs the way the item sweep removes items: dead, out of the chunk and the list.
+     */
+    @Override
+    public void removeMobs(Object levelObj, String category) {
+        World world = (World) levelObj;
+        for (Entity mob : mobsOf(world, category)) {
+            mob.markDead();
+            world.getChunkFromPos((int) Math.floor(mob.x), (int) Math.floor(mob.z))
+                    .removeEntity(mob);
+            world.entities.remove(mob);
+            spawnedMobs.remove(mob);
+        }
+    }
+
     @Override
     public boolean spawnMob(Object levelObj, String id, double x, double y, double z) {
         World world = (World) levelObj;
