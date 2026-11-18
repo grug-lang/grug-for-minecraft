@@ -2,8 +2,7 @@
 # light level overlay (#1255) marks squares from. The spawn space reads are made on a stone floor
 # with air above, then with a block over the space, and with water in it; the block light read is
 # a torch's own light and its neighbour's, and the sky light read compares the space under a roof
-# with the one over it. The three reads exist on the two Beta 1.7.3 loaders so far, so every other
-# loader returns before it builds anything (#1255 lists the rest).
+# with the one over it. The three reads exist on every loader.
 state: number = 0
 waited: number = 0
 x: number = 0
@@ -11,9 +10,6 @@ y: number = 0
 z: number = 0
 
 export tick(ctx: TestTickContext) {
-    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
-        return
-    }
     level: Level = ctx.get_client_level()
     waited = waited + 1
     ctx.assert(waited < 1500, "The light reads should settle.")
