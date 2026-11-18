@@ -43,7 +43,7 @@ export tick(ctx: TestTickContext) {
         ctx.assert(level.is_hostile_spawn_space(x, y + 1, z), "Removing the block should give the space back.")
 
         # Water in the space takes it away.
-        level.place_block(x, y + 1, z, "minecraft:flowing_water")
+        level.place_block(x, y + 1, z, "minecraft:water")
         ctx.assert(not level.is_hostile_spawn_space(x, y + 1, z), "Water should not be a hostile spawn space.")
         level.place_block(x, y + 1, z, "minecraft:torch")
         # A torch is not a normal cube and not a liquid, and the reference's spawner test asks only
