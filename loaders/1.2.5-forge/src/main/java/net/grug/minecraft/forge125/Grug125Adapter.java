@@ -849,6 +849,10 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
      * from the open side. The reference's own method runs with the flag cleared, so the facing is
      * the one it would have chosen. See #1096.
      */
+    @GrugGenerated(
+            "a chest placed in a joined client's remote world: only the dedicated server legs of"
+                + " the multiplayer job reach it, and the coverage gate counts no server run; the"
+                + " wooden_pipe_corner capture there is its check")
     private static void faceChestOnRemoteWorld(World world, int x, int y, int z, int blockId) {
         if (!world.isRemote || blockId != Block.chest.blockID) {
             return;
