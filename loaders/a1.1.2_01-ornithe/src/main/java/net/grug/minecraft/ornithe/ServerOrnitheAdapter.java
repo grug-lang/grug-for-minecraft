@@ -196,6 +196,26 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                         + describeMenuSlot(menu, 0)
                         + " clicked="
                         + describeMenuSlot(menu, slot));
+        if (!menu.slots.isEmpty() && menu.slots.get(0).inventory instanceof BlockEntity) {
+            BlockEntity held = (BlockEntity) menu.slots.get(0).inventory;
+            World w = GrugServerRun.world();
+            Object now = w == null ? null : w.getBlockEntity(held.x, held.y, held.z);
+            System.out.println(
+                    "[GRUG DIAG 1393] menu inventory id="
+                            + System.identityHashCode(held)
+                            + " at "
+                            + held.x
+                            + ","
+                            + held.y
+                            + ","
+                            + held.z
+                            + " world's block entity id="
+                            + (now == null ? "none" : String.valueOf(System.identityHashCode(now)))
+                            + " world="
+                            + System.identityHashCode(w)
+                            + " held.world="
+                            + System.identityHashCode(held.world));
+        }
         connection.send(GrugScreenContentPacket.of(menu));
     }
 

@@ -367,6 +367,22 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public double getItemCountInSlot(Object blockEntityObj, double slot) {
         ItemStack stack = ((Inventory) blockEntityObj).getItem((int) slot);
+        if (slot == 0 && blockEntityObj instanceof BlockEntity) {
+            BlockEntity be = (BlockEntity) blockEntityObj;
+            System.out.println(
+                    "[GRUG DIAG 1393] getItemCountInSlot id="
+                            + System.identityHashCode(be)
+                            + " at "
+                            + be.x
+                            + ","
+                            + be.y
+                            + ","
+                            + be.z
+                            + " world="
+                            + System.identityHashCode(be.world)
+                            + " stack="
+                            + (stack == null ? "empty" : stack.id + "x" + stack.size));
+        }
         return stack != null ? stack.size : 0;
     }
 
