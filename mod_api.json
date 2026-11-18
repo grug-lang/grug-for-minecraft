@@ -3596,8 +3596,8 @@
 						"name": "number"
 					}
 				},
-				"remove_mobs": {
-					"description": "Test only: removes every living mob of the category from the Level, wherever it is in the world, so a test starts from a world with none of that category: the ones the game's own spawner added and the ones `spawn_mob` added alike. It counts the same entities Level.count_mobs counts, so Level.count_mobs answers 0 for the category afterwards, and it leaves the other two categories alone. The mobs are taken out of the world and the chunk without a death or a drop, and on a dedicated server the joined client is told they are gone, so none stays on its screen. The game's own spawner may add some again later, but only while the count is at most the category's cap, so a test that wants a count that holds spawns past the cap (Level.get_mob_cap plus one) in the same call sequence. The category is one of \"hostile\", \"passive\" or \"water\", and anything else reports an error. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+				"remove_entities": {
+					"description": "Test only: removes every entity of the kind from the whole Level, wherever it is in the world, so a test starts from a world with none of them. The kind is one of the three mob categories Level.count_mobs takes (\"hostile\", \"passive\" or \"water\"), which removes the mobs the game's own spawner added and the ones `spawn_mob` added alike, or \"item\", which removes every item entity. It removes exactly the entities Level.count_mobs (or Level.count_item_entities) counts, so those answer 0 afterwards, and it leaves every other kind alone. The entities are taken out of the world and the chunk without a death or a drop, the way the room build clears the items of its box, and on a dedicated server the joined client is told they are gone, so none stays on its screen. The game's own spawner may add mobs again later, but only while the count is at most the category's cap, so a test that wants a count that holds spawns past the cap (Level.get_mob_cap plus one) in the same call sequence. Any other kind reports an error. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "level",
@@ -3606,7 +3606,7 @@
 							}
 						},
 						{
-							"name": "category",
+							"name": "kind",
 							"type": {
 								"name": "string"
 							}

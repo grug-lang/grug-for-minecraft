@@ -1271,8 +1271,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
     /**
      * Every entity of the category in the world's own list, in a list that is safe to remove from.
      */
-    protected List<Entity> mobsOf(World world, String category) {
-        Class<?> type = spawnGroup(category).getCreatureClass();
+    protected List<Entity> entitiesOf(World world, String kind) {
+        Class<?> type =
+                "item".equals(kind) ? ItemEntity.class : spawnGroup(kind).getCreatureClass();
         List<Entity> mobs = new ArrayList<>();
         for (Object entity : new ArrayList<Object>(world.entities)) {
             if (type.isInstance(entity)) {
@@ -1283,12 +1284,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * Removes the mobs the way the item sweep removes items: dead, out of the chunk and the list.
+     * Removes the entities the way the item sweep removes items: dead, out of the chunk and the
+     * list.
      */
     @Override
-    public void removeMobs(Object levelObj, String category) {
+    public void removeEntities(Object levelObj, String kind) {
         World world = (World) levelObj;
-        for (Entity mob : mobsOf(world, category)) {
+        for (Entity mob : entitiesOf(world, kind)) {
             mob.markDead();
             world.getChunkFromPos((int) Math.floor(mob.x), (int) Math.floor(mob.z))
                     .removeEntity(mob);

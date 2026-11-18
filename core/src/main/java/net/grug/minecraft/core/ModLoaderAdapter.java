@@ -431,12 +431,13 @@ public interface ModLoaderAdapter {
     }
 
     /**
-     * Removes every living entity of the category from the level, as the item sweep does for items,
-     * so a test starts from a world with none of them (#1252).
+     * Removes every entity of the kind from the whole level, through the same removal {@link
+     * #clearItemEntities} uses for the items in a box: a mob category from {@code
+     * GrugMobCap.CATEGORIES}, or {@code item} for item entities (#1252).
      */
     @GrugGenerated("no mob removal: a loader that has not added it keeps this default")
-    default void removeMobs(Object levelObj, String category) {
-        throw Grug.fatal("TestTickContext.remove_mobs is not supported on this loader");
+    default void removeEntities(Object levelObj, String kind) {
+        throw Grug.fatal("TestTickContext.remove_entities is not supported on this loader");
     }
 
     /**
