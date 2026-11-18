@@ -1173,6 +1173,13 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     public boolean isHostileSpawnSpace(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         net.minecraft.core.BlockPos pos = blockPosOf(x, y, z);
+        // The overlay asks from the render thread, which holds the grug state lock, and a block
+        // read in a chunk that is not loaded makes the server's chunk source wait for the server
+        // thread to load it. The server thread is waiting for that same lock in its tick, so both
+        // wait forever (the 1.20.6 SafeSquares hang, #1255). Nothing spawns in an unloaded chunk.
+        if (!world.hasChunkAt(pos)) {
+            return false;
+        }
         net.minecraft.world.entity.EntityType<?> type =
                 net.minecraft.world.entity.EntityType.ZOMBIE;
         return net.minecraft.world.entity.SpawnPlacements.isSpawnPositionOk(type, world, pos)
