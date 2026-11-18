@@ -1,0 +1,11 @@
+# get_mob_cap refuses a category that is not hostile, passive or water, because an unknown name has no
+# count or cap to answer with, so it must report an error rather than answer 0. The reads exist on
+# the two Beta 1.7.3 loaders so far, so every other loader returns before it asks. See #1252.
+export tick(ctx: TestTickContext) {
+    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
+        return
+    }
+    level: Level = ctx.get_client_level()
+    ctx.expect_error("The category has to be one of hostile, passive, water")
+    level.get_mob_cap("ghost")
+}
