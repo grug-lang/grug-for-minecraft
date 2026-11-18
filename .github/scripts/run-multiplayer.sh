@@ -680,7 +680,8 @@ while :; do
         ;;
       b1.7.3-ornithe)
         # Proof 44202563938 (#1096) passed wooden_pipe_shapes here once the item sweep told the joined client.
-        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_shapes"
+        # Proof 44407101535 (#1096) passed redstone_engine_facings here too, with it unlisted.
+        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_shapes buildcraft/tests/redstone_engine_facings"
         ;;
       a1.1.2_01-ornithe)
         # Proof 44189598116 (#1096) passed wooden_pipe_shapes here once a model texture first made
