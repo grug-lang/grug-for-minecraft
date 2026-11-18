@@ -774,6 +774,23 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     }
 
     /**
+     * Removes the mobs as the client-only game does, then tells the joined client they are gone.
+     */
+    @Override
+    public void removeMobs(Object levelObj, String category) {
+        List<net.minecraft.entity.Entity> mobs = mobsOf((World) levelObj, category);
+        super.removeMobs(levelObj, category);
+        EntityTracker tracker =
+                ((net.minecraft.server.MinecraftServer)
+                                net.fabricmc.loader.api.FabricLoader.getInstance()
+                                        .getGameInstance())
+                        .getEntityTracker(0);
+        for (net.minecraft.entity.Entity mob : mobs) {
+            tracker.onEntityRemoved(mob);
+        }
+    }
+
+    /**
      * Sweeps the items as the client-only game does, then tells the joined client they are gone.
      * The sweep takes a dead item out of the world's lists itself, so the world's own update never
      * reaches the entity tracker for it and no destroy packet is sent: the joined client kept a

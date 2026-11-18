@@ -1,0 +1,43 @@
+# Covers TestTickContext.remove_mobs (#1252), which the mob cap overlay's test uses to start from a
+# world with none of a category. Everything happens in the one tick, so the game's own spawner does
+# not add mobs between the reads: a known set is spawned, then each category is removed in turn and
+# is 0 while the others keep their count. The reads exist on the two Beta 1.7.3 loaders so far, so
+# every other loader returns before it spawns anything.
+export tick(ctx: TestTickContext) {
+    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
+        return
+    }
+    ctx.set_box_radius(6)
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x() + 3
+    y: number = origin.y()
+    z: number = origin.z() + 3
+
+    ctx.spawn_mob(level, "PigZombie", x, y, z)
+    ctx.spawn_mob(level, "Pig", x, y, z)
+    ctx.spawn_mob(level, "Pig", x, y, z)
+    ctx.spawn_mob(level, "Squid", x, y, z)
+
+    hostile: number = level.count_mobs("hostile")
+    passive: number = level.count_mobs("passive")
+    water: number = level.count_mobs("water")
+    ctx.assert(hostile >= 1, "A zombie pigman should be a hostile mob.")
+    ctx.assert(passive >= 2, "Two pigs should be two passive mobs.")
+    ctx.assert(water >= 1, "A squid should be a water mob.")
+
+    ctx.remove_mobs(level, "passive")
+    ctx.assert(level.count_mobs("passive") == 0, "No passive mob should be left after removing them.")
+    ctx.assert(level.count_mobs("hostile") == hostile, "Removing the passive mobs should leave the hostile ones.")
+    ctx.assert(level.count_mobs("water") == water, "Removing the passive mobs should leave the water ones.")
+
+    ctx.remove_mobs(level, "water")
+    ctx.assert(level.count_mobs("water") == 0, "No water mob should be left after removing them.")
+    ctx.assert(level.count_mobs("hostile") == hostile, "Removing the water mobs should leave the hostile ones.")
+
+    ctx.remove_mobs(level, "hostile")
+    ctx.assert(level.count_mobs("hostile") == 0, "No hostile mob should be left after removing them.")
+
+    ctx.remove_mobs(level, "hostile")
+    ctx.assert(level.count_mobs("hostile") == 0, "Removing from an empty category should leave it empty.")
+}

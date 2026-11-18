@@ -1,14 +1,14 @@
 # Covers the mob cap overlay's corner lines through the loader's own HUD hook: K shows them, and the
 # golden holds the three labels with their "count / cap" numbers. The counts are every entity of the
-# class in the whole world, which the game's own spawner changes between runs, so the test fixes them:
-# the game lets a category spawn only while its count is at most its cap, so the test tops each
-# category up with spawned mobs to one more than the cap, 80 hostile, 17 passive and 6 water for one
-# player alone (the caps are 79, 16 and 5), where the spawner spawns nothing of it and the number
-# stays exactly that. The test fails, rather than capturing, if the world already holds more than that
-# or the counts are not what they should be once the overlay is drawn. The spawned mobs are spread
-# over the room so that none is stuck in another, and are removed when the next room is built. The
-# numbers are checked against a known spawn by mods/coverage's mob_cap-Test. On a
-# loader with no world overlay hooks the test returns before it presses anything.
+# class in the whole world, which the game's own spawner changes, so the test fixes them. It removes
+# every mob of each category, then spawns mobs in the same tick until each count is one more than the
+# category's cap, 80 hostile, 17 passive and 6 water for one player alone (the caps are 79, 16 and
+# 5). The game lets a category spawn only while its count is at most its cap, so at cap + 1 the
+# spawner adds nothing, and the number is exactly that. Every tick up to the capture asserts the
+# counts are still those, so a mob that died or despawned fails the test and cannot reach the golden.
+# The spawned mobs are spread over the room so that none is stuck in another, and are removed when
+# the next room is built. The numbers are checked against a known spawn by mods/coverage's
+# mob_cap-Test. On a loader with no world overlay hooks the test returns before it presses anything.
 started: bool = false
 pressed: bool = false
 settled_ticks: number = 0
@@ -26,6 +26,9 @@ export tick(ctx: TestTickContext) {
     }
 
     waited = waited + 1
+    if pressed {
+        _check_counts(ctx)
+    }
     ctx.assert(waited < 1500, "The mob cap overlay test should finish.")
 
     if not ctx.world_settled() {
@@ -53,10 +56,6 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    level: Level = ctx.get_client_level()
-    ctx.assert(level.count_mobs("hostile") == level.get_mob_cap("hostile") + 1, "The hostile count should stay one over its cap.")
-    ctx.assert(level.count_mobs("passive") == level.get_mob_cap("passive") + 1, "The passive count should stay one over its cap.")
-    ctx.assert(level.count_mobs("water") == level.get_mob_cap("water") + 1, "The water count should stay one over its cap.")
     # Three lines of 12 GUI pixels at the 3x scale of a 1280x720 frame, and "count / cap" ends at
     # 106 GUI pixels at its widest.
     ctx.screenshot().equals(r"screenshots/overlay_labels", 0, 0, 330, 120)
@@ -66,18 +65,24 @@ export tick(ctx: TestTickContext) {
     ctx.press_world_key(75, false)
 }
 
-# Spawns mobs of the category, spread over the room, until the world holds one more than the cap.
+# Removes the category's mobs, then spawns them spread over the room until the world holds one more
+# than the cap.
 local _fill(ctx: TestTickContext, id: string, category: string) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     target: number = level.get_mob_cap(category) + 1
-    print(category)
-    print2(level.count_mobs(category), target)
-    ctx.assert(level.count_mobs(category) <= target, "The world should hold at most one more than the cap before the test tops it up.")
+    ctx.remove_mobs(level, category)
     i: number = 0
     while level.count_mobs(category) < target {
         ctx.spawn_mob(level, id, origin.x() + 1 + Math.remainder(i, 5), origin.y(), origin.z() + 1 + Math.remainder(Math.floor(i / 5), 5))
         i = i + 1
         ctx.assert(i < 200, "Spawning should reach the target.")
     }
+}
+
+local _check_counts(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    ctx.assert(level.count_mobs("hostile") == level.get_mob_cap("hostile") + 1, "The hostile count should stay one over its cap.")
+    ctx.assert(level.count_mobs("passive") == level.get_mob_cap("passive") + 1, "The passive count should stay one over its cap.")
+    ctx.assert(level.count_mobs("water") == level.get_mob_cap("water") + 1, "The water count should stay one over its cap.")
 }
