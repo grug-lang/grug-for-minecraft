@@ -1,0 +1,12 @@
+# spawn_mob refuses an id that names no mob, so a test that misspells one fails there instead of
+# spawning nothing and counting wrongly later. The call exists on the two Beta 1.7.3 loaders so far,
+# so every other loader returns before it asks. See #1252.
+export tick(ctx: TestTickContext) {
+    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
+        return
+    }
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    ctx.expect_error("is not a mob id")
+    ctx.spawn_mob(level, "Ghost", origin.x(), origin.y(), origin.z())
+}
