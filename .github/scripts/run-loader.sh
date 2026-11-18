@@ -808,7 +808,12 @@ case "$status" in
     fi
 
     if command -v jcmd >/dev/null 2>&1; then
-      for jp in $(jcmd -l 2>/dev/null | awk '!/[Gg]radle|JCmd/ {print $1}'); do
+      # The game's own command line holds Gradle's cache paths (its classpath), so excluding every
+      # line that mentions Gradle skipped the game JVM and printed no dump at all: only the Gradle
+      # daemon, wrapper and worker are left out, by their main class.
+      echo "==> JVMs found by jcmd:" >&2
+      jcmd -l 2>&1 | cut -c1-160 >&2 || true
+      for jp in $(jcmd -l 2>/dev/null | awk '!/JCmd|GradleDaemon|GradleWrapperMain|GradleWorkerMain|gradle-launcher/ {print $1}'); do
         echo "==> Thread dump of JVM $jp (game main thread, AWT event thread and the render and server threads of 1.14 and later):" >&2
         jcmd "$jp" Thread.print 2>&1 \
           | grep -A30 -E '^"(Minecraft main thread|AWT-EventQueue-0|Render thread|Server thread)"' >&2 || true
