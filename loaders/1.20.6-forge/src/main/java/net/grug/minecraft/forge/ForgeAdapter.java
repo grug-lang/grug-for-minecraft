@@ -1149,6 +1149,43 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public int getBlockLight(Object levelObj, double x, double y, double z) {
+        return ((Level) levelObj).getBrightness(LightLayer.BLOCK, blockPosOf(x, y, z));
+    }
+
+    @Override
+    public int getSkyLight(Object levelObj, double x, double y, double z) {
+        return ((Level) levelObj).getBrightness(LightLayer.SKY, blockPosOf(x, y, z));
+    }
+
+    /**
+     * What 1.20.6's spawner asks of a position before it looks at light, for a zombie, the
+     * representative hostile type (every hostile on-ground type shares the placement, and the
+     * zombie's box is the one a position has to fit): {@code
+     * NaturalSpawner.isValidSpawnPostitionForType} calls {@code SpawnPlacements.isSpawnPositionOk},
+     * which is the block below accepting a spawn ({@code BlockState.isValidSpawn}) and the space
+     * and the one above it not being a full collision block, a signal source, a fluid or one that
+     * prevents mob spawning, and then it asks that the type's spawn box is free of collisions. Its
+     * light rule is the type's own ({@code Monster.checkMonsterSpawnRules}) and is left to the
+     * overlay's two reads.
+     */
+    @Override
+    public boolean isHostileSpawnSpace(Object levelObj, double x, double y, double z) {
+        Level world = (Level) levelObj;
+        net.minecraft.core.BlockPos pos = blockPosOf(x, y, z);
+        net.minecraft.world.entity.EntityType<?> type =
+                net.minecraft.world.entity.EntityType.ZOMBIE;
+        return net.minecraft.world.entity.SpawnPlacements.isSpawnPositionOk(type, world, pos)
+                && world.noCollision(
+                        type.getSpawnAABB(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5));
+    }
+
+    private static net.minecraft.core.BlockPos blockPosOf(double x, double y, double z) {
+        return new net.minecraft.core.BlockPos(
+                (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         net.minecraft.core.BlockPos pos =

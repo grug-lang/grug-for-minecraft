@@ -42,6 +42,7 @@ import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.EnumCreatureType;
 import net.minecraft.src.EnumSkyBlock;
 import net.minecraft.src.IChunkLoader;
 import net.minecraft.src.IInventory;
@@ -51,6 +52,7 @@ import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.MovingObjectPosition;
 import net.minecraft.src.NBTTagCompound;
+import net.minecraft.src.SpawnerAnimals;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
@@ -1271,6 +1273,43 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     public boolean isAir(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
+    }
+
+    @Override
+    public int getBlockLight(Object levelObj, double x, double y, double z) {
+        return ((World) levelObj)
+                .getSavedLightValue(
+                        EnumSkyBlock.Block,
+                        (int) Math.floor(x),
+                        (int) Math.floor(y),
+                        (int) Math.floor(z));
+    }
+
+    @Override
+    public int getSkyLight(Object levelObj, double x, double y, double z) {
+        return ((World) levelObj)
+                .getSavedLightValue(
+                        EnumSkyBlock.Sky,
+                        (int) Math.floor(x),
+                        (int) Math.floor(y),
+                        (int) Math.floor(z));
+    }
+
+    /**
+     * The game's own spawner test for the monster category, {@code
+     * SpawnerAnimals.canCreatureTypeSpawnAtLocation}: the block below accepts a creature ({@code
+     * Block.canCreatureSpawn}) and is not bedrock, and the space is not a normal cube and not a
+     * liquid, and the space above is not a normal cube. It is public here, so it is called rather
+     * than repeated.
+     */
+    @Override
+    public boolean isHostileSpawnSpace(Object levelObj, double x, double y, double z) {
+        return SpawnerAnimals.canCreatureTypeSpawnAtLocation(
+                EnumCreatureType.monster,
+                (World) levelObj,
+                (int) Math.floor(x),
+                (int) Math.floor(y),
+                (int) Math.floor(z));
     }
 
     @Override
