@@ -809,9 +809,9 @@ case "$status" in
 
     if command -v jcmd >/dev/null 2>&1; then
       for jp in $(jcmd -l 2>/dev/null | awk '!/[Gg]radle|JCmd/ {print $1}'); do
-        echo "==> Thread dump of JVM $jp (game main thread and AWT event thread):" >&2
+        echo "==> Thread dump of JVM $jp (game main thread, AWT event thread and the render and server threads of 1.14 and later):" >&2
         jcmd "$jp" Thread.print 2>&1 \
-          | grep -A20 -E '^"(Minecraft main thread|AWT-EventQueue-0)"' >&2 || true
+          | grep -A30 -E '^"(Minecraft main thread|AWT-EventQueue-0|Render thread|Server thread)"' >&2 || true
       done
     fi
     ;;
