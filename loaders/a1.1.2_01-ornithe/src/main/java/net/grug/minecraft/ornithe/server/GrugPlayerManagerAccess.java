@@ -39,6 +39,15 @@ public final class GrugPlayerManagerAccess {
     private static final String SERVER_ADD_OP = "m_16677163";
     private static final String SERVER_REMOVE_OP = "m_26800521";
 
+    /** The server's intermediary name of the field that holds its entity tracker. */
+    private static final String SERVER_ENTITY_TRACKER = "f_33625485";
+
+    /**
+     * The entity tracker's intermediary name of its removal of an entity, which sends the destroy
+     * packet.
+     */
+    private static final String TRACKER_REMOVE = "m_69318390";
+
     /** The player manager, looked up on the first flush and kept for the run. */
     private static Object playerManager = null;
 
@@ -108,5 +117,30 @@ public final class GrugPlayerManagerAccess {
             return null;
         }
         return server.getClass().getField(SERVER_PLAYER_MANAGER).get(server);
+    }
+
+    /**
+     * Tells the entity tracker that {@code entity} was removed, so every client that tracks it is
+     * sent a destroy packet (#1096). Does nothing before the server exists.
+     */
+    public static void untrack(Object entity) {
+        try {
+            Object server = Class.forName(SERVER_INSTANCE).getMethod("get").invoke(null);
+            if (server == null) {
+                return;
+            }
+            Object tracker = server.getClass().getField(SERVER_ENTITY_TRACKER).get(server);
+            for (java.lang.reflect.Method method : tracker.getClass().getMethods()) {
+                if (method.getName().equals(TRACKER_REMOVE) && method.getParameterCount() == 1) {
+                    method.invoke(tracker, entity);
+                    return;
+                }
+            }
+            throw new IllegalStateException(
+                    "The dedicated server's entity tracker has no " + TRACKER_REMOVE + "(entity).");
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(
+                    "The dedicated server's entity tracker could not be reached.", e);
+        }
     }
 }
