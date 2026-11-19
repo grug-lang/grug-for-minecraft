@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.Vec3;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -164,6 +165,11 @@ public final class GrugControlClient {
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
     public static Caller adapterCaller(Supplier<ModLoaderAdapter> adapter) {
+        // What the capabilities were at the moment the force finished, which is what the server's
+        // separate question has to be answered from: a frame drawn between the two requests can
+        // reset GL state the force set, and the question is whether the force took, not what a
+        // later frame left (#1144).
+        AtomicBoolean enabledRightAfterForce = new AtomicBoolean();
         return new Caller() {
             @Override
             public boolean hasSound(String path) {
@@ -262,11 +268,13 @@ public final class GrugControlClient {
                     case GrugControlWire.NORMALIZATION_CAN_FORCE:
                         return game.canForceNormalizationForTest();
                     case GrugControlWire.NORMALIZATION_FORCE:
-                        return game.forceNormalizationForTest();
+                        boolean forced = game.forceNormalizationForTest();
+                        enabledRightAfterForce.set(game.normalizationEnabledForTest());
+                        return forced;
                     case GrugControlWire.NORMALIZATION_RESTORE:
                         return game.restoreNormalizationAfterTest();
                     default:
-                        return game.normalizationEnabledForTest();
+                        return enabledRightAfterForce.get();
                 }
             }
 
