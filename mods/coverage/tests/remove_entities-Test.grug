@@ -22,6 +22,21 @@ export tick(ctx: TestTickContext) {
         passive_id = "minecraft:pig"
         water_id = "minecraft:squid"
     }
+    # Start from a world with none of the three categories. A world that was played in holds mobs of
+    # its own, and one that rides another is not counted until its mount is removed (the spawner skips
+    # a passenger), so removing the passive mobs below would raise the hostile count by a chicken
+    # jockey's rider. Each round frees the riders the last one left, and three cover a stack.
+    round: number = 0
+    while round < 3 {
+        ctx.remove_entities(level, "hostile")
+        ctx.remove_entities(level, "passive")
+        ctx.remove_entities(level, "water")
+        round = round + 1
+    }
+    ctx.assert(level.count_mobs("hostile") == 0, "The world should start with no hostile mob.")
+    ctx.assert(level.count_mobs("passive") == 0, "The world should start with no passive mob.")
+    ctx.assert(level.count_mobs("water") == 0, "The world should start with no water mob.")
+
     ctx.spawn_mob(level, hostile_id, x, y, z)
     ctx.spawn_mob(level, passive_id, x, y, z)
     ctx.spawn_mob(level, passive_id, x, y, z)
@@ -30,9 +45,9 @@ export tick(ctx: TestTickContext) {
     hostile: number = level.count_mobs("hostile")
     passive: number = level.count_mobs("passive")
     water: number = level.count_mobs("water")
-    ctx.assert(hostile >= 1, "A zombie pigman should be a hostile mob.")
-    ctx.assert(passive >= 2, "Two pigs should be two passive mobs.")
-    ctx.assert(water >= 1, "A squid should be a water mob.")
+    ctx.assert(hostile == 1, "A zombie pigman should be a hostile mob.")
+    ctx.assert(passive == 2, "Two pigs should be two passive mobs.")
+    ctx.assert(water == 1, "A squid should be a water mob.")
 
     ctx.remove_entities(level, "passive")
     ctx.assert(level.count_mobs("passive") == 0, "No passive mob should be left after removing them.")
