@@ -3523,12 +3523,12 @@ public class HostFunctions {
 
     public static long OverlayHudContext_get_level(long contextId) {
         if (!requireHudContext("OverlayHudContext.get_level", contextId)) return 0;
-        return addLevel("OverlayHudContext.get_level", GrugCore.getAdapter().getLevel());
+        return addLevel("OverlayHudContext.get_level", GrugCore.getAdapter().clientLevel());
     }
 
     public static long OverlayWorldContext_get_level(long contextId) {
         if (!requireWorldContext("OverlayWorldContext.get_level", contextId)) return 0;
-        return addLevel("OverlayWorldContext.get_level", GrugCore.getAdapter().getLevel());
+        return addLevel("OverlayWorldContext.get_level", GrugCore.getAdapter().clientLevel());
     }
 
     public static double OverlayWorldContext_partial_tick(long contextId) {
