@@ -28,6 +28,20 @@ public final class GrugClientTestCalls {
             this.failed = failed;
         }
 
+        /**
+         * One of the client's normalization answers (see {@code
+         * GrugControlWire.CALL_NORMALIZATION}), false when it could not be asked, which the runner
+         * reports as a hook that did not apply.
+         */
+        public boolean normalization(int operation) {
+            try {
+                return server.get().normalization(operation);
+            } catch (GrugControlServer.ControlException e) {
+                failed.accept("The forced normalization: " + e.getMessage());
+                return false;
+            }
+        }
+
         /** Whether the client's frame draws the crack over the block, false when not asked. */
         public boolean miningCrack(double x, double y, double z) {
             try {

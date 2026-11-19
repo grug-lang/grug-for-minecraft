@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.Vec3;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -153,10 +154,22 @@ public final class GrugControlClient {
          * loaderReloads} is set how many reloads its loader has finished for it (#1040).
          */
         double reloadCount(String path, boolean loaderReloads);
+
+        /**
+         * One of the normalization questions of {@code GrugControlWire.NORMALIZATION_*}, answered
+         * by this client's own GL state, as the runner of a server asks while it runs a test whose
+         * file name ends with {@code _forced_normalization} (#1040).
+         */
+        boolean normalization(int operation);
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
     public static Caller adapterCaller(Supplier<ModLoaderAdapter> adapter) {
+        // What the capabilities were at the moment the force finished, which is what the server's
+        // separate question has to be answered from: a frame drawn between the two requests can
+        // reset GL state the force set, and the question is whether the force took, not what a
+        // later frame left (#1144).
+        AtomicBoolean enabledRightAfterForce = new AtomicBoolean();
         return new Caller() {
             @Override
             public boolean hasSound(String path) {
@@ -246,6 +259,23 @@ public final class GrugControlClient {
             @Override
             public boolean miningCrack(double x, double y, double z) {
                 return adapter.get().miningCrackForTest(adapter.get().clientLevel(), x, y, z);
+            }
+
+            @Override
+            public boolean normalization(int operation) {
+                ModLoaderAdapter game = adapter.get();
+                switch (operation) {
+                    case GrugControlWire.NORMALIZATION_CAN_FORCE:
+                        return game.canForceNormalizationForTest();
+                    case GrugControlWire.NORMALIZATION_FORCE:
+                        boolean forced = game.forceNormalizationForTest();
+                        enabledRightAfterForce.set(game.normalizationEnabledForTest());
+                        return forced;
+                    case GrugControlWire.NORMALIZATION_RESTORE:
+                        return game.restoreNormalizationAfterTest();
+                    default:
+                        return enabledRightAfterForce.get();
+                }
             }
 
             @Override
@@ -521,6 +551,9 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_MOD_FILE_STATE) {
                 caller.modFileState(message.text, (int) message.volume);
                 link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+            } else if (message.call == GrugControlWire.CALL_NORMALIZATION) {
+                boolean answer = caller.normalization((int) message.volume);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (answer ? 1 : 0)));
             } else if (message.call == GrugControlWire.CALL_RELOAD_COUNT) {
                 link.send(
                         GrugControlWire.answerNumber(
