@@ -73,6 +73,14 @@ class GrugControlTest {
             given.add(item + "x" + count);
         }
 
+        /**
+         * The clears of the server's cursor the server applied (#1389), in order with the gives.
+         */
+        @Override
+        public void applyDeleteCarried() {
+            given.add("deleteCarried");
+        }
+
         @Override
         public boolean mayStartRun(Object sender) {
             return mayStart;
@@ -2174,6 +2182,40 @@ class GrugControlTest {
         other.server.onMessage("bob", GrugControlWire.giveRequest("minecraft:stone", 1));
         other.server.applyClientWork();
         assertTrue(other.given.isEmpty());
+    }
+
+    @Test
+    void aClearOfTheServersCursorKeepsItsOrderAmongTheGives() {
+        Loopback loop = wireCalls(1000, new ScreenCalls());
+        assertEquals(
+                GrugControlWire.DELETE_CARRIED_REQUEST,
+                GrugControlWire.decode(GrugControlWire.deleteCarriedRequest()).type);
+        assertFalse(GrugControlWire.isAnswer(GrugControlWire.DELETE_CARRIED_REQUEST));
+        assertTrue(GrugControlWire.handledOnRead(GrugControlWire.DELETE_CARRIED_REQUEST));
+        assertFalse(loop.server.handlesOnRead(GrugControlWire.DELETE_CARRIED_REQUEST));
+        loop.server.onMessage(PLAYER, GrugControlWire.runStart());
+        assertTrue(loop.server.handlesOnRead(GrugControlWire.DELETE_CARRIED_REQUEST));
+
+        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest("minecraft:stone", 1));
+        loop.server.onMessage(PLAYER, GrugControlWire.deleteCarriedRequest());
+        assertTrue(loop.given.isEmpty());
+        loop.server.applyClientWork();
+        assertEquals(List.of("minecraft:stonex1", "deleteCarried"), loop.given);
+
+        // Only the starter's clear counts, like every other message.
+        loop.given.clear();
+        loop.server.onMessage("bob", GrugControlWire.deleteCarriedRequest());
+        loop.server.applyClientWork();
+        assertTrue(loop.given.isEmpty());
+
+        // The client sends it only while its run is active.
+        assertThrows(IllegalStateException.class, GrugControlClient::deleteCarriedOnServer);
+        loop.client.beginRun();
+        GrugControlClient.deleteCarriedOnServer();
+        assertEquals(
+                GrugControlWire.DELETE_CARRIED_REQUEST,
+                GrugControlWire.decode(loop.toServer.get(loop.toServer.size() - 1)).type);
+        loop.client.endRun();
     }
 
     @Test

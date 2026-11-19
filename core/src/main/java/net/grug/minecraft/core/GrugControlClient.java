@@ -339,6 +339,20 @@ public final class GrugControlClient {
         client.link.send(GrugControlWire.giveRequest(item, count));
     }
 
+    /**
+     * Asks the server that drives this client's run to clear the cursor of its own copy of the test
+     * player's menu (#1389): the overlay's delete clears the client's mirror, and a test reads the
+     * server's. Only legal while {@link #runActiveHere}, which its caller checks.
+     */
+    public static void deleteCarriedOnServer() {
+        GrugControlClient client = current;
+        if (!runActiveHere()) {
+            throw new IllegalStateException(
+                    "a delete named the server's cursor with no run started on this client");
+        }
+        client.link.send(GrugControlWire.deleteCarriedRequest());
+    }
+
     /** The player started a run: the flag first, then the message that tells the server. */
     public void beginRun() {
         runActive = true;
