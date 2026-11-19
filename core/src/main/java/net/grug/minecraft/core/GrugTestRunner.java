@@ -524,22 +524,38 @@ public class GrugTestRunner {
 
                     @Override
                     public boolean canForceNormalizationForTest() {
-                        return GrugCore.getAdapter().canForceNormalizationForTest();
+                        GrugClientTestCalls.Forwarded client =
+                                GrugCore.getAdapter().forwardedClientTestCalls();
+                        return client != null
+                                ? client.normalization(GrugControlWire.NORMALIZATION_CAN_FORCE)
+                                : GrugCore.getAdapter().canForceNormalizationForTest();
                     }
 
                     @Override
                     public boolean forceNormalizationForTest() {
-                        return GrugCore.getAdapter().forceNormalizationForTest();
+                        GrugClientTestCalls.Forwarded client =
+                                GrugCore.getAdapter().forwardedClientTestCalls();
+                        return client != null
+                                ? client.normalization(GrugControlWire.NORMALIZATION_FORCE)
+                                : GrugCore.getAdapter().forceNormalizationForTest();
                     }
 
                     @Override
                     public boolean restoreNormalizationAfterTest() {
-                        return GrugCore.getAdapter().restoreNormalizationAfterTest();
+                        GrugClientTestCalls.Forwarded client =
+                                GrugCore.getAdapter().forwardedClientTestCalls();
+                        return client != null
+                                ? client.normalization(GrugControlWire.NORMALIZATION_RESTORE)
+                                : GrugCore.getAdapter().restoreNormalizationAfterTest();
                     }
 
                     @Override
                     public boolean normalizationEnabledForTest() {
-                        return GrugCore.getAdapter().normalizationEnabledForTest();
+                        GrugClientTestCalls.Forwarded client =
+                                GrugCore.getAdapter().forwardedClientTestCalls();
+                        return client != null
+                                ? client.normalization(GrugControlWire.NORMALIZATION_ENABLED)
+                                : GrugCore.getAdapter().normalizationEnabledForTest();
                     }
                 },
                 repeatsFromEnv(),
@@ -1300,7 +1316,9 @@ public class GrugTestRunner {
             // than the one the marked test asked for. See TestTickContext.normalization_forced.
             GrugTestState.forcedNormalization = false;
             if (GrugForcedNormalization.appliesTo(
-                    path, dedicatedServer, GrugReference.isReferenceRun())) {
+                    path,
+                    dedicatedServer && !forwardsClientCalls,
+                    GrugReference.isReferenceRun())) {
                 // Due before the force runs, so a hook that changes a capability before it finds
                 // out it could not force is put back too, and a loader that keeps the no-op
                 // default restore is asked like every other.

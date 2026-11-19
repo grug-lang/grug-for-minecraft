@@ -25,9 +25,10 @@ import java.util.List;
  * second number that can disagree with this one (#1144).
  *
  * <p>A reference run never forces it, because the reference mod's own icons are not the port's to
- * change, and neither does a dedicated server, which has no GL context: the decision is a pure
- * function of the path, whether this is a dedicated server and the run, like {@link
- * GrugForcedAutosave}, so it is tested without a runner or a client.
+ * change, and neither does a dedicated server that forwards nothing to a client, which has no GL
+ * context (one that does asks the client to force it, #1040): the decision is a pure function of
+ * the path, whether this is a dedicated server and the run, like {@link GrugForcedAutosave}, so it
+ * is tested without a runner or a client.
  */
 public final class GrugForcedNormalization {
     /** The mark the file name of a test that asks for the forced capability ends with. */
@@ -39,7 +40,8 @@ public final class GrugForcedNormalization {
      * Whether the runner turns the capability on before the test's first tick runs.
      *
      * @param testPath the path of the test, as the runner lists it
-     * @param dedicatedServer whether this process is a dedicated server, which has no GL context
+     * @param dedicatedServer whether this process is a dedicated server with no client to ask,
+     *     which has no GL context
      * @param referenceRun whether this run drives the reference mod rather than a grug port
      */
     public static boolean appliesTo(
