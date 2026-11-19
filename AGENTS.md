@@ -404,9 +404,17 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 | `test-saves/<name>.zip`, `loaders/<loader>/test-save.txt` | the world a loader's tests start from |
 | `recreation.py`, `about_schema.py`, `dead_links.py` | metadata validation, each with its own tests |
 
-- The README calls `mod_api.json` frozen. That discourages growth for its own sake, not removals,
-  replacements, test-only helpers or tooling fixes. Justify every change to it in the pull request
-  description, one by one.
+- Add to `mod_api.json` whenever grug code would otherwise need a workaround. grug code stays
+  plain and the API grows, so a hack in a `.grug` file is a defect and the missing
+  host function is the fix. Hacks look like a table of constants standing in for a missing function
+  (the cosine and sine of one segment's angle because grug has no trigonometry), a helper that
+  rebuilds by hand what the host could give (a number drawn one digit at a time because there was no
+  number to text), unrolled repetition, or a loop that approximates a value the game already
+  computes. Read `mod_api.md` first, and when the function is missing add it in the same pull
+  request as the mod that needs it, with `String.from_number` as the model of a small, general
+  entry: general over what one mod happens to want, tested in `mods/coverage/` (including odd
+  inputs), and justified in the pull request description, one entry at a time.
+  Removals, replacements, test-only helpers and tooling fixes need no more than that.
 - The goal is to port every Java mod to grug for every Minecraft version ever released, starting
   from Alpha 1.1.2_01, and for every mod loader ever released, so design an entry for the ports
   known to need it, not only the one at hand; one that no committed mod calls yet goes in an issue
@@ -433,7 +441,7 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 
 Every version is exact and bumped by hand, when there is a reason to; bumping grug-rs
 (`grugRsRevision` in `core/build.gradle.kts`) changes VM behaviour. The root Gradle wrapper is
-frozen at 8.14 (SpongePowered Mixin and ForgeGradle 6 do not support Gradle 9). Pin locations and
+pinned at 8.14 (SpongePowered Mixin and ForgeGradle 6 do not support Gradle 9). Pin locations and
 bump commands are in #369. `core/`'s main sources compile with `--release 8`, so no `Set.of`,
 `List.of` or `String.isBlank` there (the tests may use them).
 
