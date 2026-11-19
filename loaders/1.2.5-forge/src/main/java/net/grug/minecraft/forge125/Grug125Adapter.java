@@ -836,9 +836,30 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
                             + " position in a chunk the client has not received is discarded.");
             return;
         }
+        if (blockId == Block.chest.blockID) {
+            refreshChestFacing(world, posX, posY, posZ);
+        }
         // The client learns of the block from a packet it has not read yet, so the settle wait has
         // to ask the client's own copy rather than trust the frames that passed. See #804.
         blockSync.owe(posX, posY, posZ, getBlock(world, posX, posY, posZ));
+    }
+
+    /**
+     * Makes a chest's block entity read the facing its block now holds.
+     *
+     * <p>{@code Chunk.setBlockIDWithMetadata} runs {@code BlockChest.onBlockAdded}, which turns the
+     * chest to face away from a solid neighbour, and only afterwards stores the metadata the call
+     * was made with (0) into the new block entity's cache. {@code TileEntityChestRenderer} draws
+     * from that cache, and its own {@code unifyAdjacentChests} cannot repair it, because the world
+     * already holds the facing and a write that changes nothing does not reset the cache. A chest
+     * placed here therefore drew facing 0 in the single-process run while a joined client, which is
+     * sent the block with its facing, drew the real one: the south chest of {@code
+     * wooden_pipe_corner} showed its latch on the dedicated leg and not in the flat golden (#1096).
+     * A player's placement avoids this, because {@code onBlockPlacedBy} writes the facing after the
+     * block entity exists. Resetting the cache makes the run draw what the block holds.
+     */
+    private static void refreshChestFacing(World world, int x, int y, int z) {
+        world.getBlockTileEntity(x, y, z).updateContainingBlockInfo();
     }
 
     /**
