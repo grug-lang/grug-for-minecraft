@@ -54,6 +54,55 @@ public final class GrugForcedNormalization {
     }
 
     /**
+     * Whether the loader's client can force the capability, which a dedicated server that forwards
+     * client calls asks its joined client, because the GL state is the client's (#1040).
+     *
+     * <p>The four answers are here rather than in the runner's box builder, so a unit test with a
+     * fake adapter covers both the joined client's answer and the loader's own and no runner, which
+     * needs a coverage directory, is built for it.
+     *
+     * @param adapter the loader, whose {@code forwardedClientTestCalls} is null unless this process
+     *     has a client to ask
+     */
+    public static boolean canForce(ModLoaderAdapter adapter) {
+        GrugClientTestCalls.Forwarded client = adapter.forwardedClientTestCalls();
+        return client != null
+                ? client.normalization(GrugControlWire.NORMALIZATION_CAN_FORCE)
+                : adapter.canForceNormalizationForTest();
+    }
+
+    /**
+     * Whether the client turned the capability on, asked of the joined client when there is one.
+     */
+    public static boolean force(ModLoaderAdapter adapter) {
+        GrugClientTestCalls.Forwarded client = adapter.forwardedClientTestCalls();
+        return client != null
+                ? client.normalization(GrugControlWire.NORMALIZATION_FORCE)
+                : adapter.forceNormalizationForTest();
+    }
+
+    /**
+     * Whether the client put the capabilities back, asked of the joined client when there is one.
+     */
+    public static boolean restore(ModLoaderAdapter adapter) {
+        GrugClientTestCalls.Forwarded client = adapter.forwardedClientTestCalls();
+        return client != null
+                ? client.normalization(GrugControlWire.NORMALIZATION_RESTORE)
+                : adapter.restoreNormalizationAfterTest();
+    }
+
+    /**
+     * Whether the client draws with the capability on, asked of the joined client when there is
+     * one.
+     */
+    public static boolean enabled(ModLoaderAdapter adapter) {
+        GrugClientTestCalls.Forwarded client = adapter.forwardedClientTestCalls();
+        return client != null
+                ? client.normalization(GrugControlWire.NORMALIZATION_ENABLED)
+                : adapter.normalizationEnabledForTest();
+    }
+
+    /**
      * Test only: the capabilities a restore has to turn off, which is every capability the force
      * turned on and no capability the game itself left on. The marked test models a leak, so a
      * force can find one already on, and putting that one back means leaving it on (#1144).

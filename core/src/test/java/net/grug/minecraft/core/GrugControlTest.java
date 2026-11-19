@@ -2137,6 +2137,86 @@ class GrugControlTest {
     }
 
     @Test
+    void theFourNormalizationQuestionsGoToTheJoinedClientOrTheLoaderItself() {
+        ScreenCalls client = new ScreenCalls();
+        Loopback loop = wireCalls(1000, client);
+        loop.client.beginRun();
+        GrugClientTestCalls.Forwarded forwarded =
+                new GrugClientTestCalls.Forwarded(
+                        () -> loop.server,
+                        message -> {
+                            throw new AssertionError(message);
+                        });
+        // The loader's own answers are the opposite of the client's, so which side was asked shows
+        // in every result.
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        method.getName().equals("forwardedClientTestCalls")
+                                                ? forwarded
+                                                : method.getName()
+                                                                .equals(
+                                                                        "canForceNormalizationForTest")
+                                                        ? Boolean.TRUE
+                                                        : method.getName()
+                                                                        .equals(
+                                                                                "forceNormalizationForTest")
+                                                                ? Boolean.TRUE
+                                                                : method.getName()
+                                                                                .equals(
+                                                                                        "restoreNormalizationAfterTest")
+                                                                        ? Boolean.FALSE
+                                                                        : method.getName()
+                                                                                        .equals(
+                                                                                                "normalizationEnabledForTest")
+                                                                                ? Boolean.TRUE
+                                                                                : null);
+
+        client.normalizationAnswer = true;
+        assertTrue(GrugForcedNormalization.canForce(adapter));
+        assertTrue(GrugForcedNormalization.force(adapter));
+        assertTrue(GrugForcedNormalization.restore(adapter));
+        assertTrue(GrugForcedNormalization.enabled(adapter));
+        assertEquals(
+                List.of("normalization 0", "normalization 1", "normalization 2", "normalization 3"),
+                client.seen);
+
+        // A loader with no client to ask answers with its own adapter, and nothing is sent.
+        ModLoaderAdapter alone =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        method.getName().equals("forwardedClientTestCalls")
+                                                ? null
+                                                : method.getName()
+                                                                .equals(
+                                                                        "canForceNormalizationForTest")
+                                                        ? Boolean.TRUE
+                                                        : method.getName()
+                                                                        .equals(
+                                                                                "forceNormalizationForTest")
+                                                                ? Boolean.TRUE
+                                                                : method.getName()
+                                                                                .equals(
+                                                                                        "restoreNormalizationAfterTest")
+                                                                        ? Boolean.FALSE
+                                                                        : Boolean.TRUE);
+        client.seen.clear();
+        client.normalizationAnswer = false;
+        assertTrue(GrugForcedNormalization.canForce(alone));
+        assertTrue(GrugForcedNormalization.force(alone));
+        assertFalse(GrugForcedNormalization.restore(alone));
+        assertTrue(GrugForcedNormalization.enabled(alone));
+        assertTrue(client.seen.isEmpty());
+        loop.client.endRun();
+    }
+
+    @Test
     void aForwardedOverlayReadIsAskedOfTheJoinedClientAndAnswered() {
         ScreenCalls overlays = new ScreenCalls();
         Loopback loop = wireCalls(1000, overlays);

@@ -524,38 +524,22 @@ public class GrugTestRunner {
 
                     @Override
                     public boolean canForceNormalizationForTest() {
-                        GrugClientTestCalls.Forwarded client =
-                                GrugCore.getAdapter().forwardedClientTestCalls();
-                        return client != null
-                                ? client.normalization(GrugControlWire.NORMALIZATION_CAN_FORCE)
-                                : GrugCore.getAdapter().canForceNormalizationForTest();
+                        return GrugForcedNormalization.canForce(GrugCore.getAdapter());
                     }
 
                     @Override
                     public boolean forceNormalizationForTest() {
-                        GrugClientTestCalls.Forwarded client =
-                                GrugCore.getAdapter().forwardedClientTestCalls();
-                        return client != null
-                                ? client.normalization(GrugControlWire.NORMALIZATION_FORCE)
-                                : GrugCore.getAdapter().forceNormalizationForTest();
+                        return GrugForcedNormalization.force(GrugCore.getAdapter());
                     }
 
                     @Override
                     public boolean restoreNormalizationAfterTest() {
-                        GrugClientTestCalls.Forwarded client =
-                                GrugCore.getAdapter().forwardedClientTestCalls();
-                        return client != null
-                                ? client.normalization(GrugControlWire.NORMALIZATION_RESTORE)
-                                : GrugCore.getAdapter().restoreNormalizationAfterTest();
+                        return GrugForcedNormalization.restore(GrugCore.getAdapter());
                     }
 
                     @Override
                     public boolean normalizationEnabledForTest() {
-                        GrugClientTestCalls.Forwarded client =
-                                GrugCore.getAdapter().forwardedClientTestCalls();
-                        return client != null
-                                ? client.normalization(GrugControlWire.NORMALIZATION_ENABLED)
-                                : GrugCore.getAdapter().normalizationEnabledForTest();
+                        return GrugForcedNormalization.enabled(GrugCore.getAdapter());
                     }
                 },
                 repeatsFromEnv(),
