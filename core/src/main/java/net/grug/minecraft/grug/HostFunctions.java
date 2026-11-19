@@ -3988,6 +3988,16 @@ public class HostFunctions {
         return value % divisor;
     }
 
+    /** Half a turn in radians, exactly {@code Math.PI}. */
+    public static double Math_pi() {
+        return Math.PI;
+    }
+
+    /** A whole turn in radians, exactly {@code 2 * Math.PI}. */
+    public static double Math_tau() {
+        return 2 * Math.PI;
+    }
+
     /** The sine of an angle in radians, from {@code StrictMath} so every platform agrees. */
     public static double Math_sin(double angle) {
         return StrictMath.sin(angle);

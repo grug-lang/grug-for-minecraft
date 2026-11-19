@@ -18,7 +18,6 @@ instant_despawn_radius: number = 128
 # The eye is 1.62 blocks above the feet, and the overlay's camera is the eye.
 eye_height: number = 1.62
 segments: number = 64
-tau: number = 6.283185307179586
 
 # Pressing the key while hidden asks the next frame to save the camera, because a key press does
 # not hand out the player's position.
@@ -56,10 +55,11 @@ export world_key(ctx: OverlayWorldKeyContext) {
 
 # A ring of straight segments around the saved position at its height.
 local _ring(ctx: OverlayWorldContext, radius: number, color: Color) {
+    turn: number = Math.tau()
     i: number = 0
     while i < segments {
-        a1: number = tau * i / segments
-        a2: number = tau * (i + 1) / segments
+        a1: number = turn * i / segments
+        a2: number = turn * (i + 1) / segments
         ctx.draw_line(cx + radius * Math.cos(a1), cy, cz + radius * Math.sin(a1), cx + radius * Math.cos(a2), cy, cz + radius * Math.sin(a2), color)
         i = i + 1
     }

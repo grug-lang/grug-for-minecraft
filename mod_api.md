@@ -165,8 +165,10 @@ Color.rgb(r: number, g: number, b: number) Color
 ## Math
 Math.cos(angle: number) number
 Math.floor(value: number) number
+Math.pi() number
 Math.remainder(value: number, divisor: number) number
 Math.sin(angle: number) number
+Math.tau() number
 
 ## Option
 .has() bool

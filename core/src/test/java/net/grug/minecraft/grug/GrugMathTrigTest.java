@@ -30,6 +30,13 @@ class GrugMathTrigTest {
     }
 
     @Test
+    void turnsAreExactlyPiAndTwicePi() {
+        assertEquals(Math.PI, HostFunctions.Math_pi());
+        assertEquals(2 * Math.PI, HostFunctions.Math_tau());
+        assertEquals(HostFunctions.Math_pi() * 2, HostFunctions.Math_tau());
+    }
+
+    @Test
     void nonFiniteAnglesAreNaN() {
         assertTrue(Double.isNaN(HostFunctions.Math_sin(Double.POSITIVE_INFINITY)));
         assertTrue(Double.isNaN(HostFunctions.Math_cos(Double.NaN)));
