@@ -1992,6 +1992,20 @@
 		"Math": {
 			"description": "Mathematical functions that need no instance.",
 			"static_methods": {
+				"cos": {
+					"description": "The cosine of an angle in radians: Math.cos(0) is 1 and Math.cos(3.141592653589793) is -1. A mod walks a point around a circle with it and Math.sin: the point at angle a is (radius * Math.cos(a), radius * Math.sin(a)). It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "angle",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"floor": {
 					"description": "The largest whole number at or below the given number: Math.floor(2.5) is 2 and Math.floor(-2.5) is -3. A position in the world is a number with a fraction, while a block coordinate is a whole number, and this is how a mod turns one into the other.",
 					"return_type": {
@@ -2005,6 +2019,12 @@
 							}
 						}
 					]
+				},
+				"pi": {
+					"description": "Half a turn in radians, 3.141592653589793, which is Java's Math.PI. It is the angle to give Math.sin and Math.cos for half way round a circle: Math.cos(Math.pi()) is -1.",
+					"return_type": {
+						"name": "number"
+					}
 				},
 				"remainder": {
 					"description": "What is left of the first number after dividing it by the second as many whole times as fit, with the sign of the first number: Math.remainder(7, 3) is 1, Math.remainder(-7, 3) is -1 and Math.remainder(7.5, 2) is 1.5. That is what Java's `%` gives on numbers with a fraction, and what C's `fmod` gives, so it is how a mod checks whether a tick count is a multiple of something: Math.remainder(time, 20) == 0. It is not the IEEE remainder that rounds to the nearest whole number, so Math.remainder(15, 20) is 15 and not -5. A divisor of 0 reports an error from Math.remainder, since the answer would be nothing but NaN.",
@@ -2025,6 +2045,26 @@
 							}
 						}
 					]
+				},
+				"sin": {
+					"description": "The sine of an angle in radians: Math.sin(0) is 0 and Math.sin(1.5707963267948966) is 1. Together with Math.cos it places a point on a circle: the point at angle a is (radius * Math.cos(a), radius * Math.sin(a)). It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "angle",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"tau": {
+					"description": "A whole turn in radians, 6.283185307179586, which is twice Math.pi() and Java's 2 * Math.PI. A ring of n segments steps its angle by Math.tau() / n.",
+					"return_type": {
+						"name": "number"
+					}
 				}
 			}
 		},
