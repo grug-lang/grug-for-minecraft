@@ -4,6 +4,10 @@
 world_presses: number = 0
 cross_on: bool = false
 
+# Whether the HUD reads the mob counts and caps from the frame's level, which only overlay_mob_cap-Test turns on
+# (key I), because not every loader answers them.
+mob_cap_on: bool = false
+
 # Covers the overlay host functions through a real screen: the context's numbers and modifiers,
 # draw_item, draw_box, take, the cursor the reference deletes, give_item and give_item_stack, and
 # the loader's item list behind item_at. The box sits at the centre of the screen, where the
@@ -98,6 +102,11 @@ export render_hud(ctx: OverlayHudContext) {
         ctx.add_text("L pressed", 4, 100, Color.rgb(255, 255, 255))
         ctx.add_text("world key seen", 4, 112, Color.rgb(255, 255, 255))
     }
+    # The frame's level is the client's copy of the world, which the mob cap overlay reads its counts
+    # and caps from on the render thread (#1252): a read that has to come back with an answer.
+    if mob_cap_on and ctx.get_level().count_mobs("hostile") >= 0 and ctx.get_level().get_mob_cap("hostile") >= 0 {
+        ctx.add_text("mob cap read", 4, 124, Color.rgb(255, 255, 255))
+    }
 }
 
 # Two crossing diagonals four blocks in front of the camera along +z, two blocks tall and wide and
@@ -118,6 +127,9 @@ export render_world(ctx: OverlayWorldContext) {
 # The world key J (74) flips the cross, and Control and J only ever turns it off, so a test can tell
 # that the modifier is the key's own. Any other key is left alone.
 export world_key(ctx: OverlayWorldKeyContext) {
+    if ctx.key() == 73 {
+        mob_cap_on = not mob_cap_on
+    }
     if ctx.key() == 74 {
         world_presses = world_presses + 1
         if ctx.ctrl() {
