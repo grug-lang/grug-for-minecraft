@@ -104,6 +104,7 @@ public final class GrugOverlayHost {
         overlayMods = mods;
         GrugOverlay.noteSupported();
         GrugWorldOverlay.noteSupported();
+        GrugWorldOverlay.noteTrianglesSupported();
     }
 
     private static void ensureCreated() {
@@ -446,11 +447,17 @@ public final class GrugOverlayHost {
             List<GrugWorldOverlay.Line> lines =
                     GrugWorldOverlay.world(
                             overlay.entityHandle, overlay.worldFnId, partialTick, cx, cy, cz);
-            if (lines.isEmpty()) continue;
+            List<GrugWorldOverlay.Triangle> triangles = GrugWorldOverlay.lastTriangles();
+            if (lines.isEmpty() && triangles.isEmpty()) continue;
             if (overlay.mod.equals(testMod)) {
                 GrugWorldOverlay.noteDrawn();
             }
-            GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_LINE_BIT | GL11.GL_CURRENT_BIT);
+            GL11.glPushAttrib(
+                    GL11.GL_ENABLE_BIT
+                            | GL11.GL_LINE_BIT
+                            | GL11.GL_CURRENT_BIT
+                            | GL11.GL_COLOR_BUFFER_BIT
+                            | GL11.GL_DEPTH_BUFFER_BIT);
             try {
                 GL11.glDisable(GL11.GL_TEXTURE_2D);
                 GL11.glDisable(GL11.GL_FOG);
@@ -468,10 +475,42 @@ public final class GrugOverlayHost {
                     GL11.glVertex3d(line.x2() - cx, line.y2() - cy, line.z2() - cz);
                 }
                 GL11.glEnd();
+                drawTriangles(triangles, cx, cy, cz);
             } finally {
                 GL11.glPopAttrib();
             }
         }
+    }
+
+    /**
+     * Draws the world pass's translucent triangles after its lines. Blending is on and the depth
+     * mask is off, so the terrain in front still hides a triangle but two translucent shells do not
+     * hide each other and their order does not matter, and culling is off so the inside of a closed
+     * shape is drawn when the camera is in it.
+     */
+    private static void drawTriangles(
+            List<GrugWorldOverlay.Triangle> triangles, double cx, double cy, double cz) {
+        if (triangles.isEmpty()) return;
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glDisable(GL11.GL_CULL_FACE);
+        GL11.glDepthMask(false);
+        GL11.glBegin(GL11.GL_TRIANGLES);
+        for (GrugWorldOverlay.Triangle triangle : triangles) {
+            int argb = triangle.argb();
+            GL11.glColor4f(
+                    ((argb >> 16) & 0xFF) / 255.0F,
+                    ((argb >> 8) & 0xFF) / 255.0F,
+                    (argb & 0xFF) / 255.0F,
+                    ((argb >>> 24) & 0xFF) / 255.0F);
+            for (int corner = 0; corner < 3; corner++) {
+                GL11.glVertex3d(
+                        triangle.corner(corner, 0) - cx,
+                        triangle.corner(corner, 1) - cy,
+                        triangle.corner(corner, 2) - cz);
+            }
+        }
+        GL11.glEnd();
     }
 
     /**

@@ -1652,6 +1652,24 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
 
+    /**
+     * Moves the local player's feet to the position when the client has that chunk, so a test can
+     * stand inside or outside a shape drawn around a point. A teleport into a chunk the client has
+     * not received crashes this generation of the game, so it answers false instead.
+     */
+    @Override
+    public boolean setPlayerPositionForTest(double x, double y, double z) {
+        PlayerEntity player = GrugClientPlayer.get();
+        Minecraft mc = MinecraftInstance.get();
+        if (player == null
+                || mc.world == null
+                || !mc.world.isChunkLoaded((int) Math.floor(x), 64, (int) Math.floor(z))) {
+            return false;
+        }
+        player.setPositionAndAngles(x, y, z, player.yaw, player.pitch);
+        return true;
+    }
+
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void snapPlayerForTestOnClient() {

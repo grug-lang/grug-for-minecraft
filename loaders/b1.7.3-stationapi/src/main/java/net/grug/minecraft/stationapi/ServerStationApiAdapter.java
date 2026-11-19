@@ -278,6 +278,12 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      * fixtures land on the grid a client-only run's snap puts them on (#1161). The teleport is the
      * one the server run's floor hold uses, so the joined client's camera and view follow it.
      */
+    /** A dedicated server has no local player to move: the call is for a client run. */
+    @Override
+    public boolean setPlayerPositionForTest(double x, double y, double z) {
+        throw Grug.fatal("TestTickContext.set_player_position is not supported on a server");
+    }
+
     @Override
     public void snapPlayerForTestOnServer() {
         GrugServerRun.snapToBlockCentre((PlayerEntity) testPlayer());

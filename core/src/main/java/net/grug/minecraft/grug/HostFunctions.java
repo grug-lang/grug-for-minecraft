@@ -1771,6 +1771,35 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Color, new Color((int) r, (int) g, (int) b));
     }
 
+    /** A color with an alpha, each value a whole number from 0 to 255. */
+    public static long Color_rgba(double r, double g, double b, double a) {
+        String problem = colorProblem(r, g, b, a);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Color.rgba: " + problem);
+            return 0;
+        }
+        return GrugEntities.addEntity(
+                GrugEntityType.Color, new Color((int) r, (int) g, (int) b, (int) a));
+    }
+
+    /** Why Color.rgba refuses these values, or null when each is a whole number from 0 to 255. */
+    static String colorProblem(double r, double g, double b, double a) {
+        for (double value : new double[] {r, g, b, a}) {
+            if (!(value >= 0 && value <= 255) || value != Math.floor(value)) {
+                return "Each value has to be a whole number from 0 to 255, and the values were "
+                        + numberText(r)
+                        + ", "
+                        + numberText(g)
+                        + ", "
+                        + numberText(b)
+                        + " and "
+                        + numberText(a)
+                        + ".";
+            }
+        }
+        return null;
+    }
+
     public static void Entity_set_delta_movement(long entityId, long vec3Id) {
         worldChanged();
         withEntities(
@@ -2195,6 +2224,38 @@ public class HostFunctions {
 
     public static boolean Level_has_mob_category(long levelId, String category) {
         return GrugCore.getAdapter().hasMobCategory(category);
+    }
+
+    /**
+     * Moves the player to a position, the feet at x, y, z, so a test can stand inside or outside a
+     * shape drawn around a point. The chunk there has to be loaded, or the call reports why.
+     */
+    public static void TestTickContext_set_player_position(
+            long contextId, double x, double y, double z) {
+        if (!requireTickContext("TestTickContext.set_player_position", contextId)) return;
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.set_player_position: The position has to be finite, and was "
+                            + x
+                            + ", "
+                            + y
+                            + ", "
+                            + z
+                            + ".");
+            return;
+        }
+        worldChanged();
+        if (!GrugCore.getAdapter().setPlayerPositionForTest(x, y, z)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.set_player_position: The chunk at "
+                            + x
+                            + ", "
+                            + z
+                            + " is not loaded, so the player was not moved. Move in steps and wait"
+                            + " for the world to settle between them.");
+        }
     }
 
     /**
@@ -3643,6 +3704,54 @@ public class HostFunctions {
                 color ->
                         GrugWorldOverlay.recordLine(
                                 x1, y1, z1, x2, y2, z2, ((Color) color).getRGB()));
+    }
+
+    /**
+     * Records one filled triangle, drawn with the color's alpha. A loader that cannot draw it stops
+     * the game, like every other call a loader does not support.
+     */
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    public static void OverlayWorldContext_draw_triangle(
+            long contextId,
+            double x1,
+            double y1,
+            double z1,
+            double x2,
+            double y2,
+            double z2,
+            double x3,
+            double y3,
+            double z3,
+            long colorId) {
+        if (!requireWorldContext("OverlayWorldContext.draw_triangle", contextId)) return;
+        if (!GrugWorldOverlay.trianglesSupported()) {
+            throw Grug.fatal("OverlayWorldContext.draw_triangle is not supported on this loader");
+        }
+        double[] corners = {x1, y1, z1, x2, y2, z2, x3, y3, z3};
+        String problem = worldTriangleProblem(corners);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "OverlayWorldContext.draw_triangle: " + problem);
+            return;
+        }
+        withEntity(
+                "OverlayWorldContext.draw_triangle",
+                "color",
+                colorId,
+                color -> GrugWorldOverlay.recordTriangle(corners, ((Color) color).getARGB()));
+    }
+
+    /** Why draw_triangle refuses these corners, or null when it can record the triangle. */
+    static String worldTriangleProblem(double[] corners) {
+        for (double corner : corners) {
+            if (!Double.isFinite(corner)) {
+                return "The triangle was not recorded. Its corners have to be finite, and a"
+                        + " coordinate was "
+                        + corner
+                        + ".";
+            }
+        }
+        return null;
     }
 
     /** Why draw_line refuses these endpoints, or null when it can record the line. */

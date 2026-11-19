@@ -1,0 +1,79 @@
+# Covers Color.rgba, OverlayWorldContext.draw_triangle and TestTickContext.set_player_position
+# (#1253). The overlay's key Y saves the camera's position and draws two half-opaque red triangles
+# four blocks ahead of it over a stone wall, so the wall shows through them. The test then moves the
+# player two blocks along x, which moves the triangles left in the frame while they stay where they
+# were in the world, so one capture shows the translucent fill and the teleport together. Only the
+# Beta 1.7.3 loaders draw triangles and move the player so far; every other loader stops the game on
+# those calls, so the test returns before it builds anything there.
+started: bool = false
+pressed: bool = false
+moved: bool = false
+settled_ticks: number = 0
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
+            return
+        }
+        ctx.set_box_radius(6)
+        origin: Vec3 = ctx.get_origin()
+        _wall(ctx.get_client_level(), origin.x() - 6, origin.y() - 9, origin.z() + 6)
+        ctx.not_done()
+        return
+    }
+
+    waited = waited + 1
+    ctx.assert(waited < 1500, "The triangles test should finish.")
+
+    if not ctx.world_settled() {
+        settled_ticks = 0
+        ctx.not_done()
+        return
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+        return
+    }
+
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(89, false)
+        ctx.not_done()
+        return
+    }
+    if not ctx.world_overlay_drawn() {
+        ctx.not_done()
+        return
+    }
+
+    if not moved {
+        moved = true
+        settled_ticks = 0
+        # The origin is the camera plus 3 on every axis, and the feet are 1.62 blocks under the eye.
+        origin: Vec3 = ctx.get_origin()
+        ctx.set_player_position(origin.x() - 1, origin.y() - 4.62, origin.z() - 3)
+        ctx.not_done()
+        return
+    }
+
+    ctx.screenshot().equals(r"screenshots/overlay_triangles", 400, 160, 880, 560)
+
+    # Left on, the triangles would sit in every later test's captures.
+    ctx.press_world_key(89, false)
+}
+
+# Thirteen blocks square of minecraft:stone at (x0, y0, z), as overlay_world's wall is.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 13 {
+        wx: number = x0
+        while wx < x0 + 13 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
