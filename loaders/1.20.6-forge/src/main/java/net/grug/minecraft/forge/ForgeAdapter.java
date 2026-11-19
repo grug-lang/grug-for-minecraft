@@ -1158,6 +1158,11 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
         return ((Level) levelObj).getBrightness(LightLayer.SKY, blockPosOf(x, y, z));
     }
 
+    @Override
+    public int getHostileBlockLightLimit(Object levelObj) {
+        return ((Level) levelObj).dimensionType().monsterSpawnBlockLightLimit();
+    }
+
     /**
      * What 1.20.6's spawner asks of a position before it looks at light, for a zombie, the
      * representative hostile type (every hostile on-ground type shares the placement, and the

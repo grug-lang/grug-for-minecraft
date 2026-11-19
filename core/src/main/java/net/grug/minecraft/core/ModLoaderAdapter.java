@@ -397,6 +397,15 @@ public interface ModLoaderAdapter {
     int getSkyLight(Object levelObj, double x, double y, double z);
 
     /**
+     * The most block light a hostile mob's spawn allows in the level: 7 before 1.20.6, and the
+     * dimension's own {@code monster_spawn_block_light_limit} there, which is 0 in the overworld
+     * (#1255).
+     */
+    default int getHostileBlockLightLimit(Object levelObj) {
+        return 7;
+    }
+
+    /**
      * Whether the game's own spawner accepts the space at the position as one a hostile mob may
      * stand in, ignoring light: the block below is solid, and the space and the one above it are
      * not solid and the space is not liquid (#1255).

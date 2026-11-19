@@ -1802,6 +1802,12 @@
 						}
 					]
 				},
+				"get_hostile_block_light_limit": {
+					"description": "The most block light, from 0 to 15, that a space in the level may have for a hostile mob to spawn there, whatever the sky gives it. It is 7 on Alpha, Beta and Release 1.2.5, and the dimension's own limit on 1.20.6, which is 0 in the overworld, so any torch light at all ends a spawn there. The sky's light is read with Level.get_sky_light.",
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"get_mob_cap": {
 					"description": "The cap of the category as the game's own spawner works it out right now, so the world may spawn more of the category only while Level.count_mobs is at most this number. It is the category's base cap (70 for \"hostile\", 15 for \"passive\", 5 for \"water\") times the number of chunks within 8 chunks of any player, divided by 256, rounded down, so one player alone gives 79, 16 and 5. The category is one of \"hostile\", \"passive\" or \"water\". Reports an error and answers 0 for any other name.",
 					"return_type": {

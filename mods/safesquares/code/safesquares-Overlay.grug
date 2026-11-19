@@ -4,8 +4,9 @@
 # three tests:
 # 1. The square passes the spawner's ground test (Level.is_hostile_spawn_space), which the
 #    reference asks of NaturalSpawner with the air material.
-# 2. The block light is at most the safe level, the reference's chunk light read with the sky
-#    subtracted away. A square with more block light than that is never marked.
+# 2. The block light is at most the version's limit (Level.get_hostile_block_light_limit: the
+#    reference's 7, and 0 on 1.20.6, whose overworld allows no block light at all), the reference's
+#    chunk light read with the sky subtracted away. A square with more block light is never marked.
 # 3. Then the square is red when the sky light is at most the safe level as well, and yellow when
 #    the sky lights it, because the sky's light is gone at night.
 # Beta stores sky light as it is at full day and subtracts the time of day when it is read, which
@@ -60,7 +61,7 @@ local _draw_square(level: Level, ctx: OverlayWorldContext, x: number, y: number,
         return
     }
     block_light: number = level.get_block_light(x, y, z)
-    if block_light > safe_light_level {
+    if block_light > level.get_hostile_block_light_limit() {
         return
     }
     sky_light: number = level.get_sky_light(x, y, z)
