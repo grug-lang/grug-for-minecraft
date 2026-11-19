@@ -6,9 +6,10 @@
 # 5). The game lets a category spawn only while its count is at most its cap, so at cap + 1 the
 # spawner adds nothing, and the number is exactly that. Every tick up to the capture asserts the
 # counts are still those, so a mob that died or despawned fails the test and cannot reach the golden.
-# The spawned mobs are spread over the room so that none is stuck in another, and are removed when
-# the next room is built. The numbers are checked against a known spawn by mods/coverage's
-# mob_cap-Test. On a loader with no world overlay hooks the test returns before it presses anything.
+# The spawned mobs stand in a row behind the camera, which looks along +z from the room's middle, so
+# they are never in the capture: mobs jostling in view put a different picture behind the text in
+# every run. They are removed when the next room is built. The numbers are checked against a known
+# spawn by mods/coverage's mob_cap-Test. On a loader with no world overlay hooks the test returns before it presses anything.
 started: bool = false
 pressed: bool = false
 settled_ticks: number = 0
@@ -74,7 +75,7 @@ local _fill(ctx: TestTickContext, id: string, category: string) {
     ctx.remove_entities(level, category)
     i: number = 0
     while level.count_mobs(category) < target {
-        ctx.spawn_mob(level, id, origin.x() + 1 + Math.remainder(i, 5), origin.y(), origin.z() + 1 + Math.remainder(Math.floor(i / 5), 5))
+        ctx.spawn_mob(level, id, origin.x() - 5 + Math.remainder(i, 11), origin.y(), origin.z() - 5)
         i = i + 1
         ctx.assert(i < 200, "Spawning should reach the target.")
     }
