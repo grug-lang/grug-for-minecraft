@@ -6,9 +6,11 @@
 # category. The caps are the game's own for one player alone: Beta's 70, 15
 # and 5 scaled by the 289 chunks within 8 of the player and divided by 256 give 79, 16 and 5, and 1.20.6's
 # monster, creature and water creature caps of 70, 10 and 5 divided by 289 give 70, 10 and 5. The reads
-# exist on the two Beta 1.7.3 loaders, 1.2.5-forge and 1.20.6 so far, so every other loader returns before it spawns anything.
+# exist on the two Beta 1.7.3 loaders, 1.2.5-forge, 1.20.6 and Alpha 1.1.2_01 so far, so every other loader returns before it
+# spawns anything. Alpha's spawners have flat caps, 200 for the monsters and 15 for the animals, and no water mobs: its hostile
+# mob is a slime, which implements Monster and is the one that does not attack from afar, and it has no squid.
 export tick(ctx: TestTickContext) {
-    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" and me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge" {
+    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" and me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge" and me.loader_name() != "a1.1.2_01-ornithe" {
         return
     }
     ctx.set_box_radius(6)
@@ -26,6 +28,12 @@ export tick(ctx: TestTickContext) {
     # 1.20.6's 70, 10 and 5 scaled by 289 chunks over 289.
     hostile_cap: number = 79
     passive_cap: number = 16
+    has_water: bool = level.has_mob_category("water")
+    if me.loader_name() == "a1.1.2_01-ornithe" {
+        hostile_id = "Slime"
+        hostile_cap = 200
+        passive_cap = 15
+    }
     if me.loader_name() == "1.20.6-forge" {
         hostile_id = "minecraft:zombified_piglin"
         passive_id = "minecraft:pig"
@@ -34,25 +42,39 @@ export tick(ctx: TestTickContext) {
         passive_cap = 10
     }
 
+    ctx.assert(level.has_mob_category("hostile"), "Every version should have hostile mobs.")
+    ctx.assert(level.has_mob_category("passive"), "Every version should have passive mobs.")
+    ctx.assert(not level.has_mob_category("ghost"), "A name that is no category should not be one.")
+    ctx.assert(has_water == (me.loader_name() != "a1.1.2_01-ornithe"), "Only Alpha should have no water mobs.")
+
     hostile: number = level.count_mobs("hostile")
     passive: number = level.count_mobs("passive")
-    water: number = level.count_mobs("water")
+    water: number = 0
+    if has_water {
+        water = level.count_mobs("water")
+    }
 
     ctx.spawn_mob(level, hostile_id, x, y, z)
     ctx.spawn_mob(level, hostile_id, x, y, z)
     ctx.assert(level.count_mobs("hostile") == hostile + 2, "Two zombie pigmen should be two more hostile mobs.")
     ctx.assert(level.count_mobs("passive") == passive, "Zombie pigmen should not count as passive mobs.")
-    ctx.assert(level.count_mobs("water") == water, "Zombie pigmen should not count as water mobs.")
+    if has_water {
+        ctx.assert(level.count_mobs("water") == water, "Zombie pigmen should not count as water mobs.")
+    }
 
     ctx.spawn_mob(level, passive_id, x, y, z)
     ctx.assert(level.count_mobs("passive") == passive + 1, "A pig should be one more passive mob.")
     ctx.assert(level.count_mobs("hostile") == hostile + 2, "A pig should not count as a hostile mob.")
 
-    ctx.spawn_mob(level, water_id, x, y, z)
-    ctx.assert(level.count_mobs("water") == water + 1, "A squid should be one more water mob.")
-    ctx.assert(level.count_mobs("passive") == passive + 1, "A squid should not count as a passive mob.")
+    if has_water {
+        ctx.spawn_mob(level, water_id, x, y, z)
+        ctx.assert(level.count_mobs("water") == water + 1, "A squid should be one more water mob.")
+        ctx.assert(level.count_mobs("passive") == passive + 1, "A squid should not count as a passive mob.")
+    }
 
     ctx.assert(level.get_mob_cap("hostile") == hostile_cap, "One player alone should give the game's hostile cap.")
     ctx.assert(level.get_mob_cap("passive") == passive_cap, "One player alone should give the game's passive cap.")
-    ctx.assert(level.get_mob_cap("water") == 5, "One player alone should give the game's water cap.")
+    if has_water {
+        ctx.assert(level.get_mob_cap("water") == 5, "One player alone should give the game's water cap.")
+    }
 }

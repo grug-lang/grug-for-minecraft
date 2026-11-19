@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugWorldOverlay;
 import net.grug.minecraft.grug.Vec3;
@@ -419,6 +420,15 @@ public interface ModLoaderAdapter {
     @GrugGenerated("no mob count: a loader that has not added it keeps this default")
     default int countMobs(Object levelObj, String category) {
         throw Grug.fatal("Level.count_mobs is not supported on this loader");
+    }
+
+    /**
+     * Whether this version of the game has the category, one of {@code GrugMobCap.CATEGORIES}: the
+     * three of them everywhere but Alpha, which has no water mob and so no cap for it (#1252).
+     * False for a name that is not a category.
+     */
+    default boolean hasMobCategory(String category) {
+        return GrugMobCap.indexOf(category) >= 0;
     }
 
     /**

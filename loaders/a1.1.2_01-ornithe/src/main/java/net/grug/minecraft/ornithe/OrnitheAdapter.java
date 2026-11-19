@@ -23,6 +23,7 @@ import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
@@ -47,8 +48,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.render.world.RenderChunk;
 import net.minecraft.client.render.world.WorldRenderer;
 import net.minecraft.crafting.CraftingManager;
+import net.minecraft.entity.Entities;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.entity.mob.animal.AnimalEntity;
+import net.minecraft.entity.mob.monster.Monster;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
@@ -1317,10 +1322,90 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         ((ItemEntity) itemEntityObj).pickUpDelay = ticks;
     }
 
+    /** The mobs {@link #spawnMob} added, which the next room build removes with the items. */
+    protected final List<Entity> spawnedMobs = new ArrayList<>();
+
+    /**
+     * Alpha has no water mobs, so its overlay shows two rows, and the squid the Beta ports count
+     * does not exist.
+     */
+    @Override
+    public boolean hasMobCategory(String category) {
+        return ModLoaderAdapter.super.hasMobCategory(category) && !"water".equals(category);
+    }
+
+    /**
+     * The class the game's own spawners count a category by: {@code Monster}, an interface that the
+     * monsters and the slime implement, for the one with the 200 cap, and {@code AnimalEntity} for
+     * the one with the 15 cap. {@code SurvivalInteractionManager} builds both spawners.
+     */
+    private static Class<?> mobType(String category) {
+        return "hostile".equals(category) ? Monster.class : AnimalEntity.class;
+    }
+
+    /** {@code World.getEntityCount} of the category's class, which is what the spawner counts. */
+    @Override
+    public int countMobs(Object levelObj, String category) {
+        return ((World) levelObj).getEntityCount(mobType(category));
+    }
+
+    /** The spawners' flat caps: the world spawns a category only while its count is below it. */
+    @Override
+    public int getMobCap(Object levelObj, String category) {
+        return GrugMobCap.alphaCap(category);
+    }
+
+    /** Every entity of the kind in the world's own list, in a list that is safe to remove from. */
+    protected List<Entity> entitiesOf(World world, String kind) {
+        Class<?> type = "item".equals(kind) ? ItemEntity.class : mobType(kind);
+        List<Entity> found = new ArrayList<>();
+        for (Object entity : new ArrayList<Object>(world.entities)) {
+            if (type.isInstance(entity)) {
+                found.add((Entity) entity);
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Removes the entities the way the item sweep removes items: dead, out of the chunk and the
+     * list.
+     */
+    @Override
+    public void removeEntities(Object levelObj, String kind) {
+        World world = (World) levelObj;
+        for (Entity entity : entitiesOf(world, kind)) {
+            entity.remove();
+            world.getChunk((int) Math.floor(entity.x), (int) Math.floor(entity.z))
+                    .removeEntity(entity);
+            world.entities.remove(entity);
+            spawnedMobs.remove(entity);
+        }
+    }
+
+    @Override
+    public boolean spawnMob(Object levelObj, String id, double x, double y, double z) {
+        World world = (World) levelObj;
+        Entity entity = Entities.createSilently(id, world);
+        if (!(entity instanceof MobEntity)) {
+            return false;
+        }
+        entity.setPositionAndAngles(x, y, z, 0.0F, 0.0F);
+        world.addEntity(entity);
+        spawnedMobs.add(entity);
+        return true;
+    }
+
     @Override
     public void clearItemEntities(
             Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
         World world = (World) levelObj;
+        for (Entity mob : spawnedMobs) {
+            mob.remove();
+            world.getChunk((int) Math.floor(mob.x), (int) Math.floor(mob.z)).removeEntity(mob);
+            world.entities.remove(mob);
+        }
+        spawnedMobs.clear();
         // The game's own box query, so the filtering is its branches and not ours: the six
         // comparisons this used to make are twelve branch outcomes, and the suite's few items only
         // ever exercise one side of each, which the coverage gate then reports as missed. It
