@@ -5,9 +5,9 @@
 # alone), a pig one more passive mob and a squid one more water mob, and none of them moves another
 # category. The caps are the game's own for one player alone, 70, 15
 # and 5 scaled by the 289 chunks within 8 of the player and divided by 256: 79, 16 and 5. The reads
-# exist on the two Beta 1.7.3 loaders so far, so every other loader returns before it spawns anything.
+# exist on the two Beta 1.7.3 loaders and 1.2.5-forge so far, so every other loader returns before it spawns anything.
 export tick(ctx: TestTickContext) {
-    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
+    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" and me.loader_name() != "1.2.5-forge" {
         return
     }
     ctx.set_box_radius(6)
