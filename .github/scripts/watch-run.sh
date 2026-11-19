@@ -16,13 +16,16 @@ REPO="${2:-grug-lang/grug-for-minecraft}"
 INTERVAL="${WATCH_RUN_INTERVAL:-15}"
 MAX_FAILED_POLLS="${WATCH_RUN_MAX_FAILED_POLLS:-10}"
 FAILED_POLLS=0
+ERR_FILE="$(mktemp)"
+trap 'rm -f "$ERR_FILE"' EXIT
 
 while true; do
   # A failed poll (a TLS timeout, a 502) says nothing about the run, so it is tried again; only a
   # run of them in a row stops the watch, as an error and not as a verdict on the run.
-  if ! JSON="$(gh run view "$RUN_ID" --repo "$REPO" --json status,conclusion,jobs 2>&1)"; then
+  # stderr stays out of the JSON: when gh runs under an agent it prints a hint block there.
+  if ! JSON="$(gh run view "$RUN_ID" --repo "$REPO" --json status,conclusion,jobs 2>"$ERR_FILE")"; then
     FAILED_POLLS=$((FAILED_POLLS + 1))
-    echo "==> poll failed ($FAILED_POLLS of $MAX_FAILED_POLLS): $(head -c 200 <<<"$JSON")"
+    echo "==> poll failed ($FAILED_POLLS of $MAX_FAILED_POLLS): $(head -c 200 "$ERR_FILE")"
     if [ "$FAILED_POLLS" -ge "$MAX_FAILED_POLLS" ]; then
       echo "==> Giving up on run $RUN_ID: GitHub could not be reached; this says nothing about the run." >&2
       exit 3
@@ -37,7 +40,7 @@ while true; do
     echo "==> Job '$JOB_NAME' ($JOB_ID) ended with $CONCLUSION; the 80 log lines before its first error:"
     # `gh run view --log-failed` refuses while the run is in progress, which is when this matters, so
     # read the job's log through the API, which works once the job itself has finished.
-    LOG="$(gh api "repos/$REPO/actions/jobs/$JOB_ID/logs" --allow-escape-sequences 2>&1 || true)"
+    LOG="$(gh api "repos/$REPO/actions/jobs/$JOB_ID/logs" --allow-escape-sequences 2>/dev/null || true)"
     LINE="$(grep -n -m1 '##\[error\]' <<<"$LOG" | cut -d: -f1 || true)"
     if [ -n "$LINE" ]; then head -n "$LINE" <<<"$LOG" | tail -n 80; else tail -n 80 <<<"$LOG"; fi
     exit 1

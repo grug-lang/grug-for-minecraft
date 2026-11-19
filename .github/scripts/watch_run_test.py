@@ -15,6 +15,9 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parent / "watch-run.sh"
 
 FAKE_GH = """#!/usr/bin/env bash
+if [ -n "$FAKE_GH_HINT" ]; then
+  echo "hint: if you need to wait for this run, use gh event listen" >&2
+fi
 if [ "$1" = "api" ]; then
   seq 1 100 | sed 's/^/log line /'
   echo "##[error]Process completed with exit code 1."
@@ -41,7 +44,7 @@ def job(job_id, name, status, conclusion):
 
 
 class WatchRunTest(unittest.TestCase):
-    def run_script(self, states, failed_polls=0, max_failed_polls="10"):
+    def run_script(self, states, failed_polls=0, max_failed_polls="10", hint=False):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             gh = tmp / "gh"
@@ -58,6 +61,8 @@ class WatchRunTest(unittest.TestCase):
                 WATCH_RUN_INTERVAL="0",
                 WATCH_RUN_MAX_FAILED_POLLS=max_failed_polls,
             )
+            if hint:
+                env["FAKE_GH_HINT"] = "1"
             return subprocess.run(
                 ["bash", str(SCRIPT), "123"], env=env, capture_output=True, text=True, timeout=30
             )
@@ -82,6 +87,26 @@ class WatchRunTest(unittest.TestCase):
         self.assertIn("log line 22", result.stdout)
         self.assertNotIn("log line 21\n", result.stdout)
         self.assertNotIn("post step", result.stdout)
+
+    def test_a_hint_gh_prints_on_stderr_does_not_break_the_json_or_the_log(self):
+        failed = self.run_script(
+            [{"status": "in_progress", "jobs": [job(2, "1.20.6-forge", "completed", "failure")]}],
+            hint=True,
+        )
+        self.assertEqual(failed.returncode, 1)
+        self.assertIn("log line 100", failed.stdout)
+        self.assertNotIn("hint:", failed.stdout)
+        green = self.run_script(
+            [
+                {
+                    "status": "completed",
+                    "conclusion": "success",
+                    "jobs": [job(1, "ok", "completed", "success")],
+                }
+            ],
+            hint=True,
+        )
+        self.assertEqual(green.returncode, 0, green.stdout + green.stderr)
 
     def test_green_run_exits_zero_and_skipped_counts_as_pass(self):
         result = self.run_script(
