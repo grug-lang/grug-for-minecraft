@@ -3,6 +3,13 @@
 # arrived from one that did not by what the next frame shows. See #1353.
 world_presses: number = 0
 cross_on: bool = false
+# The translucent triangles of #1253's world API: key Y saves where the camera is on the next frame
+# and shows two triangles four blocks ahead of that position, and a press while they show hides them.
+triangle_pending: bool = false
+triangle_on: bool = false
+triangle_x: number = 0
+triangle_y: number = 0
+triangle_z: number = 0
 
 # Whether the HUD reads the mob counts and caps from the frame's level, which only overlay_mob_cap-Test turns on
 # (key I), because not every loader answers them.
@@ -122,6 +129,17 @@ export render_world(ctx: OverlayWorldContext) {
         ctx.draw_line(x - 1, y - 1, z, x + 1, y + 1, z, Color.rgb(255, 0, 0))
         ctx.draw_line(x - 1, y + 1, z, x + 1, y - 1, z, Color.rgb(255, 0, 0))
     }
+    if triangle_pending {
+        triangle_pending = false
+        triangle_x = ctx.camera_x()
+        triangle_y = ctx.camera_y()
+        triangle_z = ctx.camera_z() + 4
+    }
+    if triangle_on {
+        half_red: Color = Color.rgba(255, 0, 0, 128)
+        ctx.draw_triangle(triangle_x - 1, triangle_y - 1, triangle_z, triangle_x + 1, triangle_y - 1, triangle_z, triangle_x + 1, triangle_y + 1, triangle_z, half_red)
+        ctx.draw_triangle(triangle_x - 1, triangle_y - 1, triangle_z, triangle_x + 1, triangle_y + 1, triangle_z, triangle_x - 1, triangle_y + 1, triangle_z, half_red)
+    }
 }
 
 # The world key J (74) flips the cross, and Control and J only ever turns it off, so a test can tell
@@ -129,6 +147,11 @@ export render_world(ctx: OverlayWorldContext) {
 export world_key(ctx: OverlayWorldKeyContext) {
     if ctx.key() == 73 {
         mob_cap_on = not mob_cap_on
+    }
+    if ctx.key() == 89 {
+        triangle_on = not triangle_on
+        triangle_pending = triangle_on
+        return
     }
     if ctx.key() == 74 {
         world_presses = world_presses + 1

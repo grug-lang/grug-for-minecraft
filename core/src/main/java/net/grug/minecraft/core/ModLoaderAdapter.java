@@ -449,6 +449,16 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Test only: moves the player to the feet position, which is how a test stands somewhere other
+     * than the room's middle. False when the chunk there is not loaded on this side, because a
+     * teleport into a chunk the client has not received crashes the game, so the caller reports it
+     * and the test waits and moves in steps. The runner puts the player back when the test ends.
+     */
+    default boolean setPlayerPositionForTest(double x, double y, double z) {
+        throw Grug.fatal("TestTickContext.set_player_position is not supported on this loader");
+    }
+
+    /**
      * Creates a mob by its saved id (the id the game writes in a world save, such as {@code Pig})
      * at the position and adds it to the level, answering whether the id names a mob (#1252).
      */

@@ -114,6 +114,32 @@ public final class GrugWorldOverlay {
         }
     }
 
+    /**
+     * One filled triangle of a world pass: three corners in world coordinates and the color as
+     * 0xAARRGGBB, where the alpha is how opaque it is.
+     */
+    public static final class Triangle {
+        private final double[] corners;
+        private final int argb;
+
+        Triangle(double[] corners, int argb) {
+            this.corners = corners;
+            this.argb = argb;
+        }
+
+        /**
+         * The corner's coordinate: {@code corner} is 0, 1 or 2 and {@code axis} 0 for x, 1 y, 2 z.
+         */
+        public double corner(int corner, int axis) {
+            return corners[corner * 3 + axis];
+        }
+
+        /** The color as 0xAARRGGBB. */
+        public int argb() {
+            return argb;
+        }
+    }
+
     private enum Kind {
         NONE,
         HUD,
@@ -123,6 +149,9 @@ public final class GrugWorldOverlay {
 
     private static final List<Text> TEXTS = new ArrayList<>();
     private static final List<Line> LINES = new ArrayList<>();
+    private static final List<Triangle> TRIANGLES = new ArrayList<>();
+    private static List<Triangle> lastTriangles = Collections.emptyList();
+    private static boolean trianglesSupported = false;
 
     private static Kind kind = Kind.NONE;
     private static Context context = null;
@@ -237,6 +266,7 @@ public final class GrugWorldOverlay {
         }
         TEXTS.clear();
         LINES.clear();
+        TRIANGLES.clear();
         context = new Context();
         kind = opened;
     }
@@ -283,6 +313,36 @@ public final class GrugWorldOverlay {
         return true;
     }
 
+    /**
+     * Records one translucent triangle for the world pass, false when no world pass is open. The
+     * caller has checked {@link #trianglesSupported()}.
+     */
+    public static boolean recordTriangle(double[] corners, int argb) {
+        if (kind != Kind.WORLD) {
+            return false;
+        }
+        TRIANGLES.add(new Triangle(corners, argb));
+        return true;
+    }
+
+    /** Whether this loader draws the triangles of a world pass. Beta 1.7.3's loaders say yes. */
+    public static boolean trianglesSupported() {
+        return trianglesSupported;
+    }
+
+    /** A loader that draws the triangles of a world pass says so once, when it starts. */
+    public static void noteTrianglesSupported() {
+        trianglesSupported = true;
+    }
+
+    /**
+     * The triangles the last {@link #closeWorld} pass recorded, in the order they were drawn: a
+     * loader that draws them reads this right after the pass.
+     */
+    public static List<Triangle> lastTriangles() {
+        return lastTriangles;
+    }
+
     /** Closes the HUD pass and returns the texts it recorded, in the order they were drawn. */
     public static List<Text> closeHud() {
         requireKind(Kind.HUD);
@@ -295,6 +355,7 @@ public final class GrugWorldOverlay {
     public static List<Line> closeWorld() {
         requireKind(Kind.WORLD);
         List<Line> drawnLines = new ArrayList<>(LINES);
+        lastTriangles = Collections.unmodifiableList(new ArrayList<>(TRIANGLES));
         finish();
         return Collections.unmodifiableList(drawnLines);
     }
@@ -319,6 +380,7 @@ public final class GrugWorldOverlay {
     private static void finish() {
         TEXTS.clear();
         LINES.clear();
+        TRIANGLES.clear();
         kind = Kind.NONE;
         context = null;
         keyCode = 0.0;

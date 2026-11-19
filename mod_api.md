@@ -112,6 +112,7 @@ export tick_any_side(ctx: TestTickContext)
 
 ## Color
 Color.rgb(r: number, g: number, b: number) Color
+Color.rgba(r: number, g: number, b: number, a: number) Color
 
 ## DisplayTickContext
 .add_particle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number)
@@ -234,6 +235,7 @@ Option.new() Option[$Value]
 .camera_y() number
 .camera_z() number
 .draw_line(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, color: Color)
+.draw_triangle(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, x3: number, y3: number, z3: number, color: Color)
 .get_level() Level
 .partial_tick() number
 
@@ -324,6 +326,7 @@ String.from_number(value: number) string
 .set_mod_file_state(relative_path: string, state: string)
 .set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
 .set_nbt_number(block_entity: BlockEntity, path: string, type: string, value: number)
+.set_player_position(x: number, y: number, z: number)
 .spawn_mob(level: Level, id: string, x: number, y: number, z: number)
 .stall(milliseconds: number)
 .tick_block_entity(block_entity: BlockEntity, ticks: number)

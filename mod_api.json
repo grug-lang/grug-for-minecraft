@@ -1319,6 +1319,38 @@
 							}
 						}
 					]
+				},
+				"rgba": {
+					"description": "Creates a new Color from RGB values and an alpha, where each value is an integer from 0 to 255 (inclusive) and the alpha is how opaque the color is: 255 is fully opaque and 0 is invisible. Only draw_triangle uses the alpha, since it is the one draw that lets what is behind it show through; every other call treats the color as opaque. A value outside 0 to 255 or with a fraction is reported and no color is made.",
+					"return_type": {
+						"name": "Color"
+					},
+					"parameters": [
+						{
+							"name": "r",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "g",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "b",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "a",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},
@@ -2514,6 +2546,71 @@
 						},
 						{
 							"name": "z2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "color",
+							"type": {
+								"name": "Color"
+							}
+						}
+					]
+				},
+				"draw_triangle": {
+					"description": "Draws one filled triangle between three positions in the world, in blocks, in the color's alpha: a color made with Color.rgba(r, g, b, 128) lets what is behind it show through by half. Both faces are drawn, so a closed shape of triangles, such as a ball, shows its inside when the camera is in it. It is plain color that no texture or light changes; blocks nearer than it hide it as they hide anything else, and two translucent triangles do not hide each other, so the order they are drawn in does not matter. Only the Beta 1.7.3 loaders draw triangles so far: on any other loader the call stops the game, as every call a loader does not support does. The corners have to be finite, or they are reported and the triangle is not drawn. Only legal on the context render_world() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x3",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y3",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z3",
 							"type": {
 								"name": "number"
 							}
@@ -3837,6 +3934,29 @@
 						},
 						{
 							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_player_position": {
+					"description": "Moves the player so their feet are at the position, in blocks, which is how a test stands inside or outside a shape drawn around a point, or looks at the world from somewhere other than the room's middle. The chunk there has to be loaded on the client: a teleport into one it has not received crashes the game, so the call is refused and the player stays where they were, and the test moves in steps and waits for the world to settle between them. The runner puts the player back where it found them when the test ends, and get_origin keeps answering the room's middle. Only the Beta 1.7.3 clients support it so far: on any other loader the call stops the game. The position has to be finite.",
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
 							"type": {
 								"name": "number"
 							}
