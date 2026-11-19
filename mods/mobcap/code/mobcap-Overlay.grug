@@ -17,20 +17,22 @@ export render_hud(ctx: OverlayHudContext) {
     }
     level: Level = ctx.get_level()
     white: Color = Color.rgb(255, 255, 255)
-    ctx.add_text("Hostile", 4, 4, white)
-    ctx.add_text(String.from_number(level.count_mobs("hostile")), 52, 4, white)
-    ctx.add_text("/", 76, 4, white)
-    ctx.add_text(String.from_number(level.get_mob_cap("hostile")), 88, 4, white)
-    ctx.add_text("Passive", 4, 16, white)
-    ctx.add_text(String.from_number(level.count_mobs("passive")), 52, 16, white)
-    ctx.add_text("/", 76, 16, white)
-    ctx.add_text(String.from_number(level.get_mob_cap("passive")), 88, 16, white)
+    # Alpha draws its version line at the top left, which the lines start below.
+    top: number = ctx.top_inset()
+    ctx.add_text("Hostile", 4, 4 + top, white)
+    ctx.add_text(String.from_number(level.count_mobs("hostile")), 52, 4 + top, white)
+    ctx.add_text("/", 76, 4 + top, white)
+    ctx.add_text(String.from_number(level.get_mob_cap("hostile")), 88, 4 + top, white)
+    ctx.add_text("Passive", 4, 16 + top, white)
+    ctx.add_text(String.from_number(level.count_mobs("passive")), 52, 16 + top, white)
+    ctx.add_text("/", 76, 16 + top, white)
+    ctx.add_text(String.from_number(level.get_mob_cap("passive")), 88, 16 + top, white)
     # Alpha has no water mobs and so no water cap, which has_mob_category tells: its overlay is two lines.
     if level.has_mob_category("water") {
-        ctx.add_text("Water", 4, 28, white)
-        ctx.add_text(String.from_number(level.count_mobs("water")), 52, 28, white)
-        ctx.add_text("/", 76, 28, white)
-        ctx.add_text(String.from_number(level.get_mob_cap("water")), 88, 28, white)
+        ctx.add_text("Water", 4, 28 + top, white)
+        ctx.add_text(String.from_number(level.count_mobs("water")), 52, 28 + top, white)
+        ctx.add_text("/", 76, 28 + top, white)
+        ctx.add_text(String.from_number(level.get_mob_cap("water")), 88, 28 + top, white)
     }
 }
 

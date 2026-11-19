@@ -198,6 +198,7 @@ Option.new() Option[$Value]
 .get_level() Level
 .screen_height() number
 .screen_width() number
+.top_inset() number
 
 ## OverlayKeyContext
 .ctrl() bool

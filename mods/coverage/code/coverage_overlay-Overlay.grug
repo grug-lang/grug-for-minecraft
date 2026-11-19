@@ -98,7 +98,7 @@ export scroll(ctx: OverlayScrollContext) {
 # a frame before the first press, or after the second, shows no text.
 export render_hud(ctx: OverlayHudContext) {
     # The frame's level, the one the mob cap overlay reads its counts from (#1252).
-    if cross_on and ctx.screen_width() > 0 and ctx.screen_height() > 112 and ctx.get_level().get_time() >= 0 {
+    if cross_on and ctx.screen_width() > 0 and ctx.screen_height() > 112 and ctx.top_inset() >= 0 and ctx.get_level().get_time() >= 0 {
         ctx.add_text("L pressed", 4, 100, Color.rgb(255, 255, 255))
         ctx.add_text("world key seen", 4, 112, Color.rgb(255, 255, 255))
     }
