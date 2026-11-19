@@ -1,6 +1,7 @@
 # Covers the range circles overlay: J saves the position and draws the three rings, and the golden
 # holds them. The rings are centered on the player's position at the press, which is the room's
-# middle, so the capture shows where each one crosses the view. A second press hides the rings and
+# middle. The room's walls would hide a ring outside them, so the test builds a room of radius 30,
+# whose walls stand outside the 24 ring, and the capture shows that ring ahead of the camera. A second press hides the rings and
 # forgets the position, and the test ends with that press, because a
 # ring left on would sit in every later test's captures. On a loader with no world overlay hooks the
 # test returns before it presses anything.
@@ -15,6 +16,7 @@ export tick(ctx: TestTickContext) {
         if not me.world_overlay_supported() {
             return
         }
+        ctx.set_box_radius(30)
         ctx.not_done()
         return
     }
