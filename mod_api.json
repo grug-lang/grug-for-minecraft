@@ -2262,6 +2262,12 @@
 					"return_type": {
 						"name": "number"
 					}
+				},
+				"top_inset": {
+					"description": "The height in scaled GUI pixels at the top of the frame that the game's own HUD draws its text in, so a mod that puts text in the top-left corner starts below it: 0 on every loader but Alpha, whose HUD always shows its version line (\"Minecraft Alpha v1.1.2_01\") there, which is 12.",
+					"return_type": {
+						"name": "number"
+					}
 				}
 			}
 		},

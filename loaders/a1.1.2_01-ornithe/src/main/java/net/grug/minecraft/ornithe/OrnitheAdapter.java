@@ -1322,6 +1322,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         ((ItemEntity) itemEntityObj).pickUpDelay = ticks;
     }
 
+    /**
+     * Alpha's HUD always draws "Minecraft Alpha v1.1.2_01" at the top left, 8 pixels tall at y 2.
+     */
+    @Override
+    public double hudTopInset() {
+        return 12.0;
+    }
+
     /** The mobs {@link #spawnMob} added, which the next room build removes with the items. */
     protected final List<Entity> spawnedMobs = new ArrayList<>();
 

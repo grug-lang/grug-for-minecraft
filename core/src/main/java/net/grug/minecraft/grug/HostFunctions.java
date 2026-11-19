@@ -3542,6 +3542,11 @@ public class HostFunctions {
         return GrugWorldOverlay.screenHeight();
     }
 
+    public static double OverlayHudContext_top_inset(long contextId) {
+        if (!requireHudContext("OverlayHudContext.top_inset", contextId)) return 0.0;
+        return GrugCore.getAdapter().hudTopInset();
+    }
+
     @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
     public static void OverlayHudContext_add_text(
             long contextId, String text, double x, double y, long colorId) {

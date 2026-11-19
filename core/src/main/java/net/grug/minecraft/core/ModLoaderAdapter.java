@@ -423,6 +423,14 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * The height in GUI pixels at the top of the frame that the game's own HUD text uses, which the
+     * overlay's top-left text starts below: Alpha always draws its version line there.
+     */
+    default double hudTopInset() {
+        return 0.0;
+    }
+
+    /**
      * Whether this version of the game has the category, one of {@code GrugMobCap.CATEGORIES}: the
      * three of them everywhere but Alpha, which has no water mob and so no cap for it (#1252).
      * False for a name that is not a category.
