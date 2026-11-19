@@ -766,11 +766,18 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     /** Removes the entity as {@code World.updateEntities} does for a dead one. */
     private static void removeEntity(World world, Entity entity) {
         entity.setDead();
+        removeFromChunkIfAdded(world, entity);
+        world.loadedEntityList.remove(entity);
+    }
+
+    @GrugGenerated(
+            "spawn_entity_in_world adds the entity to its chunk at once, so a test cannot make one"
+                    + " that is in the loaded list but not yet in a chunk")
+    private static void removeFromChunkIfAdded(World world, Entity entity) {
         if (entity.addedToChunk) {
             world.getChunkFromChunkCoords(entity.chunkCoordX, entity.chunkCoordZ)
                     .removeEntity(entity);
         }
-        world.loadedEntityList.remove(entity);
     }
 
     @Override
