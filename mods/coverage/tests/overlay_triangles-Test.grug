@@ -1,7 +1,7 @@
 # Covers Color.rgba, OverlayWorldContext.draw_triangle and TestTickContext.set_player_position
 # (#1253). The overlay's key Y saves the camera's position and draws two half-opaque red triangles
 # four blocks ahead of it over a stone wall, so the wall shows through them. The test then moves the
-# player two blocks along x, which moves the triangles left in the frame while they stay where they
+# player one and a half blocks along x, which moves the triangles left in the frame while they stay where they
 # were in the world, so one capture shows the translucent fill and the teleport together. Only the
 # Beta 1.7.3 loaders draw triangles and move the player so far; every other loader stops the game on
 # those calls, so the test returns before it builds anything there.
@@ -52,9 +52,10 @@ export tick(ctx: TestTickContext) {
     if not moved {
         moved = true
         settled_ticks = 0
-        # The origin is the camera plus 3 on every axis, and the feet are 1.62 blocks under the eye.
+        # The origin is the camera plus 3 on y only, and the feet are 1.62 blocks under the eye, so
+        # this stands one and a half blocks along x at the same height and depth.
         origin: Vec3 = ctx.get_origin()
-        ctx.set_player_position(origin.x() - 1, origin.y() - 4.62, origin.z() - 3)
+        ctx.set_player_position(origin.x() + 1.5, origin.y() - 4.62, origin.z())
         # A press clears the drawn mark, so the wait below ends on a frame that came after the move
         # and not on one the move had not reached. M is not a key the overlay takes.
         ctx.press_world_key(77, false)
