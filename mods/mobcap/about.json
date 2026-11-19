@@ -5,7 +5,8 @@
 	"loaders": [
 		"b1.7.3-ornithe",
 		"b1.7.3-stationapi",
-		"1.2.5-forge"
+		"1.2.5-forge",
+		"1.20.6-forge"
 	],
 	"authors": [
 		"MyNameIsTrez"

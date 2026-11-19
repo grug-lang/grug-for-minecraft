@@ -2,15 +2,17 @@
 # golden holds the three labels with their "count / cap" numbers. The counts are every entity of the
 # class in the whole world, which the game's own spawner changes, so the test fixes them. It removes
 # every mob of each category, then spawns mobs in the same tick until each count is one more than the
-# category's cap, 80 hostile, 17 passive and 6 water for one player alone (the caps are 79, 16 and
-# 5). The game lets a category spawn only while its count is at most its cap, so at cap + 1 the
-# spawner adds nothing, and the number is exactly that. Every tick up to the capture asserts the
+# category's cap, 80 hostile, 17 passive and 6 water on Beta for one player alone (the caps are 79, 16
+# and 5), and 71, 11 and 6 on 1.20.6 (70, 10 and 5). Beta lets a category spawn only while its count is
+# at most its cap and 1.20.6 only while it is below it, so at cap + 1 the spawner adds nothing on
+# either, and the number is exactly that. Every tick up to the capture asserts the
 # counts are still those, so a mob that died or despawned fails the test and cannot reach the golden.
 # The spawned mobs stand in a row behind the camera, which looks along +z from the room's middle, so
 # they are never in the capture: mobs jostling in view put a different picture behind the text in
 # every run. They are removed when the next room is built. The numbers are checked against a known
 # spawn by mods/coverage's mob_cap-Test. On a loader with no world overlay hooks the test returns before it presses anything.
 started: bool = false
+filled: bool = false
 pressed: bool = false
 settled_ticks: number = 0
 waited: number = 0
@@ -27,7 +29,7 @@ export tick(ctx: TestTickContext) {
     }
 
     waited = waited + 1
-    if pressed {
+    if filled {
         _check_counts(ctx)
     }
     ctx.assert(waited < 1500, "The mob cap overlay test should finish.")
@@ -43,11 +45,27 @@ export tick(ctx: TestTickContext) {
         return
     }
 
+    if not filled {
+        filled = true
+        hostile_id: string = "PigZombie"
+        passive_id: string = "Pig"
+        water_id: string = "Squid"
+        if me.loader_name() == "1.20.6-forge" {
+            hostile_id = "minecraft:zombified_piglin"
+            passive_id = "minecraft:pig"
+            water_id = "minecraft:squid"
+        }
+        _fill(ctx, hostile_id, "hostile")
+        _fill(ctx, passive_id, "passive")
+        _fill(ctx, water_id, "water")
+        ctx.not_done()
+        return
+    }
+    # K is pressed a tick after the fill. On 1.20.6 the test's level is the integrated server's and
+    # the overlay reads the client's mirror of it, which learns of the mobs from the packets the fill's
+    # tick sent, so the press, which waits for the client thread, comes after them.
     if not pressed {
         pressed = true
-        _fill(ctx, "PigZombie", "hostile")
-        _fill(ctx, "Pig", "passive")
-        _fill(ctx, "Squid", "water")
         ctx.press_world_key(75, false)
         ctx.not_done()
         return

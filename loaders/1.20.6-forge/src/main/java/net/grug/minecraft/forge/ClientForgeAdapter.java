@@ -39,6 +39,7 @@ import net.minecraft.server.level.ThreadedLevelLightEngine;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -97,6 +98,22 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     public Object clientLevel() {
         return Minecraft.getInstance().level;
+    }
+
+    /**
+     * A client level's own entity list when asked about one, which is what the overlay's HUD pass
+     * reads on the render thread: the integrated server's level is never read from there, because
+     * its entity storage belongs to the server thread and a read from the render thread deadlocks
+     * the game (#1255). The counts it gives are the client's mirror of what the server holds, so
+     * they differ from the spawner's only for a mob the client has not been sent yet and for a mob
+     * whose persistence the server keeps to itself. A test's level is the server's, and goes the
+     * server's way.
+     */
+    @Override
+    protected Iterable<Entity> entitiesOf(Level level) {
+        return level instanceof ClientLevel client
+                ? client.entitiesForRendering()
+                : super.entitiesOf(level);
     }
 
     @Override
