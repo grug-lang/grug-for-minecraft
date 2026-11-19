@@ -150,6 +150,7 @@ Color.rgb(r: number, g: number, b: number) Color
 .get_block(x: number, y: number, z: number) string
 .get_block_entity(x: number, y: number, z: number) Option[BlockEntity]
 .get_block_light(x: number, y: number, z: number) number
+.get_hostile_block_light_limit() number
 .get_mob_cap(category: string) number
 .get_sky_light(x: number, y: number, z: number) number
 .get_time() number

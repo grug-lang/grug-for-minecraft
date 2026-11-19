@@ -2134,6 +2134,15 @@ public class HostFunctions {
                 0.0);
     }
 
+    public static double Level_get_hostile_block_light_limit(long levelId) {
+        return withEntity(
+                "Level.get_hostile_block_light_limit",
+                "level",
+                levelId,
+                level -> (double) GrugCore.getAdapter().getHostileBlockLightLimit(level),
+                0.0);
+    }
+
     public static boolean Level_is_hostile_spawn_space(long levelId, double x, double y, double z) {
         return withEntity(
                 "Level.is_hostile_spawn_space",

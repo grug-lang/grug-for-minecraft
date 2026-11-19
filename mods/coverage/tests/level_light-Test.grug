@@ -1,4 +1,4 @@
-# Covers Level.get_block_light, Level.get_sky_light and Level.is_hostile_spawn_space, the reads the
+# Covers Level.get_block_light, Level.get_sky_light, Level.get_hostile_block_light_limit and Level.is_hostile_spawn_space, the reads the
 # light level overlay (#1255) marks squares from. The spawn space reads are made on a stone floor
 # with air above, then with a block over the space, and with water in it; the block light read is
 # a torch's own light and its neighbour's, and the sky light read compares the space under a roof
@@ -51,6 +51,12 @@ export tick(ctx: TestTickContext) {
         level.place_block(x, y + 1, z, "minecraft:oak_fence")
         if me.loader_name() == "1.20.6-forge" {
             ctx.assert(not level.is_hostile_spawn_space(x, y + 1, z), "A fence should leave no room for a zombie's box.")
+        }
+        # The block light a hostile spawn allows is 7 before 1.20.6 and the overworld's 0 there.
+        if me.loader_name() == "1.20.6-forge" {
+            ctx.assert(level.get_hostile_block_light_limit() == 0, "1.20.6's overworld should allow no block light for a spawn.")
+        } else {
+            ctx.assert(level.get_hostile_block_light_limit() == 7, "The older versions should allow a block light of 7 for a spawn.")
         }
         level.place_block(x, y + 1, z, "minecraft:torch")
         # A torch is not a normal cube and not a liquid, and the reference's spawner test asks only
