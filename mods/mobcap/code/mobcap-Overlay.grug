@@ -3,7 +3,7 @@
 # the cap itself, such as "Hostile 41 / 70". The game lets a category spawn only while its count is
 # at most its cap, so a mob farm designer sees a category that is full, and so no longer spawning,
 # at a glance (#1252). Level.get_mob_cap is the spawner's own bound, which grows with the number of
-# chunks around the player: one player alone gives 79 hostile, 16 passive and 5 water.
+# chunks around the player: one player alone gives 79 hostile, 16 passive and 5 water on Beta 1.7.3, and 70, 10 and 5 on 1.20.6.
 
 # The K key (75) shows and hides the lines, which start hidden: an overlay is one entity for the whole
 # run, so lines that were always on would sit in every other mod's captures.

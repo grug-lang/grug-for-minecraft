@@ -3,11 +3,12 @@
 # mobs is spawned in the one tick, so the mobs the game spawns by itself do not move the difference:
 # two zombie pigmen are two more hostile mobs (they are neutral until hit, so they leave the player
 # alone), a pig one more passive mob and a squid one more water mob, and none of them moves another
-# category. The caps are the game's own for one player alone, 70, 15
-# and 5 scaled by the 289 chunks within 8 of the player and divided by 256: 79, 16 and 5. The reads
-# exist on the two Beta 1.7.3 loaders and 1.2.5-forge so far, so every other loader returns before it spawns anything.
+# category. The caps are the game's own for one player alone: Beta's 70, 15
+# and 5 scaled by the 289 chunks within 8 of the player and divided by 256 give 79, 16 and 5, and 1.20.6's
+# monster, creature and water creature caps of 70, 10 and 5 divided by 289 give 70, 10 and 5. The reads
+# exist on the two Beta 1.7.3 loaders, 1.2.5-forge and 1.20.6 so far, so every other loader returns before it spawns anything.
 export tick(ctx: TestTickContext) {
-    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" and me.loader_name() != "1.2.5-forge" {
+    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" and me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge" {
         return
     }
     ctx.set_box_radius(6)
@@ -17,25 +18,41 @@ export tick(ctx: TestTickContext) {
     y: number = origin.y()
     z: number = origin.z() + 3
 
+    # The mob ids are the loader's own: the saved names of Beta, the registry names of 1.20.6.
+    hostile_id: string = "PigZombie"
+    passive_id: string = "Pig"
+    water_id: string = "Squid"
+    # One player alone gives the game's caps: Beta's 70, 15 and 5 scaled by 289 chunks over 256, and
+    # 1.20.6's 70, 10 and 5 scaled by 289 chunks over 289.
+    hostile_cap: number = 79
+    passive_cap: number = 16
+    if me.loader_name() == "1.20.6-forge" {
+        hostile_id = "minecraft:zombified_piglin"
+        passive_id = "minecraft:pig"
+        water_id = "minecraft:squid"
+        hostile_cap = 70
+        passive_cap = 10
+    }
+
     hostile: number = level.count_mobs("hostile")
     passive: number = level.count_mobs("passive")
     water: number = level.count_mobs("water")
 
-    ctx.spawn_mob(level, "PigZombie", x, y, z)
-    ctx.spawn_mob(level, "PigZombie", x, y, z)
+    ctx.spawn_mob(level, hostile_id, x, y, z)
+    ctx.spawn_mob(level, hostile_id, x, y, z)
     ctx.assert(level.count_mobs("hostile") == hostile + 2, "Two zombie pigmen should be two more hostile mobs.")
     ctx.assert(level.count_mobs("passive") == passive, "Zombie pigmen should not count as passive mobs.")
     ctx.assert(level.count_mobs("water") == water, "Zombie pigmen should not count as water mobs.")
 
-    ctx.spawn_mob(level, "Pig", x, y, z)
+    ctx.spawn_mob(level, passive_id, x, y, z)
     ctx.assert(level.count_mobs("passive") == passive + 1, "A pig should be one more passive mob.")
     ctx.assert(level.count_mobs("hostile") == hostile + 2, "A pig should not count as a hostile mob.")
 
-    ctx.spawn_mob(level, "Squid", x, y, z)
+    ctx.spawn_mob(level, water_id, x, y, z)
     ctx.assert(level.count_mobs("water") == water + 1, "A squid should be one more water mob.")
     ctx.assert(level.count_mobs("passive") == passive + 1, "A squid should not count as a passive mob.")
 
-    ctx.assert(level.get_mob_cap("hostile") == 79, "One player alone should give a hostile cap of 79.")
-    ctx.assert(level.get_mob_cap("passive") == 16, "One player alone should give a passive cap of 16.")
-    ctx.assert(level.get_mob_cap("water") == 5, "One player alone should give a water cap of 5.")
+    ctx.assert(level.get_mob_cap("hostile") == hostile_cap, "One player alone should give the game's hostile cap.")
+    ctx.assert(level.get_mob_cap("passive") == passive_cap, "One player alone should give the game's passive cap.")
+    ctx.assert(level.get_mob_cap("water") == 5, "One player alone should give the game's water cap.")
 }

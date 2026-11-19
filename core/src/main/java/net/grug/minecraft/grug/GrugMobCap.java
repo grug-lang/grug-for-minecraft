@@ -45,6 +45,25 @@ public final class GrugMobCap {
         return chunks.size();
     }
 
+    /**
+     * 1.20.6's cap of a category: {@code NaturalSpawner.SpawnState.canSpawnForCategory} lets a
+     * category spawn only while its count is below {@code perChunk * chunks / 289}, in integer
+     * arithmetic, where {@code perChunk} is {@code MobCategory.getMaxInstancesPerChunk}, 70 for
+     * monsters, 10 for creatures and 5 for water creatures, and 289 is 17 squared.
+     */
+    public static int cap(int perChunk, int eligibleChunks, int divisor) {
+        return perChunk * eligibleChunks / divisor;
+    }
+
+    /**
+     * Whether 1.20.6's {@code NaturalSpawner.createState} counts an entity of the category: a mob
+     * that must persist, or that is riding something, is skipped, and every other entity counts
+     * toward its own category.
+     */
+    public static boolean counted(boolean persistent, boolean inCategory) {
+        return !persistent && inCategory;
+    }
+
     /** The cap of the category at the index, for that many eligible chunks. */
     public static int cap(int categoryIndex, int eligibleChunks) {
         return BASE_CAPS[categoryIndex] * eligibleChunks / 256;

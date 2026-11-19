@@ -24,6 +24,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -43,6 +44,8 @@ import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -886,9 +889,118 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
         Level world = (Level) levelObj;
         net.minecraft.world.phys.AABB box =
                 new net.minecraft.world.phys.AABB(x1, y1, z1, x2, y2, z2);
+        for (Entity mob : spawnedMobs) {
+            mob.discard();
+        }
+        spawnedMobs.clear();
         for (ItemEntity item : world.getEntitiesOfClass(ItemEntity.class, box)) {
             item.discard();
         }
+    }
+
+    /**
+     * The mobs {@link #spawnMob} added, which the next sweep removes with the items so a mob never
+     * outlives its test. Only the server thread that runs the tests touches it.
+     */
+    private final List<Entity> spawnedMobs = new ArrayList<>();
+
+    /** The game's category of a mod-facing name, in {@code GrugMobCap.CATEGORIES} order. */
+    private static final MobCategory[] MOB_CATEGORIES = {
+        MobCategory.MONSTER, MobCategory.CREATURE, MobCategory.WATER_CREATURE
+    };
+
+    /**
+     * Every entity the level holds, which is what the spawner's count walks. A server level's own
+     * list here; a client overrides it to read its mirror when asked about one, so the render
+     * thread never touches a server level (#1255).
+     */
+    protected Iterable<Entity> entitiesOf(Level level) {
+        return ((ServerLevel) level).getAllEntities();
+    }
+
+    /**
+     * The entities {@code NaturalSpawner.createState} counts toward the category: every entity of
+     * it except a mob that must persist or is riding something, so a named or leashed mob is not
+     * one.
+     */
+    @Override
+    public int countMobs(Object levelObj, String category) {
+        MobCategory wanted = MOB_CATEGORIES[GrugMobCap.indexOf(category)];
+        int count = 0;
+        for (Entity entity : entitiesOf((Level) levelObj)) {
+            boolean persistent =
+                    Optional.of(entity)
+                            .filter(Mob.class::isInstance)
+                            .map(Mob.class::cast)
+                            .map(
+                                    mob ->
+                                            mob.isPersistenceRequired()
+                                                    | mob.requiresCustomPersistence())
+                            .orElse(false);
+            if (GrugMobCap.counted(persistent, wanted.equals(entity.getClassification(true)))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * {@code getMaxInstancesPerChunk() * spawnableChunkCount / 289}, the bound {@code
+     * SpawnState.canSpawnForCategory} compares the count with. The server's chunk count is every
+     * chunk within 8 of a player who is not a spectator, which is computed here from the level's
+     * own player list, so the same answer comes from the client's mirror of the world (the players
+     * it knows of) and from the server's.
+     */
+    @Override
+    public int getMobCap(Object levelObj, String category) {
+        List<? extends Player> players =
+                ((Level) levelObj)
+                        .players().stream()
+                                .filter(java.util.function.Predicate.not(Player::isSpectator))
+                                .toList();
+        int[] xs = players.stream().mapToInt(p -> p.chunkPosition().x).toArray();
+        int[] zs = players.stream().mapToInt(p -> p.chunkPosition().z).toArray();
+        int chunks = GrugMobCap.eligibleChunks(xs, zs);
+        int perChunk = MOB_CATEGORIES[GrugMobCap.indexOf(category)].getMaxInstancesPerChunk();
+        return GrugMobCap.cap(perChunk, chunks, 17 * 17);
+    }
+
+    /**
+     * Discards every entity of the kind in the level: the server's own removal, which tells every
+     * client watching it, so the joined client of a dedicated server loses them too.
+     */
+    @Override
+    public void removeEntities(Object levelObj, String kind) {
+        List<Entity> entities = new ArrayList<>();
+        entitiesOf((Level) levelObj).forEach(entities::add);
+        for (Entity entity : entities) {
+            boolean matches =
+                    "item".equals(kind)
+                            ? entity instanceof ItemEntity
+                            : entity instanceof Mob
+                                    && MOB_CATEGORIES[GrugMobCap.indexOf(kind)].equals(
+                                            entity.getClassification(true));
+            if (matches) {
+                entity.discard();
+            }
+        }
+    }
+
+    @Override
+    public boolean spawnMob(Object levelObj, String id, double x, double y, double z) {
+        Level level = (Level) levelObj;
+        return Optional.ofNullable(ResourceLocation.tryParse(id))
+                .flatMap(BuiltInRegistries.ENTITY_TYPE::getOptional)
+                .map(type -> type.create(level))
+                .filter(Mob.class::isInstance)
+                .map(
+                        mob -> {
+                            mob.moveTo(x, y, z, 0.0F, 0.0F);
+                            level.addFreshEntity(mob);
+                            spawnedMobs.add(mob);
+                            return true;
+                        })
+                .orElse(false);
     }
 
     @Override
