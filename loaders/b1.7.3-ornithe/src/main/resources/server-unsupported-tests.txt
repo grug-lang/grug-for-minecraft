@@ -15,8 +15,6 @@ coverage/tests/forwarded_scroll_screen-Test.grug
 # two still cannot. An overlay's click export runs on that client, so its carried_item read and
 # delete_carried_item call touch the client's copy of the cursor while the test sets and reads the
 # server's, and no client-to-server cursor write exists yet (#1389).
-coverage/tests/overlay-Test.grug
-jei/tests/jei-Test.grug
 #
 # The screen-open hook. The test asserts that a screen which has just opened has drawn no frame
 # yet, which a joined client cannot promise: it draws frames of its own between the server's open
@@ -29,7 +27,6 @@ coverage/tests/overlay_screen_open-Test.grug
 # loader but 1.20.6 that fails the assertion that the marked loader forced it, and on 1.20.6 the
 # assertion holds without proving the client hooked anything. It stays client-only on every leg now
 # that Test.overlay_supported answers from the joined client (#1099).
-coverage/tests/hook_forced_normalization-Test.grug
 #
 # The forced-normalization item list. It is the same reason every other leg records: the state the
 # file name makes the runner force is a client's GL capability, so a dedicated server cannot force it
@@ -37,7 +34,6 @@ coverage/tests/hook_forced_normalization-Test.grug
 # reported, which #1238 fixed, the state cannot be forced on a server at all. The proof stopped
 # before this test on this leg, so it has no number of its own here. It stays client-only unless a
 # proof shows this leg's frame matching the client-only golden.
-jei/tests/item_list_forced_normalization-Test.grug
 # The two wooden pipe captures #1096 promoted to tick_any_side. Dispatch 43422357886 failed
 # wooden_pipe_items' capture against this loader's flat golden in 17594 of 44800 pixels, the same
 # whole-frame joined-client difference #1213 tracks, and the leg stops at its
