@@ -44,13 +44,8 @@ jei/tests/item_list_forced_normalization-Test.grug
 # now: proof 43829659464 passed redstone_engine_animation, redstone_engine_facings and
 # wooden_pipe_items here, so none of them is listed (#1213).
 #
-# wooden_pipe_shapes, which #1096 promoted to tick_any_side. Dispatch 43422357886 failed its
-# wooden_pipe_straight capture against this loader's flat golden in 1449 of 115200 pixels, the
-# joined-client residue #1213 tracks. wooden_pipe_items passed on this server in the same run, so it
-# is not listed. The client-only run of this loader still checks the golden.
+# wooden_pipe_shapes is not listed: proof 44588949879 (#1096) passed it on this leg once the south
+# chest drew its real facing (the 1.2.5 flat run now refreshes a placed chest's cached facing).
 #
 # coverage_frame: dispatch 43936815192 failed its capture on this leg in 2800 of 44800 px against 1.2.5-forge.png (#1392). coverage_render is unmeasured behind it and runs. The client-only run still checks both.
 coverage/tests/coverage_frame-Test.grug
-#
-# Proof 43764853785 (#1096): wooden_pipe_items passes on this leg, and wooden_pipe_shapes fails its capture in 9648 of 115200 px (#1213), measured as 2869 of 115200 px on wooden_pipe_corner in proof 43829659464, so it stays listed. The client-only run checks its golden.
-buildcraft/tests/wooden_pipe_shapes-Test.grug

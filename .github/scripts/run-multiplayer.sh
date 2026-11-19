@@ -676,7 +676,7 @@ while :; do
         wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine"
         ;;&
       1.2.5-forge)
-        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items"
+        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
         ;;
       b1.7.3-ornithe)
         # Proof 44202563938 (#1096) passed wooden_pipe_shapes here once the item sweep told the joined client.
