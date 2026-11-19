@@ -199,6 +199,11 @@ class GrugControlTest {
                 }
 
                 @Override
+                public boolean normalization(int operation) {
+                    throw new AssertionError("no call was expected");
+                }
+
+                @Override
                 public double reloadCount(String path, boolean loaderReloads) {
                     throw new AssertionError("no call was expected");
                 }
@@ -306,6 +311,11 @@ class GrugControlTest {
         }
 
         @Override
+        public boolean normalization(int operation) {
+            throw new AssertionError("no call was expected");
+        }
+
+        @Override
         public double reloadCount(String path, boolean loaderReloads) {
             throw new AssertionError("no call was expected");
         }
@@ -403,6 +413,11 @@ class GrugControlTest {
 
         @Override
         public void modFileState(String path, int stateIndex) {
+            throw new AssertionError("no call was expected");
+        }
+
+        @Override
+        public boolean normalization(int operation) {
             throw new AssertionError("no call was expected");
         }
 
@@ -559,6 +574,15 @@ class GrugControlTest {
         @Override
         public void modFileState(String path, int stateIndex) {
             seen.add("modFileState " + path + " " + stateIndex);
+        }
+
+        /** What the client answers to a normalization question. */
+        boolean normalizationAnswer = true;
+
+        @Override
+        public boolean normalization(int operation) {
+            seen.add("normalization " + operation);
+            return normalizationAnswer;
         }
 
         @Override
@@ -1587,7 +1611,7 @@ class GrugControlTest {
         assertFalse(GrugControlWire.isCall((byte) 0));
         // Above the last call the wire carries, so a code added there is not silently accepted as
         // one of these.
-        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_RELOAD_COUNT + 1)));
+        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_NORMALIZATION + 1)));
 
         // A give names its item and the count the client computed, and a count no host function
         // can ask for, or a message that names no item, is refused rather than applied.
@@ -1667,7 +1691,7 @@ class GrugControlTest {
 
         byte[] unknown =
                 GrugControlWire.callRequest(
-                        1, (byte) (GrugControlWire.CALL_RELOAD_COUNT + 1), "x", 0, 0, 0);
+                        1, (byte) (GrugControlWire.CALL_NORMALIZATION + 1), "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1763,6 +1787,10 @@ class GrugControlTest {
         // No change has been reported for a path nothing touched, by the engine or a loader.
         assertEquals(0.0, caller.reloadCount("coverage/assets/none.png", false));
         assertEquals(0.0, caller.reloadCount("coverage/assets/none.png", true));
+        assertTrue(caller.normalization(GrugControlWire.NORMALIZATION_CAN_FORCE));
+        assertTrue(caller.normalization(GrugControlWire.NORMALIZATION_FORCE));
+        assertTrue(caller.normalization(GrugControlWire.NORMALIZATION_RESTORE));
+        assertTrue(caller.normalization(GrugControlWire.NORMALIZATION_ENABLED));
         assertEquals(
                 List.of(
                         "hasSound a",
@@ -1783,7 +1811,11 @@ class GrugControlTest {
                         "overlaySupportedForTest",
                         "overlayDrawnForTest coverage",
                         "clientLevel",
-                        "miningCrackForTest null"),
+                        "miningCrackForTest null",
+                        "canForceNormalizationForTest",
+                        "forceNormalizationForTest",
+                        "restoreNormalizationAfterTest",
+                        "normalizationEnabledForTest"),
                 seen);
 
         // The interface's own fallbacks: a loader that cannot read light answers -1, and a test's
@@ -1950,6 +1982,42 @@ class GrugControlTest {
                 reports.get(1).startsWith("TestTickContext.set_mod_file_state: "), reports.get(1));
         assertTrue(reports.get(2).startsWith("TestTickContext.hot_reload_count: "), reports.get(2));
         assertTrue(reports.get(3).startsWith("TestTickContext.reload_count: "), reports.get(3));
+    }
+
+    @Test
+    void theNormalizationQuestionsAreAskedOfTheJoinedClientAndAnswered() {
+        ScreenCalls client = new ScreenCalls();
+        Loopback loop = wireCalls(1000, client);
+        loop.client.beginRun();
+        List<String> failed = new ArrayList<>();
+        GrugClientTestCalls.Forwarded forwarded =
+                new GrugClientTestCalls.Forwarded(() -> loop.server, failed::add);
+        assertTrue(forwarded.normalization(GrugControlWire.NORMALIZATION_CAN_FORCE));
+        client.normalizationAnswer = false;
+        assertFalse(forwarded.normalization(GrugControlWire.NORMALIZATION_FORCE));
+        assertFalse(forwarded.normalization(GrugControlWire.NORMALIZATION_RESTORE));
+        assertFalse(forwarded.normalization(GrugControlWire.NORMALIZATION_ENABLED));
+        assertEquals(
+                List.of("normalization 0", "normalization 1", "normalization 2", "normalization 3"),
+                client.seen);
+        assertTrue(failed.isEmpty(), failed.toString());
+
+        // A question the client could not be asked is reported and answers false.
+        Loopback idle = wireCalls(1000, new ScreenCalls());
+        List<String> reports = new ArrayList<>();
+        GrugClientTestCalls.Forwarded refused =
+                new GrugClientTestCalls.Forwarded(() -> idle.server, reports::add);
+        assertFalse(refused.normalization(GrugControlWire.NORMALIZATION_FORCE));
+        assertEquals(1, reports.size());
+        assertTrue(reports.get(0).startsWith("The forced normalization: "), reports.get(0));
+
+        assertNull(GrugControlServer.callProblem(GrugControlWire.CALL_NORMALIZATION, "", 3, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_NORMALIZATION, "", 4, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_NORMALIZATION, "", 0.5, 0, 0));
+        assertNotNull(
+                GrugControlServer.callProblem(GrugControlWire.CALL_NORMALIZATION, "", -1, 0, 0));
     }
 
     @Test
@@ -2887,7 +2955,7 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) (GrugControlWire.CALL_RELOAD_COUNT + 1),
+                        (byte) (GrugControlWire.CALL_NORMALIZATION + 1),
                         0,
                         0,
                         0,
@@ -2903,7 +2971,7 @@ class GrugControlTest {
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
         assertTrue(
-                answer.text.contains("unknown call " + (GrugControlWire.CALL_RELOAD_COUNT + 1)),
+                answer.text.contains("unknown call " + (GrugControlWire.CALL_NORMALIZATION + 1)),
                 answer.text);
     }
 
@@ -3148,6 +3216,11 @@ class GrugControlTest {
 
                             @Override
                             public void modFileState(String path, int stateIndex) {
+                                throw new AssertionError("no call was expected");
+                            }
+
+                            @Override
+                            public boolean normalization(int operation) {
                                 throw new AssertionError("no call was expected");
                             }
 

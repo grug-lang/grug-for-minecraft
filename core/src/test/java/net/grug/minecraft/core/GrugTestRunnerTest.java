@@ -2680,6 +2680,74 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void aDedicatedServerForcesNormalizationOnlyWhenItForwardsToAClient() {
+        for (boolean forwards : new boolean[] {true, false}) {
+            FakeOps ops = new FakeOps();
+            Map<String, Long> files =
+                    Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
+            ops.pathsAre(files);
+            ops.anySide.addAll(files.keySet());
+            List<String> log = new ArrayList<>();
+            int[] calls = {0};
+            ops.onCall =
+                    () -> {
+                        calls[0]++;
+                        GrugTestState.testNotDone = calls[0] < 140;
+                    };
+            GrugTestRunner runner =
+                    new GrugTestRunner(
+                            files,
+                            List.of(),
+                            ops,
+                            System::nanoTime,
+                            new GrugTestRunner.TestBoxBuilder() {
+                                @Override
+                                public void build(int radius) {}
+
+                                @Override
+                                public void sweepItems() {}
+
+                                @Override
+                                public boolean canForceNormalizationForTest() {
+                                    log.add("can");
+                                    return true;
+                                }
+
+                                @Override
+                                public boolean forceNormalizationForTest() {
+                                    log.add("forced");
+                                    return true;
+                                }
+
+                                @Override
+                                public boolean normalizationEnabledForTest() {
+                                    return true;
+                                }
+
+                                @Override
+                                public boolean restoreNormalizationAfterTest() {
+                                    log.add("restored");
+                                    return true;
+                                }
+                            },
+                            1,
+                            new CoverageLog(),
+                            Set.of(),
+                            GrugTestRunner.MAX_GAME_SPEED,
+                            Set.of(),
+                            Set.of(),
+                            true,
+                            Set.of(),
+                            forwards);
+            capture(() -> runFor(runner, 200));
+            // A server whose adapter hands the four questions to the joined client forces the
+            // state there; one that forwards nothing has no GL context and never asks.
+            assertEquals(forwards, log.contains("forced"), "forwards " + forwards + ": " + log);
+            assertEquals(forwards, log.contains("restored"), "forwards " + forwards + ": " + log);
+        }
+    }
+
+    @Test
     void aBoxBuilderWithoutTheNormalizationHookIgnoresTheRequest() {
         GrugTestRunner.TestBoxBuilder box =
                 new GrugTestRunner.TestBoxBuilder() {
