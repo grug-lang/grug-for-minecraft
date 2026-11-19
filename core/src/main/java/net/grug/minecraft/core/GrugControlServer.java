@@ -96,6 +96,15 @@ public final class GrugControlServer {
         }
 
         /**
+         * Clears the cursor of this server's own copy of the test player's menu, which is the clear
+         * the starter's client sent from an overlay's delete (#1389). The default hands it to the
+         * game's adapter, which on a server is the one that owns the menu.
+         */
+        default void applyDeleteCarried() {
+            GrugCore.getAdapter().deleteCarriedItem();
+        }
+
+        /**
          * Whether this loader gives to the player who asked, whoever they are, after an operator
          * check (#882), instead of only to the run's starter with the older {@link #applyGive}. A
          * loader that answers true implements {@link #playerOfSender}, {@link #tell} and {@link
@@ -229,7 +238,11 @@ public final class GrugControlServer {
     /** What a player who is not an operator is told when their start is refused (#37). */
     static final String START_REFUSAL = "You must be an operator to run tests.";
 
-    /** One give a joined client asked for: the item's name and how many of it. */
+    /**
+     * One give a joined client asked for: the item's name and how many of it. A null item is not a
+     * give but the clear of the server's cursor an overlay's delete asked for (#1389), which shares
+     * the queue so it keeps its order among the gives.
+     */
     private static final class Give {
         /**
          * Who asked, or null for the older starter-only path, whose give goes to the test player.
@@ -338,6 +351,10 @@ public final class GrugControlServer {
             // added between it and the poll.
             judgeStarts();
             if (give.sender == null) {
+                if (give.item == null) {
+                    link.applyDeleteCarried();
+                    continue;
+                }
                 link.applyGive(give.item, give.count);
                 continue;
             }
@@ -435,7 +452,9 @@ public final class GrugControlServer {
         }
         // An answer is the other message taken there, and it can only arrive while a call waits,
         // which needs a starter already.
-        return type != GrugControlWire.GIVE_REQUEST || hasStarter();
+        return (type != GrugControlWire.GIVE_REQUEST
+                        && type != GrugControlWire.DELETE_CARRIED_REQUEST)
+                || hasStarter();
     }
 
     /**
@@ -508,6 +527,15 @@ public final class GrugControlServer {
             // marked the flag again. The two-thread test that holds the network thread inside the
             // queue's add pins this.
             gives.add(new Give(null, message.text, message.x1));
+            clientWorkPending = true;
+            return;
+        }
+        if (message.type == GrugControlWire.DELETE_CARRIED_REQUEST) {
+            // The client's half of a delete its overlay's click performed (#1389): the client
+            // cleared its mirror of the cursor and this server clears its own, which is the one a
+            // test reads. It joins the same queue as a give, in the same order of add and mark, so
+            // it is applied by the next applyClientWork in the order the client sent it.
+            gives.add(new Give(null, null, 0));
             clientWorkPending = true;
             return;
         }

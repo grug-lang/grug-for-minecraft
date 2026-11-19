@@ -70,6 +70,15 @@ public final class GrugControlWire {
      */
     public static final byte ANSWER_NUMBERS = 10;
 
+    /**
+     * Client to server: clear the cursor of the server's own copy of the test player's menu
+     * (#1389). The client sends it while its run is active, from the delete an overlay's click
+     * performs, because the client's copy of the cursor is only a mirror: the server's menu is the
+     * one a click applies and a test reads, and a clear of the mirror alone would leave the item on
+     * the server's cursor. It carries nothing and has no answer.
+     */
+    public static final byte DELETE_CARRIED_REQUEST = 11;
+
     /** The call: does the game have the sound under the name. The answer is 1 or 0. */
     public static final byte CALL_HAS_SOUND = 1;
 
@@ -397,7 +406,7 @@ public final class GrugControlWire {
      * adds that a give is taken there only once the server has a starter (#1288).
      */
     public static boolean handledOnRead(byte type) {
-        return isAnswer(type) || type == GIVE_REQUEST;
+        return isAnswer(type) || type == GIVE_REQUEST || type == DELETE_CARRIED_REQUEST;
     }
 
     /** Whether {@code call} is one of the calls this wire carries. */
@@ -454,6 +463,11 @@ public final class GrugControlWire {
                 .put(bytes)
                 .putInt(count)
                 .array();
+    }
+
+    /** The ask to clear the cursor of the server's copy of the test player's menu (#1389). */
+    public static byte[] deleteCarriedRequest() {
+        return new byte[] {DELETE_CARRIED_REQUEST};
     }
 
     /** The answer to a call whose result is a measurement, such as a screen's width. */
@@ -568,6 +582,7 @@ public final class GrugControlWire {
             switch (type) {
                 case RUN_START:
                 case RUN_END:
+                case DELETE_CARRIED_REQUEST:
                     message = new Message(type, 0, none, 0, 0, null, null);
                     break;
                 case GIVE_REQUEST:

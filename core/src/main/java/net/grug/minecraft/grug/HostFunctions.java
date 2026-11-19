@@ -3458,6 +3458,11 @@ public class HostFunctions {
             return;
         }
         GrugCore.getAdapter().deleteCarriedItem();
+        if (net.grug.minecraft.core.GrugControlClient.runActiveHere()) {
+            // A client joined to a server that drives the run holds only a mirror of the cursor,
+            // and a test reads the server's, so the server clears its own too (#1389).
+            net.grug.minecraft.core.GrugControlClient.deleteCarriedOnServer();
+        }
     }
 
     /** The same rule for the context an overlay's {@code key()} was passed. */
