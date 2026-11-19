@@ -286,6 +286,54 @@ class GrugGiveCallsTest {
     }
 
     @Test
+    void theDefaultLinkClearGoesToTheAdaptersOwnCursor() throws Exception {
+        List<String> calls = new java.util.ArrayList<>();
+        ModLoaderAdapter recorder =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) -> {
+                                    calls.add(method.getName());
+                                    return null;
+                                });
+        GrugControlServer.Link link =
+                new GrugControlServer.Link() {
+                    @Override
+                    public boolean sendToStarter(Object starter, byte[] message) {
+                        throw new AssertionError("a clear does not send");
+                    }
+
+                    @Override
+                    public void flushWorld() {
+                        throw new AssertionError("a clear does not flush");
+                    }
+
+                    @Override
+                    public boolean mayStartRun(Object sender) {
+                        throw new AssertionError("a clear does not start a run");
+                    }
+
+                    @Override
+                    public void applyClientWork() {
+                        throw new AssertionError("a clear does not drain");
+                    }
+                };
+
+        Field adapter = GrugCore.class.getDeclaredField("adapter");
+        adapter.setAccessible(true);
+        ModLoaderAdapter saved = (ModLoaderAdapter) adapter.get(null);
+        adapter.set(null, recorder);
+        try {
+            link.applyDeleteCarried();
+        } finally {
+            adapter.set(null, saved);
+        }
+
+        assertEquals(List.of("deleteCarriedItem"), calls);
+    }
+
+    @Test
     void theServerGiveMovesTheWorldRevisionSoARememberedSettleAnswerCannotOutliveIt() {
         Items items = new Items();
         items.add("minecraft:stone");
