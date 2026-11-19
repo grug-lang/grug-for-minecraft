@@ -1781,8 +1781,9 @@ class GrugControlTest {
         assertEquals(0.0, caller.reloadCount("coverage/assets/none.png", true));
         assertTrue(caller.normalization(GrugControlWire.NORMALIZATION_CAN_FORCE));
         assertTrue(caller.normalization(GrugControlWire.NORMALIZATION_FORCE));
-        assertTrue(caller.normalization(GrugControlWire.NORMALIZATION_RESTORE));
+        // Answered from the moment the force finished, so it asks the adapter nothing more.
         assertTrue(caller.normalization(GrugControlWire.NORMALIZATION_ENABLED));
+        assertTrue(caller.normalization(GrugControlWire.NORMALIZATION_RESTORE));
         assertEquals(
                 List.of(
                         "hasSound a",
@@ -1806,8 +1807,8 @@ class GrugControlTest {
                         "miningCrackForTest null",
                         "canForceNormalizationForTest",
                         "forceNormalizationForTest",
-                        "restoreNormalizationAfterTest",
-                        "normalizationEnabledForTest"),
+                        "normalizationEnabledForTest",
+                        "restoreNormalizationAfterTest"),
                 seen);
 
         // The interface's own fallbacks: a loader that cannot read light answers -1, and a test's
