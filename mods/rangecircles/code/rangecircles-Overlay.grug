@@ -1,0 +1,72 @@
+# Range circles for Beta 1.7.3: the J key (36) saves the player's position, and three rings of the
+# distances the game's own spawner and despawn code use are drawn around it, so a mob farm designer
+# sees where the spawning area has to sit relative to where they will stand (#1253). A second press
+# hides the rings and forgets the position, and a third saves the new one. The radii are read from
+# the decompiled Beta 1.7.3 jar:
+# 1. 24 is NaturalSpawner's minimum distance from a player: a position closer than 24 blocks
+#    (squared distance 576) is not accepted for a spawn.
+# 2. 32 is MobEntity's random despawn distance: past it (squared 1024) a mob that has been far from
+#    every player for more than 600 ticks has a 1 in 800 chance per tick to despawn.
+# 3. 128 is its instant despawn distance: past it (squared 16384) the mob is removed at once.
+# The game measures all three as a distance in 3D, so each is a sphere. The rings are flat, at the
+# saved feet height, which is the conservative reading of the issue.
+spawn_radius: number = 24
+random_despawn_radius: number = 32
+instant_despawn_radius: number = 128
+
+# The eye is 1.62 blocks above the feet, and the overlay's camera is the eye.
+eye_height: number = 1.62
+segments: number = 64
+# The cosine and sine of one segment's angle, 2 pi / 64: grug has no trigonometry, so a ring is walked
+# by rotating its offset by this angle, one segment at a time.
+step_cos: number = 0.9951847266721969
+step_sin: number = 0.0980171403295606
+
+# Pressing the key while hidden asks the next frame to save the camera, because a key press does
+# not hand out the player's position.
+active: bool = false
+save_requested: bool = false
+cx: number = 0
+cy: number = 0
+cz: number = 0
+
+export render_world(ctx: OverlayWorldContext) {
+    if save_requested {
+        save_requested = false
+        active = true
+        cx = ctx.camera_x()
+        cy = ctx.camera_y() - eye_height
+        cz = ctx.camera_z()
+    }
+    if not active {
+        return
+    }
+    _ring(ctx, spawn_radius, Color.rgb(255, 34, 34))
+    _ring(ctx, random_despawn_radius, Color.rgb(255, 255, 0))
+    _ring(ctx, instant_despawn_radius, Color.rgb(34, 255, 34))
+}
+
+export world_key(ctx: OverlayWorldKeyContext) {
+    if ctx.key() == 36 {
+        if active {
+            active = false
+        } else {
+            save_requested = true
+        }
+    }
+}
+
+# A ring of straight segments around the saved position at its height.
+local _ring(ctx: OverlayWorldContext, radius: number, color: Color) {
+    dx: number = radius
+    dz: number = 0
+    i: number = 0
+    while i < segments {
+        nx: number = dx * step_cos - dz * step_sin
+        nz: number = dx * step_sin + dz * step_cos
+        ctx.draw_line(cx + dx, cy, cz + dz, cx + nx, cy, cz + nz, color)
+        dx = nx
+        dz = nz
+        i = i + 1
+    }
+}
