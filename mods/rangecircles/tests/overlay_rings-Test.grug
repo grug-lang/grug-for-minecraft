@@ -35,7 +35,7 @@ export tick(ctx: TestTickContext) {
 
     if not pressed {
         pressed = true
-        ctx.press_world_key(36, false)
+        ctx.press_world_key(74, false)
         ctx.not_done()
         return
     }
@@ -47,5 +47,5 @@ export tick(ctx: TestTickContext) {
     ctx.screenshot().equals(r"screenshots/overlay_rings", 0, 0, 1280, 720)
 
     # J hides the rings again: the overlay is one entity for the whole run.
-    ctx.press_world_key(36, false)
+    ctx.press_world_key(74, false)
 }

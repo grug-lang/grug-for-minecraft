@@ -1,4 +1,4 @@
-# Range circles for Beta 1.7.3: the J key (36) saves the player's position, and three rings of the
+# Range circles for Beta 1.7.3: the J key (74) saves the player's position, and three rings of the
 # distances the game's own spawner and despawn code use are drawn around it, so a mob farm designer
 # sees where the spawning area has to sit relative to where they will stand (#1253). A second press
 # hides the rings and forgets the position, and a third saves the new one. The radii are read from
@@ -47,7 +47,7 @@ export render_world(ctx: OverlayWorldContext) {
 }
 
 export world_key(ctx: OverlayWorldKeyContext) {
-    if ctx.key() == 36 {
+    if ctx.key() == 74 {
         if active {
             active = false
         } else {
