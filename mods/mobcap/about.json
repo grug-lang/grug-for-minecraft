@@ -4,7 +4,8 @@
 	"game_version": "beta-1.7.3",
 	"loaders": [
 		"b1.7.3-ornithe",
-		"b1.7.3-stationapi"
+		"b1.7.3-stationapi",
+		"1.2.5-forge"
 	],
 	"authors": [
 		"MyNameIsTrez"

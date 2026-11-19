@@ -1,10 +1,10 @@
 # Covers TestTickContext.remove_entities (#1252), which the mob cap overlay's test uses to start from a
 # world with none of a category of mobs, and which takes "item" the same way. Everything happens in the one tick, so the game's own spawner does
 # not add mobs between the reads: a known set is spawned, then each category is removed in turn and
-# is 0 while the others keep their count. The reads exist on the two Beta 1.7.3 loaders so far, so
+# is 0 while the others keep their count. The reads exist on the two Beta 1.7.3 loaders and 1.2.5-forge so far, so
 # every other loader returns before it spawns anything.
 export tick(ctx: TestTickContext) {
-    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
+    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" and me.loader_name() != "1.2.5-forge" {
         return
     }
     ctx.set_box_radius(6)

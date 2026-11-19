@@ -382,10 +382,29 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                         world.getEntitiesWithinAABB(
                                 EntityItem.class,
                                 AxisAlignedBB.getBoundingBox(x1, y1, z1, x2, y2, z2)));
+        List<Entity> mobs = new ArrayList<>(spawnedMobs);
         super.clearItemEntities(levelObj, x1, y1, z1, x2, y2, z2);
         EntityTracker tracker = FMLServerHandler.instance().getServer().getEntityTracker(0);
         for (Object item : items) {
             tracker.untrackEntity((Entity) item);
+        }
+        for (Entity mob : mobs) {
+            tracker.untrackEntity(mob);
+        }
+    }
+
+    /**
+     * Removes the entities as the client-only game does, then tells the joined client they are
+     * gone: the removal takes them out of the world's lists itself, so the entity tracker would
+     * never send the destroy packet and the client would keep a ghost of each.
+     */
+    @Override
+    public void removeEntities(Object levelObj, String kind) {
+        List<Entity> gone = entitiesOf((World) levelObj, kind);
+        super.removeEntities(levelObj, kind);
+        EntityTracker tracker = FMLServerHandler.instance().getServer().getEntityTracker(0);
+        for (Entity entity : gone) {
+            tracker.untrackEntity(entity);
         }
     }
 

@@ -31,6 +31,7 @@ import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugIdPool;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
@@ -41,6 +42,8 @@ import net.minecraft.src.Chunk;
 import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
+import net.minecraft.src.EntityList;
+import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EnumCreatureType;
 import net.minecraft.src.EnumSkyBlock;
@@ -688,6 +691,10 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     public void clearItemEntities(
             Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
         World world = (World) levelObj;
+        for (Entity mob : spawnedMobs) {
+            removeEntity(world, mob);
+        }
+        spawnedMobs.clear();
         // The game's own box query, so the filtering is its branches and not ours: the six
         // comparisons this used to make are twelve branch outcomes, and the suite's few items only
         // ever exercise one side of each, which the coverage gate then reports as missed.
@@ -702,6 +709,90 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
             removeFromChunk(world, item);
             world.loadedEntityList.remove(item);
         }
+    }
+
+    /** The mobs {@link #spawnMob} added, which the next room build removes with the items. */
+    protected final List<Entity> spawnedMobs = new ArrayList<>();
+
+    /**
+     * The game's creature type of a mod-facing category, in {@code GrugMobCap.CATEGORIES} order.
+     */
+    private static EnumCreatureType creatureType(String category) {
+        return EnumCreatureType.values()[GrugMobCap.indexOf(category)];
+    }
+
+    /**
+     * {@code World.countEntities} of the category's class, which is exactly what {@code
+     * SpawnerAnimals.performSpawning} compares with the cap: every loaded entity that is an {@code
+     * IMob} for hostile, an {@code EntityAnimal} for passive and an {@code EntityWaterMob} for
+     * water.
+     */
+    @Override
+    public int countMobs(Object levelObj, String category) {
+        return ((World) levelObj).countEntities(creatureType(category).getCreatureClass());
+    }
+
+    /**
+     * {@code getMaxNumberOfCreature() * eligibleChunksForSpawning.size() / 256}, the spawner's own
+     * bound: its chunk set is every chunk within 8 of a player's chunk.
+     */
+    @Override
+    public int getMobCap(Object levelObj, String category) {
+        World world = (World) levelObj;
+        int n = world.playerEntities.size();
+        int[] xs = new int[n];
+        int[] zs = new int[n];
+        for (int i = 0; i < n; i++) {
+            EntityPlayer player = (EntityPlayer) world.playerEntities.get(i);
+            xs[i] = (int) Math.floor(player.posX / 16.0D);
+            zs[i] = (int) Math.floor(player.posZ / 16.0D);
+        }
+        return GrugMobCap.cap(GrugMobCap.indexOf(category), GrugMobCap.eligibleChunks(xs, zs));
+    }
+
+    /** Every loaded entity of the kind, in a list that is safe to remove from. */
+    protected List<Entity> entitiesOf(World world, String kind) {
+        Class<?> type =
+                "item".equals(kind) ? EntityItem.class : creatureType(kind).getCreatureClass();
+        List<Entity> found = new ArrayList<>();
+        for (Object entity : new ArrayList<Object>(world.loadedEntityList)) {
+            if (type.isInstance(entity)) {
+                found.add((Entity) entity);
+            }
+        }
+        return found;
+    }
+
+    /** Removes the entity as {@code World.updateEntities} does for a dead one. */
+    private static void removeEntity(World world, Entity entity) {
+        entity.setDead();
+        if (entity.addedToChunk) {
+            world.getChunkFromChunkCoords(entity.chunkCoordX, entity.chunkCoordZ)
+                    .removeEntity(entity);
+        }
+        world.loadedEntityList.remove(entity);
+    }
+
+    @Override
+    public void removeEntities(Object levelObj, String kind) {
+        World world = (World) levelObj;
+        for (Entity entity : entitiesOf(world, kind)) {
+            removeEntity(world, entity);
+            spawnedMobs.remove(entity);
+        }
+    }
+
+    @Override
+    public boolean spawnMob(Object levelObj, String id, double x, double y, double z) {
+        World world = (World) levelObj;
+        Entity entity = EntityList.createEntityByName(id, world);
+        if (!(entity instanceof EntityLiving)) {
+            return false;
+        }
+        entity.setLocationAndAngles(x, y, z, 0.0F, 0.0F);
+        world.spawnEntityInWorld(entity);
+        spawnedMobs.add(entity);
+        return true;
     }
 
     /**
