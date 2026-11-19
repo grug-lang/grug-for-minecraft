@@ -12,6 +12,7 @@ import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -25,6 +26,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
+import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -1377,6 +1379,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
         renderSettle.reset();
     }
 
+    private static String CLIENT_PROBE_PRINTED = "";
+    private static int CLIENT_PROBE_SEQ = 0;
+
     @Override
     public void onFrameRendered() {
         @SuppressWarnings("deprecation")
@@ -1385,6 +1390,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // so there is a world whenever it is asked. A frame drawn before a world exists owes
         // nothing and answers without reading.
         boolean blocksPending = blockSync.onFrame((x, y, z) -> getBlock(minecraft.world, x, y, z));
+        probeLightIfRunActive(minecraft, false);
         // A frame drawn from a view the mouse moved is not one a capture may read, and the view is
         // levelled again for the next frame. See GrugTestCamera and #1128. A joined client has no
         // test runner of its own, so its control run owns the view too (#1161). The two flags are
@@ -1397,6 +1403,140 @@ public class StationApiAdapter implements ModLoaderAdapter {
                         testPlayer(),
                         CAMERA_VIEW),
                 blocksPending);
+    }
+
+    /**
+     * Runs the probe on both legs: a joined client that started the run, and a client-only run,
+     * which has no control run and is recognised by the test path its own runner set (#1092).
+     *
+     * <p>A state is printed the frame it first appears and not printed again while it holds, so no
+     * hold can miss the state a capture is drawn from: the run puts up to ten ticks into a frame,
+     * and a settled state that a test ends two frames after it settled would never pass a longer
+     * hold. Each printed state carries a sequence number, and a capture prints a {@code CAPTURE}
+     * line with the sequence number of the state in force when it was drawn, so a reader compares
+     * the capture's own state rather than the last state before the next test's clearing.
+     *
+     * <p>Excluded from the coverage gate together with {@link #probeLightBlock}, because this probe
+     * exists on this branch alone and the gate must keep reporting what main's code covers.
+     */
+    @GrugGenerated("temporary #1092 probe, deleted before the fix lands")
+    private static void probeLightIfRunActive(Minecraft minecraft, boolean atCapture) {
+        if (minecraft.player == null || minecraft.world == null) {
+            return;
+        }
+        if (!GrugClientHooks.isControlRunActive() && GrugTestState.currentTestPath == null) {
+            return;
+        }
+        String header = probeHeader(minecraft);
+        // The capture runs from a tick, after the frame it reads was drawn and before the next one,
+        // so the frame carries the state printed by the previous render and a state printed right
+        // after a CAPTURE line is a change the capture's own tick made.
+        if (atCapture) {
+            System.out.println("CLIENTPROBE CAPTURE seq=" + CLIENT_PROBE_SEQ + " " + header);
+        }
+        String state = header + probeCells(minecraft);
+        if (!state.equals(CLIENT_PROBE_PRINTED)) {
+            CLIENT_PROBE_PRINTED = state;
+            CLIENT_PROBE_SEQ++;
+            System.out.println("CLIENTPROBE seq=" + CLIENT_PROBE_SEQ + " " + state);
+        }
+    }
+
+    /** The probe's header: the side, the test, the player's column and the cell mapping. */
+    @GrugGenerated("temporary #1092 probe, deleted before the fix lands")
+    private static String probeHeader(Minecraft minecraft) {
+        int px = (int) Math.floor(minecraft.player.x);
+        int pz = (int) Math.floor(minecraft.player.z);
+        // The origin a fixture is built around is the test player's eye lifted by
+        // GrugTestOrigin.LIFT, and this version keeps the eye in the player's position.
+        int originY = (int) Math.floor(minecraft.player.y + GrugTestOrigin.LIFT);
+        return "side="
+                + (GrugClientHooks.isControlRunActive() ? "joined" : "client")
+                + " test="
+                + GrugTestState.currentTestPath
+                + " px="
+                + px
+                + " pz="
+                + pz
+                + " originY="
+                + originY
+                + " pymilli="
+                + Math.round(minecraft.player.y * 1000.0)
+                + " front="
+                + minecraft.world.getBlockId(px, originY - 2, pz + 4)
+                + " frontL="
+                + minecraft.world.getBlockId(px - 1, originY - 2, pz + 4);
+    }
+
+    /**
+     * Prints the light and the block ids the wall's lowest block rows are shaded from, for #1092.
+     *
+     * <p>The wall {@code coverage_frame} builds sits at {@code z + 6} and spans nine blocks below
+     * the origin to three above it, and the joined client draws the strip at the bottom of the crop
+     * about half as bright as the client-only golden. This prints block light, sky light, block id
+     * and {@code BlockView.getLuminance} for the wall's own cells, the cells in front of them and
+     * the cells behind them, from nine blocks below the origin to one above it, one line per depth
+     * and row.
+     *
+     * <p>The row window is wide on purpose. The capture rectangle is {@code (500, 180, 780, 340)}
+     * of a 1280x720 frame at a level view, so the bottom strip of the crop is the wall one or two
+     * blocks below the eye, that is {@code dy} about -3, not the wall's lowest cell: a window that
+     * stopped at {@code dy -5}, as the earlier probe's did, reads cells that do not shade the
+     * strip. This window covers the strip's row and the rows a smooth-lighting sample can reach.
+     *
+     * <p>Each cell carries {@code BlockView.getLuminance} as 0 to 255, which is the value the block
+     * renderer bakes into a face: block and sky light through the light table, and stored light
+     * inside an opaque cell included. A row drawn at half brightness with the block light equal on
+     * both legs would show it here as one sampled cell at 0 on one leg and at the light's value on
+     * the other, which the block light alone cannot show.
+     *
+     * <p>The header names the side, the running test (a joined client has no runner of its own and
+     * prints null) and the block ids in front of the wall, which tell {@code coverage_frame} (a
+     * frame block at the origin's column and air beside it) from {@code coverage_render} (render
+     * blocks at both). {@code pymilli} is the player's y in thousandths, so the crop's screen rows
+     * can be mapped to a block row exactly.
+     */
+    @GrugGenerated("temporary #1092 probe, deleted before the fix lands")
+    private static String probeCells(Minecraft minecraft) {
+        int px = (int) Math.floor(minecraft.player.x);
+        int pz = (int) Math.floor(minecraft.player.z);
+        int originY = (int) Math.floor(minecraft.player.y + GrugTestOrigin.LIFT);
+        StringBuilder sb = new StringBuilder();
+        for (int dy = -9; dy <= 1; dy++) {
+            for (int dz = 4; dz <= 7; dz++) {
+                sb.append('\n').append("CLIENTPROBE dy=").append(dy).append(" dz=").append(dz);
+                for (int dx = -1; dx <= 1; dx++) {
+                    int x = px + dx;
+                    int y = originY + dy;
+                    int z = pz + dz;
+                    sb.append(' ')
+                            .append(dx < 0 ? "x-1" : (dx == 0 ? "x" : "x+1"))
+                            .append('=')
+                            .append(minecraft.world.getBrightness(LightType.BLOCK, x, y, z))
+                            .append('/')
+                            .append(minecraft.world.getBrightness(LightType.SKY, x, y, z))
+                            .append('/')
+                            .append(minecraft.world.getBlockId(x, y, z))
+                            .append('/')
+                            .append(Math.round(minecraft.world.method_1782(x, y, z) * 255.0F));
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Marks the probe state a capture is drawn from, for #1092.
+     *
+     * <p>Both the client-only capture and a joined client's forwarded one read the frame through
+     * {@link #captureRectangle}, so this is where the state a capture actually saw is named, rather
+     * than leaving a reader to guess which of the printed states came next.
+     */
+    @GrugGenerated("temporary #1092 probe, deleted before the fix lands")
+    private static void probeAtCapture() {
+        @SuppressWarnings("deprecation")
+        Minecraft minecraft = (Minecraft) FabricLoader.getInstance().getGameInstance();
+        probeLightIfRunActive(minecraft, true);
     }
 
     /**
@@ -2202,6 +2342,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
         int width = x2 - x1;
         int height = y2 - y1;
         int glY = windowHeight - y2;
+
+        probeAtCapture();
 
         ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
 
