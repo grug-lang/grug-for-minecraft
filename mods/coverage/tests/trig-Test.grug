@@ -1,0 +1,17 @@
+# Math.sin and Math.cos take radians: the quarter turns, a negative angle and a large one. The
+# results at pi are checked within a small bound, since pi itself is a rounded number.
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        pi: number = 3.141592653589793
+        ctx.assert(Math.sin(0) == 0, "Math.sin(0) should be 0.")
+        ctx.assert(Math.cos(0) == 1, "Math.cos(0) should be 1.")
+        ctx.assert(Math.sin(pi / 2) == 1, "Math.sin(pi / 2) should be 1.")
+        ctx.assert(Math.cos(pi / 2) < 0.000001 and Math.cos(pi / 2) > -0.000001, "Math.cos(pi / 2) should be 0.")
+        ctx.assert(Math.sin(pi) < 0.000001 and Math.sin(pi) > -0.000001, "Math.sin(pi) should be 0.")
+        ctx.assert(Math.cos(pi) == -1, "Math.cos(pi) should be -1.")
+        ctx.assert(Math.sin(-pi / 2) == -1, "Math.sin(-pi / 2) should be -1.")
+        ctx.assert(Math.cos(-pi) == -1, "Math.cos(-pi) should be -1.")
+        ctx.assert(Math.sin(100 * pi + pi / 2) > 0.999999, "Math.sin of a large angle should wrap around.")
+        ctx.assert(Math.cos(1000 * pi) > 0.999999, "Math.cos of a large angle should wrap around.")
+    }
+}

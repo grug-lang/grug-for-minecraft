@@ -1,7 +1,8 @@
 # Range circles for Beta 1.7.3: the J key (74) saves the player's position, and three rings of the
 # distances the game's own spawner and despawn code use are drawn around it, so a mob farm designer
-# sees where the spawning area has to sit relative to where they will stand (#1253). A second press
-# hides the rings and forgets the position, and a third saves the new one. The radii are read from
+# sees where the spawning area has to sit relative to where they will stand (#1253). A press while the
+# rings are hidden overwrites the saved position with the player's current one and shows them, and a
+# press while they are shown hides them. The radii are read from
 # the decompiled Beta 1.7.3 jar:
 # 1. 24 is NaturalSpawner's minimum distance from a player: a position closer than 24 blocks
 #    (squared distance 576) is not accepted for a spawn.
@@ -17,10 +18,7 @@ instant_despawn_radius: number = 128
 # The eye is 1.62 blocks above the feet, and the overlay's camera is the eye.
 eye_height: number = 1.62
 segments: number = 64
-# The cosine and sine of one segment's angle, 2 pi / 64: grug has no trigonometry, so a ring is walked
-# by rotating its offset by this angle, one segment at a time.
-step_cos: number = 0.9951847266721969
-step_sin: number = 0.0980171403295606
+tau: number = 6.283185307179586
 
 # Pressing the key while hidden asks the next frame to save the camera, because a key press does
 # not hand out the player's position.
@@ -58,15 +56,11 @@ export world_key(ctx: OverlayWorldKeyContext) {
 
 # A ring of straight segments around the saved position at its height.
 local _ring(ctx: OverlayWorldContext, radius: number, color: Color) {
-    dx: number = radius
-    dz: number = 0
     i: number = 0
     while i < segments {
-        nx: number = dx * step_cos - dz * step_sin
-        nz: number = dx * step_sin + dz * step_cos
-        ctx.draw_line(cx + dx, cy, cz + dz, cx + nx, cy, cz + nz, color)
-        dx = nx
-        dz = nz
+        a1: number = tau * i / segments
+        a2: number = tau * (i + 1) / segments
+        ctx.draw_line(cx + radius * Math.cos(a1), cy, cz + radius * Math.sin(a1), cx + radius * Math.cos(a2), cy, cz + radius * Math.sin(a2), color)
         i = i + 1
     }
 }

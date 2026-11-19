@@ -1,12 +1,14 @@
-# Covers the range circles overlay: J saves the position and draws the three rings, and the golden
-# holds them. The rings are centered on the player's position at the press, which is the room's
-# middle. The room's walls would hide a ring outside them, so the test builds a room of radius 25,
-# whose walls stand outside the 24 ring, and the capture shows that ring ahead of the camera. A second press hides the rings and
-# forgets the position, and the test ends with that press, because a
-# ring left on would sit in every later test's captures. On a loader with no world overlay hooks the
-# test returns before it presses anything.
+# Covers the range circles overlay: J saves the position and shows the three rings, and a second
+# press hides them. The first golden holds the rings and the second the same view without them, so
+# the second press is checked by what is drawn. The rings are centered on the player's position at
+# the press, which is the room's middle. The room's walls would hide a ring outside them, so the
+# test builds a room of radius 25, whose walls stand outside the 24 ring. The crop is a band on the
+# left of the horizon where the rings cross the view and no other mod's overlay draws: the L key's
+# text of the coverage overlay is above it, and its cross passes through the middle. On a loader with
+# no world overlay hooks the test returns before it presses anything.
 started: bool = false
-pressed: bool = false
+shown: bool = false
+hidden: bool = false
 settled_ticks: number = 0
 waited: number = 0
 
@@ -35,8 +37,8 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    if not pressed {
-        pressed = true
+    if not shown {
+        shown = true
         ctx.press_world_key(74, false)
         ctx.not_done()
         return
@@ -46,8 +48,15 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    ctx.screenshot().equals(r"screenshots/overlay_rings", 0, 0, 1280, 720)
 
-    # J hides the rings again: the overlay is one entity for the whole run.
-    ctx.press_world_key(74, false)
+    if not hidden {
+        hidden = true
+        ctx.screenshot().equals(r"screenshots/overlay_rings", 0, 375, 480, 415)
+        # The second press hides the rings, which also leaves none of them in a later test's capture.
+        ctx.press_world_key(74, false)
+        ctx.not_done()
+        return
+    }
+
+    ctx.screenshot().equals(r"screenshots/overlay_hidden", 0, 375, 480, 415)
 }

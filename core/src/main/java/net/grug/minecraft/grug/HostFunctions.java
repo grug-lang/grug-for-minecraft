@@ -3961,6 +3961,11 @@ public class HostFunctions {
         return GrugDeclarations.initContext().block;
     }
 
+    /** The cosine of an angle in radians, from {@code StrictMath} so every platform agrees. */
+    public static double Math_cos(double angle) {
+        return StrictMath.cos(angle);
+    }
+
     /**
      * The largest whole number at or below the given number, which is how a position becomes the
      * block coordinate it is in.
@@ -3981,6 +3986,11 @@ public class HostFunctions {
             return 0;
         }
         return value % divisor;
+    }
+
+    /** The sine of an angle in radians, from {@code StrictMath} so every platform agrees. */
+    public static double Math_sin(double angle) {
+        return StrictMath.sin(angle);
     }
 
     /**

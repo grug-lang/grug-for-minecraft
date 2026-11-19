@@ -163,8 +163,10 @@ Color.rgb(r: number, g: number, b: number) Color
 .random_int(bound: number) number
 
 ## Math
+Math.cos(angle: number) number
 Math.floor(value: number) number
 Math.remainder(value: number, divisor: number) number
+Math.sin(angle: number) number
 
 ## Option
 .has() bool
