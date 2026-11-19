@@ -3,14 +3,15 @@
 # the second press is checked by what is drawn. The rings are centered on the player's position at
 # the press, which is the room's middle. The room's walls would hide a ring outside them, so the
 # test builds a room of radius 25, whose walls stand outside the 24 ring. The crop is a band on the
-# left of the horizon where the rings cross the view and no other mod's overlay draws: the L key's
-# text of the coverage overlay is above it, and its cross passes through the middle. On a loader with
+# right of the coverage overlay's L text and left of its cross, around the horizon where the three
+# rings cross the view: green at 128 blocks just under the horizon, yellow at 32 and red at 24 below it. On a loader with
 # no world overlay hooks the test returns before it presses anything.
 started: bool = false
 shown: bool = false
 hidden: bool = false
 settled_ticks: number = 0
 waited: number = 0
+hidden_wait: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -44,19 +45,28 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    if not ctx.world_overlay_drawn() {
+    if not hidden and not ctx.world_overlay_drawn() {
         ctx.not_done()
         return
     }
 
     if not hidden {
         hidden = true
-        ctx.screenshot().equals(r"screenshots/overlay_rings", 0, 375, 480, 415)
+        ctx.screenshot().equals(r"screenshots/overlay_rings", 260, 355, 560, 415)
         # The second press hides the rings, which also leaves none of them in a later test's capture.
         ctx.press_world_key(74, false)
+        hidden_wait = 0
         ctx.not_done()
         return
     }
 
-    ctx.screenshot().equals(r"screenshots/overlay_hidden", 0, 375, 480, 415)
+    # A hidden overlay draws nothing, so no frame announces it: the frame that follows the press is
+    # waited for by ticks, which pass up to 10 to a frame, so 40 are at least four frames.
+    hidden_wait = hidden_wait + 1
+    if hidden_wait < 40 {
+        ctx.not_done()
+        return
+    }
+
+    ctx.screenshot().equals(r"screenshots/overlay_hidden", 260, 355, 560, 415)
 }
