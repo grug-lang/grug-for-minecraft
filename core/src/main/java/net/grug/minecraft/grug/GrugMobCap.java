@@ -4,7 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * The part of Beta 1.7.3's mob cap that does not depend on a loader's mappings (#1252). The game's
+ * The part of the games' mob caps that does not depend on a loader's mappings (#1252). The game's
  * spawner lets a category spawn while the world's count of it is at most {@code cap * chunks / 256}
  * in integer arithmetic, where {@code chunks} is the number of distinct chunks within 8 chunks of
  * any player, and {@code cap} is 70 for hostile mobs, 15 for passive ones and 5 for water ones.
@@ -67,5 +67,19 @@ public final class GrugMobCap {
     /** The cap of the category at the index, for that many eligible chunks. */
     public static int cap(int categoryIndex, int eligibleChunks) {
         return BASE_CAPS[categoryIndex] * eligibleChunks / 256;
+    }
+
+    /**
+     * Alpha 1.1.2_01's cap of a category, or 0 for the one it has no mobs of. The game builds its
+     * two {@code NaturalSpawner}s with flat caps, 200 for the monsters ({@code Monster}, which
+     * zombies, skeletons, creepers, spiders and slimes implement) and 15 for the animals ({@code
+     * AnimalEntity}), and lets one spawn only while the world's count is below it. They do not
+     * scale with the players, and there is no spawner for water mobs.
+     */
+    public static int alphaCap(String category) {
+        if ("hostile".equals(category)) {
+            return 200;
+        }
+        return "passive".equals(category) ? 15 : 0;
     }
 }

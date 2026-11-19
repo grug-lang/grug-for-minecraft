@@ -154,6 +154,7 @@ Color.rgb(r: number, g: number, b: number) Color
 .get_mob_cap(category: string) number
 .get_sky_light(x: number, y: number, z: number) number
 .get_time() number
+.has_mob_category(category: string) bool
 .has_neighbor_signal(x: number, y: number, z: number) bool
 .is_air(x: number, y: number, z: number) bool
 .is_hostile_spawn_space(x: number, y: number, z: number) bool

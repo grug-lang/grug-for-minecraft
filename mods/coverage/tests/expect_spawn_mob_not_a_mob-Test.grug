@@ -1,8 +1,8 @@
 # spawn_mob refuses an id that names no mob, so a test that misspells one fails there instead of
-# spawning nothing and counting wrongly later. The call exists on the two Beta 1.7.3 loaders, 1.2.5-forge and 1.20.6 so far,
+# spawning nothing and counting wrongly later. The call exists on the two Beta 1.7.3 loaders, 1.2.5-forge, 1.20.6 and Alpha 1.1.2_01 so far,
 # so every other loader returns before it asks. See #1252.
 export tick(ctx: TestTickContext) {
-    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" and me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge" {
+    if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" and me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge" and me.loader_name() != "a1.1.2_01-ornithe" {
         return
     }
     level: Level = ctx.get_client_level()

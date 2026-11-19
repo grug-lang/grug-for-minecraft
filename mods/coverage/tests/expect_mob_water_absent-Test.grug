@@ -1,0 +1,11 @@
+# Alpha has no water mobs, so Level.count_mobs refuses the category there instead of answering 0, which
+# a mod that did not ask Level.has_mob_category first would read as an empty sea. Every other loader has
+# them, so it returns before it asks. See #1252.
+export tick(ctx: TestTickContext) {
+    if me.loader_name() != "a1.1.2_01-ornithe" {
+        return
+    }
+    level: Level = ctx.get_client_level()
+    ctx.expect_error("This version of the game has no")
+    level.count_mobs("water")
+}

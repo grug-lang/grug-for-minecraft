@@ -35,6 +35,13 @@ class GrugMobCapTest {
     }
 
     @Test
+    void alphaHasFlatCapsAndNoWaterMobs() {
+        assertEquals(200, GrugMobCap.alphaCap("hostile"));
+        assertEquals(15, GrugMobCap.alphaCap("passive"));
+        assertEquals(0, GrugMobCap.alphaCap("water"));
+    }
+
+    @Test
     void persistentMobsAreNotCounted() {
         assertTrue(GrugMobCap.counted(false, true));
         assertFalse(GrugMobCap.counted(true, true));

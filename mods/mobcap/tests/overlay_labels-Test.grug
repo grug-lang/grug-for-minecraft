@@ -9,7 +9,13 @@
 # counts are still those, so a mob that died or despawned fails the test and cannot reach the golden.
 # The spawned mobs stand in a row behind the camera, which looks along +z from the room's middle, so
 # they are never in the capture: mobs jostling in view put a different picture behind the text in
-# every run. They are removed when the next room is built. The numbers are checked against a known
+# every run. They are removed when the next room is built. Alpha 1.1.2_01 has flat caps of 200 and 15,
+# so its counts are 201 and 16, and no water mobs, so its overlay has two lines and the test fills
+# two categories. Its hostile mob is a slime: every other Alpha monster attacks a player within 16 blocks
+# and the zombie pigman does not exist yet, whereas a slime does nothing to a player that stays far
+# from it. The room is as wide as the game allows, with the row 17 blocks behind the player, so the
+# 201 slimes start out of the 16 blocks in which a slime turns to the player and hops at it, and not one
+# touches the player before the capture. The numbers are checked against a known
 # spawn by mods/coverage's mob_cap-Test. On a loader with no world overlay hooks the test returns before it presses anything.
 started: bool = false
 filled: bool = false
@@ -23,7 +29,11 @@ export tick(ctx: TestTickContext) {
         if not me.world_overlay_supported() {
             return
         }
-        ctx.set_box_radius(6)
+        if me.loader_name() == "a1.1.2_01-ornithe" {
+            ctx.set_box_radius(20)
+        } else {
+            ctx.set_box_radius(6)
+        }
         ctx.not_done()
         return
     }
@@ -50,6 +60,9 @@ export tick(ctx: TestTickContext) {
         hostile_id: string = "PigZombie"
         passive_id: string = "Pig"
         water_id: string = "Squid"
+        if me.loader_name() == "a1.1.2_01-ornithe" {
+            hostile_id = "Slime"
+        }
         if me.loader_name() == "1.20.6-forge" {
             hostile_id = "minecraft:zombified_piglin"
             passive_id = "minecraft:pig"
@@ -57,7 +70,9 @@ export tick(ctx: TestTickContext) {
         }
         _fill(ctx, hostile_id, "hostile")
         _fill(ctx, passive_id, "passive")
-        _fill(ctx, water_id, "water")
+        if ctx.get_client_level().has_mob_category("water") {
+            _fill(ctx, water_id, "water")
+        }
         ctx.not_done()
         return
     }
@@ -91,11 +106,15 @@ local _fill(ctx: TestTickContext, id: string, category: string) {
     origin: Vec3 = ctx.get_origin()
     target: number = level.get_mob_cap(category) + 1
     ctx.remove_entities(level, category)
+    z: number = origin.z() - 5
+    if me.loader_name() == "a1.1.2_01-ornithe" {
+        z = origin.z() - 17
+    }
     i: number = 0
     while level.count_mobs(category) < target {
-        ctx.spawn_mob(level, id, origin.x() - 5 + Math.remainder(i, 11), origin.y(), origin.z() - 5)
+        ctx.spawn_mob(level, id, origin.x() - 5 + Math.remainder(i, 11), origin.y(), z)
         i = i + 1
-        ctx.assert(i < 200, "Spawning should reach the target.")
+        ctx.assert(i < 300, "Spawning should reach the target.")
     }
 }
 
@@ -103,5 +122,7 @@ local _check_counts(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     ctx.assert(level.count_mobs("hostile") == level.get_mob_cap("hostile") + 1, "The hostile count should stay one over its cap.")
     ctx.assert(level.count_mobs("passive") == level.get_mob_cap("passive") + 1, "The passive count should stay one over its cap.")
-    ctx.assert(level.count_mobs("water") == level.get_mob_cap("water") + 1, "The water count should stay one over its cap.")
+    if level.has_mob_category("water") {
+        ctx.assert(level.count_mobs("water") == level.get_mob_cap("water") + 1, "The water count should stay one over its cap.")
+    }
 }

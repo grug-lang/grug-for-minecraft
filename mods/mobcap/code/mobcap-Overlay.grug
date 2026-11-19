@@ -4,6 +4,8 @@
 # at most its cap, so a mob farm designer sees a category that is full, and so no longer spawning,
 # at a glance (#1252). Level.get_mob_cap is the spawner's own bound, which grows with the number of
 # chunks around the player: one player alone gives 79 hostile, 16 passive and 5 water on Beta 1.7.3, and 70, 10 and 5 on 1.20.6.
+# Alpha 1.1.2_01 has flat caps of 200 hostile and 15 passive and no water mobs, so its overlay shows
+# two lines.
 
 # The K key (75) shows and hides the lines, which start hidden: an overlay is one entity for the whole
 # run, so lines that were always on would sit in every other mod's captures.
@@ -23,10 +25,13 @@ export render_hud(ctx: OverlayHudContext) {
     ctx.add_text(String.from_number(level.count_mobs("passive")), 52, 16, white)
     ctx.add_text("/", 76, 16, white)
     ctx.add_text(String.from_number(level.get_mob_cap("passive")), 88, 16, white)
-    ctx.add_text("Water", 4, 28, white)
-    ctx.add_text(String.from_number(level.count_mobs("water")), 52, 28, white)
-    ctx.add_text("/", 76, 28, white)
-    ctx.add_text(String.from_number(level.get_mob_cap("water")), 88, 28, white)
+    # Alpha has no water mobs and so no water cap, which has_mob_category tells: its overlay is two lines.
+    if level.has_mob_category("water") {
+        ctx.add_text("Water", 4, 28, white)
+        ctx.add_text(String.from_number(level.count_mobs("water")), 52, 28, white)
+        ctx.add_text("/", 76, 28, white)
+        ctx.add_text(String.from_number(level.get_mob_cap("water")), 88, 28, white)
+    }
 }
 
 export world_key(ctx: OverlayWorldKeyContext) {

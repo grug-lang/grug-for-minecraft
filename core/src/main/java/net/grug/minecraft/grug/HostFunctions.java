@@ -2172,21 +2172,37 @@ public class HostFunctions {
                 0.0);
     }
 
-    /** Reports a category that is not one of the three and answers whether it refused it. */
+    public static boolean Level_has_mob_category(long levelId, String category) {
+        return GrugCore.getAdapter().hasMobCategory(category);
+    }
+
+    /**
+     * Reports a category that is not one of the three, or that this version of the game does not
+     * have, and answers whether it refused it.
+     */
     @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
     private static boolean rejectMobCategory(String method, String category) {
-        if (GrugMobCap.indexOf(category) >= 0) {
-            return false;
+        if (GrugMobCap.indexOf(category) < 0) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": The category has to be one of "
+                            + String.join(", ", GrugMobCap.CATEGORIES)
+                            + ", and was \""
+                            + category
+                            + "\".");
+            return true;
         }
-        Grug.hostFunctionErrorHappened(
-                Grug.statePtr,
-                method
-                        + ": The category has to be one of "
-                        + String.join(", ", GrugMobCap.CATEGORIES)
-                        + ", and was \""
-                        + category
-                        + "\".");
-        return true;
+        if (!GrugCore.getAdapter().hasMobCategory(category)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": This version of the game has no \""
+                            + category
+                            + "\" mobs, which Level.has_mob_category tells beforehand.");
+            return true;
+        }
+        return false;
     }
 
     public static void TestTickContext_spawn_mob(
