@@ -969,6 +969,16 @@ public final class GrugControlServer {
         return number(GrugControlWire.CALL_RELOAD_COUNT, path, loaderReloads ? 1 : 0, 0, 0);
     }
 
+    /**
+     * Asks the starter's client one of the normalization questions of {@code
+     * GrugControlWire.NORMALIZATION_*} (#1040): the capabilities are the client's GL state, which a
+     * server has none of.
+     */
+    public boolean normalization(int operation) throws ControlException {
+        byte result = call(GrugControlWire.CALL_NORMALIZATION, "", operation, 0, 0);
+        return yesOrNo(result, "normalization");
+    }
+
     /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
     private static boolean yesOrNo(byte result, String call) throws ControlException {
         if (result != 0 && result != 1) {
@@ -1071,6 +1081,13 @@ public final class GrugControlServer {
                     return "The mod file state has to be the index of a known state, and was "
                             + volume
                             + ".";
+                }
+                return null;
+            case GrugControlWire.CALL_NORMALIZATION:
+                if (volume != Math.floor(volume)
+                        || volume < GrugControlWire.NORMALIZATION_CAN_FORCE
+                        || volume > GrugControlWire.NORMALIZATION_ENABLED) {
+                    return "A normalization call asks for 0 to 3, and was " + volume + ".";
                 }
                 return null;
             case GrugControlWire.CALL_RELOAD_COUNT:
@@ -1346,6 +1363,9 @@ public final class GrugControlServer {
         }
         if (call == GrugControlWire.CALL_MOD_FILE_STATE) {
             return "mod file state " + (int) volume + " of \"" + name + "\"";
+        }
+        if (call == GrugControlWire.CALL_NORMALIZATION) {
+            return "normalization " + (int) volume;
         }
         if (call == GrugControlWire.CALL_RELOAD_COUNT) {
             return (volume == 1 ? "reload count" : "hot reload count") + " of \"" + name + "\"";

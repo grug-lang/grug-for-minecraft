@@ -153,6 +153,13 @@ public final class GrugControlClient {
          * loaderReloads} is set how many reloads its loader has finished for it (#1040).
          */
         double reloadCount(String path, boolean loaderReloads);
+
+        /**
+         * One of the normalization questions of {@code GrugControlWire.NORMALIZATION_*}, answered
+         * by this client's own GL state, as the runner of a server asks while it runs a test whose
+         * file name ends with {@code _forced_normalization} (#1040).
+         */
+        boolean normalization(int operation);
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -246,6 +253,21 @@ public final class GrugControlClient {
             @Override
             public boolean miningCrack(double x, double y, double z) {
                 return adapter.get().miningCrackForTest(adapter.get().clientLevel(), x, y, z);
+            }
+
+            @Override
+            public boolean normalization(int operation) {
+                ModLoaderAdapter game = adapter.get();
+                switch (operation) {
+                    case GrugControlWire.NORMALIZATION_CAN_FORCE:
+                        return game.canForceNormalizationForTest();
+                    case GrugControlWire.NORMALIZATION_FORCE:
+                        return game.forceNormalizationForTest();
+                    case GrugControlWire.NORMALIZATION_RESTORE:
+                        return game.restoreNormalizationAfterTest();
+                    default:
+                        return game.normalizationEnabledForTest();
+                }
             }
 
             @Override
@@ -507,6 +529,9 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_MOD_FILE_STATE) {
                 caller.modFileState(message.text, (int) message.volume);
                 link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+            } else if (message.call == GrugControlWire.CALL_NORMALIZATION) {
+                boolean answer = caller.normalization((int) message.volume);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (answer ? 1 : 0)));
             } else if (message.call == GrugControlWire.CALL_RELOAD_COUNT) {
                 link.send(
                         GrugControlWire.answerNumber(

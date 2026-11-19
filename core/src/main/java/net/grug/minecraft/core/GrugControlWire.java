@@ -217,6 +217,28 @@ public final class GrugControlWire {
      */
     public static final byte CALL_RELOAD_COUNT = 19;
 
+    /**
+     * The call: one of the four questions the runner asks about the GL capabilities that normalize
+     * normals, which is a client's own state (#1040). The first number picks it: {@link
+     * #NORMALIZATION_CAN_FORCE}, {@link #NORMALIZATION_FORCE}, {@link #NORMALIZATION_RESTORE} or
+     * {@link #NORMALIZATION_ENABLED}, which are the four methods of {@code ModLoaderAdapter} a
+     * client answers. A dedicated server has no GL context, so a test whose file name ends with
+     * {@code _forced_normalization} had to stay client-only. The answer is 1 or 0.
+     */
+    public static final byte CALL_NORMALIZATION = 20;
+
+    /** The {@link #CALL_NORMALIZATION} question whether this loader's item draw inherits it. */
+    public static final int NORMALIZATION_CAN_FORCE = 0;
+
+    /** The {@link #CALL_NORMALIZATION} order to turn the capabilities on. */
+    public static final int NORMALIZATION_FORCE = 1;
+
+    /** The {@link #CALL_NORMALIZATION} order to put back what the force found. */
+    public static final int NORMALIZATION_RESTORE = 2;
+
+    /** The {@link #CALL_NORMALIZATION} question whether the capabilities are on now. */
+    public static final int NORMALIZATION_ENABLED = 3;
+
     /** The number of measurements a {@link #CALL_SCREEN_GEOMETRY} answers, in its one message. */
     public static final int GEOMETRY_COUNT = 5;
 
@@ -402,7 +424,7 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_RELOAD_COUNT;
+        return call >= CALL_HAS_SOUND && call <= CALL_NORMALIZATION;
     }
 
     /**
