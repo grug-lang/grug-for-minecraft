@@ -7,10 +7,13 @@
 # chest the tests place by right-clicking it (#1388). Proof run PROOF_RUN passed both.
 #
 #
-# The overlay tests run here now: #1425 sends the clear an overlay's delete performs to the server
-# that holds the test's menu (#1389), and #1391 forwards the first-frame read to the client that
-# owns the frames. Proof run PROOF_RUN passed overlay-Test, jei-Test and overlay_screen_open-Test.
-#
+# The overlay tests. Test.overlay_supported and Test.overlay_drawn answer from the joined client
+# (#1099) and #1391 forwards the first-frame read, so overlay_screen_open is unlisted here and
+# measured by proof run PROOF_RUN. overlay-Test and jei-Test stay until this leg's own dispatch shows
+# the clear #1425 sends reaching it: only 1.2.5's and b1.7.3-ornithe's legs have measured it
+# (fab89d47), and a1 failed overlay-Test's cursor read in dispatch 44674140169.
+coverage/tests/overlay-Test.grug
+jei/tests/jei-Test.grug
 #
 # The forced-normalization probe. The state it reads is a client's GL capability, so the runner
 # never forces it on a dedicated server and Test.normalization_forced answers false there: on every

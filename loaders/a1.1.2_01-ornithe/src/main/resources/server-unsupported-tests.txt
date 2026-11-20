@@ -17,12 +17,15 @@
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
-# The overlay tests and the forced-normalization item list run here now: #1425 sends the clear an
-# overlay's delete performs to the server that holds the test's menu (#1389), #1430 forwards the
-# force to the joined client (#1040), and #1391 forwards the first-frame read to the client that
-# owns the frames. Proof run PROOF_RUN passed overlay-Test, jei-Test, overlay_screen_open-Test and
-# item_list_forced_normalization-Test on this leg.
-#
+# The overlay click and the item list. Test.overlay_supported, Test.overlay_drawn and the first-frame
+# read answer from the joined client (#1099, #1391), so overlay_screen_open and the
+# forced-normalization item list are unlisted here and measured by proof run PROOF_RUN. overlay-Test
+# and jei-Test stay: dispatch 44674140169 stopped at overlay-Test's own read of the cursor, `The test
+# should be able to put an item on the cursor` (coverage/tests/overlay-Test.grug:108), so the clear
+# #1425 sends to the server that holds the test's menu does not reach this loader's joined client
+# yet (#1389).
+coverage/tests/overlay-Test.grug
+jei/tests/jei-Test.grug
 #
 # The forced-normalization probe. The state it reads is a client's GL capability, so the runner
 # never forces it on a dedicated server and Test.normalization_forced answers false there: on every
