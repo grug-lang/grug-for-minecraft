@@ -6,20 +6,18 @@
 # Recipes and crafting run here now: #1387 gives the a0.2.1 server its own recipe table
 # (GrugServerRecipes), built from the same vanilla and mod recipes the client registers and matched
 # by the client's own rule, because the server jar has no crafting package at all. Proof run
-# PROOF_RUN passed every entry this block used to list: the recipe and crafting-result tests, the
+# 44678178827 passed every entry this block used to list: the recipe and crafting-result tests, the
 # hot reload, and the block entities whose grid insert calls update_recipe_output.
-#
-#
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
 # client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
-# block, so this server cannot open one. 1.2.5's interaction manager and 1.20.6's game mode
-# right-click the chest, so the two tests run there.
+# block, so this server cannot open one. 1.2.5's and both b1.7.3 servers' interaction managers and
+# 1.20.6's game mode right-click the chest, so the two tests run there and only this leg lists them.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
 # The overlay click and the item list. Test.overlay_supported, Test.overlay_drawn and the first-frame
 # read answer from the joined client (#1099, #1391), so overlay_screen_open is unlisted here and
-# measured by proof run PROOF_RUN. overlay-Test and jei-Test stay: dispatch 44674140169 stopped at
+# measured by proof run 44678178827. overlay-Test and jei-Test stay: dispatch 44674140169 stopped at
 # overlay-Test's own read of the cursor, `The test should be able to put an item on the cursor`
 # (coverage/tests/overlay-Test.grug:108), so the clear #1425 sends to the server that holds the test's
 # menu does not reach this loader's joined client yet (#1389). The forced-normalization item list

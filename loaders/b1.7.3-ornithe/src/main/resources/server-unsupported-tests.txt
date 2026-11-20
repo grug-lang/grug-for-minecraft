@@ -4,7 +4,7 @@
 # Each group below says why its tests cannot run on that server.
 #
 # The screen input #1094 forwards runs here now: this server's own interaction manager opens the
-# chest the tests place by right-clicking it (#1388). Proof run PROOF_RUN passed both.
+# chest the tests place by right-clicking it (#1388). Proof run 44678178827 passed both.
 #
 #
 # The overlay's click and the cursor it deletes now run here: #1425 sends the clear an overlay's
@@ -14,7 +14,7 @@
 #
 # The screen-open test runs here now: #1391 forwards the first-frame read to the client that owns
 # the frames, so the answer is the client's own record rather than a guess from a later tick.
-# Proof run PROOF_RUN passed it.
+# Proof run 44678178827 passed it.
 #
 #
 # The forced-normalization probe and the item list it guards run here: #1430 forwards the force, the
