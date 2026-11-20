@@ -1210,6 +1210,16 @@ jobs:
           name: grug-universal
           path: universal
 
+      # The client's libraries are the loader's production ones, restored from the entry the
+      # production job writes for that loader (#1379), never saved here for the reason the
+      # coexistence job gives. Every loader of this matrix is a portablemc one.
+      - name: Restore the launcher's libraries
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/grug-production/main/libraries
+          key: grug-libraries-v1-${{ runner.os }}-${{ matrix.loader }}-${{ hashFiles(format('loaders/{0}/gradle.properties', matrix.loader), '.github/scripts/launcher.sh', '.github/scripts/launch-production.sh', '.github/launcher-profiles/*.json') }}
+          restore-keys: grug-libraries-v1-${{ runner.os }}-${{ matrix.loader }}-
+
       - name: Boot a server and join it, both from the universal jar
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer-installed.sh "${{ matrix.loader }}"
         env:
@@ -1668,6 +1678,17 @@ jobs:
             ~/.cache/grug-production/main/libraries/org/lwjgl/lwjgl
           key: grug-lwjgl-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/scripts/launcher.sh') }}
 
+      # The launcher's library downloads, for the reason the Linux production job gives (#1379). The
+      # few LWJGL files the entry above keeps are in this one too, a few MB for the three legacy
+      # loaders, which is cheaper than leaving them out of a path a cache cannot exclude from.
+      - name: Cache the launcher's libraries (portablemc loaders only)
+        if: matrix.dir != '1.2.5-forge'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/grug-production/main/libraries
+          key: grug-libraries-v1-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles(format('loaders/{0}/gradle.properties', matrix.dir), '.github/scripts/launcher.sh', '.github/scripts/launch-production.sh', '.github/launcher-profiles/*.json') }}
+          restore-keys: grug-libraries-v1-${{ runner.os }}-${{ matrix.dir }}-
+
       # Relative, because the script reads it from Git Bash, where a Windows path with backslashes is
       # not one.
       - name: Load grug in an installed ${{ matrix.dir }}
@@ -1898,6 +1919,25 @@ jobs:
             ~/.cache/grug-production/main/libraries/org/lwjgl/lwjgl
           key: grug-lwjgl-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/scripts/launcher.sh') }}
 
+      # The launcher's other downloads, which fail the job when a mirror answers a bad status (#1379):
+      # portablemc requests every library of the version it installs from Maven Central or its mirror,
+      # and a 404 or a 429 there ends the install, with no retry for anything but a cut-off body.
+      # A restored file is not requested at all, because portablemc skips a library whose file is
+      # already the size its metadata names, so a hit removes the request rather than retrying it,
+      # while a miss falls back to a previous generation and downloads only what changed. A file the
+      # version no longer names is ignored, so an older entry is safe to restore. Only libraries:
+      # the assets and JVMs beside them are hundreds of MB each, and the smoke job's games are left
+      # out of this entry too. The key's hash changes when the loader's pins or the launcher changes,
+      # which is what changes the files; a bump therefore writes one new entry and the old one is
+      # evicted by age.
+      - name: Cache the launcher's libraries (portablemc loaders only)
+        if: matrix.dir != '1.2.5-forge'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/grug-production/main/libraries
+          key: grug-libraries-v1-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles(format('loaders/{0}/gradle.properties', matrix.dir), '.github/scripts/launcher.sh', '.github/scripts/launch-production.sh', '.github/launcher-profiles/*.json') }}
+          restore-keys: grug-libraries-v1-${{ runner.os }}-${{ matrix.dir }}-
+
       - name: Run tests in an installed game (${{ matrix.dir }})
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" production
         env:
@@ -1991,6 +2031,16 @@ jobs:
         with:
           name: grug-universal
           path: universal
+
+      # The same libraries the production job's 1.20.6-forge leg downloads (#1379), restored from the
+      # entry that job writes and never saved here: this job runs beside it and would race its key.
+      # A miss only costs the downloads this job did before the cache existed.
+      - name: Restore the launcher's libraries
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/grug-production/main/libraries
+          key: grug-libraries-v1-${{ runner.os }}-1.20.6-forge-${{ hashFiles(format('loaders/{0}/gradle.properties', '1.20.6-forge'), '.github/scripts/launcher.sh', '.github/scripts/launch-production.sh', '.github/launcher-profiles/*.json') }}
+          restore-keys: grug-libraries-v1-${{ runner.os }}-1.20.6-forge-
 
       - name: Run tests in an installed game beside JEI
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh 1.20.6-forge production
