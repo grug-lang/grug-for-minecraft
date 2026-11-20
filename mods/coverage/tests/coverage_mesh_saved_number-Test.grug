@@ -35,9 +35,14 @@
 # retry calls redraw(): a retry that rebuilds the mesh would hide a placement whose own compile drew
 # nothing, which is exactly what a kept tile looks like.
 # It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
-# joined client, and the captures are the client's (#1086). The waits end on the frame itself:
-# Screenshot.change_from reports how much of it changed, so a client that is behind is captured
-# again instead of being assumed to have caught up after a tick count.
+# joined client, and the captures are the client's (#1086). The waits end on client state, not on a
+# tick count: after each save the test reads the joined client's own copy of the number until it
+# holds what was saved, so a send that never arrives fails with that message rather than as a frame
+# one early, and then it waits for `ctx.world_settled` before capturing, which includes the redraw's
+# chunk rebuild. The capture itself is still compared and retried, because a capture that asks
+# between the copy arriving and the section being built again can read the frame before the
+# rebuild; Screenshot.change_from says whether it did, and a bounded number of further captures
+# covers it.
 # The room's light reaches a 1.20.6 client in a packet after the block changes the frame waits
 # count, so each wait also requires the client's copy to hold the light the world the test edits
 # has (#1207). Two frames of a room meshed from the light it had before a change agree with each
@@ -67,9 +72,16 @@ rebaselines: number = 0
 saved: bool = false
 cleared: bool = false
 
-# The runner tick the number was saved on, so the capture after it is not taken on the same tick.
-saved_tick: number = 0
-cleared_tick: number = 0
+# Whether the joined client's copy of the number has been seen holding the value just saved. The
+# frame pass reads that copy, so a capture compared against a save means nothing until it does.
+copied: bool = false
+cleared_copied: bool = false
+
+# The runner tick of the last read of the joined client's copy, and how many reads answered without
+# the number just saved. Reading costs a round trip that freezes the world, so it is not done on
+# every tick, and a copy that never holds the number fails with its own deadline.
+copy_tick: number = 0
+misses: number = 0
 
 # How many captures have already shown the frame from before the change being waited for.
 attempts: number = 0
@@ -84,8 +96,10 @@ room_tick: number = 0
 
 export init(ctx: TestInitContext) {
     # A capture waits for the client to draw the frames it is about, which is up to about 20 ticks
-    # each, and each of the four waits below may capture eight times beside the setup's own.
-    ctx.set_max_ticks(2000)
+    # each, each of the four waits below may capture eight times beside the setup's own, and the
+    # reads of the joined client's copy are a round trip each with their own deadline, so a light
+    # step that asks for a second pass fits in the budget too.
+    ctx.set_max_ticks(3000)
 }
 
 export tick_any_side(ctx: TestTickContext) {
@@ -107,8 +121,12 @@ export tick_any_side(ctx: TestTickContext) {
     } else if not saved {
         _save(1)
         saved = true
-        saved_tick = ctx.current_tick()
+        copy_tick = ctx.current_tick()
+        misses = 0
         attempts = 0
+        ctx.not_done()
+    } else if not copied {
+        _wait_copy(ctx, 1)
         ctx.not_done()
     } else if not after_taken {
         _capture_after(ctx)
@@ -116,14 +134,17 @@ export tick_any_side(ctx: TestTickContext) {
     } else if not cleared {
         _save(0)
         cleared = true
-        cleared_tick = ctx.current_tick()
+        copy_tick = ctx.current_tick()
+        misses = 0
         attempts = 0
         ctx.not_done()
-    } else if ctx.current_tick() < cleared_tick + 30 {
-        # Nothing marks the world unsettled for a saved-number change or a redraw: a script saves
-        # numbers as it runs, so a world that settled only between those would never settle. This
-        # short wait keeps the captures from spinning; whether the rebuilt mesh arrived is decided
-        # by the capture below.
+    } else if not cleared_copied {
+        _wait_copy(ctx, 0)
+        ctx.not_done()
+    } else if ctx.current_tick() < room_tick + 10 {
+        # A capture on the very next tick can be of the frame before the change, and up to 10 ticks
+        # run for one frame. The top of this chain has already waited for `ctx.world_settled`, so
+        # the only other thing to wait for is a frame drawn since the last capture.
         ctx.not_done()
     } else {
         restored: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
@@ -147,13 +168,14 @@ export tick_any_side(ctx: TestTickContext) {
                 restored_prev_taken = false
                 saved = false
                 cleared = false
+                copied = false
+                cleared_copied = false
                 attempts = 0
             } else {
                 ctx.assert(attempts < 8, "Saving 0 did not take the plate away again.")
                 restored_prev.set(restored)
                 restored_prev_taken = true
             }
-            cleared_tick = ctx.current_tick()
             ctx.not_done()
         }
     }
@@ -252,13 +274,39 @@ local _capture_before(ctx: TestTickContext) {
     }
 }
 
+# Waits for the joined client's copy of the number to hold the value just saved, read over the
+# control channel: on a dedicated server the copy the frame pass reads is the client's, and the
+# server's own copy holds the number the moment it is saved, so it says nothing about the send. The
+# first read is four ticks after the save, which is past the end of the server tick the packet is
+# flushed at, and a copy that never holds the number fails here rather than in a capture.
+local _wait_copy(ctx: TestTickContext, value: number) {
+    if ctx.current_tick() >= copy_tick + 4 {
+        copy: number = ctx.client_saved_number(mesh_block.unwrap(), "mesh_marker")
+        copy_tick = ctx.current_tick()
+        if copy == value {
+            if value == 1 {
+                copied = true
+            } else {
+                cleared_copied = true
+            }
+            attempts = 0
+        } else {
+            misses = misses + 1
+            ctx.assert(misses < 40, "The saved number never reached the joined client's copy.")
+        }
+    }
+}
+
+# The frame after the save of 1, which has to show the plate. The joined client's copy holds the
+# number by now and the chain has waited for `ctx.world_settled`, so a frame that still matches the
+# pedestal is one drawn before the redraw's section was built again, and is captured again.
 local _capture_after(ctx: TestTickContext) {
-    if ctx.current_tick() >= saved_tick + 30 {
+    if ctx.current_tick() >= room_tick + 10 {
         shot: Screenshot = ctx.screenshot().capture(500, 0, 780, 720)
+        room_tick = ctx.current_tick()
         if shot.change_from(before.unwrap()) < 1 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "The saved number never rebuilt the client's chunk mesh.")
-            saved_tick = ctx.current_tick()
         } else {
             after.set(shot)
             after_taken = true
