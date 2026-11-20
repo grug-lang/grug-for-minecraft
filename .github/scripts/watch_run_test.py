@@ -19,6 +19,16 @@ if [ -n "$FAKE_GH_HINT" ]; then
   echo "hint: if you need to wait for this run, use gh event listen" >&2
 fi
 if [ "$1" = "api" ]; then
+  if [ -n "$FAKE_GH_LOG_FAIL" ]; then
+    echo "gh: Not Found (HTTP 404)" >&2
+    exit 1
+  fi
+  if [ -n "$FAKE_GH_SHORT_LOG" ]; then
+    seq 1 3 | sed 's/^/log line /'
+    echo "##[error]Process completed with exit code 1."
+    seq 4 5 | sed 's/^/log line /'
+    exit 0
+  fi
   seq 1 100 | sed 's/^/log line /'
   echo "##[error]Process completed with exit code 1."
   seq 101 120 | sed 's/^/post step /'
@@ -44,7 +54,7 @@ def job(job_id, name, status, conclusion):
 
 
 class WatchRunTest(unittest.TestCase):
-    def run_script(self, states, failed_polls=0, max_failed_polls="10", hint=False):
+    def run_script(self, states, failed_polls=0, max_failed_polls="10", hint=False, **extra_env):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             gh = tmp / "gh"
@@ -63,6 +73,7 @@ class WatchRunTest(unittest.TestCase):
             )
             if hint:
                 env["FAKE_GH_HINT"] = "1"
+            env.update(extra_env)
             return subprocess.run(
                 ["bash", str(SCRIPT), "123"], env=env, capture_output=True, text=True, timeout=30
             )
@@ -107,6 +118,28 @@ class WatchRunTest(unittest.TestCase):
             hint=True,
         )
         self.assertEqual(green.returncode, 0, green.stdout + green.stderr)
+
+    def test_a_short_log_still_prints_its_error_and_not_the_hint(self):
+        # The window is the 80 lines before the error, so a log shorter than that prints the hint
+        # line too if stderr reached the log: this case fails when the log read mixes them.
+        result = self.run_script(
+            [{"status": "in_progress", "jobs": [job(2, "1.20.6-forge", "completed", "failure")]}],
+            hint=True,
+            FAKE_GH_SHORT_LOG="1",
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("##[error]", result.stdout)
+        self.assertIn("log line 3", result.stdout)
+        self.assertNotIn("hint:", result.stdout)
+
+    def test_a_log_that_cannot_be_fetched_names_why(self):
+        result = self.run_script(
+            [{"status": "in_progress", "jobs": [job(2, "1.20.6-forge", "completed", "failure")]}],
+            FAKE_GH_LOG_FAIL="1",
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("could not be read", result.stdout)
+        self.assertIn("404", result.stdout)
 
     def test_green_run_exits_zero_and_skipped_counts_as_pass(self):
         result = self.run_script(
