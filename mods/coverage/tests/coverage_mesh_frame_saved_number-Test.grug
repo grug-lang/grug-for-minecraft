@@ -34,7 +34,8 @@
 # beside their hang detector (build.yml's GRUG_CI_RUN_TIMEOUT). A restored frame that is a light
 # step away from the pedestal frame is retried once more, and if two of them agree the light moved
 # after the pedestal capture and the pedestal frame is taken again, as coverage_mesh_saved_number
-# does: a light step is otherwise read as a stack that stayed (#1179).
+# does: a light step is otherwise read as a stack that stayed (#1179). A frame with the stacks
+# still drawn is decided before that, so a light step cannot make it the pedestal.
 # It defines tick_any_side, so a dedicated server runs it too: the settle wait and the read of the
 # client's copy are forwarded to the joined client, and the captures are the client's (#1086).
 mesh_block: Option[BlockEntity] = Option.new()
@@ -200,14 +201,17 @@ local _wait_copy(ctx: TestTickContext, value: number) {
 
 # The frame after the save, which has to show the stacks. The client's copy holds the number by now
 # and `ctx.world_settled` makes it draw a frame from that copy, so a frame that still matches the
-# pedestal was drawn before the save and is captured again.
+# pedestal was drawn before the save and is captured again. A frame that never changes says the
+# frame pass did not apply the number, not that the save went missing, because the copy has been
+# read back already. A restore that was taken as the pedestal again keeps the stacks in the frame
+# this compares against, so this also names the case where they never left.
 local _capture_after(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 and ctx.world_settled() {
         shot: Screenshot = ctx.screenshot().capture(500, 60, 780, 440)
         room_tick = ctx.current_tick()
         if shot.change_from(before.unwrap()) < 1 {
             attempts = attempts + 1
-            ctx.assert(attempts < 8, "The saved number never reached the client's frame.")
+            ctx.assert(attempts < 8, "The number saved as 1 never changed the client's frame.")
         } else {
             after.set(shot)
             after_taken = true
@@ -225,20 +229,32 @@ local _capture_after(ctx: TestTickContext) {
 # with the frame the room was compared against, the room was lit differently after that capture.
 # That frame then becomes the before frame and the save of 1 and then of 0 is proved again against
 # it, as coverage_mesh_saved_number does (#1179). A room whose light keeps moving never gives two
-# agreeing frames, and a stack that never left gives two that agree and then fails the save of 1,
-# which changes nothing against the new before frame.
+# agreeing frames. A frame with the stacks still drawn is decided before any of that, by what
+# changed rather than by how much: the stacks are drawn by the item pass, which the room's light
+# does not touch, so a frame that differs from the pedestal frame by at least the whole distance
+# between the two reference frames still carries the stacks' change on top of the light. Taking
+# such a frame as the pedestal would instead fail its replay as a save that never arrived.
 local _capture_restored(ctx: TestTickContext) {
     if ctx.current_tick() >= room_tick + 10 and ctx.world_settled() {
         shot: Screenshot = ctx.screenshot().capture(500, 60, 780, 440)
         room_tick = ctx.current_tick()
         moved: number = shot.change_from(after.unwrap())
         near_before: number = shot.change_from(before.unwrap())
+        # How far the frame with the stacks is from the pedestal frame: the stacks' own change plus
+        # whatever light separated the two captures.
+        apart: number = after.unwrap().change_from(before.unwrap())
         if moved < 1 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "Saving 0 did not take the stacks away again.")
         } else if near_before + 0.5 < moved {
             restored = true
             attempts = 0
+        } else if near_before >= apart {
+            # The stacks are drawn on top of a light step: the light adds to what the stacks change
+            # and never takes it back, so a frame this far from the pedestal frame still carries
+            # the stacks, where a pedestal frame after a light step differs by the light (#1179).
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "Saving 0 did not take the stacks away again.")
         } else if _light_stepped(shot) {
             rebaselines = rebaselines + 1
             print("the room's light stepped after the before capture, taking the before frame again")
