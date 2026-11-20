@@ -6,6 +6,10 @@
 # The screen input #1094 forwards runs here now: this server's own interaction manager opens the
 # chest the tests place by right-clicking it (#1388). Proof run 44678178827 passed both.
 #
+# The overlay's click and the cursor it deletes run here now. Test.overlay_supported, Test.overlay_drawn
+# and the first-frame read answer from the joined client (#1099, #1391), and #1470's cursor read and
+# write reach the server's player, so an overlay's click on the joined client sets and deletes the
+# item on the server's cursor. Proof run 44809935576 passed overlay-Test and jei-Test on this leg.
 #
 # The screen-open test runs here now: #1391 forwards the first-frame read to the client that owns
 # the frames, so the answer is the client's own record rather than a guess from a later tick.
