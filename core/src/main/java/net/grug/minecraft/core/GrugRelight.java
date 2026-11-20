@@ -2,6 +2,10 @@ package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.Grug;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
 import java.util.function.LongSupplier;
 
 /**
@@ -23,9 +27,9 @@ import java.util.function.LongSupplier;
  * <p>Both fields the game's renderer bakes a face's brightness from are part of that: beta's
  * terrain renderer takes the larger of a cell's sky and block light, so a room whose sky field was
  * left at the open sky's 15 renders at full brightness however right its block light is (#1368).
- * The engine also skips an update whose box covers more than 32768 cells, which is how a rebuilt
- * room keeps the sky it had before its walls were there, so a settle that queues and hashes only
- * the block field confirms a room that is still bright.
+ * The engine also skips an update whose box covers more than {@link #MAX_UPDATE_CELLS} cells, which
+ * is how a rebuilt room keeps the sky it had before its walls were there, so a settle that queues
+ * and hashes only the block field confirms a room that is still bright.
  */
 public final class GrugRelight {
     private GrugRelight() {}
@@ -63,13 +67,27 @@ public final class GrugRelight {
     }
 
     /**
+     * The most cells one queued light update may cover, which is what beta's engine accepts: its
+     * {@code LightUpdate.updateLight} prints {@code Light too large, skipping!} and recomputes
+     * nothing for a larger box. A radius 13 room's box is 29 x 29 x 42, which is 35322 cells, so a
+     * settle that hands that box over whole does nothing at all and confirms the light the room was
+     * built over.
+     */
+    static final int MAX_UPDATE_CELLS = 32768;
+
+    /**
      * Recomputes the box once, for both fields, and hashes what it holds afterwards. The sky is
      * hashed as well as the block light: a sweep that only repairs the block field leaves the sky
      * field where the room was open to the sky, and a hash that ignores it calls that settled.
+     *
+     * <p>Each field is queued as the pieces {@link #pieces} gives, so that no update is larger than
+     * the engine accepts and none of them is dropped.
      */
     static long sweep(Room room, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        room.queueSky(minX, minY, minZ, maxX, maxY, maxZ);
-        room.queueBlock(minX, minY, minZ, maxX, maxY, maxZ);
+        for (int[] piece : pieces(minX, minY, minZ, maxX, maxY, maxZ)) {
+            room.queueSky(piece[0], piece[1], piece[2], piece[3], piece[4], piece[5]);
+            room.queueBlock(piece[0], piece[1], piece[2], piece[3], piece[4], piece[5]);
+        }
         room.drain();
         long hash = 0;
         for (int y = minY; y <= maxY; y++) {
@@ -81,6 +99,48 @@ public final class GrugRelight {
             }
         }
         return hash;
+    }
+
+    /**
+     * The box, as boxes the engine accepts in one update: each covers at most {@link
+     * #MAX_UPDATE_CELLS} cells, together they cover exactly the box, and no two of them overlap. A
+     * box that is too large is split in half along its longest side and each half is split again,
+     * so the pieces differ in size by at most one block and a room needs as few updates as its size
+     * allows.
+     */
+    static List<int[]> pieces(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        List<int[]> pieces = new ArrayList<>();
+        Deque<int[]> pending = new ArrayDeque<>();
+        pending.add(new int[] {minX, minY, minZ, maxX, maxY, maxZ});
+        while (!pending.isEmpty()) {
+            int[] box = pending.removeFirst();
+            if (cells(box) <= MAX_UPDATE_CELLS) {
+                pieces.add(box);
+                continue;
+            }
+            int xSpan = box[3] - box[0];
+            int ySpan = box[4] - box[1];
+            int zSpan = box[5] - box[2];
+            if (xSpan >= ySpan && xSpan >= zSpan) {
+                int middle = (box[0] + box[3]) >>> 1;
+                pending.add(new int[] {box[0], box[1], box[2], middle, box[4], box[5]});
+                pending.add(new int[] {middle + 1, box[1], box[2], box[3], box[4], box[5]});
+            } else if (ySpan >= zSpan) {
+                int middle = (box[1] + box[4]) >>> 1;
+                pending.add(new int[] {box[0], box[1], box[2], box[3], middle, box[5]});
+                pending.add(new int[] {box[0], middle + 1, box[2], box[3], box[4], box[5]});
+            } else {
+                int middle = (box[2] + box[5]) >>> 1;
+                pending.add(new int[] {box[0], box[1], box[2], box[3], box[4], middle});
+                pending.add(new int[] {box[0], box[1], middle + 1, box[3], box[4], box[5]});
+            }
+        }
+        return pieces;
+    }
+
+    /** How many cells a box covers, as the engine counts them. */
+    private static long cells(int[] box) {
+        return (long) (box[3] - box[0] + 1) * (box[4] - box[1] + 1) * (box[5] - box[2] + 1);
     }
 
     /**

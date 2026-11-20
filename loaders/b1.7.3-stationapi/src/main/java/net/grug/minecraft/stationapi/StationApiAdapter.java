@@ -906,12 +906,18 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * (#1092). Queueing a recompute of the whole box and draining the queue until nothing moves
      * ends at the exact field. See {@link GrugRelight}.
      *
-     * <p>The sky field is swept with the block one because this engine drops an update whose box
-     * covers more than 32768 cells, printing {@code Light too large, skipping!}: the room's clear
-     * and rebuild queue boxes that reach that size, so the air inside a room put up where the sky
-     * was open can keep the sky's 15 after its walls and ceiling are in place. The block field
-     * alone then looks settled while the renderer, which bakes the larger of the two, draws every
-     * face of the room at full brightness (#1368).
+     * <p>The sky field is swept with the block one because an update recomputes only the field it
+     * was queued for: {@code LightUpdate.updateLight} reads the update's own light type, so a block
+     * update never touches the sky. The room's whole box therefore has to be queued for the sky
+     * too, or the air inside a room put up where the sky was open keeps the sky's 15 after its
+     * walls and ceiling are in place, and the renderer, which bakes the larger of the two, draws
+     * every face of the room at full brightness (#1368).
+     *
+     * <p>The build places its blocks with {@code World.setBlock}, which leaves the light alone, so
+     * this settle is the only thing that lights the room, and a box larger than the 32768 cells one
+     * update may cover has to be queued in pieces: {@link GrugRelight} cuts it, because this
+     * engine's {@code LightUpdate} prints {@code Light too large, skipping!} and recomputes nothing
+     * for the whole box.
      */
     @Override
     public void relightRoom(
@@ -930,7 +936,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
     /**
      * This version's queued light engine, as {@link GrugRelight.Room} drives it. The drain runs in
      * full, as the settle's own does, so a sweep's hash describes a field with no update left
-     * queued.
+     * queued. The box each call is given is one {@link GrugRelight} cut to the size this engine
+     * accepts, and the type is what decides which of the two fields the update recomputes.
      */
     private static final class QueuedLight implements GrugRelight.Room {
         private final World world;

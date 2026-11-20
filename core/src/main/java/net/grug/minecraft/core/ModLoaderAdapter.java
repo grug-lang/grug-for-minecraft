@@ -340,7 +340,9 @@ public interface ModLoaderAdapter {
      * incrementally (1.2.5, b1.7.3) recomputes every cell until nothing changes, because the light
      * it ends with otherwise depends on the radii the room was built at before, and because its
      * engine drops an update over more than 32768 cells and leaves a room built where the sky was
-     * open at the sky's 15 (#1368). See {@link GrugRelight} and #961.
+     * open at the sky's 15 (#1368). The box can be larger than one update may cover, so a loader
+     * that queues it hands over the pieces {@link GrugRelight} cuts rather than the whole box. See
+     * {@link GrugRelight} and #961.
      */
     default void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {}
