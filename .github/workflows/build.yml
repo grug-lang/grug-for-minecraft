@@ -1178,7 +1178,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: multiplayer-${{ matrix.loader }}-goldens-${{ github.run_attempt }}
-          path: mods/*/screenshots
+          path: loaders/${{ matrix.loader }}/run-server/grug_mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 
@@ -1752,7 +1752,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: production-windows-${{ matrix.dir }}-goldens
-          path: mods/*/screenshots
+          path: loaders/${{ matrix.dir }}/build/production-game/grug_mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 
@@ -2019,7 +2019,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: production-${{ matrix.dir }}-goldens
-          path: mods/*/screenshots
+          path: loaders/${{ matrix.dir }}/build/production-game/grug_mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 
@@ -2153,7 +2153,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coexistence-1.20.6-forge-goldens
-          path: mods/*/screenshots
+          path: loaders/1.20.6-forge/build/production-game/grug_mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 
