@@ -22,10 +22,10 @@ jei/tests/jei-Test.grug
 # that Test.overlay_supported answers from the joined client (#1099).
 coverage/tests/hook_forced_normalization-Test.grug
 #
-# The forced-normalization item list runs here now: #1430 forwards the force to the joined client, so
-# its frame draws the list with the state the test asks for (#1040). The 11614 of 12672 px difference
-# this leg measured was taken with the state off (#1099, #1137). Proof run PROOF_RUN passed it.
-#
+# The forced-normalization item list. It stays listed: run 44676776210 failed it in 11614 of 12672
+# px, the number this leg measured with the state off (#1099, #1137), so #1430's forwarded force does
+# not reach this leg's joined client yet (#1465).
+jei/tests/item_list_forced_normalization-Test.grug
 #
 # The wall-backed buildcraft captures that still differ. cobblestone_pipe_shapes passes here (#1213).
 # Proof 43763297057 (#1096) failed redstone_engine_green in 33 of 34100 px, and proof 43819785598 in
