@@ -1,0 +1,4 @@
+# The text overlay_hot_reload-Test.grug swaps in for this overlay (#881). It exports nothing, so a
+# screen that draws the original overlay after the swap is a build that never picked the new text
+# up. Kept after the .grug extension so the game does not compile it as a script of its own.
+nothing: bool = true

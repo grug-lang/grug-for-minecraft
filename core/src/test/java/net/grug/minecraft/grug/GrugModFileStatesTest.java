@@ -166,6 +166,21 @@ class GrugModFileStatesTest {
     }
 
     @Test
+    void swappedPutsAGrugScriptsSiblingAfterItsExtension() throws IOException {
+        givenAModFile("the original\n");
+        Path swap = modFile().resolveSibling("thing-Block.grug.swap");
+        Files.write(swap, "the replacement\n".getBytes(StandardCharsets.UTF_8));
+
+        GrugModFileStates.set(modsDir, path(), "swapped");
+
+        // The sibling is not a .grug file itself, so the game never compiles it: the naming that
+        // puts .swap before the extension would make "thing-Block.swap.grug", an entity type the
+        // compiler rejects, and it would fail every run at load.
+        assertEquals("the replacement\n", modFileText());
+        assertTrue(Files.isRegularFile(swap), "the fixture is left for the next run");
+    }
+
+    @Test
     void swappedWithNoSiblingToSwapInFails() throws IOException {
         givenABinaryAsset(PNG_HEADER, PNG_HEADER);
         Files.delete(modsDir.toPath().resolve("mymod/assets/mymod/textures/block/stone.swap.png"));

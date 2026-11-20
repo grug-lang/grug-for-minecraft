@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.core.GrugCore;
@@ -15,13 +16,14 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
- * Pins that an edited overlay script is made again, which no game test can observe: a capture shows
- * whether an overlay drew, not whether the entity behind it was rebuilt. See #881.
+ * Pins that an edited overlay script is made again, and that no other overlay is, which no game
+ * test can observe: a capture shows whether an overlay drew, not whether the entity behind it was
+ * rebuilt. See #881.
  *
  * <p>The report is handed to {@link GrugModsWatcher#applyReport}, the seam a hot reload arrives
  * through, and the entities are counted through {@link GrugOverlayScripts}' seam, so no grug state
@@ -32,6 +34,7 @@ class GrugOverlayScriptsTest {
 
     private static final String MOD = "cov";
     private static final String NAME = "cov_overlay";
+    private static final String OTHER = "other_overlay";
     private static final String PATH = PREFIX + "code/" + NAME + "-Overlay.grug";
 
     private Object savedAdapter;
@@ -115,47 +118,59 @@ class GrugOverlayScriptsTest {
         GrugOverlayScripts.init(files, mods);
     }
 
-    private static Map<String, Long> filesOf(String name, long fileId) {
-        Map<String, Long> files = new HashMap<>();
-        files.put(name, fileId);
+    private static Map<String, Long> twoOverlays() {
+        Map<String, Long> files = new TreeMap<>();
+        files.put(NAME, 4L);
+        files.put(OTHER, 5L);
         return files;
     }
 
-    private static Map<String, String> modsOf(String name, String mod) {
-        Map<String, String> mods = new HashMap<>();
-        mods.put(name, mod);
+    private static Map<String, String> twoMods() {
+        Map<String, String> mods = new TreeMap<>();
+        mods.put(NAME, "a");
+        mods.put(OTHER, "b");
         return mods;
     }
 
+    private static List<String> namesOf(List<GrugOverlayScripts.Script> scripts) {
+        List<String> names = new ArrayList<>();
+        for (GrugOverlayScripts.Script script : scripts) names.add(script.name);
+        return names;
+    }
+
     @Test
-    void anEditedOverlayIsMadeAgainFromItsNewFile() {
+    void anEditedOverlayIsMadeAgainWithoutTouchingAnotherOverlaysState() {
         Recorder recorder = record();
-        init(filesOf(NAME, 4L), modsOf(NAME, MOD));
+        init(twoOverlays(), twoMods());
 
         List<GrugOverlayScripts.Script> before = GrugOverlayScripts.scripts();
-        assertEquals(Collections.singletonList(4L), recorder.created);
-        assertEquals(100L, before.get(0).entityHandle);
-        assertEquals(MOD, before.get(0).mod);
-        // Every export of the new file is looked up on its entity.
-        assertEquals(7, recorder.exports.size());
+        assertEquals(Arrays.asList(4L, 5L), recorder.created);
+        assertEquals(Arrays.asList(NAME, OTHER), namesOf(before));
+        GrugOverlayScripts.Script other = before.get(1);
+        // Every export of both files is looked up on its entity.
+        assertEquals(14, recorder.exports.size());
 
         GrugModsWatcher.applyReport(
-                new FileInfo[] {overlay(PATH, NAME, 4L)}, new String[0], errors::add);
+                new FileInfo[] {overlay(PATH, NAME, 7L)}, new String[0], errors::add);
 
         List<GrugOverlayScripts.Script> after = GrugOverlayScripts.scripts();
         assertTrue(errors.isEmpty(), errors.toString());
-        // The old entity is dropped rather than re-asked, and the new file makes a new one.
+        // Only the edited file's entity is dropped, and it is made again from the id the report
+        // carries. The other mod's overlay keeps its entity, and so its member state.
         assertEquals(Collections.singletonList(100L), recorder.destroyed);
-        assertEquals(Arrays.asList(4L, 4L), recorder.created);
-        assertEquals(101L, after.get(0).entityHandle);
+        assertEquals(Arrays.asList(4L, 5L, 7L), recorder.created);
+        assertEquals(Arrays.asList(NAME, OTHER), namesOf(after));
+        assertEquals(102L, after.get(0).entityHandle);
         assertEquals(MOD, after.get(0).mod);
-        assertEquals(14, recorder.exports.size(), "the exports are looked up again, not reused");
+        assertSame(other, after.get(1), "another mod's overlay is not made again");
+        assertEquals(
+                21, recorder.exports.size(), "the edited overlay's exports are looked up again");
     }
 
     @Test
     void anOverlayFileThatFailedToCompileKeepsTheOverlayItHad() {
         Recorder recorder = record();
-        init(filesOf(NAME, 4L), modsOf(NAME, MOD));
+        init(twoOverlays(), twoMods());
         GrugOverlayScripts.scripts();
 
         GrugModsWatcher.applyReport(
@@ -167,27 +182,33 @@ class GrugOverlayScriptsTest {
         assertEquals(1, errors.size(), "the compile error is reported, as a block's is");
         assertTrue(errors.get(0).startsWith("Failed to hot-reload"), errors.get(0));
         assertTrue(recorder.destroyed.isEmpty(), "a broken edit does not drop the working overlay");
-        assertEquals(Collections.singletonList(4L), recorder.created);
-        assertEquals(100L, after.get(0).entityHandle);
+        assertEquals(Arrays.asList(4L, 5L), recorder.created);
+        assertEquals(Arrays.asList(NAME, OTHER), namesOf(after));
     }
 
     @Test
     void anOverlayWhoseEntityCouldNotBeMadeIsLeftOut() {
         Recorder recorder = record(4L);
-        init(filesOf(NAME, 4L), modsOf(NAME, MOD));
+        init(twoOverlays(), twoMods());
 
-        assertTrue(GrugOverlayScripts.scripts().isEmpty(), "a file with no entity is not asked");
-        assertEquals(Collections.singletonList(4L), recorder.created);
-        assertTrue(
-                recorder.exports.isEmpty(),
+        List<GrugOverlayScripts.Script> made = GrugOverlayScripts.scripts();
+        assertEquals(Collections.singletonList(OTHER), namesOf(made));
+        assertEquals(Arrays.asList(4L, 5L), recorder.created);
+        assertEquals(
+                7,
+                recorder.exports.size(),
                 "no export is looked up on an entity that was not made");
     }
 
     @Test
     void anOverlayAddedWhileTheGameRunsIsMadeOnTheNextFrame() {
         Recorder recorder = record();
-        init(new HashMap<>(), new HashMap<>());
-        assertTrue(GrugOverlayScripts.scripts().isEmpty());
+        Map<String, Long> files = new TreeMap<>();
+        files.put(NAME, 4L);
+        Map<String, String> mods = new TreeMap<>();
+        mods.put(NAME, MOD);
+        init(files, mods);
+        assertEquals(Arrays.asList(NAME), namesOf(GrugOverlayScripts.scripts()));
 
         String added = PREFIX + "code/added-Overlay.grug";
         GrugModsWatcher.applyReport(
@@ -195,7 +216,24 @@ class GrugOverlayScriptsTest {
 
         List<GrugOverlayScripts.Script> after = GrugOverlayScripts.scripts();
         assertTrue(errors.isEmpty(), errors.toString());
-        assertEquals(Collections.singletonList(9L), recorder.created);
-        assertEquals(100L, after.get(0).entityHandle);
+        assertEquals(Arrays.asList(4L, 9L), recorder.created);
+        assertEquals(Arrays.asList("added", NAME), namesOf(after));
+        assertEquals(100L, after.get(1).entityHandle);
+        assertTrue(recorder.destroyed.isEmpty(), "a new file drops no other overlay");
+    }
+
+    @Test
+    void anOverlayFixedAfterFailingAtLoadIsMadeWhenItCompiles() {
+        Recorder recorder = record();
+        // A file that failed at load is not in the loader's map, so only the watcher's report can
+        // make it appear; this is the case a restart used to be needed for.
+        init(new TreeMap<>(), new TreeMap<>());
+
+        GrugModsWatcher.applyReport(
+                new FileInfo[] {overlay(PATH, NAME, 8L)}, new String[0], errors::add);
+
+        List<GrugOverlayScripts.Script> after = GrugOverlayScripts.scripts();
+        assertEquals(Collections.singletonList(8L), recorder.created);
+        assertEquals(Collections.singletonList(NAME), namesOf(after));
     }
 }

@@ -1,9 +1,12 @@
 package net.grug.minecraft.grug;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * The overlay scripts a client draws through, one entity each, and the exports asked on it.
@@ -14,12 +17,12 @@ import java.util.TreeMap;
  * by index would otherwise see only the items that happened to be registered when the mod was
  * constructed.
  *
- * <p>An edited overlay script is made again, the way a block's and an item's are, rather than
- * keeping the entity and the export function ids the load found: {@link GrugModsWatcher} reports
- * every overlay file the engine compiled, and the next {@link #ensureCreated} drops the entities
- * and makes them again from the new files, looking the export ids up rather than reusing them. A
- * file that failed to compile never reaches the watcher's reload, so its previous overlay keeps
- * drawing and the compile error is reported the same way a block's is. See #881.
+ * <p>{@link GrugModsWatcher} reports every overlay file the engine compiled, and the next {@link
+ * #ensureCreated} drops that file's script and makes it again from the new file, looking all seven
+ * exports up rather than reusing the ids the load found. Only the edited file's overlay is touched,
+ * so another mod's overlay keeps its entity and the state its member scope put there. A file that
+ * failed to compile never reaches the watcher's reload, so its previous overlay keeps drawing and
+ * the compile error is reported the same way a block's is. See #881.
  */
 public final class GrugOverlayScripts {
 
@@ -61,6 +64,9 @@ public final class GrugOverlayScripts {
      * One overlay script's entity, and the exports of that file, asked by the loader each frame.
      */
     public static final class Script {
+        /** The clean name of the file this entity was made from, which a reload matches on. */
+        final String name;
+
         public final long entityHandle;
         final List<GrugObject> owner;
         public final long renderFnId;
@@ -72,7 +78,13 @@ public final class GrugOverlayScripts {
         public final long worldKeyFnId;
         public final String mod;
 
-        Script(long entityHandle, List<GrugObject> owner, String mod, Entities entities) {
+        Script(
+                String name,
+                long entityHandle,
+                List<GrugObject> owner,
+                String mod,
+                Entities entities) {
+            this.name = name;
             this.entityHandle = entityHandle;
             this.owner = owner;
             this.renderFnId = entities.exportFnId("Overlay", "render");
@@ -94,19 +106,20 @@ public final class GrugOverlayScripts {
     /** The mod each overlay file belongs to, by the same clean name. */
     private static Map<String, String> mods = new TreeMap<>();
 
+    /** The scripts to ask, in clean-name order, which is the order the load used. */
     private static final List<Script> scripts = new ArrayList<>();
 
-    /** Whether {@link #scripts} holds an entity for every file the engine has compiled so far. */
-    private static boolean created = false;
+    /**
+     * The clean names of the overlay files the engine compiled again since the last {@link
+     * #ensureCreated}, each of which is dropped and made again on the next frame. A sorted set so a
+     * batch that reports several files puts them back in the list in the same order the load did.
+     */
+    private static final Set<String> pending = new TreeSet<>();
 
     /**
-     * How many overlay files the engine has compiled since the load, and how many of them the
-     * scripts in {@link #scripts} were made from. The two are read and written under the state
-     * lock, the watcher's own hold and {@link #ensureCreated}'s.
+     * Whether {@link #scripts} holds an entity for every file the engine had compiled at the load.
      */
-    private static int reloads = 0;
-
-    private static int builtReloads = 0;
+    private static boolean created = false;
 
     @GrugGenerated("utility class: never instantiated")
     private GrugOverlayScripts() {}
@@ -119,7 +132,7 @@ public final class GrugOverlayScripts {
      * own map lets the client see every file whichever order they ran in. The maps must be mutable,
      * because a later compile is recorded into them. Called once at load; a file the engine
      * compiles later arrives through {@link #reloaded} instead, which is what makes an overlay
-     * added while the game runs appear on the next frame.
+     * added while the game runs, or one fixed after failing at load, appear on the next frame.
      */
     public static void init(Map<String, Long> files, Map<String, String> overlayMods) {
         fileIds = files;
@@ -127,8 +140,8 @@ public final class GrugOverlayScripts {
     }
 
     /**
-     * Records that the engine compiled {@code cleanName} again, so the overlay is made again from
-     * the new file on the next {@link #ensureCreated}.
+     * Records that the engine compiled {@code cleanName} again, so that file's overlay alone is
+     * made again on the next {@link #ensureCreated}.
      *
      * <p>Called by {@link GrugModsWatcher} for a file that compiled, and never for one that failed
      * to: a broken edit leaves the previous overlay drawing, as it leaves a block's previous
@@ -137,12 +150,12 @@ public final class GrugOverlayScripts {
     public static void reloaded(String cleanName, long fileId, String mod) {
         fileIds.put(cleanName, fileId);
         mods.put(cleanName, mod);
-        reloads++;
+        pending.add(cleanName);
     }
 
     /**
-     * Makes an entity for every overlay file, or makes them all again after one of their files
-     * changed, and answers the scripts to ask.
+     * Makes an entity for every overlay file, or makes one file's again after it changed, and
+     * answers the scripts to ask.
      */
     public static List<Script> scripts() {
         ensureCreated();
@@ -150,40 +163,64 @@ public final class GrugOverlayScripts {
     }
 
     /**
-     * Makes one entity per overlay file, or drops the ones made from older files and makes them
-     * again, once the engine has compiled an overlay file since the last time.
+     * Makes one entity per overlay file, or drops the ones made from files the engine compiled
+     * again and makes them again from those files.
      *
-     * <p>The reload's entities are dropped rather than re-initialized by the engine alone, so the
-     * member scope runs on a fresh entity and the host entities it created for the previous file
-     * are released with the owner list. The export ids are looked up on the new entity rather than
-     * carried over from the load.
+     * <p>The engine has already re-initialized an edited file's tracked entity on the watcher
+     * thread by the time {@link GrugModsWatcher} reports it, so this drop and make is what runs the
+     * member scope again on the render thread, where the first entity was made. Only the files in
+     * {@link #pending} are dropped: every other overlay keeps the entity and the member state it
+     * had, so editing one mod's overlay does not reset another's.
+     *
+     * <p>The host entities made by the member scope during this call are rooted in the new entity's
+     * owner list, which is cleared when that entity is dropped. The ones the engine's own
+     * re-initialisation makes are rooted in {@link GrugEntities#retainedFnEntities}, which nothing
+     * clears; a block's temporary {@code init} entity leaves its member-scope entities there too,
+     * so this path does not add a leak the block path does not have. See #881.
      */
     public static void ensureCreated() {
         GrugStateLock.lock();
         try {
-            if (created && builtReloads == reloads) return;
-            if (created) dropScripts();
-            created = true;
-            builtReloads = reloads;
-            for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
-                List<GrugObject> owner = new ArrayList<>();
-                long handle = entities.create(entry.getValue(), owner);
-                if (handle == 0) continue;
-                scripts.add(
-                        new Script(handle, owner, mods.getOrDefault(entry.getKey(), ""), entities));
+            if (!created) {
+                created = true;
+                for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
+                    addScript(entry.getKey(), entry.getValue());
+                }
+                pending.clear();
+                return;
             }
+            if (pending.isEmpty()) return;
+            for (String name : pending) {
+                dropScript(name);
+                addScript(name, fileIds.get(name));
+            }
+            pending.clear();
         } finally {
             GrugStateLock.unlock();
         }
     }
 
-    /** Drops every overlay entity, so nothing keeps drawing a file the engine compiled again. */
-    private static void dropScripts() {
-        for (Script script : scripts) {
+    /** Makes one overlay's entity and puts its script where the clean-name order puts it. */
+    private static void addScript(String name, long fileId) {
+        List<GrugObject> owner = new ArrayList<>();
+        long handle = entities.create(fileId, owner);
+        if (handle == 0) return;
+        Script script = new Script(name, handle, owner, mods.getOrDefault(name, ""), entities);
+        int at = 0;
+        while (at < scripts.size() && scripts.get(at).name.compareTo(name) < 0) at++;
+        scripts.add(at, script);
+    }
+
+    /** Drops the one entity made from {@code name}'s file, if it is there. */
+    private static void dropScript(String name) {
+        for (Iterator<Script> iterator = scripts.iterator(); iterator.hasNext(); ) {
+            Script script = iterator.next();
+            if (!script.name.equals(name)) continue;
             entities.destroy(script.entityHandle);
             script.owner.clear();
+            iterator.remove();
+            return;
         }
-        scripts.clear();
     }
 
     /** Replaces what the entities are made and asked through, and answers the one in use. */
@@ -195,13 +232,15 @@ public final class GrugOverlayScripts {
 
     /** Forgets every script and file a unit test set up, and points the class back at the state. */
     static void resetForTest() {
-        if (created) dropScripts();
+        for (Script script : scripts) {
+            entities.destroy(script.entityHandle);
+            script.owner.clear();
+        }
         entities = NATIVE;
         fileIds = new TreeMap<>();
         mods = new TreeMap<>();
         scripts.clear();
+        pending.clear();
         created = false;
-        reloads = 0;
-        builtReloads = 0;
     }
 }
