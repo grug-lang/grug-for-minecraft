@@ -15,15 +15,12 @@
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
-# The overlay click and the item list. Test.overlay_supported, Test.overlay_drawn and the first-frame
-# read answer from the joined client (#1099, #1391), so overlay_screen_open is unlisted here and
-# measured by proof run 44678178827. overlay-Test and jei-Test stay: #1470 fixed the a1 cursor
-# read/write, but no dispatch has proven the clear #1425 sends reaches this loader's joined client
-# since then, so a proof is pending. The forced-normalization item list stays too: #1470 fixed the
-# a1 cursor read/write and #1475 fixed the stationapi forced-normalization force, but no dispatch has
-# proven this leg's item list since either fix, so a proof is pending.
-coverage/tests/overlay-Test.grug
-jei/tests/jei-Test.grug
+# The item list. Test.overlay_supported, Test.overlay_drawn and the first-frame read answer from the
+# joined client (#1099, #1391), so overlay_screen_open is unlisted here and measured by proof run
+# 44678178827. overlay-Test and jei-Test go with it: #1470 fixed a1's cursor read and write and
+# #1425 sends the clear to the server that holds the menu, and this change's own dispatch proves
+# them on this leg. The forced-normalization item list stays: no dispatch has proven this leg's item
+# list since #1470, so a proof is pending.
 jei/tests/item_list_forced_normalization-Test.grug
 #
 # The forced-normalization probe runs here: #1430 forwards the force and the two reads to the joined

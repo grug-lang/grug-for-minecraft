@@ -7,14 +7,6 @@
 # chest the tests place by right-clicking it (#1388). Proof run 44678178827 passed both.
 #
 #
-# The overlay's click and the cursor it deletes. Test.overlay_supported and Test.overlay_drawn
-# answer from the joined client (#1099), so the overlay tests do run on this server now, but these
-# two still cannot. An overlay's click export runs on that client, so its carried_item read and
-# delete_carried_item call touch the client's copy of the cursor while the test sets and reads the
-# server's, and no client-to-server cursor write exists yet (#1470 merged, a proof is pending).
-coverage/tests/overlay-Test.grug
-jei/tests/jei-Test.grug
-#
 # The screen-open test runs here now: #1391 forwards the first-frame read to the client that owns
 # the frames, so the answer is the client's own record rather than a guess from a later tick.
 # Proof run 44678178827 passed it.
