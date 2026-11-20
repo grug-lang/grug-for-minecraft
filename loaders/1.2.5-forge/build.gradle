@@ -94,6 +94,8 @@ repositories {
         }
     }
     mavenCentral()
+    // Central's fallback (#1453): the same artifacts from a second host.
+    maven { url = 'https://maven-central.storage-download.googleapis.com/maven2/' }
     // launchwrapper 1.5 is not on Maven Central.
     maven { url = 'https://libraries.minecraft.net' }
 }

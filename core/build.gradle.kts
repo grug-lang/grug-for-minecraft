@@ -32,6 +32,12 @@ java.targetCompatibility = JavaVersion.VERSION_17
 
 repositories {
     mavenCentral()
+    // The same artifacts from a second host, which Gradle asks only when Central does not answer
+    // with them: Central answered a published POM with 429 and, in other runs, with 404, and one
+    // repository made that a failed job (#1453). Gradle retries such an answer, then treats the
+    // repository as not holding the module and resolves it from the next one, so Central stays
+    // first. An artifact that exists nowhere still fails: the error then names both hosts.
+    maven("https://maven-central.storage-download.googleapis.com/maven2/")
 }
 
 // Compile-time stand-ins for the loaders' @Mod annotations, which GrugForgeMod carries, and for the
