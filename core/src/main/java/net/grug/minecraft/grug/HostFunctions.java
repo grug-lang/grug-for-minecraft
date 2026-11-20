@@ -3689,7 +3689,6 @@ public class HostFunctions {
      * Records one filled triangle, drawn with the color's alpha. A loader that cannot draw it stops
      * the game, like every other call a loader does not support.
      */
-    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
     public static void OverlayWorldContext_draw_triangle(
             long contextId,
             double x1,
