@@ -846,6 +846,8 @@ class ServerUnlistedTest(unittest.TestCase):
         coverage/tests/forwarded_gui_height
         coverage/tests/forwarded_close_screen
         coverage/tests/forwarded_open_inventory
+        coverage/tests/forwarded_press_screen_key
+        coverage/tests/forwarded_scroll_screen
         coverage/tests/client_saved_number
         coverage/tests/coverage_frame_saved_number
         coverage/tests/coverage_frame_saved_list_energy

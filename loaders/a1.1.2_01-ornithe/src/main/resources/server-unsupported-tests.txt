@@ -17,12 +17,11 @@ coverage/tests/forwarded_scroll_screen-Test.grug
 #
 # The overlay click and the item list. Test.overlay_supported, Test.overlay_drawn and the first-frame
 # read answer from the joined client (#1099, #1391), so overlay_screen_open is unlisted here and
-# measured by proof run 44678178827. overlay-Test and jei-Test stay: dispatch 44674140169 stopped at
-# overlay-Test's own read of the cursor, `The test should be able to put an item on the cursor`
-# (coverage/tests/overlay-Test.grug:108), so the clear #1425 sends to the server that holds the test's
-# menu does not reach this loader's joined client yet (#1389). The forced-normalization item list
-# stays too, because on b1.7.3-stationapi it already failed in 11614 of 12672 px with the state off
-# (#1465), and this leg has not measured it yet.
+# measured by proof run 44678178827. overlay-Test and jei-Test stay: #1470 fixed the a1 cursor
+# read/write, but no dispatch has proven the clear #1425 sends reaches this loader's joined client
+# since then, so a proof is pending. The forced-normalization item list stays too: #1470 fixed the
+# a1 cursor read/write and #1475 fixed the stationapi forced-normalization force, but no dispatch has
+# proven this leg's item list since either fix, so a proof is pending.
 coverage/tests/overlay-Test.grug
 jei/tests/jei-Test.grug
 jei/tests/item_list_forced_normalization-Test.grug
