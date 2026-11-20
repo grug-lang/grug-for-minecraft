@@ -20,7 +20,6 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
-import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.grug.minecraft.ornithe.gui.GrugMenu;
 import net.grug.minecraft.ornithe.gui.GrugScreenPacket;
@@ -33,6 +32,7 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.EntityMap;
+import net.minecraft.server.entity.mob.player.ServerPlayerEntity;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
@@ -348,13 +348,12 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      *
      * <p>A forwarded click would deadlock: the client's interaction manager sends a use packet the
      * server thread is blocked inside this call and so cannot process. So the click is made here
-     * instead, in the same order the game's server uses for a client's use packet: the block's
-     * {@code use} first, and the held item's {@code useOn} when the block declines.
-     *
-     * <p>The dedicated server does have a {@code ServerPlayerInteractionManager.useBlock}, which is
-     * what a client's use packet reaches, but the client jar this layer compiles against does not
-     * hold that class (only the server jar does), so the two calls it makes are made here in the
-     * same order instead.
+     * instead, through the same {@code ServerPlayerInteractionManager.useBlock} the game's own
+     * server calls when a client's use packet arrives. Asking it rather than calling the block's
+     * {@code use} and the held item's {@code useOn} in that order here is what lets a vanilla block
+     * answer: a chest opens through its own {@code use}, which sends this player the game's
+     * container screen, and a chest with a solid block above it stays shut because the game's rule
+     * says so (#1388).
      *
      * <p>The face is the one a ray from the test player's eye to the block's centre enters, which
      * is the face the player sees of it: the top of a block below the eye, the bottom of one above
@@ -378,14 +377,13 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         int blockY = (int) Math.floor(y);
         int blockZ = (int) Math.floor(z);
 
-        // World.getBlock() hands back a block id rather than a Block in this generation.
-        int blockId = world.getBlock(blockX, blockY, blockZ);
-        Block block = (blockId >= 0 && blockId < Block.BY_ID.length) ? Block.BY_ID[blockId] : null;
-
-        if (!(block instanceof GrugBlock)) {
+        // World.getBlock() hands back a block id rather than a Block in this generation, and 0 is
+        // air. A click names a block, so a position with none is a mistake in the test rather than
+        // a click on nothing.
+        if (world.getBlock(blockX, blockY, blockZ) <= 0) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "TestTickContext.use_block: There is no grug block at "
+                    "TestTickContext.use_block: There is no block at "
                             + blockX
                             + ", "
                             + blockY
@@ -395,18 +393,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             return;
         }
 
-        if (!block.use(world, blockX, blockY, blockZ, player)) {
-            ItemStack held = player.inventory.getSelectedItem();
-            if (held != null) {
-                held.useOn(
+        ((ServerPlayerEntity) player)
+                .interactionManager.useBlock(
                         player,
                         world,
+                        player.inventory.getSelectedItem(),
                         blockX,
                         blockY,
                         blockZ,
                         GrugUseBlockFace.face(testPlayerEye(player), blockX, blockY, blockZ));
-            }
-        }
     }
 
     /** Asked of the client of the player who started the run, with the world frozen (#1040). */
