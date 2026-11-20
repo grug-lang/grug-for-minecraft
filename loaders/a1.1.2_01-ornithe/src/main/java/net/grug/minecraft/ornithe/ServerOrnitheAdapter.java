@@ -1003,56 +1003,37 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         return packet;
     }
 
-    /**
-     * Packs a region's blocks, metadata, block light and sky light into the byte array Alpha's
-     * {@link WorldChunkPacket} expects. The layout is the same one the client unpacks: a y-run of
-     * blocks for each (x, z), then the same y-run of metadata nibbles, then block-light nibbles,
-     * then sky-light nibbles.
-     */
+    /** Packs the region's cells with {@link GrugChunkData}, which documents the layout. */
     private static byte[] packChunkData(
             World world, int x, int y, int z, int sizeX, int sizeY, int sizeZ) {
-        int count = sizeX * sizeY * sizeZ;
-        byte[] data = new byte[count * 5 / 2];
-        int index = 0;
-        for (int dx = 0; dx < sizeX; dx++) {
-            for (int dz = 0; dz < sizeZ; dz++) {
-                int wx = x + dx;
-                int wz = z + dz;
-                for (int dy = 0; dy < sizeY; dy++) {
-                    data[index++] = (byte) world.getBlock(wx, y + dy, wz);
-                }
-                int nibbleBytes = sizeY / 2;
-                for (int b = 0; b < nibbleBytes; b++) {
-                    int y0 = y + b * 2;
-                    int y1 = y0 + 1;
-                    data[index++] =
-                            packNibbles(
-                                    world.getBlockMetadata(wx, y0, wz),
-                                    world.getBlockMetadata(wx, y1, wz));
-                }
-                for (int b = 0; b < nibbleBytes; b++) {
-                    int y0 = y + b * 2;
-                    int y1 = y0 + 1;
-                    data[index++] =
-                            packNibbles(
-                                    world.getLight(LightType.BLOCK, wx, y0, wz),
-                                    world.getLight(LightType.BLOCK, wx, y1, wz));
-                }
-                for (int b = 0; b < nibbleBytes; b++) {
-                    int y0 = y + b * 2;
-                    int y1 = y0 + 1;
-                    data[index++] =
-                            packNibbles(
-                                    world.getLight(LightType.SKY, wx, y0, wz),
-                                    world.getLight(LightType.SKY, wx, y1, wz));
-                }
-            }
-        }
-        return data;
-    }
+        return GrugChunkData.pack(
+                x,
+                y,
+                z,
+                sizeX,
+                sizeY,
+                sizeZ,
+                new GrugChunkData.Source() {
+                    @Override
+                    public int block(int wx, int wy, int wz) {
+                        return world.getBlock(wx, wy, wz);
+                    }
 
-    private static byte packNibbles(int lower, int upper) {
-        return (byte) ((upper << 4) | (lower & 0xF));
+                    @Override
+                    public int metadata(int wx, int wy, int wz) {
+                        return world.getBlockMetadata(wx, wy, wz);
+                    }
+
+                    @Override
+                    public int blockLight(int wx, int wy, int wz) {
+                        return world.getLight(LightType.BLOCK, wx, wy, wz);
+                    }
+
+                    @Override
+                    public int skyLight(int wx, int wy, int wz) {
+                        return world.getLight(LightType.SKY, wx, wy, wz);
+                    }
+                });
     }
 
     /**
