@@ -3,6 +3,7 @@ package net.grug.minecraft.grug;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.core.GrugCore;
@@ -24,6 +25,7 @@ import java.util.List;
  */
 class GrugWorldTrianglesTest {
     private Object savedAdapter;
+    private boolean savedTrianglesSupported;
     private final List<double[]> moves = new ArrayList<>();
     private boolean chunkLoaded = true;
 
@@ -34,6 +36,8 @@ class GrugWorldTrianglesTest {
         savedAdapter = field.get(null);
         moves.clear();
         chunkLoaded = true;
+        savedTrianglesSupported = GrugWorldOverlay.trianglesSupported();
+        setTrianglesSupported(false);
         field.set(
                 null,
                 Proxy.newProxyInstance(
@@ -62,11 +66,24 @@ class GrugWorldTrianglesTest {
         Field field = GrugCore.class.getDeclaredField("adapter");
         field.setAccessible(true);
         field.set(null, savedAdapter);
+        setTrianglesSupported(savedTrianglesSupported);
         if (GrugWorldOverlay.isWorld()) {
             GrugWorldOverlay.closeWorld();
         }
         GrugEntities.entityData.clear();
         drain();
+        try {
+            GrugErrors.throwPendingFatal();
+        } catch (IllegalStateException expected) {
+            // The fatal a test provoked, cleared so it cannot outlive the test.
+        }
+    }
+
+    /** Sets the loader's answer to whether it draws world triangles, which a game sets once. */
+    private static void setTrianglesSupported(boolean supported) throws Exception {
+        Field field = GrugWorldOverlay.class.getDeclaredField("trianglesSupported");
+        field.setAccessible(true);
+        field.setBoolean(null, supported);
     }
 
     private static List<String> drain() {
@@ -123,6 +140,30 @@ class GrugWorldTrianglesTest {
     @Test
     void aTriangleOutsideAWorldPassIsNotRecorded() {
         assertFalse(GrugWorldOverlay.recordTriangle(new double[9], 0));
+    }
+
+    @Test
+    void aLoaderThatCannotDrawTrianglesStopsTheGameInsteadOfRecordingOne() {
+        long color = HostFunctions.Color_rgba(0, 255, 0, 100);
+        GrugWorldOverlay.openWorld(0, 0, 0, 0);
+        long context =
+                GrugEntities.addEntity(
+                        GrugEntityType.OverlayWorldContext, GrugWorldOverlay.context());
+
+        IllegalStateException fatal =
+                assertThrows(
+                        IllegalStateException.class,
+                        () ->
+                                HostFunctions.OverlayWorldContext_draw_triangle(
+                                        context, 0, 1, 2, 3, 4, 5, 6, 7, 8, color));
+
+        assertTrue(
+                fatal.getMessage().contains("draw_triangle is not supported on this loader"),
+                fatal.getMessage());
+        GrugWorldOverlay.closeWorld();
+        assertTrue(
+                GrugWorldOverlay.lastTriangles().isEmpty(), "The refused call recorded nothing.");
+        assertTrue(drain().isEmpty(), "An unsupported loader gets a fatal, not a report.");
     }
 
     @Test
