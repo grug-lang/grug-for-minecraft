@@ -653,13 +653,20 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      * with the world frozen, and answers the same to the test (#1086). A server on its own is
      * settled as soon as a test asks, because no client frame or block packet is owed to anyone;
      * that is also the answer when no client has started a run.
+     *
+     * <p>A region packet still owed to the joined client is not settled, and neither is the poll
+     * that only arms its send: the region is what marks the client's sections dirty, so a capture
+     * taken before it reads a mesh baked from the light before it. {@link GrugLightResend#due}
+     * sends nothing for the first poll after a change, which used to fall through to the client's
+     * answer and let the capture go (#1392).
      */
     @Override
     public boolean isWorldSettled() {
         if (!GrugControlStation.server().hasStarter()) {
             return true;
         }
-        if (resendLight()) {
+        if (lightResend.pending()) {
+            resendLight();
             return false;
         }
         try {
