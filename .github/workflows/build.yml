@@ -2127,7 +2127,7 @@ jobs:
         with:
           name: smoke-${{ matrix.recipe }}
           path: |
-            smoke/launch.log
+            smoke/launch.log*
             smoke/title.png
             smoke/game/logs/
             smoke/game/crash-reports/
