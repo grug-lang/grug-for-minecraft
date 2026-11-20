@@ -94,6 +94,13 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private static final Map<PlayerEntity, GrugAlphaMenu> MENUS = new WeakHashMap<>();
 
+    /**
+     * The cursor this server last set on the player's own inventory. The remapped player inventory
+     * class on a dedicated server lacks the client-only {@code cursorItem} field, so the server's
+     * copy of that cursor lives here instead (#1480).
+     */
+    private static final Map<PlayerEntity, ItemStack> CARRIED_ITEMS = new WeakHashMap<>();
+
     /** The window id the next {@code GUI.open} installs its menu under, never 0. */
     private static int lastWindowId = 0;
 
@@ -128,9 +135,11 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         BlockEntity blockEntity = (BlockEntity) blockEntityObj;
 
         closeMenu(player);
+        ItemStack carried = CARRIED_ITEMS.remove(player);
 
         GrugAlphaMenu menu = GrugAlphaMenu.build(player.inventory, inventory, layout);
         menu.windowId = nextWindowId();
+        menu.cursor = carried;
         MENUS.put(player, menu);
 
         Connection connection = GrugControlAlpha.connectionOfPlayer(player);
@@ -209,6 +218,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         for (PlayerEntity player : new ArrayList<>(MENUS.keySet())) {
             if (!players.contains(player)) {
                 closeMenu(player);
+                CARRIED_ITEMS.remove(player);
             }
         }
     }
@@ -579,7 +589,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         if (menu != null) {
             return menu.cursor == null ? null : menu.cursor.getItem();
         }
-        ItemStack stack = player.inventory.cursorItem;
+        ItemStack stack = CARRIED_ITEMS.get(player);
         return stack == null ? null : stack.getItem();
     }
 
@@ -599,8 +609,9 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             sendToPlayer(player, GrugScreenContentPacket.of(menu));
             return;
         }
-        player.inventory.cursorItem = itemObj == null ? null : new ItemStack((Item) itemObj);
-        sendCursorToPlayer(player, player.inventory.cursorItem);
+        ItemStack stack = itemObj == null ? null : new ItemStack((Item) itemObj);
+        CARRIED_ITEMS.put(player, stack);
+        sendCursorToPlayer(player, stack);
     }
 
     /** Clears this server's cursor and tells the client (#1098, #1389). */
@@ -620,7 +631,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             sendToPlayer(player, GrugScreenContentPacket.of(menu));
             return;
         }
-        player.inventory.cursorItem = null;
+        CARRIED_ITEMS.remove(player);
         sendCursorToPlayer(player, null);
     }
 
@@ -854,6 +865,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             inventory.setItem(slot, null);
         }
         inventory.selectedSlot = 0;
+        CARRIED_ITEMS.remove(player);
+        sendCursorToPlayer(player, null);
     }
 
     /**
