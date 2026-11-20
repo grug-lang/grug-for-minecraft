@@ -1,9 +1,12 @@
 package net.grug.minecraft.ornithe.client;
 
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.ornithe.block.GrugBlock;
+import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.inventory.menu.SurvivalInventoryScreen;
 import net.minecraft.entity.mob.player.PlayerEntity;
+import net.minecraft.world.World;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 
 /**
@@ -33,5 +36,34 @@ public final class GrugClientPlayer {
         MinecraftInstance.get()
                 .openScreen(
                         new SurvivalInventoryScreen(player.inventory, player.inventory.crafting));
+    }
+
+    /**
+     * Right-clicks the block at the position on this client's own copy of the world, which is where
+     * an Alpha container screen opens (#1494).
+     *
+     * <p>This is the block's own activation, the first half of the game's right-click ({@code
+     * ClientPlayerInteractionManager.useBlock}). It is the half a joined client ran for itself:
+     * {@code ChestBlock.use} calls {@code PlayerEntity.openChestMenu}, which this client overrides
+     * to open the game's own chest screen, while a dedicated server's player sends nothing, because
+     * Alpha has no container packet. A grug block is left alone, since the server owns its menu
+     * (#1098).
+     */
+    public static void useBlock(int x, int y, int z) {
+        Minecraft minecraft = MinecraftInstance.get();
+        World world = minecraft.world;
+        PlayerEntity player = minecraft.player;
+        if (world == null || player == null) {
+            return;
+        }
+        int blockId = world.getBlock(x, y, z);
+        if (blockId <= 0 || blockId >= Block.BY_ID.length) {
+            return;
+        }
+        Block block = Block.BY_ID[blockId];
+        if (block == null || block instanceof GrugBlock) {
+            return;
+        }
+        block.use(world, x, y, z, player);
     }
 }
