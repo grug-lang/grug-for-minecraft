@@ -134,6 +134,16 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     }
 
     /**
+     * The selection box of a block exists only in this version's client class: the server's {@code
+     * Block} has neither {@code setBlockBoundsBasedOnState} nor {@code
+     * getSelectedBoundingBoxFromPool}, so a block read here has no box to answer with (#1441).
+     */
+    @Override
+    public boolean blockSelectionIsClientOnly() {
+        return true;
+    }
+
+    /**
      * How thin the column is that asks which collision boxes cover the player's own point. It only
      * has to be non-zero so a box whose edge is exactly on the point still intersects it.
      */

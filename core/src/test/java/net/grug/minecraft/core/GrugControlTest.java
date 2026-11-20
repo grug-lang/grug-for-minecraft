@@ -44,9 +44,16 @@ class GrugControlTest {
         boolean flushed = false;
         final List<byte[]> toServer = new ArrayList<>();
 
+        /**
+         * The server's flushes and asks in the order it made them, so a test can tell a flush that
+         * came before its question from one that came after.
+         */
+        final List<String> order = new ArrayList<>();
+
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
             if (!connected) return false;
+            order.add("ask");
             toClient.add(message);
             client.onMessage(message);
             return true;
@@ -55,6 +62,7 @@ class GrugControlTest {
         @Override
         public void flushWorld() {
             flushed = true;
+            order.add("flush");
         }
 
         /** How many times the server asked the loader to apply the client's queued work. */
@@ -212,6 +220,12 @@ class GrugControlTest {
                 public double reloadCount(String path, boolean loaderReloads) {
                     throw new AssertionError("no call was expected");
                 }
+
+                @Override
+                public boolean blockSelectionContains(
+                        double x, double y, double z, double pointX, double pointY, double pointZ) {
+                    throw new AssertionError("no call was expected");
+                }
             };
 
     private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
@@ -329,6 +343,12 @@ class GrugControlTest {
         public double reloadCount(String path, boolean loaderReloads) {
             throw new AssertionError("no call was expected");
         }
+
+        @Override
+        public boolean blockSelectionContains(
+                double x, double y, double z, double pointX, double pointY, double pointZ) {
+            throw new AssertionError("no call was expected");
+        }
     }
 
     /** A client whose settle answer the test decides, and which counts the frames it forgets. */
@@ -438,6 +458,12 @@ class GrugControlTest {
 
         @Override
         public double reloadCount(String path, boolean loaderReloads) {
+            throw new AssertionError("no call was expected");
+        }
+
+        @Override
+        public boolean blockSelectionContains(
+                double x, double y, double z, double pointX, double pointY, double pointZ) {
             throw new AssertionError("no call was expected");
         }
     }
@@ -614,6 +640,28 @@ class GrugControlTest {
         public double reloadCount(String path, boolean loaderReloads) {
             seen.add((loaderReloads ? "reloadCount " : "hotReloadCount ") + path);
             return loaderReloads ? 7 : 5;
+        }
+
+        /** What this client answers for a block's selection box. */
+        boolean blockSelectionAnswer = true;
+
+        @Override
+        public boolean blockSelectionContains(
+                double x, double y, double z, double pointX, double pointY, double pointZ) {
+            seen.add(
+                    "blockSelection "
+                            + x
+                            + " "
+                            + y
+                            + " "
+                            + z
+                            + " "
+                            + pointX
+                            + " "
+                            + pointY
+                            + " "
+                            + pointZ);
+            return blockSelectionAnswer;
         }
     }
 
@@ -1614,6 +1662,50 @@ class GrugControlTest {
         assertEquals(1, press.pitch);
         assertEquals(0, press.third);
 
+        // A block selection names the block in the first three slots and the block-local point in
+        // the last three, and a call with only three numbers carries zeros there (#1441).
+        GrugControlWire.Message selection =
+                GrugControlWire.decode(
+                        GrugControlWire.callRequest(
+                                8,
+                                GrugControlWire.CALL_BLOCK_SELECTION,
+                                "",
+                                4,
+                                5,
+                                6,
+                                0.25,
+                                0.5,
+                                0.75));
+        assertEquals(4, selection.volume);
+        assertEquals(5, selection.pitch);
+        assertEquals(6, selection.third);
+        assertEquals(0.25, selection.fourth);
+        assertEquals(0.5, selection.fifth);
+        assertEquals(0.75, selection.sixth);
+        assertEquals(0, press.fourth);
+        assertEquals(0, press.fifth);
+        assertEquals(0, press.sixth);
+        // Each of the point's three numbers is checked, not only the first.
+        for (double[] point :
+                new double[][] {
+                    {Double.NaN, 0.5, 0.75}, {0.25, Double.NaN, 0.75}, {0.25, 0.5, Double.NaN}
+                }) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () ->
+                            GrugControlWire.decode(
+                                    GrugControlWire.callRequest(
+                                            8,
+                                            GrugControlWire.CALL_BLOCK_SELECTION,
+                                            "",
+                                            4,
+                                            5,
+                                            6,
+                                            point[0],
+                                            point[1],
+                                            point[2])));
+        }
+
         assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_ERROR));
         assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_CHUNK));
         assertTrue(GrugControlWire.isAnswer(GrugControlWire.ANSWER_VALUE));
@@ -1634,10 +1726,11 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_DRAWN));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCREEN_GEOMETRY));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_FIRST_FRAME));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_BLOCK_SELECTION));
         assertFalse(GrugControlWire.isCall((byte) 0));
         // Above the last call the wire carries, so a code added there is not silently accepted as
         // one of these.
-        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_OVERLAY_FIRST_FRAME + 1)));
+        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_BLOCK_SELECTION + 1)));
 
         // A give names its item and the count the client computed, and a count no host function
         // can ask for, or a message that names no item, is refused rather than applied.
@@ -1718,7 +1811,7 @@ class GrugControlTest {
 
         byte[] unknown =
                 GrugControlWire.callRequest(
-                        1, (byte) (GrugControlWire.CALL_OVERLAY_FIRST_FRAME + 1), "x", 0, 0, 0);
+                        1, (byte) (GrugControlWire.CALL_BLOCK_SELECTION + 1), "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1812,6 +1905,9 @@ class GrugControlTest {
         assertTrue(caller.overlayFirstFrameCleared("coverage"));
         // The mining crack is asked of the client's own level, which the stand-in has none of.
         assertTrue(caller.miningCrack(1, 2, 3));
+        // The selection box is asked of the client's own copy of the world, which the stand-in has
+        // none of either.
+        assertTrue(caller.blockSelectionContains(1, 2, 3, 0.25, 0.5, 0.75));
         // No change has been reported for a path nothing touched, by the engine or a loader.
         assertEquals(0.0, caller.reloadCount("coverage/assets/none.png", false));
         assertEquals(0.0, caller.reloadCount("coverage/assets/none.png", true));
@@ -1842,6 +1938,8 @@ class GrugControlTest {
                         "overlayFirstFrameClearedForTest coverage",
                         "clientLevel",
                         "miningCrackForTest null",
+                        "clientLevel",
+                        "blockSelectionContains null",
                         "canForceNormalizationForTest",
                         "forceNormalizationForTest",
                         "normalizationEnabledForTest",
@@ -2014,6 +2112,186 @@ class GrugControlTest {
         assertTrue(reports.get(3).startsWith("TestTickContext.reload_count: "), reports.get(3));
     }
 
+    /**
+     * A stand-in loader whose own block selection is the answer given, which records what it was
+     * asked, and which forwards to {@code forwarded} when that is not null. The answer and the
+     * whole {@code clientOnly} capability are the test's, so which side answered a call shows in
+     * its result and in what each side recorded.
+     */
+    private static ModLoaderAdapter blockSelectionLoader(
+            GrugClientTestCalls.Forwarded forwarded,
+            boolean clientOnly,
+            List<String> asked,
+            boolean answer) {
+        return (ModLoaderAdapter)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        ModLoaderAdapter.class.getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) -> {
+                            switch (method.getName()) {
+                                case "forwardedClientTestCalls":
+                                    return forwarded;
+                                case "blockSelectionIsClientOnly":
+                                    return clientOnly;
+                                case "blockSelectionContains":
+                                    asked.add(
+                                            "own " + args[1] + " " + args[2] + " " + args[3] + " "
+                                                    + args[4] + " " + args[5] + " " + args[6]);
+                                    return answer;
+                                default:
+                                    return method.isDefault()
+                                            ? java.lang.reflect.InvocationHandler.invokeDefault(
+                                                    proxy, method, args)
+                                            : null;
+                            }
+                        });
+    }
+
+    @Test
+    void aBlockSelectionIsAskedOfTheJoinedClientRatherThanTheLoadersOwnGame() {
+        ScreenCalls client = new ScreenCalls();
+        Loopback loop = wireCalls(1000, client);
+        loop.client.beginRun();
+        List<String> failed = new ArrayList<>();
+        GrugClientTestCalls.Forwarded forwarded =
+                new GrugClientTestCalls.Forwarded(() -> loop.server, failed::add);
+        List<String> asked = new ArrayList<>();
+
+        // 1.2.5's server has no selection box of its own, so the joined client's answer is the one
+        // that counts, both ways: the loader's own opposite answer is never asked for.
+        assertTrue(
+                GrugClientTestCalls.blockSelectionContains(
+                        blockSelectionLoader(forwarded, true, asked, false),
+                        "level",
+                        4,
+                        5,
+                        6,
+                        0.25,
+                        0.5,
+                        0.75));
+        client.blockSelectionAnswer = false;
+        assertFalse(
+                GrugClientTestCalls.blockSelectionContains(
+                        blockSelectionLoader(forwarded, true, asked, true),
+                        "level",
+                        4,
+                        5,
+                        6,
+                        0.25,
+                        0.5,
+                        0.75));
+        // The test's blocks are queued until the tick ends, so the client is only asked once they
+        // have been sent: without that it would read the world as it was before the test built it.
+        assertTrue(loop.flushed);
+        assertEquals(List.of("flush", "ask", "flush", "ask"), loop.order);
+        assertEquals(
+                List.of(
+                        "blockSelection 4.0 5.0 6.0 0.25 0.5 0.75",
+                        "blockSelection 4.0 5.0 6.0 0.25 0.5 0.75"),
+                client.seen);
+        assertTrue(asked.isEmpty(), asked.toString());
+        assertTrue(failed.isEmpty(), failed.toString());
+    }
+
+    @Test
+    void aBlockSelectionIsTheLoadersOwnGameWhenNothingCanBeForwarded() {
+        List<String> asked = new ArrayList<>();
+        // A 1.2.5 server whose client never started a run has nobody to ask, so its own call runs
+        // and refuses as it did before there was a channel: the world is not even flushed.
+        ScreenCalls client = new ScreenCalls();
+        Loopback idle = wireCalls(1000, client);
+        GrugClientTestCalls.Forwarded unstarted =
+                new GrugClientTestCalls.Forwarded(
+                        () -> idle.server,
+                        message -> {
+                            throw new AssertionError(message);
+                        });
+        assertTrue(
+                GrugClientTestCalls.blockSelectionContains(
+                        blockSelectionLoader(unstarted, true, asked, true),
+                        "level",
+                        1,
+                        2,
+                        3,
+                        0.25,
+                        0.5,
+                        0.75));
+        assertFalse(idle.flushed);
+        assertTrue(client.seen.isEmpty(), client.seen.toString());
+
+        // A loader with a client but no channel, and a client process with no channel at all,
+        // answer from their own game: their server's copy of the world is the one their tests
+        // built, and forwarding it would read the client's copy before a flush.
+        Loopback joined = wireCalls(1000, client);
+        joined.client.beginRun();
+        GrugClientTestCalls.Forwarded forwarded =
+                new GrugClientTestCalls.Forwarded(() -> joined.server, failed -> {});
+        assertTrue(
+                GrugClientTestCalls.blockSelectionContains(
+                        blockSelectionLoader(forwarded, false, asked, true),
+                        "level",
+                        1,
+                        2,
+                        3,
+                        0.25,
+                        0.5,
+                        0.75));
+        assertTrue(
+                GrugClientTestCalls.blockSelectionContains(
+                        blockSelectionLoader(null, false, asked, true),
+                        "level",
+                        1,
+                        2,
+                        3,
+                        0.25,
+                        0.5,
+                        0.75));
+        assertTrue(
+                GrugClientTestCalls.blockSelectionContains(
+                        blockSelectionLoader(null, true, asked, true),
+                        "level",
+                        1,
+                        2,
+                        3,
+                        0.25,
+                        0.5,
+                        0.75));
+        assertEquals(
+                List.of(
+                        "own 1.0 2.0 3.0 0.25 0.5 0.75",
+                        "own 1.0 2.0 3.0 0.25 0.5 0.75",
+                        "own 1.0 2.0 3.0 0.25 0.5 0.75",
+                        "own 1.0 2.0 3.0 0.25 0.5 0.75"),
+                asked);
+        assertFalse(joined.flushed);
+        assertTrue(client.seen.isEmpty(), client.seen.toString());
+    }
+
+    @Test
+    void aBlockSelectionThatCannotBeAskedIsReportedAndAnswersFalse() {
+        ScreenCalls client = new ScreenCalls();
+        Loopback idle = wireCalls(1000, client);
+        List<String> reports = new ArrayList<>();
+        GrugClientTestCalls.Forwarded refused =
+                new GrugClientTestCalls.Forwarded(() -> idle.server, reports::add);
+
+        assertFalse(refused.blockSelectionContains(1, 2, 3, 0.25, 0.5, 0.75));
+        assertEquals(
+                List.of(
+                        "TestTickContext.block_selection: No client has started a run, so there is"
+                                + " no block selection to read. A client starts a run when its"
+                                + " player starts one."),
+                reports);
+        assertFalse(idle.flushed);
+        assertTrue(client.seen.isEmpty(), client.seen.toString());
+
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> idle.server.blockSelectionContains(1, 2, 3, 0.25, 0.5, 0.75));
+        assertTrue(e.getMessage().contains("No client has started a run"), e.getMessage());
+    }
+
     @Test
     void theNormalizationQuestionsAreAskedOfTheJoinedClientAndAnswered() {
         ScreenCalls client = new ScreenCalls();
@@ -2156,6 +2434,36 @@ class GrugControlTest {
         assertNotNull(
                 GrugControlServer.callProblem(
                         GrugControlWire.CALL_MINING_CRACK, "", Double.NaN, 2, 3));
+        // A block selection adds a second position. Its point is a block-local offset, so a value
+        // outside 0 to 1 is legal; only a number that is not finite is refused, in either position.
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_BLOCK_SELECTION));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_BLOCK_SELECTION));
+        assertNull(
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_BLOCK_SELECTION, "", 1, 2, 3, 0.25, 0.5, 0.75));
+        assertNull(
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_BLOCK_SELECTION, "", 1, 2, 3, -2, 3, 4));
+        assertNotNull(
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_BLOCK_SELECTION,
+                        "",
+                        Double.NaN,
+                        2,
+                        3,
+                        0.25,
+                        0.5,
+                        0.75));
+        assertNotNull(
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_BLOCK_SELECTION,
+                        "",
+                        1,
+                        2,
+                        3,
+                        0.25,
+                        Double.POSITIVE_INFINITY,
+                        0.75));
         assertNull(
                 GrugControlServer.callProblem(
                         GrugControlWire.CALL_MOD_FILE_STATE, "a/assets/b", 4, 0, 0));
@@ -3217,7 +3525,10 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) (GrugControlWire.CALL_OVERLAY_FIRST_FRAME + 1),
+                        (byte) (GrugControlWire.CALL_BLOCK_SELECTION + 1),
+                        0,
+                        0,
+                        0,
                         0,
                         0,
                         0,
@@ -3233,8 +3544,7 @@ class GrugControlTest {
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
         assertTrue(
-                answer.text.contains(
-                        "unknown call " + (GrugControlWire.CALL_OVERLAY_FIRST_FRAME + 1)),
+                answer.text.contains("unknown call " + (GrugControlWire.CALL_BLOCK_SELECTION + 1)),
                 answer.text);
     }
 
@@ -3252,6 +3562,9 @@ class GrugControlTest {
                         new byte[0],
                         GrugScreenCalls.GUI_WIDTH,
                         GrugControlWire.CALL_SCREEN_READ,
+                        0,
+                        0,
+                        0,
                         0,
                         0,
                         0,
@@ -3494,6 +3807,17 @@ class GrugControlTest {
 
                             @Override
                             public double reloadCount(String path, boolean loaderReloads) {
+                                throw new AssertionError("no call was expected");
+                            }
+
+                            @Override
+                            public boolean blockSelectionContains(
+                                    double x,
+                                    double y,
+                                    double z,
+                                    double pointX,
+                                    double pointY,
+                                    double pointZ) {
                                 throw new AssertionError("no call was expected");
                             }
                         });

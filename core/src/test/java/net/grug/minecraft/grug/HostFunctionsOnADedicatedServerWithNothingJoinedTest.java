@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.ModLoaderAdapter;
@@ -25,6 +26,10 @@ import java.util.List;
  * TestTickContext.get_origin} reporting that the server has no level, no player and no test origin
  * yet. Those arms used to carry a {@code @GrugGenerated} exclusion, because only a dedicated server
  * reaches them and no CI run launched one until #163. See #169 and #188.
+ *
+ * <p>It also covers the block selection a dedicated server has no box for: with no client joined to
+ * forward it to, the call is the same refusal with the same message as before the forwarding
+ * existed (#1441).
  *
  * <p>No game and no loader is needed: the side, the empty world and the report all reach a stand-in
  * adapter installed on {@code GrugCore.adapter}, the same reflection seam the other core tests use,
@@ -81,6 +86,22 @@ class HostFunctionsOnADedicatedServerWithNothingJoinedTest {
         assertFalse(GrugCore.getAdapter().refuseWithoutAClient("TestTickContext.click_screen"));
 
         assertEquals(List.of(), reported);
+    }
+
+    @Test
+    void aDedicatedServerWithNoClientToForwardToRefusesTheBlockSelectionAsItAlwaysDid()
+            throws Exception {
+        installAnEmptyDedicatedServer();
+
+        assertFalse(
+                GrugClientTestCalls.blockSelectionContains(
+                        GrugCore.getAdapter(), new Object(), 1, 2, 3, 0.25, 0.5, 0.75));
+
+        assertEquals(
+                List.of(
+                        "TestTickContext.block_selection: This needs a client, and grug is running"
+                                + " on a dedicated server."),
+                reported);
     }
 
     @Test
@@ -149,6 +170,17 @@ class HostFunctionsOnADedicatedServerWithNothingJoinedTest {
                         case "testPlayer":
                         case "getTestOrigin":
                             return null;
+                        case "blockSelectionContains":
+                            // 1.2.5's server answers a block selection by refusing it, because
+                            // its block class has no selection box, and then answers false; with
+                            // no client to forward to that refusal is what a test still gets
+                            // (#1441).
+                            InvocationHandler.invokeDefault(
+                                    proxy,
+                                    ModLoaderAdapter.class.getMethod(
+                                            "refuseWithoutAClient", String.class),
+                                    "TestTickContext.block_selection");
+                            return false;
                         default:
                             throw new AssertionError(
                                     "the arm reached " + method.getName() + " on the adapter");
