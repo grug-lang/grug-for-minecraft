@@ -55,7 +55,7 @@ public final class Color {
 
     @Override
     public int hashCode() {
-        return (r << 16) | (g << 8) | b;
+        return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     @Override
