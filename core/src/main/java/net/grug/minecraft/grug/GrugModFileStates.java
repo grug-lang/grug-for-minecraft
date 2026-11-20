@@ -397,6 +397,11 @@ public final class GrugModFileStates {
      * {@code .swap} inserted before the extension, so {@code stone.png} is swapped by {@code
      * stone.swap.png} and a name with no extension at all by {@code LICENSE.swap}.
      *
+     * <p>A grug script is the exception: its sibling carries {@code .swap} after the {@code .grug}
+     * extension, so {@code thing-Overlay.grug} is swapped by {@code thing-Overlay.grug.swap}. With
+     * the infix before the extension the sibling would be {@code thing-Overlay.swap.grug}, which
+     * the game compiles at load and rejects, because {@code Overlay.swap} is not an entity type.
+     *
      * <p>A name the state is derived from rather than passed in, so a test that swaps one file
      * cannot name a different one: {@code TestTickContext.set_mod_file_state} is a test-only host
      * function and the whole reason it can write into the mods tree is that a test needs to disturb
@@ -408,10 +413,14 @@ public final class GrugModFileStates {
         // A leading dot is a hidden file's, not an extension's, so ".gitignore" becomes
         // ".gitignore.swap" rather than ".swapgitignore".
         int dot = name.lastIndexOf('.');
-        String swapped =
-                dot <= 0
-                        ? name + SWAP_INFIX
-                        : name.substring(0, dot) + SWAP_INFIX + name.substring(dot);
+        String swapped;
+        if (name.endsWith(".grug")) {
+            swapped = name + SWAP_INFIX;
+        } else if (dot <= 0) {
+            swapped = name + SWAP_INFIX;
+        } else {
+            swapped = name.substring(0, dot) + SWAP_INFIX + name.substring(dot);
+        }
         return path.resolveSibling(swapped);
     }
 }

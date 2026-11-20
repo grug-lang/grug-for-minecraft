@@ -1,12 +1,15 @@
-# An edited overlay script is made again, rather than keeping the entity and the exports the load
-# found (#881). The file is broken first, which must leave the overlay that was already drawing in
-# place and report the compile error the way a block's edit does, and restored after that, which
-# makes the overlay's entity again. Each screen is closed and opened between the edit and the frame
-# a step waits for, because opening a screen clears the drawn mark: the frame that sets it again was
-# drawn after the edit, so a stale mark cannot satisfy the wait.
+# An edited overlay script is drawn from its new text rather than the text the load found (#881).
+# The edit is a swapped-in Overlay that exports nothing, so a frame drawn after the edit proves the
+# new text was picked up: the mark the overlay sets when it draws stays clear. The original text is
+# then restored, and a frame of a freshly opened screen has to draw again. A broken edit in between
+# must leave the overlay that was already drawing in place and report the compile error the way a
+# block's edit does. Each screen is closed and opened between an edit and the frames a step reads,
+# because opening a screen clears the drawn mark: the frames that set it again were drawn after the
+# edit, so a stale mark cannot satisfy a wait.
 started: bool = false
 opened: bool = false
 waited: number = 0
+blank: number = 0
 step: number = 0
 path: string = "coverage/code/coverage_overlay-Overlay.grug"
 baseline: number = -1
@@ -38,9 +41,9 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
 
-    if step == 2 or step == 5 {
-        # The previous screen has to be gone before the next one opens, so the mark that clears when
-        # it opens is not read from the screen the edit was made on.
+    # Steps 2, 5 and 8: the previous screen has to be gone before the next one opens, so the mark
+    # that clears when it opens is not read from the screen the edit was made on.
+    if step == 2 or step == 5 or step == 8 {
         waited = waited + 1
         ctx.assert(waited < 100, "The player's inventory screen should close.")
         if ctx.screen_open() {
@@ -61,6 +64,39 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
 
+    # Steps 1, 4 and 7: the watcher's own poll decides when an edit arrives, so wait for the count
+    # rather than bounding the wait in ticks: a slow filesystem says nothing about the overlay.
+    if step == 1 or step == 4 or step == 7 {
+        if ctx.hot_reload_count(path) <= baseline {
+            ctx.not_done()
+            return
+        }
+        ctx.close_screen()
+        step = step + 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    # Step 6: the swapped text exports no render, so no frame on this screen may set the drawn
+    # mark. Waiting for an absence has no condition to wait on, so this asks for frames for a
+    # bounded number of ticks; each overlay_drawn call turns drawing on, so the game cannot skip
+    # them. The mark is read every tick, and a set mark fails at once instead of after the bound.
+    if step == 6 {
+        blank = blank + 1
+        ctx.assert(not ctx.overlay_drawn(), "The swapped overlay drew, so its new text was not used.")
+        if blank < 400 {
+            ctx.not_done()
+            return
+        }
+        baseline = ctx.hot_reload_count(path)
+        ctx.set_mod_file_state(path, "normal")
+        step = 7
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
     if not ctx.overlay_drawn() {
         waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
@@ -77,44 +113,20 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
 
-    if step == 1 {
-        # The watcher's own poll decides when this arrives, so wait for the count rather than
-        # bounding the wait in ticks: a slow filesystem says nothing about the overlay.
-        if ctx.hot_reload_count(path) <= baseline {
-            ctx.not_done()
-            return
-        }
-        ctx.close_screen()
-        step = 2
-        waited = 0
-        ctx.not_done()
-        return
-    }
-
     if step == 3 {
-        # The frame waited for above was drawn through the overlay the load made, after the file
-        # failed to compile, so a broken edit kept the working overlay rather than taking it away.
+        # The frame waited for above was drawn after the file failed to compile, through the
+        # overlay the load made, so a broken edit kept the working overlay rather than taking it
+        # away. Now swap in a valid text that draws nothing.
         baseline = ctx.hot_reload_count(path)
-        ctx.set_mod_file_state(path, "normal")
+        ctx.set_mod_file_state(path, "swapped")
+        blank = 0
         step = 4
         waited = 0
         ctx.not_done()
         return
     }
 
-    if step == 4 {
-        if ctx.hot_reload_count(path) <= baseline {
-            ctx.not_done()
-            return
-        }
-        ctx.close_screen()
-        step = 5
-        waited = 0
-        ctx.not_done()
-        return
-    }
-
-    # Step 6: the frame waited for above was drawn through the overlay made from the restored file,
-    # which is the edit this test exists for.
+    # Step 9: the restored text was drawn on the screen this step opened, which is the edit the
+    # test exists for.
     ctx.close_screen()
 }
