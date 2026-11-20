@@ -1,10 +1,11 @@
 # Covers Color.rgba, OverlayWorldContext.draw_triangle and TestTickContext.set_player_position
 # (#1253). The overlay's key Y saves the camera's position and draws two half-opaque red triangles
 # four blocks ahead of it over a stone wall, so the wall shows through them. The test then moves the
-# player one and a half blocks along x, which moves the triangles left in the frame while they stay
-# where they were in the world, so one capture shows the translucent fill and the teleport together.
-# Only the Beta 1.7.3 loaders draw triangles and move the player so far; every other loader stops the
-# game on those calls, so the test returns before it builds anything there.
+# player one and a half blocks along x, which moves the triangles one and a half blocks across the
+# frame while they stay where they were in the world, so one capture shows the translucent fill and
+# the teleport together. The capture is framed on the moved triangles, so the whole square is in it.
+# Only the Beta 1.7.3 loaders draw triangles and move the player so far; every other loader stops
+# the game on those calls, so the test returns before it builds anything there.
 started: bool = false
 pressed: bool = false
 moved: bool = false
@@ -71,7 +72,9 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    ctx.screenshot().equals(r"screenshots/overlay_triangles", 400, 160, 880, 560)
+    # 480 by 400, shifted one and a half blocks along x with the triangles, since a window centred
+    # on the frame would cut the off-centre square at the right edge.
+    ctx.screenshot().equals(r"screenshots/overlay_triangles", 589, 160, 1069, 560)
 
     # Left on, the triangles would sit in every later test's captures.
     ctx.press_world_key(89, false)
