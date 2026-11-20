@@ -648,8 +648,15 @@ def jacocoLaunchArgs = { String directoryName ->
         return []
     }
     def execDir = new File(buildDirFile, directoryName)
-    // Start clean, so a segment of an earlier run cannot be combined with this one's.
-    project.delete(execDir)
+    // Start clean of segments, so an earlier run's cannot be combined with this one's, but keep the
+    // loader's unit test exec: the test task writes it in the same build before the launch, and the
+    // coverage gate counts the unit tests (#1387). Deleting the directory here dropped it before
+    // the job uploaded build/jacoco/*.exec, so a class only the unit tests reach read as missed.
+    execDir.listFiles()?.each { segment ->
+        if (segment.name != 'test.exec') {
+            project.delete(segment)
+        }
+    }
     def agent = project.configurations.grugJacocoAgent.singleFile
     return [
         "-Dgrug.coverage.dir=${execDir.absolutePath}",

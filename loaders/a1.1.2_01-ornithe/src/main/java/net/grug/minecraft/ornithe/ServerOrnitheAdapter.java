@@ -20,6 +20,7 @@ import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.block.GrugBlock;
+import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.grug.minecraft.ornithe.gui.GrugScreenContentPacket;
 import net.grug.minecraft.ornithe.gui.GrugScreenOpenPacket;
@@ -829,21 +830,29 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
-     * The recipe result of a crafting grid, which this server cannot compute. The a0.2.1 server jar
-     * has no crafting package at all: Alpha crafted on the client, so the class the client
-     * adapter's computation loads, {@code CraftingManager}, is absent here, and running the
-     * inherited method would fail with {@code NoClassDefFoundError} rather than answer. Reporting
-     * the call keeps the game running with the call's own error, which is what a mod that inserts
-     * into an autocrafting table sees; giving the server a recipe table of its own is a separate
-     * issue, and until then a test that needs a recipe result stays in this loader's unsupported
-     * list.
+     * The recipe result of a crafting grid, from this server's own recipe table (#1387).
+     *
+     * <p>The a0.2.1 server jar has no crafting package at all: Alpha crafted on the client, so the
+     * class the client adapter's computation loads, {@code CraftingManager}, is absent here, and
+     * running the inherited method would fail with {@code NoClassDefFoundError} rather than answer.
+     * {@link GrugServerRecipes} holds the recipes the client registers, matched by the same rule in
+     * core, so a grid answers the result the client would give for it.
      */
     @Override
     public void updateRecipeOutput(Object blockEntityObj, double startSlot) {
-        Grug.hostFunctionErrorHappened(
-                Grug.statePtr,
-                "BlockEntity.update_recipe_output: the a0.2.1 server has no crafting manager, so it"
-                        + " cannot compute a recipe result.");
+        if (!(blockEntityObj instanceof GrugBlockEntity)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "update_recipe_output: "
+                            + blockEntityObj.getClass().getName()
+                            + " has no crafting result container.");
+            return;
+        }
+        GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;
+        ItemStack result =
+                GrugServerRecipes.result(
+                        GrugServerRecipes.gridOf((Inventory) blockEntityObj, (int) startSlot));
+        gbe.setResultStack(result != null ? result.copy() : null);
     }
 
     /** The tests listed in {@code server-unsupported-tests.txt}, which says why. */

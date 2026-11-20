@@ -3,15 +3,14 @@
 # tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
-# Recipes and crafting. The a0.2.1 server jar has no crafting package at all: Alpha crafted on the
-# client, so this server has no CraftingManager, no shaped recipe and no crafting table block
-# entity. ServerOrnitheAdapter reports update_recipe_output rather than running the client adapter's
-# computation, which would load a class the server lacks, so the call is an err instead of a crash;
-# but a test that needs a recipe result still cannot pass until the server has a recipe table of its
-# own, which is a separate issue. autocrafting_table and redstone_engine_item are here because
-# inserting into the table's grid calls it, through the block entity's item_inserted export.
-# wooden_pipe_no_inbox_machine needs the table to have a crafted result to answer its pipe with,
-# which takes the same call.
+# Recipes and crafting. The a0.2.1 server jar has no crafting package at all, so the server answers
+# update_recipe_output from its own table (GrugServerRecipes), built from the same vanilla and mod
+# recipes the client registers and matched by the client's own rule. The entries below stay listed
+# until a dispatch of the a1 dedicated server leg shows them passing; the follow-up pull request
+# removes the ones it proves and keeps the rest. autocrafting_table and redstone_engine_item are
+# here because inserting into the table's grid calls update_recipe_output, through the block
+# entity's item_inserted export. wooden_pipe_no_inbox_machine needs the table to have a crafted
+# result to answer its pipe with, which takes the same call.
 buildcraft/tests/autocrafting_table-Test.grug
 buildcraft/tests/autocrafting_table_borrow-Test.grug
 buildcraft/tests/autocrafting_table_pipe-Test.grug
