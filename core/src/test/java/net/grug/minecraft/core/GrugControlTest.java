@@ -2051,6 +2051,28 @@ class GrugControlTest {
     }
 
     @Test
+    void aControlMessageQueuedFromTheReaderThreadIsDrainedOnTheGameTick() {
+        ScreenCalls client = new ScreenCalls();
+        Loopback loop = wireCalls(1000, client);
+        loop.client.beginRun();
+        byte[] request =
+                GrugControlWire.callRequest(
+                        1,
+                        GrugControlWire.CALL_NORMALIZATION,
+                        "",
+                        GrugControlWire.NORMALIZATION_CAN_FORCE,
+                        0,
+                        0);
+
+        GrugControlClient.queueMessage(request);
+        assertTrue(client.seen.isEmpty(), "queued messages are not handled until drain");
+
+        GrugControlClient.drainPendingMessages();
+
+        assertEquals(List.of("normalization 0"), client.seen);
+    }
+
+    @Test
     void theNewCallsRefuseArgumentsTheClientCouldNotAct() {
         String longPath = "x".repeat(GrugControlWire.MAX_NAME + 1);
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_MINING_CRACK));

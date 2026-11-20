@@ -21,8 +21,10 @@ import java.io.UncheckedIOException;
  *
  * <p>{@link #read} runs on the connection's reader thread, which is the one thread still alive
  * while the server's game thread is frozen waiting for a client's answer, so an answer is handed to
- * the waiting capture from there, and a give is queued for the game thread that drains it. Anything
- * else is handled by {@link #apply}, on the game thread, as any packet is.
+ * the waiting capture from there, and a give is queued for the game thread that drains it. On this
+ * loader {@link #apply} is also read on the reader thread, so anything else is queued to the game
+ * thread there and drained from {@code MinecraftMixin#onClientTick}, because requests that touch
+ * the GL context must run on the thread that owns the frame (#1465).
  */
 @GrugGenerated(
         "the game's packet type: its registration and its hand-off to the game's handlers need a"
@@ -66,7 +68,10 @@ public class GrugControlPacket extends Packet {
     @Override
     public void apply(NetworkHandler handler) {
         if (!consumed) {
-            GrugControlStation.onHandle(handler, bytes);
+            // StationAPI delivers packets on the connection's reader thread, not the game thread,
+            // so requests that touch the GL context (forced normalization) must wait for the tick
+            // that drains them. The queue lives in core so the loader only has to drain it.
+            net.grug.minecraft.core.GrugControlClient.queueMessage(bytes);
         }
     }
 
