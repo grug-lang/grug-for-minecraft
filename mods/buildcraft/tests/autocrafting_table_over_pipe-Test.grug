@@ -87,8 +87,10 @@ local _place_table(ctx: TestTickContext, level: Level, x: number, y: number, z: 
 }
 
 # The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
-# right-clicking the side of a block at z + 1 with the pipe held. The block it lands in is cleared
-# again so both scenes hold the same blocks.
+# right-clicking the side of a block at z + 1 with the pipe held. That block is the cell the test
+# fills with the chest next, so it is left as the wall's stone rather than cleared to air: the
+# port's scene replaces the same wall stone with the chest, and both then settle the same light
+# from the same block change.
 local _place_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
     if not me.is_reference() {
         level.place_block(x, y, z, "grug:wooden_pipe")
@@ -100,7 +102,6 @@ local _place_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: n
     ctx.set_held_item(player, held)
     ctx.use_block(level, x, y, z + 1)
     ctx.clear_held_item(player)
-    level.place_block(x, y, z + 1, "minecraft:air")
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
