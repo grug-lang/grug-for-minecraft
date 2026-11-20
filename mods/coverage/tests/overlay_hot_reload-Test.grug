@@ -1,0 +1,122 @@
+# An edited overlay script is made again, rather than keeping the entity and the exports the load
+# found (#881). The file is broken first, which must leave the overlay that was already drawing in
+# place and report the compile error the way a block's edit does, and restored after that, which
+# makes the overlay's entity again. Each screen is closed and opened between the edit and the frame
+# a step waits for, because opening a screen clears the drawn mark: the frame that sets it again was
+# drawn after the edit, so a stale mark cannot satisfy the wait.
+started: bool = false
+opened: bool = false
+waited: number = 0
+step: number = 0
+path: string = "coverage/code/coverage_overlay-Overlay.grug"
+baseline: number = -1
+
+export tick_any_side(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() {
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens, for the reason
+    # overlay-Test.grug gives.
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 or step == 5 {
+        # The previous screen has to be gone before the next one opens, so the mark that clears when
+        # it opens is not read from the screen the edit was made on.
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should close.")
+        if ctx.screen_open() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        step = step + 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        baseline = ctx.hot_reload_count(path)
+        ctx.set_mod_file_state(path, "invalid")
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        waited = waited + 1
+        ctx.assert(waited < 400, "The engine should report the broken overlay file.")
+        if ctx.hot_reload_count(path) <= baseline {
+            ctx.not_done()
+            return
+        }
+        ctx.close_screen()
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        # The frame waited for above was drawn through the overlay the load made, after the file
+        # failed to compile, so a broken edit kept the working overlay rather than taking it away.
+        baseline = ctx.hot_reload_count(path)
+        ctx.set_mod_file_state(path, "normal")
+        step = 4
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        waited = waited + 1
+        ctx.assert(waited < 400, "The engine should report the restored overlay file.")
+        if ctx.hot_reload_count(path) <= baseline {
+            ctx.not_done()
+            return
+        }
+        ctx.close_screen()
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    # Step 6: the frame waited for above was drawn through the overlay made from the restored file,
+    # which is the edit this test exists for.
+    ctx.close_screen()
+}

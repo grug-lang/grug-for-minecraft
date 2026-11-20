@@ -78,6 +78,15 @@ public final class GrugModsWatcher {
                         GrugFileIndex.cleanEntityName(file.entityName()), file.fileId());
             }
 
+            // An overlay keeps no entity of its own until a screen opens, so all it needs here is
+            // the file's new id and the mark that the next screen makes its entities again.
+            if ("Overlay".equals(file.entityType())) {
+                GrugOverlayScripts.reloaded(
+                        GrugFileIndex.cleanEntityName(file.entityName()),
+                        file.fileId(),
+                        file.modName());
+            }
+
             GrugCore.getAdapter()
                     .logInfo(
                             "Successfully hot-reloaded "

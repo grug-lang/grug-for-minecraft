@@ -2,11 +2,10 @@ package net.grug.minecraft.forge125.client;
 
 import net.grug.minecraft.forge125.GrugGuiAccess;
 import net.grug.minecraft.grug.Grug;
-import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
-import net.grug.minecraft.grug.GrugObject;
 import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugOverlayGeometry;
+import net.grug.minecraft.grug.GrugOverlayScripts;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugTestState;
@@ -33,10 +32,8 @@ import org.lwjgl.opengl.GL12;
 
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.Predicate;
@@ -61,15 +58,6 @@ public final class GrugOverlayHost {
     /** The highlight JEI draws over a hovered slot: white at half opacity. */
     private static final int HIGHLIGHT = 0x80FFFFFF;
 
-    /** The overlay files the loader found, by clean name, so the first screen can create them. */
-    private static Map<String, Long> overlayFileIds = new TreeMap<>();
-
-    /** The mod each overlay file belongs to, by the same clean name. */
-    private static Map<String, String> overlayMods = new TreeMap<>();
-
-    private static final List<Overlay> overlays = new ArrayList<>();
-    private static boolean created = false;
-
     /** The item renderer, made once because the game draws every icon through it. */
     private static RenderItem renderItem = null;
 
@@ -81,52 +69,23 @@ public final class GrugOverlayHost {
     @GrugGenerated("utility class: never instantiated")
     private GrugOverlayHost() {}
 
-    private static final class Overlay {
-        final long entityHandle;
-        final List<GrugObject> owner;
-        final long renderFnId;
-        final long clickFnId;
-        final long keyFnId;
-        final long scrollFnId;
-        final long hudFnId;
-        final long worldFnId;
-        final long worldKeyFnId;
-        final String mod;
-
-        Overlay(
-                long entityHandle,
-                List<GrugObject> owner,
-                long renderFnId,
-                long clickFnId,
-                long keyFnId,
-                long scrollFnId,
-                long hudFnId,
-                long worldFnId,
-                long worldKeyFnId,
-                String mod) {
-            this.entityHandle = entityHandle;
-            this.owner = owner;
-            this.renderFnId = renderFnId;
-            this.clickFnId = clickFnId;
-            this.keyFnId = keyFnId;
-            this.scrollFnId = scrollFnId;
-            this.hudFnId = hudFnId;
-            this.worldFnId = worldFnId;
-            this.worldKeyFnId = worldKeyFnId;
-            this.mod = mod;
-        }
-    }
-
     /**
      * The overlay files to ask, by clean name, with the mod each belongs to, and the mark that this
      * loader draws overlays at all, which a test asks before it opens a screen.
      */
     public static void init(Map<String, Long> files, Map<String, String> mods) {
-        overlayFileIds = new TreeMap<>(files);
-        overlayMods = new TreeMap<>(mods);
+        GrugOverlayScripts.init(files, mods);
         installRuntimeHooks();
         GrugOverlay.noteSupported();
         GrugWorldOverlay.noteSupported();
+    }
+
+    /**
+     * The overlays to ask: one entity per overlay file, made again when the engine compiles that
+     * file anew, so an edited overlay script takes effect without a restart. See #881.
+     */
+    private static List<GrugOverlayScripts.Script> overlays() {
+        return GrugOverlayScripts.scripts();
     }
 
     /**
@@ -158,29 +117,6 @@ public final class GrugOverlayHost {
         }
     }
 
-    private static void ensureCreated() {
-        if (created) return;
-        created = true;
-
-        for (Map.Entry<String, Long> entry : overlayFileIds.entrySet()) {
-            List<GrugObject> owner = new ArrayList<>();
-            long handle = GrugEntities.createEntityWithOwner(entry.getValue(), owner, null);
-            if (handle == 0) continue;
-            overlays.add(
-                    new Overlay(
-                            handle,
-                            owner,
-                            Grug.getExportFnId("Overlay", "render"),
-                            Grug.getExportFnId("Overlay", "click"),
-                            Grug.getExportFnId("Overlay", "key"),
-                            Grug.getExportFnId("Overlay", "scroll"),
-                            Grug.getExportFnId("Overlay", "render_hud"),
-                            Grug.getExportFnId("Overlay", "render_world"),
-                            Grug.getExportFnId("Overlay", "world_key"),
-                            overlayMods.getOrDefault(entry.getKey(), "")));
-        }
-    }
-
     /**
      * Draws every overlay on top of the screen's own frame.
      *
@@ -198,7 +134,6 @@ public final class GrugOverlayHost {
         // that ran before this frame from one that ran after it (#1391).
         GrugOverlay.noteFrame(container);
 
-        ensureCreated();
         readMouse(minecraft, container);
 
         if (renderItem == null) {
@@ -206,7 +141,7 @@ public final class GrugOverlayHost {
         }
 
         String testMod = GrugTestState.currentTestMod;
-        for (Overlay overlay : overlays) {
+        for (GrugOverlayScripts.Script overlay : overlays()) {
             GrugOverlayGeometry geometry =
                     GrugOverlay.render(
                             overlay.entityHandle,
@@ -326,8 +261,7 @@ public final class GrugOverlayHost {
         GuiContainer container = eligible(screen);
         if (container == null) return false;
 
-        ensureCreated();
-        for (Overlay overlay : overlays) {
+        for (GrugOverlayScripts.Script overlay : overlays()) {
             boolean taken =
                     GrugOverlay.scroll(
                             overlay.entityHandle,
@@ -357,8 +291,7 @@ public final class GrugOverlayHost {
         GuiContainer container = eligible(screen);
         if (container == null) return false;
 
-        ensureCreated();
-        for (Overlay overlay : overlays) {
+        for (GrugOverlayScripts.Script overlay : overlays()) {
             boolean taken =
                     GrugOverlay.click(
                             overlay.entityHandle,
@@ -410,8 +343,7 @@ public final class GrugOverlayHost {
         int code = GrugOverlay.keyCodeForName(Keyboard.getKeyName(key));
         if (code < 0 || repeat) return false;
 
-        ensureCreated();
-        for (Overlay overlay : overlays) {
+        for (GrugOverlayScripts.Script overlay : overlays()) {
             if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, code, ctrl)) {
                 GrugOverlay.noteTestPressTaken();
                 return true;
@@ -567,7 +499,6 @@ public final class GrugOverlayHost {
         if (minecraft.theWorld == null || !noScreen(minecraft) || minecraft.gameSettings.hideGUI) {
             return;
         }
-        ensureCreated();
         ScaledResolution resolution =
                 new ScaledResolution(
                         minecraft.gameSettings, minecraft.displayWidth, minecraft.displayHeight);
@@ -582,7 +513,7 @@ public final class GrugOverlayHost {
             GL11.glEnable(GL11.GL_BLEND);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
-            for (Overlay overlay : overlays) {
+            for (GrugOverlayScripts.Script overlay : overlays()) {
                 List<GrugWorldOverlay.Text> texts =
                         GrugWorldOverlay.hud(
                                 overlay.entityHandle,
@@ -612,12 +543,11 @@ public final class GrugOverlayHost {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         EntityLiving view = minecraft.renderViewEntity;
         if (minecraft.theWorld == null || view == null) return;
-        ensureCreated();
         double cameraX = view.lastTickPosX + (view.posX - view.lastTickPosX) * partialTick;
         double cameraY = view.lastTickPosY + (view.posY - view.lastTickPosY) * partialTick;
         double cameraZ = view.lastTickPosZ + (view.posZ - view.lastTickPosZ) * partialTick;
         String testMod = GrugTestState.currentTestMod;
-        for (Overlay overlay : overlays) {
+        for (GrugOverlayScripts.Script overlay : overlays()) {
             List<GrugWorldOverlay.Line> lines =
                     GrugWorldOverlay.world(
                             overlay.entityHandle,
@@ -689,8 +619,7 @@ public final class GrugOverlayHost {
     }
 
     private static void deliverWorldKey(int code, boolean ctrl) {
-        ensureCreated();
-        for (Overlay overlay : overlays) {
+        for (GrugOverlayScripts.Script overlay : overlays()) {
             GrugWorldOverlay.key(overlay.entityHandle, overlay.worldKeyFnId, code, ctrl);
         }
     }
