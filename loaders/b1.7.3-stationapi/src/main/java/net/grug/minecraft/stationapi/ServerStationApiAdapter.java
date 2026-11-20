@@ -21,7 +21,6 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
-import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.entity.GrugSavedDataStation;
 import net.grug.minecraft.stationapi.control.GrugControlStation;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
@@ -206,12 +205,12 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      *
      * <p>A forwarded click would deadlock: the client's interaction manager sends a use packet the
      * server thread is blocked inside this call and so cannot process. So the click is made here
-     * instead, in the same order the game's server uses for a client's use packet: the block's
-     * {@code onUse} first, and the held item's {@code useOnBlock} when the block declines.
-     *
-     * <p>This generation's client jar, which is what this layer compiles against, holds no server
-     * interaction manager to call, so the two calls its {@code interactBlock} makes are made here
-     * in the same order.
+     * instead, through the same {@code ServerPlayerInteractionManager.interactBlock} the game's own
+     * server calls when a client's use packet arrives. Asking it rather than calling the block's
+     * {@code onUse} and the held item's {@code useOnBlock} in that order here is what lets a
+     * vanilla block answer: a chest opens through its own {@code onUse}, which sends this player
+     * the game's container screen, and a chest with a solid block above it stays shut because the
+     * game's rule says so (#1388).
      *
      * <p>The face is the one a ray from the test player's eye to the block's centre enters, which
      * is the face the player sees of it: the top of a block below the eye, the bottom of one above
@@ -235,15 +234,13 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         int blockY = (int) Math.floor(y);
         int blockZ = (int) Math.floor(z);
 
-        // World.getBlockId() hands back a block id rather than a Block in this generation.
-        int blockId = world.getBlockId(blockX, blockY, blockZ);
-        Block block =
-                (blockId >= 0 && blockId < Block.BLOCKS.length) ? Block.BLOCKS[blockId] : null;
-
-        if (!(block instanceof GrugBlock)) {
+        // World.getBlockId() hands back a block id rather than a Block in this generation, and 0 is
+        // air. A click names a block, so a position with none is a mistake in the test rather than
+        // a click on nothing.
+        if (world.getBlockId(blockX, blockY, blockZ) <= 0) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "TestTickContext.use_block: There is no grug block at "
+                    "TestTickContext.use_block: There is no block at "
                             + blockX
                             + ", "
                             + blockY
@@ -253,18 +250,15 @@ public class ServerStationApiAdapter extends StationApiAdapter {
             return;
         }
 
-        if (!block.onUse(world, blockX, blockY, blockZ, player)) {
-            ItemStack held = player.inventory.getSelectedItem();
-            if (held != null) {
-                held.useOnBlock(
+        ((ServerPlayerEntity) player)
+                .interactionManager.interactBlock(
                         player,
                         world,
+                        player.inventory.getSelectedItem(),
                         blockX,
                         blockY,
                         blockZ,
                         GrugUseBlockFace.face(testPlayerEye(player), blockX, blockY, blockZ));
-            }
-        }
     }
 
     /**
