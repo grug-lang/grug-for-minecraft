@@ -1,7 +1,10 @@
 # Covers the cobblestone pipe's T merge shape: a T-junction where two wooden pipes feed into one
-# cobblestone pipe from adjacent sides, with a chest on the output side. The capture pins the
-# different textures of the two pipe kinds and the cap where they meet. The fixture is static, so
-# no items need to travel for the screenshot.
+# cobblestone pipe from opposite sides, with a chest on the third side as the output. The two
+# wooden pipes sit on the sides, not along the camera's view, so both caps where the pipe kinds
+# meet stay in frame, and the source of each is the chest directly above it, which keeps the
+# sources out of the T's own row. The capture pins the different textures of the two pipe kinds
+# and the cap where they meet. The fixture is static, so no items need to travel for the
+# screenshot.
 pipe: Option[BlockEntity] = Option.new()
 
 # Whether the wall and the pipe's section have been meshed again from the settled light yet.
@@ -33,7 +36,7 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else {
         ctx.assert(pipe.has(), "The pipe should have a block entity.")
-        ctx.screenshot().equals(r"screenshots/cobblestone_pipe_t_merge", 400, 120, 880, 360)
+        ctx.screenshot().equals(r"screenshots/cobblestone_pipe_t_merge", 400, 0, 880, 360)
     }
 }
 
@@ -52,36 +55,34 @@ local _setup(ctx: TestTickContext) {
 
     _wall(level, x - 6, y - 9, z + 6)
 
-    # The north wooden pipe goes in first: the reference places a pipe by right-clicking a block at
-    # z + 1, which for this pipe is z + 4, the cell the cobblestone pipe fills, and the temporary
-    # block is cleared again before the cobblestone pipe is placed there.
-    _place_wooden_pipe(ctx, level, x, y - 1.88, z + 3)
-
-    # Cobblestone pipe in the centre, chest on the east output side.
-    _place_cobblestone_pipe(ctx, level, x, y - 1.88, z + 4)
-    level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
-
-    # Wooden pipe to the west, chest behind it as its source.
+    # The two wooden pipes take their source from the chest directly above each of them, which
+    # keeps the sources out of the T's own row. The chests go in first, so a pipe's placement
+    # finds its source and the reference's switchSource settles on YPos straight away.
+    level.place_block(x - 1, y - 0.88, z + 4, "minecraft:chest")
+    level.place_block(x + 1, y - 0.88, z + 4, "minecraft:chest")
     _place_wooden_pipe(ctx, level, x - 1, y - 1.88, z + 4)
-    level.place_block(x - 2, y - 1.88, z + 4, "minecraft:chest")
+    _place_wooden_pipe(ctx, level, x + 1, y - 1.88, z + 4)
 
-    # Chest behind the north wooden pipe as its source.
-    level.place_block(x, y - 1.88, z + 2, "minecraft:chest")
+    # Cobblestone pipe in the centre, with a chest behind it as the output. The third arm points
+    # away from the camera, so it cannot stand in front of the junction the way a pipe on the
+    # camera's side would.
+    _place_cobblestone_pipe(ctx, level, x, y - 1.88, z + 4)
+    level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
 
     pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
     ctx.assert(pipe_opt.has(), "The cobblestone pipe should have a block entity.")
     pipe.set(pipe_opt.unwrap())
 
-    # The port's wooden pipe source side is the side plus one. The west pipe extracts from side 4
-    # (XNeg) and the north pipe extracts from side 2 (ZNeg).
+    # The port's wooden pipe source side is the side plus one. Both wooden pipes extract from the
+    # chest above them, which is YPos, side 1, so the saved source is 2.
     if not me.is_reference() {
         west: Option[BlockEntity] = level.get_block_entity(x - 1, y - 1.88, z + 4)
-        north: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 3)
+        east: Option[BlockEntity] = level.get_block_entity(x + 1, y - 1.88, z + 4)
         if west.has() {
-            west.unwrap().set_saved_number("source", 5)
+            west.unwrap().set_saved_number("source", 2)
         }
-        if north.has() {
-            north.unwrap().set_saved_number("source", 3)
+        if east.has() {
+            east.unwrap().set_saved_number("source", 2)
         }
     }
 }
