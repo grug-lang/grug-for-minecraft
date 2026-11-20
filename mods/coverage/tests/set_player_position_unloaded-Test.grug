@@ -1,0 +1,37 @@
+# A move into a chunk the client has not received is refused rather than attempted, because a
+# teleport into an unchunked area crashes this generation of the game (#1253). The call reports and
+# the player stays where they were, which is what lets a test move in steps and wait between them.
+# Only the Beta 1.7.3 loaders move the player; every other loader stops the game on the call, so the
+# test returns before it asks.
+started: bool = false
+asked: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+    # The room is built and the camera has reached the start it was teleported to, so a camera that
+    # reads differently after the refusal is the refusal's own doing and not a frame still catching
+    # up with the runner's teleport.
+    if not ctx.world_settled() {
+        ctx.not_done()
+        return
+    }
+    if not asked {
+        asked = true
+        # The camera is the player's eye as it is now, unlike the origin, which is captured once per
+        # test, so it is what shows whether the refused call moved anybody.
+        before: Vec3 = ctx.camera()
+        ctx.expect_error("is not loaded")
+        ctx.set_player_position(before.x() + 100000.0, before.y() - 1.62, before.z())
+        after: Vec3 = ctx.camera()
+        ctx.assert(after.x() == before.x(), "A refused move leaves the player where they were.")
+        ctx.assert(after.z() == before.z(), "A refused move leaves the player where they were.")
+        return
+    }
+}

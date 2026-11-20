@@ -1565,8 +1565,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * the Ornithe mappings name the one that takes the feet, so the feet a test passes have to be
      * lifted by the eye height here. Without that the player lands an eye height below the position
      * the test asked for and drops through a floor it built there. See #1253.
+     *
+     * <p>Excluded from coverage because a client run that has a test to move always has a local
+     * player and a world, so those two arms of the guard cannot be entered; the unloaded-chunk arm
+     * is what {@code set_player_position_unloaded-Test.grug} asks for.
      */
     @Override
+    @GrugGenerated("the no-player arm: a run that moves a player has one and a world to move it in")
     public boolean setPlayerPositionForTest(double x, double y, double z) {
         @SuppressWarnings("deprecation")
         Minecraft mc = (Minecraft) FabricLoader.getInstance().getGameInstance();

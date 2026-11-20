@@ -1656,8 +1656,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * Moves the local player's feet to the position when the client has that chunk, so a test can
      * stand inside or outside a shape drawn around a point. A teleport into a chunk the client has
      * not received crashes this generation of the game, so it answers false instead.
+     *
+     * <p>Excluded from coverage because a client run that has a test to move always has a local
+     * player and a world, so those two arms of the guard cannot be entered; the unloaded-chunk arm
+     * is what {@code set_player_position_unloaded-Test.grug} asks for.
      */
     @Override
+    @GrugGenerated("the no-player arm: a run that moves a player has one and a world to move it in")
     public boolean setPlayerPositionForTest(double x, double y, double z) {
         PlayerEntity player = GrugClientPlayer.get();
         Minecraft mc = MinecraftInstance.get();
