@@ -119,14 +119,21 @@ class ClientWrapperLauncher implements JavaLauncher {
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 repositories {
-    // Central's filtered mirror (#1453): org.jacoco is resolved here first, so a 429 from Central
-    // cannot fail the JaCoCo agent download. org.ow2.asm is included because org.jacoco.core and
-    // the unshaded agent depend on it. Every other group is asked only of Central.
+    // Central's filtered mirror (#1453): the coverage agent (org.jacoco, org.ow2.asm) and the
+    // test framework (org.junit, org.junit.jupiter, org.junit.platform, org.opentest4j,
+    // org.apiguardian) are resolved here first, so a 429 from Central cannot fail their download.
+    // org.ow2.asm is included because org.jacoco.core and the unshaded agent depend on it. Every
+    // other group is asked only of Central.
     maven {
         url 'https://maven-central.storage-download.googleapis.com/maven2/'
         content {
             includeGroup 'org.jacoco'
             includeGroup 'org.ow2.asm'
+            includeGroup 'org.junit'
+            includeGroup 'org.junit.jupiter'
+            includeGroup 'org.junit.platform'
+            includeGroup 'org.opentest4j'
+            includeGroup 'org.apiguardian'
         }
     }
     mavenCentral()
