@@ -50,6 +50,11 @@ local _setup(ctx: TestTickContext) {
 
     _wall(level, x - 6, y - 9, z + 6)
 
+    # The north wooden pipe goes in first: the reference places a pipe by right-clicking a block at
+    # z + 1, which for this pipe is z + 4, the cell the cobblestone pipe fills, and the temporary
+    # block is cleared again before the cobblestone pipe is placed there.
+    _place_wooden_pipe(ctx, level, x, y - 1.88, z + 3)
+
     # Cobblestone pipe in the centre, chest on the east output side.
     _place_cobblestone_pipe(ctx, level, x, y - 1.88, z + 4)
     level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
@@ -58,8 +63,7 @@ local _setup(ctx: TestTickContext) {
     _place_wooden_pipe(ctx, level, x - 1, y - 1.88, z + 4)
     level.place_block(x - 2, y - 1.88, z + 4, "minecraft:chest")
 
-    # Wooden pipe to the north, chest behind it as its source.
-    _place_wooden_pipe(ctx, level, x, y - 1.88, z + 3)
+    # Chest behind the north wooden pipe as its source.
     level.place_block(x, y - 1.88, z + 2, "minecraft:chest")
 
     pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
