@@ -190,7 +190,7 @@
       "spawnMob:(Ljava/lang/Object;Ljava/lang/String;DDD)Z"
     ]
   },
-  "recorded_from": "44679280827",
+  "recorded_from": "run 44679280827",
   "why": {
     "net/grug/minecraft/core/GrugForcedNormalization": "The decision the runner makes before a marked test's first tick: appliesTo is asked for every test, but capabilitiesToTurnOff and matchesFound run only for a test whose loader is forced, which a dedicated server never is. The one coverage test that reaches them, hook_forced_normalization-Test.grug, is skipped on every server leg because the state it proves belongs to a client's frame pass.",
     "net/grug/minecraft/core/GrugOverlayFirstFrame": "The record a client keeps when a screen's first frame begins. The frame pass and the screen-open hook are reached by the overlay tests a server runs, but clearedAtFirstFrame is reached only by overlay_screen_open-Test.grug on a client, which every server leg lists as unsupported, so a server never asks it. The stacked branch that promotes overlay_screen_open to the server legs makes the entry removable on the next full dispatch.",
