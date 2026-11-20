@@ -72,9 +72,12 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    # 480 by 400, shifted one and a half blocks along x with the triangles, since a window centred
-    # on the frame would cut the off-centre square at the right edge.
-    ctx.screenshot().equals(r"screenshots/overlay_triangles", 589, 160, 1069, 560)
+    # 480 by 340, shifted one and a half blocks along x with the triangles, since a window centred
+    # on the frame would cut the off-centre square at the right edge. The bottom 60 rows are left
+    # out: they hold only the first-person hand, whose shading after the move settles on a different
+    # frame in the installed client than in the dev one, and the hand is not what this test compares
+    # (#1472). The square's lowest row is 324 in the capture and the hand's highest is 347.
+    ctx.screenshot().equals(r"screenshots/overlay_triangles", 589, 160, 1069, 500)
 
     # Left on, the triangles would sit in every later test's captures.
     ctx.press_world_key(89, false)
