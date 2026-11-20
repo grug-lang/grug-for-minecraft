@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.Vec3;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -319,6 +320,7 @@ public final class GrugControlClient {
     private final int dropWidth;
     private final int lateWidth;
     private final AtomicReference<Runnable> held = new AtomicReference<>();
+    private final ConcurrentLinkedQueue<byte[]> pendingMessages = new ConcurrentLinkedQueue<>();
     private volatile boolean runActive = false;
 
     /**
@@ -413,6 +415,32 @@ public final class GrugControlClient {
         runActive = false;
         seenRevision = Long.MIN_VALUE;
         held.set(null);
+    }
+
+    /**
+     * Queues a message to be handled on the game thread by {@link #drainPendingMessages}, so a
+     * loader whose packet reader is not the game thread can still process server requests on the
+     * thread that owns the GL context and the frame (#1465).
+     */
+    public static void queueMessage(byte[] bytes) {
+        GrugControlClient client = current;
+        if (client != null) {
+            client.pendingMessages.add(bytes);
+        }
+    }
+
+    /**
+     * Drains messages queued by {@link #queueMessage} and handles them. A loader calls this from
+     * its game tick so requests that need the frame (such as the forced-normalization call) run
+     * before the frame they affect.
+     */
+    public static void drainPendingMessages() {
+        GrugControlClient client = current;
+        if (client == null) return;
+        byte[] bytes;
+        while ((bytes = client.pendingMessages.poll()) != null) {
+            client.onMessage(bytes);
+        }
     }
 
     /**

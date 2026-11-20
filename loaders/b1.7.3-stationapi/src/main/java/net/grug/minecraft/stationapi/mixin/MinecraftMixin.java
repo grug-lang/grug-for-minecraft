@@ -1,6 +1,7 @@
 package net.grug.minecraft.stationapi.mixin;
 
 import net.grug.minecraft.core.GrugConnectAddress;
+import net.grug.minecraft.core.GrugControlClient;
 import net.grug.minecraft.stationapi.GrugClientAccess;
 import net.grug.minecraft.stationapi.GrugClientHooks;
 import net.grug.minecraft.stationapi.client.GrugOverlayHost;
@@ -61,6 +62,9 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
         grug$hooks.tick();
+        // Drain control messages on the game thread, because the packet reader thread is not the
+        // thread that owns the GL context and the frame (#1465).
+        GrugControlClient.drainPendingMessages();
         GrugControlStationClient.onClientTick((Minecraft) (Object) this, grug$hooks);
         GrugOverlayHost.pollWorldKeys((Minecraft) (Object) this);
     }
