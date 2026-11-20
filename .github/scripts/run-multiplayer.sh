@@ -656,6 +656,24 @@ while :; do
         exit 1
       fi
     done
+    # The tests #1390, #1425 and #1430 unlisted on the legs whose proof passed (#1040) have to show
+    # as passed too, or a leg that skips one quietly would still look green. Each leg requires
+    # exactly the ones its own list no longer names, which is why the overlay, the JEI list and the
+    # item list stop at the three legs that carry them: their proofs are run 44642603736 for the
+    # overlay pair on 1.2.5-forge and b1.7.3-ornithe and run 44650333692 for 1.20.6-forge, and the
+    # overlay's click on a1.1.2_01 and b1.7.3-stationapi is still listed there.
+    server_unlisted="coverage/tests/click_screen_release coverage/tests/hook_forced_normalization"
+    case "$LOADER" in
+      1.2.5-forge|1.20.6-forge|b1.7.3-ornithe)
+        server_unlisted="$server_unlisted coverage/tests/overlay jei/tests/jei jei/tests/item_list_forced_normalization"
+        ;;
+    esac
+    for unlisted in $server_unlisted; do
+      if ! grep -qF "[GRUG CI] PASS ${unlisted}-Test.grug" "$SERVER_LOG"; then
+        echo "==> The run passed, but ${unlisted}-Test.grug did not run on the dedicated server." >&2
+        exit 1
+      fi
+    done
     # The wall-backed buildcraft captures have to show as passed, or a leg that skips one (its export
     # reverted, or the loader listing it as unsupported) would still look green. Each compares
     # against its single flat golden, so a leg whose joined client draws a different picture fails
