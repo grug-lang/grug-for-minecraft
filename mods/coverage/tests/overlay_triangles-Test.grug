@@ -1,10 +1,10 @@
 # Covers Color.rgba, OverlayWorldContext.draw_triangle and TestTickContext.set_player_position
 # (#1253). The overlay's key Y saves the camera's position and draws two half-opaque red triangles
 # four blocks ahead of it over a stone wall, so the wall shows through them. The test then moves the
-# player one and a half blocks along x, which moves the triangles left in the frame while they stay where they
-# were in the world, so one capture shows the translucent fill and the teleport together. Only the
-# Beta 1.7.3 loaders draw triangles and move the player so far; every other loader stops the game on
-# those calls, so the test returns before it builds anything there.
+# player one and a half blocks along x, which moves the triangles left in the frame while they stay
+# where they were in the world, so one capture shows the translucent fill and the teleport together.
+# Only the Beta 1.7.3 loaders draw triangles and move the player so far; every other loader stops the
+# game on those calls, so the test returns before it builds anything there.
 started: bool = false
 pressed: bool = false
 moved: bool = false
@@ -20,6 +20,10 @@ export tick(ctx: TestTickContext) {
         ctx.set_box_radius(6)
         origin: Vec3 = ctx.get_origin()
         _wall(ctx.get_client_level(), origin.x() - 6, origin.y() - 9, origin.z() + 6)
+        # The room's floor is three blocks below the feet and only the column the player starts in
+        # has a block at their own level, so the move below needs a floor of its own: without one
+        # the player drops onto the torch floor and the camera leaves the triangles above the frame.
+        _pad(ctx.get_client_level(), origin.x() + 1.5, origin.z(), origin.y() - 4.62)
         ctx.not_done()
         return
     }
@@ -83,5 +87,22 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
             wx = wx + 1
         }
         wy = wy + 1
+    }
+}
+
+# Three by three blocks whose top is the feet level, under a position the test moves the player to,
+# so the player stands on their own level there instead of falling to the room's torch floor.
+local _pad(level: Level, x: number, z: number, feet_y: number) {
+    px: number = Math.floor(x)
+    pz: number = Math.floor(z)
+    py: number = Math.floor(feet_y) - 1
+    dx: number = -1
+    while dx <= 1 {
+        dz: number = -1
+        while dz <= 1 {
+            level.place_block(px + dx, py, pz + dz, "minecraft:stone")
+            dz = dz + 1
+        }
+        dx = dx + 1
     }
 }
