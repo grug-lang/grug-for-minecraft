@@ -613,10 +613,11 @@ while :; do
     # cannot forward, and either skip is a green run: the tests below have to show as passed. The
     # forwarded_ ones are the channel's own tests, including forwarded_world_settled, which is the
     # control for the forwarded settle answer (#1086), forwarded_capture_same_tick, which is what a
-    # settle ask's flush is for (#1123), and the screen calls (#1094), which every
-    # leg that forwards them asks here: the reads and close_screen with no screen, the open
-    # GUI's reads on 1.20.6, and open_inventory, which the two newer legs open and the three older
-    # ones refuse because that call is still only the client's there. The pixel tests stay client-only
+    # settle ask's flush is for (#1123), and the screen calls (#1094), which every leg that
+    # forwards them asks here: the reads and close_screen with no screen, the open GUI's reads, and
+    # open_inventory, which every leg's server forwards to the joined client's own inventory:
+    # 1.20.6 and 1.2.5 from the start, and Alpha and both b1.7.3 legs since #882, whose server
+    # refused it before that, so no leg's list names it. The pixel tests stay client-only
     # until a joined client's frame matches a singleplayer one (#1092); coverage_frame_saved_number,
     # coverage_frame_saved_list_energy,
     # coverage_mesh_saved_number and coverage_mesh_saved_reinit run on every server leg now that a
