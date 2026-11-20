@@ -77,6 +77,10 @@ public final class ClientGrugScreens implements ClientModInitializer {
                 active =
                         GrugScreen.openFromServer(
                                 pending.x, pending.y, pending.z, pending.windowId, pending.layout);
+            } else if (pending.windowId == 0) {
+                if (minecraft.player != null) {
+                    minecraft.player.inventory.cursorItem = pending.cursor;
+                }
             } else if (active != null) {
                 active.applyContents(pending.windowId, pending.cursor, pending.slots);
             }

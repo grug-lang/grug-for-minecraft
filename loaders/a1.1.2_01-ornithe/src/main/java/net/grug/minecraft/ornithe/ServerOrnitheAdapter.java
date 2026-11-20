@@ -565,8 +565,9 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
-     * The stack on this server's menu cursor (#1098). A server's {@code PlayerInventory} keeps no
-     * cursor of its own, so it lives on the open menu, and no open menu means no cursor.
+     * The stack on this server's cursor (#1098). A server's custom menu keeps its cursor in the
+     * menu, but the player's own inventory keeps it in the inventory, and a server with neither
+     * open has no cursor.
      */
     @Override
     public Object carriedItem() {
@@ -575,10 +576,14 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             return null;
         }
         GrugAlphaMenu menu = MENUS.get(player);
-        return menu == null || menu.cursor == null ? null : menu.cursor.getItem();
+        if (menu != null) {
+            return menu.cursor == null ? null : menu.cursor.getItem();
+        }
+        ItemStack stack = player.inventory.cursorItem;
+        return stack == null ? null : stack.getItem();
     }
 
-    /** Sets this server's menu cursor and sends it to the client that draws it (#1098). */
+    /** Sets this server's cursor and sends it to the client that draws it (#1098, #1389). */
     @Override
     public void setCarriedItem(Object itemObj) {
         PlayerEntity player = (PlayerEntity) testPlayer();
@@ -589,14 +594,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             return;
         }
         GrugAlphaMenu menu = MENUS.get(player);
-        if (menu == null) {
+        if (menu != null) {
+            menu.cursor = itemObj == null ? null : new ItemStack((Item) itemObj);
+            sendToPlayer(player, GrugScreenContentPacket.of(menu));
             return;
         }
-        menu.cursor = itemObj == null ? null : new ItemStack((Item) itemObj);
-        sendToPlayer(player, GrugScreenContentPacket.of(menu));
+        player.inventory.cursorItem = itemObj == null ? null : new ItemStack((Item) itemObj);
+        sendCursorToPlayer(player, player.inventory.cursorItem);
     }
 
-    /** Clears this server's menu cursor and tells the client (#1098). */
+    /** Clears this server's cursor and tells the client (#1098, #1389). */
     @Override
     public void deleteCarriedItem() {
         PlayerEntity player = (PlayerEntity) testPlayer();
@@ -608,11 +615,21 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             return;
         }
         GrugAlphaMenu menu = MENUS.get(player);
-        if (menu == null) {
+        if (menu != null) {
+            menu.cursor = null;
+            sendToPlayer(player, GrugScreenContentPacket.of(menu));
             return;
         }
-        menu.cursor = null;
-        sendToPlayer(player, GrugScreenContentPacket.of(menu));
+        player.inventory.cursorItem = null;
+        sendCursorToPlayer(player, null);
+    }
+
+    /** Sends the cursor of the player's own inventory to {@code player}'s joined client. */
+    private static void sendCursorToPlayer(PlayerEntity player, ItemStack cursor) {
+        Connection connection = GrugControlAlpha.connectionOfPlayer(player);
+        if (connection != null) {
+            connection.send(GrugScreenContentPacket.forInventoryCursor(cursor));
+        }
     }
 
     /** Sends a packet to {@code player}'s joined client when this server knows its connection. */

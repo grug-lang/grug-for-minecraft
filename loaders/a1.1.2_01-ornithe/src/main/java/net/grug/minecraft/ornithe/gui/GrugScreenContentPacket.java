@@ -71,6 +71,15 @@ public class GrugScreenContentPacket extends Packet {
                 menu.windowId, menu.cursor == null ? null : menu.cursor.copy(), contents);
     }
 
+    /**
+     * The cursor of the player's own inventory, for a server that set it on a screen that is not a
+     * custom menu (#1389).
+     */
+    public static GrugScreenContentPacket forInventoryCursor(ItemStack cursor) {
+        return new GrugScreenContentPacket(
+                0, cursor == null ? null : cursor.copy(), new ItemStack[0]);
+    }
+
     @Override
     public void read(DataInputStream in) throws IOException {
         windowId = in.readInt();
