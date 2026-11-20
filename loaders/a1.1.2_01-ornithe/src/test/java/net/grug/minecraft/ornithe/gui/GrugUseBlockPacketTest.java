@@ -2,6 +2,10 @@ package net.grug.minecraft.ornithe.gui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import net.minecraft.network.packet.BlockUpdatePacket;
+import net.minecraft.network.packet.BlocksUpdatePacket;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +64,24 @@ class GrugUseBlockPacketTest {
         GrugUseBlockPacket.clientHandler = null;
         assertNull(GrugUseBlockPacket.clientHandler, "a server installs no handler");
         new GrugUseBlockPacket(1, 2, 3).handle(null);
+    }
+
+    @Test
+    void theClickSharesTheDelayedQueueOfTheBlockChangesItNames() {
+        // Connection.write() drains the normal send queue before the delayed one, so a click in the
+        // normal queue can overtake the block update a test's own placement queued, and the client
+        // then reads air at the click and drops it. The chest a forwarded screen test places and
+        // clicks in the same tick is exactly that case (#1494).
+        assertTrue(new GrugUseBlockPacket(1, 2, 3).shouldDelay);
+        assertTrue(
+                new GrugUseBlockPacket().shouldDelay,
+                "the game's packet table makes an empty one, and it still names the queue");
+        assertTrue(
+                new BlockUpdatePacket().shouldDelay,
+                "the placement this click depends on is delayed");
+        assertTrue(
+                new BlocksUpdatePacket().shouldDelay,
+                "the placement this click depends on is delayed");
     }
 
     /** The bytes the game would put on the connection after the id. */
