@@ -55,7 +55,10 @@ local _full_target_setup(ctx: TestTickContext) {
     ctx.assert(target_opt.has(), "The target chest should have a block entity.")
     ctx.assert(pipe_opt.has(), "The pipe should have a block entity.")
     ctx.assert(level.has_neighbor_signal(x - 1, y, z), "The engine should be powered by the torch.")
-    ctx.assert(level.has_neighbor_signal(x, y, z), "The pipe should be powered by the engine.")
+    # The engine does not make the game report a signal at the pipe: BlockEngine.b() is false, so the
+    # engine is not a normal cube, and the game asks a non-cube neighbour for its own power instead of
+    # treating it as a conductor, which BlockEngine does not provide. The engine powers the pipe
+    # through the energy framework, and the diamonds arriving at the full chest are what proves it.
 
     full_target_source.set(source_opt.unwrap())
     full_target_target.set(target_opt.unwrap())

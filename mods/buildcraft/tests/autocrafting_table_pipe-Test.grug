@@ -118,7 +118,10 @@ local _setup_pipe(ctx: TestTickContext) {
     ctx.assert(chest_opt.has(), "The chest should have a block entity.")
     ctx.assert(pipe_opt.has(), "The pipe should have a block entity.")
     ctx.assert(level.has_neighbor_signal(x, y - 1, z), "The engine should be powered by the torch.")
-    ctx.assert(level.has_neighbor_signal(x, y, z), "The pipe should be powered by the engine.")
+    # The engine does not make the game report a signal at the pipe: BlockEngine.b() is false, so the
+    # engine is not a normal cube, and the game asks a non-cube neighbour for its own power instead of
+    # treating it as a conductor, which BlockEngine does not provide. The engine powers the pipe
+    # through the energy framework, and the bread arriving at the chest is what proves it.
 
     pipe_table_chest.set(chest_opt.unwrap())
     pipe_table_pipe.set(pipe_opt.unwrap())
