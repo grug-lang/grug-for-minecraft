@@ -23,6 +23,8 @@ apply plugin: 'jacoco'
 
 repositories {
     mavenCentral()
+    // Central's fallback (#1453), so one host's 429 or 404 does not fail a coverage-instrumented run.
+    maven { url = 'https://maven-central.storage-download.googleapis.com/maven2/' }
 }
 
 // configurations.jacocoAgent resolves the unshaded artifact, which is not a valid -javaagent jar

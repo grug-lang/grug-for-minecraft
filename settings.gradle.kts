@@ -6,6 +6,8 @@ pluginManagement {
         maven("https://maven.ornithemc.net/releases")
         maven("https://maven.ornithemc.net/snapshots")
         mavenCentral()
+        // Central's fallback (#1453): a plugin host it does not answer with is looked up here.
+        maven("https://maven-central.storage-download.googleapis.com/maven2/")
         gradlePluginPortal()
     }
 }

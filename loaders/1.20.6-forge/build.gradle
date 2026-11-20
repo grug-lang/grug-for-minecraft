@@ -120,6 +120,8 @@ class ClientWrapperLauncher implements JavaLauncher {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 repositories {
     mavenCentral()
+    // Central's fallback (#1453): the same artifacts from a second host.
+    maven { url = 'https://maven-central.storage-download.googleapis.com/maven2/' }
 }
 
 dependencies {

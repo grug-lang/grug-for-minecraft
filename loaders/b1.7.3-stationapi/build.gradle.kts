@@ -69,6 +69,14 @@ repositories {
             excludeGroup("net.jodah")
         }
     }
+    // Central's fallback (#1453), with the same content: the mirror holds exactly what Central does,
+    // so it is not asked about typetools either.
+    maven {
+        url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+        content {
+            excludeGroup("net.jodah")
+        }
+    }
 
     exclusiveContent {
         forRepository {
