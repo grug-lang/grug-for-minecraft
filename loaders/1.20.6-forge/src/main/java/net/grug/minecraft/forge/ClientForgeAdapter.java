@@ -736,28 +736,30 @@ public class ClientForgeAdapter extends ForgeAdapter {
      * <p>The test runner is driven from the integrated server thread, but the player is the
      * client's, so the move is marshalled onto the client (render) thread and the answer comes back
      * with it. {@code setPos} takes the feet, which is the position the API gives.
-     *
-     * <p>Excluded from coverage because a client run that has a test to move always has a local
-     * player and a level, so those two arms of the guard cannot be entered; the unloaded-chunk arm
-     * is what {@code set_player_position_unloaded-Test.grug} asks for.
      */
     @Override
-    @GrugGenerated("the no-player arm: a run that moves a player has one and a level to move it in")
     public boolean setPlayerPositionForTest(final double x, final double y, final double z) {
         final boolean[] moved = new boolean[1];
         onClientThread(() -> moved[0] = setPlayerPositionOnClient(x, y, z));
         return moved[0];
     }
 
-    private static boolean setPlayerPositionOnClient(double x, double y, double z) {
+    /**
+     * The move itself, on the client thread. Excluded from coverage because a client run that has a
+     * test to move always has a local player and a level, so those two arms of the guard cannot be
+     * entered; the unloaded-chunk arm is what {@code set_player_position_unloaded-Test.grug} asks
+     * for.
+     */
+    @GrugGenerated("the no-player arm: a run that moves a player has one and a level to move it in")
+    private boolean setPlayerPositionOnClient(double x, double y, double z) {
         Minecraft minecraft = Minecraft.getInstance();
         Player player = minecraft.player;
         boolean hasLevel = minecraft.level != null;
-        boolean chunkLoaded =
-                hasLevel
-                        && minecraft.level.hasChunkAt(
-                                new net.minecraft.core.BlockPos(
-                                        (int) Math.floor(x), 64, (int) Math.floor(z)));
+        // The level's own hasChunkAt is not this question on a client: ClientLevel answers true for
+        // every chunk, because the client asks the server for a chunk it does not have, so a move
+        // 100000 blocks away would be attempted and crash the game (#1253, #1427). The client's
+        // chunk cache holds only the chunks this client has received.
+        boolean chunkLoaded = hasLevel && clientHasChunk((int) Math.floor(x), (int) Math.floor(z));
         if (!GrugTestPlayerMove.canMove(player != null, hasLevel, chunkLoaded)) {
             return false;
         }
