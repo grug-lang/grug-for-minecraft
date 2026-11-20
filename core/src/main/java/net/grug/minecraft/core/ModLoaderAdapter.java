@@ -108,6 +108,17 @@ public interface ModLoaderAdapter {
         return null;
     }
 
+    /**
+     * Whether the box the game targets and outlines for a block exists only in this loader's client
+     * class, so a dedicated server has to ask the joined client for {@code
+     * TestTickContext.block_selection} (#1441). True for 1.2.5, whose server-side {@code Block} has
+     * neither of the two methods the selection box comes from; the other versions' servers answer
+     * the question themselves, from the block class both sides share.
+     */
+    default boolean blockSelectionIsClientOnly() {
+        return false;
+    }
+
     void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj);
 
     // --- Logging Abstraction --- TODO: Give this section a better title

@@ -80,7 +80,7 @@ public final class GrugControlForge {
                         // the channel at connect instead of failing on a call one of them does not
                         // have (#1207, #1099). Every branch that adds or changes one bumps this
                         // again.
-                        .networkProtocolVersion(8)
+                        .networkProtocolVersion(9)
                         .optional()
                         .simpleChannel()
                         .messageBuilder(Packet.class, NetworkProtocol.PLAY)

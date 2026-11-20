@@ -979,6 +979,31 @@ public final class GrugControlServer {
     }
 
     /**
+     * Asks the starter's client whether the box its game targets and outlines for the block at the
+     * position contains the block-local point, which is {@code TestTickContext.block_selection}
+     * (#1441). The box is the client's outline, and a 1.2.5 dedicated server has no selection-box
+     * method on its own block class at all, so the joined client is the only place the answer
+     * exists.
+     *
+     * <p>The world is flushed first, as a capture flushes it, because a test's block placements are
+     * queued until the tick ends: without the flush the client would read the world as it was
+     * before the test built what it asks about.
+     */
+    public boolean blockSelectionContains(
+            double x, double y, double z, double pointX, double pointY, double pointZ)
+            throws ControlException {
+        if (starter.get() == null) {
+            throw new ControlException(
+                    "No client has started a run, so there is no block selection to read. A client"
+                            + " starts a run when its player starts one.");
+        }
+        link.flushWorld();
+        byte result =
+                call(GrugControlWire.CALL_BLOCK_SELECTION, "", x, y, z, pointX, pointY, pointZ);
+        return yesOrNo(result, "block_selection");
+    }
+
+    /**
      * Asks the starter's client to put the mod file under {@code path} into the state at {@code
      * stateIndex} of {@code GrugModFileStates}, in its own mods directory (#1040), and waits for
      * its ack.
@@ -1072,6 +1097,23 @@ public final class GrugControlServer {
 
     /** Why a call's arguments cannot be sent, or null: the same checks the client makes. */
     static String callProblem(byte call, String name, double volume, double pitch, double third) {
+        return callProblem(call, name, volume, pitch, third, 0, 0, 0);
+    }
+
+    /**
+     * As {@link #callProblem(byte, String, double, double, double)} for a call that carries two
+     * positions: {@link GrugControlWire#CALL_BLOCK_SELECTION} names the block in the first three
+     * numbers and the block-local point in the last three (#1441).
+     */
+    static String callProblem(
+            byte call,
+            String name,
+            double volume,
+            double pitch,
+            double third,
+            double fourth,
+            double fifth,
+            double sixth) {
         switch (call) {
             case GrugControlWire.CALL_SCREEN_READ:
                 return GrugScreenCalls.readProblem(name);
@@ -1111,6 +1153,10 @@ public final class GrugControlServer {
                             + ".";
                 }
                 return null;
+            case GrugControlWire.CALL_BLOCK_SELECTION:
+                String block = positionProblem(volume, pitch, third);
+                if (block != null) return block;
+                return pointProblem(fourth, fifth, sixth);
             case GrugControlWire.CALL_NORMALIZATION:
                 if (volume != Math.floor(volume)
                         || volume < GrugControlWire.NORMALIZATION_CAN_FORCE
@@ -1186,6 +1232,20 @@ public final class GrugControlServer {
     }
 
     /**
+     * Why the three numbers are not a block-local point, or null. They are offsets from the block's
+     * minimum corner, so a value outside 0 to 1 is legal: a test may ask about a point beyond the
+     * block, which a selection box of a shape that stops short of it does not contain (#1441).
+     */
+    private static String pointProblem(double x, double y, double z) {
+        for (double point : new double[] {x, y, z}) {
+            if (!Double.isFinite(point)) {
+                return "The block-local point has to be finite, and one of its numbers was not.";
+            }
+        }
+        return null;
+    }
+
+    /**
      * Why a forwarded drawn-overlay read carries what it cannot, or null. The name is the mod that
      * owns the running test, which the wire has to carry whole.
      */
@@ -1234,12 +1294,29 @@ public final class GrugControlServer {
      */
     private byte call(byte call, String name, double volume, double pitch, double third)
             throws ControlException {
-        String problem = callProblem(call, name, volume, pitch, third);
+        return call(call, name, volume, pitch, third, 0, 0, 0);
+    }
+
+    /**
+     * As {@link #call(byte, String, double, double, double)} for a call that carries two positions,
+     * which is {@link GrugControlWire#CALL_BLOCK_SELECTION} (#1441).
+     */
+    private byte call(
+            byte call,
+            String name,
+            double volume,
+            double pitch,
+            double third,
+            double fourth,
+            double fifth,
+            double sixth)
+            throws ControlException {
+        String problem = callProblem(call, name, volume, pitch, third, fourth, fifth, sixth);
         if (problem != null) {
             throw failure("The call was not sent: " + problem);
         }
         try {
-            return forward(call, name, volume, pitch, third, Answer.VALUE)[0];
+            return forward(call, name, volume, pitch, third, fourth, fifth, sixth, Answer.VALUE)[0];
         } catch (ControlException e) {
             FAILED.set(true);
             throw e;
@@ -1294,6 +1371,24 @@ public final class GrugControlServer {
     private byte[] forward(
             byte call, String name, double volume, double pitch, double third, Answer answer)
             throws ControlException {
+        return forward(call, name, volume, pitch, third, 0, 0, 0, answer);
+    }
+
+    /**
+     * As {@link #forward(byte, String, double, double, double, Answer)} for a call that carries two
+     * positions, whose block-local point travels in the last three numbers (#1441).
+     */
+    private byte[] forward(
+            byte call,
+            String name,
+            double volume,
+            double pitch,
+            double third,
+            double fourth,
+            double fifth,
+            double sixth,
+            Answer answer)
+            throws ControlException {
         Object to = starter.get();
         if (to == null) {
             throw new ControlException(
@@ -1318,7 +1413,8 @@ public final class GrugControlServer {
             byte[] message =
                     call == GrugControlWire.CALL_WORLD_SETTLED
                             ? GrugControlWire.worldSettledRequest(id, (long) volume)
-                            : GrugControlWire.callRequest(id, call, name, volume, pitch, third);
+                            : GrugControlWire.callRequest(
+                                    id, call, name, volume, pitch, third, fourth, fifth, sixth);
             System.out.println(
                     "[GRUG CONTROL] request "
                             + id
@@ -1388,6 +1484,9 @@ public final class GrugControlServer {
         }
         if (call == GrugControlWire.CALL_MINING_CRACK) {
             return "mining crack";
+        }
+        if (call == GrugControlWire.CALL_BLOCK_SELECTION) {
+            return "block selection";
         }
         if (call == GrugControlWire.CALL_MOD_FILE_STATE) {
             return "mod file state " + (int) volume + " of \"" + name + "\"";

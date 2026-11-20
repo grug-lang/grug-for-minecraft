@@ -1109,15 +1109,15 @@ public class HostFunctions {
             double pointY,
             double pointZ) {
         if (!requireTickContext("TestTickContext.block_selection", contextId)) return false;
-        return GrugCore.getAdapter()
-                .blockSelectionContains(
-                        GrugEntities.entityData.get(levelId).object,
-                        x,
-                        y,
-                        z,
-                        pointX,
-                        pointY,
-                        pointZ);
+        return GrugClientTestCalls.blockSelectionContains(
+                GrugCore.getAdapter(),
+                GrugEntities.entityData.get(levelId).object,
+                x,
+                y,
+                z,
+                pointX,
+                pointY,
+                pointZ);
     }
 
     public static boolean TestTickContext_block_ray_trace(
