@@ -49,13 +49,15 @@ jei/tests/item_list_forced_normalization-Test.grug
 #
 # The wall-backed world capture renamed to tick_any_side. coverage_render is listed since dispatch
 # 43920807032 failed it on this leg in 7 of 48400 px against b1.7.3-ornithe.png, the closest
-# reference, because this loader has no PNG of its own for it (#1092). coverage_frame is off the
-# list: dispatch 43480583214 still failed it in 2800 of 44800 px, the wall's lowest block row (rows
-# 150 to 159) half as bright on the server's field as in the golden, and the two legs' light probes
-# agreed at every one of 44 cells, so the field was right and the frame drew a mesh baked from an
-# older light. The settle answer let a capture go before the region packet that marks the client's
-# sections dirty had gone out, which the answer now waits for (#1392). Proof PROOF_RUN passes it
-# with that fix. The client-only run of this loader still checks the golden.
+# reference, because this loader has no PNG of its own for it (#1092). coverage_frame is listed
+# because dispatch 43480583214 failed it in 2800 of 44800 px, the wall's lowest block row (rows 150
+# to 159) half as bright on the server's field as in the golden, while the two legs' light probes
+# agreed at every one of 44 cells: the field was right and the frame drew a mesh baked from an older
+# light. The settle answer let a capture go before the region packet that marks the client's
+# sections dirty had gone out, and it now waits for it (#1392). The entry comes off in the pull
+# request whose dispatch passes the capture. The client-only run of this loader still checks the
+# golden.
+coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
 #
 # Proof 43764853785 (#1096) failed wooden_pipe_shapes' wooden_pipe_corner capture in 965 of 115200 px, so it stays listed (#1351); proof 43821458574 measured 2430 of 115200 px of wooden_pipe_straight. The client-only run checks both goldens.
