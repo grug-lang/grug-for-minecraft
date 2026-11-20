@@ -8,14 +8,10 @@
 # by the client's own rule, because the server jar has no crafting package at all. Proof run
 # 44678178827 passed every entry this block used to list: the recipe and crafting-result tests, the
 # hot reload, and the block entities whose grid insert calls update_recipe_output.
-# The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
-# client's screen, and the fixture is a vanilla chest. Test.use_block right-clicks any block here
-# now, not only a grug one, and sends the joined client the block's own activation, because an
-# Alpha container screen is the client's own (#1494). Both tests stay listed until a proof dispatch
-# passes them on this leg: 1.2.5's and both b1.7.3 servers' interaction managers and 1.20.6's game
-# mode open the chest there.
-coverage/tests/forwarded_press_screen_key-Test.grug
-coverage/tests/forwarded_scroll_screen-Test.grug
+# The screen input #1094 forwards runs here since #1494: Test.use_block right-clicks any block on
+# this server, which sends the joined client the block's own activation, because an Alpha container
+# screen is the client's own. Proof run 44809935576 failed overlay-Test on this loader at line 129
+# for the container click that was missing; the dispatch of this branch is what proves the fix.
 #
 # The overlay click and the item list. Test.overlay_supported, Test.overlay_drawn and the first-frame
 # read answer from the joined client (#1099, #1391), so overlay_screen_open is unlisted here and
