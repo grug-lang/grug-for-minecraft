@@ -141,7 +141,9 @@ class GrugWorldTrianglesTest {
         assertTrue(reports.get(0).contains("is not loaded"));
 
         HostFunctions.TestTickContext_set_player_position(context, Double.NaN, 64, 0);
-        assertEquals(1, drain().size());
+        HostFunctions.TestTickContext_set_player_position(context, 1, Double.NaN, 0);
+        HostFunctions.TestTickContext_set_player_position(context, 1, 64, Double.POSITIVE_INFINITY);
+        assertEquals(3, drain().size());
         assertEquals(2, moves.size(), "A position that is not finite never reaches the loader.");
     }
 }
