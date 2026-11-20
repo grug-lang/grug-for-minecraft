@@ -1,6 +1,8 @@
-# Covers the autocrafting table fed by a wooden pipe, the reference's signature build: a chest,
-# a wooden pipe, and the table in a row, with the pipe connecting to the table. The screenshot is
-# the assertion. The fixture is static, so no items need to move for the capture.
+# Covers the autocrafting table between a chest and a wooden pipe, the reference's signature build:
+# a chest, a wooden pipe, and the table in a row, with the pipe connecting to the table. The
+# reference's source scan finds the table before the chest, so the pipe's plain source arm is drawn
+# on the table's side and the patterned arm on the chest's, which is what the capture pins. The
+# screenshot is the assertion. The fixture is static, so no items need to move for the capture.
 table_entity: Option[BlockEntity] = Option.new()
 pipe_entity: Option[BlockEntity] = Option.new()
 
@@ -65,10 +67,12 @@ local _setup(ctx: TestTickContext) {
     table_entity.set(table_opt.unwrap())
     pipe_entity.set(pipe_opt.unwrap())
 
-    # The port's wooden pipe source side is the side plus one. The pipe extracts from the chest
-    # to the south, which is side 3 (ZPos), so the saved source is 4.
+    # The reference's switchSource scans YPos, ZNeg, ZPos and the rest in that order and keeps the
+    # first neighbour that is an inventory, so it finds the table at ZNeg and never reaches the
+    # chest at ZPos: this pipe extracts from the table, not from the chest. The port's saved source
+    # is the side plus one, and ZNeg is side 2, so the saved source is 3.
     if not me.is_reference() {
-        pipe_entity.unwrap().set_saved_number("source", 4)
+        pipe_entity.unwrap().set_saved_number("source", 3)
     }
 }
 
