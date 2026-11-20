@@ -1,0 +1,37 @@
+# TestTickContext.set_player_position moves the test player to the feet position a test names, and
+# ctx.camera reads the eye back, so this is where a loader that keeps the eye in its player's
+# position has to add the eye height and a loader that keeps the feet has to pass them through
+# (#1427). The room's floor is three blocks below the feet, so a move one block along x stays over
+# the floor and the player is read back before the game can tick them anywhere.
+started: bool = false
+moved: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        ctx.not_done()
+        return
+    }
+    if not ctx.world_settled() {
+        ctx.not_done()
+        return
+    }
+    if not moved {
+        moved = true
+        before: Vec3 = ctx.camera()
+        # The origin is the camera plus 3 on y only, and the feet are 1.62 blocks under the eye, so
+        # this stands one block along x at the same height and depth.
+        ctx.set_player_position(before.x() + 1.0, before.y() - 1.62, before.z())
+        after: Vec3 = ctx.camera()
+        ctx.assert(_near(after.x(), before.x() + 1.0), "The player moves to the x the test asked for.")
+        ctx.assert(_near(after.y(), before.y()), "A move at the feet keeps the eye height.")
+        ctx.assert(_near(after.z(), before.z()), "A move leaves the axis the test did not name alone.")
+        return
+    }
+}
+
+# A block in 1024, the tolerance camera-Test uses: the older loaders carry the position as a float,
+# so a coordinate near 70 expands when it is read back as a double.
+local _near(a: number, b: number) bool {
+    return a > b - 0.0009765625 and a < b + 0.0009765625
+}

@@ -78,6 +78,7 @@ public final class GrugOverlayHost {
         installRuntimeHooks();
         GrugOverlay.noteSupported();
         GrugWorldOverlay.noteSupported();
+        GrugWorldOverlay.noteTrianglesSupported();
     }
 
     /**
@@ -556,13 +557,19 @@ public final class GrugOverlayHost {
                             cameraX,
                             cameraY,
                             cameraZ);
-            if (lines.isEmpty()) continue;
+            List<GrugWorldOverlay.Triangle> triangles = GrugWorldOverlay.lastTriangles();
+            if (lines.isEmpty() && triangles.isEmpty()) continue;
             if (overlay.mod.equals(testMod)) {
                 GrugWorldOverlay.noteDrawn();
             }
             boolean texture = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
             boolean lighting = GL11.glIsEnabled(GL11.GL_LIGHTING);
             boolean fog = GL11.glIsEnabled(GL11.GL_FOG);
+            boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
+            boolean cull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+            boolean depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+            int blendSrc = GL11.glGetInteger(GL11.GL_BLEND_SRC);
+            int blendDst = GL11.glGetInteger(GL11.GL_BLEND_DST);
             GL11.glDisable(GL11.GL_TEXTURE_2D);
             GL11.glDisable(GL11.GL_LIGHTING);
             GL11.glDisable(GL11.GL_FOG);
@@ -586,14 +593,57 @@ public final class GrugOverlayHost {
                             (float) (line.z2() - cameraZ));
                 }
                 GL11.glEnd();
+                drawTriangles(triangles, cameraX, cameraY, cameraZ);
             } finally {
                 GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
                 GL11.glLineWidth(1.0F);
+                GL11.glBlendFunc(blendSrc, blendDst);
+                GL11.glDepthMask(depthMask);
+                if (cull) GL11.glEnable(GL11.GL_CULL_FACE);
+                if (blend) {
+                    GL11.glEnable(GL11.GL_BLEND);
+                } else {
+                    GL11.glDisable(GL11.GL_BLEND);
+                }
                 if (fog) GL11.glEnable(GL11.GL_FOG);
                 if (lighting) GL11.glEnable(GL11.GL_LIGHTING);
                 if (texture) GL11.glEnable(GL11.GL_TEXTURE_2D);
             }
         }
+    }
+
+    /**
+     * Draws the world pass's translucent triangles after its lines. Blending is on and the depth
+     * mask is off, so the terrain in front still hides a triangle but two translucent shells do not
+     * hide each other and their order does not matter, and culling is off so the inside of a closed
+     * shape is drawn when the camera is in it.
+     */
+    private static void drawTriangles(
+            List<GrugWorldOverlay.Triangle> triangles,
+            double cameraX,
+            double cameraY,
+            double cameraZ) {
+        if (triangles.isEmpty()) return;
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glDisable(GL11.GL_CULL_FACE);
+        GL11.glDepthMask(false);
+        GL11.glBegin(GL11.GL_TRIANGLES);
+        for (GrugWorldOverlay.Triangle triangle : triangles) {
+            int argb = triangle.argb();
+            GL11.glColor4f(
+                    ((argb >> 16) & 0xFF) / 255.0F,
+                    ((argb >> 8) & 0xFF) / 255.0F,
+                    (argb & 0xFF) / 255.0F,
+                    ((argb >>> 24) & 0xFF) / 255.0F);
+            for (int corner = 0; corner < 3; corner++) {
+                GL11.glVertex3f(
+                        (float) (triangle.corner(corner, 0) - cameraX),
+                        (float) (triangle.corner(corner, 1) - cameraY),
+                        (float) (triangle.corner(corner, 2) - cameraZ));
+            }
+        }
+        GL11.glEnd();
     }
 
     /**

@@ -4,8 +4,7 @@
 # player one and a half blocks along x, which moves the triangles one and a half blocks across the
 # frame while they stay where they were in the world, so one capture shows the translucent fill and
 # the teleport together. The capture is framed on the moved triangles, so the whole square is in it.
-# Only the Beta 1.7.3 loaders draw triangles and move the player so far; every other loader stops
-# the game on those calls, so the test returns before it builds anything there.
+# Every loader draws triangles and moves the player, each through its own render path (#1427).
 started: bool = false
 pressed: bool = false
 moved: bool = false
@@ -15,9 +14,6 @@ waited: number = 0
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
-        if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
-            return
-        }
         ctx.set_box_radius(6)
         origin: Vec3 = ctx.get_origin()
         _wall(ctx.get_client_level(), origin.x() - 6, origin.y() - 9, origin.z() + 6)

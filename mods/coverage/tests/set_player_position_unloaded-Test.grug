@@ -1,17 +1,13 @@
 # A move into a chunk the client has not received is refused rather than attempted, because a
 # teleport into an unchunked area crashes this generation of the game (#1253). The call reports and
 # the player stays where they were, which is what lets a test move in steps and wait between them.
-# Only the Beta 1.7.3 loaders move the player; every other loader stops the game on the call, so the
-# test returns before it asks.
+# Every loader moves the player, each through its own loaded-chunk check (#1427).
 started: bool = false
 asked: bool = false
 
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
-        if me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi" {
-            return
-        }
         ctx.not_done()
         return
     }
