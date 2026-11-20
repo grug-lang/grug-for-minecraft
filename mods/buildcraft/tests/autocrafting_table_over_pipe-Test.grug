@@ -86,20 +86,20 @@ local _place_table(ctx: TestTickContext, level: Level, x: number, y: number, z: 
     level.place_block(x, y, z, "buildcraft:autoWorkbenchBlock")
 }
 
-# The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
-# right-clicking the side of a block at z + 1 with the pipe held. That block is the cell the test
-# fills with the chest next, so it is left as the wall's stone rather than cleared to air: the
-# port's scene replaces the same wall stone with the chest, and both then settle the same light
-# from the same block change.
+# Both the reference and the port place the pipe the way a player does: hold the pipe item and
+# right-click the side of a block at z + 1. The reference's ItemPipe sets the pipe's kind, and the
+# placement is what settles the light around the pipe, so both scenes must use the same path. The
+# block at z + 1 is the cell the test fills with the chest next, so the chest replaces that stone.
 local _place_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    if not me.is_reference() {
-        level.place_block(x, y, z, "grug:wooden_pipe")
-        return
-    }
     level.place_block(x, y, z + 1, "minecraft:stone")
     player: Player = ctx.get_player()
-    held: Item = item(resource_location("buildcraft:PipeItemsWood"))
-    ctx.set_held_item(player, held)
+    if me.is_reference() {
+        ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsWood")))
+        ctx.use_block(level, x, y, z + 1)
+        ctx.clear_held_item(player)
+        return
+    }
+    ctx.set_held_item(player, item(resource_location("grug:wooden_pipe")))
     ctx.use_block(level, x, y, z + 1)
     ctx.clear_held_item(player)
 }
