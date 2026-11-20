@@ -19,8 +19,15 @@
 #
 # The script's own deadline, GRUG_SMOKE_TIMEOUT, defaults to 480 seconds, under the smoke job's
 # 10-minute timeout in build.yml, so a game that never decides is reported here with the log's tail
-# and not cancelled with nothing printed (#1335). GRUG_SMOKE_HEARTBEAT (30 seconds) is how often the
-# script says how far the launch has got.
+# and not cancelled with nothing printed (#1335). A deadline that expires before the launcher printed
+# `Launched` is reported as an install that never got the game started, since the game's own window
+# never began. GRUG_SMOKE_HEARTBEAT (30 seconds) is how often the script says how far the launch has
+# got.
+#
+# A launcher that stops while installing, before it spawns the game, is reported as that and not as
+# a game that exited, with its own [ ERRO ] lines, the launch's exit status and a log whose progress
+# lines are not replayed once per update; an install that failed fetching what it needs is retried
+# once, because it repeats nothing the game did (#1431, #1149).
 
 set -euo pipefail
 
@@ -92,7 +99,10 @@ launch() {
       start "${LEGACY_LIBRARIES[@]}" --jvm-policy system-then-mojang "${BABRIC_LWJGL[@]}" "$BABRIC_VERSION"
       ;;
     modloader-b1.7.3)
-      portablemc start --dry b1.7.3 >/dev/null
+      # The dry run only installs the vanilla version, but its output is the only place a fetch that
+      # failed there names its URL and status, so it goes to the launch log: discarded, a failed
+      # install looked like a game that never started and was never retried (#1431).
+      portablemc start --dry b1.7.3
       install_modloader b1.7.3-modloader
       start --jvm-policy mojang b1.7.3-modloader
       ;;
@@ -156,14 +166,42 @@ CRASHES='---- Minecraft Crash Report ----|Exception in thread "main"|Exception i
 # grug's own log lines; GrugModsDirectory also creates grug_mods/ in the game directory once a layer
 # starts, which problems() checks.
 GRUG_STARTED='\[GRUG'
+# portablemc prints this once it has spawned the game, and only then: its install events end with
+# "Loader installed, retrying to start the game", a word this does not contain. Its absence when the
+# process is gone says the launcher stopped while installing, which is a launcher failure and not a
+# game that exited (#1431).
+LAUNCHED='Launched'
+# The launcher's own words for a fetch it gave up on. portablemc retries a timeout or a decode error
+# but not a connection reset or a 404 for an artifact a mirror serves a moment later, so one bad
+# response ends the whole install (#1431, #1149).
+LAUNCHER_FETCH_FAILED='\[ ERRO \] Failed to download'
+# One launch and one retry, the rule run-loader.sh applies to a production install: the game never
+# started, so the retry repeats nothing it did, and a third attempt would only delay an outage no
+# single job can ride out.
+MAX_LAUNCH_ATTEMPTS=2
+# The launched process's own exit status, kept because `wait` reports it only once; cleared when an
+# attempt starts, so a retry never reports the attempt before it.
+launch_status=
+# portablemc and the game move the cursor back over a progress line with carriage returns, so one
+# log line can hold hundreds of updates. A CI log splits them into as many lines, which buries the
+# error that follows them (#1431).
+CR=$'\r'
 
 rm -rf "$GAME_DIR"
 mkdir -p "${GAME_DIR}/mods" "$MAIN_DIR"
 cp "$JAR" "${GAME_DIR}/mods/"
-: >"$LOG"
 
-setsid "$0" --launch "$RECIPE" "$GAME_DIR" >"$LOG" 2>&1 &
-GAME_PID=$!
+attempt=1
+# Starts an attempt in its own process group, with its output in the launch log, so cleanup ends the
+# launcher and the game together and a retry starts from an empty log.
+start_launch() {
+  : >"$LOG"
+  # A previous attempt's status must not be reported for this one.
+  launch_status=
+  setsid "$0" --launch "$RECIPE" "$GAME_DIR" >"$LOG" 2>&1 &
+  GAME_PID=$!
+}
+start_launch
 stop_game() { kill -- "-$GAME_PID" 2>/dev/null || true; }
 trap stop_game EXIT
 
@@ -185,13 +223,99 @@ problems() {
   if [ -d "${GAME_DIR}/grug_mods" ]; then echo "grug started: it created grug_mods/"; fi
 }
 
+# Prints the log as a person reads it: each line as the terminal last drew it, so the hundreds of
+# progress updates behind one carriage return are not replayed and the lines that follow them are
+# readable in the job log (#1431).
+log_lines() {
+  local line
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf '%s\n' "${line##*"${CR}"}"
+  done <"$LOG"
+}
+
+# The log's last $1 lines, as a person reads them.
+log_tail() {
+  log_lines | tail -n "$1"
+}
+
+# The launcher's own account of a failed install: portablemc's [ ERRO ] line and the URL, path and
+# reason beneath it. Empty when the launcher wrote none.
+launcher_errors() {
+  if grep -aq -F '[ ERRO ]' "$LOG"; then
+    log_lines | grep -a -m1 -A10 -F '[ ERRO ]' || true
+  fi
+}
+
+# Sets launch_status from the launched process's own exit status, taken the one time `wait` can
+# report it: a second wait on the same pid reports 127. Only called once the process is known to be
+# gone, since wait blocks. Sets the variable rather than printing it, so the wait happens in this
+# shell and not in a subshell that no longer owns the child.
+take_launch_status() {
+  if [ -z "$launch_status" ]; then
+    launch_status=0
+    wait "$GAME_PID" 2>/dev/null || launch_status=$?
+  fi
+}
+
+# Reports a failure with what the launch itself said, then stops.
 fail() {
+  local errors
   echo "==> ERROR: ${RECIPE}: $1" >&2
-  tail -n 60 "$LOG" >&2
+  errors=$(launcher_errors)
+  if [ -n "$errors" ]; then
+    echo "==> The launcher's own report:" >&2
+    printf '%s\n' "$errors" >&2
+  fi
+  echo "==> The launch log's last 60 lines:" >&2
+  log_tail 60 >&2
   exit 1
 }
 
-deadline=$((SECONDS + ${GRUG_SMOKE_TIMEOUT:-480}))
+# One more launch when the launcher stopped fetching what the install needs before it spawned the
+# game. Returns 0 when it restarted the launch and 1 when this failure is final.
+retry_launch() {
+  [ "$attempt" -lt "$MAX_LAUNCH_ATTEMPTS" ] || return 1
+  if grep -aq -E -e "$LAUNCHED" "$LOG"; then return 1; fi
+  if ! grep -aq -E -e "$LAUNCHER_FETCH_FAILED" "$LOG"; then return 1; fi
+  cp "$LOG" "${LOG}.attempt-${attempt}"
+  echo "==> ${RECIPE}: the launcher failed fetching what it needs, not on the game:" >&2
+  launcher_errors >&2
+  echo "==> Retrying the launch, attempt $((attempt + 1)) of ${MAX_LAUNCH_ATTEMPTS}." >&2
+  echo "==> The failed attempt's log is ${LOG}.attempt-${attempt}." >&2
+  attempt=$((attempt + 1))
+  start_launch
+  return 0
+}
+
+# Called once the launched process is gone: names what stopped it and its exit status, retries a
+# launcher install that failed fetching what it needs, and otherwise fails with $1 and the status.
+process_stopped() {
+  local summary="$1" status
+  take_launch_status
+  status=$launch_status
+  if ! grep -aq -E -e "$LAUNCHED" "$LOG"; then
+    if retry_launch; then return 0; fi
+    fail "the launcher exited with status ${status} before it started the game"
+  fi
+  fail "${summary} (status ${status})"
+}
+
+# Called when the deadline expires: names the phase it caught. Without `Launched` the launcher was
+# still installing or starting the game, so the game's own window never began and reporting the game
+# as the one that failed to decide would send the next reader to the wrong place (#1431).
+# run-loader.sh separates the two the same way, by starting the game's window at `Launched`.
+deadline_fail() {
+  if grep -aq -E -e "$LAUNCHED" "$LOG"; then
+    fail "$1 within the timeout"
+    return
+  fi
+  fail "the launcher had not started the game when the ${SMOKE_TIMEOUT}s window ended: no Launched line, so it was still installing"
+}
+
+# The whole launch's own deadline, a retry included, under the smoke job's 10-minute timeout so a
+# launch that never decides is reported here rather than cancelled with nothing printed (#1335).
+SMOKE_TIMEOUT=${GRUG_SMOKE_TIMEOUT:-480}
+deadline=$((SECONDS + SMOKE_TIMEOUT))
 
 # Prints a line every GRUG_SMOKE_HEARTBEAT seconds with the elapsed time and the log's size, so a
 # launch that stalls is attributable to the phase its log reached from the job log alone.
@@ -202,7 +326,7 @@ heartbeat() {
   next_heartbeat=$((SECONDS + heartbeat_every))
   local state=running
   kill -0 "$GAME_PID" 2>/dev/null || state=exited
-  echo "==> ${RECIPE}: ${SECONDS}s, game ${state}, log $(stat -c %s "$LOG") bytes, last line: $(tail -n 1 "$LOG" | tr -d '\r' | head -c 120)"
+  echo "==> ${RECIPE}: ${SECONDS}s, game ${state}, log $(stat -c %s "$LOG") bytes, last line: $(log_lines | tail -n 1 | head -c 120)"
 }
 
 # The files a game that stops with grug's error can say so in. Its own logs count as well as the
@@ -234,7 +358,10 @@ settle() {
     if [ "$current" != "$size" ]; then size=$current quiet_since=$SECONDS; fi
     if [ -n "$(problems)" ]; then fail "$(problems)"; fi
     if ! kill -0 "$GAME_PID" 2>/dev/null; then
-      if [ "$EXPECT" = inert ]; then fail "the game exited after loading ended"; fi
+      if [ "$EXPECT" = inert ]; then
+        take_launch_status
+        fail "the game exited after loading ended (status ${launch_status})"
+      fi
       return
     fi
     if [ "$SECONDS" -ge "$settle_deadline" ]; then fail "the log never went quiet"; fi
@@ -250,8 +377,11 @@ if [ "$EXPECT" = error ]; then
     kill -0 "$GAME_PID" 2>/dev/null || alive=false
     error_line=$(grug_error_line) && break
     if [ -n "$(problems)" ]; then fail "$(problems)"; fi
-    if [ "$alive" = false ]; then fail "the game exited without grug's error"; fi
-    if [ "$SECONDS" -ge "$deadline" ]; then fail "grug's error did not appear within the timeout"; fi
+    if [ "$alive" = false ]; then
+      process_stopped "the game exited without grug's error"
+      continue
+    fi
+    if [ "$SECONDS" -ge "$deadline" ]; then deadline_fail "grug's error did not appear"; fi
     heartbeat
     sleep 2
   done
@@ -268,8 +398,11 @@ while true; do
   kill -0 "$GAME_PID" 2>/dev/null || alive=false
   grep -E -q -e "$READY" "$LOG" && break
   if [ -n "$(problems)" ]; then fail "$(problems)"; fi
-  if [ "$alive" = false ]; then fail "the game exited before loading ended"; fi
-  if [ "$SECONDS" -ge "$deadline" ]; then fail "loading did not end within the timeout"; fi
+  if [ "$alive" = false ]; then
+    process_stopped "the game exited before loading ended"
+    continue
+  fi
+  if [ "$SECONDS" -ge "$deadline" ]; then deadline_fail "loading did not end"; fi
   heartbeat
   sleep 2
 done
