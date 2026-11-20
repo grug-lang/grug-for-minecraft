@@ -17,7 +17,15 @@ MIRROR_FILES = [
 ]
 
 MIRROR_URL = "https://maven-central.storage-download.googleapis.com/maven2/"
-INCLUDE_GROUPS = ("org.jacoco", "org.ow2.asm")
+INCLUDE_GROUPS = (
+    "org.jacoco",
+    "org.ow2.asm",
+    "org.junit",
+    "org.junit.jupiter",
+    "org.junit.platform",
+    "org.opentest4j",
+    "org.apiguardian",
+)
 
 
 def _find_block(text: str, start: int) -> tuple[int, int]:
