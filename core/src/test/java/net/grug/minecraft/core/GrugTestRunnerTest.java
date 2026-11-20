@@ -1495,6 +1495,58 @@ class GrugTestRunnerTest {
         assertTrue(printed.contains("PASS coverage/tests/a-Test.grug"), printed);
     }
 
+    private GrugTestRunner forcedRunner(
+            FakeOps ops,
+            Map<String, Long> files,
+            GrugTestRunner.TestBoxBuilder boxBuilder,
+            Set<String> listed) {
+        ops.pathsAre(files);
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                boxBuilder,
+                1,
+                new CoverageLog(),
+                Set.of(),
+                GrugTestRunner.MAX_GAME_SPEED,
+                Set.of(),
+                Set.of(),
+                true,
+                listed,
+                true);
+    }
+
+    @Test
+    void aMarkedTestTheLoaderListsIsNotForcedBeforeItIsSkipped() {
+        // The force asks the joined client on a forwarding server, so a test the server then skips
+        // must not be forced on the way to the skip: it spends a forwarded call and logs a force
+        // that never ran, and the restore it owes would wait for a later test (#1040).
+        FakeOps ops = new FakeOps();
+        String marked = "coverage/tests/item_list_forced_normalization-Test.grug";
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put(marked, 1L);
+        files.put("jei/code/a-Test.grug", 2L);
+        ops.anySide.add("jei/code/a-Test.grug");
+        List<String> events = new ArrayList<>();
+
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        forcedRunner(
+                                                ops,
+                                                files,
+                                                new NormalizationLog(events),
+                                                Set.of(marked))));
+
+        assertFalse(events.contains("force"), events.toString());
+        assertFalse(events.contains("restore"), events.toString());
+        assertFalse(printed.contains("Forcing normalized normals"), printed);
+        assertTrue(printed.contains("PASS jei/code/a-Test.grug"), printed);
+    }
+
     @Test
     void aRunIsPassedOnlyWhenItFinishedWithEveryTestPassed() {
         FakeOps passing = new FakeOps();
@@ -3225,6 +3277,44 @@ class GrugTestRunnerTest {
     }
 
     /** A room builder that logs what the runner asks of it, in order. */
+    private static final class NormalizationLog implements GrugTestRunner.TestBoxBuilder {
+        final List<String> events;
+
+        NormalizationLog(List<String> events) {
+            this.events = events;
+        }
+
+        @Override
+        public void build(int radius) {
+            events.add("build");
+        }
+
+        @Override
+        public void sweepItems() {}
+
+        @Override
+        public boolean canForceNormalizationForTest() {
+            return true;
+        }
+
+        @Override
+        public boolean forceNormalizationForTest() {
+            events.add("force");
+            return true;
+        }
+
+        @Override
+        public boolean normalizationEnabledForTest() {
+            return true;
+        }
+
+        @Override
+        public boolean restoreNormalizationAfterTest() {
+            events.add("restore");
+            return true;
+        }
+    }
+
     private static final class SweepLog implements GrugTestRunner.TestBoxBuilder {
         final List<String> log;
 

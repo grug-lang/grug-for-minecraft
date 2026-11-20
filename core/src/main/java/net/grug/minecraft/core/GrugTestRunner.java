@@ -1299,10 +1299,22 @@ public class GrugTestRunner {
             // Cleared for every test, so the test after a marked one reads the state it has rather
             // than the one the marked test asked for. See TestTickContext.normalization_forced.
             GrugTestState.forcedNormalization = false;
-            if (GrugForcedNormalization.appliesTo(
-                    path,
-                    dedicatedServer && !forwardsClientCalls,
-                    GrugReference.isReferenceRun())) {
+            // A test this side skips before its first tick runs none of it, so the force must not
+            // be asked on the way to the skip: on a dedicated server it would reach the joined
+            // client for a test that never draws, and the two log lines would say a skipped test
+            // was forced (#1040). A skip that is only known once a tick has been tried still
+            // restores through destroyCurrentEntity, so nothing is left on for later tests.
+            boolean skippedBeforeItsTick =
+                    dedicatedServer
+                            && (unsupportedOnServer.contains(path)
+                                    || (isForwarded(path)
+                                            && !runsForwardedTests(
+                                                    dedicatedServer, forwardsClientCalls)));
+            if (!skippedBeforeItsTick
+                    && GrugForcedNormalization.appliesTo(
+                            path,
+                            dedicatedServer && !forwardsClientCalls,
+                            GrugReference.isReferenceRun())) {
                 // Due before the force runs, so a hook that changes a capability before it finds
                 // out it could not force is put back too, and a loader that keeps the no-op
                 // default restore is asked like every other.
@@ -1966,7 +1978,9 @@ public class GrugTestRunner {
 
     /**
      * Drops the running test without finishing it, takes it out of the total the run reports, and
-     * leaves the next one to start. Its entity is destroyed as after any test.
+     * leaves the next one to start. Its entity is destroyed as after any test, which also puts back
+     * the normalizing state a marked test forced (see {@link #destroyCurrentEntity}), so a skip
+     * decided after a tick was tried cannot leave it on for the tests after it (#1040).
      */
     private void skipForSide(String path) {
         skippedForSide.add(path);
