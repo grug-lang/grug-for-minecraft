@@ -70,6 +70,12 @@
     "net/grug/minecraft/grug/GrugOverlay": [
       "firstFrameClearedForTest:(Ljava/lang/String;J)Z"
     ],
+    "net/grug/minecraft/grug/GrugScreenshots": [
+      "read:(Ljava/io/File;)Ljava/awt/image/BufferedImage;"
+    ],
+    "net/grug/minecraft/grug/GrugScreenshots$Golden": [
+      "<init>:(Ljava/awt/image/BufferedImage;)V"
+    ],
     "net/grug/minecraft/grug/GrugWorldOverlay": [
       "cameraX:()D",
       "cameraY:()D",
