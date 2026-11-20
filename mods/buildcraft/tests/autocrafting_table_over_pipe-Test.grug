@@ -12,9 +12,6 @@ remeshed: bool = false
 # How many runner ticks in a row the world has answered settled. See the hold in tick_any_side().
 settled_ticks: number = 0
 
-# TEMPORARY DIAGNOSTIC probe flag. Remove with the probe.
-probed: bool = false
-
 # The origin _setup built from, which the later steps build from too.
 origin_x: number = 0
 origin_y: number = 0
@@ -37,10 +34,6 @@ export tick_any_side(ctx: TestTickContext) {
     } else if not ctx.world_settled() {
         ctx.not_done()
     } else {
-        if not probed {
-            _probe(ctx)
-            probed = true
-        }
         ctx.assert(table_entity.has(), "The table should have a block entity.")
         ctx.assert(pipe_entity.has(), "The pipe should have a block entity.")
         ctx.screenshot().equals(r"screenshots/autocrafting_table_over_pipe", 400, 120, 880, 360)
@@ -136,48 +129,4 @@ local _force_remesh(ctx: TestTickContext) {
     level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
     ctx.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
-}
-
-# TEMPORARY DIAGNOSTIC: prints the block light the capture is drawn from, on the reference side and
-# the port side alike, so the two logs can be compared. Remove before this test is merged.
-local _probe(ctx: TestTickContext) {
-    level: Level = ctx.get_client_level()
-    fx: number = origin_x
-    fy: number = origin_y - 1.88
-    fz: number = origin_z
-    dx: number = 0
-    dy: number = 0
-    print3("PROBE origin", origin_x, origin_z)
-    print(origin_y)
-    dx = -3
-    while dx <= 3 {
-        dy = -3
-        while dy <= 3 {
-            print3(dx, dy, level.get_block_light(fx + dx, fy + dy, fz + 5))
-            dy = dy + 1
-        }
-        dx = dx + 1
-    }
-    print("PROBE blocks at the fixture row")
-    dx = -3
-    while dx <= 3 {
-        print2(dx, level.get_block(fx + dx, fy, fz + 5))
-        print(level.get_block(fx + dx, fy, fz + 6))
-        dx = dx + 1
-    }
-    print("PROBE column at z+5 from y-5 to y+2")
-    dy = -5
-    while dy <= 2 {
-        print2(dy, level.get_block(fx, fy + dy, fz + 5))
-        dy = dy + 1
-    }
-    print("PROBE column at z+4 from y-5 to y+2")
-    dy = -5
-    while dy <= 2 {
-        print2(dy, level.get_block(fx, fy + dy, fz + 4))
-        dy = dy + 1
-    }
-    print3("PROBE sky and block light at the pipe cell", level.get_sky_light(fx, fy, fz + 5), level.get_block_light(fx, fy, fz + 5))
-    print3("PROBE sky and block light above the table", level.get_sky_light(fx, fy, fz + 2), level.get_block_light(fx, fy, fz + 2))
-    print2("PROBE time", level.get_time())
 }
