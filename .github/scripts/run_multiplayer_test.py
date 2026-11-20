@@ -32,16 +32,18 @@ LOADER = "b1.7.3-ornithe"
 SERVER_VERSION = "b1.7.3"
 SECOND_LOADER = "1.20.6-forge"
 
-# The eight overlay and JEI tests every leg that carries #1227's forwarding requires twice: its PASS
-# line and the line only a test whose overlay was drawn on the joined client writes. The
-# forced-normalization item list is left out, because the legs that still list it skip it.
+# The ten overlay and JEI tests every leg requires twice: its PASS line and the line only a test
+# whose overlay was drawn on the joined client writes. The forced-normalization item list is left
+# out, because the legs that still list it skip it.
 OVERLAY_DRAWN_TESTS = [
     "coverage/tests/give_requires_operator",
+    "coverage/tests/overlay",
     "coverage/tests/overlay_click_hook",
     "coverage/tests/overlay_key",
     "coverage/tests/overlay_probe_gives_nothing",
     "coverage/tests/overlay_screen_open",
     "coverage/tests/overlay_scroll",
+    "jei/tests/jei",
     "jei/tests/hotkey",
     "jei/tests/paging",
     "jei/tests/scroll",
@@ -821,15 +823,15 @@ exit 0
 
 
 class ServerUnlistedTest(unittest.TestCase):
-    """A standalone leg whose list still names the overlay pair and the item list (#1040)."""
+    """A standalone leg whose list still names the forced-normalization item list (#1040)."""
 
     LOADER = "b1.7.3-stationapi"
 
-    # The paths the success branch of run-multiplayer.sh requires of this leg. coverage/tests/overlay,
-    # jei/tests/jei and jei/tests/item_list_forced_normalization are absent on purpose: this leg's
-    # server-unsupported-tests.txt still names them, so a leg that skipped them must pass. Every
-    # other required block of the branch is satisfied, so a check that required the overlay pair here
-    # would fail this case and nothing else.
+    # The paths the success branch of run-multiplayer.sh requires of this leg.
+    # jei/tests/item_list_forced_normalization is absent on purpose: this leg's
+    # server-unsupported-tests.txt still names it and the script excludes it, so a leg that skipped
+    # it must pass. Every other required block of the branch is satisfied, so a check that required
+    # the item list here would fail this case and nothing else.
     REQUIRED_PASSES = (
         """
         coverage/tests/forwarded_capture
@@ -935,19 +937,17 @@ class ServerUnlistedTest(unittest.TestCase):
             timeout=120,
         )
 
-    def test_a_leg_whose_list_names_the_overlay_pair_passes_without_it(self):
+    def test_a_leg_whose_list_names_the_item_list_passes_without_it(self):
         self.lines_file.write_text(self.server_lines())
         result = self.run_script()
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("run on the dedicated server with a client connected.", result.stdout)
         log = (self.loader / "run-server-ci.log").read_text()
-        for absent in (
-            "coverage/tests/overlay-Test.grug",
-            "jei/tests/jei-Test.grug",
-            "jei/tests/item_list_forced_normalization-Test.grug",
-        ):
-            self.assertNotIn(absent, log)
+        self.assertNotIn("jei/tests/item_list_forced_normalization-Test.grug", log)
+        # The overlay pair is required on every leg now, so this one must have run them.
+        self.assertIn("coverage/tests/overlay-Test.grug", log)
+        self.assertIn("jei/tests/jei-Test.grug", log)
 
 
 if __name__ == "__main__":
