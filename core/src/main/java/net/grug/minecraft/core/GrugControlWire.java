@@ -255,8 +255,11 @@ public final class GrugControlWire {
      * world, which is {@code TestTickContext.block_selection} (#1441). The box is the client's
      * outline: 1.2.5's dedicated server has no selection-box method at all, so that server asks the
      * joined client. The answer is 1 or 0.
+     *
+     * <p>The code is 22, above the 21 #1449 took for its overlay first-frame read, so a pair built
+     * either side of this call has to refuse each other rather than read one call as the other.
      */
-    public static final byte CALL_BLOCK_SELECTION = 21;
+    public static final byte CALL_BLOCK_SELECTION = 22;
 
     /** The number of measurements a {@link #CALL_SCREEN_GEOMETRY} answers, in its one message. */
     public static final int GEOMETRY_COUNT = 5;
