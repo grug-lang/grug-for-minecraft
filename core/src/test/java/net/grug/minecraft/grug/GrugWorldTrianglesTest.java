@@ -2,6 +2,7 @@ package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -102,6 +103,16 @@ class GrugWorldTrianglesTest {
         assertEquals(255, color.r());
         assertEquals(0x40ff2222, color.getARGB());
         assertTrue(drain().isEmpty());
+    }
+
+    @Test
+    void twoColorsThatDifferOnlyInAlphaDoNotShareAHash() {
+        long opaque = HostFunctions.Color_rgba(255, 34, 34, 255);
+        long translucent = HostFunctions.Color_rgba(255, 34, 34, 64);
+        Color first = (Color) GrugEntities.entityData.get(opaque).object;
+        Color second = (Color) GrugEntities.entityData.get(translucent).object;
+        assertNotEquals(first, second);
+        assertNotEquals(first.hashCode(), second.hashCode(), "a hash that ignores alpha collides");
     }
 
     @Test
