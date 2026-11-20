@@ -4,9 +4,12 @@ import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugLightResend;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
+import net.grug.minecraft.core.GrugRelight;
+import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
@@ -38,6 +41,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketHandler;
 import net.minecraft.network.packet.Packet;
+import net.minecraft.network.packet.WorldChunkPacket;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
@@ -45,12 +49,14 @@ import net.minecraft.world.World;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.zip.Deflater;
 
 /**
  * The adapter for an Alpha a0.2.1 dedicated server, which is the same loader as {@link
@@ -848,18 +854,224 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * with the world frozen, and answers the same to the test (#1086). A server on its own is
      * settled as soon as a test asks, because no client frame or block packet is owed to anyone;
      * that is also the answer when no client has started a run.
+     *
+     * <p>A region packet still owed to the joined client is not settled, and neither is the poll
+     * that only arms its send: the region is what marks the client's sections dirty, so a capture
+     * taken before it reads a mesh baked from the light before it. Such a poll therefore answers
+     * before it asks the client, as 1.2.5-forge's does, and the poll after the send asks it fresh:
+     * {@link GrugLightResend#due} sends nothing for the first poll after a change, which used to
+     * fall through to the client's answer and let the capture go (#1392, #1161).
      */
     @Override
     public boolean isWorldSettled() {
         if (!GrugControlAlpha.server().hasStarter()) {
             return true;
         }
+        boolean owed = lightResend.pending();
+        if (owed) {
+            resendLight();
+        }
+        // A poll that owed the region asked no client, so nothing is settled for this poll.
+        boolean clientSettled = false;
+        if (!owed) {
+            try {
+                clientSettled = GrugControlAlpha.server().worldSettled();
+            } catch (GrugControlServer.ControlException e) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
+                return true;
+            }
+        }
+        return GrugRenderSettle.serverSettled(clientSettled, owed);
+    }
+
+    /**
+     * The blocks a test placed, whose light the joined client lights for itself and so can light
+     * differently from this server's engine (#1092). See {@link GrugLightResend}.
+     */
+    private final GrugLightResend lightResend = new GrugLightResend();
+
+    /** A block placed here also owes the joined client the light around it. */
+    @Override
+    public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
+        super.placeBlock(levelObj, x, y, z, blockName);
+        lightResend.noteBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    /**
+     * Sends the joined client this server's light for the blocks a test changed, once the tick that
+     * changed them has been flushed to it, and answers whether it did.
+     *
+     * <p>This version's client lights a block-change packet from that change alone, while a chunk
+     * region packet carries the server's own light, so a room that touches a chunk with few blocks
+     * left that chunk's light a level off the server's, which the client-only run's golden does not
+     * show. The region packet is the one carrier of light this version has, so the settle wait
+     * sends it: the answer is false for the poll that sent it, so the next one asks a client that
+     * has the light. See {@link GrugLightResend} and #1092.
+     */
+    private boolean resendLight() {
+        List<int[]> regions = lightResend.due();
+        if (regions.isEmpty()) {
+            return false;
+        }
+        PlayerEntity starter = GrugControlAlpha.starterPlayer();
+        World world = (World) getLevel();
+        if (starter == null || world == null) {
+            return false;
+        }
+        // The placements left the field their order made, which differs from the one the final
+        // blocks define and from the client-only run's, so it is recomputed before it is sent.
+        int[] box = lightResend.lastBox();
+        relightRoom(
+                world, box[0], Math.max(box[1], 0), box[2], box[3], Math.min(box[4], 127), box[5]);
+        for (int[] region : regions) {
+            // A chunk this server never loaded is an empty one with no block array, which a region
+            // packet cannot be made of, and the client holds no light for it either.
+            if (world.getChunkAt(region[0] >> 4, region[2] >> 4).blocks == null) {
+                continue;
+            }
+            sendToPlayer(starter, buildWorldChunkPacket(world, region));
+        }
+        return true;
+    }
+
+    /** Sweeps of the room's cells the light may take before it is called not settling. */
+    private static final int RELIGHT_SWEEP_LIMIT = 16;
+
+    /**
+     * Brings the room's block light to the one field its blocks define, whatever rooms were built
+     * before it.
+     */
+    private static void relightRoom(
+            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        GrugRelight.sweepUntilStable(
+                () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), RELIGHT_SWEEP_LIMIT);
+    }
+
+    /**
+     * Recomputes the block light of every cell of the box once and hashes what the box holds
+     * afterwards.
+     */
+    private static long relightSweep(
+            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        world.updateLight(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
+        while (world.doLightUpdates()) {}
+        long hash = 0;
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    hash = hash * 31 + world.getLight(LightType.BLOCK, x, y, z);
+                }
+            }
+        }
+        return hash;
+    }
+
+    /**
+     * Builds the Alpha region packet for the given region, which has no constructor that takes a
+     * world: the compressed data is assembled from the server's blocks, metadata and light.
+     */
+    private static WorldChunkPacket buildWorldChunkPacket(World world, int[] region) {
+        int x = region[0];
+        int y = region[1];
+        int z = region[2];
+        int sizeX = region[3];
+        int sizeY = region[4];
+        int sizeZ = region[5];
+
+        // The nibble sections are packed two y layers per byte, aligned to even y. Round the
+        // region out to whole nibble bytes so the client unpacks the values we send.
+        int adjustedY = y & ~1;
+        int adjustedSizeY = ((y + sizeY + 1) & ~1) - adjustedY;
+
+        WorldChunkPacket packet = new WorldChunkPacket();
+        packet.x = x;
+        packet.y = adjustedY;
+        packet.z = z;
+        packet.sizeX = sizeX;
+        packet.sizeY = adjustedSizeY;
+        packet.sizeZ = sizeZ;
+        packet.shouldDelay = true;
+
+        byte[] raw = packChunkData(world, x, adjustedY, z, sizeX, adjustedSizeY, sizeZ);
+        Deflater deflater = new Deflater();
+        deflater.setInput(raw);
+        deflater.finish();
+        packet.data = new byte[raw.length];
+        setCompressedSize(packet, deflater.deflate(packet.data));
+        deflater.end();
+        return packet;
+    }
+
+    /**
+     * Packs a region's blocks, metadata, block light and sky light into the byte array Alpha's
+     * {@link WorldChunkPacket} expects. The layout is the same one the client unpacks: a y-run of
+     * blocks for each (x, z), then the same y-run of metadata nibbles, then block-light nibbles,
+     * then sky-light nibbles.
+     */
+    private static byte[] packChunkData(
+            World world, int x, int y, int z, int sizeX, int sizeY, int sizeZ) {
+        int count = sizeX * sizeY * sizeZ;
+        byte[] data = new byte[count * 5 / 2];
+        int index = 0;
+        for (int dx = 0; dx < sizeX; dx++) {
+            for (int dz = 0; dz < sizeZ; dz++) {
+                int wx = x + dx;
+                int wz = z + dz;
+                for (int dy = 0; dy < sizeY; dy++) {
+                    data[index++] = (byte) world.getBlock(wx, y + dy, wz);
+                }
+                int nibbleBytes = sizeY / 2;
+                for (int b = 0; b < nibbleBytes; b++) {
+                    int y0 = y + b * 2;
+                    int y1 = y0 + 1;
+                    data[index++] =
+                            packNibbles(
+                                    world.getBlockMetadata(wx, y0, wz),
+                                    world.getBlockMetadata(wx, y1, wz));
+                }
+                for (int b = 0; b < nibbleBytes; b++) {
+                    int y0 = y + b * 2;
+                    int y1 = y0 + 1;
+                    data[index++] =
+                            packNibbles(
+                                    world.getLight(LightType.BLOCK, wx, y0, wz),
+                                    world.getLight(LightType.BLOCK, wx, y1, wz));
+                }
+                for (int b = 0; b < nibbleBytes; b++) {
+                    int y0 = y + b * 2;
+                    int y1 = y0 + 1;
+                    data[index++] =
+                            packNibbles(
+                                    world.getLight(LightType.SKY, wx, y0, wz),
+                                    world.getLight(LightType.SKY, wx, y1, wz));
+                }
+            }
+        }
+        return data;
+    }
+
+    private static byte packNibbles(int lower, int upper) {
+        return (byte) ((upper << 4) | (lower & 0xF));
+    }
+
+    /** The Alpha packet keeps its compressed size private, so it has to be set by reflection. */
+    private static final Field COMPRESSED_SIZE_FIELD;
+
+    static {
         try {
-            return GrugControlAlpha.server().worldSettled();
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
-            return true;
+            COMPRESSED_SIZE_FIELD = WorldChunkPacket.class.getDeclaredField("compressedSize");
+            COMPRESSED_SIZE_FIELD.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            throw new IllegalStateException("WorldChunkPacket has no compressedSize field", e);
+        }
+    }
+
+    private static void setCompressedSize(WorldChunkPacket packet, int size) {
+        try {
+            COMPRESSED_SIZE_FIELD.setInt(packet, size);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Could not set WorldChunkPacket.compressedSize", e);
         }
     }
 
