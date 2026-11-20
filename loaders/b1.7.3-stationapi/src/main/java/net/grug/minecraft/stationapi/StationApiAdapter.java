@@ -896,8 +896,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
     private static final int RELIGHT_SWEEP_LIMIT = 16;
 
     /**
-     * Brings the room's block light to the one field its blocks define, whatever rooms were built
-     * before it.
+     * Brings the room's sky and block light to the one field its blocks define, whatever rooms were
+     * built before it.
      *
      * <p>This version lights incrementally, one queued change at a time, so the light a room ends
      * with depends on the changes that came before it, as 1.2.5's does (#961). A dedicated server
@@ -905,33 +905,64 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * built over other remains and a wall's bottom rows held a darker field than the golden's
      * (#1092). Queueing a recompute of the whole box and draining the queue until nothing moves
      * ends at the exact field. See {@link GrugRelight}.
+     *
+     * <p>The sky field is swept with the block one because this engine drops an update whose box
+     * covers more than 32768 cells, printing {@code Light too large, skipping!}: the room's clear
+     * and rebuild queue boxes that reach that size, so the air inside a room put up where the sky
+     * was open can keep the sky's 15 after its walls and ceiling are in place. The block field
+     * alone then looks settled while the renderer, which bakes the larger of the two, draws every
+     * face of the room at full brightness (#1368).
      */
     @Override
     public void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        World world = (World) levelObj;
-        GrugRelight.sweepUntilStable(
-                () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), RELIGHT_SWEEP_LIMIT);
+        GrugRelight.settle(
+                new QueuedLight((World) levelObj),
+                minX,
+                minY,
+                minZ,
+                maxX,
+                maxY,
+                maxZ,
+                RELIGHT_SWEEP_LIMIT);
     }
 
     /**
-     * Recomputes the block light of every cell of the box once and hashes what the box holds
-     * afterwards. The drain runs in full, as the settle's own does, so the hash describes a field
-     * with no update left queued.
+     * This version's queued light engine, as {@link GrugRelight.Room} drives it. The drain runs in
+     * full, as the settle's own does, so a sweep's hash describes a field with no update left
+     * queued.
      */
-    private static long relightSweep(
-            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        world.queueLightUpdate(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
-        while (world.doLightingUpdates()) {}
-        long hash = 0;
-        for (int y = minY; y <= maxY; y++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                for (int x = minX; x <= maxX; x++) {
-                    hash = hash * 31 + world.getBrightness(LightType.BLOCK, x, y, z);
-                }
-            }
+    private static final class QueuedLight implements GrugRelight.Room {
+        private final World world;
+
+        QueuedLight(World world) {
+            this.world = world;
         }
-        return hash;
+
+        @Override
+        public void queueSky(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+            this.world.queueLightUpdate(LightType.SKY, minX, minY, minZ, maxX, maxY, maxZ);
+        }
+
+        @Override
+        public void queueBlock(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+            this.world.queueLightUpdate(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
+        }
+
+        @Override
+        public void drain() {
+            while (this.world.doLightingUpdates()) {}
+        }
+
+        @Override
+        public int sky(int x, int y, int z) {
+            return this.world.getBrightness(LightType.SKY, x, y, z);
+        }
+
+        @Override
+        public int block(int x, int y, int z) {
+            return this.world.getBrightness(LightType.BLOCK, x, y, z);
+        }
     }
 
     /**
