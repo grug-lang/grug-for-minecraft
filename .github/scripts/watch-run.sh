@@ -39,8 +39,13 @@ while true; do
     IFS=$'\t' read -r JOB_ID JOB_NAME CONCLUSION <<<"$FAILED"
     echo "==> Job '$JOB_NAME' ($JOB_ID) ended with $CONCLUSION; the 80 log lines before its first error:"
     # `gh run view --log-failed` refuses while the run is in progress, which is when this matters, so
-    # read the job's log through the API, which works once the job itself has finished.
-    LOG="$(gh api "repos/$REPO/actions/jobs/$JOB_ID/logs" --allow-escape-sequences 2>/dev/null || true)"
+    # read the job's log through the API, which works once the job itself has finished. Its stderr
+    # says why nothing came back, so it is printed when the log is empty: an empty block would hide a
+    # 404 or a 502 behind a failure that does not name itself.
+    if ! LOG="$(gh api "repos/$REPO/actions/jobs/$JOB_ID/logs" --allow-escape-sequences 2>"$ERR_FILE")"; then
+      echo "==> the job's log could not be read: $(head -c 400 "$ERR_FILE")"
+      exit 1
+    fi
     LINE="$(grep -n -m1 '##\[error\]' <<<"$LOG" | cut -d: -f1 || true)"
     if [ -n "$LINE" ]; then head -n "$LINE" <<<"$LOG" | tail -n 80; else tail -n 80 <<<"$LOG"; fi
     exit 1
