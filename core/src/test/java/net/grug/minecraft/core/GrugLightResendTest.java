@@ -102,6 +102,22 @@ class GrugLightResendTest {
     }
 
     @Test
+    void theSettleAnswerIsNoUntilTheRegionWentOut() {
+        GrugLightResend resend = new GrugLightResend();
+
+        assertFalse(resend.pending(), "nothing is owed, so the world is settled");
+
+        resend.noteBlock(5, 64, 5);
+        assertTrue(resend.pending(), "the client does not hold this server's light yet");
+
+        assertTrue(resend.due().isEmpty(), "the poll that only arms the send owes the region");
+        assertTrue(resend.pending(), "arming the send is not sending it, so not settled either");
+
+        resend.due();
+        assertFalse(resend.pending(), "the region went out, so the next poll may settle");
+    }
+
+    @Test
     void theBoxOfTheLastSendIsKept() {
         GrugLightResend resend = new GrugLightResend();
         assertEquals(0, resend.lastBox().length);
