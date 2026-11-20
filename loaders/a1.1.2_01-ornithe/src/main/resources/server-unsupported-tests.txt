@@ -15,12 +15,17 @@
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
-# The item list. Test.overlay_supported, Test.overlay_drawn and the first-frame read answer from the
-# joined client (#1099, #1391), so overlay_screen_open is unlisted here and measured by proof run
-# 44678178827. overlay-Test and jei-Test go with it: #1470 fixed a1's cursor read and write and
-# #1425 sends the clear to the server that holds the menu, and this change's own dispatch proves
-# them on this leg. The forced-normalization item list stays: no dispatch has proven this leg's item
-# list since #1470, so a proof is pending.
+# The overlay click and the item list. Test.overlay_supported, Test.overlay_drawn and the first-frame
+# read answer from the joined client (#1099, #1391), so overlay_screen_open is unlisted here and
+# measured by proof run 44678178827. overlay-Test and jei-Test stay: #1099 and #1391 answer the
+# overlay hooks from the joined client and #1470 fixed the cursor read and the write, but proof run
+# 44809935576 still failed overlay-Test on this leg, at its left click on the overlay, because the
+# Alpha server does not apply the container click the joined client presses (#1393). jei-Test did not
+# run at that head because the leg stops at its first failure, so it stays unproven too. The
+# forced-normalization item list also stays: no dispatch has proven this leg's item list since #1470,
+# so a proof is pending.
+coverage/tests/overlay-Test.grug
+jei/tests/jei-Test.grug
 jei/tests/item_list_forced_normalization-Test.grug
 #
 # The forced-normalization probe runs here: #1430 forwards the force and the two reads to the joined

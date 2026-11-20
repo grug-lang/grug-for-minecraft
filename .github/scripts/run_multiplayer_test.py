@@ -32,9 +32,11 @@ LOADER = "b1.7.3-ornithe"
 SERVER_VERSION = "b1.7.3"
 SECOND_LOADER = "1.20.6-forge"
 
-# The ten overlay and JEI tests every leg requires twice: its PASS line and the line only a test
-# whose overlay was drawn on the joined client writes. The forced-normalization item list is left
-# out, because the legs that still list it skip it.
+# The eleven overlay and JEI tests every leg but a1.1.2_01 requires twice: its PASS line and the line
+# only a test whose overlay was drawn on the joined client writes. a1.1.2_01 lists overlay and
+# jei/jei, because its server does not apply the container click the joined client presses (#1393),
+# so it excludes those two. The forced-normalization item list is left out, because the legs that
+# still list it skip it.
 OVERLAY_DRAWN_TESTS = [
     "coverage/tests/give_requires_operator",
     "coverage/tests/overlay",

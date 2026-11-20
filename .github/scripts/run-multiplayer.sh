@@ -658,13 +658,15 @@ while :; do
     done
     # The tests #1390, #1425 and #1430 unlisted on the legs whose proof passed (#1040) have to show
     # as passed too, or a leg that skips one quietly would still look green. The click release is
-    # required on all five legs, since #1390 fixes it on 1.20.6 and no leg's list names it, and so is
-    # the forced-normalization probe, which no list names any more (#1430). The overlay, the JEI list
-    # and the forced-normalization item list are required only on the three legs whose lists stopped
-    # naming them: proof run 44642603736 passed the overlay pair and the item list on 1.2.5-forge
-    # and b1.7.3-ornithe, and run 44650333692 passed all three on 1.20.6-forge. a1.1.2_01 and
-    # b1.7.3-stationapi still list the three, so requiring them there would fail a leg that is right
-    # to skip them.
+    # required on every leg, since #1390 fixes it on 1.20.6 and no leg's list names it, and so is
+    # the forced-normalization probe, which no list names any more (#1430). The overlay pair and the
+    # forced-normalization item list are required here on the three legs whose lists stopped naming
+    # them: proof run 44642603736 passed the overlay pair and the item list on 1.2.5-forge and
+    # b1.7.3-ornithe, and run 44650333692 passed all three on 1.20.6-forge. b1.7.3-stationapi's list
+    # stopped naming the overlay pair too, which the overlay check below requires there (proof run
+    # 44809935576), but it still names the item list; a1.1.2_01 names all three, because its server
+    # does not apply the container click the joined client presses (#1393), so requiring them there
+    # would fail a leg that is right to skip them.
     server_unlisted="coverage/tests/click_screen_release coverage/tests/hook_forced_normalization"
     case "$LOADER" in
       1.2.5-forge|1.20.6-forge|b1.7.3-ornithe)
@@ -819,8 +821,10 @@ while :; do
     # overlay_drawn now, the give an overlay's click makes is named to the server, and the client
     # records whether its drawn mark was clear when a screen's first frame began (#1391), so these
     # tests open the client's screen and drive the overlay on it.
-    # overlay-Test and jei-Test are required on every leg since the cursor write and read reach the
-    # server's player (#1389). overlay_screen_open is required too, and is unlisted everywhere.
+    # overlay-Test and jei-Test are required on the four legs whose lists dropped them since the
+    # cursor write and read reach the server's player (#1389). a1.1.2_01 still lists both, because
+    # its server does not apply the container click the joined client presses (#1393).
+    # overlay_screen_open is required too, and is unlisted everywhere.
     # The five-leg proof of #1227 made the forced-normalization item list client-only on every leg,
     # because a dedicated server cannot force that GL state. Its #1237 failure on b1.7.3-ornithe's
     # joined item list is fixed by #1238, so paging and scroll are required there again. Each loader's
@@ -846,10 +850,12 @@ while :; do
         ;;
       a1.1.2_01-ornithe)
         overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
-        # Only the forced-normalization item list is client-only here: a dedicated server cannot
-        # force that GL state. paging and scroll are back after #1238 gave the coverage mod's two
-        # fixtures drawable item models, and this leg runs both.
-        excluded="jei/tests/item_list_forced_normalization"
+        # Three tests are client-only here: the forced-normalization item list, because a dedicated
+        # server cannot force that GL state, and the overlay click and the JEI click, because this
+        # server does not apply the container click the joined client presses (#1393; proof run
+        # 44809935576 failed overlay-Test at its left click). paging and scroll are back after #1238
+        # gave the coverage mod's two fixtures drawable item models, and this leg runs both.
+        excluded="coverage/tests/overlay jei/tests/jei jei/tests/item_list_forced_normalization"
         ;;
       b1.7.3-ornithe)
         overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
