@@ -61,18 +61,18 @@ repositories {
     maven("https://maven.glass-launcher.net/babric")
     maven("https://maven.minecraftforge.net/")
     maven("https://jitpack.io/")
+    // Central's filtered mirror (#1453): org.jacoco is resolved here first, so a 429 from Central
+    // cannot fail the JaCoCo agent download. Every other group is asked only of Central.
+    maven {
+        url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+        content {
+            includeGroup("org.jacoco")
+        }
+    }
     mavenCentral {
         // typetools 0.8.x is not on Maven Central (its newest is 0.7.0), only on the Forge maven, so
         // asking Central about it is a wasted request that its rate limit can turn into a failed
         // build (#1370).
-        content {
-            excludeGroup("net.jodah")
-        }
-    }
-    // Central's fallback (#1453), with the same content: the mirror holds exactly what Central does,
-    // so it is not asked about typetools either.
-    maven {
-        url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
         content {
             excludeGroup("net.jodah")
         }

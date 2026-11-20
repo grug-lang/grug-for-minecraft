@@ -119,9 +119,15 @@ class ClientWrapperLauncher implements JavaLauncher {
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 repositories {
+    // Central's filtered mirror (#1453): org.jacoco is resolved here first, so a 429 from Central
+    // cannot fail the JaCoCo agent download. Every other group is asked only of Central.
+    maven {
+        url 'https://maven-central.storage-download.googleapis.com/maven2/'
+        content {
+            includeGroup 'org.jacoco'
+        }
+    }
     mavenCentral()
-    // Central's fallback (#1453): the same artifacts from a second host.
-    maven { url = 'https://maven-central.storage-download.googleapis.com/maven2/' }
 }
 
 dependencies {
