@@ -92,7 +92,9 @@ class GrugRelightTest {
                 assertTrue(
                         cells(box) <= GrugRelight.MAX_UPDATE_CELLS,
                         "one update should cover at most " + GrugRelight.MAX_UPDATE_CELLS);
-                assertTrue(inside(box), "a piece should stay inside the box it was cut from");
+                assertTrue(
+                        inside(box, new int[] {0, 0, 0, 28, 41, 28}),
+                        "a piece should stay inside the box it was cut from");
                 covered = covered + cells(box);
                 for (int other = at + 1; other < boxes.size(); other++) {
                     assertFalse(
@@ -104,19 +106,54 @@ class GrugRelightTest {
         assertEquals(room.skyQueues, room.blockQueues, "both fields should be queued in pieces");
     }
 
+    @Test
+    void aBoxIsCutAlongItsLongestSide() {
+        // The settle case above cuts a room's box, whose longest side is y. These put the longest
+        // side on x and on z, and the last one has x longer than y but shorter than z, so every
+        // comparison the cut makes is taken both ways.
+        int[][] boxes = {
+            {0, 0, 0, 40, 28, 28},
+            {0, 0, 0, 28, 28, 40},
+            {0, 0, 0, 30, 28, 40},
+        };
+
+        for (int[] outer : boxes) {
+            List<int[]> pieces =
+                    GrugRelight.pieces(outer[0], outer[1], outer[2], outer[3], outer[4], outer[5]);
+            assertTrue(pieces.size() > 1, "a box over one update should be cut");
+
+            long covered = 0;
+            for (int at = 0; at < pieces.size(); at++) {
+                int[] piece = pieces.get(at);
+                assertTrue(
+                        cells(piece) <= GrugRelight.MAX_UPDATE_CELLS,
+                        "one update should cover at most " + GrugRelight.MAX_UPDATE_CELLS);
+                assertTrue(
+                        inside(piece, outer), "a piece should stay inside the box it was cut from");
+                covered = covered + cells(piece);
+                for (int other = at + 1; other < pieces.size(); other++) {
+                    assertFalse(
+                            overlaps(piece, pieces.get(other)),
+                            "two pieces should not share a cell");
+                }
+            }
+            assertEquals(cells(outer), covered, "the pieces should cover the box exactly once");
+        }
+    }
+
     /** How many cells a box covers, as GrugRelight counts them. */
     private static long cells(int[] box) {
         return (long) (box[3] - box[0] + 1) * (box[4] - box[1] + 1) * (box[5] - box[2] + 1);
     }
 
-    /** Whether a box is inside the box a radius 13 room settles. */
-    private static boolean inside(int[] box) {
-        return box[0] >= 0
-                && box[1] >= 0
-                && box[2] >= 0
-                && box[3] <= 28
-                && box[4] <= 41
-                && box[5] <= 28;
+    /** Whether a box is inside {@code outer}. */
+    private static boolean inside(int[] box, int[] outer) {
+        return box[0] >= outer[0]
+                && box[1] >= outer[1]
+                && box[2] >= outer[2]
+                && box[3] <= outer[3]
+                && box[4] <= outer[4]
+                && box[5] <= outer[5];
     }
 
     /** Whether two boxes share at least one cell. */
