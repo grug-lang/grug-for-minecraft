@@ -26,21 +26,26 @@
 
 # The rectangle is inset one scaled pixel on every side, which drops the padding at the row's outer
 # edge and leaves the 16 pixel icon of each kept cell and the 2 pixel gaps between cells, 264 by 48
-# pixels. The padding is where the world behind the grid changed between two runs of one loader, by
-# up to two levels (#961), while the icons and the gaps were identical.
+# pixels. The padding is where the world behind the grid changed between runs of one loader in the
+# comparison that chose this rectangle, by up to two levels (#961), while the icons and the gaps
+# were identical.
 
 # The first two rows are left out because the later versions' item lists start with the fluids,
 # whose icons are animated textures: water and lava change frame every client tick, so a capture that
-# includes them differs from run to run and is no golden. The rows below the third are left out
-# because the grid sits to the right of the screen's panel, over the world the open screen shows
-# behind it, and that world is not reproducible: on 1.20.6 the world behind rows 5 to 7 differed by
-# 21059 pixels between two runs, and on b1.7.3-ornithe the world behind rows 3 and 4 differed between
-# two runs, while the third row was byte-identical in both comparisons. Fire, whose pixels are
-# regenerated at random, is in the last two rows as well. The third row held the same pixels in every
-# run compared on 1.20.6, 1.2.5, b1.7.3-stationapi and b1.7.3-ornithe, and the five columns kept
-# still pin the grid's right alignment, its top position, its column count and its slot pitch: any
-# move, resize or repack of the grid changes the icons the row holds. The background's variation is
-# its own issue, #961.
+# includes them differs from run to run and is no golden. Fire, whose pixels are regenerated at
+# random, is in the last rows as well. The third row held the same pixels in every run compared, on
+# all five loaders, and the five columns kept still pin the grid's right alignment, its top
+# position, its column count and its slot pitch: any move, resize or repack of the grid changes the
+# icons the row holds.
+
+# The rows below the third are left out because of those icons and not because of the world behind
+# them. On 2026-11-20 two attempts of one commit captured the whole frame and the room's light on
+# every loader for #961: the only differing pixels were inside the fluid and fire cells and in the
+# inventory's player model, the world behind the grid was byte-identical on every loader except
+# 1.2.5, where one isolated pixel outside every cell differed by two levels (two such pixels across
+# four captures of it), and the room's block and sky light was identical on all five loaders and
+# every layer. The earlier 21059 pixel difference behind rows 5 to 7 on 1.20.6 and 3520 on
+# b1.7.3-ornithe did not reproduce after #938 and #997; see #961.
 
 # JEI's page buttons are the 22 pixels above the grid and its search field and config button the 20
 # pixels below it, so none of the reference's chrome, which the port does not draw (#870), is in the
