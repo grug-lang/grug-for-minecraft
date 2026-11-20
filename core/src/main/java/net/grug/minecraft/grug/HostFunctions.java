@@ -825,9 +825,10 @@ public class HostFunctions {
      * draws frames of its own between the server's open and the server's read, so this answer is
      * that client's own record at the moment the screen's first frame began: false when the mark
      * was already set then, which is what a hook that ran after the frame, or never ran, leaves
-     * behind. False also before a frame of the screen has begun, so a test waits for {@code
-     * overlay_drawn} first. On a dedicated server the answer comes from the client of the player
-     * who started the run (#1391). See {@link ModLoaderAdapter#overlayFirstFrameClearedForTest}.
+     * behind, and false for a screen whose first frame has not begun. The record names the screen
+     * open now, so an earlier screen's clean answer cannot be taken for a reopened one. On a
+     * dedicated server the answer comes from the client of the player who started the run (#1391).
+     * See {@link ModLoaderAdapter#overlayFirstFrameClearedForTest}.
      */
     public static boolean TestTickContext_overlay_first_frame_cleared(long contextId) {
         if (!requireTickContext("TestTickContext.overlay_first_frame_cleared", contextId)) {

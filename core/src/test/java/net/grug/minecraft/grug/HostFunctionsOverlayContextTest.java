@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.ModLoaderAdapter;
 
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +33,12 @@ class HostFunctionsOverlayContextTest {
     private Object savedAdapter;
 
     /**
+     * The identity the fake adapter says the screen open now has, so a first-frame read names a
+     * screen and a record from another one cannot answer for it.
+     */
+    private long testScreenIdentity;
+
+    /**
      * Installs a fake adapter for the two overlay reads, which go through it because a dedicated
      * server asks the joined client instead of answering for itself (#1099). Every default method
      * runs its own body here, so the marks a loader keeps locally are the ones a test reads, and
@@ -48,6 +55,9 @@ class HostFunctionsOverlayContextTest {
                         getClass().getClassLoader(),
                         new Class<?>[] {ModLoaderAdapter.class},
                         (proxy, method, args) -> {
+                            if (method.getName().equals("screenIdentityForTest")) {
+                                return testScreenIdentity;
+                            }
                             if (method.isDefault()) {
                                 return InvocationHandler.invokeDefault(proxy, method, args);
                             }
@@ -288,6 +298,7 @@ class HostFunctionsOverlayContextTest {
         long context = GrugTestContexts.tick();
         GrugOverlay.screenOpened();
         Object screen = new Object();
+        testScreenIdentity = GrugTestScreens.identityOf(screen);
 
         // Before the screen's first frame the record says nothing, so this is not read as clean.
         assertFalse(
@@ -298,10 +309,18 @@ class HostFunctionsOverlayContextTest {
         GrugOverlay.noteFrame(screen);
         assertTrue(HostFunctions.TestTickContext_overlay_first_frame_cleared(context));
 
-        // A new screen whose hook never ran begins its first frame with the previous screen's mark,
-        // which is what a forwarded test asserts against.
+        // A new screen whose hook never ran has drawn no frame yet, so the record
+        // still describes the first screen, and a read that names the new one must not take it.
+        Object reopened = new Object();
+        testScreenIdentity = GrugTestScreens.identityOf(reopened);
+        assertFalse(
+                HostFunctions.TestTickContext_overlay_first_frame_cleared(context),
+                "the first screen's record is not about the screen open now");
+
+        // Once the reopened screen draws its first frame, that frame began with the previous
+        // screen's mark, which is what a forwarded test asserts against.
         GrugOverlay.noteDrawn();
-        GrugOverlay.noteFrame(new Object());
+        GrugOverlay.noteFrame(reopened);
         assertFalse(HostFunctions.TestTickContext_overlay_first_frame_cleared(context));
         GrugTestState.currentTestMod = null;
     }

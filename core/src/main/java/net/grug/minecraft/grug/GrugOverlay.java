@@ -2,6 +2,7 @@ package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugOverlayFirstFrame;
+import net.grug.minecraft.core.GrugTestScreens;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -150,8 +151,9 @@ public final class GrugOverlay {
      *
      * <p>It is the client's own record, taken at the moment the frame begins, because a joined
      * client's frames are what a server-run test cannot see: by the time the server reads the mark,
-     * a frame of the new screen may already have set it. The screen is passed in so a screen the
-     * hook never announced still starts a new first frame. See {@link GrugOverlayFirstFrame}.
+     * a frame of the new screen may already have set it. The screen is passed in because a screen
+     * the hook never announced still starts a new first frame, and a hook that runs after that
+     * frame cannot clean it. See {@link GrugOverlayFirstFrame}.
      */
     public static void noteFrame(Object screen) {
         FIRST_FRAME.frameStarted(screen, overlayDrawn);
@@ -162,8 +164,10 @@ public final class GrugOverlay {
      * about the screen that is open now rather than about a frame an earlier test drew on an
      * earlier screen. Called by a loader when an eligible screen initializes, on the client thread.
      *
-     * <p>It also starts a new first-frame record, so the frame after this one is the first frame of
-     * the screen that opened, whatever the earlier screen's frame recorded.
+     * <p>It also advances the first-frame generation, so a read between this call and the frame
+     * after it cannot describe the frame before it. A frame of the same screen confirms the record
+     * at the new generation but keeps the answer its first frame gave, because a hook that ran
+     * after that frame cannot make it clean. A new screen object is what starts a new record.
      */
     public static void screenOpened() {
         overlayDrawn = false;
@@ -202,15 +206,19 @@ public final class GrugOverlay {
      * server's read, so this answer is the client's own record of the mark at the moment that
      * screen's first frame began: a hook that ran before the frame left it clear there and one that
      * ran after it left the previous screen's mark set. False until a frame of the screen has
-     * begun.
+     * begun, and false when {@code screenIdentity} names another screen than the record describes,
+     * which is what keeps the first screen's clean record from answering for a reopened one.
      *
      * <p>A mod that is not the one the last ask was about starts a new screen from a clean mark, as
      * {@link #drawnForTest} does, because the frame that set the mark belonged to another mod's
      * overlay.
+     *
+     * @param screenIdentity the identity of the screen open now, from {@link
+     *     GrugTestScreens#identityOf}, or 0 when none is open
      */
-    public static boolean firstFrameClearedForTest(String mod) {
+    public static boolean firstFrameClearedForTest(String mod, long screenIdentity) {
         noteTestMod(mod);
-        return FIRST_FRAME.clearedAtFirstFrame();
+        return FIRST_FRAME.clearedAtFirstFrame(screenIdentity);
     }
 
     /** Starts a new screen's first-frame record when the mod a read is about changes. */
@@ -218,6 +226,7 @@ public final class GrugOverlay {
         if (!java.util.Objects.equals(mod, GrugTestState.currentTestMod)) {
             GrugTestState.currentTestMod = mod;
             screenOpened();
+            FIRST_FRAME.forget();
         }
     }
 

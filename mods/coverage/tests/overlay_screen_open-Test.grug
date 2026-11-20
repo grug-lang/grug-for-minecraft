@@ -58,13 +58,25 @@ export tick_any_side(ctx: TestTickContext) {
     # or the mixin's init is still on the stack, so the new screen's first frame begins with the
     # mark already clear. A joined client draws frames of its own between the server's open and the
     # server's read, so the mark is set again by the time a forwarded read can see it: the client
-    # records the mark at the moment that first frame began instead, and a hook that ran after the
-    # frame, or never ran, left the previous screen's mark in that record.
+    # records the mark at the moment that first frame began instead.
+
+    # The reopened screen's answer names the screen open now by identity, so the first screen's mark
+    # cannot satisfy it. Remove GrugOverlay.screenOpened() from the loader's open hook and the
+    # reopened screen's first frame begins with the first screen's set mark; the wait below is still
+    # satisfied by that mark, and the assert that follows is what fails, because the record is either
+    # the first screen's (another identity) or carries its set mark.
     if not reopened {
         ctx.close_screen()
         ctx.open_inventory(ctx.get_player())
         reopened = true
         waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open again.")
         ctx.not_done()
         return
     }
