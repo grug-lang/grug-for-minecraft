@@ -972,6 +972,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload the screenshot references the run accepted
+        if: ${{ always() && inputs.update-goldens == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: loader-${{ matrix.dir }}-goldens
+          path: mods/*/screenshots
+          if-no-files-found: ignore
+          retention-days: 7
+
   # The suite on a dedicated server with a real client connected to it (#167, umbrella #36): the
   # loader's runServer drives the tests from the server's tick and a runClient joins it through quick
   # play, so a regression in the client and server split fails the build. Stage one of #167: it runs
@@ -1161,6 +1170,15 @@ jobs:
             loaders/${{ matrix.loader }}/run-second/crash-reports
             loaders/${{ matrix.loader }}/run-second/second-client-launch.log
             loaders/${{ matrix.loader }}/run-second/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload the screenshot references the run accepted
+        if: ${{ always() && inputs.update-goldens == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: multiplayer-${{ matrix.loader }}-goldens-${{ github.run_attempt }}
+          path: mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 
@@ -1712,6 +1730,9 @@ jobs:
           # The game's own limit. The launcher's install has its own, GRUG_CI_INSTALL_TIMEOUT (600 s
           # by default), so a slow download there cannot spend this time (#725).
           GRUG_CI_RUN_TIMEOUT: '480'
+          # An update-goldens dispatch accepts each unmatched capture in this run too, so it does
+          # not fail on the golden it is generating (#1490).
+          GRUG_UPDATE_GOLDENS: ${{ inputs.update-goldens && '1' || '' }}
 
       - name: Upload logs and crash reports
         if: always()
@@ -1723,6 +1744,15 @@ jobs:
             loaders/${{ matrix.dir }}/build/production-game/logs
             loaders/${{ matrix.dir }}/build/production-game/crash-reports
             loaders/${{ matrix.dir }}/build/production-game/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload the screenshot references the run accepted
+        if: ${{ always() && inputs.update-goldens == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-windows-${{ matrix.dir }}-goldens
+          path: mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 
@@ -1958,6 +1988,9 @@ jobs:
           # The game's own limit. The launcher's install has its own, GRUG_CI_INSTALL_TIMEOUT (600 s
           # by default), so a slow download there cannot spend this time (#725).
           GRUG_CI_RUN_TIMEOUT: '480'
+          # An update-goldens dispatch accepts each unmatched capture in this run too, so it does
+          # not fail on the golden it is generating (#1490).
+          GRUG_UPDATE_GOLDENS: ${{ inputs.update-goldens && '1' || '' }}
 
       - name: Upload logs and crash reports
         if: always()
@@ -1978,6 +2011,15 @@ jobs:
         with:
           name: production-${{ matrix.dir }}-screenshots
           path: loaders/${{ matrix.dir }}/build/production-game/grug-screenshot-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload the screenshot references the run accepted
+        if: ${{ always() && inputs.update-goldens == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-${{ matrix.dir }}-goldens
+          path: mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 
@@ -2066,6 +2108,9 @@ jobs:
           # The game's own limit; the install has its own, GRUG_CI_INSTALL_TIMEOUT (600 s default),
           # so a slow download of the installer or the game cannot spend this time (#725).
           GRUG_CI_RUN_TIMEOUT: '480'
+          # An update-goldens dispatch accepts each unmatched capture in this run too, so it does
+          # not fail on the golden it is generating (#1490).
+          GRUG_UPDATE_GOLDENS: ${{ inputs.update-goldens && '1' || '' }}
 
       # JEI builds its ingredient list from every registered item before it logs this line, so an item
       # of grug's that JEI cannot read shows up here as an error or as JEI never starting.
@@ -2100,6 +2145,15 @@ jobs:
         with:
           name: coexistence-1.20.6-forge-screenshots
           path: loaders/1.20.6-forge/build/production-game/grug-screenshot-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload the screenshot references the run accepted
+        if: ${{ always() && inputs.update-goldens == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coexistence-1.20.6-forge-goldens
+          path: mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 
