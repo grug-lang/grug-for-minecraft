@@ -346,14 +346,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * instead, in the same order the game's client uses for a right-click: the block's {@code use}
      * first, and the held item's {@code useOn} when the block declines.
      *
-     * <p>The a0.2.1 server has no {@code ServerPlayerInteractionManager} to call, so this layer
-     * makes that order itself. What it cannot make here is the screen: an Alpha container screen is
-     * the client's own, because {@code ChestBlock.use} ends in {@code PlayerEntity.openChestMenu},
-     * which a joined client overrides to open the game's chest screen and which sends a server
-     * player nothing (#1494). A vanilla block's click is therefore also sent to the joined client,
-     * which runs the same activation on its own copy, the half a real Alpha client made for itself
-     * after sending its use packet. A grug block is not sent: its {@code use} opens the menu this
-     * server holds (#1098).
+     * <p>The a0.2.1 server jar's {@code ServerPlayerInteractionManager} makes that order, but this
+     * layer compiles against the client jar, where that class does not exist, so it cannot be named
+     * here and this layer makes the order itself. What it cannot make here is the screen: an Alpha
+     * container screen is the client's own, because {@code ChestBlock.use} ends in {@code
+     * PlayerEntity.openChestMenu}, which a joined client overrides to open the game's chest screen
+     * and which sends a server player nothing (#1494). A vanilla block's click is therefore also
+     * sent to the joined client, which runs the same activation on its own copy, the half a real
+     * Alpha client made for itself after sending its use packet. A grug block is not sent: its
+     * {@code use} opens the menu this server holds (#1098).
      *
      * <p>The face is the one a ray from the test player's eye to the block's centre enters, which
      * is the face the player sees of it: the top of a block below the eye, the bottom of one above

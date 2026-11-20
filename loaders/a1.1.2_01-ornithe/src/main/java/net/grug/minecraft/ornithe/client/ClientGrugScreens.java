@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe.client;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.grug.minecraft.core.GrugControlClient;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.gui.GrugScreenContentPacket;
@@ -22,7 +23,9 @@ import java.util.List;
  * installed the screen.
  *
  * <p>Nothing here runs on a singleplayer client, which opens its screen itself, or on the server,
- * which only sends these packets.
+ * which only sends these packets. A joined client applies them only while a run its own player
+ * started is active, the gate every forwarded call passes (#1040): an ordinary server that sends an
+ * open, a content update or a click of a vanilla block must not drive this client's screen.
  */
 @GrugGenerated("client glue: the screen it drives is excluded from coverage")
 public final class ClientGrugScreens implements ClientModInitializer {
@@ -89,6 +92,12 @@ public final class ClientGrugScreens implements ClientModInitializer {
             if (QUEUE.isEmpty()) return;
             ready = new ArrayList<>(QUEUE);
             QUEUE.clear();
+        }
+        if (!GrugControlClient.runActiveHere()) {
+            // Only a run that this client's own player started may put a screen on show or click a
+            // vanilla block, the same rule every forwarded call obeys (#1040). A packet that
+            // arrived outside one, from an ordinary server, is dropped rather than obeyed.
+            return;
         }
         for (Pending pending : ready) {
             if (pending.useBlock) {

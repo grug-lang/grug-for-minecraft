@@ -22,6 +22,14 @@ import java.io.IOException;
  *
  * <p>Both ends register it under {@link #ID}, because Alpha's registry refuses an id the receiver
  * does not know, but only a server sends it and only a client applies it.
+ *
+ * <p>The packet is delayed, like the block updates and block entity updates a test's own click may
+ * depend on ({@code BlockUpdatePacket}, {@code BlocksUpdatePacket}, {@code
+ * BlockEntityUpdatePacket}). {@code Connection.write} drains the normal send queue before the
+ * delayed one, so a click in the normal queue can overtake the chest a test placed in the same
+ * tick, and the client then reads air and drops the click. Sharing the delayed queue keeps the
+ * order the server sent them in, and the server flushes its queued block changes before it sends
+ * this (#1494).
  */
 @GrugGenerated(
         "the game's packet type: only the dispatch-only multiplayer job opens a screen on a server")
@@ -45,9 +53,12 @@ public class GrugUseBlockPacket extends Packet {
     private int z;
 
     /** Empty, for the game's packet table, which makes one of each packet to read it into. */
-    public GrugUseBlockPacket() {}
+    public GrugUseBlockPacket() {
+        this.shouldDelay = true;
+    }
 
     public GrugUseBlockPacket(int x, int y, int z) {
+        this.shouldDelay = true;
         this.x = x;
         this.y = y;
         this.z = z;
