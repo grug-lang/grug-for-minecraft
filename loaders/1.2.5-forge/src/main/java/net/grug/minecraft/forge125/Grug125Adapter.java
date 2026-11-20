@@ -1001,10 +1001,15 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     /**
-     * Recomputes the light of every cell of the box once, in a fixed order, and hashes the block
-     * light the box holds afterwards. The engine's incremental updates leave a field that depends
-     * on the changes that came before; a cell recomputed from its neighbours is exact, so sweeping
-     * until nothing moves ends at the one field the blocks define. See {@link GrugRelight}.
+     * Recomputes the light of every cell of the box once, in a fixed order, and hashes both fields
+     * the renderer bakes a face's brightness from. The engine's incremental updates leave a field
+     * that depends on the changes that came before; a cell recomputed from its neighbours is exact,
+     * so sweeping until nothing moves ends at the one field the blocks define. See {@link
+     * GrugRelight}.
+     *
+     * <p>The sky field is hashed with the block field because the renderer takes the larger of the
+     * two: a sweep that is still changing only the sky would otherwise look settled, and the
+     * capture would bake a room lit at the open sky's level (#1368).
      */
     static long relightSweep(
             World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
@@ -1019,6 +1024,7 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         for (int y = minY; y <= maxY; y++) {
             for (int z = minZ; z <= maxZ; z++) {
                 for (int x = minX; x <= maxX; x++) {
+                    hash = hash * 31 + world.getSavedLightValue(EnumSkyBlock.Sky, x, y, z);
                     hash = hash * 31 + world.getSavedLightValue(EnumSkyBlock.Block, x, y, z);
                 }
             }
