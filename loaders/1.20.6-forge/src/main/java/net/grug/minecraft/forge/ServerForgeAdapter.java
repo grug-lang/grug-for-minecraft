@@ -577,6 +577,7 @@ public class ServerForgeAdapter extends ForgeAdapter {
         // game syncs it as window -1 slot -1, which is what broadcastChanges sends once the carried
         // differs from the last copy it sent (#1094).
         menu.broadcastChanges();
+        sendCarriedToClient(menu);
     }
 
     /** Clears the cursor of this server's own menu, and the client's copy of it (#1094). */
@@ -592,6 +593,22 @@ public class ServerForgeAdapter extends ForgeAdapter {
         }
         menu.setCarried(ItemStack.EMPTY);
         menu.broadcastChanges();
+        sendCarriedToClient(menu);
+    }
+
+    /**
+     * Sends the menu's whole state, whose carried stack is the client's cursor, to the client
+     * (#1390). The game's own cursor sync is window -1 slot -1, and a client whose screen is the
+     * creative inventory skips it: {@code ClientPacketListener.handleContainerSetSlot} sets the
+     * player's cursor from window -1 only while the screen is not a {@code
+     * CreativeModeInventoryScreen}, because that screen keeps its own cursor. The screen's menu
+     * answers and takes the cursor through the player's inventory menu ({@code
+     * CreativeModeInventoryScreen.ItemPickerMenu}), and the content packet of window 0 sets that
+     * menu's carried whatever screen is open, so this is the state the game itself sends when the
+     * inventory opens. A screen that takes window -1 gets the same item twice.
+     */
+    private static void sendCarriedToClient(AbstractContainerMenu menu) {
+        menu.sendAllDataToRemote();
     }
 
     /** The menu of this server's test player, or null when no player has joined. */
