@@ -2109,6 +2109,43 @@ class GrugControlTest {
     }
 
     @Test
+    void handleOrQueueDefersOnAClientAndHandlesImmediatelyOnAServer() throws Exception {
+        java.lang.reflect.Field current = GrugControlClient.class.getDeclaredField("current");
+        current.setAccessible(true);
+        Object saved = current.get(null);
+        byte[] request =
+                GrugControlWire.callRequest(
+                        1,
+                        GrugControlWire.CALL_NORMALIZATION,
+                        "",
+                        GrugControlWire.NORMALIZATION_CAN_FORCE,
+                        0,
+                        0);
+        boolean[] immediate = {false};
+
+        // Server-shaped: no current client; the packet's fallback runs immediately.
+        current.set(null, null);
+        try {
+            GrugControlClient.handleOrQueue(request, () -> immediate[0] = true);
+            assertTrue(immediate[0]);
+
+            // Client-shaped: current client exists; the message is queued for drain.
+            ScreenCalls client = new ScreenCalls();
+            Loopback loop = wireCalls(1000, client);
+            loop.client.beginRun();
+            immediate[0] = false;
+            GrugControlClient.handleOrQueue(request, () -> immediate[0] = true);
+            assertFalse(immediate[0]);
+            assertTrue(client.seen.isEmpty());
+            GrugControlClient.drainPendingMessages();
+            assertFalse(immediate[0]);
+            assertEquals(List.of("normalization 0"), client.seen);
+        } finally {
+            current.set(null, saved);
+        }
+    }
+
+    @Test
     void theNewCallsRefuseArgumentsTheClientCouldNotAct() {
         String longPath = "x".repeat(GrugControlWire.MAX_NAME + 1);
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_MINING_CRACK));
