@@ -79,8 +79,12 @@ public final class GrugControlForge {
                         // The control calls and messages a build carries, so a mixed pair refuses
                         // the channel at connect instead of failing on a call one of them does not
                         // have (#1207, #1099). Every branch that adds or changes one bumps this
-                        // again.
-                        .networkProtocolVersion(9)
+                        // again: #1425 took 7 for the cursor clear, #1430 took 8 for the forwarded
+                        // forced normalization and #1449 took 9 with the call code 21, so this sits
+                        // at 10. A pair built either side of this refuses each other: the older
+                        // build does not know call 22, and the newer build reads six call numbers
+                        // where the older one carried three.
+                        .networkProtocolVersion(10)
                         .optional()
                         .simpleChannel()
                         .messageBuilder(Packet.class, NetworkProtocol.PLAY)

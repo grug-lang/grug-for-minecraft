@@ -21,13 +21,14 @@ import java.util.List;
  * or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound custom payload is
  * limited to 32767 bytes on 1.20.6 and the other old games are no more generous, so a capture is
  * cut into {@link #MAX_CHUNK}-byte pieces. {@link #CALL_REQUEST} carries one of the client-only
- * host functions a server may forward, which the client answers with a {@link #ANSWER_VALUE}, or
- * with an {@link #ANSWER_NUMBER} when the call's answer is a measurement such as a screen's width.
- * A call that measures a whole screen answers with one {@link #ANSWER_NUMBERS}, so reading six
- * values costs one round trip rather than six (#1277). {@link #GIVE_REQUEST} goes from the client
- * to the server and asks it to give the player an item, which is the one host function whose effect
- * belongs to the server rather than to the client that ran it (#1099). It names the item, because
- * two processes whose item lists differ give different items under the same index.
+ * host functions a server may forward, with a name and the six numbers the call may use, which the
+ * client answers with a {@link #ANSWER_VALUE}, or with an {@link #ANSWER_NUMBER} when the call's
+ * answer is a measurement such as a screen's width. A call that measures a whole screen answers
+ * with one {@link #ANSWER_NUMBERS}, so reading six values costs one round trip rather than six
+ * (#1277). {@link #GIVE_REQUEST} goes from the client to the server and asks it to give the player
+ * an item, which is the one host function whose effect belongs to the server rather than to the
+ * client that ran it (#1099). It names the item, because two processes whose item lists differ give
+ * different items under the same index.
  */
 public final class GrugControlWire {
     public static final byte RUN_START = 1;
@@ -40,7 +41,7 @@ public final class GrugControlWire {
 
     /**
      * Server to client: perform one client-only host function and answer with {@link #ANSWER_VALUE}
-     * or {@link #ANSWER_ERROR}. The call is one of the {@code CALL_} codes, with a name and three
+     * or {@link #ANSWER_ERROR}. The call is one of the {@code CALL_} codes, with a name and six
      * numbers the call may use.
      */
     public static final byte CALL_REQUEST = 6;
@@ -260,6 +261,19 @@ public final class GrugControlWire {
     /** The {@link #CALL_NORMALIZATION} question whether the capabilities are on now. */
     public static final int NORMALIZATION_ENABLED = 3;
 
+    /**
+     * The call: whether the box the game targets and outlines for the block at the first three
+     * numbers contains the block-local point in the last three, in the client's own copy of the
+     * world, which is {@code TestTickContext.block_selection} (#1441). The box is the client's
+     * outline: 1.2.5's dedicated server has no selection-box method at all, so that server asks the
+     * joined client. The answer is 1 or 0.
+     *
+     * <p>The code is 22, above the 21 #1449 took for its overlay first-frame read, so a pair built
+     * either side of this call refuses each other: an older build does not know call 22 at all, and
+     * a newer build reads six numbers from a call request that carried three.
+     */
+    public static final byte CALL_BLOCK_SELECTION = 22;
+
     /** The number of measurements a {@link #CALL_SCREEN_GEOMETRY} answers, in its one message. */
     public static final int GEOMETRY_COUNT = 5;
 
@@ -344,8 +358,10 @@ public final class GrugControlWire {
          * #CALL_WORLD_SETTLED} puts its world revision in the volume slot, {@link
          * #CALL_PRESS_SCREEN_KEY} puts its key there, its control flag in the pitch slot and its
          * release flag in the third, and {@link #CALL_SCROLL_SCREEN} puts its x, y and delta there
-         * in that order. A {@link #CAPTURE_REQUEST} puts the eye it must be taken from there, x, y
-         * and z in that order (#1161). The name is in {@link #text}.
+         * in that order. {@link #CALL_BLOCK_SELECTION} puts the block's position there and the
+         * block-local point in {@link #fourth}, {@link #fifth} and {@link #sixth}. A {@link
+         * #CAPTURE_REQUEST} puts the eye it must be taken from there, x, y and z in that order
+         * (#1161). The name is in {@link #text}.
          */
         public final double volume;
 
@@ -353,6 +369,16 @@ public final class GrugControlWire {
 
         /** The third number of a call request; see {@link #volume}. */
         public final double third;
+
+        /**
+         * The fourth, fifth and sixth number of a call request, which {@link #CALL_BLOCK_SELECTION}
+         * uses for the block-local point it asks about. Zero for every other call.
+         */
+        public final double fourth;
+
+        public final double fifth;
+
+        public final double sixth;
 
         /** The result byte of a value answer. */
         public final byte value;
@@ -375,8 +401,8 @@ public final class GrugControlWire {
                 byte[] data,
                 String text) {
             this(
-                    type, id, rectangle, index, total, data, text, (byte) 0, 0, 0, 0, (byte) 0, 0,
-                    null);
+                    type, id, rectangle, index, total, data, text, (byte) 0, 0, 0, 0, 0, 0, 0,
+                    (byte) 0, 0, null);
         }
 
         Message(
@@ -391,6 +417,9 @@ public final class GrugControlWire {
                 double volume,
                 double pitch,
                 double third,
+                double fourth,
+                double fifth,
+                double sixth,
                 byte value,
                 double number,
                 double[] numbers) {
@@ -408,6 +437,9 @@ public final class GrugControlWire {
             this.volume = volume;
             this.pitch = pitch;
             this.third = third;
+            this.fourth = fourth;
+            this.fifth = fifth;
+            this.sixth = sixth;
             this.value = value;
             this.number = number;
             this.numbers = numbers;
@@ -447,7 +479,7 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_OVERLAY_FIRST_FRAME;
+        return call >= CALL_HAS_SOUND && call <= CALL_BLOCK_SELECTION;
     }
 
     /**
@@ -468,8 +500,26 @@ public final class GrugControlWire {
 
     public static byte[] callRequest(
             long id, byte call, String name, double volume, double pitch, double third) {
+        return callRequest(id, call, name, volume, pitch, third, 0, 0, 0);
+    }
+
+    /**
+     * The ask for {@code call} with six numbers, which is what a call needs when its question is
+     * two positions: {@link #CALL_BLOCK_SELECTION} names the block in the first three and the
+     * block-local point in the last three (#1441).
+     */
+    public static byte[] callRequest(
+            long id,
+            byte call,
+            String name,
+            double volume,
+            double pitch,
+            double third,
+            double fourth,
+            double fifth,
+            double sixth) {
         byte[] bytes = name.getBytes(StandardCharsets.UTF_8);
-        return ByteBuffer.allocate(1 + 8 + 1 + 4 + bytes.length + 8 + 8 + 8)
+        return ByteBuffer.allocate(1 + 8 + 1 + 4 + bytes.length + 8 + 8 + 8 + 8 + 8 + 8)
                 .put(CALL_REQUEST)
                 .putLong(id)
                 .put(call)
@@ -478,6 +528,9 @@ public final class GrugControlWire {
                 .putDouble(volume)
                 .putDouble(pitch)
                 .putDouble(third)
+                .putDouble(fourth)
+                .putDouble(fifth)
+                .putDouble(sixth)
                 .array();
     }
 
@@ -658,7 +711,7 @@ public final class GrugControlWire {
                     message =
                             new Message(
                                     type, id, rectangle, 0, 0, null, null, (byte) 0, eye[0], eye[1],
-                                    eye[2], (byte) 0, 0, null);
+                                    eye[2], 0, 0, 0, (byte) 0, 0, null);
                     break;
                 case ANSWER_ERROR:
                     long errorId = in.getLong();
@@ -701,7 +754,15 @@ public final class GrugControlWire {
                     double volume = in.getDouble();
                     double pitch = in.getDouble();
                     double third = in.getDouble();
-                    if (Double.isNaN(volume) || Double.isNaN(pitch) || Double.isNaN(third)) {
+                    double fourth = in.getDouble();
+                    double fifth = in.getDouble();
+                    double sixth = in.getDouble();
+                    if (Double.isNaN(volume)
+                            || Double.isNaN(pitch)
+                            || Double.isNaN(third)
+                            || Double.isNaN(fourth)
+                            || Double.isNaN(fifth)
+                            || Double.isNaN(sixth)) {
                         throw new IllegalArgumentException("a call number is not a number");
                     }
                     message =
@@ -717,6 +778,9 @@ public final class GrugControlWire {
                                     volume,
                                     pitch,
                                     third,
+                                    fourth,
+                                    fifth,
+                                    sixth,
                                     (byte) 0,
                                     0,
                                     null);
@@ -726,8 +790,8 @@ public final class GrugControlWire {
                     byte value = in.get();
                     message =
                             new Message(
-                                    type, valueId, none, 0, 0, null, null, (byte) 0, 0, 0, 0, value,
-                                    0, null);
+                                    type, valueId, none, 0, 0, null, null, (byte) 0, 0, 0, 0, 0, 0,
+                                    0, value, 0, null);
                     break;
                 case ANSWER_NUMBER:
                     long numberId = in.getLong();
@@ -737,8 +801,8 @@ public final class GrugControlWire {
                     }
                     message =
                             new Message(
-                                    type, numberId, none, 0, 0, null, null, (byte) 0, 0, 0, 0,
-                                    (byte) 0, number, null);
+                                    type, numberId, none, 0, 0, null, null, (byte) 0, 0, 0, 0, 0, 0,
+                                    0, (byte) 0, number, null);
                     break;
                 case ANSWER_NUMBERS:
                     long numbersId = in.getLong();
@@ -751,8 +815,8 @@ public final class GrugControlWire {
                     }
                     message =
                             new Message(
-                                    type, numbersId, none, 0, 0, null, null, (byte) 0, 0, 0, 0,
-                                    (byte) 0, 0, numbers);
+                                    type, numbersId, none, 0, 0, null, null, (byte) 0, 0, 0, 0, 0,
+                                    0, 0, (byte) 0, 0, numbers);
                     break;
                 default:
                     throw new IllegalArgumentException("unknown control message type " + type);

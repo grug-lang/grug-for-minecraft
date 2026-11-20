@@ -170,6 +170,15 @@ public final class GrugControlClient {
          * file name ends with {@code _forced_normalization} (#1040).
          */
         boolean normalization(int operation);
+
+        /**
+         * Whether the box this client's game targets and outlines for the block at the position
+         * contains the block-local point, which is a server-run {@code
+         * TestTickContext.block_selection} (#1441). The box belongs to the client's outline, so a
+         * dedicated server has none to ask.
+         */
+        boolean blockSelectionContains(
+                double x, double y, double z, double pointX, double pointY, double pointZ);
     }
 
     /** The calls performed by the game's adapter, looked up when a call arrives. */
@@ -274,6 +283,19 @@ public final class GrugControlClient {
             @Override
             public boolean miningCrack(double x, double y, double z) {
                 return adapter.get().miningCrackForTest(adapter.get().clientLevel(), x, y, z);
+            }
+
+            /**
+             * The selection box a block is outlined by belongs to this client's own copy of the
+             * world, and to the block class this client's game has, which is what a 1.2.5 dedicated
+             * server has none of (#1441).
+             */
+            @Override
+            public boolean blockSelectionContains(
+                    double x, double y, double z, double pointX, double pointY, double pointZ) {
+                return adapter.get()
+                        .blockSelectionContains(
+                                adapter.get().clientLevel(), x, y, z, pointX, pointY, pointZ);
             }
 
             @Override
@@ -543,7 +565,14 @@ public final class GrugControlClient {
         }
         String problem =
                 GrugControlServer.callProblem(
-                        message.call, message.text, message.volume, message.pitch, message.third);
+                        message.call,
+                        message.text,
+                        message.volume,
+                        message.pitch,
+                        message.third,
+                        message.fourth,
+                        message.fifth,
+                        message.sixth);
         if (problem != null) {
             link.send(GrugControlWire.answerError(message.id, "refused: " + problem));
             return;
@@ -612,6 +641,16 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_MINING_CRACK) {
                 boolean cracked = caller.miningCrack(message.volume, message.pitch, message.third);
                 link.send(GrugControlWire.answerValue(message.id, (byte) (cracked ? 1 : 0)));
+            } else if (message.call == GrugControlWire.CALL_BLOCK_SELECTION) {
+                boolean contains =
+                        caller.blockSelectionContains(
+                                message.volume,
+                                message.pitch,
+                                message.third,
+                                message.fourth,
+                                message.fifth,
+                                message.sixth);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (contains ? 1 : 0)));
             } else if (message.call == GrugControlWire.CALL_MOD_FILE_STATE) {
                 caller.modFileState(message.text, (int) message.volume);
                 link.send(GrugControlWire.answerValue(message.id, (byte) 1));
