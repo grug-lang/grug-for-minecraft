@@ -342,6 +342,7 @@ val buildGrugAdapter = tasks.register("buildGrugAdapter") {
                     "bcrypt.lib",
                     "kernel32.lib",
                     "ntdll.lib",
+                    "synchronization.lib",
                     "userenv.lib",
                     "ws2_32.lib"
                 )
