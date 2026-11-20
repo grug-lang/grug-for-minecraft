@@ -657,11 +657,14 @@ while :; do
       fi
     done
     # The tests #1390, #1425 and #1430 unlisted on the legs whose proof passed (#1040) have to show
-    # as passed too, or a leg that skips one quietly would still look green. Each leg requires
-    # exactly the ones its own list no longer names, which is why the overlay, the JEI list and the
-    # item list stop at the three legs that carry them: their proofs are run 44642603736 for the
-    # overlay pair on 1.2.5-forge and b1.7.3-ornithe and run 44650333692 for 1.20.6-forge, and the
-    # overlay's click on a1.1.2_01 and b1.7.3-stationapi is still listed there.
+    # as passed too, or a leg that skips one quietly would still look green. The click release is
+    # required on all five legs, since #1390 fixes it on 1.20.6 and no leg's list names it, and so is
+    # the forced-normalization probe, which no list names any more (#1430). The overlay, the JEI list
+    # and the forced-normalization item list are required only on the three legs whose lists stopped
+    # naming them: proof run 44642603736 passed the overlay pair and the item list on 1.2.5-forge
+    # and b1.7.3-ornithe, and run 44650333692 passed all three on 1.20.6-forge. a1.1.2_01 and
+    # b1.7.3-stationapi still list the three, so requiring them there would fail a leg that is right
+    # to skip them.
     server_unlisted="coverage/tests/click_screen_release coverage/tests/hook_forced_normalization"
     case "$LOADER" in
       1.2.5-forge|1.20.6-forge|b1.7.3-ornithe)

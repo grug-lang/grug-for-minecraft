@@ -7,9 +7,11 @@
 # loader whose item draw inherits the state really forced it: the pin makes the capture identical
 # either way, so without this assertion a loader that lost its hook would stay green and unproven
 # (#1144). See #1137.
-# A dedicated server never runs this test: every loader's list of unsupported tests names it,
-# because the state it reads belongs to a client's frame pass and the runner never forces it on a
-# server, where the assertion either fails or holds without proving anything (#1099).
+# The test opens the inventory and asserts the forced state while the overlay draws. It runs on
+# every dedicated leg now: #1430 forwards the force and the two reads to the joined client, whose
+# frame pass draws with the state the test asks for, so normalization_forced answers for that
+# client (#1040). Every loader's list of unsupported tests named it before that, when a dedicated
+# server could not force the state itself (#1099).
 started: bool = false
 opened: bool = false
 waited: number = 0
