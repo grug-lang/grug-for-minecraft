@@ -17,11 +17,9 @@
 # holds the test's menu (#1389). Proof run 44650333692 passed overlay-Test and jei-Test on this leg.
 #
 #
-# The screen-open hook. The test asserts that a screen which has just opened has drawn no frame
-# yet, which a joined client cannot promise: it draws frames of its own between the server's open
-# and the server's read, so the mark can be set by the time the answer is asked for. The hook it
-# proves is the client's own, so the test stays client-only.
-coverage/tests/overlay_screen_open-Test.grug
+# The screen-open test runs here now: #1391 forwards the first-frame read to the client that owns
+# the frames. Proof run PROOF_RUN passed it.
+#
 #
 # The forced-normalization probe runs here: #1430 forwards the force and the two reads to the joined
 # client, whose GL state the frame pass draws with (#1040). Proof run 44650333692 passed it on this

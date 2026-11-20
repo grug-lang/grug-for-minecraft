@@ -40,6 +40,7 @@ OVERLAY_DRAWN_TESTS = [
     "coverage/tests/overlay_click_hook",
     "coverage/tests/overlay_key",
     "coverage/tests/overlay_probe_gives_nothing",
+    "coverage/tests/overlay_screen_open",
     "coverage/tests/overlay_scroll",
     "jei/tests/hotkey",
     "jei/tests/paging",
@@ -533,6 +534,7 @@ class SecondPlayerTest(unittest.TestCase):
         "coverage/tests/overlay_click_hook",
         "coverage/tests/overlay_key",
         "coverage/tests/overlay_probe_gives_nothing",
+        "coverage/tests/overlay_screen_open",
         "coverage/tests/overlay_scroll",
         "jei/tests/hotkey",
         "jei/tests/paging",
@@ -906,7 +908,7 @@ class ServerUnlistedTest(unittest.TestCase):
         lines += [
             f"[GRUG MULTIPLAYER] {path}-Test.grug drew the overlay" for path in OVERLAY_DRAWN_TESTS
         ]
-        lines.append("[GRUG CI] ALL 49 TESTS PASSED")
+        lines.append("[GRUG CI] ALL 50 TESTS PASSED")
         return "\n".join(lines) + "\n"
 
     def run_script(self):
