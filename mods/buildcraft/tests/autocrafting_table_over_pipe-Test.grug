@@ -1,8 +1,9 @@
-# Covers the autocrafting table between a chest and a wooden pipe, the reference's signature build:
-# a chest, a wooden pipe, and the table in a row, with the pipe connecting to the table. The
-# reference's source scan finds the table before the chest, so the pipe's plain source arm is drawn
-# on the table's side and the patterned arm on the chest's, which is what the capture pins. The
-# screenshot is the assertion. The fixture is static, so no items need to move for the capture.
+# Covers the autocrafting table over a wooden pipe, the reference's own build: the table's bottom
+# sits on the pipe, which extracts the crafted result and pushes it into the chest beside it. The
+# reference's source scan finds the table directly above the pipe before the chest beside it, so
+# the pipe's plain source arm is drawn up into the table and the patterned arm to the chest, which
+# is what the capture pins. The screenshot is the assertion. The fixture is static, so no items
+# need to move for the capture.
 table_entity: Option[BlockEntity] = Option.new()
 pipe_entity: Option[BlockEntity] = Option.new()
 
@@ -36,7 +37,7 @@ export tick_any_side(ctx: TestTickContext) {
     } else {
         ctx.assert(table_entity.has(), "The table should have a block entity.")
         ctx.assert(pipe_entity.has(), "The pipe should have a block entity.")
-        ctx.screenshot().equals(r"screenshots/autocrafting_table_over_pipe", 400, 120, 880, 360)
+        ctx.screenshot().equals(r"screenshots/autocrafting_table_over_pipe", 400, 0, 880, 320)
     }
 }
 
@@ -55,24 +56,26 @@ local _setup(ctx: TestTickContext) {
 
     _wall(level, x - 6, y - 9, z + 6)
 
-    # Table, wooden pipe feeding it from the south, chest behind the pipe as the source.
-    _place_table(ctx, level, x, y - 1.88, z + 4)
-    _place_pipe(ctx, level, x, y - 1.88, z + 5)
-    level.place_block(x, y - 1.88, z + 6, "minecraft:chest")
+    # The table over the pipe, with the chest beside the pipe as its output. The table and chest go
+    # in first, so the pipe's placement finds both and the reference's switchSource settles on the
+    # table without a later neighbour update having to move it.
+    _place_table(ctx, level, x, y - 0.88, z + 4)
+    level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
+    _place_pipe(ctx, level, x, y - 1.88, z + 4)
 
-    table_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 5)
+    table_opt: Option[BlockEntity] = level.get_block_entity(x, y - 0.88, z + 4)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
     ctx.assert(table_opt.has(), "The table should have a block entity.")
     ctx.assert(pipe_opt.has(), "The pipe should have a block entity.")
     table_entity.set(table_opt.unwrap())
     pipe_entity.set(pipe_opt.unwrap())
 
     # The reference's switchSource scans YPos, ZNeg, ZPos and the rest in that order and keeps the
-    # first neighbour that is an inventory, so it finds the table at ZNeg and never reaches the
-    # chest at ZPos: this pipe extracts from the table, not from the chest. The port's saved source
-    # is the side plus one, and ZNeg is side 2, so the saved source is 3.
+    # first neighbour that is an inventory, so it finds the table at YPos and never reaches the
+    # chest at XPos: this pipe extracts from the table, not from the chest. The port's saved source
+    # is the side plus one, and YPos is side 1, so the saved source is 2.
     if not me.is_reference() {
-        pipe_entity.unwrap().set_saved_number("source", 3)
+        pipe_entity.unwrap().set_saved_number("source", 2)
     }
 }
 
@@ -89,19 +92,18 @@ local _place_table(ctx: TestTickContext, level: Level, x: number, y: number, z: 
 # Both the reference and the port place the pipe the way a player does: hold the pipe item and
 # right-click the side of a block at z + 1. The reference's ItemPipe sets the pipe's kind, and the
 # placement is what settles the light around the pipe, so both scenes must use the same path. The
-# block at z + 1 is the cell the test fills with the chest next, so the chest replaces that stone.
+# temporary block is cleared again so the pipe stands alone in its row.
 local _place_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
     level.place_block(x, y, z + 1, "minecraft:stone")
     player: Player = ctx.get_player()
     if me.is_reference() {
         ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsWood")))
-        ctx.use_block(level, x, y, z + 1)
-        ctx.clear_held_item(player)
-        return
+    } else {
+        ctx.set_held_item(player, item(resource_location("grug:wooden_pipe")))
     }
-    ctx.set_held_item(player, item(resource_location("grug:wooden_pipe")))
     ctx.use_block(level, x, y, z + 1)
     ctx.clear_held_item(player)
+    level.place_block(x, y, z + 1, "minecraft:air")
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
