@@ -2073,6 +2073,42 @@ class GrugControlTest {
     }
 
     @Test
+    void queueingWithNoClientDoesNothing() throws Exception {
+        java.lang.reflect.Field current = GrugControlClient.class.getDeclaredField("current");
+        current.setAccessible(true);
+        Object saved = current.get(null);
+        current.set(null, null);
+        try {
+            byte[] request =
+                    GrugControlWire.callRequest(
+                            1,
+                            GrugControlWire.CALL_NORMALIZATION,
+                            "",
+                            GrugControlWire.NORMALIZATION_CAN_FORCE,
+                            0,
+                            0);
+            GrugControlClient.queueMessage(request);
+            assertNull(current.get(null));
+        } finally {
+            current.set(null, saved);
+        }
+    }
+
+    @Test
+    void drainingWithNoClientDoesNothing() throws Exception {
+        java.lang.reflect.Field current = GrugControlClient.class.getDeclaredField("current");
+        current.setAccessible(true);
+        Object saved = current.get(null);
+        current.set(null, null);
+        try {
+            GrugControlClient.drainPendingMessages();
+            assertNull(current.get(null));
+        } finally {
+            current.set(null, saved);
+        }
+    }
+
+    @Test
     void theNewCallsRefuseArgumentsTheClientCouldNotAct() {
         String longPath = "x".repeat(GrugControlWire.MAX_NAME + 1);
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_MINING_CRACK));
