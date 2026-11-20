@@ -8,11 +8,11 @@ name: Main dispatch
 # main's newest dispatch reach 25 h 2 min on 2026-11-04. This workflow makes the check independent of
 # a session being open; the supervisor is unchanged and still never dispatches.
 #
-# The decision is .github/scripts/main-dispatch.py's should_dispatch: due and idle dispatches, due
-# and busy does not, recent and idle does not, recent and busy does not, and a dispatch past twice
-# the interval goes ahead even when runs are live, because its jobs queue rather than a check being
-# starved (#1463). Busy means any build.yml run that is live (requested, waiting, pending, queued or
-# in progress), on any branch, because every run shares the 20 job slots and a dispatch must not
+# The decision is .github/scripts/main-dispatch.py's should_dispatch: a recent dispatch holds it
+# off, and a due one waits while a build run is live, but only until the newest dispatch is twice the
+# interval old, when it goes ahead with runs live and lets its jobs queue rather than stay starved
+# (#1463). Busy means any build.yml run that is live (requested, waiting, pending, queued or in
+# progress), on any branch, because every run shares the 20 job slots and a dispatch should not
 # compete with one. The
 # newest workflow_dispatch of build.yml on main is the age that matters, so the Sunday release's
 # dispatch, which is one of those, holds the check off for four hours like any other. A run list that

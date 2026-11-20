@@ -156,6 +156,16 @@ class MainDispatchTest(unittest.TestCase):
         self.assertIn("past twice the 4 h 0 min interval", out)
         self.assertIn("dispatched build.yml on main", out)
 
+    def test_exactly_twice_the_interval_with_runs_live_dispatches(self):
+        # The boundary belongs to the dispatch side: at exactly twice the interval a dispatch may not
+        # wait another tick, or a pool that is busy at every boundary starves it forever.
+        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=8))]
+        self.server.routes["in_progress"] = [run(11, datetime.timedelta(minutes=20))]
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.dispatched(), [{"ref": "main"}])
+        self.assertIn("past twice the 4 h 0 min interval", out)
+
     def test_a_dispatch_created_during_the_check_is_not_doubled(self):
         # Another tick, or the orchestrator's own dispatch, can create the dispatch this check
         # measured between its read and its POST; the newest is read once more, and a changed one
