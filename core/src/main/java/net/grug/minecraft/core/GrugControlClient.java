@@ -421,6 +421,25 @@ public final class GrugControlClient {
      * Queues a message to be handled on the game thread by {@link #drainPendingMessages}, so a
      * loader whose packet reader is not the game thread can still process server requests on the
      * thread that owns the GL context and the frame (#1465).
+     *
+     * <p>When this process is not a client there is no frame to defer to, so the message is handled
+     * immediately through {@code immediate} (a server's packet handler, for example). A single call
+     * per packet prevents a loader from choosing the wrong branch.
+     */
+    public static void handleOrQueue(byte[] bytes, Runnable immediate) {
+        GrugControlClient client = current;
+        if (client != null) {
+            client.pendingMessages.add(bytes);
+        } else {
+            immediate.run();
+        }
+    }
+
+    /**
+     * Queues a message to be handled on the game thread by {@link #drainPendingMessages}.
+     *
+     * <p>This is a convenience for callers that already know they are on a client and have no
+     * server-side work to do.
      */
     public static void queueMessage(byte[] bytes) {
         GrugControlClient client = current;

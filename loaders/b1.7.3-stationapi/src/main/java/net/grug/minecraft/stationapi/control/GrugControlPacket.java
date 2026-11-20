@@ -70,8 +70,10 @@ public class GrugControlPacket extends Packet {
         if (!consumed) {
             // StationAPI delivers packets on the connection's reader thread, not the game thread,
             // so requests that touch the GL context (forced normalization) must wait for the tick
-            // that drains them. The queue lives in core so the loader only has to drain it.
-            net.grug.minecraft.core.GrugControlClient.queueMessage(bytes);
+            // that drains them. On a dedicated server there is no client to defer to, so the
+            // message is handled immediately through the same path that used to run here.
+            net.grug.minecraft.core.GrugControlClient.handleOrQueue(
+                    bytes, () -> GrugControlStation.onHandle(handler, bytes));
         }
     }
 
