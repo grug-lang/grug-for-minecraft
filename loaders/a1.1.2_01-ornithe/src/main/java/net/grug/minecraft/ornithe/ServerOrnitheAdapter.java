@@ -1006,34 +1006,46 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /** Packs the region's cells with {@link GrugChunkData}, which documents the layout. */
     private static byte[] packChunkData(
             World world, int x, int y, int z, int sizeX, int sizeY, int sizeZ) {
-        return GrugChunkData.pack(
-                x,
-                y,
-                z,
-                sizeX,
-                sizeY,
-                sizeZ,
-                new GrugChunkData.Source() {
-                    @Override
-                    public int block(int wx, int wy, int wz) {
-                        return world.getBlock(wx, wy, wz);
-                    }
+        return GrugChunkData.pack(x, y, z, sizeX, sizeY, sizeZ, new WorldSource(world));
+    }
 
-                    @Override
-                    public int metadata(int wx, int wy, int wz) {
-                        return world.getBlockMetadata(wx, wy, wz);
-                    }
+    /**
+     * A region's cells read from the server's own {@link World}, which {@link GrugChunkData} cannot
+     * name itself without tying the layout its test pins to a game class. It carries {@code
+     * GrugGenerated} for the reason this adapter does: an Alpha world exists only inside a running
+     * game, so no unit test can stand in for it, and only the dispatch-only multiplayer job
+     * launches that game.
+     */
+    @GrugGenerated(
+            "reads Alpha's dedicated server World, which only the dispatch-only multiplayer job"
+                    + " launches")
+    private static final class WorldSource implements GrugChunkData.Source {
 
-                    @Override
-                    public int blockLight(int wx, int wy, int wz) {
-                        return world.getLight(LightType.BLOCK, wx, wy, wz);
-                    }
+        private final World world;
 
-                    @Override
-                    public int skyLight(int wx, int wy, int wz) {
-                        return world.getLight(LightType.SKY, wx, wy, wz);
-                    }
-                });
+        WorldSource(World world) {
+            this.world = world;
+        }
+
+        @Override
+        public int block(int x, int y, int z) {
+            return world.getBlock(x, y, z);
+        }
+
+        @Override
+        public int metadata(int x, int y, int z) {
+            return world.getBlockMetadata(x, y, z);
+        }
+
+        @Override
+        public int blockLight(int x, int y, int z) {
+            return world.getLight(LightType.BLOCK, x, y, z);
+        }
+
+        @Override
+        public int skyLight(int x, int y, int z) {
+            return world.getLight(LightType.SKY, x, y, z);
+        }
     }
 
     /**
