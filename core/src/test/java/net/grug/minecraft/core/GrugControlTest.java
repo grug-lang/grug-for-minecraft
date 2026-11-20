@@ -44,9 +44,16 @@ class GrugControlTest {
         boolean flushed = false;
         final List<byte[]> toServer = new ArrayList<>();
 
+        /**
+         * The server's flushes and asks in the order it made them, so a test can tell a flush that
+         * came before its question from one that came after.
+         */
+        final List<String> order = new ArrayList<>();
+
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
             if (!connected) return false;
+            order.add("ask");
             toClient.add(message);
             client.onMessage(message);
             return true;
@@ -55,6 +62,7 @@ class GrugControlTest {
         @Override
         public void flushWorld() {
             flushed = true;
+            order.add("flush");
         }
 
         /** How many times the server asked the loader to apply the client's queued work. */
@@ -2146,6 +2154,7 @@ class GrugControlTest {
         // The test's blocks are queued until the tick ends, so the client is only asked once they
         // have been sent: without that it would read the world as it was before the test built it.
         assertTrue(loop.flushed);
+        assertEquals(List.of("flush", "ask", "flush", "ask"), loop.order);
         assertEquals(
                 List.of(
                         "blockSelection 4.0 5.0 6.0 0.25 0.5 0.75",

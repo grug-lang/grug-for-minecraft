@@ -81,8 +81,9 @@ public final class GrugControlForge {
                         // have (#1207, #1099). Every branch that adds or changes one bumps this
                         // again: #1425 took 7 for the cursor clear, #1430 took 8 for the forwarded
                         // forced normalization and #1449 took 9 with the call code 21, so this sits
-                        // at 10. A pair built either side of it must refuse each other, because one
-                        // of them reads the other's call 22 as #1449's 21.
+                        // at 10. A pair built either side of this refuses each other: the older
+                        // build does not know call 22, and the newer build reads six call numbers
+                        // where the older one carried three.
                         .networkProtocolVersion(10)
                         .optional()
                         .simpleChannel()

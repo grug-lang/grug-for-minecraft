@@ -257,7 +257,8 @@ public final class GrugControlWire {
      * joined client. The answer is 1 or 0.
      *
      * <p>The code is 22, above the 21 #1449 took for its overlay first-frame read, so a pair built
-     * either side of this call has to refuse each other rather than read one call as the other.
+     * either side of this call refuses each other: an older build does not know call 22 at all, and
+     * a newer build reads six numbers from a call request that carried three.
      */
     public static final byte CALL_BLOCK_SELECTION = 22;
 
