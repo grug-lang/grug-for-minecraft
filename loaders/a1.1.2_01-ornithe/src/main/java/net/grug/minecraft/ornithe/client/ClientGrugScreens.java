@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.gui.GrugScreenContentPacket;
 import net.grug.minecraft.ornithe.gui.GrugScreenOpenPacket;
+import net.grug.minecraft.ornithe.gui.GrugUseBlockPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.item.ItemStack;
 
@@ -12,10 +13,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The client's half of the GUI packets a dedicated Alpha server sends (#1098).
+ * The client's half of the screen packets a dedicated Alpha server sends (#1098, #1494).
  *
  * <p>It is a loader-only entrypoint because its handler names {@link GrugScreen}, which only this
- * loader has. Alpha hands a packet to the network side, so both packets are queued here and applied
+ * loader has. Alpha hands a packet to the network side, so the packets are queued here and applied
  * from the client tick on the thread that draws, the way a saved-data packet is (#1093). The queue
  * keeps the server's order, so a menu's contents are applied after the packet that opened it
  * installed the screen.
@@ -35,6 +36,23 @@ public final class ClientGrugScreens implements ClientModInitializer {
     public void onInitializeClient() {
         GrugScreenOpenPacket.clientHandler = ClientGrugScreens::queueOpen;
         GrugScreenContentPacket.clientHandler = ClientGrugScreens::queueContents;
+        GrugUseBlockPacket.clientHandler = ClientGrugScreens::queueUseBlock;
+    }
+
+    /**
+     * Queues the server's click of a vanilla block, whose screen this client opens itself (#1494).
+     * It runs on the tick because the chest the click lands on is a block the same server placed
+     * and the world tick is where its copy is up to date.
+     */
+    private static void queueUseBlock(int x, int y, int z) {
+        Pending pending = new Pending();
+        pending.useBlock = true;
+        pending.x = x;
+        pending.y = y;
+        pending.z = z;
+        synchronized (QUEUE) {
+            QUEUE.add(pending);
+        }
     }
 
     private static void queueOpen(int x, int y, int z, int windowId, GrugGuiBuilder layout) {
@@ -73,7 +91,9 @@ public final class ClientGrugScreens implements ClientModInitializer {
             QUEUE.clear();
         }
         for (Pending pending : ready) {
-            if (pending.open) {
+            if (pending.useBlock) {
+                GrugClientPlayer.useBlock(pending.x, pending.y, pending.z);
+            } else if (pending.open) {
                 active =
                         GrugScreen.openFromServer(
                                 pending.x, pending.y, pending.z, pending.windowId, pending.layout);
@@ -115,6 +135,7 @@ public final class ClientGrugScreens implements ClientModInitializer {
     @GrugGenerated("client glue: the screen it drives is excluded from coverage")
     private static final class Pending {
         boolean open;
+        boolean useBlock;
         int x;
         int y;
         int z;

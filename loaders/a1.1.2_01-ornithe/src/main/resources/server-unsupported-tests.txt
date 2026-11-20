@@ -9,9 +9,11 @@
 # 44678178827 passed every entry this block used to list: the recipe and crafting-result tests, the
 # hot reload, and the block entities whose grid insert calls update_recipe_output.
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
-# client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
-# block, so this server cannot open one. 1.2.5's and both b1.7.3 servers' interaction managers and
-# 1.20.6's game mode right-click the chest, so the two tests run there and only this leg lists them.
+# client's screen, and the fixture is a vanilla chest. Test.use_block right-clicks any block here
+# now, not only a grug one, and sends the joined client the block's own activation, because an
+# Alpha container screen is the client's own (#1494). Both tests stay listed until a proof dispatch
+# passes them on this leg: 1.2.5's and both b1.7.3 servers' interaction managers and 1.20.6's game
+# mode open the chest there.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #

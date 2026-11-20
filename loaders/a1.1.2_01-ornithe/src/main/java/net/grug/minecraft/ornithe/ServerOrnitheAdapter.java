@@ -24,6 +24,7 @@ import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.grug.minecraft.ornithe.gui.GrugScreenContentPacket;
 import net.grug.minecraft.ornithe.gui.GrugScreenOpenPacket;
+import net.grug.minecraft.ornithe.gui.GrugUseBlockPacket;
 import net.grug.minecraft.ornithe.server.GrugPlayerManagerAccess;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
@@ -342,12 +343,17 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      *
      * <p>A forwarded click would deadlock: the client's interaction manager sends a use packet the
      * server thread is blocked inside this call and so cannot process. So the click is made here
-     * instead, in the same order the game's server uses for a client's use packet: the block's
-     * {@code use} first, and the held item's {@code useOn} when the block declines.
+     * instead, in the same order the game's client uses for a right-click: the block's {@code use}
+     * first, and the held item's {@code useOn} when the block declines.
      *
-     * <p>The a0.2.1 server has no {@code ServerPlayerInteractionManager} to call: this generation's
-     * client jar, which is what this layer compiles against, does not hold one either, so the two
-     * calls its {@code useBlock} makes are made here in the same order.
+     * <p>The a0.2.1 server has no {@code ServerPlayerInteractionManager} to call, so this layer
+     * makes that order itself. What it cannot make here is the screen: an Alpha container screen is
+     * the client's own, because {@code ChestBlock.use} ends in {@code PlayerEntity.openChestMenu},
+     * which a joined client overrides to open the game's chest screen and which sends a server
+     * player nothing (#1494). A vanilla block's click is therefore also sent to the joined client,
+     * which runs the same activation on its own copy, the half a real Alpha client made for itself
+     * after sending its use packet. A grug block is not sent: its {@code use} opens the menu this
+     * server holds (#1098).
      *
      * <p>The face is the one a ray from the test player's eye to the block's centre enters, which
      * is the face the player sees of it: the top of a block below the eye, the bottom of one above
@@ -371,14 +377,14 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         int blockY = (int) Math.floor(y);
         int blockZ = (int) Math.floor(z);
 
-        // In Alpha, World.getBlock() hands back a block id rather than a Block.
+        // In Alpha, World.getBlock() hands back a block id rather than a Block, and 0 is air. A
+        // click names a block, so a position with none is a mistake in the test rather than a
+        // click on nothing.
         int blockId = GrugWorldAccess.blockId(world, blockX, blockY, blockZ);
-        Block block = (blockId >= 0 && blockId < Block.BY_ID.length) ? Block.BY_ID[blockId] : null;
-
-        if (!(block instanceof GrugBlock)) {
+        if (blockId <= 0 || blockId >= Block.BY_ID.length || Block.BY_ID[blockId] == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "TestTickContext.use_block: There is no grug block at "
+                    "TestTickContext.use_block: There is no block at "
                             + blockX
                             + ", "
                             + blockY
@@ -387,6 +393,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                             + ".");
             return;
         }
+        Block block = Block.BY_ID[blockId];
 
         if (!block.use(world, blockX, blockY, blockZ, player)) {
             ItemStack held = player.inventory.getSelectedItem();
@@ -399,6 +406,17 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                         blockZ,
                         GrugUseBlockFace.face(testPlayerEye(player), blockX, blockY, blockZ));
             }
+        }
+
+        if (block instanceof GrugBlock) {
+            return;
+        }
+        // The client's copy needs the block this click names, which a test may have placed in this
+        // same tick, before the click that opens its screen arrives (#1494).
+        GrugServerRun.flushBlockChanges();
+        Connection connection = GrugControlAlpha.connectionOfPlayer(player);
+        if (connection != null) {
+            connection.send(new GrugUseBlockPacket(blockX, blockY, blockZ));
         }
     }
 
