@@ -1953,7 +1953,7 @@
 					]
 				},
 				"is_hostile_spawn_space": {
-					"description": "Whether the space at the specified coordinates passes the game's own ground check for a hostile mob to spawn there, which does not look at light: the block below is solid, and the space itself and the one above it are not solid and the space is not liquid. A mob's spawn also needs the light and the game's other rules, so this is where a mob may stand, not where one will appear.",
+					"description": "Whether the space at the specified coordinates passes the game's own ground check for a hostile mob to spawn there, which does not look at light: the block below is solid, and the space itself and the one above it are not solid and the space is not liquid. A newer version's spawner can refuse more of the space: 1.20.6 refuses a rail, which is in its prevent_mob_spawning_inside tag, and fire, which is dangerous to the mob, and asks that the mob's spawn box fit there. A mob's spawn also needs the light and the game's other rules, so this is where a mob may stand, not where one will appear.",
 					"return_type": {
 						"name": "bool"
 					},

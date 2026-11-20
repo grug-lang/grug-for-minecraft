@@ -1285,6 +1285,11 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
      * prevents mob spawning, and then it asks that the type's spawn box is free of collisions. Its
      * light rule is the type's own ({@code Monster.checkMonsterSpawnRules}) and is left to the
      * overlay's two reads.
+     *
+     * <p>So a block that is neither solid nor a fluid is not enough here, unlike the older
+     * versions' spawner and the SafeSquares 1.2.0 checker: a rail is in {@code
+     * prevent_mob_spawning_inside}, and fire is dangerous to a zombie, which is not fire immune, so
+     * both refuse the space.
      */
     @Override
     public boolean isHostileSpawnSpace(Object levelObj, double x, double y, double z) {

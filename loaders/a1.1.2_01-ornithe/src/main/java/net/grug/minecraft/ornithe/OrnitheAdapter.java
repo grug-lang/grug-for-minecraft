@@ -802,7 +802,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * The test {@code NaturalSpawner.run} makes inline for every position it tries, repeated here
      * from the decompiled Alpha 1.1.2_01 class because it has no method of its own: a solid block
      * below, no solid block and no liquid in the space, and no solid block above it. Alpha's
-     * spawner has one rule for every mob type, so there is no hostile variant to choose.
+     * spawner has one rule for every mob type, so there is no hostile variant to choose, and the
+     * SafeSquares 1.2.0 checker's call has the same rule for the monster group on the versions it
+     * targets. A block that is neither solid nor a liquid (a torch, a rail, a snow layer, fire)
+     * keeps the space; Alpha has no tall grass, so no such block exists here.
      */
     @Override
     public boolean isHostileSpawnSpace(Object levelObj, double x, double y, double z) {
