@@ -740,7 +740,12 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         return result;
     }
 
-    /** Access to the private fields {@code Packet51MapChunk} keeps its compressed size in. */
+    /**
+     * Access to the private fields {@code Packet51MapChunk} keeps its compressed size in. Excluded
+     * from coverage for the same reason as the adapter around it: only the dispatch-only
+     * multiplayer job reaches a resend, and the gate counts no dedicated-server run (#166).
+     */
+    @GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
     private static final class Packet51MapChunkAccess {
         private static final java.lang.reflect.Field TEMP_LENGTH_FIELD;
         private static final java.lang.reflect.Field UNCOMPRESSED_LENGTH_FIELD;
