@@ -125,8 +125,13 @@ local _setup(ctx: TestTickContext) {
     wooden_b.set(_entity(ctx, level, x, y, z - 1))
     cobblestone.set(_entity(ctx, level, x, y, z))
     target.set(_entity(ctx, level, x + 1, y, z))
-    ctx.assert(level.has_neighbor_signal(x - 1, y, z), "The west pipe's engine should be powered.")
-    ctx.assert(level.has_neighbor_signal(x, y, z - 1), "The north pipe's engine should be powered.")
+    # The engine makes no signal the game can read at the pipe: BlockEngine.b() is false, so the
+    # engine is not a normal cube, and World.isBlockIndirectlyProvidingPowerTo asks a non-cube
+    # neighbour for its own power, which BlockEngine does not provide. What the game does report is
+    # each engine being powered by its torch, and the items reaching the output chest are what prove
+    # the engines power their pipes through the energy framework.
+    ctx.assert(level.has_neighbor_signal(x - 1, y, z + 1), "The west pipe's engine should be powered by its torch.")
+    ctx.assert(level.has_neighbor_signal(x + 1, y, z - 1), "The north pipe's engine should be powered by its torch.")
 
     source_a.unwrap().set_item_in_slot(0, item(resource_location("minecraft:diamond")), 4)
     source_b.unwrap().set_item_in_slot(0, item(resource_location("minecraft:iron_ingot")), 4)
