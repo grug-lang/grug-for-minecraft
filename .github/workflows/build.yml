@@ -595,6 +595,7 @@ jobs:
             .github/scripts/windows_needed_test.py \
             .github/scripts/dedicated_needed_test.py \
             .github/scripts/dispatch_base_test.py \
+            .github/scripts/jacoco_unit_exec_test.py \
             .github/scripts/seed_ploceus_meta_test.py \
             .github/scripts/smoke_launch_test.py
 

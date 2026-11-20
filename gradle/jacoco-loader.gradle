@@ -59,12 +59,14 @@ def grugJacocoArgs = { execDirProvider ->
     }
     def agent = configurations.grugJacocoAgent.singleFile
     def execDir = execDirProvider.get().asFile
-    // Start clean of segments, so an earlier run's cannot be combined with this one's, but keep the
-    // loader's unit test exec: the test task writes it in the same build before runClient, and the
-    // coverage gate counts the unit tests (#1387). Deleting the directory here dropped it before
-    // the job uploaded build/jacoco/*.exec, so a class only the unit tests reach read as missed.
+    // Start clean of per-test segments, so an earlier run's cannot be combined with this one's,
+    // but keep the loader's unit test exec: the test task writes it in the same build before
+    // runClient, and the coverage gate counts the unit tests (#1387). Deleting the whole
+    // directory here dropped it before the job uploaded build/jacoco/*.exec, so a class only the
+    // unit tests reach read as missed. Per-test segments are NNN-<name>.exec or
+    // NNN-<name>.dropped; test.exec and any other file are left alone.
     execDir.listFiles()?.each { segment ->
-        if (segment.name != 'test.exec') {
+        if (segment.name ==~ /[0-9]+-.*\.((exec)|(dropped))/) {
             project.delete(segment)
         }
     }
