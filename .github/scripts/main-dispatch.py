@@ -19,7 +19,9 @@ hours (#1463): the Windows adapter broke and nothing saw it until a proof dispat
 jobs (#1460). The Sunday release's dispatch is a ``workflow_dispatch`` on ``main`` like any other, so
 a recent one holds the check off too. The runs API does not expose a dispatch's inputs, so one sent
 with ``-f mods=`` or ``-f base=`` counts as a full one even though it ran fewer jobs, and a partial
-dispatch can hold a full check off; that is a known limit.
+dispatch can hold a full check off; that is a known limit. The newest dispatch is read once more
+just before the dispatch is sent, so a dispatch another tick created in between cannot make this
+check add a second one.
 
 Prints one line saying why it did or did not dispatch. A run list that cannot be read fails the
 run rather than dispatching blindly, and a refused dispatch fails it too.
@@ -219,6 +221,31 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.dry_run:
         print("main-dispatch: dry run, so this check dispatched nothing")
+        return 0
+    # Another tick, or the orchestrator's own dispatch, can create the dispatch this check measured
+    # between its read and this line, and an age that is no longer the newest would double it, so
+    # the newest is read once more before dispatching.
+    try:
+        latest_now = newest(
+            workflow_runs(
+                args.api_base,
+                args.repo_slug,
+                token,
+                {"event": "workflow_dispatch", "branch": "main", "per_page": PER_PAGE},
+            )
+        )
+    except Exception as e:  # noqa: BLE001 - an unreadable run list must not dispatch blindly
+        print(
+            f"main-dispatch: stopped: could not re-read the newest dispatch: {type(e).__name__}:"
+            f" {e}; dispatched nothing",
+            file=sys.stderr,
+        )
+        return 1
+    if (newest(dispatches) or {}).get("id") != (latest_now or {}).get("id"):
+        print(
+            "main-dispatch: dispatched nothing: a build.yml dispatch of main appeared while this"
+            " check read the run lists, so the age it measured is not the newest one"
+        )
         return 0
     try:
         dispatch(args.api_base, args.repo_slug, token)

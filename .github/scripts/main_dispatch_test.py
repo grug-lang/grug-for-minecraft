@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests main-dispatch.py: the four-hourly check dispatches only when due and idle (#1089)."""
+"""Tests main-dispatch.py: the check dispatches when due and idle, and past twice that even when busy (#1089, #1463)."""
 
 import contextlib
 import datetime
@@ -64,13 +64,10 @@ class ApiHandler(http.server.BaseHTTPRequestHandler):
         if kind in self.server.fail:
             self._reply(500)
             return
-        self._reply(
-            200,
-            {
-                "total_count": len(self.server.routes[kind]),
-                "workflow_runs": self.server.routes[kind],
-            },
-        )
+        runs = self.server.routes[kind]
+        if kind == "dispatches" and self.server.sequence:
+            runs = self.server.sequence.pop(0)
+        self._reply(200, {"total_count": len(runs), "workflow_runs": runs})
 
     def do_POST(self):
         parsed = urlparse(self.path)
@@ -100,6 +97,9 @@ class MainDispatchTest(unittest.TestCase):
         self.server.fail = set()
         self.server.refuse_dispatch = False
         self.server.requests = []
+        # The dispatch listing the check reads second, so a test can show a run another path
+        # created between the two reads.
+        self.server.sequence = []
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.start()
         self.saved_env = {name: os.environ.get(name) for name in self.ENV}
@@ -155,6 +155,18 @@ class MainDispatchTest(unittest.TestCase):
         self.assertEqual(self.dispatched(), [{"ref": "main"}])
         self.assertIn("past twice the 4 h 0 min interval", out)
         self.assertIn("dispatched build.yml on main", out)
+
+    def test_a_dispatch_created_during_the_check_is_not_doubled(self):
+        # Another tick, or the orchestrator's own dispatch, can create the dispatch this check
+        # measured between its read and its POST; the newest is read once more, and a changed one
+        # cancels this check's dispatch (#1463).
+        old = run(10, datetime.timedelta(hours=9))
+        self.server.routes["dispatches"] = [old]
+        self.server.sequence = [[old], [run(12, datetime.timedelta(minutes=1))]]
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.dispatched(), [])
+        self.assertIn("appeared while this check read the run lists", out)
 
     def test_recent_and_idle_dispatches_nothing(self):
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=1))]
