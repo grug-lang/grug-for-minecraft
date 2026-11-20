@@ -140,6 +140,16 @@ class GrugRenderSettleTest {
     }
 
     @Test
+    void serverSettledIsFalseWhileALightResendIsPending() {
+        // The server is not settled until the client is and the region that marks the client's
+        // sections has been sent. See #1161.
+        assertFalse(GrugRenderSettle.serverSettled(true, true));
+        assertFalse(GrugRenderSettle.serverSettled(false, true));
+        assertFalse(GrugRenderSettle.serverSettled(false, false));
+        assertTrue(GrugRenderSettle.serverSettled(true, false));
+    }
+
+    @Test
     void clientSettledIsAnsweredByEveryCombinationOfWhatTheLoaderReads() {
         // The whole client answer, so that no loader carries a conjunction whose branch a run only
         // meets when a poll lands at the right moment. See #424 and #804.

@@ -120,6 +120,21 @@ public final class GrugRenderSettle {
     }
 
     /**
+     * Whether the dedicated server has nothing left to send the joined client before a capture
+     * reads its frame. A region packet still owed to the client marks the client's sections dirty,
+     * so a capture taken before it reads a mesh baked from the light before it. The server is
+     * settled only when the client is and no region is still owed. See #1161.
+     *
+     * <p>Pure, so its unit test covers the one combination a server run could miss.
+     *
+     * @param clientSettled whether the joined client answered settled
+     * @param lightResendPending whether {@link GrugLightResend#pending} says a region is still owed
+     */
+    public static boolean serverSettled(boolean clientSettled, boolean lightResendPending) {
+        return clientSettled && !lightResendPending;
+    }
+
+    /**
      * Whether the client has nothing left for the frame a capture would read, given what the loader
      * reads at the moment of the question: the light engine's queues, the client's queue of
      * received light packets, the frames drawn, and the client's copy of the blocks a test placed.
