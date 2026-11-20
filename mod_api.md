@@ -308,6 +308,7 @@ String.from_number(value: number) string
 .notify_neighbors(level: Level, x: number, y: number, z: number)
 .open_inventory(player: Player)
 .overlay_drawn() bool
+.overlay_first_frame_cleared() bool
 .particle_position(index: number) Vec3
 .press_screen_key(key: number, ctrl: bool, release: bool) bool
 .press_world_key(key: number, ctrl: bool)

@@ -507,6 +507,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * Whether the joined client's drawn mark was already clear when the first frame of its open
+     * screen began (#1391): the frames are that client's, and it records the mark at the moment the
+     * screen's first frame begins, which a server cannot reconstruct from its own empty client.
+     */
+    @Override
+    public boolean overlayFirstFrameClearedForTest(String mod) {
+        return overlays.firstFrameCleared(mod);
+    }
+
+    /**
      * This server forwards a test's client-only calls to the player who started the run (#1040).
      */
     @Override

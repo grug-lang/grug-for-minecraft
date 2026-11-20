@@ -282,6 +282,30 @@ class HostFunctionsOverlayContextTest {
         assertFalse(GrugOverlay.overlayDrawn());
     }
 
+    @Test
+    void overlayFirstFrameClearedRecordsWhetherTheMarkWasSetWhenTheScreenFirstDrew() {
+        GrugTestState.currentTestMod = null;
+        long context = GrugTestContexts.tick();
+        GrugOverlay.screenOpened();
+        Object screen = new Object();
+
+        // Before the screen's first frame the record says nothing, so this is not read as clean.
+        assertFalse(
+                HostFunctions.TestTickContext_overlay_first_frame_cleared(context),
+                "no frame of the screen has begun yet");
+
+        // A hook that ran before the first frame left the mark clear when the frame began.
+        GrugOverlay.noteFrame(screen);
+        assertTrue(HostFunctions.TestTickContext_overlay_first_frame_cleared(context));
+
+        // A new screen whose hook never ran begins its first frame with the previous screen's mark,
+        // which is what a forwarded test asserts against.
+        GrugOverlay.noteDrawn();
+        GrugOverlay.noteFrame(new Object());
+        assertFalse(HostFunctions.TestTickContext_overlay_first_frame_cleared(context));
+        GrugTestState.currentTestMod = null;
+    }
+
     private static long keyContext() {
         return GrugEntities.addEntity(GrugEntityType.OverlayKeyContext, GrugOverlay.context());
     }

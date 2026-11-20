@@ -970,6 +970,19 @@ public final class GrugControlServer {
     }
 
     /**
+     * Asks the starter's client whether its drawn mark was already clear when the first frame of
+     * the screen it has open now began, which is {@code
+     * TestTickContext.overlay_first_frame_cleared} (#1391). A server that read its own mark would
+     * answer about a screen no frame of its own ever drew; a joined client's frames are between the
+     * open and the read, so only its own record at the moment the frame began tells whether the
+     * screen-open hook ran before it.
+     */
+    public boolean overlayFirstFrameCleared(String mod) throws ControlException {
+        byte result = call(GrugControlWire.CALL_OVERLAY_FIRST_FRAME, mod, 0, 0, 0);
+        return yesOrNo(result, "overlay_first_frame_cleared");
+    }
+
+    /**
      * Asks the starter's client whether its own copy of the block at the position shows the mining
      * crack over the block's own geometry (#1040).
      */
@@ -1097,6 +1110,8 @@ public final class GrugControlServer {
             case GrugControlWire.CALL_OVERLAY_SUPPORTED:
                 return null;
             case GrugControlWire.CALL_OVERLAY_DRAWN:
+                return overlayModProblem(name);
+            case GrugControlWire.CALL_OVERLAY_FIRST_FRAME:
                 return overlayModProblem(name);
             case GrugControlWire.CALL_MINING_CRACK:
                 return positionProblem(volume, pitch, third);
@@ -1385,6 +1400,9 @@ public final class GrugControlServer {
         }
         if (call == GrugControlWire.CALL_OVERLAY_DRAWN) {
             return "overlay drawn of \"" + name + "\"";
+        }
+        if (call == GrugControlWire.CALL_OVERLAY_FIRST_FRAME) {
+            return "overlay first frame of \"" + name + "\"";
         }
         if (call == GrugControlWire.CALL_MINING_CRACK) {
             return "mining crack";

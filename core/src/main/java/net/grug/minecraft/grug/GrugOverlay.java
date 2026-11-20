@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugFrameRequest;
+import net.grug.minecraft.core.GrugOverlayFirstFrame;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -87,6 +88,12 @@ public final class GrugOverlay {
     private static volatile boolean overlayDrawn = false;
 
     /**
+     * The mark's state at the moment the first frame of the screen that is open now began, which is
+     * how a joined client's answer proves the screen-open hook ran before that frame (#1391).
+     */
+    private static final GrugOverlayFirstFrame FIRST_FRAME = new GrugOverlayFirstFrame();
+
+    /**
      * Whether an overlay took the press {@code TestTickContext.click_screen} is driving. The
      * loader's click handler records it, and the adapter clears it before it delivers a press, so
      * the test answers with the overlay's own decision rather than with whether the screen handled
@@ -136,12 +143,31 @@ public final class GrugOverlay {
     }
 
     /**
+     * Notes that a frame of {@code screen} is about to be drawn, so the first-frame record can
+     * compare the drawn mark with the hook that was supposed to clear it before this frame. Called
+     * by a loader at the start of the frame pass it draws {@code screen}'s overlay in, on the
+     * render thread, once per frame rather than once per overlay.
+     *
+     * <p>It is the client's own record, taken at the moment the frame begins, because a joined
+     * client's frames are what a server-run test cannot see: by the time the server reads the mark,
+     * a frame of the new screen may already have set it. The screen is passed in so a screen the
+     * hook never announced still starts a new first frame. See {@link GrugOverlayFirstFrame}.
+     */
+    public static void noteFrame(Object screen) {
+        FIRST_FRAME.frameStarted(screen, overlayDrawn);
+    }
+
+    /**
      * Clears the drawn mark when an eligible screen opens, so TestTickContext.overlay_drawn speaks
      * about the screen that is open now rather than about a frame an earlier test drew on an
      * earlier screen. Called by a loader when an eligible screen initializes, on the client thread.
+     *
+     * <p>It also starts a new first-frame record, so the frame after this one is the first frame of
+     * the screen that opened, whatever the earlier screen's frame recorded.
      */
     public static void screenOpened() {
         overlayDrawn = false;
+        FIRST_FRAME.opened();
     }
 
     /** Whether a frame drew the running test's overlay on the screen that is open now. */
@@ -161,12 +187,38 @@ public final class GrugOverlay {
      * mod's overlay and says nothing about this one.
      */
     public static boolean drawnForTest(String mod) {
+        noteTestMod(mod);
+        GrugFrameRequest.request();
+        return overlayDrawn;
+    }
+
+    /**
+     * Whether the drawn mark was already clear when the first frame of the screen that is open now
+     * began, which is what {@code TestTickContext.overlay_first_frame_cleared} answers on the
+     * client of a server-driven run (#1391).
+     *
+     * <p>A client that runs the test itself can read the mark before any frame and see the hook's
+     * clearing. A joined client cannot, because it draws frames between the server's open and the
+     * server's read, so this answer is the client's own record of the mark at the moment that
+     * screen's first frame began: a hook that ran before the frame left it clear there and one that
+     * ran after it left the previous screen's mark set. False until a frame of the screen has
+     * begun.
+     *
+     * <p>A mod that is not the one the last ask was about starts a new screen from a clean mark, as
+     * {@link #drawnForTest} does, because the frame that set the mark belonged to another mod's
+     * overlay.
+     */
+    public static boolean firstFrameClearedForTest(String mod) {
+        noteTestMod(mod);
+        return FIRST_FRAME.clearedAtFirstFrame();
+    }
+
+    /** Starts a new screen's first-frame record when the mod a read is about changes. */
+    private static void noteTestMod(String mod) {
         if (!java.util.Objects.equals(mod, GrugTestState.currentTestMod)) {
             GrugTestState.currentTestMod = mod;
             screenOpened();
         }
-        GrugFrameRequest.request();
-        return overlayDrawn;
     }
 
     /** Clears the press record, so the press the adapter is about to deliver starts untaken. */
