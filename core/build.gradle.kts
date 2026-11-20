@@ -31,13 +31,16 @@ java.targetCompatibility = JavaVersion.VERSION_17
 // `--release` also pins the API to Java 8, which `sourceCompatibility` alone would not.
 
 repositories {
+    // Central's filtered mirror (#1453): the groups Central has refused are resolved from a
+    // different host first, so a 429 from Central itself cannot fail the build. Every other module
+    // is asked only of Central, keeping the mirror off the hot path for Ornithe, Glass, Fabric and
+    // the rest of Central.
+    maven("https://maven-central.storage-download.googleapis.com/maven2/") {
+        content {
+            includeGroup("org.jacoco")
+        }
+    }
     mavenCentral()
-    // The same artifacts from a second host, which Gradle asks only when Central does not answer
-    // with them: Central answered a published POM with 429 and, in other runs, with 404, and one
-    // repository made that a failed job (#1453). Gradle retries such an answer, then treats the
-    // repository as not holding the module and resolves it from the next one, so Central stays
-    // first. An artifact that exists nowhere still fails: the error then names both hosts.
-    maven("https://maven-central.storage-download.googleapis.com/maven2/")
 }
 
 // Compile-time stand-ins for the loaders' @Mod annotations, which GrugForgeMod carries, and for the

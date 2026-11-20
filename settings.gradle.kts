@@ -5,9 +5,15 @@ pluginManagement {
         maven("https://maven.minecraftforge.net/")
         maven("https://maven.ornithemc.net/releases")
         maven("https://maven.ornithemc.net/snapshots")
+        // Central's filtered mirror (#1453): org.jacoco plugin dependencies are resolved here first,
+        // so a 429 from Central cannot fail plugin resolution. Every other group is asked only of
+        // Central.
+        maven("https://maven-central.storage-download.googleapis.com/maven2/") {
+            content {
+                includeGroup("org.jacoco")
+            }
+        }
         mavenCentral()
-        // Central's fallback (#1453): a plugin host it does not answer with is looked up here.
-        maven("https://maven-central.storage-download.googleapis.com/maven2/")
         gradlePluginPortal()
     }
 }
