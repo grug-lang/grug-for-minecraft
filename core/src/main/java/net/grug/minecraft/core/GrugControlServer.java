@@ -116,8 +116,11 @@ public final class GrugControlServer {
         }
 
         /**
-         * The server's player the sender is, or null when that player has left. Called on the
-         * server thread, only when {@link #givesToSender}.
+         * The server's player the sender is, or null when this loader has not learnt the player of
+         * that sender or the player has left. {@link GrugControlServer#onRead} asks it on the
+         * connection's own thread, to decide whether a message may be read there, and the drain
+         * that applies a give asks it on the server thread, so a loader with its own onRead answers
+         * it on both.
          */
         default Object playerOfSender(Object sender) {
             return null;
@@ -434,27 +437,62 @@ public final class GrugControlServer {
     }
 
     /**
-     * Whether a message of {@code type} may be handled on the connection's network thread right
-     * now: as {@link GrugControlWire#handledOnRead} says, an answer always and a give once a
-     * starter exists (#1280).
+     * Handles a message a connection's reader thread has just read, there, when it may be handled
+     * there: as {@link GrugControlWire#handledOnRead} says, an answer always and a give once a
+     * starter exists and the loader has learnt who sent it (#1280, #1418). Answers whether it was
+     * handled, so the loader lets the game thread read the message when this answers false.
      *
      * <p>A give is taken there because the frozen server thread only reaches its connection's drain
      * between two calls, so a give left to the game thread can arrive many ticks late, or never.
-     * But a give that arrives before the start of its own connection has been handled has no
-     * starter to be attributed to yet, while that start is still queued for the game thread, so
-     * taking the give on the network thread would drop it (#1288). Left to the game thread, the
-     * give is read after the start it followed, which is the stream order a server keeps on its
-     * own.
+     * But a give is applied to a player, and a loader learns a player only when the game thread
+     * handles that connection's first control message. A give that arrives before the start of its
+     * own connection has been handled has no starter to be attributed to yet and no player to be
+     * given to, while that start is still queued for the game thread, so taking the give on the
+     * reader thread would drop it (#1288, #1418). Left to the game thread, the give is read after
+     * the start it followed, which is the stream order a server keeps on its own, and that thread
+     * learns the player on the way.
+     *
+     * <p>{@code sender} is the connection the message was read from. Whether the loader has learnt
+     * that connection's player is asked here, of {@link Link#playerOfSender}, which is the same
+     * lookup the drain gives through: a loader that answered that question itself would be making a
+     * second decision at each read site, and no unit test of the loader could reach it without a
+     * game connection (#1418).
      */
-    public boolean handlesOnRead(byte type) {
+    public boolean onRead(Object sender, byte[] bytes) {
+        if (bytes.length == 0) {
+            return false;
+        }
+        if (!handlesOnRead(bytes[0], sender)) {
+            return false;
+        }
+        // A sender the loader could not name is passed on: the server fails an answer it cannot
+        // attribute and drops anything else.
+        onMessage(sender, bytes);
+        return true;
+    }
+
+    /**
+     * Whether a message of {@code type} from {@code sender} may be handled on the connection's
+     * reader thread right now: an answer always, and a give once a starter exists and the loader
+     * has learnt that connection's player. An answer is taken either way: it can only arrive while
+     * a call waits, which needs a starter already, and one the server cannot attribute has to reach
+     * core, which fails what waits on it, rather than wait for a game thread that the call itself
+     * has frozen.
+     */
+    boolean handlesOnRead(byte type, Object sender) {
         if (!GrugControlWire.handledOnRead(type)) {
             return false;
         }
-        // An answer is the other message taken there, and it can only arrive while a call waits,
-        // which needs a starter already.
-        return (type != GrugControlWire.GIVE_REQUEST
-                        && type != GrugControlWire.DELETE_CARRIED_REQUEST)
-                || hasStarter();
+        if (GrugControlWire.isAnswer(type)) {
+            return true;
+        }
+        if (!hasStarter()) {
+            return false;
+        }
+        // The starter is known by construction: only a message the game thread handled can have set
+        // it, and that message is where the loader learnt that connection's player.
+        return sender != null
+                && (sender.equals(starter.get()) || link.playerOfSender(sender) != null);
     }
 
     /**

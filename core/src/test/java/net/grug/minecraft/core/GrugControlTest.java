@@ -2299,21 +2299,18 @@ class GrugControlTest {
     @Test
     void aGiveTheJoinedClientSendsIsAppliedOnTheNextDrain() {
         Loopback loop = wireCalls(1000, new ScreenCalls());
-        // A give is taken on the connection's reader thread only once a starter exists: a give that
-        // arrives before the start of its own connection was handled is left to the game thread,
-        // which reads it after that start and keeps the stream order (#1288). This pins the
-        // predicate the three loaders' onReads consult; the dispatch-only multiplayer job reaches
-        // them, and nothing on core's test classpath does.
-        assertFalse(loop.server.handlesOnRead(GrugControlWire.GIVE_REQUEST));
-        assertTrue(loop.server.handlesOnRead(GrugControlWire.ANSWER_VALUE));
-        assertFalse(loop.server.handlesOnRead(GrugControlWire.RUN_START));
+        // Empty frames, a start, and anything but an answer while no starter exists are left to
+        // the game thread. The four loaders' onReads are their sender lookup and this call, so this
+        // is the whole decision (#1418).
+        assertFalse(loop.server.onRead(PLAYER, new byte[0]));
+        assertFalse(loop.server.onRead(PLAYER, GrugControlWire.runStart()));
+        assertFalse(loop.server.onRead(PLAYER, GrugControlWire.giveRequest("minecraft:stone", 1)));
+        // An answer is taken either way: the game thread that would read it is the frozen one.
+        assertTrue(loop.server.onRead(PLAYER, GrugControlWire.answerValue(1, (byte) 1)));
         loop.server.onMessage(PLAYER, GrugControlWire.runStart());
-        assertTrue(loop.server.handlesOnRead(GrugControlWire.GIVE_REQUEST));
-        // Nothing is queued and nothing waits on a give, so the drain before it does not run.
-        loop.server.applyClientWork();
-        assertEquals(0, loop.drained);
-
-        loop.server.onMessage(PLAYER, GrugControlWire.giveRequest("minecraft:stone", 1));
+        // The starter's give is handled on the reader thread once a starter exists, where it only
+        // joins the queue the next drain applies.
+        assertTrue(loop.server.onRead(PLAYER, GrugControlWire.giveRequest("minecraft:stone", 1)));
         assertTrue(loop.given.isEmpty());
         loop.server.applyClientWork();
         assertEquals(1, loop.drained);
@@ -2334,6 +2331,47 @@ class GrugControlTest {
     }
 
     @Test
+    void aGiveIsReadOnItsConnectionThreadOnlyFromAConnectionWhosePlayerIsKnown() throws Exception {
+        // Stands in for a loader that gives to its sender and has learnt the players of some of its
+        // connections: the read-thread question is asked of the same lookup the drain gives
+        // through, so this is what a loader's onRead leaves to core (#1418).
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        List<String> given = new ArrayList<>();
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(
+                        new Object(),
+                        given,
+                        java.util.Set.of("player of alice", "player of bob", "player of carol"));
+        loop.server.onMessage("alice", GrugControlWire.runStart());
+        withAdapter(adapter, loop::runTasks);
+        assertEquals("alice", loop.server.starter());
+        byte[] give = GrugControlWire.giveRequest("grug:test", 1);
+
+        // The loader has learnt bob's player, so his give is taken on his connection's thread and
+        // applied by the next drain, which is the zero-delay give #1280 built.
+        assertTrue(loop.server.onRead("bob", give));
+        withAdapter(adapter, loop.server::applyClientWork);
+        assertEquals(List.of("player of bob x1"), given);
+
+        // A connection whose player the loader has not learnt is not: its give is left to the game
+        // thread, which reads the start that came before it and learns the player there, so the
+        // give is applied and nothing is lost (#1288, #1418).
+        int tasksBefore = loop.tasks.size();
+        loop.playerPresent = false;
+        assertFalse(loop.server.onRead("carol", give));
+        assertEquals(
+                tasksBefore,
+                loop.tasks.size(),
+                "a give left to the game thread is not queued or drained there");
+        loop.playerPresent = true;
+        loop.server.onMessage("carol", GrugControlWire.runStart());
+        loop.server.onMessage("carol", give);
+        withAdapter(adapter, loop.server::applyClientWork);
+        assertEquals(List.of("player of bob x1", "player of carol x1"), given);
+    }
+
+    @Test
     void aClearOfTheServersCursorKeepsItsOrderAmongTheGives() {
         Loopback loop = wireCalls(1000, new ScreenCalls());
         assertEquals(
@@ -2341,9 +2379,11 @@ class GrugControlTest {
                 GrugControlWire.decode(GrugControlWire.deleteCarriedRequest()).type);
         assertFalse(GrugControlWire.isAnswer(GrugControlWire.DELETE_CARRIED_REQUEST));
         assertTrue(GrugControlWire.handledOnRead(GrugControlWire.DELETE_CARRIED_REQUEST));
-        assertFalse(loop.server.handlesOnRead(GrugControlWire.DELETE_CARRIED_REQUEST));
+        assertFalse(loop.server.onRead(PLAYER, GrugControlWire.deleteCarriedRequest()));
         loop.server.onMessage(PLAYER, GrugControlWire.runStart());
-        assertTrue(loop.server.handlesOnRead(GrugControlWire.DELETE_CARRIED_REQUEST));
+        assertTrue(loop.server.handlesOnRead(GrugControlWire.DELETE_CARRIED_REQUEST, PLAYER));
+        assertFalse(loop.server.handlesOnRead(GrugControlWire.DELETE_CARRIED_REQUEST, "bob"));
+        assertFalse(loop.server.handlesOnRead(GrugControlWire.DELETE_CARRIED_REQUEST, null));
 
         loop.server.onMessage(PLAYER, GrugControlWire.giveRequest("minecraft:stone", 1));
         loop.server.onMessage(PLAYER, GrugControlWire.deleteCarriedRequest());

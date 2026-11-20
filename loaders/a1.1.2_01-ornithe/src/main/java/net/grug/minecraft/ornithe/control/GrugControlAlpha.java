@@ -253,25 +253,19 @@ public final class GrugControlAlpha {
 
     /**
      * Called on the reader thread with a message just read. An answer on a server is handed to the
-     * waiting call here, because the game thread that would handle it is the one frozen, and a give
-     * joins the queue the server thread drains, so neither waits for a game tick to reach the queue
-     * (#1280). Answers true when the message was handled and the game thread must not, which a give
-     * that arrived before the start of its own connection was handled is not: left to the game
-     * thread, the give is read after the start it followed, in the order they came (#1288).
+     * waiting call there, because the game thread that would handle it is the one frozen, and a
+     * give joins the queue the server thread drains, so neither waits for a game tick to reach the
+     * queue (#1280). Core decides, and it leaves a give whose connection this loader has not learnt
+     * to the game thread, which reads the start that came before it, in the order they came
+     * (#1288), and learns the player it gives to there (#1418).
      */
     static boolean onRead(byte[] bytes) {
-        if (!onServer() || bytes.length == 0) return false;
-        GrugControlServer control = server();
-        if (!control.handlesOnRead(bytes[0])) {
-            return false;
-        }
+        if (!onServer()) return false;
         // The reader thread of a Connection is a Thread subclass that holds it, so the sender of
         // this message is the connection it was read from, which the server compares with the
-        // starter's.
-        // A null sender (no connection found) is passed on: the server fails an answer it cannot
-        // attribute and drops anything else.
-        control.onMessage(findConnection(Thread.currentThread(), 0), bytes);
-        return true;
+        // starter's and which its player is found by.
+        Connection sender = findConnection(Thread.currentThread(), 0);
+        return server().onRead(sender, bytes);
     }
 
     /** Called on the game thread for every other message, from {@code Connection.tick}. */

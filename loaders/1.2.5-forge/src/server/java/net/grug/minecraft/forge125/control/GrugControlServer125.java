@@ -171,20 +171,14 @@ public final class GrugControlServer125 implements GrugControlRouter {
 
     @Override
     public boolean onRead(Thread reader, byte[] bytes) {
-        if (bytes.length == 0) return false;
-        GrugControlServer control = server();
-        if (!control.handlesOnRead(bytes[0])) {
-            return false;
-        }
-        // An answer and a give go in from here, because the game thread that would handle them is
-        // the one frozen: the answer completes what waits on it, and the give only joins the queue
-        // that thread drains, so neither waits for a game tick to reach the queue (#1280). The
-        // reader thread holds the connection it reads, which core compares with the starter's; a
-        // null sender is passed on, where core fails an answer it cannot attribute and drops
-        // anything else. A give that arrives before the start of its own connection was handled is
-        // left to the game thread, which reads it after that start, in the order they came (#1288).
-        control.onMessage(GrugControlFind.byType(reader, NetworkManager.class), bytes);
-        return true;
+        // The reader thread holds the connection it reads, which core compares with the starter's
+        // and which this loader's player is found by. An answer and a give go in from there,
+        // because the game thread that would handle them is the one frozen: the answer completes
+        // what waits on it, and the give only joins the queue that thread drains, so neither waits
+        // for a game tick to reach the queue (#1280). Core leaves a give whose connection this
+        // loader has not learnt to the game thread, which reads it after that start, in the order
+        // they came (#1288), and learns the player it gives to there (#1418).
+        return server().onRead(GrugControlFind.byType(reader, NetworkManager.class), bytes);
     }
 
     @Override
