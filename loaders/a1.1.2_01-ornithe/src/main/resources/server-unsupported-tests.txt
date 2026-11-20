@@ -34,9 +34,10 @@ coverage/tests/take_crafting_result_on_a_chest-Test.grug
 coverage/tests/update_recipe_output_on_a_chest-Test.grug
 #
 # The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
-# client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
-# block, so this server cannot open one. 1.2.5's interaction manager and 1.20.6's game mode
-# right-click the chest, so the two tests run there.
+# client's screen, but the fixture is a vanilla chest and this server's Test.use_block only
+# right-clicks a grug block, because the a0.2.1 jar has no interaction manager to reach yet
+# (#1388). 1.20.6's game mode opens the chest, and so do 1.2.5's and both b1.7.3 servers'
+# interaction managers, so the two tests run on those four legs and only this one lists them.
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
