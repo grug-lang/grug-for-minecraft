@@ -3,8 +3,11 @@
 # over 32768 cells, and the box a radius 13 room settles is 29 x 29 x 42 = 35322 cells. A settle
 # that hands that box over whole leaves the sealed room holding the sky of the open air it was
 # built over, and the renderer bakes a face's brightness from the larger of the cell's sky and
-# block light, so every face of the room draws at full brightness. The build places its blocks
-# without touching the light, so nothing else recomputes the sky here. See #1368.
+# block light, so every face of the room draws at full brightness. See #1368.
+
+# The coordinates are measured from get_origin, which answers the camera lifted by 3 blocks and so
+# sits 4.62 above the feet the room is anchored at. This room's ceiling is 27 above those feet, so
+# it is 22 above the origin, and its air runs from 7 below the origin up to 21 above it.
 
 # Whether the room for this test has been asked for yet.
 requested: bool = false
@@ -12,11 +15,20 @@ requested: bool = false
 # How many ticks this test has waited for the world to settle.
 waited: number = 0
 
+# The origin the room was built at, taken before the wait so the reads below stay anchored to it.
+x: number = 0
+y: number = 0
+z: number = 0
+
 export tick(ctx: TestTickContext) {
     if not requested {
         requested = true
         waited = 0
         ctx.set_box_radius(13)
+        origin: Vec3 = ctx.get_origin()
+        x = origin.x()
+        y = origin.y()
+        z = origin.z()
         ctx.not_done()
         return
     }
@@ -29,13 +41,11 @@ export tick(ctx: TestTickContext) {
     }
 
     level: Level = ctx.get_client_level()
-    origin: Vec3 = ctx.get_origin()
-    # Air under the room's ceiling, near its top where no room of a smaller radius reached and the
-    # world was open to the sky, so each of these read 15 until this room closed the sky off.
-    ctx.assert(level.get_sky_light(origin.x() + 10, origin.y() + 24, origin.z()) == 0, "The air under the room's ceiling should hold no sky light.")
-    ctx.assert(level.get_sky_light(origin.x(), origin.y() + 24, origin.z() - 12) == 0, "The air under the room's ceiling should hold no sky light.")
-    ctx.assert(level.get_sky_light(origin.x() - 9, origin.y() + 24, origin.z() + 9) == 0, "The air under the room's ceiling should hold no sky light.")
-    # And an air cell a few blocks above the torches, which the room's walls and ceiling seal off
-    # as well.
-    ctx.assert(level.get_sky_light(origin.x() + 8, origin.y() + 4, origin.z()) == 0, "The air above the room's floor should hold no sky light.")
+    # Air under the room's ceiling, high up where no room of a smaller radius reached, so each of
+    # these held the open sky's 15 until this room closed the sky off.
+    ctx.assert(level.get_sky_light(x + 7, y + 20, z) == 0, "The air under the room's ceiling should hold no sky light.")
+    ctx.assert(level.get_sky_light(x, y + 20, z - 9) == 0, "The air under the room's ceiling should hold no sky light.")
+    ctx.assert(level.get_sky_light(x - 6, y + 16, z + 6) == 0, "The air under the room's ceiling should hold no sky light.")
+    # And air a few blocks above the torches, which the walls and ceiling seal off as well.
+    ctx.assert(level.get_sky_light(x + 4, y, z) == 0, "The air above the room's floor should hold no sky light.")
 }
