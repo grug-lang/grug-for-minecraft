@@ -103,6 +103,19 @@ export tick_any_side(ctx: TestTickContext) {
         }
         ctx.assert(equals(held.unwrap(), item_at(0)), "A middle click should give the item the overlay drew.")
         ctx.clear_held_item(ctx.get_player())
+        # Repeat the set/read/clear to catch a server that stores the cursor on the wrong screen
+        # (#1389). Only a joined client on a dedicated server can see this, because the same process
+        # on a singleplayer run shares the cursor.
+        repeat_count: number = 0
+        while repeat_count < 3 {
+            ctx.set_carried_item(item_at(0))
+            set_item: Option[Item] = ctx.get_carried_item()
+            ctx.assert(set_item.has(), "The test should be able to put an item on the cursor.")
+            ctx.assert(equals(set_item.unwrap(), item_at(0)), "The cursor should hold the item that was set.")
+            ctx.clear_carried_item()
+            ctx.assert(not ctx.get_carried_item().has(), "The cursor should be empty after it is cleared.")
+            repeat_count = repeat_count + 1
+        }
         # A left click while the cursor carries an item deletes it.
         ctx.set_carried_item(item_at(0))
         ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item on the cursor.")
