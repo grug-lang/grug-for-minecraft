@@ -805,9 +805,11 @@ while :; do
     fi
     # The screen input #1094 forwards needs a screen the server can open for its player. 1.2.5's
     # and both b1.7.3 servers' interaction managers open the chest these tests place by right-
-    # clicking it (#1388), and 1.20.6's game mode does. The Alpha server's a0.2.1 jar has no
-    # interaction manager to reach yet, so its list skips these two.
-    if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
+    # clicking it (#1388), 1.20.6's game mode does, and the Alpha server sends the joined client the
+    # block's own activation, so the chest opens there too (#1494). The forwarded tests place the
+    # chest and click it in the same tick, which is also the ordering this packet's delayed queue
+    # has to keep.
+    if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ]; then
       for input in forwarded_press_screen_key forwarded_scroll_screen; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${input}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${input}-Test.grug did not run." >&2
