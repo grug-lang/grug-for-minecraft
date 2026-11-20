@@ -445,6 +445,11 @@ pinned at 8.14 (SpongePowered Mixin and ForgeGradle 6 do not support Gradle 9). 
 bump commands are in #369. `core/`'s main sources compile with `--release 8`, so no `Set.of`,
 `List.of` or `String.isBlank` there (the tests may use them).
 
+A new control-wire call takes the next code and raises `networkProtocolVersion` past the number every
+open pull request has taken, because two calls that pick the same pair silently mean different things
+on two builds (#1040; #1449 and #1452 took 21 and 9 together on 2026-11-20, so #1452 moved to 22 and
+10 before either merged).
+
 ## grug language rules that cost runs
 
 - [grug-tests](https://github.com/grug-lang/grug-tests) is grug's spec. Its
