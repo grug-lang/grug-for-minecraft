@@ -10,12 +10,30 @@ readonly VERSION="1.36.1"
 readonly JAR_NAME="google-java-format-${VERSION}-all-deps.jar"
 readonly CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/grug-google-java-format"
 readonly JAR="${CACHE_DIR}/${JAR_NAME}"
-readonly URL="https://repo1.maven.org/maven2/com/google/googlejavaformat/google-java-format/${VERSION}/${JAR_NAME}"
+readonly JAR_PATH="com/google/googlejavaformat/google-java-format/${VERSION}/${JAR_NAME}"
+# Central first, then its mirror, because a single refusal from one host must not fail a required
+# check: repo1 answered 404 for the jar on #1477's run 44691370056 and 200 minutes later (#1453).
+readonly URLS=(
+    "https://repo1.maven.org/maven2/${JAR_PATH}"
+    "https://maven-central.storage-download.googleapis.com/maven2/${JAR_PATH}"
+)
 
 if [[ ! -f "${JAR}" ]]; then
     mkdir -p "${CACHE_DIR}"
     echo "Downloading google-java-format ${VERSION} to ${JAR}" >&2
-    curl --fail --location --silent --show-error --output "${JAR}.tmp" "${URL}"
+    downloaded=0
+    for url in "${URLS[@]}"; do
+        if curl --fail --location --silent --show-error --output "${JAR}.tmp" "${url}"; then
+            downloaded=1
+            break
+        fi
+        echo "Could not download ${JAR_NAME} from ${url}" >&2
+        rm -f "${JAR}.tmp"
+    done
+    if [[ "${downloaded}" != "1" ]]; then
+        echo "Could not download ${JAR_NAME} from any host" >&2
+        exit 1
+    fi
     mv "${JAR}.tmp" "${JAR}"
 fi
 
