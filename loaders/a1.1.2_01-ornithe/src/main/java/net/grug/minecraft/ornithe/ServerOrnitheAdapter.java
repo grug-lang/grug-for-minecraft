@@ -1055,15 +1055,25 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         return (byte) ((upper << 4) | (lower & 0xF));
     }
 
-    /** The Alpha packet keeps its compressed size private, so it has to be set by reflection. */
-    private static final Field COMPRESSED_SIZE_FIELD;
+    /**
+     * The Alpha packet keeps its compressed size private, so it has to be set by reflection. The
+     * field is {@code compressedSize} in the a1.1.2_01 development client this layer is compiled
+     * against, and {@code f_62093482} in the Ornithe intermediary the a0.2.1 dedicated server runs
+     * (its obfuscated class is {@code cz}, whose {@code h} is that intermediary), which both the
+     * server jar and a player's client jar carry, so both names are tried (#1486).
+     */
+    private static final Field COMPRESSED_SIZE_FIELD = compressedSizeField();
 
-    static {
+    private static Field compressedSizeField() {
         try {
-            COMPRESSED_SIZE_FIELD = WorldChunkPacket.class.getDeclaredField("compressedSize");
-            COMPRESSED_SIZE_FIELD.setAccessible(true);
+            return GrugFieldAccess.field(WorldChunkPacket.class, "compressedSize", "f_62093482");
         } catch (NoSuchFieldException e) {
-            throw new IllegalStateException("WorldChunkPacket has no compressedSize field", e);
+            throw Grug.fatal(
+                    "neither compressedSize, the a1.1.2_01 development name, nor f_62093482, the"
+                            + " Ornithe intermediary name of the a0.2.1 dedicated server's"
+                            + " ornithe-server/server.jar, is a field of WorldChunkPacket, so the"
+                            + " region packet has no compressed size to send",
+                    e);
         }
     }
 
