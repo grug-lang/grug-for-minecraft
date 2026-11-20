@@ -62,11 +62,14 @@ repositories {
     maven("https://maven.minecraftforge.net/")
     maven("https://jitpack.io/")
     // Central's filtered mirror (#1453): org.jacoco is resolved here first, so a 429 from Central
-    // cannot fail the JaCoCo agent download. Every other group is asked only of Central.
+    // cannot fail the JaCoCo agent download. org.ow2.asm is included because org.jacoco.core and
+    // the unshaded agent depend on it. The mirror's includeGroup filter means net.jodah is not
+    // asked here either; Central still carries the net.jodah exclusion (#1370).
     maven {
         url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
         content {
             includeGroup("org.jacoco")
+            includeGroup("org.ow2.asm")
         }
     }
     mavenCentral {

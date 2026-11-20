@@ -32,12 +32,14 @@ java.targetCompatibility = JavaVersion.VERSION_17
 
 repositories {
     // Central's filtered mirror (#1453): the groups Central has refused are resolved from a
-    // different host first, so a 429 from Central itself cannot fail the build. Every other module
-    // is asked only of Central, keeping the mirror off the hot path for Ornithe, Glass, Fabric and
-    // the rest of Central.
+    // different host first, so a 429 from Central itself cannot fail the build. org.jacoco is the
+    // group that failed; org.ow2.asm is included because org.jacoco.core depends on it.
+    // Every other group is asked only of Central, keeping the mirror off the hot path for Ornithe,
+    // Glass, Fabric and the rest of Central.
     maven("https://maven-central.storage-download.googleapis.com/maven2/") {
         content {
             includeGroup("org.jacoco")
+            includeGroup("org.ow2.asm")
         }
     }
     mavenCentral()
