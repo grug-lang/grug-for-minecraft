@@ -78,7 +78,10 @@ public final class ClientGrugScreens implements ClientModInitializer {
                         GrugScreen.openFromServer(
                                 pending.x, pending.y, pending.z, pending.windowId, pending.layout);
             } else if (pending.windowId == 0) {
-                if (minecraft.player != null) {
+                // The player's own inventory cursor is the same object a custom screen uses for its
+                // carried stack, so a window-0 packet is applied only while no custom screen is
+                // open. Otherwise a stale inventory packet could overwrite the screen's cursor.
+                if (mayApplyInventoryCursor(active != null) && minecraft.player != null) {
                     minecraft.player.inventory.cursorItem = pending.cursor;
                 }
             } else if (active != null) {
@@ -97,6 +100,15 @@ public final class ClientGrugScreens implements ClientModInitializer {
         if (active == screen) {
             active = null;
         }
+    }
+
+    /**
+     * Whether a window-id-0 content packet may update the player's own inventory cursor. It is safe
+     * only when no custom screen is open, because a custom screen uses the same inventory cursor
+     * and a stale packet would overwrite it.
+     */
+    static boolean mayApplyInventoryCursor(boolean customScreenOpen) {
+        return !customScreenOpen;
     }
 
     /** One packet waiting for the client tick, as the server sent it. */
