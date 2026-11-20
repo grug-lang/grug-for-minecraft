@@ -1,0 +1,24 @@
+package net.grug.minecraft.core;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Test;
+
+/**
+ * Covers {@link GrugTestPlayerMove#canMove}: a move needs a player, a world and the target chunk,
+ * and every combination of the three decides the same way on every loader.
+ */
+class GrugTestPlayerMoveTest {
+    @Test
+    void aMoveIsAllowedOnlyWhenThePlayerTheWorldAndTheChunkAreAllThere() {
+        assertTrue(GrugTestPlayerMove.canMove(true, true, true));
+        assertFalse(GrugTestPlayerMove.canMove(false, true, true), "no player to move");
+        assertFalse(GrugTestPlayerMove.canMove(true, false, true), "no world to move them in");
+        assertFalse(GrugTestPlayerMove.canMove(true, true, false), "the chunk has not arrived");
+        assertFalse(GrugTestPlayerMove.canMove(false, false, true));
+        assertFalse(GrugTestPlayerMove.canMove(false, true, false));
+        assertFalse(GrugTestPlayerMove.canMove(true, false, false));
+        assertFalse(GrugTestPlayerMove.canMove(false, false, false));
+    }
+}

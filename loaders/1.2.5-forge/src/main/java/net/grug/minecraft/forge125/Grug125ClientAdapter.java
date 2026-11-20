@@ -4,6 +4,8 @@ import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.forge125.block.GrugBlocks;
@@ -444,6 +446,35 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         } catch (NoSuchFieldException e) {
             throw Grug.fatal("RenderGlobal has no worldRenderersToUpdate field", e);
         }
+    }
+
+    /**
+     * Moves the local player's feet to the position when the client has that chunk, so a test can
+     * stand inside or outside a shape drawn around a point. A teleport into a chunk the client has
+     * not received crashes this generation of the game, so it answers false instead.
+     *
+     * <p>These mappings keep the player's {@code posY} at the eye, while the feet are what the API
+     * gives, so the position is lifted by the eye height before the move. Without that the player
+     * lands an eye height below the block a test built for them.
+     *
+     * <p>Excluded from coverage because a client run that has a test to move always has a local
+     * player and a world, so those two arms of the guard cannot be entered; the unloaded-chunk arm
+     * is what {@code set_player_position_unloaded-Test.grug} asks for.
+     */
+    @Override
+    @GrugGenerated("the no-player arm: a run that moves a player has one and a world to move it in")
+    public boolean setPlayerPositionForTest(double x, double y, double z) {
+        Minecraft mc = ModLoader.getMinecraftInstance();
+        EntityPlayer player = mc.thePlayer;
+        boolean hasWorld = mc.theWorld != null;
+        boolean chunkLoaded =
+                hasWorld && mc.theWorld.blockExists((int) Math.floor(x), 64, (int) Math.floor(z));
+        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, chunkLoaded)) {
+            return false;
+        }
+        player.setPositionAndRotation(
+                x, y + GrugTestOrigin.EYE_HEIGHT, z, player.rotationYaw, player.rotationPitch);
+        return true;
     }
 
     @Override

@@ -10,6 +10,7 @@ import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -725,6 +726,44 @@ public class ClientForgeAdapter extends ForgeAdapter {
     private boolean testPlayerSnapped = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
+
+    /**
+     * Moves the local player's feet to the position when the client has that chunk, so a test can
+     * stand inside or outside a shape drawn around a point. It answers false instead of teleporting
+     * into a chunk the client has not received, which is what lets a test move in steps and wait
+     * between them.
+     *
+     * <p>The test runner is driven from the integrated server thread, but the player is the
+     * client's, so the move is marshalled onto the client (render) thread and the answer comes back
+     * with it. {@code setPos} takes the feet, which is the position the API gives.
+     *
+     * <p>Excluded from coverage because a client run that has a test to move always has a local
+     * player and a level, so those two arms of the guard cannot be entered; the unloaded-chunk arm
+     * is what {@code set_player_position_unloaded-Test.grug} asks for.
+     */
+    @Override
+    @GrugGenerated("the no-player arm: a run that moves a player has one and a level to move it in")
+    public boolean setPlayerPositionForTest(final double x, final double y, final double z) {
+        final boolean[] moved = new boolean[1];
+        onClientThread(() -> moved[0] = setPlayerPositionOnClient(x, y, z));
+        return moved[0];
+    }
+
+    private static boolean setPlayerPositionOnClient(double x, double y, double z) {
+        Minecraft minecraft = Minecraft.getInstance();
+        Player player = minecraft.player;
+        boolean hasLevel = minecraft.level != null;
+        boolean chunkLoaded =
+                hasLevel
+                        && minecraft.level.hasChunkAt(
+                                new net.minecraft.core.BlockPos(
+                                        (int) Math.floor(x), 64, (int) Math.floor(z)));
+        if (!GrugTestPlayerMove.canMove(player != null, hasLevel, chunkLoaded)) {
+            return false;
+        }
+        player.setPos(x, y, z);
+        return true;
+    }
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")

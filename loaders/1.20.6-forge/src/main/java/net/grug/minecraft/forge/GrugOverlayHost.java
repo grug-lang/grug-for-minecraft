@@ -69,6 +69,7 @@ public final class GrugOverlayHost {
         GrugOverlayScripts.init(files, mods);
         GrugOverlay.noteSupported();
         GrugWorldOverlay.noteSupported();
+        GrugWorldOverlay.noteTrianglesSupported();
     }
 
     /**
@@ -317,9 +318,9 @@ public final class GrugOverlayHost {
     }
 
     /**
-     * Draws every overlay's world export as lines after the particles, depth-tested against the
-     * level. The level's model-view matrix is already on the render system when this stage fires,
-     * so the lines go in through an identity pose, camera-relative.
+     * Draws every overlay's world export as lines and translucent triangles after the particles,
+     * depth-tested against the level. The level's model-view matrix is already on the render system
+     * when this stage fires, so both go in through an identity pose, camera-relative.
      */
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
@@ -338,44 +339,86 @@ public final class GrugOverlayHost {
                             position.x,
                             position.y,
                             position.z);
-            if (lines.isEmpty()) continue;
+            List<GrugWorldOverlay.Triangle> triangles = GrugWorldOverlay.lastTriangles();
+            if (lines.isEmpty() && triangles.isEmpty()) continue;
             if (overlay.mod.equals(testMod)) {
                 GrugWorldOverlay.noteDrawn();
             }
             MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
-            VertexConsumer consumer = buffers.getBuffer(RenderType.lines());
             PoseStack.Pose pose = new PoseStack().last();
-            for (GrugWorldOverlay.Line line : lines) {
-                int rgb = line.rgb();
-                int r = (rgb >> 16) & 0xFF;
-                int g = (rgb >> 8) & 0xFF;
-                int b = rgb & 0xFF;
-                float x1 = (float) (line.x1() - position.x);
-                float y1 = (float) (line.y1() - position.y);
-                float z1 = (float) (line.z1() - position.z);
-                float x2 = (float) (line.x2() - position.x);
-                float y2 = (float) (line.y2() - position.y);
-                float z2 = (float) (line.z2() - position.z);
-                float dx = x2 - x1;
-                float dy = y2 - y1;
-                float dz = z2 - z1;
-                float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (length > 0.0F) {
-                    dx /= length;
-                    dy /= length;
-                    dz /= length;
+            if (!lines.isEmpty()) {
+                VertexConsumer consumer = buffers.getBuffer(RenderType.lines());
+                for (GrugWorldOverlay.Line line : lines) {
+                    int rgb = line.rgb();
+                    int r = (rgb >> 16) & 0xFF;
+                    int g = (rgb >> 8) & 0xFF;
+                    int b = rgb & 0xFF;
+                    float x1 = (float) (line.x1() - position.x);
+                    float y1 = (float) (line.y1() - position.y);
+                    float z1 = (float) (line.z1() - position.z);
+                    float x2 = (float) (line.x2() - position.x);
+                    float y2 = (float) (line.y2() - position.y);
+                    float z2 = (float) (line.z2() - position.z);
+                    float dx = x2 - x1;
+                    float dy = y2 - y1;
+                    float dz = z2 - z1;
+                    float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (length > 0.0F) {
+                        dx /= length;
+                        dy /= length;
+                        dz /= length;
+                    }
+                    consumer.vertex(pose.pose(), x1, y1, z1)
+                            .color(r, g, b, 255)
+                            .normal(pose, dx, dy, dz)
+                            .endVertex();
+                    consumer.vertex(pose.pose(), x2, y2, z2)
+                            .color(r, g, b, 255)
+                            .normal(pose, dx, dy, dz)
+                            .endVertex();
                 }
-                consumer.vertex(pose.pose(), x1, y1, z1)
-                        .color(r, g, b, 255)
-                        .normal(pose, dx, dy, dz)
-                        .endVertex();
-                consumer.vertex(pose.pose(), x2, y2, z2)
-                        .color(r, g, b, 255)
-                        .normal(pose, dx, dy, dz)
+                buffers.endBatch(RenderType.lines());
+            }
+            drawTriangles(buffers, pose, triangles, position);
+        }
+    }
+
+    /**
+     * Draws the world pass's translucent triangles after its lines into the debug quad render type,
+     * which is the version's translucent debug geometry: it blends, does not cull, and takes {@code
+     * POSITION_COLOR} vertices.
+     *
+     * <p>That type takes four vertices per primitive, so each triangle repeats its first corner as
+     * the fourth: the second triangle the quad is split into has no area, and exactly the
+     * triangle's own area is filled. Its depth writes stay on, unlike the fixed-function loaders'
+     * depth mask, because the type is the version's own debug draw and the terrain in front still
+     * hides the triangle.
+     */
+    private static void drawTriangles(
+            MultiBufferSource.BufferSource buffers,
+            PoseStack.Pose pose,
+            List<GrugWorldOverlay.Triangle> triangles,
+            Vec3 position) {
+        if (triangles.isEmpty()) return;
+        VertexConsumer quads = buffers.getBuffer(RenderType.debugQuads());
+        for (GrugWorldOverlay.Triangle triangle : triangles) {
+            int argb = triangle.argb();
+            int r = (argb >> 16) & 0xFF;
+            int g = (argb >> 8) & 0xFF;
+            int b = argb & 0xFF;
+            int a = (argb >>> 24) & 0xFF;
+            for (int corner = 0; corner < 4; corner++) {
+                int from = corner % 3;
+                quads.vertex(
+                                pose.pose(),
+                                (float) (triangle.corner(from, 0) - position.x),
+                                (float) (triangle.corner(from, 1) - position.y),
+                                (float) (triangle.corner(from, 2) - position.z))
+                        .color(r, g, b, a)
                         .endVertex();
             }
-            buffers.endBatch(RenderType.lines());
         }
+        buffers.endBatch(RenderType.debugQuads());
     }
 
     /**

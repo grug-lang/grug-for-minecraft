@@ -325,7 +325,10 @@ public final class GrugWorldOverlay {
         return true;
     }
 
-    /** Whether this loader draws the triangles of a world pass. Beta 1.7.3's loaders say yes. */
+    /**
+     * Whether this loader draws the triangles of a world pass. Every loader says yes once its
+     * overlay host has started (#1427).
+     */
     public static boolean trianglesSupported() {
         return trianglesSupported;
     }

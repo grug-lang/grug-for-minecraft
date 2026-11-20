@@ -755,6 +755,12 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         return GrugTestOrigin.eyeOfFeet(player.x, feetY(player), player.z);
     }
 
+    /** A dedicated server has no local player to move: the call is for a client run. */
+    @Override
+    public boolean setPlayerPositionForTest(double x, double y, double z) {
+        throw Grug.fatal("TestTickContext.set_player_position is not supported on a server");
+    }
+
     /**
      * Snaps this server's copy of the test player to their block centre, so the room, origin and
      * fixtures land on the grid a client-only run's snap puts them on (#1161). The teleport is the

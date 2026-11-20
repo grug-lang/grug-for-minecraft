@@ -12,6 +12,7 @@ import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -1670,6 +1671,33 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     private boolean testPlayerSnapped = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
+
+    /**
+     * Moves the local player's feet to the position when the client has that chunk, so a test can
+     * stand inside or outside a shape drawn around a point. A teleport into a chunk the client has
+     * not received crashes Alpha's light update, so it answers false instead.
+     *
+     * <p>{@code setPositionAndAngles} takes the feet, not this version's eye-height player.y, so
+     * the position the API gave passes straight through.
+     *
+     * <p>Excluded from coverage because a client run that has a test to move always has a local
+     * player and a world, so those two arms of the guard cannot be entered; the unloaded-chunk arm
+     * is what {@code set_player_position_unloaded-Test.grug} asks for.
+     */
+    @Override
+    @GrugGenerated("the no-player arm: a run that moves a player has one and a world to move it in")
+    public boolean setPlayerPositionForTest(double x, double y, double z) {
+        PlayerEntity player = GrugClientPlayer.get();
+        Minecraft mc = MinecraftInstance.get();
+        boolean hasWorld = mc.world != null;
+        boolean chunkLoaded =
+                hasWorld && mc.world.isChunkLoaded((int) Math.floor(x), 64, (int) Math.floor(z));
+        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, chunkLoaded)) {
+            return false;
+        }
+        player.setPositionAndAngles(x, y, z, player.yaw, player.pitch);
+        return true;
+    }
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
