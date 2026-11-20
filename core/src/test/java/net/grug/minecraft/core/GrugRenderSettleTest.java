@@ -142,7 +142,8 @@ class GrugRenderSettleTest {
     @Test
     void serverSettledIsFalseWhileALightResendIsPending() {
         // The server is not settled until the client is and the region that marks the client's
-        // sections has been sent. See #1161.
+        // sections has been sent. A poll that owes the region asks no client, so it passes false
+        // for the client's answer (#1161).
         assertFalse(GrugRenderSettle.serverSettled(true, true));
         assertFalse(GrugRenderSettle.serverSettled(false, true));
         assertFalse(GrugRenderSettle.serverSettled(false, false));

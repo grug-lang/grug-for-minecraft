@@ -125,7 +125,10 @@ public final class GrugRenderSettle {
      * so a capture taken before it reads a mesh baked from the light before it. The server is
      * settled only when the client is and no region is still owed. See #1161.
      *
-     * <p>Pure, so its unit test covers the one combination a server run could miss.
+     * <p>Pure, so its unit test covers the one combination a server run could miss. A poll that
+     * owes a region answers before it asks the client, so it passes {@code false} for the client
+     * and the owed region for the second argument: asking first would remember an answer at the
+     * revision the send then makes stale (#1161).
      *
      * @param clientSettled whether the joined client answered settled
      * @param lightResendPending whether {@link GrugLightResend#pending} says a region is still owed

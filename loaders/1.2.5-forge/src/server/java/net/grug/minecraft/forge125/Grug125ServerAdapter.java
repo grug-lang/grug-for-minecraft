@@ -19,6 +19,7 @@ import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
+import net.grug.minecraft.core.GrugWorldRevision;
 import net.grug.minecraft.forge125.client.GrugContainer;
 import net.grug.minecraft.forge125.control.GrugControlServer125;
 import net.grug.minecraft.grug.Grug;
@@ -29,6 +30,7 @@ import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
+import net.minecraft.src.Chunk;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
@@ -38,7 +40,6 @@ import net.minecraft.src.EnumSkyBlock;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
-import net.minecraft.src.NibbleArray;
 import net.minecraft.src.Packet51MapChunk;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
@@ -51,7 +52,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.zip.Deflater;
 
 /**
  * The adapter for a 1.2.5 dedicated server: everything that is not about which process this is
@@ -568,28 +568,31 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      *
      * <p>A region packet still owed to the joined client is not settled, and neither is the poll
      * that only arms its send: the region is what marks the client's sections dirty, so a capture
-     * taken before it reads a mesh baked from the light before it. {@link GrugLightResend#due}
-     * sends nothing for the first poll after a change, which used to fall through to the client's
-     * answer and let the capture go (#1161).
+     * taken before it reads a mesh baked from the light before it. Such a poll therefore answers
+     * before it asks the client, and the send bumps the world revision, so the answer the resend
+     * invalidates is one taken before it and the poll after it is a fresh ask (#1161).
      */
     @Override
     public boolean isWorldSettled() {
         if (!GrugControlServer125.server().hasStarter()) {
             return true;
         }
-        boolean clientSettled;
-        try {
-            clientSettled = GrugControlServer125.server().worldSettled();
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
-            return true;
-        }
-        boolean pending = lightResend.pending();
-        if (pending) {
+        boolean owed = lightResend.pending();
+        if (owed) {
             resendLight();
         }
-        return GrugRenderSettle.serverSettled(clientSettled, pending);
+        // A poll that owed the region asked no client, so nothing is settled for this poll.
+        boolean clientSettled = false;
+        if (!owed) {
+            try {
+                clientSettled = GrugControlServer125.server().worldSettled();
+            } catch (GrugControlServer.ControlException e) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
+                return true;
+            }
+        }
+        return GrugRenderSettle.serverSettled(clientSettled, owed);
     }
 
     /**
@@ -607,7 +610,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
 
     /**
      * Sends the joined client this server's light for the blocks a test changed, once the tick that
-     * changed them has been flushed to it, and answers whether it did.
+     * changed them has been flushed to it.
      *
      * <p>This version's client lights a block-change packet from that change alone, while a chunk
      * region packet carries the server's own light, so a room that touches a chunk with few blocks
@@ -616,43 +619,60 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      * sends it: the answer is false for the poll that sent it, so the next one asks a client that
      * has the light. See {@link GrugLightResend} and #1092.
      */
-    private boolean resendLight() {
+    private void resendLight() {
         List<int[]> regions = lightResend.due();
         if (regions.isEmpty()) {
-            return false;
+            return;
         }
         EntityPlayerMP starter = GrugControlServer125.starterPlayer();
         World world = (World) getLevel();
         if (starter == null || world == null) {
-            return false;
+            return;
         }
         // The placements left the field their order made, which differs from the one the final
         // blocks define and from the client-only run's, so it is recomputed before it is sent.
         int[] box = lightResend.lastBox();
         relightRoom(
                 world, box[0], Math.max(box[1], 0), box[2], box[3], Math.min(box[4], 127), box[5]);
+        // The tick's block changes go out first, so the client applies them to the light it holds
+        // and the region then replaces that light with this server's.
+        GrugServerRun.flushBlockChanges();
+        boolean sent = false;
         for (int[] region : regions) {
             Packet51MapChunk packet = buildMapChunkPacket(world, region);
             if (packet != null) {
                 starter.playerNetServerHandler.sendPacket(packet);
+                sent = true;
             }
         }
-        return true;
+        if (sent) {
+            // The region changed the copy of the world the client shows, so the revision a settle
+            // answer belongs to moves with it: an answer the client gave before the send is not
+            // reused for the world after it (#1161).
+            GrugWorldRevision.bump();
+        }
     }
 
     /**
-     * Builds a 1.2.5 chunk packet for the chunk the region touches. This version's packet cannot
-     * carry a sub-chunk box, so the whole chunk column is sent for every chunk the changed box
-     * touches, covering the vertical range of the box. The client marks the entire chunk dirty, so
-     * its mesh rebuilds from the server's light.
+     * Builds the 1.2.5 region packet for the chunk the region touches, through the server's own
+     * {@code Packet51MapChunk(Chunk, boolean, int)}: it packs every masked section's block ids,
+     * then their metadata, block light, sky light and block-id nibbles, in the order {@code
+     * Chunk.func_48494_a} reads them, and derives the packet's own minimum and maximum section
+     * masks from the chunk. This version's packet cannot carry a sub-chunk box, so the whole column
+     * of the sections the box spans is sent, and the client marks those sections dirty, so their
+     * meshes rebuild from the server's light.
+     *
+     * <p>{@code includeInitialize} is false, and the mask is the sections the box spans, which is
+     * how {@code PlayerInstance} sends a chunk whose sections a block changed: the client already
+     * holds the chunk, so it needs the sections and not the chunk, its biome array or its tile
+     * entities.
      */
     private static Packet51MapChunk buildMapChunkPacket(World world, int[] region) {
-        int chunkX = region[0] >> 4;
-        int chunkZ = region[2] >> 4;
-        if (world.getChunkFromChunkCoords(chunkX, chunkZ) == null) {
+        Chunk chunk = world.getChunkFromChunkCoords(region[0] >> 4, region[2] >> 4);
+        if (chunk == null) {
             return null;
         }
-
+        // This version's world is 128 blocks high, which is sections 0 to 7 of the chunk's 16.
         int minSection = Math.max(0, region[1] >> 4);
         int maxSection = Math.min(7, (region[1] + region[4] - 1) >> 4);
         int sectionMask = 0;
@@ -662,131 +682,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         if (sectionMask == 0) {
             return null;
         }
-
-        byte[] raw = packChunkData(world, chunkX, chunkZ, minSection, maxSection, sectionMask);
-        Packet51MapChunk packet = new Packet51MapChunk();
-        packet.xCh = chunkX;
-        packet.zCh = chunkZ;
-        packet.includeInitialize = false;
-        packet.yChMin = sectionMask;
-        // The MSB array is always included so block ids above 255 are preserved without having to
-        // recompute which sections contain them.
-        packet.yChMax = sectionMask;
-        packet.chunkData = deflate(raw);
-        Packet51MapChunkAccess.setTempLength(packet, packet.chunkData.length);
-        Packet51MapChunkAccess.setUncompressedLength(packet, raw.length);
-        return packet;
-    }
-
-    /** The number of blocks along one axis of a chunk section. */
-    private static final int SECTION_SIZE = 16;
-
-    /** The number of blocks in a chunk section. */
-    private static final int SECTION_VOLUME = SECTION_SIZE * SECTION_SIZE * SECTION_SIZE;
-
-    /**
-     * Packs the blocks, metadata, block light, sky light and block-id MSB nibble of the requested
-     * chunk sections into the byte array the 1.2.5 client reads in {@code Chunk.func_48494_a}.
-     */
-    private static byte[] packChunkData(
-            World world, int chunkX, int chunkZ, int minSection, int maxSection, int sectionMask) {
-        int baseX = chunkX << 4;
-        int baseZ = chunkZ << 4;
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        for (int section = minSection; section <= maxSection; section++) {
-            if ((sectionMask & (1 << section)) == 0) {
-                continue;
-            }
-            byte[] blockIds = new byte[SECTION_VOLUME];
-            NibbleArray metadata = new NibbleArray(SECTION_VOLUME, 4);
-            NibbleArray blockLight = new NibbleArray(SECTION_VOLUME, 4);
-            NibbleArray skyLight = new NibbleArray(SECTION_VOLUME, 4);
-            NibbleArray msb = new NibbleArray(SECTION_VOLUME, 4);
-            int baseY = section << 4;
-            for (int y = 0; y < SECTION_SIZE; y++) {
-                for (int z = 0; z < SECTION_SIZE; z++) {
-                    for (int x = 0; x < SECTION_SIZE; x++) {
-                        int blockX = baseX + x;
-                        int blockY = baseY + y;
-                        int blockZ = baseZ + z;
-                        int id = world.getBlockId(blockX, blockY, blockZ);
-                        int meta = world.getBlockMetadata(blockX, blockY, blockZ);
-                        int light =
-                                world.getSavedLightValue(
-                                        EnumSkyBlock.Block, blockX, blockY, blockZ);
-                        int sky =
-                                world.getSavedLightValue(EnumSkyBlock.Sky, blockX, blockY, blockZ);
-                        blockIds[(y << 8) | (z << 4) | x] = (byte) (id & 0xFF);
-                        metadata.set(x, y, z, meta & 0xF);
-                        blockLight.set(x, y, z, light & 0xF);
-                        skyLight.set(x, y, z, sky & 0xF);
-                        msb.set(x, y, z, (id >> 8) & 0xF);
-                    }
-                }
-            }
-            write(out, blockIds);
-            write(out, metadata.data);
-            write(out, blockLight.data);
-            write(out, skyLight.data);
-            write(out, msb.data);
-        }
-        return out.toByteArray();
-    }
-
-    private static void write(ByteArrayOutputStream out, byte[] data) {
-        out.write(data, 0, data.length);
-    }
-
-    /** Compresses the raw chunk data for the packet. */
-    private static byte[] deflate(byte[] raw) {
-        Deflater deflater = new Deflater();
-        deflater.setInput(raw);
-        deflater.finish();
-        byte[] buffer = new byte[raw.length];
-        int compressed = deflater.deflate(buffer);
-        deflater.end();
-        byte[] result = new byte[compressed];
-        System.arraycopy(buffer, 0, result, 0, compressed);
-        return result;
-    }
-
-    /**
-     * Access to the private fields {@code Packet51MapChunk} keeps its compressed size in. Excluded
-     * from coverage for the same reason as the adapter around it: only the dispatch-only
-     * multiplayer job reaches a resend, and the gate counts no dedicated-server run (#166).
-     */
-    @GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
-    private static final class Packet51MapChunkAccess {
-        private static final java.lang.reflect.Field TEMP_LENGTH_FIELD;
-        private static final java.lang.reflect.Field UNCOMPRESSED_LENGTH_FIELD;
-
-        static {
-            try {
-                TEMP_LENGTH_FIELD = Packet51MapChunk.class.getDeclaredField("tempLength");
-                TEMP_LENGTH_FIELD.setAccessible(true);
-                UNCOMPRESSED_LENGTH_FIELD =
-                        Packet51MapChunk.class.getDeclaredField("field_48178_h");
-                UNCOMPRESSED_LENGTH_FIELD.setAccessible(true);
-            } catch (NoSuchFieldException e) {
-                throw new IllegalStateException("Packet51MapChunk missing expected fields", e);
-            }
-        }
-
-        static void setTempLength(Packet51MapChunk packet, int length) {
-            try {
-                TEMP_LENGTH_FIELD.setInt(packet, length);
-            } catch (IllegalAccessException e) {
-                throw new IllegalStateException("Could not set Packet51MapChunk.tempLength", e);
-            }
-        }
-
-        static void setUncompressedLength(Packet51MapChunk packet, int length) {
-            try {
-                UNCOMPRESSED_LENGTH_FIELD.setInt(packet, length);
-            } catch (IllegalAccessException e) {
-                throw new IllegalStateException("Could not set Packet51MapChunk.field_48178_h", e);
-            }
-        }
+        return new Packet51MapChunk(chunk, false, sectionMask);
     }
 
     @Override
