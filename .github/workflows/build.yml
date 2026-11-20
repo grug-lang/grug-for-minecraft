@@ -53,6 +53,12 @@ on:
         # passes only when the server stops with the starter-left message.
         description: 'Run the 1.20.6 dedicated leg as the starter-left arm: the starter leaves mid-run and the leg passes only if the run stops'
         type: boolean
+      update-goldens:
+        # Accepts each unmatched capture into its own side's reference directory, which is the only
+        # way a golden from a GitHub runner is generated (#1092). The loader jobs pass this to
+        # GRUG_UPDATE_GOLDENS, and run-multiplayer.sh prints which mode the leg is in.
+        description: 'Accept each unmatched capture into its reference directory, so a new golden is written by the runner that produced it'
+        type: boolean
       base:
         # The commit a dispatch compares its branch with (#826), a SHA or a branch name. The Windows
         # boot jobs are the only run of the native path and of the installed jar on Windows, and a
