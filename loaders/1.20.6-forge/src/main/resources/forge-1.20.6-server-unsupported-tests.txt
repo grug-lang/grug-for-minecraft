@@ -18,7 +18,7 @@
 #
 #
 # The screen-open test runs here now: #1391 forwards the first-frame read to the client that owns
-# the frames. Proof run PROOF_RUN passed it.
+# the frames. Proof run 44678178827 passed it.
 #
 #
 # The forced-normalization probe runs here: #1430 forwards the force and the two reads to the joined
