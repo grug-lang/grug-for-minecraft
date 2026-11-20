@@ -781,11 +781,11 @@ while :; do
         fi
       done
     fi
-    # The screen input #1094 forwards needs a screen the server can open for its player, which
-    # 1.2.5's interaction manager and 1.20.6's game mode do by right-clicking the chest these tests
-    # place. The other three servers cannot: Test.use_block only right-clicks a grug block, so the
-    # vanilla chest cannot be opened there, and their lists skip these two.
-    if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ]; then
+    # The screen input #1094 forwards needs a screen the server can open for its player. 1.2.5's
+    # and both b1.7.3 servers' interaction managers open the chest these tests place by right-
+    # clicking it (#1388), and 1.20.6's game mode does. The Alpha server's a0.2.1 jar has no
+    # interaction manager to reach yet, so its list skips these two.
+    if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
       for input in forwarded_press_screen_key forwarded_scroll_screen; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${input}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${input}-Test.grug did not run." >&2
