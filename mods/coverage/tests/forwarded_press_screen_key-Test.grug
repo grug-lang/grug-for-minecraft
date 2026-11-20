@@ -3,14 +3,13 @@
 # overlay took the key. The fixture is a vanilla chest rather than grug:coverage_gui, because a
 # loader leaves a mod's own GrugScreen out of the screens its overlays are asked on, while the
 # coverage overlay is asked on the game's own container screens. This runs on 1.20.6, whose server
-# right-clicks the chest through the player's game mode, and on 1.2.5, whose server right-clicks it
-# through its own interaction manager; the other three servers cannot (ctx.use_block only
-# right-clicks a grug block there, so the vanilla chest cannot be opened), and they list this test
-# as unsupported. Ctrl+K is the key the coverage overlay takes, and K without
-# control is left to the screen. On 1.20.6 Escape (GLFW's 256) is also left to the screen, which
-# closes itself on it; 1.2.5's key path maps a character code to a key and has none for 256, so
-# there the close is asked for directly. Only a multiplayer run that forwards client calls runs a
-# forwarded_ test.
+# right-clicks the chest through the player's game mode, and on 1.2.5 and both b1.7.3 servers,
+# whose server right-clicks it through its own interaction manager (#1388); the Alpha server has
+# no interaction manager to reach yet, so it still cannot open the chest and lists this test as
+# unsupported. Ctrl+K is the key the coverage overlay takes, and K without control is left to the
+# screen. On 1.20.6 Escape (GLFW's 256) is also left to the screen, which closes itself on it;
+# 1.2.5's key path maps a character code to a key and has none for 256, so there the close is
+# asked for directly. Only a multiplayer run that forwards client calls runs a forwarded_ test.
 started: bool = false
 
 export tick(ctx: TestTickContext) {

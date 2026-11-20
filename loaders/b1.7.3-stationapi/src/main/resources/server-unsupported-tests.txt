@@ -3,13 +3,6 @@
 # tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
-# The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
-# client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
-# block, so this server cannot open one. 1.2.5's interaction manager and 1.20.6's game mode
-# right-click the chest, so the two tests run there.
-coverage/tests/forwarded_press_screen_key-Test.grug
-coverage/tests/forwarded_scroll_screen-Test.grug
-#
 # The overlay's click and the cursor it deletes. Test.overlay_supported and Test.overlay_drawn
 # answer from the joined client (#1099), so the overlay tests do run on this server now, but these
 # two still cannot. An overlay's click export runs on that client, so its carried_item read and
