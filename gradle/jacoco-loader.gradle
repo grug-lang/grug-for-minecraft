@@ -49,8 +49,15 @@ def grugJacocoArgs = { execDirProvider ->
     }
     def agent = configurations.grugJacocoAgent.singleFile
     def execDir = execDirProvider.get().asFile
-    // Start clean, so a segment of an earlier run cannot be combined with this one's.
-    project.delete(execDir)
+    // Start clean of segments, so an earlier run's cannot be combined with this one's, but keep the
+    // loader's unit test exec: the test task writes it in the same build before runClient, and the
+    // coverage gate counts the unit tests (#1387). Deleting the directory here dropped it before
+    // the job uploaded build/jacoco/*.exec, so a class only the unit tests reach read as missed.
+    execDir.listFiles()?.each { segment ->
+        if (segment.name != 'test.exec') {
+            project.delete(segment)
+        }
+    }
     return [
         "-Dgrug.coverage.dir=${execDir.absolutePath}",
         "-javaagent:${agent}=output=none,dumponexit=false," +
