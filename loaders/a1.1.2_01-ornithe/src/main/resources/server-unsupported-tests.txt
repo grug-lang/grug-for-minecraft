@@ -40,20 +40,16 @@ coverage/tests/update_recipe_output_on_a_chest-Test.grug
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
-# The overlay and item-list tests that stay client-only here. This server forwards
-# Test.open_inventory and Test.click_screen to the joined client now (#882), so the other overlay
-# and item-list tests run on this leg. overlay_screen_open asserts a just-opened screen has drawn no
-# frame, which a joined client cannot promise, and item_list_forced_normalization needs a GL state a
-# dedicated server cannot force.
+# The screen-open test that stays client-only here. This server forwards Test.open_inventory and
+# Test.click_screen to the joined client now (#882), so the other overlay and item-list tests run on
+# this leg, and item_list_forced_normalization runs too because #1430 forwards the force it needs.
+# overlay_screen_open asserts a just-opened screen has drawn no frame, which a joined client cannot
+# promise.
 coverage/tests/overlay_screen_open-Test.grug
-jei/tests/item_list_forced_normalization-Test.grug
 #
-# The overlay's click and the cursor it deletes. An overlay's click export runs on the joined
-# client, so its carried_item read and delete_carried_item call touch the client's copy of the
-# cursor while the test sets and reads the server's, and no client-to-server cursor write exists
-# yet (#1389). These two stay out on every leg, this one included.
-coverage/tests/overlay-Test.grug
-jei/tests/jei-Test.grug
+# The overlay's click and the cursor it deletes run here now: #1425 sends the clear an overlay's
+# delete performs to the server that holds the test's menu (#1389). Proof run PROOF_RUN passed both.
+#
 #
 # The forced-normalization probe. The state it reads is a client's GL capability, so the runner
 # never forces it on a dedicated server and Test.normalization_forced answers false there: on every

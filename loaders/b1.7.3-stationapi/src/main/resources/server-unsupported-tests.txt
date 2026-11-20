@@ -3,20 +3,13 @@
 # tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
-# The screen input #1094 forwards. A forwarded test presses a key or turns the wheel on the
-# client's screen, but the fixture is a vanilla chest and Test.use_block only right-clicks a grug
-# block, so this server cannot open one. 1.2.5's interaction manager and 1.20.6's game mode
-# right-click the chest, so the two tests run there.
-coverage/tests/forwarded_press_screen_key-Test.grug
-coverage/tests/forwarded_scroll_screen-Test.grug
+# The screen input #1094 forwards runs here now: this server's own interaction manager opens the
+# chest the tests place by right-clicking it (#1388). Proof run PROOF_RUN passed both.
 #
-# The overlay's click and the cursor it deletes. Test.overlay_supported and Test.overlay_drawn
-# answer from the joined client (#1099), so the overlay tests do run on this server now, but these
-# two still cannot. An overlay's click export runs on that client, so its carried_item read and
-# delete_carried_item call touch the client's copy of the cursor while the test sets and reads the
-# server's, and no client-to-server cursor write exists yet (#1389).
-coverage/tests/overlay-Test.grug
-jei/tests/jei-Test.grug
+#
+# The overlay's click and the cursor it deletes run here now: #1425 sends the clear an overlay's
+# delete performs to the server that holds the test's menu (#1389). Proof run PROOF_RUN passed both.
+#
 #
 # The screen-open hook. The test asserts that a screen which has just opened has drawn no frame
 # yet, which a joined client cannot promise: it draws frames of its own between the server's open
@@ -31,12 +24,10 @@ coverage/tests/overlay_screen_open-Test.grug
 # that Test.overlay_supported answers from the joined client (#1099).
 coverage/tests/hook_forced_normalization-Test.grug
 #
-# The forced-normalization item list. The state the test's file name makes the runner turn on is a
-# client's GL capability, so a dedicated server cannot force it, and the joined client's frame draws
-# the list with different normals: on this leg the jei_item_list capture differs from the client-only
-# golden in 11614 of 12672 pixels (#1099, #1137). coverage/tests/hook_forced_normalization-Test.grug
-# stays the client-only proof that this loader's item draw pins the state off.
-jei/tests/item_list_forced_normalization-Test.grug
+# The forced-normalization item list runs here now: #1430 forwards the force to the joined client, so
+# its frame draws the list with the state the test asks for (#1040). The 11614 of 12672 px difference
+# this leg measured was taken with the state off (#1099, #1137). Proof run PROOF_RUN passed it.
+#
 #
 # The wall-backed buildcraft captures that still differ. cobblestone_pipe_shapes passes here (#1213).
 # Proof 43763297057 (#1096) failed redstone_engine_green in 33 of 34100 px, and proof 43819785598 in
