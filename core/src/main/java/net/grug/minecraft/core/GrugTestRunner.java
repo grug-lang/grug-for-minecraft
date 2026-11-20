@@ -1299,17 +1299,14 @@ public class GrugTestRunner {
             // Cleared for every test, so the test after a marked one reads the state it has rather
             // than the one the marked test asked for. See TestTickContext.normalization_forced.
             GrugTestState.forcedNormalization = false;
-            // A test this side skips before its first tick runs none of it, so the force must not
-            // be asked on the way to the skip: on a dedicated server it would reach the joined
-            // client for a test that never draws, and the two log lines would say a skipped test
-            // was forced (#1040). A skip that is only known once a tick has been tried still
-            // restores through destroyCurrentEntity, so nothing is left on for later tests.
-            boolean skippedBeforeItsTick =
-                    dedicatedServer
-                            && (unsupportedOnServer.contains(path)
-                                    || (isForwarded(path)
-                                            && !runsForwardedTests(
-                                                    dedicatedServer, forwardsClientCalls)));
+            // A path the loader lists as one its server cannot run is skipped before its first
+            // tick, having run none of it, so the force must not be asked on the way to that skip.
+            // On a dedicated server that forwards client calls the force reaches the joined
+            // client, which would be asked to force a state for a test that never draws, and the
+            // log would say a skipped test was forced (#1040). A skip that is only known once a
+            // tick has been tried settles the force's restore in skipForSide, so a false answer
+            // fails the run rather than outliving it.
+            boolean skippedBeforeItsTick = dedicatedServer && unsupportedOnServer.contains(path);
             if (!skippedBeforeItsTick
                     && GrugForcedNormalization.appliesTo(
                             path,
@@ -1978,11 +1975,21 @@ public class GrugTestRunner {
 
     /**
      * Drops the running test without finishing it, takes it out of the total the run reports, and
-     * leaves the next one to start. Its entity is destroyed as after any test, which also puts back
-     * the normalizing state a marked test forced (see {@link #destroyCurrentEntity}), so a skip
-     * decided after a tick was tried cannot leave it on for the tests after it (#1040).
+     * leaves the next one to start. Its entity is destroyed as after any test.
+     *
+     * <p>A skip is often decided after this test's first tick was tried, which is after a marked
+     * test's force ran, so the restore that force owes is asked here first and a false answer fails
+     * the run for this test: a skip that stayed green would leave the client's capabilities on for
+     * the tests after it, where the pass path fails the test for the same answer. The failure's own
+     * {@link #destroyCurrentEntity} then finds the restore already settled and does not ask again
+     * (#1040).
      */
     private void skipForSide(String path) {
+        String failure = restoreForcedNormalization();
+        if (failure != null) {
+            fail(path, failure);
+            return;
+        }
         skippedForSide.add(path);
         totalCount--;
         destroyCurrentEntity();

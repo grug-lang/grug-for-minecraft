@@ -1520,9 +1520,11 @@ class GrugTestRunnerTest {
 
     @Test
     void aMarkedTestTheLoaderListsIsNotForcedBeforeItIsSkipped() {
-        // The force asks the joined client on a forwarding server, so a test the server then skips
-        // must not be forced on the way to the skip: it spends a forwarded call and logs a force
-        // that never ran, and the restore it owes would wait for a later test (#1040).
+        // The force asks the joined client on a forwarding server, so a test the server skips must
+        // not be forced on the way to the skip. Without the guard the force and its restore both
+        // run for a test that never draws, which spends a forwarded call and logs a force that
+        // never reached a test, so this case measures the wasted force and its line rather than a
+        // state left on for a later test (#1040).
         FakeOps ops = new FakeOps();
         String marked = "coverage/tests/item_list_forced_normalization-Test.grug";
         Map<String, Long> files = new LinkedHashMap<>();
@@ -1545,6 +1547,32 @@ class GrugTestRunnerTest {
         assertFalse(events.contains("restore"), events.toString());
         assertFalse(printed.contains("Forcing normalized normals"), printed);
         assertTrue(printed.contains("PASS jei/code/a-Test.grug"), printed);
+    }
+
+    @Test
+    void aMarkedTestSkippedAfterItsForceFailsWhenTheRestoreDoesNotTake() {
+        // A marked test that defines only tick is skipped after its force ran, and the restore that
+        // force owes is asked on the way to the skip. A false answer must fail the run for that
+        // test, as the pass path does, rather than pass green with the capabilities left on for
+        // the tests after it (#1040).
+        FakeOps ops = new FakeOps();
+        String marked = "coverage/tests/item_list_forced_normalization-Test.grug";
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put(marked, 1L);
+        files.put("jei/code/a-Test.grug", 2L);
+        ops.anySide.add("jei/code/a-Test.grug");
+        List<String> events = new ArrayList<>();
+        GrugTestRunner runner =
+                forcedRunner(ops, files, new NormalizationLog(events, false), Set.of());
+
+        String printed = capture(() -> runToEnd(runner));
+
+        assertTrue(events.contains("force"), events.toString());
+        assertTrue(events.contains("restore"), events.toString());
+        assertFalse(runner.isPassed(), printed);
+        assertTrue(printed.contains("[GRUG CI] FAIL " + marked), printed);
+        assertTrue(printed.contains("did not put the client's capabilities back"), printed);
+        assertFalse(printed.contains("[GRUG CI] PASS"), printed);
     }
 
     @Test
@@ -3276,12 +3304,22 @@ class GrugTestRunnerTest {
         }
     }
 
-    /** A room builder that logs what the runner asks of it, in order. */
+    /**
+     * A room builder that logs the forced-normalization calls the runner makes, in order, so a test
+     * can say which of them ran and when. {@code restoreAnswers} is what it answers for the
+     * restore, since a loader that cannot put the state back is one of the cases.
+     */
     private static final class NormalizationLog implements GrugTestRunner.TestBoxBuilder {
         final List<String> events;
+        final boolean restoreAnswers;
 
         NormalizationLog(List<String> events) {
+            this(events, true);
+        }
+
+        NormalizationLog(List<String> events, boolean restoreAnswers) {
             this.events = events;
+            this.restoreAnswers = restoreAnswers;
         }
 
         @Override
@@ -3311,10 +3349,11 @@ class GrugTestRunnerTest {
         @Override
         public boolean restoreNormalizationAfterTest() {
             events.add("restore");
-            return true;
+            return restoreAnswers;
         }
     }
 
+    /** A room builder that logs what the runner asks of it, in order. */
     private static final class SweepLog implements GrugTestRunner.TestBoxBuilder {
         final List<String> log;
 
