@@ -5,9 +5,12 @@ import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
+import net.grug.minecraft.core.GrugLightResend;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
+import net.grug.minecraft.core.GrugRelight;
+import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
@@ -31,6 +34,7 @@ import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.network.packet.WorldChunkPacket;
 import net.minecraft.server.EntityMap;
 import net.minecraft.server.entity.mob.player.ServerPlayerEntity;
 import net.minecraft.util.math.Box;
@@ -680,19 +684,121 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * with the world frozen, and answers the same to the test (#1086). A server on its own is
      * settled as soon as a test asks, because no client frame or block packet is owed to anyone;
      * that is also the answer when no client has started a run.
+     *
+     * <p>A region packet still owed to the joined client is not settled, and neither is the poll
+     * that only arms its send: the region is what marks the client's sections dirty, so a capture
+     * taken before it reads a mesh baked from the light before it. Such a poll therefore answers
+     * before it asks the client, as 1.2.5-forge's does, and the poll after the send asks it fresh:
+     * {@link GrugLightResend#due} sends nothing for the first poll after a change, which used to
+     * fall through to the client's answer and let the capture go (#1392, #1161).
      */
     @Override
     public boolean isWorldSettled() {
         if (!GrugControlBeta.server().hasStarter()) {
             return true;
         }
-        try {
-            return GrugControlBeta.server().worldSettled();
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
-            return true;
+        boolean owed = lightResend.pending();
+        if (owed) {
+            resendLight();
         }
+        // A poll that owed the region asked no client, so nothing is settled for this poll.
+        boolean clientSettled = false;
+        if (!owed) {
+            try {
+                clientSettled = GrugControlBeta.server().worldSettled();
+            } catch (GrugControlServer.ControlException e) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
+                return true;
+            }
+        }
+        return GrugRenderSettle.serverSettled(clientSettled, owed);
+    }
+
+    /**
+     * The blocks a test placed, whose light the joined client lights for itself and so can light
+     * differently from this server's engine (#1092). See {@link GrugLightResend}.
+     */
+    private final GrugLightResend lightResend = new GrugLightResend();
+
+    /** A block placed here also owes the joined client the light around it. */
+    @Override
+    public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
+        super.placeBlock(levelObj, x, y, z, blockName);
+        lightResend.noteBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    /**
+     * Sends the joined client this server's light for the blocks a test changed, once the tick that
+     * changed them has been flushed to it, and answers whether it did.
+     *
+     * <p>This version's client lights a block-change packet from that change alone, while a chunk
+     * region packet carries the server's own light, so a room that touches a chunk with few blocks
+     * left that chunk's light a level off the server's, which the client-only run's golden does not
+     * show. The region packet is the one carrier of light this version has, so the settle wait
+     * sends it: the answer is false for the poll that sent it, so the next one asks a client that
+     * has the light. See {@link GrugLightResend} and #1092.
+     */
+    private boolean resendLight() {
+        List<int[]> regions = lightResend.due();
+        if (regions.isEmpty()) {
+            return false;
+        }
+        PlayerEntity starter = GrugControlBeta.starterPlayer();
+        World world = (World) getLevel();
+        if (starter == null || world == null) {
+            return false;
+        }
+        // The placements left the field their order made, which differs from the one the final
+        // blocks define and from the client-only run's, so it is recomputed before it is sent.
+        int[] box = lightResend.lastBox();
+        relightRoom(
+                world, box[0], Math.max(box[1], 0), box[2], box[3], Math.min(box[4], 127), box[5]);
+        for (int[] region : regions) {
+            // A chunk this server never loaded is an empty one with no block array, which a region
+            // packet cannot be made of, and the client holds no light for it either.
+            if (world.getChunk(region[0] >> 4, region[2] >> 4).blocks == null) {
+                continue;
+            }
+            ((ServerPlayerEntity) starter)
+                    .networkHandler.sendPacket(
+                            new WorldChunkPacket(
+                                    region[0], region[1], region[2], region[3], region[4],
+                                    region[5], world));
+        }
+        return true;
+    }
+
+    /** Sweeps of the room's cells the light may take before it is called not settling. */
+    private static final int RELIGHT_SWEEP_LIMIT = 16;
+
+    /**
+     * Brings the room's block light to the one field its blocks define, whatever rooms were built
+     * before it.
+     */
+    private static void relightRoom(
+            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        GrugRelight.sweepUntilStable(
+                () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), RELIGHT_SWEEP_LIMIT);
+    }
+
+    /**
+     * Recomputes the block light of every cell of the box once and hashes what the box holds
+     * afterwards.
+     */
+    private static long relightSweep(
+            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        world.updateLight(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
+        while (world.doLightUpdates()) {}
+        long hash = 0;
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    hash = hash * 31 + world.getLight(LightType.BLOCK, x, y, z);
+                }
+            }
+        }
+        return hash;
     }
 
     /** The server has no frames, so there is nothing to forget. */
