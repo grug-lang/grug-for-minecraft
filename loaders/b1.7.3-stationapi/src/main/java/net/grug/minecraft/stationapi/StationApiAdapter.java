@@ -12,6 +12,7 @@ import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -1559,6 +1560,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * Moves the local player's feet to the position when the client has that chunk, so a test can
      * stand inside or outside a shape drawn around a point. A teleport into a chunk the client has
      * not received crashes this generation of the game, so it answers false instead.
+     *
+     * <p>These mappings name the overload that takes the eye {@code setPositionAndAngles}, while
+     * the Ornithe mappings name the one that takes the feet, so the feet a test passes have to be
+     * lifted by the eye height here. Without that the player lands an eye height below the position
+     * the test asked for and drops through a floor it built there. See #1253.
      */
     @Override
     public boolean setPlayerPositionForTest(double x, double y, double z) {
@@ -1570,7 +1576,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 || !mc.world.isPosLoaded((int) Math.floor(x), 64, (int) Math.floor(z))) {
             return false;
         }
-        player.setPositionAndAngles(x, y, z, player.yaw, player.pitch);
+        player.setPositionAndAngles(x, y + GrugTestOrigin.EYE_HEIGHT, z, player.yaw, player.pitch);
         return true;
     }
 
