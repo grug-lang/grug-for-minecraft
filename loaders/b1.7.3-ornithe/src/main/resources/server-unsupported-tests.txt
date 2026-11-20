@@ -10,13 +10,10 @@
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
-# The overlay's click and the cursor it deletes. Test.overlay_supported and Test.overlay_drawn
-# answer from the joined client (#1099), so the overlay tests do run on this server now, but these
-# two still cannot. An overlay's click export runs on that client, so its carried_item read and
-# delete_carried_item call touch the client's copy of the cursor while the test sets and reads the
-# server's, and no client-to-server cursor write exists yet (#1389).
-coverage/tests/overlay-Test.grug
-jei/tests/jei-Test.grug
+# The overlay's click and the cursor it deletes now run here: #1425 sends the clear an overlay's
+# delete performs to the server that holds the test's menu, so the client's mirror and the server's
+# cursor are both cleared (#1389). Proof run 44642603736 passed overlay-Test and jei-Test on this
+# dedicated leg.
 #
 # The screen-open hook. The test asserts that a screen which has just opened has drawn no frame
 # yet, which a joined client cannot promise: it draws frames of its own between the server's open
@@ -24,29 +21,12 @@ jei/tests/jei-Test.grug
 # proves is the client's own, so the test stays client-only.
 coverage/tests/overlay_screen_open-Test.grug
 #
-# The forced-normalization probe. The state it reads is a client's GL capability, so the runner
-# never forces it on a dedicated server and Test.normalization_forced answers false there: on every
-# loader but 1.20.6 that fails the assertion that the marked loader forced it, and on 1.20.6 the
-# assertion holds without proving the client hooked anything. It stays client-only on every leg now
-# that Test.overlay_supported answers from the joined client (#1099).
-coverage/tests/hook_forced_normalization-Test.grug
-#
-# The forced-normalization item list. It is the same reason every other leg records: the state the
-# file name makes the runner force is a client's GL capability, so a dedicated server cannot force it
-# and the joined client's frame draws the list with different normals. Unlike the item models #1237
-# reported, which #1238 fixed, the state cannot be forced on a server at all. The proof stopped
-# before this test on this leg, so it has no number of its own here. It stays client-only unless a
-# proof shows this leg's frame matching the client-only golden.
-jei/tests/item_list_forced_normalization-Test.grug
-# The two wooden pipe captures #1096 promoted to tick_any_side. Dispatch 43422357886 failed
-# wooden_pipe_items' capture against this loader's flat golden in 17594 of 44800 pixels, the same
-# whole-frame joined-client difference #1213 tracks, and the leg stops at its
-# first failure, so wooden_pipe_shapes is unmeasured and listed with it. The client-only run of
-# this loader still runs both, which is where their goldens are checked.
+# The forced-normalization probe and the item list it guards run here: #1430 forwards the force, the
+# restore and the two reads to the joined client, whose GL state the frame pass draws with (#1040).
+# Proof run 44642603736 passed hook_forced_normalization and item_list_forced_normalization on this
+# dedicated leg.
 #
 # coverage_frame and coverage_render, promoted to tick_any_side by #1092 for b1.7.3-stationapi. Dispatch 43465548202 failed coverage_frame on this leg in 20093 of 44800 pixels
 # (#1092), and coverage_render is unmeasured behind it. The client-only run still checks both.
 coverage/tests/coverage_frame-Test.grug
 coverage/tests/coverage_render-Test.grug
-#
-# Dispatch 43937950148 (#1096) failed wooden_pipe_shapes' wooden_pipe_straight capture on this leg in 4323 of 115200 px against b1.7.3-ornithe.png (#1213); wooden_pipe_items and every other wooden_pipe capture passed. The client-only run checks the golden.

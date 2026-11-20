@@ -12,13 +12,10 @@
 buildcraft/tests/wooden_pipe_boxes-Test.grug
 coverage/tests/block_shape-Test.grug
 #
-# The overlay's click and the cursor it deletes. Test.overlay_supported and Test.overlay_drawn
-# answer from the joined client (#1099), so the overlay tests do run on this server now, but these
-# two still cannot. An overlay's click export runs on that client, so its carried_item read and
-# delete_carried_item call touch the client's copy of the cursor while the test sets and reads the
-# server's, and no client-to-server cursor write exists yet (#1389).
-coverage/tests/overlay-Test.grug
-jei/tests/jei-Test.grug
+# The overlay's click and the cursor it deletes now run here: #1425 sends the clear an overlay's
+# delete performs to the server that holds the test's menu, so the client's mirror and the server's
+# cursor are both cleared (#1389). Proof run 44642603736 passed overlay-Test and jei-Test on this
+# dedicated leg.
 #
 # The screen-open hook. The test asserts that a screen which has just opened has drawn no frame
 # yet, which a joined client cannot promise: it draws frames of its own between the server's open
@@ -26,19 +23,11 @@ jei/tests/jei-Test.grug
 # proves is the client's own, so the test stays client-only.
 coverage/tests/overlay_screen_open-Test.grug
 #
-# The forced-normalization probe. The state it reads is a client's GL capability, so the runner
-# never forces it on a dedicated server and Test.normalization_forced answers false there: on every
-# loader but 1.20.6 that fails the assertion that the marked loader forced it, and on 1.20.6 the
-# assertion holds without proving the client hooked anything. It stays client-only on every leg now
-# that Test.overlay_supported answers from the joined client (#1099).
-coverage/tests/hook_forced_normalization-Test.grug
+# The forced-normalization probe and the item list it guards run here: #1430 forwards the force, the
+# restore and the two reads to the joined client, whose GL state the frame pass draws with (#1040).
+# Proof run 44642603736 passed hook_forced_normalization and item_list_forced_normalization on this
+# dedicated leg.
 #
-# The forced-normalization item list. The state the test's file name makes the runner turn on is a
-# client's GL capability, so a dedicated server cannot force it, and the joined client's frame draws
-# the list with different normals: on this leg the jei_item_list capture differs from the client-only
-# golden in all 12672 pixels (#1099, #1137). coverage/tests/hook_forced_normalization-Test.grug
-# stays the client-only proof that this loader's item draw pins the state off.
-jei/tests/item_list_forced_normalization-Test.grug
 #
 # The four wall-backed buildcraft captures #1161 promoted to tick_any_side all pass on this server
 # now: proof 43829659464 passed redstone_engine_animation, redstone_engine_facings and
