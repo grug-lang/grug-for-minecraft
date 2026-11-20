@@ -4,6 +4,7 @@
 # unnoticed. See #863.
 started: bool = false
 opened: bool = false
+reopened: bool = false
 waited: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
@@ -54,10 +55,26 @@ export tick_any_side(ctx: TestTickContext) {
     }
 
     # Close the drawn screen and open a fresh one. The screen-open hook runs while displayGuiScreen
-    # or the mixin's init is still on the stack, so the new screen starts undrawn even though no
-    # frame of it has been rendered yet.
-    ctx.close_screen()
-    ctx.open_inventory(ctx.get_player())
-    ctx.assert(not ctx.overlay_drawn(), "Opening a new inventory should clear the drawn mark before its first frame.")
+    # or the mixin's init is still on the stack, so the new screen's first frame begins with the
+    # mark already clear. A joined client draws frames of its own between the server's open and the
+    # server's read, so the mark is set again by the time a forwarded read can see it: the client
+    # records the mark at the moment that first frame began instead, and a hook that ran after the
+    # frame, or never ran, left the previous screen's mark in that record.
+    if not reopened {
+        ctx.close_screen()
+        ctx.open_inventory(ctx.get_player())
+        reopened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the reopened screen.")
+        ctx.not_done()
+        return
+    }
+    ctx.assert(ctx.overlay_first_frame_cleared(), "Opening a new inventory should clear the drawn mark before its first frame.")
     ctx.close_screen()
 }

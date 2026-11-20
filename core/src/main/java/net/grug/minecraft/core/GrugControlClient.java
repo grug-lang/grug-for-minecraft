@@ -136,6 +136,14 @@ public final class GrugControlClient {
         boolean overlayDrawn(String mod);
 
         /**
+         * Whether this client's drawn mark was already clear when the first frame of the screen it
+         * has open now began, which is a server-run {@code
+         * TestTickContext.overlay_first_frame_cleared} (#1391). The mod is the one that owns the
+         * running test, whose overlay sets the mark, which only the server knows.
+         */
+        boolean overlayFirstFrameCleared(String mod);
+
+        /**
          * Whether this client draws the mining crack over the geometry of the block at the position
          * in its own copy of the world, as a server-run {@code TestTickContext.mining_crack} asks
          * (#1040).
@@ -253,6 +261,12 @@ public final class GrugControlClient {
             @Override
             public boolean overlayDrawn(String mod) {
                 return adapter.get().overlayDrawnForTest(mod);
+            }
+
+            /** The record is this client's own, taken when the screen's first frame began. */
+            @Override
+            public boolean overlayFirstFrameCleared(String mod) {
+                return adapter.get().overlayFirstFrameClearedForTest(mod);
             }
 
             /** The block is in this client's own copy of the world, which is not the server's. */
@@ -545,6 +559,9 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_OVERLAY_DRAWN) {
                 boolean drawn = caller.overlayDrawn(message.text);
                 link.send(GrugControlWire.answerValue(message.id, (byte) (drawn ? 1 : 0)));
+            } else if (message.call == GrugControlWire.CALL_OVERLAY_FIRST_FRAME) {
+                boolean cleared = caller.overlayFirstFrameCleared(message.text);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (cleared ? 1 : 0)));
             } else if (message.call == GrugControlWire.CALL_MINING_CRACK) {
                 boolean cracked = caller.miningCrack(message.volume, message.pitch, message.third);
                 link.send(GrugControlWire.answerValue(message.id, (byte) (cracked ? 1 : 0)));

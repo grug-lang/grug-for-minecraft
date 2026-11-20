@@ -1101,6 +1101,19 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Whether the drawn mark was already clear when the first frame of the screen open now began,
+     * which is what {@code TestTickContext.overlay_first_frame_cleared} answers (#1391).
+     *
+     * <p>A client reads its own record, taken at the moment that frame began. A dedicated server
+     * forwards the read to the joined client, because the frames are that client's and by the time
+     * the server asks, a frame of the new screen may already have set the mark. See {@link
+     * GrugOverlay#firstFrameClearedForTest}.
+     */
+    default boolean overlayFirstFrameClearedForTest(String mod) {
+        return GrugOverlay.firstFrameClearedForTest(mod);
+    }
+
+    /**
      * Whether this loader asks an overlay's world key, HUD and world exports, which is what {@code
      * Test.world_overlay_supported} answers. Only a client that registers the hooks says so.
      */

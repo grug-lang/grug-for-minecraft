@@ -140,6 +140,11 @@ public final class GrugOverlayHost {
         GrugScreenGeometry geometry = geometry(screen);
         if (geometry == null) return Collections.emptyList();
 
+        // The first frame is where the screen-open hook's clearing has to show: a joined client
+        // draws frames between a server's open and its read, so the mark alone cannot tell a hook
+        // that ran before this frame from one that ran after it (#1391).
+        GrugOverlay.noteFrame(screen);
+
         ensureCreated();
         if (renderItem == null) {
             renderItem = new ItemRenderer();

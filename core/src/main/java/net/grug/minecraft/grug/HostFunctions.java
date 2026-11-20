@@ -817,6 +817,26 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: whether the drawn mark was already clear when the first frame of the eligible
+     * screen that is open now began.
+     *
+     * <p>A client that runs the test itself can read {@code overlay_drawn} right after it opens a
+     * screen, before any frame, so an unset mark proves the screen-open hook ran. A joined client
+     * draws frames of its own between the server's open and the server's read, so this answer is
+     * that client's own record at the moment the screen's first frame began: false when the mark
+     * was already set then, which is what a hook that ran after the frame, or never ran, leaves
+     * behind. False also before a frame of the screen has begun, so a test waits for {@code
+     * overlay_drawn} first. On a dedicated server the answer comes from the client of the player
+     * who started the run (#1391). See {@link ModLoaderAdapter#overlayFirstFrameClearedForTest}.
+     */
+    public static boolean TestTickContext_overlay_first_frame_cleared(long contextId) {
+        if (!requireTickContext("TestTickContext.overlay_first_frame_cleared", contextId)) {
+            return false;
+        }
+        return GrugCore.getAdapter().overlayFirstFrameClearedForTest(GrugTestState.currentTestMod);
+    }
+
+    /**
      * Test only: presses a key on the open screen through the same path a real key press takes, and
      * answers whether an overlay took it.
      */

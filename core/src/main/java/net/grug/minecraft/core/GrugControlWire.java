@@ -236,6 +236,18 @@ public final class GrugControlWire {
      */
     public static final byte CALL_NORMALIZATION = 20;
 
+    /**
+     * The call: whether the joined client's drawn mark was already clear when the first frame of
+     * the screen it has open now began, which is {@code
+     * TestTickContext.overlay_first_frame_cleared} (#1391). The call's name is the mod that owns
+     * the running test, because the mark is set only by that mod's overlay. A server-run test
+     * cannot read the mark itself right after it opens a screen: the client draws frames between
+     * the server's open and the server's read, so the mark is set by then whether or not the
+     * client's screen-open hook ran before the first frame. The answer is 1 when the mark was clear
+     * at that moment, and 0 when it was set or no frame of the screen has begun yet.
+     */
+    public static final byte CALL_OVERLAY_FIRST_FRAME = 21;
+
     /** The {@link #CALL_NORMALIZATION} question whether this loader's item draw inherits it. */
     public static final int NORMALIZATION_CAN_FORCE = 0;
 
@@ -433,7 +445,7 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_NORMALIZATION;
+        return call >= CALL_HAS_SOUND && call <= CALL_OVERLAY_FIRST_FRAME;
     }
 
     /**

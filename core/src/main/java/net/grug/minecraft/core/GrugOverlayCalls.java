@@ -70,5 +70,18 @@ public final class GrugOverlayCalls {
                 return false;
             }
         }
+
+        /**
+         * Whether the client's drawn mark was already clear when the first frame of its open screen
+         * began, false when it could not be asked (#1391).
+         */
+        public boolean firstFrameCleared(String mod) {
+            try {
+                return server.get().overlayFirstFrameCleared(mod);
+            } catch (GrugControlServer.ControlException e) {
+                failed.accept("TestTickContext.overlay_first_frame_cleared: " + e.getMessage());
+                return false;
+            }
+        }
     }
 }

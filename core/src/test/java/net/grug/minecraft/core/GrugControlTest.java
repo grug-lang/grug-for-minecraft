@@ -189,6 +189,11 @@ class GrugControlTest {
                 }
 
                 @Override
+                public boolean overlayFirstFrameCleared(String mod) {
+                    throw new AssertionError("no overlay call was expected");
+                }
+
+                @Override
                 public boolean miningCrack(double x, double y, double z) {
                     throw new AssertionError("no call was expected");
                 }
@@ -301,6 +306,11 @@ class GrugControlTest {
         }
 
         @Override
+        public boolean overlayFirstFrameCleared(String mod) {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
         public boolean miningCrack(double x, double y, double z) {
             throw new AssertionError("no call was expected");
         }
@@ -407,6 +417,11 @@ class GrugControlTest {
         }
 
         @Override
+        public boolean overlayFirstFrameCleared(String mod) {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
         public boolean miningCrack(double x, double y, double z) {
             throw new AssertionError("no call was expected");
         }
@@ -444,6 +459,7 @@ class GrugControlTest {
         long light = 12;
         boolean overlaySupported = true;
         boolean overlayDrawn = true;
+        boolean overlayFirstFrameCleared = true;
         boolean miningCrackAnswer = true;
         boolean overlayFails;
         boolean closed;
@@ -563,6 +579,15 @@ class GrugControlTest {
                 throw new IllegalStateException("this client has no overlay host");
             }
             return overlayDrawn;
+        }
+
+        @Override
+        public boolean overlayFirstFrameCleared(String mod) {
+            seen.add("overlayFirstFrameCleared " + mod);
+            if (overlayFails) {
+                throw new IllegalStateException("this client has no overlay host");
+            }
+            return overlayFirstFrameCleared;
         }
 
         @Override
@@ -1608,10 +1633,11 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_SUPPORTED));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_DRAWN));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCREEN_GEOMETRY));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_FIRST_FRAME));
         assertFalse(GrugControlWire.isCall((byte) 0));
         // Above the last call the wire carries, so a code added there is not silently accepted as
         // one of these.
-        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_NORMALIZATION + 1)));
+        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_OVERLAY_FIRST_FRAME + 1)));
 
         // A give names its item and the count the client computed, and a count no host function
         // can ask for, or a message that names no item, is refused rather than applied.
@@ -1639,6 +1665,7 @@ class GrugControlTest {
         assertFalse(GrugControlWire.handledOnRead(GrugControlWire.CALL_REQUEST));
         assertFalse(GrugControlWire.handledOnRead(GrugControlWire.CAPTURE_REQUEST));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_OVERLAY_DRAWN));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_OVERLAY_FIRST_FRAME));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> GrugControlWire.decode(GrugControlWire.giveRequest("", 1)));
@@ -1691,7 +1718,7 @@ class GrugControlTest {
 
         byte[] unknown =
                 GrugControlWire.callRequest(
-                        1, (byte) (GrugControlWire.CALL_NORMALIZATION + 1), "x", 0, 0, 0);
+                        1, (byte) (GrugControlWire.CALL_OVERLAY_FIRST_FRAME + 1), "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1782,6 +1809,7 @@ class GrugControlTest {
         assertEquals(0L, caller.clientLightFingerprint(7, 8, 9));
         assertTrue(caller.overlaySupported());
         assertTrue(caller.overlayDrawn("coverage"));
+        assertTrue(caller.overlayFirstFrameCleared("coverage"));
         // The mining crack is asked of the client's own level, which the stand-in has none of.
         assertTrue(caller.miningCrack(1, 2, 3));
         // No change has been reported for a path nothing touched, by the engine or a loader.
@@ -1811,6 +1839,7 @@ class GrugControlTest {
                         "clientLightFingerprint 7.0",
                         "overlaySupportedForTest",
                         "overlayDrawnForTest coverage",
+                        "overlayFirstFrameClearedForTest coverage",
                         "clientLevel",
                         "miningCrackForTest null",
                         "canForceNormalizationForTest",
@@ -2230,18 +2259,23 @@ class GrugControlTest {
 
         assertTrue(forwarded.supported());
         assertTrue(forwarded.drawn("coverage"));
+        assertTrue(forwarded.firstFrameCleared("coverage"));
         // The other side of each answer, so a loader without the overlay and a frame that has not
         // drawn it yet are both answered rather than assumed.
         overlays.overlaySupported = false;
         overlays.overlayDrawn = false;
+        overlays.overlayFirstFrameCleared = false;
         assertFalse(forwarded.supported());
         assertFalse(forwarded.drawn("jei"));
+        assertFalse(forwarded.firstFrameCleared("jei"));
         assertEquals(
                 List.of(
                         "overlaySupported",
                         "overlayDrawn coverage",
+                        "overlayFirstFrameCleared coverage",
                         "overlaySupported",
-                        "overlayDrawn jei"),
+                        "overlayDrawn jei",
+                        "overlayFirstFrameCleared jei"),
                 overlays.seen);
 
         // A read the client cannot answer is reported as the host function's error, not as a false
@@ -2255,9 +2289,13 @@ class GrugControlTest {
                 new GrugOverlayCalls.Forwarded(() -> failing.server, failed::add);
         assertFalse(reports.supported());
         assertFalse(reports.drawn("coverage"));
-        assertEquals(2, failed.size());
+        assertFalse(reports.firstFrameCleared("coverage"));
+        assertEquals(3, failed.size());
         assertTrue(failed.get(0).contains("Test.overlay_supported"), failed.get(0));
         assertTrue(failed.get(1).contains("TestTickContext.overlay_drawn"), failed.get(1));
+        assertTrue(
+                failed.get(2).contains("TestTickContext.overlay_first_frame_cleared"),
+                failed.get(2));
 
         // A server nobody started a run on has no client to ask, and says so.
         List<String> noStarter = new ArrayList<>();
@@ -2280,12 +2318,20 @@ class GrugControlTest {
                 null,
                 GrugControlServer.callProblem(
                         GrugControlWire.CALL_OVERLAY_DRAWN, "coverage", 0, 0, 0));
+        assertEquals(
+                null,
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_OVERLAY_FIRST_FRAME, "coverage", 0, 0, 0));
 
         // The drawn read names the mod whose overlay the test waits for, so a call with no name is
         // refused rather than answered about whichever overlay the client last drew.
         String missing =
                 GrugControlServer.callProblem(GrugControlWire.CALL_OVERLAY_DRAWN, null, 0, 0, 0);
         assertTrue(missing.contains("names no test mod"), missing);
+        String missingFirstFrame =
+                GrugControlServer.callProblem(
+                        GrugControlWire.CALL_OVERLAY_FIRST_FRAME, null, 0, 0, 0);
+        assertTrue(missingFirstFrame.contains("names no test mod"), missingFirstFrame);
         String tooLong =
                 GrugControlServer.callProblem(
                         GrugControlWire.CALL_OVERLAY_DRAWN,
@@ -3036,7 +3082,7 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) (GrugControlWire.CALL_NORMALIZATION + 1),
+                        (byte) (GrugControlWire.CALL_OVERLAY_FIRST_FRAME + 1),
                         0,
                         0,
                         0,
@@ -3052,7 +3098,8 @@ class GrugControlTest {
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
         assertTrue(
-                answer.text.contains("unknown call " + (GrugControlWire.CALL_NORMALIZATION + 1)),
+                answer.text.contains(
+                        "unknown call " + (GrugControlWire.CALL_OVERLAY_FIRST_FRAME + 1)),
                 answer.text);
     }
 
@@ -3287,6 +3334,11 @@ class GrugControlTest {
 
                             @Override
                             public boolean overlayDrawn(String mod) {
+                                throw new AssertionError("no overlay call was expected");
+                            }
+
+                            @Override
+                            public boolean overlayFirstFrameCleared(String mod) {
                                 throw new AssertionError("no overlay call was expected");
                             }
 

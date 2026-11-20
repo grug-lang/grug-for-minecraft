@@ -3591,6 +3591,12 @@
 						"name": "bool"
 					}
 				},
+				"overlay_first_frame_cleared": {
+					"description": "Whether the drawn mark was already clear when the first frame of the eligible screen that is open now began, which proves the screen-open hook ran before that frame rather than after it. False before a frame of the screen has begun, and false when the mark was already set when it did, which is what a hook that ran late or never ran leaves behind. A client that runs the test itself can read `overlay_drawn` right after it opens a screen and see the clearing, but a joined client draws frames of its own between the server's open and the server's read, so on a dedicated server this is the client's own record at the moment it began that screen's first frame, asked of the client of the player who started the run. A test waits for `overlay_drawn` first, and then asserts this, so the answer describes the same screen's first frame. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"particle_position": {
 					"description": "Test only: where the particle with that index, counted from 0, was spawned by the last TestTickContext.display_tick, as a position in the world. An index past the last particle reports an error. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"return_type": {
