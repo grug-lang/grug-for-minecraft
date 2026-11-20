@@ -13,66 +13,92 @@ package net.grug.minecraft.core;
  * first frame.
  *
  * <p>The comparison is therefore kept on the client, at the moment a frame is drawn: this class
- * notes whether the mark was already set when the first frame of the screen open now began. A hook
- * that ran before that frame left the mark clear there, and a hook that ran after it, or never ran,
- * left the previous screen's mark set. {@link #clearedAtFirstFrame} is what a forwarded test reads,
- * and it is false until a frame has begun, so a caller cannot mistake "no frame yet" for the
- * property the test wants.
+ * records whether the mark was already set when the first frame of a screen began, and the answer
+ * names the screen it is about. A read for a screen whose first frame has not been recorded is
+ * false, whether that screen has not opened yet, has opened but drawn no frame, or is a different
+ * screen from the one the record describes. A hook that ran before the frame left the mark clear,
+ * and a hook that ran after it, or never ran, left the previous screen's mark.
  *
- * <p>A new screen is a screen a frame has not been recorded for yet, either because the object
- * differs or because a screen-open hook ran since. That is what makes a hook that never runs
- * visible: its screen still gets a first frame record, and the mark in it is the one the previous
- * screen left, so the answer is false. A rule that keyed only on the hook would take a hook that
- * never ran for "the same screen as before" and answer from the earlier screen's record.
+ * <p>A later frame of the screen that is open now confirms the record at the current screen-open
+ * generation but cannot change the answer the first frame gave, so a hook that runs late cannot
+ * turn its own dirty first frame into a clean one. A new screen object is what starts a new record,
+ * which is what makes a hook that never runs visible: its screen still gets a first-frame record,
+ * and the mark in it is the one the previous screen left.
  *
  * <p>The screen-open hook runs on the client's thread, the frame call on its render thread and the
  * answer on the thread that reads the control message, so every method is synchronized.
  */
 public final class GrugOverlayFirstFrame {
     /**
-     * How many times a screen has opened or closed, so a screen whose object is drawn again after a
-     * hook still starts a new first frame.
+     * How many times a screen has opened, so a read taken between a hook and the frame after it
+     * cannot describe the frame before the hook.
      */
     private long opened;
 
     /** The generation of the recorded first frame, or -1 before any frame was drawn. */
     private long recorded = -1;
 
-    /** The screen the recorded frame belongs to, or null before any frame was drawn. */
-    private Object screen;
+    /**
+     * The identity of the screen the recorded frame belongs to, or 0 before any frame was drawn.
+     */
+    private long screenIdentity;
 
     /** Whether the drawn mark was already set when that first frame began. */
     private boolean marked;
 
-    /** Notes that a screen opened or closed, so the next frame drawn is a new first frame. */
+    /** Notes that a screen opened, so the next frame is judged against the new generation. */
     public synchronized void opened() {
         opened++;
     }
 
     /**
-     * Notes that a frame of {@code screen} is about to be drawn. The first such frame of a screen
-     * records the answer and the frames after it change nothing, so a later frame cannot turn a
-     * stale first frame into a clean one.
+     * Forgets the record, so the next frame of the screen that is open now starts a new first
+     * frame. A read about another mod starts from here, because the mark the earlier frame saw
+     * belonged to that mod's overlay.
+     */
+    public synchronized void forget() {
+        recorded = -1;
+        screenIdentity = 0;
+        marked = false;
+    }
+
+    /**
+     * Notes that a frame of {@code screen} is about to be drawn. The first frame of a screen
+     * records the answer, and every later frame of the same screen keeps it, so a hook that runs
+     * after that first frame cannot turn its dirty mark into a clean one.
      *
-     * @param screen the screen this frame draws, compared by identity so a new screen starts a new
+     * @param screen the screen this frame draws, named by identity so a new screen starts a new
      *     first frame even when the hook that should have announced it never ran
      * @param markSet whether the drawn mark was already set at the moment this frame began, before
      *     the frame drew any overlay
      */
     public synchronized void frameStarted(Object screen, boolean markSet) {
-        if (recorded == opened && screen == this.screen) return;
+        long identity = GrugTestScreens.identityOf(screen);
+        if (recorded >= 0 && identity == screenIdentity) {
+            // A later frame of this screen, including the one after a re-init: it confirms the
+            // record at the current generation, but the first frame already answered.
+            recorded = opened;
+            return;
+        }
+        screenIdentity = identity;
         recorded = opened;
-        this.screen = screen;
         marked = markSet;
     }
 
     /**
-     * Whether the drawn mark was already clear when the first frame of the screen open now began:
-     * false before that frame has begun, and false when the mark was set when it did. A hook that
-     * ran after the first frame leaves it false, which is what makes a forwarded test's assertion
-     * more than a restatement of {@code overlay_drawn}.
+     * Whether the drawn mark was already clear when the first frame of {@code screenIdentity}
+     * began: false before a frame of that screen has begun, false when the mark was set when it
+     * did, and false when the identity names no screen or a screen the record is not about. A hook
+     * that ran after the first frame leaves it false, which is what makes a forwarded test's
+     * assertion more than a restatement of {@code overlay_drawn}.
+     *
+     * @param screenIdentity the identity of the screen open now, from {@link
+     *     GrugTestScreens#identityOf}, or 0 when none is open
      */
-    public synchronized boolean clearedAtFirstFrame() {
-        return recorded == opened && !marked;
+    public synchronized boolean clearedAtFirstFrame(long screenIdentity) {
+        return screenIdentity != 0
+                && recorded == opened
+                && this.screenIdentity == screenIdentity
+                && !marked;
     }
 }
