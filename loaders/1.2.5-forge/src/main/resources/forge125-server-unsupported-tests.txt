@@ -20,12 +20,6 @@ coverage/tests/block_shape-Test.grug
 coverage/tests/overlay-Test.grug
 jei/tests/jei-Test.grug
 #
-# The screen-open hook. The test asserts that a screen which has just opened has drawn no frame
-# yet, which a joined client cannot promise: it draws frames of its own between the server's open
-# and the server's read, so the mark can be set by the time the answer is asked for. The hook it
-# proves is the client's own, so the test stays client-only.
-coverage/tests/overlay_screen_open-Test.grug
-#
 # The forced-normalization probe. The state it reads is a client's GL capability, so the runner
 # never forces it on a dedicated server and Test.normalization_forced answers false there: on every
 # loader but 1.20.6 that fails the assertion that the marked loader forced it, and on 1.20.6 the
