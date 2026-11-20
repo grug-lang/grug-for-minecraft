@@ -79,6 +79,24 @@ public class GrugBlock extends BlockContainer {
         return data == null || !data.customRender;
     }
 
+    /**
+     * A block that draws its own geometry is not a normal cube either, which is what the smooth
+     * lighting asks before it shades a neighbouring face.
+     *
+     * <p>{@code World.isBlockNormalCube} is {@code blockMaterial.isOpaque() &&
+     * renderAsNormalBlock()}, and this version's smooth lighting answers an occluded sample with
+     * {@code 0.2} instead of {@code 1.0} ({@code Block.getAmbientOcclusionLightValue}). A pipe of
+     * wood or iron is an opaque material whose inherited {@code renderAsNormalBlock} is true, so
+     * leaving it alone darkens the wall around the pipe by up to a fifth, which the reference's
+     * pipe avoids by overriding it to false. The reference's table is a real cube and keeps the
+     * inherited true.
+     */
+    @Override
+    public boolean renderAsNormalBlock() {
+        GrugBlockData data = GrugDeclarations.blockDataByFileId.get(this.blockFileId);
+        return data == null || !data.customRender;
+    }
+
     public long getEntityFileId() {
         GrugBlockData data = blockData();
         if (data.blockEntityString == null) return Grug.INVALID_GRUG_FILE_ID;
