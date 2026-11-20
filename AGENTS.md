@@ -197,8 +197,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   needs no live session and a due tick that was busy retries a quarter of an hour later rather than
   four hours later (#1089). A dispatch past twice the interval goes ahead with runs live and its
   jobs queue, because a proof or a pull request in flight at every tick starved the check for 106
-  hours and a broken Windows adapter went unseen under it (#1463, #1460). Its decision is `.github/scripts/main-dispatch.py`, whose test pins the
-  four cases. The supervisor below still reports when the newest **dispatch** of `build.yml` on
+  hours and a broken Windows adapter went unseen under it (#1463, #1460). Its decision is
+  `.github/scripts/main-dispatch.py`, whose test pins every case. The supervisor below still reports
+  when the newest **dispatch** of `build.yml` on
   `main` is older than four hours, as a second check on the same condition rather than an enforced
   fallback, so a due window can send one extra full run if both paths reach the dispatch. Both paths
   re-read the newest dispatch's age and every build run in flight on any branch immediately before
