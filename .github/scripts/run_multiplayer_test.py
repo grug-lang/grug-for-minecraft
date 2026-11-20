@@ -32,6 +32,20 @@ LOADER = "b1.7.3-ornithe"
 SERVER_VERSION = "b1.7.3"
 SECOND_LOADER = "1.20.6-forge"
 
+# The eight overlay and JEI tests every leg that carries #1227's forwarding requires twice: its PASS
+# line and the line only a test whose overlay was drawn on the joined client writes. The
+# forced-normalization item list is left out, because the legs that still list it skip it.
+OVERLAY_DRAWN_TESTS = [
+    "coverage/tests/give_requires_operator",
+    "coverage/tests/overlay_click_hook",
+    "coverage/tests/overlay_key",
+    "coverage/tests/overlay_probe_gives_nothing",
+    "coverage/tests/overlay_scroll",
+    "jei/tests/hotkey",
+    "jei/tests/paging",
+    "jei/tests/scroll",
+]
+
 # The fake installer reproduces the installer's failure shape: the launch jar is written before the
 # download that fails, and the exit status is 0 either way. FAKE_INSTALL_SERVER_JAR is `none` for a
 # download that never wrote the jar and `empty` for a write that failed partway, and the sentinel
@@ -534,18 +548,9 @@ class SecondPlayerTest(unittest.TestCase):
 
     # The overlay tests are required twice: the PASS line and the line only a test whose overlay
     # was drawn on the joined client writes.
-    OVERLAY_PASSES = [
-        "coverage/tests/give_requires_operator",
-        "coverage/tests/overlay_click_hook",
-        "coverage/tests/overlay_key",
-        "coverage/tests/overlay_probe_gives_nothing",
-        "coverage/tests/overlay_scroll",
-        "jei/tests/hotkey",
-        "jei/tests/paging",
-        "jei/tests/scroll",
-    ]
+    OVERLAY_PASSES = OVERLAY_DRAWN_TESTS
 
-    def passing_server_lines(self, ignored_start=True, moved_stranger=True):
+    def passing_server_lines(self, ignored_start=True, moved_stranger=True, omit=()):
         lines = ["[GRUG CONTROL] Dev started the run"]
         if ignored_start:
             lines.append("[GRUG CONTROL] SecondPlayer sent a start, which was ignored")
@@ -555,6 +560,8 @@ class SecondPlayerTest(unittest.TestCase):
                 " picked it would read another player's eye."
             )
         for path in self.REQUIRED_PASSES:
+            if path in omit:
+                continue
             lines.append(f"[GRUG CI] PASS {path}-Test.grug")
         for path in self.OVERLAY_PASSES:
             lines.append(f"[GRUG MULTIPLAYER] {path}-Test.grug drew the overlay")
@@ -575,6 +582,43 @@ class SecondPlayerTest(unittest.TestCase):
         self.assertIn(
             "Two real clients: exactly one starter, its answers, and both connections survived",
             result.stdout,
+        )
+
+    def test_a_leg_that_skips_an_unlisted_test_fails_the_run(self):
+        # A suite that passed can still leave a test #1390, #1425 or #1430 unlisted, so a leg that
+        # skipped one must fail rather than pass quietly (#1040).
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(
+            self.passing_server_lines(omit={"coverage/tests/click_screen_release"})
+        )
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn(
+            "==> The run passed, but coverage/tests/click_screen_release-Test.grug did not run"
+            " on the dedicated server.",
+            result.stderr,
+        )
+
+    def test_a_leg_that_skips_the_unlisted_jei_test_fails_the_run(self):
+        # The JEI list is required on the 1.20.6 leg, so an arm that dropped 1.20.6-forge from the
+        # shared case would let this omission through and pass quietly.
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines(omit={"jei/tests/jei"}))
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn(
+            "==> The run passed, but jei/tests/jei-Test.grug did not run on the dedicated server.",
+            result.stderr,
         )
 
     def test_a_server_that_does_not_halt_after_the_marker_fails_the_run(self):
@@ -748,6 +792,158 @@ class SecondPlayerTest(unittest.TestCase):
         # Only the second client ran: the client Gradle asked for must not start without the player
         # the two-player test is built around, and the leg must fail rather than pass with one.
         self.assertEqual([f"cwd={self.loader}/run-second"], self.java_log.read_text().splitlines())
+
+
+# The fake Gradle of the standalone fixture: the repository root's publish exits without output,
+# and the loader's own runServer prints a passing suite after the client could have joined. A
+# standalone loader has no Ornithe install, no jacoco agent and no second client, which is what
+# makes it the cheap leg to stand a whole passing run up for.
+STANDALONE_GRADLEW = """\
+#!/usr/bin/env bash
+case "$*" in
+  *runServer*)
+    printf 'Done (1.2s)! For help, type "help"\\n'
+    printf '[GRUG CI] CI mode active & player loaded after 1 ms. Firing tests!\\n'
+    mkdir -p build/jacoco-server
+    printf 'segment\\n' > build/jacoco-server/run.exec
+    sleep 6
+    cat "${FAKE_SERVER_LINES_FILE:?}"
+    exit 0
+    ;;
+  *runClient*)
+    exec sleep 600
+    ;;
+esac
+exit 0
+"""
+
+
+class ServerUnlistedTest(unittest.TestCase):
+    """A standalone leg whose list still names the overlay pair and the item list (#1040)."""
+
+    LOADER = "b1.7.3-stationapi"
+
+    # The paths the success branch of run-multiplayer.sh requires of this leg. coverage/tests/overlay,
+    # jei/tests/jei and jei/tests/item_list_forced_normalization are absent on purpose: this leg's
+    # server-unsupported-tests.txt still names them, so a leg that skipped them must pass. Every
+    # other required block of the branch is satisfied, so a check that required the overlay pair here
+    # would fail this case and nothing else.
+    REQUIRED_PASSES = (
+        """
+        coverage/tests/forwarded_capture
+        coverage/tests/forwarded_capture_dropped
+        coverage/tests/forwarded_capture_late
+        coverage/tests/forwarded_capture_late_then
+        coverage/tests/forwarded_capture_same_tick
+        coverage/tests/forwarded_world_settled
+        coverage/tests/forwarded_screen_open
+        coverage/tests/forwarded_screen_width
+        coverage/tests/forwarded_gui_left
+        coverage/tests/forwarded_gui_top
+        coverage/tests/forwarded_gui_width
+        coverage/tests/forwarded_gui_height
+        coverage/tests/forwarded_close_screen
+        coverage/tests/forwarded_open_inventory
+        coverage/tests/client_saved_number
+        coverage/tests/coverage_frame_saved_number
+        coverage/tests/coverage_frame_saved_list_energy
+        coverage/tests/coverage_mesh_saved_number
+        coverage/tests/coverage_mesh_saved_reinit
+        coverage/tests/coverage_mesh_frame_saved_number
+        coverage/tests/use_block_effects
+        coverage/tests/use_block_faces
+        buildcraft/tests/redstone_engine_wrench
+        buildcraft/tests/wooden_pipe_wrench
+        coverage/tests/decline_use_places
+        coverage/tests/decline_use
+        coverage/tests/sound
+        coverage/tests/click_screen_release
+        coverage/tests/hook_forced_normalization
+        buildcraft/tests/cobblestone_pipe_shapes
+        buildcraft/tests/wooden_pipe_items
+        buildcraft/tests/wooden_pipe_shapes
+        coverage/tests/camera
+        coverage/tests/test_origin_follows_the_test_player
+        coverage/tests/remote_gui
+        coverage/tests/item_icon
+        coverage/tests/gui_builder
+        coverage/tests/gui_click
+        coverage/tests/gui_click_empty
+        buildcraft/tests/autocrafting_table
+        buildcraft/tests/redstone_engine_item
+    """.split()
+        + OVERLAY_DRAWN_TESTS
+    )
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        scripts = self.tmp / ".github" / "scripts"
+        scripts.mkdir(parents=True)
+        shutil.copy(SCRIPTS / "run-multiplayer.sh", scripts / "run-multiplayer.sh")
+
+        self.loader = self.tmp / "loaders" / self.LOADER
+        self.loader.mkdir(parents=True)
+        (self.loader / "test-save.txt").write_text("fake.zip\n")
+        # A standalone loader: root.gradle sends the script down the runServer path.
+        (self.loader / "root.gradle").write_text("")
+        self.set_executable(self.tmp / "gradlew", "#!/usr/bin/env bash\nexit 0\n")
+        self.set_executable(self.loader / "gradlew", STANDALONE_GRADLEW)
+
+        saves = self.tmp / "test-saves"
+        saves.mkdir()
+        with zipfile.ZipFile(saves / "fake.zip", "w") as archive:
+            archive.writestr("world/level.dat", b"")
+
+        self.lines_file = self.tmp / "server-lines.log"
+
+    def set_executable(self, path, content):
+        path.write_text(content)
+        path.chmod(0o755)
+
+    def server_lines(self):
+        lines = [f"[GRUG CI] PASS {path}-Test.grug" for path in self.REQUIRED_PASSES]
+        lines += [
+            f"[GRUG MULTIPLAYER] {path}-Test.grug drew the overlay" for path in OVERLAY_DRAWN_TESTS
+        ]
+        lines.append("[GRUG CI] ALL 49 TESTS PASSED")
+        return "\n".join(lines) + "\n"
+
+    def run_script(self):
+        env = dict(os.environ)
+        env.update(
+            {
+                "DISPLAY": ":0",
+                "FAKE_SERVER_LINES_FILE": str(self.lines_file),
+                "GRUG_CI_BUILD_TIMEOUT": "30",
+                "GRUG_CI_RUN_TIMEOUT": "60",
+            }
+        )
+        env.pop("JAVA_HOME", None)
+        env.pop("GRUG_ORNITHE_SERVER_HASH", None)
+        return subprocess.run(
+            [str(self.tmp / ".github" / "scripts" / "run-multiplayer.sh"), self.LOADER],
+            cwd=self.tmp,
+            env=env,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=120,
+        )
+
+    def test_a_leg_whose_list_names_the_overlay_pair_passes_without_it(self):
+        self.lines_file.write_text(self.server_lines())
+        result = self.run_script()
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("run on the dedicated server with a client connected.", result.stdout)
+        log = (self.loader / "run-server-ci.log").read_text()
+        for absent in (
+            "coverage/tests/overlay-Test.grug",
+            "jei/tests/jei-Test.grug",
+            "jei/tests/item_list_forced_normalization-Test.grug",
+        ):
+            self.assertNotIn(absent, log)
 
 
 if __name__ == "__main__":
