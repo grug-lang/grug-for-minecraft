@@ -3,12 +3,13 @@
 # path, the one an empty cursor takes, is gui_click_empty's to prove while gui_click proves the
 # release path. The first click here changes nothing, which is what says the call does not wait for
 # the container to change; the press is then made three times, the grid's diamond put back for each,
-# and every round asserts on the tick after its press that the grid lost the diamond and the cursor
-# has it. A round puts the diamond in on the same tick as its press, so the client's screen has not
-# been told about it yet when the press predicts, and the assertion reads the server's menu, the one
-# the click is applied to and the one the runner's hold settles (#1196). That divergent state is
-# what the installed client was in when this failed, and three rounds make it every run rather than
-# a loaded runner's accident. The a1.1.2_01 dedicated leg does not apply the click yet (#1393), so it lists this test.
+# and every round waits until the grid lost the diamond and the cursor has it. A round puts the
+# diamond in on the same tick as its press, so the client's screen has not been told about it yet
+# when the press predicts, and the assertion reads the server's menu, the one the click is applied
+# to. That divergent state is what the installed client was in when this failed. The wait is on a
+# condition, not a fixed tick count, because the integrated client can apply the press a tick later
+# than the runner's read (#1196). The a1.1.2_01 dedicated leg does not apply the click yet (#1393),
+# so it lists this test.
 started: bool = false
 clicked: bool = false
 unchanged_checked: bool = false
@@ -70,22 +71,26 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    # The effect is the click's, so it is read on the tick after the press.
-    pressed = false
+    # The effect is the click's, so it is read once the click has been applied. The integrated
+    # client can apply it a tick later than the runner's read, so this waits on the condition rather
+    # than a fixed tick count, bounded by the test's tick budget (#1196).
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
-    ctx.assert(block_entity.get_item_count_in_slot(0) == 0, "The click should have taken the diamond out of the grid's first slot.")
     in_hand: Option[Item] = ctx.get_carried_item()
-    ctx.assert(in_hand.has(), "The click should have put the grid's diamond on the cursor.")
-    if in_hand.has() {
-        ctx.assert(equals(in_hand.unwrap(), item(resource_location("minecraft:diamond"))), "The cursor should hold the diamond the grid had.")
+    if block_entity.get_item_count_in_slot(0) != 0 or not in_hand.has() {
+        ctx.not_done()
+        return
     }
+    ctx.assert(block_entity.get_item_count_in_slot(0) == 0, "The click should have taken the diamond out of the grid's first slot.")
+    ctx.assert(in_hand.has(), "The click should have put the grid's diamond on the cursor.")
+    ctx.assert(equals(in_hand.unwrap(), item(resource_location("minecraft:diamond"))), "The cursor should hold the diamond the grid had.")
     if round < 3 {
         round = round + 1
         # The next round presses the press path again, which needs an empty cursor, so this round's
         # diamond comes off it.
         ctx.clear_carried_item()
+        pressed = false
         ctx.not_done()
         return
     }
