@@ -153,19 +153,21 @@ class HostFunctionsWorldOverlayContextTest {
         HostFunctions.OverlayWorldContext_camera_y(keyContext);
         HostFunctions.OverlayWorldContext_camera_z(keyContext);
         HostFunctions.OverlayWorldContext_draw_line(keyContext, 0, 0, 0, 1, 1, 1, 0);
+        HostFunctions.OverlayWorldContext_draw_triangle(keyContext, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0);
         HostFunctions.OverlayWorldContext_get_level(keyContext);
         HostFunctions.OverlayWorldKeyContext_key(keyContext);
         HostFunctions.OverlayWorldKeyContext_ctrl(keyContext);
         HostFunctions.OverlayHudContext_top_inset(keyContext);
 
         List<String> reports = drain();
-        assertEquals(13, reports.size(), "Every method names its own refusal.");
+        assertEquals(14, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("OverlayHudContext.screen_width"), reports.get(0));
         assertTrue(reports.get(3).contains("OverlayHudContext.get_level"), reports.get(3));
         assertTrue(reports.get(8).contains("OverlayWorldContext.draw_line"), reports.get(8));
-        assertTrue(reports.get(9).contains("OverlayWorldContext.get_level"), reports.get(9));
-        assertTrue(reports.get(11).contains("OverlayWorldKeyContext.ctrl"), reports.get(11));
-        assertTrue(reports.get(12).contains("OverlayHudContext.top_inset"), reports.get(12));
+        assertTrue(reports.get(9).contains("OverlayWorldContext.draw_triangle"), reports.get(9));
+        assertTrue(reports.get(10).contains("OverlayWorldContext.get_level"), reports.get(10));
+        assertTrue(reports.get(12).contains("OverlayWorldKeyContext.ctrl"), reports.get(12));
+        assertTrue(reports.get(13).contains("OverlayHudContext.top_inset"), reports.get(13));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }
