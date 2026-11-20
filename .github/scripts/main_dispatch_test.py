@@ -145,6 +145,17 @@ class MainDispatchTest(unittest.TestCase):
         self.assertIn("20 job slots", out)
         self.assertNotIn("dispatched build.yml", out)
 
+    def test_a_starved_check_dispatches_even_with_runs_live(self):
+        # A proof or a pull request in flight at every check starved the full run of main for 106
+        # hours (#1463), so a check past twice the interval dispatches and its jobs queue.
+        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=9))]
+        self.server.routes["in_progress"] = [run(11, datetime.timedelta(minutes=20))]
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.dispatched(), [{"ref": "main"}])
+        self.assertIn("past twice the 4 h 0 min interval", out)
+        self.assertIn("dispatched build.yml on main", out)
+
     def test_recent_and_idle_dispatches_nothing(self):
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=1))]
         code, out, err = self.run_script()

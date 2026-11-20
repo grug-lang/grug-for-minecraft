@@ -13,10 +13,13 @@ schedule instead, so the check does not depend on a session being open.
 The rule, in ``should_dispatch``: a dispatch is due when ``main``'s newest ``workflow_dispatch`` run
 of ``build.yml`` is at least the interval old, and no ``build.yml`` run is live (requested, waiting,
 pending, queued or in progress) anywhere, because every run shares the 20 job slots and a dispatch
-must not compete with one. The Sunday release's dispatch is a ``workflow_dispatch`` on ``main`` like
-any other, so a recent one holds the check off too. The runs API does not expose a dispatch's inputs,
-so one sent with ``-f mods=`` or ``-f base=`` counts as a full one even though it ran fewer jobs, and
-a partial dispatch can hold a full check off; that is a known limit.
+must not compete with one. Past twice the interval the check dispatches anyway and lets its jobs
+queue, because a proof or a pull request in flight at every check starved the full check for 106
+hours (#1463): the Windows adapter broke and nothing saw it until a proof dispatch ran the Windows
+jobs (#1460). The Sunday release's dispatch is a ``workflow_dispatch`` on ``main`` like any other, so
+a recent one holds the check off too. The runs API does not expose a dispatch's inputs, so one sent
+with ``-f mods=`` or ``-f base=`` counts as a full one even though it ran fewer jobs, and a partial
+dispatch can hold a full check off; that is a known limit.
 
 Prints one line saying why it did or did not dispatch. A run list that cannot be read fails the
 run rather than dispatching blindly, and a refused dispatch fails it too.
@@ -99,23 +102,34 @@ def should_dispatch(
 ) -> tuple[bool, str]:
     """Whether a full dispatch of main is due, and the sentence that says why.
 
-    Busy is checked first, so a due dispatch that would compete for the shared job slots waits for
-    the next check rather than adding a run to a busy pipeline. The newest dispatch is picked by its
-    creation time, not by its position in the listing, so a reordered or filtered page still gives
-    the same answer. A dispatch exactly one interval old is due.
+    A live run holds a due dispatch off so it does not compete for the shared job slots, but only
+    until twice the interval has passed: a check that finds the pool busy once usually finds it free
+    a quarter of an hour later, while a check starved at every attempt leaves the full run undone,
+    which is what hid a broken Windows adapter for 106 hours (#1463, #1460). Past twice the interval
+    the check dispatches anyway and its jobs queue behind the runs that are live. The newest
+    dispatch is picked by its creation time, not by its position in the listing, so a reordered or
+    filtered page still gives the same answer. A dispatch exactly one interval old is due.
     """
-    if in_flight:
+    latest = newest(dispatches)
+    age = None if latest is None else (now - when(latest["created_at"])).total_seconds()
+    starved = age is None or age >= 2 * interval.total_seconds()
+    if in_flight and not starved:
         ids = ", ".join(str(run.get("id")) for run in in_flight)
         return False, (
             f"{len(in_flight)} build.yml run(s) are live (requested, waiting, pending, queued or"
             f" in progress) ({ids}), and every run shares the 20 job slots, so this check"
             f" dispatched nothing"
         )
-    latest = newest(dispatches)
     if latest is None:
         return True, "main has no build.yml dispatch yet, so the four-hourly check is due"
-    age = (now - when(latest["created_at"])).total_seconds()
     if age >= interval.total_seconds():
+        if in_flight:
+            return True, (
+                f"main's newest build.yml dispatch is {duration(age)} old, past twice the"
+                f" {duration(interval.total_seconds())} interval, so this check dispatched even"
+                f" though {len(in_flight)} build.yml run(s) are live, and their queued jobs wait"
+                f" for the shared job slots"
+            )
         return True, (
             f"main's newest build.yml dispatch is {duration(age)} old, at least the"
             f" {duration(interval.total_seconds())} interval, so the four-hourly check is due"
