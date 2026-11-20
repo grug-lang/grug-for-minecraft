@@ -15,12 +15,6 @@ coverage/tests/forwarded_scroll_screen-Test.grug
 # cursor are both cleared (#1389). Proof run 44642603736 passed overlay-Test and jei-Test on this
 # dedicated leg.
 #
-# The screen-open hook. The test asserts that a screen which has just opened has drawn no frame
-# yet, which a joined client cannot promise: it draws frames of its own between the server's open
-# and the server's read, so the mark can be set by the time the answer is asked for. The hook it
-# proves is the client's own, so the test stays client-only.
-coverage/tests/overlay_screen_open-Test.grug
-#
 # The forced-normalization probe and the item list it guards run here: #1430 forwards the force, the
 # restore and the two reads to the joined client, whose GL state the frame pass draws with (#1040).
 # Proof run 44642603736 passed hook_forced_normalization and item_list_forced_normalization on this

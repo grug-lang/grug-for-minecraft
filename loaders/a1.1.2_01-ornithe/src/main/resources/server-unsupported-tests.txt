@@ -17,12 +17,10 @@
 coverage/tests/forwarded_press_screen_key-Test.grug
 coverage/tests/forwarded_scroll_screen-Test.grug
 #
-# The overlay and item-list tests that stay client-only here. This server forwards
-# Test.open_inventory and Test.click_screen to the joined client now (#882), so the other overlay
-# and item-list tests run on this leg. overlay_screen_open asserts a just-opened screen has drawn no
-# frame, which a joined client cannot promise, and item_list_forced_normalization needs a GL state a
-# dedicated server cannot force.
-coverage/tests/overlay_screen_open-Test.grug
+# The item-list test that stays client-only here. This server forwards Test.open_inventory and
+# Test.click_screen to the joined client now (#882), so the other overlay tests run on this leg, and
+# overlay_screen_open runs too because #1391 forwards the first-frame read to the client that owns
+# the frames. item_list_forced_normalization still needs a GL state a dedicated server cannot force.
 jei/tests/item_list_forced_normalization-Test.grug
 #
 # The overlay's click and the cursor it deletes. An overlay's click export runs on the joined
