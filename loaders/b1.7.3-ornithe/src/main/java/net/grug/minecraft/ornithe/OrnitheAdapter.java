@@ -795,8 +795,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     /**
      * {@code NaturalSpawner.isValidSpawnPos} for a category whose spawnable material is not water,
      * which is every hostile one. It is private, so its test is repeated here from the decompiled
-     * class: a solid block below, no solid block and no liquid in the space, and no solid block
-     * above it.
+     * 1.7.3 class: a solid block below, no solid block and no liquid in the space, and no solid
+     * block above it. The SafeSquares 1.2.0 checker calls exactly this method for {@code
+     * SpawnGroup.MONSTER}, so a block that is neither solid nor a liquid (a torch, tall grass, a
+     * rail, a snow layer, fire) keeps the space, as that check has it.
      */
     @Override
     public boolean isHostileSpawnSpace(Object levelObj, double x, double y, double z) {
