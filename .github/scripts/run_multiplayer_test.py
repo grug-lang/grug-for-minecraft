@@ -524,6 +524,12 @@ class SecondPlayerTest(unittest.TestCase):
         "jei/tests/paging",
         "jei/tests/scroll",
         "coverage/tests/second_player",
+        # The tests #1390, #1425 and #1430 unlisted, which this leg requires by name (#1040).
+        "coverage/tests/click_screen_release",
+        "coverage/tests/hook_forced_normalization",
+        "coverage/tests/overlay",
+        "jei/tests/jei",
+        "jei/tests/item_list_forced_normalization",
     ]
 
     # The overlay tests are required twice: the PASS line and the line only a test whose overlay

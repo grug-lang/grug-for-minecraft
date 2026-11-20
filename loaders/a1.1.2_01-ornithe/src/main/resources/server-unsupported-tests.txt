@@ -54,12 +54,10 @@ jei/tests/item_list_forced_normalization-Test.grug
 coverage/tests/overlay-Test.grug
 jei/tests/jei-Test.grug
 #
-# The forced-normalization probe. The state it reads is a client's GL capability, so the runner
-# never forces it on a dedicated server and Test.normalization_forced answers false there: on every
-# loader but 1.20.6 that fails the assertion that the marked loader forced it, and on 1.20.6 the
-# assertion holds without proving the client hooked anything. It stays client-only on every leg now
-# that Test.overlay_supported answers from the joined client (#1099).
-coverage/tests/hook_forced_normalization-Test.grug
+# The forced-normalization probe runs here: #1430 forwards the force and the two reads to the joined
+# client, whose GL state the frame pass draws with (#1040). Proof run 44650333692 passed it on this
+# leg.
+#
 #
 # The three wall-backed buildcraft captures #1161 promoted to tick_any_side that still differ.
 # cobblestone_pipe_shapes left this list once the dedicated server placed the joined player at
