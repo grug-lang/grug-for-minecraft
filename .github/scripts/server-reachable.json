@@ -89,9 +89,11 @@
       "partialTick:()D",
       "recordLine:(DDDDDDI)Z",
       "recordText:(Ljava/lang/String;DDI)Z",
+      "recordTriangle:([DI)Z",
       "screenHeight:()D",
       "screenWidth:()D",
-      "supported:()Z"
+      "supported:()Z",
+      "trianglesSupported:()Z"
     ],
     "net/grug/minecraft/grug/GrugWorldOverlay$Line": [
       "<init>:(DDDDDDI)V",
@@ -111,6 +113,7 @@
       "y:()D"
     ],
     "net/grug/minecraft/grug/HostFunctions": [
+      "Color_rgba:(DDDD)J",
       "Level_count_mobs:(JLjava/lang/String;)D",
       "Level_get_block_light:(JDDD)D",
       "Level_get_hostile_block_light_limit:(J)D",
@@ -126,14 +129,17 @@
       "OverlayWorldContext_camera_x:(J)D",
       "OverlayWorldContext_camera_y:(J)D",
       "OverlayWorldContext_camera_z:(J)D",
+      "OverlayWorldContext_draw_triangle:(JDDDDDDDDDJ)V",
       "OverlayWorldContext_get_level:(J)J",
       "OverlayWorldContext_partial_tick:(J)D",
       "OverlayWorldKeyContext_ctrl:(J)Z",
       "OverlayWorldKeyContext_key:(J)D",
       "TestTickContext_overlay_first_frame_cleared:(J)Z",
+      "TestTickContext_set_player_position:(JDDD)V",
       "TestTickContext_spawn_mob:(JJLjava/lang/String;DDD)V",
       "TestTickContext_world_overlay_drawn:(J)Z",
       "Test_world_overlay_supported:(J)Z",
+      "colorProblem:(DDDD)Ljava/lang/String;",
       "lambda$Level_count_mobs$62:(Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Double;",
       "lambda$Level_get_block_light$58:(DDDLjava/lang/Object;)Ljava/lang/Double;",
       "lambda$Level_get_hostile_block_light_limit$60:(Ljava/lang/Object;)Ljava/lang/Double;",
@@ -142,12 +148,14 @@
       "lambda$Level_is_hostile_spawn_space$61:(DDDLjava/lang/Object;)Ljava/lang/Boolean;",
       "lambda$OverlayHudContext_add_text$92:(Ljava/lang/String;DDLjava/lang/Object;)V",
       "lambda$OverlayWorldContext_draw_line$93:(DDDDDDLjava/lang/Object;)V",
+      "lambda$OverlayWorldContext_draw_triangle$94:([DLjava/lang/Object;)V",
       "lambda$TestTickContext_remove_entities$65:(Ljava/lang/String;Ljava/lang/Object;)V",
       "lambda$TestTickContext_spawn_mob$64:(Ljava/lang/String;DDDLjava/lang/Object;)V",
       "requireHudContext:(Ljava/lang/String;J)Z",
       "requireWorldContext:(Ljava/lang/String;J)Z",
       "requireWorldKeyContext:(Ljava/lang/String;J)Z",
-      "worldLineProblem:(DDDDDD)Ljava/lang/String;"
+      "worldLineProblem:(DDDDDD)Ljava/lang/String;",
+      "worldTriangleProblem:([D)Ljava/lang/String;"
     ],
     "net/grug/minecraft/ornithe/OrnitheAdapter": [
       "canForceNormalizationForTest:()Z",
@@ -188,6 +196,11 @@
       "restoreNormalizationAfterTest:()Z",
       "spawnGroup:(Ljava/lang/String;)Lnet/minecraft/entity/SpawnGroup;",
       "spawnMob:(Ljava/lang/Object;Ljava/lang/String;DDD)Z"
+    ],
+    "net/grug/minecraft/grug/GrugWorldOverlay$Triangle": [
+      "<init>:([DI)V",
+      "argb:()I",
+      "corner:(II)D"
     ]
   },
   "recorded_from": "run 44679280827",
@@ -202,13 +215,14 @@
     "net/grug/minecraft/forge125/Grug125ClientAdapter": "The client half of the 1.2.5 loader: the mining crack overlay, the screen only a client opens, and the forced-normalization hook a marked test asks for on a client. Every server leg lists hook_forced_normalization-Test.grug as unsupported, because the runner's GrugForcedNormalization.appliesTo answers false on a dedicated server, which never forces the state. The dispatch's check counts a test a dedicated server ran as reaching what that test reaches on the client, so it offers these entries for removal; they stay because each of them runs only in a client process. The world overlay entries (the world context, world key and HUD host functions and each adapter's overlay hooks) are reached only by overlay_world-Test.grug, which every server leg skips for the same reason.",
     "net/grug/minecraft/grug/GrugOverlay": "The first-frame read a server-driven test forwards. firstFrameClearedForTest is reached only by overlay_screen_open-Test.grug on a client, which every server leg lists as unsupported, so a server never takes this path; the frames, the screen-open hook and overlay_drawn are reached by the overlay tests a server runs, so only the first-frame read is recorded here. The stacked branch that promotes overlay_screen_open to the server legs makes the entry removable on the next full dispatch.",
     "net/grug/minecraft/grug/GrugShapelessRecipes": "Reached only on a1.1.2_01's client, by coverage/tests/hook_forced_normalization-Test.grug, nonexistent_recipe-Test.grug, overlay-Test.grug, overlay_click_hook-Test.grug, overlay_key-Test.grug, overlay_probe_gives_nothing-Test.grug, overlay_screen_open-Test.grug, overlay_scroll-Test.grug, response_extract_consumed-Test.grug, shaped_recipe-Test.grug and shapeless_recipe-Test.grug, and a1.1.2_01-ornithe's server-unsupported-tests.txt lists the recipe tests, overlay_screen_open, overlay-Test and hook_forced_normalization for its server; the other overlay tests run there since #1099. The a0.2.1 loader is the only one that puts a grug shapeless recipe here, through GrugRecipeHelper and CraftingManagerMixin, because Alpha crafted on the client and its server jar has no CraftingManager, so the recipe table is the client's. That list goes with tick_any_side when #1040 lands.",
-    "net/grug/minecraft/grug/GrugWorldOverlay": "The world overlay (HUD text, world lines and world keys) is drawn and fed keys by a client's frame pass, so only overlay_world-Test.grug reaches it in a coverage run, and every server leg skips that test because a dedicated server has no frame to draw.",
+    "net/grug/minecraft/grug/GrugWorldOverlay": "The world overlay (HUD text, world lines and world keys) is drawn and fed keys by a client's frame pass, so only overlay_world-Test.grug reaches it in a coverage run, and every server leg skips that test because a dedicated server has no frame to draw. The world triangles (recordTriangle and trianglesSupported) are drawn by the same pass: a dedicated server's joined client draws them, but the server's own JVM never calls them, so overlay_triangles-Test.grug reaches them only on a client.",
     "net/grug/minecraft/grug/GrugWorldOverlay$Line": "The world overlay (HUD text, world lines and world keys) is drawn and fed keys by a client's frame pass, so only overlay_world-Test.grug reaches it in a coverage run, and every server leg skips that test because a dedicated server has no frame to draw.",
     "net/grug/minecraft/grug/GrugWorldOverlay$Text": "The world overlay (HUD text, world lines and world keys) is drawn and fed keys by a client's frame pass, so only overlay_world-Test.grug reaches it in a coverage run, and every server leg skips that test because a dedicated server has no frame to draw.",
-    "net/grug/minecraft/grug/HostFunctions": "Reached only by tests that open a menu or read a frame: GUI.add_crafting_result serves a slot a menu draws, TestTickContext.mining_crack reads the client's crack overlay, TestTickContext.reload_count reads the client's hot reload, TestTickContext.normalization_forced reads the runner's decision for a marked test, and Screenshot.equals compares a captured frame. The give path and the cursor the overlay's click deletes (give_item, give_item_stack, giveItem, giveItemStack, playerToGiveTo, their lambdas, TestTickContext.get_item_max_stack and its lambda, and OverlayClickContext.delete_carried_item) are asked only by overlay-Test and jei-Test, which every server leg skips because the click they assert deletes the item on the joined client's cursor and no client-to-server cursor write exists yet (#882). OverlayClickContext.button is not recorded: the same click export reads it in its hotbar branch, and overlay_click_hook and overlay_probe_gives_nothing make that press on every leg that runs them. The forced state is asked only by hook_forced_normalization-Test.grug, which every server leg also lists, because a dedicated server never forces it. A test that runs on a dedicated server does none of that today; #1040 gives every test a server run. Test.on_dedicated_server is the same case: on_dedicated_server-Test.grug defines tick only, so no dedicated server runs it, and core's HostFunctionsTestOnDedicatedServerTest asserts the true answer through an adapter whose side is the dedicated server, while the client-only file asserts the false one. The world overlay entries (the world context, world key and HUD host functions and each adapter's overlay hooks) are reached only by overlay_world-Test.grug, which every server leg skips for the same reason. Level_count_mobs, Level_get_block_light, Level_get_hostile_block_light_limit, Level_get_mob_cap, Level_get_sky_light, Level_has_mob_category, Level_is_hostile_spawn_space, TestTickContext_spawn_mob, TestTickContext_overlay_first_frame_cleared, OverlayHudContext_get_level, OverlayHudContext_top_inset, OverlayWorldContext_get_level and their lambdas are reached only by level_light-Test.grug, mob_cap-Test.grug, remove_entities-Test.grug, expect_spawn_mob_not_a_mob-Test.grug, overlay_mob_cap-Test.grug and overlay_screen_open-Test.grug; the first five define only tick() and the last is client-only in the screen-open hook it asserts, so no dedicated server reaches them.",
+    "net/grug/minecraft/grug/HostFunctions": "Reached only by tests that open a menu or read a frame: GUI.add_crafting_result serves a slot a menu draws, TestTickContext.mining_crack reads the client's crack overlay, TestTickContext.reload_count reads the client's hot reload, TestTickContext.normalization_forced reads the runner's decision for a marked test, and Screenshot.equals compares a captured frame. The give path and the cursor the overlay's click deletes (give_item, give_item_stack, giveItem, giveItemStack, playerToGiveTo, their lambdas, TestTickContext.get_item_max_stack and its lambda, and OverlayClickContext.delete_carried_item) are asked only by overlay-Test and jei-Test, which every server leg skips because the click they assert deletes the item on the joined client's cursor and no client-to-server cursor write exists yet (#882). OverlayClickContext.button is not recorded: the same click export reads it in its hotbar branch, and overlay_click_hook and overlay_probe_gives_nothing make that press on every leg that runs them. The forced state is asked only by hook_forced_normalization-Test.grug, which every server leg also lists, because a dedicated server never forces it. A test that runs on a dedicated server does none of that today; #1040 gives every test a server run. Test.on_dedicated_server is the same case: on_dedicated_server-Test.grug defines tick only, so no dedicated server runs it, and core's HostFunctionsTestOnDedicatedServerTest asserts the true answer through an adapter whose side is the dedicated server, while the client-only file asserts the false one. The world overlay entries (the world context, world key and HUD host functions and each adapter's overlay hooks) are reached only by overlay_world-Test.grug, which every server leg skips for the same reason. Level_count_mobs, Level_get_block_light, Level_get_hostile_block_light_limit, Level_get_mob_cap, Level_get_sky_light, Level_has_mob_category, Level_is_hostile_spawn_space, TestTickContext_spawn_mob, TestTickContext_overlay_first_frame_cleared, OverlayHudContext_get_level, OverlayHudContext_top_inset, OverlayWorldContext_get_level and their lambdas are reached only by level_light-Test.grug, mob_cap-Test.grug, remove_entities-Test.grug, expect_spawn_mob_not_a_mob-Test.grug, overlay_mob_cap-Test.grug and overlay_screen_open-Test.grug; the first five define only tick() and the last is client-only in the screen-open hook it asserts, so no dedicated server reaches them. The world-triangle path (Color_rgba, OverlayWorldContext_draw_triangle and its lambda, colorProblem and worldTriangleProblem) runs while a client's frame draws the triangles, and TestTickContext.set_player_position is asked by the tests that drive or draw a frame, so a dedicated server's own JVM never reaches them even when its joined client does.",
     "net/grug/minecraft/ornithe/OrnitheAdapter": "The game directory the client's captures write under, the crafting-result path (getStackCount, getStackDamage, takeCraftingResult, updateRecipeOutput, registersModRecipes), the give helpers an overlay's click runs, and the forced-normalization hook a marked test asks for on a client, which GrugForcedNormalization.appliesTo turns off on a dedicated server, so a server never forces the state either. The two Ornithe loaders compile separate copies: the Beta copy's methods are reached by tests a dedicated server runs, but the Alpha copy's only by tests the Alpha server skips, which a1.1.2_01-ornithe's server-unsupported-tests.txt names because the a0.2.1 server jar has no CraftingManager. That list goes with tick_any_side when #1040 lands. Every server leg also lists hook_forced_normalization-Test.grug, for the reason above, and skips overlay-Test, whose click deletes the item on the joined client's cursor (#882). itemCount and itemsById are the item list a joined client's overlay draws, and the Alpha copy's are reached only by tests the Alpha server skips: a1.1.2_01-ornithe's server-unsupported-tests.txt names overlay-Test and overlay_screen_open. The Beta copy is reached by tests the Beta server runs, so only the Alpha copy keeps these two recorded. countMobs, spawnMob, removeEntities, getMobCap, getBlockLight, getSkyLight, isHostileSpawnSpace, hasMobCategory, hudTopInset, mobType, mobCategory, entitiesOf and their helpers are reached only by level_light-Test.grug, mob_cap-Test.grug, remove_entities-Test.grug, expect_spawn_mob_not_a_mob-Test.grug and overlay_world-Test.grug, which define only tick() and therefore never run on a dedicated server.",
     "net/grug/minecraft/stationapi/StationApiAdapter": "The game directory the client's captures write under, the packet that carries a GUI to the client which opened it, the give helpers an overlay's click runs, and the forced-normalization hook a marked test asks for on a client, which GrugForcedNormalization.appliesTo turns off on a dedicated server, so a server never forces the state. Every server leg lists hook_forced_normalization-Test.grug as unsupported for that reason, and skips overlay-Test, whose click deletes the item on the joined client's cursor (#882). A dedicated server captures nothing, and the boot's own game directory read is in the boot segment the map leaves out. countMobs, spawnMob, removeEntities, spawnGroup, getMobCap, getBlockLight, getSkyLight, isHostileSpawnSpace, entitiesOf and their helpers are reached only by level_light-Test.grug, mob_cap-Test.grug, remove_entities-Test.grug and expect_spawn_mob_not_a_mob-Test.grug, which define only tick() and therefore never run on a dedicated server.",
     "net/grug/minecraft/core/GrugItemList": "Filters the operator-only items out of a list. It is reached only by coverage/tests/click_screen_release-Test.grug on 1.20.6-forge, which is a tick_any_side test, but the filter is exercised only in the client path that builds the creative inventory's item list; the server leg of that test never opens a creative inventory screen, so it never calls withoutOperatorOnly.",
-    "net/grug/minecraft/grug/GrugMobCap": "The helper that computes mob caps and counts for the overlay and for Level.count_mobs. alphaCap, cap, counted and eligibleChunks are reached only by mob_cap-Test.grug and overlay_mob_cap-Test.grug, which define only tick() and therefore never run on a dedicated server."
+    "net/grug/minecraft/grug/GrugMobCap": "The helper that computes mob caps and counts for the overlay and for Level.count_mobs. alphaCap, cap, counted and eligibleChunks are reached only by mob_cap-Test.grug and overlay_mob_cap-Test.grug, which define only tick() and therefore never run on a dedicated server.",
+    "net/grug/minecraft/grug/GrugWorldOverlay$Triangle": "A world triangle's three corners and the colour it resolves to are read only while a frame draws them, which a dedicated server's joined client does and the server's own JVM never does, so overlay_triangles-Test.grug reaches this class only on a client."
   }
 }
