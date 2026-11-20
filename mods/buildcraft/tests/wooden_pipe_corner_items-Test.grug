@@ -1,6 +1,7 @@
 # Covers the wooden pipe drawing travelling items in a corner: the items sit at the pipe floor in
 # the centre, one a block and one an item, while the pipe's arms leave on two adjacent sides. The
-# records are given no speed, so they stand still and the capture is deterministic.
+# records are given no speed, so they stand still and the capture is deterministic. The source side
+# is the east chest, so that arm is the plain-texture one, as the reference draws it.
 pipe: Option[BlockEntity] = Option.new()
 
 # Whether the pipe's chunk geometry and the wall have been meshed again from the settled light yet.
@@ -52,7 +53,12 @@ local _setup(ctx: TestTickContext) {
 
     _place_pipe(ctx, level, x, y - 1.88, z + 4)
 
-    # Two adjacent arms: south and east.
+    # Two adjacent arms: south and east, the east chest first. The reference keeps the first side it
+    # finds, and it looks on a neighbour change as each chest arrives, so it takes the east chest
+    # while that is the only one and keeps it when the south chest follows. The port checks once a
+    # tick instead, when both chests are already there, and its scan order (YPos, ZNeg, ZPos before
+    # XPos) would take the south one. The fixture pins the reference's side so both scenes draw the
+    # plain source arm on the same arm. The saved number is the side plus one: side 5 is east.
     level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
     level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
 
@@ -67,6 +73,7 @@ local _setup(ctx: TestTickContext) {
         pipe.set(level.get_block_entity(x, y - 1.88, z + 4).unwrap())
         return
     }
+    pipe.unwrap().set_saved_number("source", 6)
     _hold(pipe.unwrap(), item(resource_location("minecraft:oak_log")), -0.2)
     _hold(pipe.unwrap(), item(resource_location("minecraft:stick")), 0.2)
 }
