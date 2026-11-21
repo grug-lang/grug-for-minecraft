@@ -15,14 +15,13 @@
 #
 # The overlay click and the item list. Test.overlay_supported, Test.overlay_drawn and the first-frame
 # read answer from the joined client (#1099, #1391), so overlay_screen_open is unlisted here and
-# measured by proof run 44678178827. overlay-Test and jei-Test stay: #1099 and #1391 answer the
+# measured by proof run 44678178827. jei-Test stays; overlay-Test runs on this leg since #1393's ordering fix: #1099 and #1391 answer the
 # overlay hooks from the joined client and #1470 fixed the cursor read and the write, but proof run
 # 44809935576 still failed overlay-Test on this leg, at its left click on the overlay, because the
 # Alpha server does not apply the container click the joined client presses (#1393). jei-Test did not
 # run at that head because the leg stops at its first failure, so it stays unproven too. The
 # forced-normalization item list also stays: no dispatch has proven this leg's item list since #1470,
 # so a proof is pending.
-coverage/tests/overlay-Test.grug
 jei/tests/jei-Test.grug
 jei/tests/item_list_forced_normalization-Test.grug
 #
