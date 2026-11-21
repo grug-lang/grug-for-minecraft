@@ -21,4 +21,18 @@ public final class GrugTestPlayerMove {
     public static boolean canMove(boolean hasPlayer, boolean hasWorld, boolean chunkLoaded) {
         return hasPlayer && hasWorld && chunkLoaded;
     }
+
+    /**
+     * Whether the client has received a chunk. Beta 1.7.3's {@code MultiplayerChunkCache.hasChunk}
+     * begins with {@code if (this != null) return true}, so {@code isChunkLoaded} answers true for
+     * every chunk on a multiplayer client, and the chunk cache answers the shared empty chunk for
+     * one that never arrived. A single-player world answers {@code isChunkLoaded} truthfully, so
+     * asking for both covers either kind of client (#1507).
+     *
+     * @param loaded what {@code isChunkLoaded} said, which is not enough on a multiplayer client
+     * @param empty whether the chunk the cache hands back is the empty placeholder
+     */
+    public static boolean chunkReceived(boolean loaded, boolean empty) {
+        return loaded && !empty;
+    }
 }
