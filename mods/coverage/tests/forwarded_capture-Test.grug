@@ -1,4 +1,4 @@
-# A server-run test, a plain tick and not tick_any_side, that places blocks and then calls
+# A server-run test that places blocks and then calls
 # Screenshot.capture (#1040, option A). The dedicated server forwards the capture to the joined
 # client of the player who started the run, stays frozen until the client answers, and hands the
 # pixels back here. Only a multiplayer run that forwards client calls runs a forwarded_ test.

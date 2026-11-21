@@ -13,7 +13,7 @@ path, in particular:
 - ``core/``, ``mod_api.json``, ``loaders/``, ``test-saves/`` and ``.github/`` (the runner, the
   scripts, the workflows), which are the code and the harness the server legs run;
 - ``mods/coverage/``, whose tests are the host function, loader and runner tests that the servers
-  run and that ``server-reachable`` compares with the coverage map;
+  run;
 - anything this script does not name, so a new top-level directory runs the legs by default.
 
 Prose alone (a top-level ``*.md``) cannot change a server run either, so it counts as client-only

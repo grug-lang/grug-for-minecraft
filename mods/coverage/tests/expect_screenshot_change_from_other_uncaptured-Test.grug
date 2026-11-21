@@ -2,7 +2,7 @@
 # NullPointerException from inside the comparison. Here it is the ARGUMENT that was never read, with
 # the one asking for the share captured: the other half of the same check is the receiver being the
 # unread one.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.expect_error("have to be captured first")
         never_read: Screenshot = ctx.screenshot()

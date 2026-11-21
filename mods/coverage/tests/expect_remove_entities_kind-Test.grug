@@ -1,6 +1,6 @@
 # A kind that is not a mob category or "item" names no entities, so TestTickContext.remove_entities reports it
 # instead of removing nothing.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     ctx.expect_error("TestTickContext.remove_entities")
     ctx.remove_entities(ctx.get_client_level(), "boss")
 }

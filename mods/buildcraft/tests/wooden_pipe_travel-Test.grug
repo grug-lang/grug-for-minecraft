@@ -2,7 +2,7 @@
 # it: 49 moves from the face it entered on to the block's centre, then 51 from the centre to the far
 # face of a horizontal exit, which is where it is handed on. The pipe is ticked by hand, after one
 # dose of energy, so no engine timing or loaded machine can shift the counts.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     x: number = origin.x()

@@ -17,7 +17,6 @@ import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
-import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.GrugWorldRevision;
 import net.grug.minecraft.forge125.client.GrugContainer;
@@ -45,13 +44,8 @@ import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * The adapter for a 1.2.5 dedicated server: everything that is not about which process this is
@@ -741,34 +735,6 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public void restorePlayerAfterTest() {
         GrugServerRun.restoreTestPlayer((EntityPlayerMP) testPlayer());
-    }
-
-    /**
-     * The tests listed in {@code forge125-server-unsupported-tests.txt}, which says why. The name
-     * carries the loader because this layer is at the universal jar's root, and a root file of the
-     * bare name would shadow the nested layers' own lists on the class path.
-     */
-    @Override
-    public Set<String> serverUnsupportedTests() {
-        try (InputStream in =
-                Grug125ServerAdapter.class.getResourceAsStream(
-                        "/forge125-server-unsupported-tests.txt")) {
-            if (in == null) {
-                throw new IllegalStateException(
-                        "forge125-server-unsupported-tests.txt is not in the jar.");
-            }
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
-            int n;
-            while ((n = in.read(buffer)) > 0) {
-                out.write(buffer, 0, n);
-            }
-            return GrugTestRunner.parseTestList(
-                    new String(out.toByteArray(), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new IllegalStateException(
-                    "Could not read forge125-server-unsupported-tests.txt.", e);
-        }
     }
 
     @Override

@@ -11,7 +11,6 @@ import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
-import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -35,11 +34,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -527,31 +521,6 @@ public class ServerForgeAdapter extends ForgeAdapter {
     @Override
     public void openInventory(Object playerObj) {
         screens.openInventory();
-    }
-
-    /**
-     * The tests listed in {@code forge-1.20.6-server-unsupported-tests.txt}, which says why. The
-     * name carries the loader because this layer is at the universal jar's root, and a root file of
-     * the bare name would shadow the nested layers' own lists on the class path.
-     */
-    @Override
-    public Set<String> serverUnsupportedTests() {
-        String name = "/forge-1.20.6-server-unsupported-tests.txt";
-        try (InputStream in = ServerForgeAdapter.class.getResourceAsStream(name)) {
-            if (in == null) {
-                throw new IllegalStateException(name + " is not in the jar.");
-            }
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
-            int n;
-            while ((n = in.read(buffer)) > 0) {
-                out.write(buffer, 0, n);
-            }
-            return GrugTestRunner.parseTestList(
-                    new String(out.toByteArray(), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not read " + name + ".", e);
-        }
     }
 
     /**
