@@ -17,6 +17,7 @@ import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.GrugWorldRevision;
 import net.grug.minecraft.forge125.client.GrugContainer;
@@ -727,6 +728,29 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public void snapPlayerForTestOnClient() {}
 
+    /**
+     * Moves this server's copy of the test player to the feet position when the server has that
+     * chunk, through the teleport the run's floor hold uses, so the joined client's camera follows
+     * (#1040). False when there is no player, no world or the chunk is not loaded, which the caller
+     * reports without moving anyone: a teleport into a chunk the joined client has not received
+     * crashes this generation of the game.
+     */
+    @Override
+    public boolean setPlayerPositionForTest(double x, double y, double z) {
+        EntityPlayerMP player = (EntityPlayerMP) testPlayer();
+        World world = (World) getLevel();
+        boolean hasWorld = world != null;
+        boolean loaded =
+                hasWorld
+                        && world.getChunkProvider()
+                                .chunkExists((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4);
+        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, loaded)) {
+            return false;
+        }
+        GrugServerRun.moveToFeet(player, x, y, z);
+        return true;
+    }
+
     @Override
     public void snapPlayerForTestOnServer() {
         GrugServerRun.snapToBlockCentre((EntityPlayerMP) testPlayer());
@@ -899,6 +923,31 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public boolean overlayFirstFrameClearedForTest(String mod) {
         return overlays.firstFrameCleared(mod);
+    }
+
+    /**
+     * Whether the joined client asks the overlays' world key, HUD and world exports, which this
+     * server's own answer would deny: the loader marks support where it registers the hooks, and a
+     * server has none (#1040).
+     */
+    @Override
+    public boolean worldOverlaySupportedForTest() {
+        return overlays.worldSupported();
+    }
+
+    /**
+     * Whether a frame of the joined client drew the world overlay of the running test's mod since
+     * its last key press (#1040): the mark belongs to that client's frame pass.
+     */
+    @Override
+    public boolean worldOverlayDrawnForTest() {
+        return overlays.worldDrawn(GrugTestState.currentTestMod);
+    }
+
+    /** The press is delivered by the joined client's own key path (#1040). */
+    @Override
+    public void pressWorldKey(int key, boolean ctrl) {
+        overlays.pressWorldKey(GrugTestState.currentTestMod, key, ctrl);
     }
 
     /** This server forwards a test's client-only calls to the player who started the run. */

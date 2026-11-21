@@ -3,6 +3,7 @@ package net.grug.minecraft.core;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModFileStates;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
 
 import java.awt.image.BufferedImage;
@@ -135,6 +136,26 @@ public final class GrugControlClient {
          * The mod is the one that owns the running test, which only the server knows.
          */
         boolean overlayDrawn(String mod);
+
+        /**
+         * Whether this client asks the overlays' world key, HUD and world exports at all, as a
+         * server-run {@code Test.world_overlay_supported} asks (#1040).
+         */
+        boolean worldOverlaySupported();
+
+        /**
+         * Whether a frame has drawn the world overlay of the mod named {@code mod} since the last
+         * press, as a server-run {@code TestTickContext.world_overlay_drawn} asks (#1040). The mod
+         * is the one that owns the running test, which only the server knows.
+         */
+        boolean worldOverlayDrawn(String mod);
+
+        /**
+         * Presses one letter or digit key in this client's world, as a server-run {@code
+         * TestTickContext.press_world_key} asks, counting the frame it causes for the mod that owns
+         * the running test (#1040).
+         */
+        void pressWorldKey(String mod, int key, boolean ctrl);
 
         /**
          * Whether this client's drawn mark was already clear when the first frame of the screen it
@@ -271,6 +292,24 @@ public final class GrugControlClient {
             @Override
             public boolean overlayDrawn(String mod) {
                 return adapter.get().overlayDrawnForTest(mod);
+            }
+
+            @Override
+            public boolean worldOverlaySupported() {
+                return adapter.get().worldOverlaySupportedForTest();
+            }
+
+            /** The mark is this client's, for the mod the server says owns the running test. */
+            @Override
+            public boolean worldOverlayDrawn(String mod) {
+                GrugTestState.currentTestMod = mod;
+                return adapter.get().worldOverlayDrawnForTest();
+            }
+
+            @Override
+            public void pressWorldKey(String mod, int key, boolean ctrl) {
+                GrugTestState.currentTestMod = mod;
+                adapter.get().pressWorldKey(key, ctrl);
             }
 
             /** The record is this client's own, taken when the screen's first frame began. */
@@ -638,6 +677,8 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_OVERLAY_FIRST_FRAME) {
                 boolean cleared = caller.overlayFirstFrameCleared(message.text);
                 link.send(GrugControlWire.answerValue(message.id, (byte) (cleared ? 1 : 0)));
+            } else if (message.call == GrugControlWire.CALL_WORLD_OVERLAY) {
+                link.send(GrugControlWire.answerValue(message.id, worldOverlay(message)));
             } else if (message.call == GrugControlWire.CALL_MINING_CRACK) {
                 boolean cracked = caller.miningCrack(message.volume, message.pitch, message.third);
                 link.send(GrugControlWire.answerValue(message.id, (byte) (cracked ? 1 : 0)));
@@ -677,6 +718,19 @@ public final class GrugControlClient {
                                                     0,
                                                     Math.min(String.valueOf(e).length(), 1000))));
         }
+    }
+
+    /** The 1 or 0 a world overlay call answers: a press always answers 1. */
+    private byte worldOverlay(GrugControlWire.Message message) {
+        int operation = (int) message.volume;
+        if (operation == GrugControlWire.WORLD_OVERLAY_SUPPORTED) {
+            return (byte) (caller.worldOverlaySupported() ? 1 : 0);
+        }
+        if (operation == GrugControlWire.WORLD_OVERLAY_DRAWN) {
+            return (byte) (caller.worldOverlayDrawn(message.text) ? 1 : 0);
+        }
+        caller.pressWorldKey(message.text, (int) message.pitch, message.third != 0);
+        return 1;
     }
 
     /**

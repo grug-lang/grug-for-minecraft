@@ -252,6 +252,18 @@ public final class GrugServerRun implements ITickHandler {
     }
 
     /**
+     * Moves the server's copy of the test player to the feet position, keeping their view, through
+     * the move the floor hold uses so the joined client's camera follows (#1040).
+     */
+    public static void moveToFeet(EntityPlayerMP player, double x, double feetY, double z) {
+        if (player == null) {
+            return;
+        }
+        player.playerNetServerHandler.teleportTo(
+                x, feetY, z, player.rotationYaw, player.rotationPitch);
+    }
+
+    /**
      * Puts the player back on the ground the server's own world has under them.
      *
      * <p>A client that fell through the terrain while its chunks were arriving reports a position a

@@ -359,6 +359,14 @@ public final class GrugServerRun {
     }
 
     /**
+     * Moves the server's copy of the test player to the feet position, keeping their view, through
+     * the move the floor hold uses so the joined client's camera follows (#1040).
+     */
+    public static void moveToFeet(PlayerEntity player, double x, double feetY, double z) {
+        moveTo(player, feetY, x, z);
+    }
+
+    /**
      * Moves the server's copy of the player's feet to {@code feetY} and tells the client.
      *
      * <p>A server-side move writes the server's copy and tells no one, and the camera is the
