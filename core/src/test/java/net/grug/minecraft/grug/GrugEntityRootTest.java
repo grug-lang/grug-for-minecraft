@@ -52,6 +52,27 @@ class GrugEntityRootTest {
         assertTrue(collected(ENTITY), "clearing the owner list frees the entity");
     }
 
+    @Test
+    void clearingTheOwnerListMidCallKeepsItsEntitiesUntilTheCallEnds() throws InterruptedException {
+        List<GrugObject> owner = new ArrayList<>();
+        List<GrugObject> call = new ArrayList<>();
+
+        GrugEntities.fnEntities = owner;
+        GrugEntities.addEntityWithId(ENTITY, GrugEntityType.Item, "member");
+
+        // The block entity is removed by its own script while its tick's list is the running one.
+        GrugEntities.fnEntities = call;
+        GrugEntities.clearRoots(owner);
+
+        assertFalse(
+                collected(ENTITY), "the running call's list keeps what the script may still use");
+
+        GrugEntities.fnEntities = GrugEntities.retainedFnEntities;
+        call.clear();
+
+        assertTrue(collected(ENTITY), "the entity is freed once the call is over");
+    }
+
     private static boolean collected(long id) throws InterruptedException {
         for (int attempt = 0; attempt < 50 && GrugEntities.entityData.get(id) != null; attempt++) {
             System.gc();

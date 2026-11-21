@@ -1,0 +1,6 @@
+# Fixture block for self_destruct_level-Test.grug: its block entity removes its own block from inside its tick.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_self_destruct_entity")
+}

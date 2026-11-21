@@ -1,0 +1,20 @@
+# A block entity that keeps its level in a member, as buildcraft's engine does, and removes its own block from
+# inside tick, as an explosion does. The loader destroys the block entity during that call, and the member's
+# Level must still resolve for the rest of the tick. See #93.
+level: Level = me.level()
+center: Vec3 = me.block_pos().center()
+
+export tick() {
+    level.place_block(center.x(), center.y(), center.z(), "minecraft:air")
+
+    # Churn through host entities so the collector has work to do while the member is the only holder.
+    i: number = 0
+    while i < 200 {
+        Vec3.new(i, i, i)
+        i = i + 1
+    }
+
+    # The rest of the tick still uses the member, which a collected Level made a runtime error.
+    level.get_time()
+    level.get_block(0, 0, 0)
+}

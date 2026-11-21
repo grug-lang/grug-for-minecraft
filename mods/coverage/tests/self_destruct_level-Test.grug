@@ -1,0 +1,23 @@
+# A block entity removes its own block from inside its tick, which destroys the block entity during that call,
+# and keeps using the Level its member holds for the rest of the tick. The member's host entities used to be
+# released the moment the block entity was removed, so with a collection in between the next Level call
+# reported the id as collected (buildcraft's redstone engine exploding, #93). The trigger repeats many
+# times, and a collection is likely but not forced inside a tick, so the deterministic proof is the Java
+# test GrugEntityRootTest.
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    i: number = 0
+    while i < 50 {
+        level.place_block(x, y, z, "grug:coverage_self_destruct")
+        block: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+        ctx.tick_block_entity(block, 1)
+        ctx.assert(level.is_air(x, y, z), "The block entity should have removed its own block.")
+        ctx.force_gc()
+        i = i + 1
+    }
+}
