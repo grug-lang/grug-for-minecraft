@@ -861,6 +861,11 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * before it asks the client, as 1.2.5-forge's does, and the poll after the send asks it fresh:
      * {@link GrugLightResend#due} sends nothing for the first poll after a change, which used to
      * fall through to the client's answer and let the capture go (#1392, #1161).
+     *
+     * <p>A poll is one question, not a guarantee: the owed polls answer false without asking the
+     * client, because the region has to follow the end-of-tick flush of the block changes and
+     * sending earlier would be overwritten by the client's relight. A test that needs the client to
+     * have a change therefore asks until it answers true (#1502).
      */
     @Override
     public boolean isWorldSettled() {
