@@ -367,6 +367,19 @@ public final class GrugServerRun {
     }
 
     /**
+     * Moves the server's copy of the test player to the feet position, keeping their view, through
+     * the teleport the floor hold uses so the joined client's camera follows (#1040).
+     */
+    public static void moveToFeet(PlayerEntity player, double x, double feetY, double z) {
+        if (!(player instanceof ServerPlayerEntity)) {
+            return;
+        }
+        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        serverPlayer.networkHandler.teleport(x, feetY, z, serverPlayer.yaw, serverPlayer.pitch);
+        serverPlayer.velocityY = 0.0;
+    }
+
+    /**
      * Puts the player back on the ground the server's own world has under them.
      *
      * <p>A client that fell through the terrain while its chunks were arriving reports a position a

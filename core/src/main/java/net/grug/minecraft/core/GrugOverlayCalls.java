@@ -71,6 +71,49 @@ public final class GrugOverlayCalls {
             }
         }
 
+        /** Whether the client asks the overlays' world exports at all, false when not asked. */
+        public boolean worldSupported() {
+            try {
+                return server.get().worldOverlaySupported();
+            } catch (GrugControlServer.ControlException e) {
+                failed.accept("Test.world_overlay_supported: " + e.getMessage());
+                return false;
+            }
+        }
+
+        /**
+         * Whether a frame of the client has drawn the world overlay of the mod that owns the
+         * running test since its last key press, false when it could not be asked.
+         */
+        public boolean worldDrawn(String mod) {
+            try {
+                boolean drawn = server.get().worldOverlayDrawn(mod);
+                if (drawn) {
+                    // The multiplayer job requires this line from the world overlay tests it
+                    // promotes, for the reason the line of the screen overlays gives (#1099).
+                    System.out.println(
+                            "[GRUG MULTIPLAYER] "
+                                    + GrugTestState.currentTestPath
+                                    + " drew the world overlay of "
+                                    + mod
+                                    + ".");
+                }
+                return drawn;
+            } catch (GrugControlServer.ControlException e) {
+                failed.accept("TestTickContext.world_overlay_drawn: " + e.getMessage());
+                return false;
+            }
+        }
+
+        /** Presses one letter or digit key in the client's world, reporting a failure. */
+        public void pressWorldKey(String mod, int key, boolean ctrl) {
+            try {
+                server.get().pressWorldKey(mod, key, ctrl);
+            } catch (GrugControlServer.ControlException e) {
+                failed.accept("TestTickContext.press_world_key: " + e.getMessage());
+            }
+        }
+
         /**
          * Whether the client's drawn mark was already clear when the first frame of its open screen
          * began, false when it could not be asked (#1391).
