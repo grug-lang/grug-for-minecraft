@@ -32,7 +32,7 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else {
         ctx.assert(pipe.has(), "The pipe should have a block entity.")
-        ctx.screenshot().equals(r"screenshots/wooden_pipe_one_arm", 400, 120, 880, 360)
+        ctx.screenshot().equals(r"screenshots/wooden_pipe_one_arm", 340, 20, 940, 480)
     }
 }
 
