@@ -1195,7 +1195,7 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
      * something in the client player's hand has to put it in the server's copy to be seen.
      */
     @GrugGenerated("singleplayer versus a connected client: which hand the use reads is plumbing")
-    private static Player serverSideOf(Player player) {
+    static Player serverSideOf(Player player) {
         var server = ServerLifecycleHooks.getCurrentServer();
         if (server == null || !player.level().isClientSide) return player;
         ServerPlayer serverPlayer = server.getPlayerList().getPlayer(player.getUUID());

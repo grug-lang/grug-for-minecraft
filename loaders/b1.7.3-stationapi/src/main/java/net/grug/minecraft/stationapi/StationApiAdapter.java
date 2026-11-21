@@ -1866,7 +1866,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         Block block =
                 (blockId >= 0 && blockId < Block.BLOCKS.length) ? Block.BLOCKS[blockId] : null;
 
-        if (block instanceof GrugBlock grugBlock) {
+        if (block != null) {
             // Go through the client's own right-click, which asks the block's use first and the
             // held
             // item after, so the test drives the same path a real click does and a block that
@@ -1884,7 +1884,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "TestTickContext.use_block: There is no grug block at "
+                    "TestTickContext.use_block: There is no block at "
                             + blockX
                             + ", "
                             + blockY
