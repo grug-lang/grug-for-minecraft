@@ -86,7 +86,8 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   opens with the worktree and the repository's configured commit identity, then holds the issue and
   its acceptance points, the rules of this file that apply, the exact steps, that the change's own
   unit tests and grug compile pass before the first dispatch, that Minecraft runs only in CI
-  (except the debugger exception under "Where Minecraft runs"), and how to report. A dispatch whose new tests fail is a local failure found late, not a measurement.
+  (except the debugger exception under "Where Minecraft runs"), and how to report.
+  A dispatch whose new tests fail is a local failure found late, not a measurement.
   Every subagent runs at its default thinking level, as the review
   subagent below does: the orchestrator sets no reasoning-effort override, whatever the task. A
   measurement arm's brief says its instrumentation must not land or must be excluded from the
