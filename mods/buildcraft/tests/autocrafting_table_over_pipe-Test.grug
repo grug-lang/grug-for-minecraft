@@ -22,6 +22,9 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
+    } else if not pipe_entity.has() {
+        _find_pipe(ctx)
+        ctx.not_done()
     } else if not ctx.world_settled() {
         settled_ticks = 0
         ctx.not_done()
@@ -62,21 +65,27 @@ local _setup(ctx: TestTickContext) {
     _place_table(ctx, level, x, y - 0.88, z + 4)
     level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
     _place_pipe(ctx, level, x, y - 1.88, z + 4)
+}
 
-    table_opt: Option[BlockEntity] = level.get_block_entity(x, y - 0.88, z + 4)
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+# The pipe is placed by a click, which on 1.20.6 reaches the server as a packet, so it may not be
+# there when _setup returns: this runs every tick until it is, and the runner's tick budget ends a
+# pipe that never arrives. The reference's switchSource scans YPos, ZNeg, ZPos and the rest in that
+# order and keeps the first neighbour that is an inventory, so it finds the table at YPos and never
+# reaches the chest at XPos: this pipe extracts from the table, not from the chest. The port's
+# saved source is the side plus one, and YPos is side 1, so the saved source is 2.
+local _find_pipe(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    table_opt: Option[BlockEntity] = level.get_block_entity(origin_x, origin_y - 0.88, origin_z + 4)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(origin_x, origin_y - 1.88, origin_z + 4)
     ctx.assert(table_opt.has(), "The table should have a block entity.")
-    ctx.assert(pipe_opt.has(), "The pipe should have a block entity.")
+    if not pipe_opt.has() {
+        return
+    }
+    if not me.is_reference() {
+        pipe_opt.unwrap().set_saved_number("source", 2)
+    }
     table_entity.set(table_opt.unwrap())
     pipe_entity.set(pipe_opt.unwrap())
-
-    # The reference's switchSource scans YPos, ZNeg, ZPos and the rest in that order and keeps the
-    # first neighbour that is an inventory, so it finds the table at YPos and never reaches the
-    # chest at XPos: this pipe extracts from the table, not from the chest. The port's saved source
-    # is the side plus one, and YPos is side 1, so the saved source is 2.
-    if not me.is_reference() {
-        pipe_entity.unwrap().set_saved_number("source", 2)
-    }
 }
 
 # The reference's autocrafting table block name differs from the port's. The port places the
