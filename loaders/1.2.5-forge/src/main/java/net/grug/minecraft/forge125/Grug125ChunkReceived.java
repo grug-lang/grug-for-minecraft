@@ -15,8 +15,9 @@ final class Grug125ChunkReceived {
      * {@code chunkExists} is the loaded-chunk question (#1427).
      */
     @GrugGenerated(
-            "the multiplayer arm: every CI client is single player, so only"
-                    + " Grug125ChunkReceivedTest reaches it")
+            "the chunkExists fallback: every client world, single player included, is a"
+                    + " WorldClient whose provider is a ChunkProviderClient, so no CI client"
+                    + " reaches another provider")
     static boolean received(IChunkProvider provider, int chunkX, int chunkZ) {
         if (provider instanceof ChunkProviderClient) {
             return !provider.provideChunk(chunkX, chunkZ).isEmpty();

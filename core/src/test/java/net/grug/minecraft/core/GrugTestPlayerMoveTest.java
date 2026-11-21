@@ -21,4 +21,13 @@ class GrugTestPlayerMoveTest {
         assertFalse(GrugTestPlayerMove.canMove(true, false, false));
         assertFalse(GrugTestPlayerMove.canMove(false, false, false));
     }
+
+    @Test
+    void aMultiplayerClientsPlaceholderChunkIsNotReceived() {
+        assertTrue(GrugTestPlayerMove.chunkReceived(true, false));
+        assertFalse(
+                GrugTestPlayerMove.chunkReceived(true, true), "isChunkLoaded lies on multiplayer");
+        assertFalse(GrugTestPlayerMove.chunkReceived(false, false));
+        assertFalse(GrugTestPlayerMove.chunkReceived(false, true));
+    }
 }

@@ -13,6 +13,7 @@ import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -1616,9 +1617,17 @@ public class StationApiAdapter implements ModLoaderAdapter {
         @SuppressWarnings("deprecation")
         Minecraft mc = (Minecraft) FabricLoader.getInstance().getGameInstance();
         PlayerEntity player = GrugClientPlayer.of(mc);
-        if (player == null
-                || mc.world == null
-                || !mc.world.isPosLoaded((int) Math.floor(x), 64, (int) Math.floor(z))) {
+        boolean hasWorld = mc.world != null;
+        boolean loaded =
+                hasWorld && mc.world.isPosLoaded((int) Math.floor(x), 64, (int) Math.floor(z));
+        // Only ask for the chunk once it is loaded: a single-player world generates it otherwise.
+        boolean empty =
+                loaded
+                        && mc.world
+                                .getChunkFromPos((int) Math.floor(x), (int) Math.floor(z))
+                                .isEmpty();
+        boolean chunkReceived = GrugTestPlayerMove.chunkReceived(loaded, empty);
+        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, chunkReceived)) {
             return false;
         }
         player.setPositionAndAngles(x, y + GrugTestOrigin.EYE_HEIGHT, z, player.yaw, player.pitch);

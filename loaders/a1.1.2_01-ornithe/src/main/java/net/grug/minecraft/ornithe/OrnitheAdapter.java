@@ -1690,9 +1690,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         PlayerEntity player = GrugClientPlayer.get();
         Minecraft mc = MinecraftInstance.get();
         boolean hasWorld = mc.world != null;
-        boolean chunkLoaded =
+        boolean loaded =
                 hasWorld && mc.world.isChunkLoaded((int) Math.floor(x), 64, (int) Math.floor(z));
-        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, chunkLoaded)) {
+        // Only ask for the chunk once it is loaded: a single-player world generates it otherwise.
+        boolean empty =
+                loaded && mc.world.getChunk((int) Math.floor(x), (int) Math.floor(z)).isEmpty();
+        boolean chunkReceived = GrugTestPlayerMove.chunkReceived(loaded, empty);
+        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, chunkReceived)) {
             return false;
         }
         player.setPositionAndAngles(x, y, z, player.yaw, player.pitch);
