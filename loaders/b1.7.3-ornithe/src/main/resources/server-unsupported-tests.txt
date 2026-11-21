@@ -22,7 +22,6 @@
 # Proof run 44642603736 passed hook_forced_normalization and item_list_forced_normalization on this
 # dedicated leg.
 #
-# coverage_frame and coverage_render, promoted to tick_any_side by #1092 for b1.7.3-stationapi. Dispatch 43465548202 failed coverage_frame on this leg in 20093 of 44800 pixels
-# (#1092), and coverage_render is unmeasured behind it. The client-only run still checks both.
-coverage/tests/coverage_frame-Test.grug
-coverage/tests/coverage_render-Test.grug
+# coverage_frame and coverage_render run here now: the 2800 px of coverage_frame were the joined client's chat, now silent (#1092), and
+# #1486, #1510, #1511 and #1489 fixed the causes of the rest. Proof run 44907081330 ran both on this dedicated leg and passed ALL 285 TESTS.
+# No test is listed, so the file holds only this comment, which the adapter still requires to exist in the layer.

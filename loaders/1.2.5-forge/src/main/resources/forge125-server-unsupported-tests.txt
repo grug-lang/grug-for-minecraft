@@ -7,10 +7,8 @@
 # the other loaders' lists are read from the class path by their bare name: a root
 # server-unsupported-tests.txt would shadow theirs in the nested layers.
 #
-# Block selection. The selection box is the client's outline, so Test.block_selection refuses on a
-# dedicated server.
-buildcraft/tests/wooden_pipe_boxes-Test.grug
-coverage/tests/block_shape-Test.grug
+# wooden_pipe_boxes and block_shape run here now: #1486, #1510, #1511 and #1489 fixed their causes, and proof run 44907081330 ran both on
+# this dedicated leg and passed ALL 285 TESTS. No test is listed, so the file holds only comments, which the adapter requires to exist.
 #
 # The overlay's click and the cursor it deletes now run here: #1425 sends the clear an overlay's
 # delete performs to the server that holds the test's menu, so the client's mirror and the server's
