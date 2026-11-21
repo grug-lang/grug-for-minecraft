@@ -1,0 +1,114 @@
+# Covers how the wooden pipe is drawn with two opposite sides: chests to the east and to the west. The capture shows two arms leaving opposite sides and the pipe's centre
+# in their real shapes, which are the reference's RenderPipe.renderWorldBlock boxes drawn from the
+# block entity's chunk render. The pipe's source is the east chest, whose arm uses the plain texture
+# prepareTextureFor switches to. The camera looks along +z and cannot be turned, so no neighbour
+# stands on the camera's side of the pipe. The screenshot is the assertion.
+pipe: Option[BlockEntity] = Option.new()
+
+# Whether the wall and the pipe's section have been meshed again from the settled light yet.
+remeshed: bool = false
+
+# How many runner ticks in a row the world has answered settled. See the hold in tick_any_side().
+settled_ticks: number = 0
+
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+    } else if not ctx.world_settled() {
+        # The mesh below has to read the settled light, so the wait comes first. See coverage_render
+        # and #257 for why one settled answer is not enough.
+        settled_ticks = 0
+        ctx.not_done()
+    } else if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+    } else if not remeshed {
+        _force_remesh(ctx)
+        remeshed = true
+        ctx.not_done()
+    } else if not ctx.world_settled() {
+        # Waiting for the swap's blocks to reach the client and for the mesh they scheduled.
+        ctx.not_done()
+    } else {
+        ctx.assert(pipe.has(), "The pipe should have a block entity.")
+        ctx.screenshot().equals(r"screenshots/wooden_pipe_opposite_arms", 400, 120, 880, 360)
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+
+    # The default room is small, so ask for one that holds the pipe, its neighbours and the wall.
+    ctx.set_box_radius(6)
+
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    _wall(level, x - 6, y - 9, z + 6)
+
+    _place_pipe(ctx, level, x, y - 1.88, z + 4)
+
+    # The east chest goes in first, while it is the only neighbour, so the reference's source,
+    # which it keeps while it still holds an inventory, is the east side.
+    level.place_block(x + 1, y - 1.88 + 0, z + 4 + 0, "minecraft:chest")
+    level.place_block(x + -1, y - 1.88 + 0, z + 4 + 0, "minecraft:chest")
+
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    ctx.assert(pipe_opt.has(), "The pipe should have a block entity.")
+    pipe.set(pipe_opt.unwrap())
+
+    # The port's saved number is the side plus one, like the reference's metadata; side 5 is east.
+    if not me.is_reference() {
+        pipe.unwrap().set_saved_number("source", 6)
+    }
+}
+
+# The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
+# right-clicking the side of a block at z + 1 with the pipe held, which is the face the test player's
+# eye sees of it, so the pipe lands at z; that block is cleared again so both scenes hold the same
+# blocks. ItemPipe names the item after its pipe class.
+local _place_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    if not me.is_reference() {
+        level.place_block(x, y, z, "grug:wooden_pipe")
+        return
+    }
+    level.place_block(x, y, z + 1, "minecraft:stone")
+    player: Player = ctx.get_player()
+    held: Item = item(resource_location("buildcraft:PipeItemsWood"))
+    ctx.set_held_item(player, held)
+    ctx.use_block(level, x, y, z + 1)
+    ctx.clear_held_item(player)
+    level.place_block(x, y, z + 1, "minecraft:air")
+}
+
+# Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
+# spare. Kept small on purpose: every block placed re-lights the columns around it for several ticks
+# afterwards.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 13 {
+        wx: number = x0
+        while wx < x0 + 13 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Meshes the crop's section again from the settled light by changing a block state and putting it
+# back. The swapped block is outside the crop, and dirt and stone are both opaque and unlit, so the
+# swap changes no light and no compared pixel.
+local _force_remesh(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
+    ctx.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}
