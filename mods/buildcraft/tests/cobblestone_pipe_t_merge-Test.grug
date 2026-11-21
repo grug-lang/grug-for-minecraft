@@ -16,6 +16,7 @@ settled_ticks: number = 0
 # Whether the client has seen the last pipe's stone gone and one more tick has passed since, so no
 # click of the repeated ones is still on its way to the server. See _place_pipes().
 drained: bool = false
+after_chest: number = 0
 
 # How many of the three pipes stand: the west wooden pipe, the east one, then the cobblestone pipe.
 placed: number = 0
@@ -36,9 +37,16 @@ export tick_any_side(ctx: TestTickContext) {
             ctx.assert(false, "DIAG screen open with placed 2, not drained")
         } else if placed == 2 {
             ctx.assert(false, "DIAG screen open with placed 2, drained")
+        } else if after_chest <= 1 {
+            ctx.assert(false, "DIAG screen open with placed 3, first test tick after the chest")
+        } else if after_chest <= 3 {
+            ctx.assert(false, "DIAG screen open with placed 3, 2 or 3 ticks after the chest")
         } else {
-            ctx.assert(false, "DIAG screen open with placed 3")
+            ctx.assert(false, "DIAG screen open with placed 3, 4 or more ticks after the chest")
         }
+    }
+    if placed == 3 {
+        after_chest = after_chest + 1
     }
     if ctx.current_tick() == 0 {
         _setup(ctx)
