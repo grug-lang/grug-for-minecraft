@@ -23,6 +23,28 @@ public final class GrugTestScreens {
     }
 
     /**
+     * Whether a forwarded capture closes {@code screen} before it frames the world: there is one
+     * and it is not an instance of a class in {@code kept}, the screens a server opened for the
+     * test's player, which are the capture's subject. The player's own inventory is one of them,
+     * because {@code open_inventory} on a dedicated server opens it on the joined client and a
+     * capture that closed it drew the world behind it (the item list's icons were missing).
+     *
+     * @param screen the game's current screen, or null when it has none
+     * @param kept the classes of the screens a test opened and a capture must leave open
+     */
+    public static boolean closesBeforeCapture(Object screen, Class<?>... kept) {
+        if (screen == null) {
+            return false;
+        }
+        for (Class<?> keep : kept) {
+            if (keep.isInstance(screen)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * The identity number of {@code screen}, which must not be null: the unsigned 32 bits of its
      * identity hash, doubled, with the low bit set. A screen object keeps its number for as long as
      * it exists, and a screen that replaced another one while the panel stayed open answers another

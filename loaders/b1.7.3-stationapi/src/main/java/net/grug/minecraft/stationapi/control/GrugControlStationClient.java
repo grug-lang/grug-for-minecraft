@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestPlayerMove;
+import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -13,6 +14,7 @@ import net.grug.minecraft.stationapi.GrugClientHooks;
 import net.grug.minecraft.stationapi.StationApiAdapter;
 import net.grug.minecraft.stationapi.gui.GrugScreen;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.network.Connection;
 
 import java.awt.image.BufferedImage;
@@ -186,11 +188,16 @@ public final class GrugControlStationClient {
         }
         if (!pending) return;
         waited++;
-        if (waited == 1 && mc.currentScreen != null && !(mc.currentScreen instanceof GrugScreen)) {
+        if (waited == 1
+                && GrugTestScreens.closesBeforeCapture(
+                        mc.currentScreen, GrugScreen.class, InventoryScreen.class)) {
             // The runner shows no screen between tests, so the forwarded capture does the same.
             // The GUI a server opened for its player is the capture's subject, so it stays:
             // closing it would capture the world and close the server's screen handler with it
-            // (#1098).
+            // (#1098). The player's own inventory is such a GUI too: open_inventory opens it on
+            // this
+            // client for a test that captures the item list over it, and closing it here framed
+            // the world without the list (dispatch 44907081330, jei_item_list).
             mc.setScreen(null);
         }
         if (waited == 1 || waited % 100 == 0) {
