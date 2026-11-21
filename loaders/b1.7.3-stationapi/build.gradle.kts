@@ -119,9 +119,22 @@ dependencies {
     compileOnly("org.projectlombok:lombok:1.18.48")
     annotationProcessor("org.projectlombok:lombok:1.18.48")
 
-    modImplementation("net.modificationstation:StationAPI:${project.properties["stationapi_version"]}")
-    modImplementation("net.glasslauncher.mods:GlassConfigAPI:${project.properties["gcapi_version"]}")
-    modImplementation("net.danygames2014:modmenu:${project.properties["modmenu_version"]}")
+    // StationAPI > UnsafeEvents asks for net.jodah:typetools:0.8.+, a dynamic version, and Loom
+    // resolves the mod configurations through a copy (modImplementationCopy) that ignores both
+    // the resolutionStrategy rule and Central's content filter, so Gradle still listed Central's
+    // versions and a 429 failed the configuration (#1516). The edge is excluded from every mod
+    // dependency instead, and the exact version is declared once below.
+    modImplementation("net.modificationstation:StationAPI:${project.properties["stationapi_version"]}") {
+        exclude(group = "net.jodah", module = "typetools")
+    }
+    modImplementation("net.glasslauncher.mods:GlassConfigAPI:${project.properties["gcapi_version"]}") {
+        exclude(group = "net.jodah", module = "typetools")
+    }
+    modImplementation("net.danygames2014:modmenu:${project.properties["modmenu_version"]}") {
+        exclude(group = "net.jodah", module = "typetools")
+    }
+    // 0.8.3 is the newest 0.8.x, on the Forge maven only.
+    implementation("net.jodah:typetools:0.8.3")
     // AlwaysMoreItems is deliberately absent: it draws 3D item cubes over the inventory's item
     // icons, so a dev runtime that loaded it drew a different item list from an installed game,
     // which loads only this mod's declared dependencies. The port never called it, and the JEI
