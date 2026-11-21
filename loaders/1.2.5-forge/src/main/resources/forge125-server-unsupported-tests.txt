@@ -9,8 +9,6 @@
 #
 # Block selection. The selection box is the client's outline, so Test.block_selection refuses on a
 # dedicated server.
-buildcraft/tests/wooden_pipe_boxes-Test.grug
-coverage/tests/block_shape-Test.grug
 #
 # The overlay's click and the cursor it deletes now run here: #1425 sends the clear an overlay's
 # delete performs to the server that holds the test's menu, so the client's mirror and the server's
@@ -35,4 +33,3 @@ coverage/tests/block_shape-Test.grug
 # chest drew its real facing (the 1.2.5 flat run now refreshes a placed chest's cached facing).
 #
 # coverage_frame: dispatch 43936815192 failed its capture on this leg in 2800 of 44800 px against 1.2.5-forge.png (#1392). coverage_render is unmeasured behind it and runs. The client-only run still checks both.
-coverage/tests/coverage_frame-Test.grug

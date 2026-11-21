@@ -33,4 +33,3 @@
 #
 #
 # coverage_frame: proof run 43939781490 failed its capture on this leg in 2800 of 44800 px against 1.20.6-forge.png (#1392). coverage_render is unmeasured behind it and runs. The client-only run still checks both.
-coverage/tests/coverage_frame-Test.grug

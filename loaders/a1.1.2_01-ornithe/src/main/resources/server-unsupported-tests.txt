@@ -22,9 +22,6 @@
 # run at that head because the leg stops at its first failure, so it stays unproven too. The
 # forced-normalization item list also stays: no dispatch has proven this leg's item list since #1470,
 # so a proof is pending.
-coverage/tests/overlay-Test.grug
-jei/tests/jei-Test.grug
-jei/tests/item_list_forced_normalization-Test.grug
 #
 # The forced-normalization probe runs here: #1430 forwards the force and the two reads to the joined
 # client, whose GL state the frame pass draws with (#1040). Proof run 44650333692 passed it on this
