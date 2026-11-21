@@ -34,3 +34,5 @@ coverage/tests/block_shape-Test.grug
 # wooden_pipe_shapes is not listed: proof 44588949879 (#1096) passed it on this leg once the south
 # chest drew its real facing (the 1.2.5 flat run now refreshes a placed chest's cached facing).
 #
+# coverage_frame is not listed: its 2800 px were the joined client's chat, now silent (#1092); dispatch 44853820377 passed it on this leg.
+#

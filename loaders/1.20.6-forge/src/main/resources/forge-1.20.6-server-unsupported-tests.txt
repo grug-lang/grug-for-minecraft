@@ -31,4 +31,6 @@
 # this leg measured was taken with the state off (#1099, #1137). Proof run 44650333692 passed it on
 # this leg.
 #
+# coverage_frame is not listed: its 2800 px were the joined client's chat, now silent (#1092); dispatch 44853820377 passed it on this leg.
+#
 #
