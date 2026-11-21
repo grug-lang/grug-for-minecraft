@@ -511,10 +511,6 @@ public final class GrugModelRenderer {
     }
 
     /**
-     * The texture placed on the sheet at the reference's tile, which is what {@link
-     * GrugAtlasTile#u} computes coordinates for. See there for why.
-     */
-    /**
      * The textures {@link #read} put on a sheet, which is what decides how their coordinates are
      * computed. It is cleared by {@link #reload} and filled again as each texture is read, because
      * a hot reload can change a texture's size while the display lists drawn from the old one stay.
