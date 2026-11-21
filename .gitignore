@@ -48,3 +48,6 @@ reference-artifact.*
 
 # Coverage artifacts written by combine-coverage.py, locally and in the coverage CI job
 /coverage/
+
+# The real mod's jars that recreation.py downloads and verifies by hash for a reference run, never committed
+/reference-artifacts/
