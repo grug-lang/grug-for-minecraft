@@ -23,6 +23,8 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
+import net.grug.minecraft.ornithe.block.entity.GrugSavedDataPacket;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.grug.minecraft.ornithe.gui.GrugMenu;
 import net.grug.minecraft.ornithe.gui.GrugScreenPacket;
@@ -785,8 +787,29 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                             new WorldChunkPacket(
                                     region[0], region[1], region[2], region[3], region[4],
                                     region[5], world));
+            resendSavedData(world, (ServerPlayerEntity) starter, region);
         }
         return true;
+    }
+
+    /**
+     * Sends the saved data of every grug block entity the region holds, because the client drops
+     * its block entities in a region a chunk region packet covers and makes empty ones on the next
+     * read, and this version's region packet carries no tile entity data. Without it a number a
+     * script saved before the resend is never seen by the client again (#1040).
+     */
+    private static void resendSavedData(World world, ServerPlayerEntity player, int[] region) {
+        for (int x = region[0]; x < region[0] + region[3]; x++) {
+            for (int y = region[1]; y < region[1] + region[4]; y++) {
+                for (int z = region[2]; z < region[2] + region[5]; z++) {
+                    BlockEntity entity = world.getBlockEntity(x, y, z);
+                    if (entity instanceof GrugBlockEntity) {
+                        player.networkHandler.sendPacket(
+                                new GrugSavedDataPacket((GrugBlockEntity) entity, true));
+                    }
+                }
+            }
+        }
     }
 
     /** Sweeps of the room's cells the light may take before it is called not settling. */
