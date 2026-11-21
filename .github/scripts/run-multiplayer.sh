@@ -609,24 +609,23 @@ while :; do
     fi
     grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
     # A server skips a forwarded_ test it cannot forward, and a skip is a green run: the tests below
-    # have to show as passed. The
-    # forwarded_ ones are the channel's own tests, including forwarded_world_settled, which is the
-    # control for the forwarded settle answer (#1086), forwarded_capture_same_tick, which is what a
-    # settle ask's flush is for (#1123), and the screen calls (#1094), which every leg that
-    # forwards them asks here: the reads and close_screen with no screen, the open GUI's reads, and
-    # open_inventory, which every leg's server forwards to the joined client's own inventory:
-    # 1.20.6 and 1.2.5 from the start, and Alpha and both b1.7.3 legs since #882, whose server
-    # refused it before that, so no leg's list names it. The pixel tests stay client-only
-    # until a joined client's frame matches a singleplayer one (#1092); coverage_frame_saved_number,
-    # coverage_frame_saved_list_energy,
-    # coverage_mesh_saved_number and coverage_mesh_saved_reinit run on every server leg now that a
-    # loader sends saved numbers, a list's item and the energy store to the client's copy (#1093),
-    # sends a chunk-mesh block's saved data with the block update that rebuilds its mesh, and
-    # inits a kept tile from the block that is there (#1101). client_saved_number runs there too: it
-    # asks the joined client's copy of a block that draws into the chunk mesh and per frame for the
-    # number a save wrote with no redraw, which is the change send #1162 adds, and the one fact a
-    # capture cannot tell from a frame drawn too early (#1179). coverage_mesh_frame_saved_number
-    # runs there too, and its captures wait on that same read.
+    # have to show as passed. The forwarded_ ones are the channel's own tests, including
+    # forwarded_world_settled, which is the control for the forwarded settle answer (#1086),
+    # forwarded_capture_same_tick, which is what a settle ask's flush is for (#1123), and the screen
+    # calls (#1094), which every leg that forwards them asks here: the reads and close_screen with
+    # no screen, the open GUI's reads, and open_inventory, which every leg's server forwards to the
+    # joined client's own inventory: 1.20.6 and 1.2.5 from the start, and Alpha and both b1.7.3 legs
+    # since #882, whose server refused it before that, so no leg's list names it. The pixel tests
+    # stay client-only until a joined client's frame matches a singleplayer one (#1092);
+    # coverage_frame_saved_number, coverage_frame_saved_list_energy, coverage_mesh_saved_number and
+    # coverage_mesh_saved_reinit run on every server leg now that a loader sends saved numbers, a
+    # list's item and the energy store to the client's copy (#1093), sends a chunk-mesh block's
+    # saved data with the block update that rebuilds its mesh, and inits a kept tile from the block
+    # that is there (#1101). client_saved_number runs there too: it asks the joined client's copy of
+    # a block that draws into the chunk mesh and per frame for the number a save wrote with no
+    # redraw, which is the change send #1162 adds, and the one fact a capture cannot tell from a
+    # frame drawn too early (#1179). coverage_mesh_frame_saved_number runs there too, and its
+    # captures wait on that same read.
     if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
       for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_capture_same_tick forwarded_world_settled forwarded_screen_open forwarded_screen_width forwarded_gui_left forwarded_gui_top forwarded_gui_width forwarded_gui_height forwarded_close_screen forwarded_open_inventory client_saved_number coverage_frame_saved_number coverage_frame_saved_list_energy coverage_mesh_saved_number coverage_mesh_saved_reinit coverage_mesh_frame_saved_number; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${required}-Test.grug" "$SERVER_LOG"; then
@@ -686,12 +685,13 @@ while :; do
     # joined client matches the flat golden after the server half of the player snap and the particle
     # pin, and that is what proves both. The other four legs list the ones their measured residue
     # reaches (b1.7.3-ornithe and a1.1.2_01 all four and 1.2.5-forge two of them, #1213 and #1092),
-    # which are not required there; the client-only run of every loader
-    # is where all four goldens are checked. Requiring them on the four legs would only restate an
-    # open rendering defect, so the list is per loader.
+    # which are not required there; the client-only run of every loader is where all four goldens
+    # are checked. Requiring them on the four legs would only restate an open rendering defect, so
+    # the requirement is per loader.
     # Proof 43763297057 (#1096) measured the rest: every leg passes cobblestone_pipe_shapes, and
-    # a1.1.2_01, b1.7.3-ornithe and 1.2.5-forge also pass redstone_engine, and proof 43764853785 added wooden_pipe_items on 1.2.5-forge. The captures that
-    # still differ are not required on a leg, and the client-only run checks their goldens.
+    # a1.1.2_01, b1.7.3-ornithe and 1.2.5-forge also pass redstone_engine, and proof 43764853785 added
+    # wooden_pipe_items on 1.2.5-forge. The captures that still differ are not required on a leg,
+    # and the client-only run checks their goldens.
     wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes"
     case "$LOADER" in
       a1.1.2_01-ornithe|b1.7.3-ornithe|1.2.5-forge)

@@ -1281,10 +1281,6 @@ class GrugTestRunnerTest {
     }
 
     private GrugTestRunner sideRunner(FakeOps ops, boolean dedicatedServer) {
-        return sideRunner(ops, dedicatedServer, 1);
-    }
-
-    private GrugTestRunner sideRunner(FakeOps ops, boolean dedicatedServer, int repeats) {
         Map<String, Long> files = threeMods();
         ops.pathsAre(files);
         return new GrugTestRunner(
@@ -1293,7 +1289,7 @@ class GrugTestRunnerTest {
                 ops,
                 System::nanoTime,
                 new SweepLog(new ArrayList<>()),
-                repeats,
+                1,
                 new CoverageLog(),
                 Set.of(),
                 GrugTestRunner.MAX_GAME_SPEED,
@@ -1329,6 +1325,11 @@ class GrugTestRunnerTest {
 
     private GrugTestRunner forwardedRunner(
             FakeOps ops, boolean dedicatedServer, boolean forwardsClientCalls) {
+        return forwardedRunner(ops, dedicatedServer, forwardsClientCalls, 1);
+    }
+
+    private GrugTestRunner forwardedRunner(
+            FakeOps ops, boolean dedicatedServer, boolean forwardsClientCalls, int repeats) {
         Map<String, Long> files = threeMods();
         files.put("coverage/tests/forwarded_a-Test.grug", 8L);
         ops.pathsAre(files);
@@ -1338,7 +1339,7 @@ class GrugTestRunnerTest {
                 ops,
                 System::nanoTime,
                 new SweepLog(new ArrayList<>()),
-                1,
+                repeats,
                 new CoverageLog(),
                 Set.of(),
                 GrugTestRunner.MAX_GAME_SPEED,
@@ -1370,6 +1371,21 @@ class GrugTestRunnerTest {
                     printed);
             assertTrue(printed.contains("Skipped 1 forwarded_ test(s)"), printed);
         }
+    }
+
+    @Test
+    void aRepeatedRunSkipsAForwardedTestOnEveryPassWithoutCountingItAgain() {
+        FakeOps ops = new FakeOps();
+        String printed = capture(() -> runToEnd(forwardedRunner(ops, false, false, 2)));
+
+        assertTrue(!printed.contains("PASS coverage/tests/forwarded_a-Test.grug"), printed);
+        assertTrue(printed.contains("ALL 5 TESTS PASSED"), printed);
+        assertEquals(
+                1,
+                printed.lines()
+                        .filter(l -> l.contains("Executing test: coverage/tests/forwarded_a"))
+                        .count(),
+                printed);
     }
 
     @Test
