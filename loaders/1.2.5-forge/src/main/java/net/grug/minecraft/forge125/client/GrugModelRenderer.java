@@ -3,6 +3,7 @@ package net.grug.minecraft.forge125.client;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.GrugBlock;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugAtlasTile;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModTreeDefect;
@@ -102,7 +103,7 @@ public final class GrugModelRenderer {
      * is drawn the way BuildCraft's engine renderer draws its ModelRenderer boxes, which has no
      * inset.
      */
-    private static final double BLOCK_FACE_INSET = 0.01 / 16.0;
+    private static final double BLOCK_FACE_INSET = 0.01;
 
     /** How far apart a recorded corner and a face's corner may be and still be the same corner. */
     private static final double SAME_CORNER = 1.0E-5;
@@ -160,7 +161,16 @@ public final class GrugModelRenderer {
                 double maxV =
                         Math.max(Math.max(quad.v(0), quad.v(1)), Math.max(quad.v(2), quad.v(3)));
                 double inset = flat ? 0.0 : BLOCK_FACE_INSET;
-                for (int corner = 0; corner < 4; corner++) {
+                for (int slot = 0; slot < 4; slot++) {
+                    // A lit face is submitted from the corner renderStandardBlock starts it at,
+                    // because the corner a quad starts at decides which way the rasteriser
+                    // splits it into triangles, and a grazing face's edge pixels follow the split.
+                    int corner = slot;
+                    if (lit != null) {
+                        for (int c = 0; c < 4; c++) {
+                            if ((int) lit[c][4] == slot) corner = c;
+                        }
+                    }
                     if (lit != null) {
                         tessellator.setColorOpaque_F(
                                 lit[corner][0], lit[corner][1], lit[corner][2]);
@@ -170,8 +180,8 @@ public final class GrugModelRenderer {
                             x + quad.x(corner),
                             y + quad.y(corner),
                             z + quad.z(corner),
-                            quad.u(corner) == maxU ? quad.u(corner) - inset : quad.u(corner),
-                            quad.v(corner) == maxV ? quad.v(corner) - inset : quad.v(corner));
+                            texU(quad, corner, quad.u(corner) == maxU ? inset : 0.0),
+                            texV(quad, corner, quad.v(corner) == maxV ? inset : 0.0));
                 }
             }
             MinecraftForgeClient.unbindTexture();
@@ -233,8 +243,8 @@ public final class GrugModelRenderer {
                                 quad.x(submitted) - ROTATION_POINT,
                                 quad.y(submitted) - ROTATION_POINT,
                                 quad.z(submitted) - ROTATION_POINT,
-                                quad.u(submitted),
-                                quad.v(submitted));
+                                texU(quad, submitted, 0.0),
+                                texV(quad, submitted, 0.0));
                     }
                     tessellator.draw();
                 }
@@ -321,7 +331,11 @@ public final class GrugModelRenderer {
                     && Math.abs(corner[1] - y) < SAME_CORNER
                     && Math.abs(corner[2] - z) < SAME_CORNER) {
                 return new float[] {
-                    (float) corner[3], (float) corner[4], (float) corner[5], (float) corner[6]
+                    (float) corner[3],
+                    (float) corner[4],
+                    (float) corner[5],
+                    (float) corner[6],
+                    i - face
                 };
             }
         }
@@ -420,8 +434,8 @@ public final class GrugModelRenderer {
                             quad.x(corner),
                             quad.y(corner),
                             quad.z(corner),
-                            quad.u(corner),
-                            quad.v(corner));
+                            texU(quad, corner, 0.0),
+                            texV(quad, corner, 0.0));
                 }
                 tessellator.draw();
             }
@@ -453,6 +467,7 @@ public final class GrugModelRenderer {
      * its pixels.
      */
     public static void reload(RenderEngine engine) {
+        ON_SHEET.clear();
         for (Map.Entry<String, Integer> entry : TEXTURES.entrySet()) {
             BufferedImage image = read(entry.getKey());
             if (image != null) {
@@ -496,6 +511,48 @@ public final class GrugModelRenderer {
     }
 
     /**
+     * The texture placed on the sheet at the reference's tile, which is what {@link
+     * GrugAtlasTile#u} computes coordinates for. See there for why.
+     */
+    /**
+     * The textures {@link #read} put on a sheet, which is what decides how their coordinates are
+     * computed. It is cleared by {@link #reload} and filled again as each texture is read, because
+     * a hot reload can change a texture's size while the display lists drawn from the old one stay.
+     */
+    private static final Set<String> ON_SHEET = new HashSet<String>();
+
+    /** A quad corner's u on the texture as uploaded, which is a sheet only for a 16 by 16 one. */
+    private static double texU(GrugQuad quad, int corner, double inset) {
+        if (ON_SHEET.contains(quad.texturePath())) {
+            return GrugAtlasTile.u(quad.u(corner), inset);
+        }
+        return quad.u(corner) - inset / GrugAtlasTile.TILE;
+    }
+
+    private static double texV(GrugQuad quad, int corner, double inset) {
+        if (ON_SHEET.contains(quad.texturePath())) {
+            return GrugAtlasTile.v(quad.v(corner), inset);
+        }
+        return quad.v(corner) - inset / GrugAtlasTile.TILE;
+    }
+
+    private static BufferedImage onSheet(BufferedImage image) {
+        BufferedImage sheet =
+                new BufferedImage(
+                        GrugAtlasTile.SHEET, GrugAtlasTile.SHEET, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = sheet.createGraphics();
+        graphics.drawImage(
+                image,
+                GrugAtlasTile.COLUMN * GrugAtlasTile.TILE,
+                GrugAtlasTile.ROW * GrugAtlasTile.TILE,
+                GrugAtlasTile.TILE,
+                GrugAtlasTile.TILE,
+                null);
+        graphics.dispose();
+        return sheet;
+    }
+
+    /**
      * The image at {@code path} in the mods tree, or null once a missing one has been reported.
      *
      * <p>A model naming a texture no mod ships is a mod-tree defect: the faces would draw with
@@ -518,6 +575,11 @@ public final class GrugModelRenderer {
             if (image == null) {
                 throw Grug.fatal("The model texture " + file + " is not a readable image.");
             }
+            if (image.getWidth() == GrugAtlasTile.TILE && image.getHeight() == GrugAtlasTile.TILE) {
+                ON_SHEET.add(path);
+                return onSheet(image);
+            }
+            ON_SHEET.remove(path);
             return image;
         } catch (IOException e) {
             throw Grug.fatal("Failed to read the model texture " + file, e);

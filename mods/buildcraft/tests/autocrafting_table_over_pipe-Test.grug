@@ -1,0 +1,144 @@
+# Covers the autocrafting table over a wooden pipe, the reference's own build: the table's bottom
+# sits on the pipe, which extracts the crafted result and pushes it into the chest beside it. The
+# reference's source scan finds the table directly above the pipe before the chest beside it, so
+# the pipe's plain source arm is drawn up into the table and the patterned arm to the chest, which
+# is what the capture pins. The screenshot is the assertion. The fixture is static, so no items
+# need to move for the capture.
+table_entity: Option[BlockEntity] = Option.new()
+pipe_entity: Option[BlockEntity] = Option.new()
+
+# Whether the wall and the section have been meshed again from the settled light yet.
+remeshed: bool = false
+
+# How many runner ticks in a row the world has answered settled. See the hold in tick_any_side().
+settled_ticks: number = 0
+
+# The origin _setup built from, which the later steps build from too.
+origin_x: number = 0
+origin_y: number = 0
+origin_z: number = 0
+
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+    } else if not pipe_entity.has() {
+        _place_pipe(ctx)
+        ctx.not_done()
+    } else if not ctx.world_settled() {
+        settled_ticks = 0
+        ctx.not_done()
+    } else if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+    } else if not remeshed {
+        _force_remesh(ctx)
+        remeshed = true
+        ctx.not_done()
+    } else if not ctx.world_settled() {
+        ctx.not_done()
+    } else {
+        ctx.assert(table_entity.has(), "The table should have a block entity.")
+        ctx.assert(pipe_entity.has(), "The pipe should have a block entity.")
+        ctx.screenshot().equals(r"screenshots/autocrafting_table_over_pipe", 400, 0, 880, 320)
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+
+    ctx.set_box_radius(6)
+
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    origin_x = x
+    origin_y = y
+    origin_z = z
+
+    _wall(level, x - 6, y - 9, z + 6)
+
+    # The table over the pipe, with the chest beside the pipe as its output. The table and chest go
+    # in first, so the pipe's placement finds both and the reference's switchSource settles on the
+    # table without a later neighbour update having to move it.
+    _place_table(ctx, level, x, y - 0.88, z + 4)
+    level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
+    level.place_block(x, y - 1.88, z + 5, "minecraft:stone")
+}
+
+# Both the reference and the port place the pipe the way a player does: hold the pipe item and
+# right-click the side of the stone at z + 5, which is the face the test player's eye sees of it, so
+# the pipe lands at z + 4. The reference's ItemPipe sets the pipe's kind, and the placement is what
+# settles the light around the pipe, so both scenes must use the same path. On 1.20.6 the click is
+# the client's and reaches the server as a packet, and the client has not necessarily got the stone
+# the test just placed, so the click is made again every tick until the pipe stands in the world
+# the test reads. Only then is the stone cleared, because a stone cleared sooner is not there when
+# the packet arrives.
+local _place_pipe(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    x: number = origin_x
+    y: number = origin_y
+    z: number = origin_z
+    player: Player = ctx.get_player()
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    if not pipe_opt.has() {
+        if me.is_reference() {
+            ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsWood")))
+        } else {
+            ctx.set_held_item(player, item(resource_location("grug:wooden_pipe")))
+        }
+        ctx.use_block(level, x, y - 1.88, z + 5)
+        return
+    }
+    ctx.clear_held_item(player)
+    level.place_block(x, y - 1.88, z + 5, "minecraft:air")
+    table_opt: Option[BlockEntity] = level.get_block_entity(x, y - 0.88, z + 4)
+    ctx.assert(table_opt.has(), "The table should have a block entity.")
+    # The reference's switchSource scans YPos, ZNeg, ZPos and the rest in that order and keeps the
+    # first neighbour that is an inventory, so it finds the table at YPos and never reaches the
+    # chest at XPos: this pipe extracts from the table, not from the chest. The port's saved source
+    # is the side plus one, and YPos is side 1, so the saved source is 2.
+    if not me.is_reference() {
+        pipe_opt.unwrap().set_saved_number("source", 2)
+    }
+    table_entity.set(table_opt.unwrap())
+    pipe_entity.set(pipe_opt.unwrap())
+}
+
+# The reference's autocrafting table block name differs from the port's. The port places the
+# block directly; the reference uses the same block id.
+local _place_table(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    if not me.is_reference() {
+        level.place_block(x, y, z, "grug:autocrafting_table")
+        return
+    }
+    level.place_block(x, y, z, "buildcraft:autoWorkbenchBlock")
+}
+
+# Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
+# spare.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 13 {
+        wx: number = x0
+        while wx < x0 + 13 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Meshes the crop's section again from the settled light by changing a block state and putting it
+# back. The swapped block is outside the crop, and dirt and stone are both opaque and unlit, so the
+# swap changes no light and no compared pixel.
+local _force_remesh(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    x: number = origin_x
+    y: number = origin_y
+    z: number = origin_z
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
+    ctx.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}
