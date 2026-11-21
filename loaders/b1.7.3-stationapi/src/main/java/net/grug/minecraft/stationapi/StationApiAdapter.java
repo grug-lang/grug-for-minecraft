@@ -1612,7 +1612,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * is what {@code set_player_position_unloaded-Test.grug} asks for.
      */
     @Override
-    @GrugGenerated("the no-player arm: a run that moves a player has one and a world to move it in")
+    @GrugGenerated(
+            "the no-player and no-world arms: a run that moves a player has both; the"
+                    + " unreceived-chunk arm is reached only by the multiplayer job")
     public boolean setPlayerPositionForTest(double x, double y, double z) {
         @SuppressWarnings("deprecation")
         Minecraft mc = (Minecraft) FabricLoader.getInstance().getGameInstance();

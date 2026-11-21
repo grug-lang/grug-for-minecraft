@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -177,7 +178,13 @@ public final class GrugControlBetaClient {
         int loaded = 0;
         for (int dx = -SETTLE_RADIUS; dx <= SETTLE_RADIUS; dx++) {
             for (int dz = -SETTLE_RADIUS; dz <= SETTLE_RADIUS; dz++) {
-                if (mc.world.isChunkLoaded((centreX + dx) * 16 + 8, 64, (centreZ + dz) * 16 + 8)) {
+                int x = (centreX + dx) * 16 + 8;
+                int z = (centreZ + dz) * 16 + 8;
+                // isChunkLoaded is true for every chunk of a multiplayer client (#1507), so a
+                // received chunk is one the cache hands back as other than its empty placeholder.
+                boolean isLoaded = mc.world.isChunkLoaded(x, 64, z);
+                if (GrugTestPlayerMove.chunkReceived(
+                        isLoaded, isLoaded && mc.world.getChunk(x, z).isEmpty())) {
                     loaded++;
                 }
             }
