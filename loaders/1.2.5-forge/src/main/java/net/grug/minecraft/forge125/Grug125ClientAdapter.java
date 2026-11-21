@@ -468,7 +468,11 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         EntityPlayer player = mc.thePlayer;
         boolean hasWorld = mc.theWorld != null;
         boolean chunkLoaded =
-                hasWorld && mc.theWorld.blockExists((int) Math.floor(x), 64, (int) Math.floor(z));
+                hasWorld
+                        && Grug125ChunkReceived.received(
+                                mc.theWorld.getChunkProvider(),
+                                (int) Math.floor(x) >> 4,
+                                (int) Math.floor(z) >> 4);
         if (!GrugTestPlayerMove.canMove(player != null, hasWorld, chunkLoaded)) {
             return false;
         }
