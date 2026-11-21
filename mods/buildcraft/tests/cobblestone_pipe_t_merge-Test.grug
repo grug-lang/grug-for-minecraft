@@ -13,9 +13,9 @@ remeshed: bool = false
 # How many runner ticks in a row the world has answered settled. See the hold in tick_any_side().
 settled_ticks: number = 0
 
-# How many ticks the output chest has waited for the repeated pipe clicks to drain. See
-# _place_output_chest().
-drain_ticks: number = 0
+# Whether the click for the pipe being placed has been made. Each pipe is clicked once, see
+# _place_pipes().
+clicked: bool = false
 
 # How many of the three pipes stand: the west wooden pipe, the east one, then the cobblestone pipe.
 placed: number = 0
@@ -29,11 +29,8 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if placed < 3 {
-        _place_pipes(ctx)
-        ctx.not_done()
     } else if not pipe.has() {
-        _place_output_chest(ctx)
+        _place_pipes(ctx)
         ctx.not_done()
     } else if not ctx.world_settled() {
         settled_ticks = 0
@@ -85,10 +82,13 @@ local _setup(ctx: TestTickContext) {
 # right-click the side of the stone at z + 5, which is the face the test player's eye sees of it, so
 # the pipe lands at z + 4. The reference's ItemPipe sets the pipe's kind, and the placement is what
 # settles the light around the pipe, so both scenes must use the same path. On 1.20.6 the click is
-# the client's and reaches the server as a packet, and the client has not necessarily got the stone
-# the test just placed, so the click is made again every tick until the pipe stands in the world
-# the test reads. Only then is its stone cleared, because a stone cleared sooner is not there when
-# the packet arrives. The pipes go in one after another: the two wooden ones, then the cobblestone.
+# the client's and reaches the server as a packet, and the client's click on a stone it has not
+# got yet places nothing, so the click waits for the world to settle, which says
+# the client has read the stones the test placed. Each pipe is then clicked exactly once and the
+# test waits for the pipe to stand: a click repeated until it stands would leave packets queued
+# behind the first, and one that arrives after the output chest takes the stone's cell opens the
+# chest's screen over the capture. Only when the pipe stands is its stone cleared. The pipes go in
+# one after another: the two wooden ones, then the cobblestone.
 local _place_pipes(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     x: number = origin_x
@@ -103,6 +103,10 @@ local _place_pipes(ctx: TestTickContext) {
     }
     pipe_opt: Option[BlockEntity] = level.get_block_entity(px, y - 1.88, z + 4)
     if not pipe_opt.has() {
+        if clicked or not ctx.world_settled() {
+            return
+        }
+        clicked = true
         if me.is_reference() and placed < 2 {
             ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsWood")))
         } else if me.is_reference() {
@@ -115,6 +119,7 @@ local _place_pipes(ctx: TestTickContext) {
         ctx.use_block(level, px, y - 1.88, z + 5)
         return
     }
+    clicked = false
     ctx.clear_held_item(player)
     level.place_block(px, y - 1.88, z + 5, "minecraft:air")
     # The port's wooden pipe source side is the side plus one. Both wooden pipes extract from the
@@ -123,26 +128,12 @@ local _place_pipes(ctx: TestTickContext) {
         pipe_opt.unwrap().set_saved_number("source", 2)
     }
     placed = placed + 1
-}
-
-# The output chest behind the cobblestone pipe. The third arm points away from the camera, so it
-# cannot stand in front of the junction the way a pipe on the camera's side would. It goes into the
-# very cell the cobblestone pipe's click targets, and that click was repeated every tick until the
-# pipe stood: on 1.20.6 each click is a packet, the server handles the queued ones only after the
-# burst of ticks the runner is in, so some are still on their way when the pipe is first seen, and
-# one that finds a chest opens its screen over the capture. So the chest waits for the queue to
-# drain, which is a duration of the game and not a condition the test can read: the clicks are
-# handled within the frame, so a few bursts of ticks (the runner passes up to ten per frame) cover
-# it. Until then each stale click finds air and no held item, and does nothing.
-local _place_output_chest(ctx: TestTickContext) {
-    if drain_ticks < 40 {
-        drain_ticks = drain_ticks + 1
-        return
+    if placed == 3 {
+        # The output chest behind the cobblestone pipe. The third arm points away from the camera,
+        # so it cannot stand in front of the junction the way a pipe on the camera's side would.
+        level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
+        pipe.set(pipe_opt.unwrap())
     }
-    level: Level = ctx.get_client_level()
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(origin_x, origin_y - 1.88, origin_z + 4)
-    level.place_block(origin_x, origin_y - 1.88, origin_z + 5, "minecraft:chest")
-    pipe.set(pipe_opt.unwrap())
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
