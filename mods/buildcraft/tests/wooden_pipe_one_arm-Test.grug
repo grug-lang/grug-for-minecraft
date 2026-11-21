@@ -32,7 +32,7 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else {
         ctx.assert(pipe.has(), "The pipe should have a block entity.")
-        ctx.screenshot().equals(r"screenshots/wooden_pipe_one_arm", 240, 100, 800, 700)
+        ctx.screenshot().equals(r"screenshots/wooden_pipe_one_arm", 100, 100, 578, 596)
     }
 }
 
@@ -49,10 +49,11 @@ local _setup(ctx: TestTickContext) {
 
     _wall(level, x - 6, y - 9, z + 6)
 
-    # The scene stands one block to the east of the camera's line, which draws it left of centre, and one
-    # block lower, so the whole scene fits in a crop that excludes the achievement popup in the top
-    # right and the version text in the top left, which two loaders draw over the capture.
-    x = x + 1
+    # The scene stands two blocks east of the camera's line, which draws it left of the crosshair,
+    # and one block lower, so the whole scene fits in a crop that leaves out the crosshair and the
+    # selection outline the 1.2.5 client draws around the block under it, the achievement popup in
+    # the top right, the version text in the top left and the hearts above the hotbar.
+    x = x + 2
     y = y - 1
 
     _place_pipe(ctx, level, x, y - 1.88, z + 4)
