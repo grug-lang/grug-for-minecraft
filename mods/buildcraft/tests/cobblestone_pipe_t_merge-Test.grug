@@ -26,6 +26,20 @@ origin_y: number = 0
 origin_z: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
+    # DIAGNOSTIC: names the first tick a screen is open.
+    if ctx.screen_open() {
+        if placed == 0 {
+            ctx.assert(false, "DIAG screen open with placed 0 (no pipe stands yet)")
+        } else if placed == 1 {
+            ctx.assert(false, "DIAG screen open with placed 1")
+        } else if placed == 2 and not drained {
+            ctx.assert(false, "DIAG screen open with placed 2, not drained")
+        } else if placed == 2 {
+            ctx.assert(false, "DIAG screen open with placed 2, drained")
+        } else {
+            ctx.assert(false, "DIAG screen open with placed 3")
+        }
+    }
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
