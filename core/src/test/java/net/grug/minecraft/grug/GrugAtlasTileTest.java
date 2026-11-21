@@ -25,4 +25,17 @@ class GrugAtlasTileTest {
         assertEquals(16.0 / 256.0, GrugAtlasTile.v(0.0, 0.0), 0.0);
         assertEquals(32.0 / 256.0, GrugAtlasTile.v(1.0, 0.0), 0.0);
     }
+
+    @Test
+    void theLastTexelWithTheInsetStaysInsideTheTile() {
+        assertEquals((256.0 - 0.01) / 256.0, GrugAtlasTile.u(1.0, 0.01), 0.0);
+        assertEquals((32.0 - 0.01) / 256.0, GrugAtlasTile.v(1.0, 0.01), 0.0);
+    }
+
+    @Test
+    void aFractionOutsideTheTextureLeavesItsTile() {
+        // The sheet does not wrap, so a model whose uvs leave 0..16 reads the neighbouring tile.
+        assertEquals(224.0 / 256.0, GrugAtlasTile.u(-1.0, 0.0), 0.0);
+        assertEquals(272.0 / 256.0, GrugAtlasTile.u(2.0, 0.0), 0.0);
+    }
 }
