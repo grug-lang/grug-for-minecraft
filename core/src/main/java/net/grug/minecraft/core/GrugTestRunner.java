@@ -1740,6 +1740,7 @@ public class GrugTestRunner {
         // one.
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
+        GrugTestState.movedEye = null;
         GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
 
         // Before the init, the room and the first get_origin answer, so the player is already at
@@ -2028,6 +2029,7 @@ public class GrugTestRunner {
         // captured origin is cleared for the same reason: the next test has to capture its own.
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
+        GrugTestState.movedEye = null;
         GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
         // The test's start goes back to "no test has started" with the rest, so a test that is not
         // started, such as the one a reload deadline fails, is not timed from this test's start.

@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugExactPorts;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestRunner;
 
 import java.util.ArrayDeque;
@@ -237,6 +238,12 @@ public final class GrugTestState {
     // which is what keeps a setup and its check on one row. See #158 and #609.
     public static Vec3 testOrigin = null;
 
+    // The eye a dedicated server's test moved its player to with set_player_position, which a
+    // capture then names instead of the room's eye: the joined client's camera followed the move,
+    // and a capture that named the old eye would pin the camera back to it (#1040). Cleared with
+    // testOrigin, so a test that never moves the player captures from the room's eye.
+    public static Vec3 movedEye = null;
+
     // Whether the loader forced the normalizing GL capabilities for the running test, which the
     // runner sets before the test's first tick and clears for every test.
     // TestTickContext.normalization_forced
@@ -254,6 +261,24 @@ public final class GrugTestState {
             testOrigin = capture.get();
         }
         return testOrigin;
+    }
+
+    /**
+     * The eye a dedicated server's capture is drawn from: where the test moved the player to when
+     * it did, else the origin the running test's room was built above, less {@link
+     * GrugTestOrigin#LIFT}, or null when the side has no player to measure one from.
+     */
+    public static Vec3 captureEye(Supplier<Vec3> origin) {
+        if (movedEye != null) {
+            return movedEye;
+        }
+        Vec3 captured = captureTestOrigin(origin);
+        return captured == null ? null : GrugTestOrigin.eyeOf(captured);
+    }
+
+    /** Records where the test moved the player, so its captures are drawn from the new eye. */
+    public static void playerMovedTo(double x, double feetY, double z) {
+        movedEye = GrugTestOrigin.eyeOfFeet(x, feetY, z);
     }
 
     /** Whether the mod owning the running test is a port with no deviations. */

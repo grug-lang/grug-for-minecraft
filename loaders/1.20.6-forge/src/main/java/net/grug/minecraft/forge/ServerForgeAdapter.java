@@ -216,6 +216,7 @@ public class ServerForgeAdapter extends ForgeAdapter {
             return false;
         }
         GrugServerRun.moveToFeet(player, x, y, z);
+        GrugTestState.playerMovedTo(x, y, z);
         return true;
     }
 
@@ -380,12 +381,12 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
-     * The eye the capture is drawn from: the origin the running test's room was built above, less
-     * {@link GrugTestOrigin#LIFT}, or null when this side has no player to measure one from.
+     * The eye the capture is drawn from: where the test moved the player to, else the origin the
+     * running test's room was built above, less {@link GrugTestOrigin#LIFT}, or null when this side
+     * has no player to measure one from.
      */
     private Vec3 captureEye() {
-        Vec3 origin = GrugTestState.captureTestOrigin(this::getTestOrigin);
-        return origin == null ? null : GrugTestOrigin.eyeOf(origin);
+        return GrugTestState.captureEye(this::getTestOrigin);
     }
 
     /** The joined client's own camera, which is where its captures are drawn from (#1161). */

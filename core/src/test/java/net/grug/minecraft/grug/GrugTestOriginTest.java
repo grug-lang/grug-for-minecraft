@@ -11,6 +11,7 @@ class GrugTestOriginTest {
     @AfterEach
     void clearTheCache() {
         GrugTestState.testOrigin = null;
+        GrugTestState.movedEye = null;
     }
 
     @Test
@@ -20,5 +21,26 @@ class GrugTestOriginTest {
 
         assertEquals(first, GrugTestState.captureTestOrigin(() -> first));
         assertEquals(first, GrugTestState.captureTestOrigin(() -> second));
+    }
+
+    @Test
+    void theCaptureEyeIsTheRoomsEyeUntilThePlayerMovesAndThenWhereTheyWent() {
+        Vec3 origin = new Vec3(10.0, 70.0, 20.0);
+        Vec3 roomEye = new Vec3(10.0, 70.0 - 3.0, 20.0);
+
+        assertEquals(roomEye.x(), GrugTestState.captureEye(() -> origin).x());
+        assertEquals(roomEye.y(), GrugTestState.captureEye(() -> origin).y(), 1e-9);
+
+        GrugTestState.playerMovedTo(11.5, 60.0, 20.0);
+
+        Vec3 moved = GrugTestState.captureEye(() -> origin);
+        assertEquals(11.5, moved.x());
+        assertEquals(60.0 + 1.62, moved.y(), 1e-9);
+        assertEquals(20.0, moved.z());
+    }
+
+    @Test
+    void theCaptureEyeIsNullWhenThereIsNoPlayerToMeasureFrom() {
+        org.junit.jupiter.api.Assertions.assertNull(GrugTestState.captureEye(() -> null));
     }
 }
