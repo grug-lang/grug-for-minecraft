@@ -16,7 +16,6 @@ settled_ticks: number = 0
 # How many ticks the output chest has waited for the repeated pipe clicks to drain. See
 # _place_output_chest().
 drain_ticks: number = 0
-after_chest: number = 0
 
 # How many of the three pipes stand: the west wooden pipe, the east one, then the cobblestone pipe.
 placed: number = 0
@@ -27,19 +26,6 @@ origin_y: number = 0
 origin_z: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
-    # DIAGNOSTIC: names the first tick a screen is open.
-    if ctx.screen_open() {
-        if not pipe.has() {
-            ctx.assert(false, "DIAG screen open before the output chest stands")
-        } else if after_chest <= 1 {
-            ctx.assert(false, "DIAG screen open the first test tick after the chest")
-        } else {
-            ctx.assert(false, "DIAG screen open later than the first tick after the chest")
-        }
-    }
-    if pipe.has() {
-        after_chest = after_chest + 1
-    }
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
