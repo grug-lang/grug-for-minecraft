@@ -136,8 +136,8 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   one-line documentation edit do not need it.
 - **Review threads.** A review comment that is answered or fixed is marked resolved on the pull
   request, so its thread list shows only what is still open; the reply says what was done, and a
-  finding the orchestrator decided against is resolved with the reason. The four-hourly supervisor
-  review line asks for a scan of every pull request updated in the last 24 hours: a subagent lists
+  finding the orchestrator decided against is resolved with the reason. At a task boundary, about
+  every four hours, the orchestrator scans every pull request updated in the last 24 hours: a subagent lists
   each one's unresolved threads, drops CodeRabbit's quota and draft notices because they are not
   findings, validates every other finding against the current code, and the orchestrator fixes or
   resolves the valid ones.
@@ -198,36 +198,19 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   four hours later (#1089). A dispatch past twice the interval goes ahead with runs live and its
   jobs queue, because a proof or a pull request in flight at every tick starved the check for 106
   hours and a broken Windows adapter went unseen under it (#1463, #1460). Its decision is
-  `.github/scripts/main-dispatch.py`, whose test pins each decision. The supervisor below still reports
-  when the newest **dispatch** of `build.yml` on
-  `main` is older than four hours, as a second check on the same condition rather than an enforced
-  fallback, so a due window can send one extra full run if both paths reach the dispatch. Both paths
-  re-read the newest dispatch's age immediately before dispatching, the supervisor also re-reads the
-  runs in flight, and the dispatch is cancelled if another dispatch of `main` appeared, because a
-  message is a hint and those facts can change before the dispatch.
-  The orchestrator then runs `gh workflow run build.yml --ref main` and watches it with
-  `.github/scripts/watch-run.sh <run-id>`. If the timer is not installed or its log shows it has not
-  run, check the age at a task boundary instead. Only a dispatch runs every job: a push to `main`
+  `.github/scripts/main-dispatch.py`, whose test pins each decision. The workflow re-reads the newest
+  dispatch's age immediately before dispatching and does not dispatch if another dispatch of `main`
+  appeared, because the facts can change between the check and the dispatch. No supervisor timer exists
+  any more (#1501 removed it), so the orchestrator checks the newest dispatch's age at a task boundary too.
+  When one is due and the workflow has not sent it, the orchestrator runs
+  `gh workflow run build.yml --ref main` and watches it with `.github/scripts/watch-run.sh <run-id>`.
+  Only a dispatch runs every job: a push to `main`
   skips some of them, and which ones can change with the workflow, so a green push is not this
   check. A dispatch with `-f mods=` or `-f base=` is the exception: it counts as the newest dispatch
   even though it ran fewer jobs, because the runs API does not expose a dispatch's inputs, so a
   partial dispatch can hold a full check off; that is a known limit. The dispatch is the check
   itself: a red one is a red `main`, attributed and fixed forward as usual. A release dispatch
   satisfies it for the next four hours.
-- **The supervisor.** `.github/orchestrator/grug-supervisor.py` runs from a systemd user timer every
-  ten minutes and posts a message into the orchestrator's session when fewer than five subagents
-  are working, when the dispatch above is due, when `main`'s newest run is red, or when the
-  four-hourly review check is due (a scan of every pull request updated in the last 24 hours for
-  unresolved review threads; CodeRabbit's quota and draft notices are not findings). It reads every
-  branch's build runs for the in-flight state, so a pull request's run keeps its dispatch hint
-  quiet, and its message says to re-read the age and that state before dispatching. A message starts
-  `[automatic supervisor, not the maintainer]` and is acted on as the rule it names, at the next
-  turn. It never dispatches, merges or edits anything. Install it with
-  `cp .github/orchestrator/grug-supervisor.{service,timer} ~/.config/systemd/user/`, check a fresh
-  install with `GRUG_SUPERVISOR_DRY=1 /usr/bin/python3 .github/orchestrator/grug-supervisor.py`
-  before enabling it, then
-  `systemctl --user daemon-reload && systemctl --user enable --now grug-supervisor.timer`, and
-  `loginctl enable-linger <user>` once so it starts at boot instead of at login.
 - A release is published every Sunday at 12:00 CET (11:00 UTC) from `main`'s head, and every Sunday
   gets a new tag, so the orchestrator merges the `mod_version` bump before 11:00Z: a patch bump by
   default, a minor bump when the week's merges added a feature, and a major bump on an incompatible
