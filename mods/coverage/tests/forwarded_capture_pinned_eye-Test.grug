@@ -58,7 +58,7 @@ export tick(ctx: TestTickContext) {
     if step == 0 {
         origin: Vec3 = ctx.get_origin()
         _wall_in_front_of(ctx, origin, "minecraft:cobblestone")
-        _wait_for_the_wall(ctx)
+        _wait_for_the_client(ctx)
         room.set(ctx.screenshot().capture(200, 120, 1080, 320))
         floor_y = _remove_floor_under(ctx, origin)
         step = 1
@@ -120,7 +120,11 @@ export tick(ctx: TestTickContext) {
             second_level: Level = ctx.get_client_level()
             second_origin: Vec3 = ctx.get_origin()
             second_level.place_block(Math.floor(second_origin.x()), floor_y, Math.floor(second_origin.z()), "minecraft:air")
-            ctx.world_settled()
+            # A settle ask is a poll, not a flush: a server that still owes the client a region
+            # packet answers the first poll without asking, so a single call can return before the
+            # removal was sent and the client then stands on the restored block through the stall
+            # (#1502, seen on #1486's a1 dedicated leg). Wait until the client says it has it.
+            _wait_for_the_client(ctx)
             ctx.stall(1000)
             fell: Vec3 = ctx.camera()
             ctx.assert(fell.y() < eye - 1.0, "The joined client should fall off the room's eye again once the restored block is removed, so the second capture is of a client the pin has to lift.")
@@ -138,17 +142,17 @@ export tick(ctx: TestTickContext) {
     ctx.assert(changed < 1.0, "Two frames the client drew off the floor should both be drawn from the room's eye, so they should show the same wall as each other.")
 }
 
-# Asks the joined client whether it has drawn the wall the placement made. A loader sends its
+# Asks the joined client whether it has drawn the blocks the test just placed or removed. A loader sends its
 # queued block changes from its player manager's tick, so a frozen test never reaches the send; the
 # capture flushes before it asks, and this wait does the same so the first frame is the wall.
-local _wait_for_the_wall(ctx: TestTickContext) {
+local _wait_for_the_client(ctx: TestTickContext) {
     settled: bool = ctx.world_settled()
     asks: number = 1
     while not settled and asks < 60 {
         settled = ctx.world_settled()
         asks = asks + 1
     }
-    ctx.assert(settled, "The client should have drawn the wall the same tick placed it.")
+    ctx.assert(settled, "The client should have drawn the change the test just made.")
 }
 
 local _wall_in_front_of(ctx: TestTickContext, origin: Vec3, block_name: string) {
