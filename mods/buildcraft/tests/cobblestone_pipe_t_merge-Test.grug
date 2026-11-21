@@ -146,17 +146,22 @@ local _place_pipes(ctx: TestTickContext) {
         # so it cannot stand in front of the junction the way a pipe on the camera's side would.
         level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
         pipe.set(pipe_opt.unwrap())
+        # The cobblestone pipe saves no number of its own, so this one is what the client's copy is
+        # asked for: it says the block entity has reached the client at all.
+        if not me.is_reference() {
+            pipe_opt.unwrap().set_saved_number("t_merge_synced", 1)
+        }
     }
 }
 
 # Whether the client's copy of each wooden pipe holds the source the test saved, which is the data
-# its frame draws the pipe from.
+# its frame draws the pipe from, and the cobblestone pipe's copy holds the marker the test saved.
 local _client_has_sources(ctx: TestTickContext) bool {
     # The reference's pipes keep their source in their own fields, and this test saves nothing there.
     if me.is_reference() {
         return true
     }
-    return ctx.client_saved_number(west.unwrap(), "source") == 2 and ctx.client_saved_number(east.unwrap(), "source") == 2
+    return ctx.client_saved_number(west.unwrap(), "source") == 2 and ctx.client_saved_number(east.unwrap(), "source") == 2 and ctx.client_saved_number(pipe.unwrap(), "t_merge_synced") == 1
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
