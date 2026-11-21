@@ -10,6 +10,12 @@ triangle_on: bool = false
 triangle_x: number = 0
 triangle_y: number = 0
 triangle_z: number = 0
+shell_pending: bool = false
+near_shell_on: bool = false
+far_shell_on: bool = false
+shell_x: number = 0
+shell_y: number = 0
+shell_z: number = 0
 
 # Whether the HUD reads the mob counts and caps from the frame's level, which only overlay_mob_cap-Test turns on
 # (key I), because not every loader answers them.
@@ -120,6 +126,21 @@ export render_hud(ctx: OverlayHudContext) {
 # centred on the camera, in red, like the crosses SafeSquares draws on a safe square. Drawn only
 # while the cross is on.
 export render_world(ctx: OverlayWorldContext) {
+    if shell_pending {
+        shell_pending = false
+        shell_x = ctx.camera_x()
+        shell_y = ctx.camera_y()
+        shell_z = ctx.camera_z()
+    }
+    # Two translucent triangles in front of each other, the near one drawn first, as two shells of a
+    # closed shape are: the far one lies wholly behind the near one as seen from the camera, so it
+    # shows through only if a translucent triangle does not hide what is drawn after it (#1427).
+    if near_shell_on {
+        ctx.draw_triangle(shell_x - 2, shell_y - 2, shell_z + 4, shell_x + 2, shell_y - 2, shell_z + 4, shell_x, shell_y + 2, shell_z + 4, Color.rgba(255, 0, 0, 128))
+    }
+    if far_shell_on {
+        ctx.draw_triangle(shell_x - 1, shell_y - 1, shell_z + 6, shell_x + 1, shell_y - 1, shell_z + 6, shell_x, shell_y + 0.5, shell_z + 6, Color.rgba(0, 0, 255, 128))
+    }
     # The frame's level, which is a world with a clock that never runs backwards: that is all the
     # read here asks of it, and the light overlay mod reads its light and spawn spaces from it.
     if cross_on and ctx.partial_tick() >= 0 and ctx.get_level().get_time() >= 0 {
@@ -147,6 +168,15 @@ export render_world(ctx: OverlayWorldContext) {
 export world_key(ctx: OverlayWorldKeyContext) {
     if ctx.key() == 73 {
         mob_cap_on = not mob_cap_on
+    }
+    if ctx.key() == 85 {
+        near_shell_on = not near_shell_on
+        shell_pending = near_shell_on
+        return
+    }
+    if ctx.key() == 86 {
+        far_shell_on = not far_shell_on
+        return
     }
     if ctx.key() == 89 {
         triangle_on = not triangle_on

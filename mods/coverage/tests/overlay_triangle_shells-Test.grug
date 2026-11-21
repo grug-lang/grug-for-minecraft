@@ -1,0 +1,81 @@
+# Covers OverlayWorldContext.draw_triangle's promise that two translucent triangles do not hide each
+# other, so the order they are drawn in does not matter (#1427). The overlay's key U draws a red
+# triangle four blocks ahead of the camera and key V adds a blue one behind it, drawn after it and
+# wholly inside its outline as seen from the camera. A loader whose draw writes depth hides the blue
+# one behind the red, and the frame with both would equal the frame with the red alone.
+started: bool = false
+near_pressed: bool = false
+far_pressed: bool = false
+near_only: Option[Screenshot] = Option.new()
+settled_ticks: number = 0
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    waited = waited + 1
+    ctx.assert(waited < 1500, "The triangle shells test should finish.")
+
+    if not started {
+        started = true
+        ctx.set_box_radius(6)
+        origin: Vec3 = ctx.get_origin()
+        _wall(ctx.get_client_level(), origin.x() - 8, origin.y() - 9, origin.z() + 8)
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.world_settled() {
+        settled_ticks = 0
+        ctx.not_done()
+        return
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+        return
+    }
+
+    if not near_pressed {
+        near_pressed = true
+        ctx.press_world_key(85, false)
+        ctx.not_done()
+        return
+    }
+    if not ctx.world_overlay_drawn() {
+        ctx.not_done()
+        return
+    }
+
+    if not far_pressed {
+        far_pressed = true
+        near_only.set(ctx.screenshot().capture(540, 260, 740, 460))
+        # A press clears the drawn mark, so the wait below ends on a frame that came after it.
+        ctx.press_world_key(86, false)
+        ctx.not_done()
+        return
+    }
+    if not ctx.world_overlay_drawn() {
+        ctx.not_done()
+        return
+    }
+
+    # The blue triangle covers about a quarter of this rectangle, and a depth-writing draw changes none of it.
+    both: Screenshot = ctx.screenshot().capture(540, 260, 740, 460)
+    both.differs_from(near_only.unwrap(), 10)
+
+    # Left on, the triangles would sit in every later test's captures.
+    ctx.press_world_key(85, false)
+    ctx.press_world_key(86, false)
+}
+
+# Seventeen blocks square of minecraft:stone at (x0, y0, z), behind the triangles.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 17 {
+        wx: number = x0
+        while wx < x0 + 17 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
