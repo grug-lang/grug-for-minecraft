@@ -32,6 +32,17 @@ class GrugTestScreensTest {
     }
 
     @Test
+    void aCaptureClosesOnlyAScreenItWasNotToldToKeep() {
+        assertFalse(GrugTestScreens.closesBeforeCapture(null, PlayerScreen.class));
+        assertFalse(GrugTestScreens.closesBeforeCapture(new PlayerScreen(), PlayerScreen.class));
+        assertFalse(
+                GrugTestScreens.closesBeforeCapture(
+                        new PlayerScreen(), EmptyScreen.class, PlayerScreen.class));
+        assertTrue(GrugTestScreens.closesBeforeCapture(new PlayerScreen(), EmptyScreen.class));
+        assertTrue(GrugTestScreens.closesBeforeCapture(new PlayerScreen()));
+    }
+
+    @Test
     void aScreenKeepsItsIdentityAndAnotherScreenAnswersAnother() {
         PlayerScreen screen = new PlayerScreen();
         long identity = GrugTestScreens.identityOf(screen);
