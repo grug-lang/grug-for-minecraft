@@ -22,6 +22,7 @@ class GrugReferenceTest {
         System.clearProperty(GrugReference.PROPERTY);
         System.clearProperty(GrugReference.MODS_DIR_PROPERTY);
         System.clearProperty(GrugReference.CI_PROPERTY);
+        System.clearProperty(GrugReference.CI_CONNECT_PROPERTY);
         System.clearProperty(GrugReference.UPDATE_GOLDENS_PROPERTY);
     }
 
@@ -69,6 +70,22 @@ class GrugReferenceTest {
 
         System.setProperty(GrugReference.CI_PROPERTY, "false");
         assertFalse(GrugReference.isCiRun());
+    }
+
+    @Test
+    void chatIsSilencedForACiRunAndForAClientThatJoinsOne() {
+        System.setProperty(GrugReference.CI_PROPERTY, "0");
+        assertFalse(GrugReference.isCiChatSilenced());
+
+        System.setProperty(GrugReference.CI_CONNECT_PROPERTY, "127.0.0.1:25565");
+        assertTrue(GrugReference.isCiChatSilenced());
+        assertFalse(GrugReference.isCiRun());
+
+        System.setProperty(GrugReference.CI_CONNECT_PROPERTY, "");
+        assertFalse(GrugReference.isCiChatSilenced());
+
+        System.setProperty(GrugReference.CI_PROPERTY, "true");
+        assertTrue(GrugReference.isCiChatSilenced());
     }
 
     @Test

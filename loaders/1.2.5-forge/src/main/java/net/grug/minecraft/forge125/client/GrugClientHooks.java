@@ -745,7 +745,7 @@ public class GrugClientHooks implements ITickHandler {
 
         // A CI run is not watched, and the readout is drawn into every capture that reaches
         // down to it, so the log is all it gets. See #412.
-        if (GrugReference.isCiRun()) return;
+        if (GrugReference.isCiChatSilenced()) return;
 
         for (String piece : GrugChat.wrap(text)) {
             minecraft.ingameGUI.addChatMessage(prefix + piece);

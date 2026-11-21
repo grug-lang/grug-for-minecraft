@@ -1262,7 +1262,7 @@ public class GrugModLoader {
 
             // A CI run is not watched, and the readout is drawn into every capture that reaches
             // down to it, so the log is all it gets. See #412.
-            if (GrugReference.isCiRun()) return;
+            if (GrugReference.isCiChatSilenced()) return;
 
             // The wrapping every loader shares, so a line wraps the same whichever process said it
             // and a piece never ends in a space, which 1.2.5's chat cannot read (#1215).
