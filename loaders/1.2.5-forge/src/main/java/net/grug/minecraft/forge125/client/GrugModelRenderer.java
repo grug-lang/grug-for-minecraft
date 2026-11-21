@@ -467,6 +467,7 @@ public final class GrugModelRenderer {
      * its pixels.
      */
     public static void reload(RenderEngine engine) {
+        ON_SHEET.clear();
         for (Map.Entry<String, Integer> entry : TEXTURES.entrySet()) {
             BufferedImage image = read(entry.getKey());
             if (image != null) {
@@ -510,15 +511,13 @@ public final class GrugModelRenderer {
     }
 
     /**
-     * The image at {@code path} in the mods tree, or null once a missing one has been reported.
-     *
-     * <p>A model naming a texture no mod ships is a mod-tree defect: the faces would draw with
-     * whatever texture was bound last, which is a picture nobody chose. It is reported once and the
-     * faces are left out.
-     */
-    /**
      * The texture placed on the sheet at the reference's tile, which is what {@link
      * GrugAtlasTile#u} computes coordinates for. See there for why.
+     */
+    /**
+     * The textures {@link #read} put on a sheet, which is what decides how their coordinates are
+     * computed. It is cleared by {@link #reload} and filled again as each texture is read, because
+     * a hot reload can change a texture's size while the display lists drawn from the old one stay.
      */
     private static final Set<String> ON_SHEET = new HashSet<String>();
 
@@ -553,6 +552,13 @@ public final class GrugModelRenderer {
         return sheet;
     }
 
+    /**
+     * The image at {@code path} in the mods tree, or null once a missing one has been reported.
+     *
+     * <p>A model naming a texture no mod ships is a mod-tree defect: the faces would draw with
+     * whatever texture was bound last, which is a picture nobody chose. It is reported once and the
+     * faces are left out.
+     */
     private static BufferedImage read(String path) {
         File file =
                 GrugResourceIndex.findDirectResource(
