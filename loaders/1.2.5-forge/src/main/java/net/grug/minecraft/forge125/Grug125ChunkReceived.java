@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125;
 
+import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.ChunkProviderClient;
 import net.minecraft.src.IChunkProvider;
 
@@ -13,6 +14,9 @@ final class Grug125ChunkReceived {
      * chunk for one that never arrived. Any other provider is the integrated server's own, whose
      * {@code chunkExists} is the loaded-chunk question (#1427).
      */
+    @GrugGenerated(
+            "the multiplayer arm: every CI client is single player, so only"
+                + " Grug125ChunkReceivedTest reaches it")
     static boolean received(IChunkProvider provider, int chunkX, int chunkZ) {
         if (provider instanceof ChunkProviderClient) {
             return !provider.provideChunk(chunkX, chunkZ).isEmpty();
