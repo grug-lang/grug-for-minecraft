@@ -13,6 +13,10 @@ remeshed: bool = false
 # How many runner ticks in a row the world has answered settled. See the hold in tick_any_side().
 settled_ticks: number = 0
 
+# Whether the client has seen the last pipe's stone gone and one more tick has passed since, so no
+# click of the repeated ones is still on its way to the server. See _place_pipes().
+drained: bool = false
+
 # How many of the three pipes stand: the west wooden pipe, the east one, then the cobblestone pipe.
 placed: number = 0
 
@@ -110,6 +114,19 @@ local _place_pipes(ctx: TestTickContext) {
     }
     ctx.clear_held_item(player)
     level.place_block(px, y - 1.88, z + 5, "minecraft:air")
+    # The click is repeated every tick until the client sees the pipe, so some clicks are still on
+    # their way to the server when the pipe stands. The output chest goes into the very cell the
+    # last of them targets, and a click that lands on a chest opens its screen over the capture
+    # (1.20.6 only: its clicks are packets). So the chest waits until the client has seen the stone
+    # gone, which means every click sent before that has reached the server's queue, and one tick
+    # more for the server to have run them, when they find air and do nothing.
+    if level.get_block(px, y - 1.88, z + 5) != "minecraft:air" {
+        return
+    }
+    if placed == 2 and not drained {
+        drained = true
+        return
+    }
     # The port's wooden pipe source side is the side plus one. Both wooden pipes extract from the
     # chest above them, which is YPos, side 1, so the saved source is 2.
     if not me.is_reference() and placed < 2 {
