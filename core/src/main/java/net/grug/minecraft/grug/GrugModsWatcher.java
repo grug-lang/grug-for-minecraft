@@ -138,6 +138,20 @@ public final class GrugModsWatcher {
     }
 
     /**
+     * Whether {@code path} is an overlay script, {@code <mod>/code/<name>-Overlay.grug}. An overlay
+     * is drawn by a client alone, so a dedicated server's test that edits one has to edit and count
+     * it on the joined client, whose own engine compiles the file its overlay is made from (#1500).
+     */
+    public static boolean isOverlayScript(String path) {
+        return path.replace('\\', '/').matches("[^/]+/code/[^/]+-Overlay\\.grug");
+    }
+
+    /** Whether only a client reads {@code path}: a resource it loads or an overlay it draws. */
+    public static boolean isClientFile(String path) {
+        return isClientResource(path) || isOverlayScript(path);
+    }
+
+    /**
      * Per-path counts of the changes {@link #update} has reported, so a test can wait until the
      * engine has actually noticed a file it changed instead of assuming a write was observed.
      *

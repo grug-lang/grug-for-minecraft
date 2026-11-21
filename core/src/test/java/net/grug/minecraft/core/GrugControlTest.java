@@ -2050,6 +2050,15 @@ class GrugControlTest {
         assertNotNull(net.grug.minecraft.grug.GrugModFileStates.clientPathProblem(""));
         assertNotNull(net.grug.minecraft.grug.GrugModFileStates.clientPathProblem("m/assets/a\0"));
         assertNull(net.grug.minecraft.grug.GrugModFileStates.clientPathProblem("m/assets/a.png"));
+        // An overlay script is read by a client alone (#1500); a block's script is the server's.
+        assertNull(
+                net.grug.minecraft.grug.GrugModFileStates.clientPathProblem(
+                        "m/code/o-Overlay.grug"));
+        assertNotNull(
+                net.grug.minecraft.grug.GrugModFileStates.clientPathProblem("m/code/b-Block.grug"));
+        assertNotNull(
+                net.grug.minecraft.grug.GrugModFileStates.clientPathProblem(
+                        "m/code/sub/o-Overlay.grug"));
         assertEquals("keep", java.nio.file.Files.readString(victim));
         assertEquals("keep", java.nio.file.Files.readString(outside));
         assertTrue(

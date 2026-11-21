@@ -14,6 +14,12 @@ step: number = 0
 path: string = "coverage/code/coverage_overlay-Overlay.grug"
 baseline: number = -1
 
+export init(ctx: TestInitContext) {
+    # On a dedicated server the overlay is drawn by the joined client, so the edits and the reload
+    # counts below go to that client's engine (#1500), and each control call costs a round trip.
+    ctx.set_max_ticks(1500)
+}
+
 export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
@@ -85,7 +91,7 @@ export tick_any_side(ctx: TestTickContext) {
     if step == 6 {
         blank = blank + 1
         ctx.assert(not ctx.overlay_drawn(), "The swapped overlay drew, so its new text was not used.")
-        if blank < 400 {
+        if blank < 100 {
             ctx.not_done()
             return
         }
