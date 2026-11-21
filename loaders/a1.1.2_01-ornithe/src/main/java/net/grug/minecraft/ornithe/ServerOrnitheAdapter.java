@@ -398,7 +398,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         }
         Block block = Block.BY_ID[blockId];
 
-        if (!block.use(world, blockX, blockY, blockZ, player)) {
+        boolean used = block.use(world, blockX, blockY, blockZ, player);
+        if (!used) {
             ItemStack held = player.inventory.getSelectedItem();
             if (held != null) {
                 held.useOn(
@@ -411,7 +412,12 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             }
         }
 
-        if (block instanceof GrugBlock) {
+        // A block whose activation did nothing here opens no screen, so the client has none to
+        // open either. Sending it anyway let the client run the click a tick later against whatever
+        // stood at that position by then: a test that placed a pipe against a stone and then put a
+        // chest in the stone's cell had the late click open the chest's screen over its capture
+        // (#1040).
+        if (!used || block instanceof GrugBlock) {
             return;
         }
         // The client's copy needs the block this click names, which a test may have placed in this

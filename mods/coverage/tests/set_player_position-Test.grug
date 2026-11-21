@@ -4,6 +4,7 @@
 # (#1427). The room's floor is three blocks below the feet, so a move one block along x stays over
 # the floor and the player is read back before the game can tick them anywhere.
 started: bool = false
+supported: bool = false
 moved: bool = false
 
 export tick(ctx: TestTickContext) {
@@ -16,6 +17,16 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
+    if not supported {
+        supported = true
+        # The player lands on a block one along x, so a joined client, which runs its own physics,
+        # has nothing to fall through and its eye stays where the teleport put it: the first read
+        # after the teleport and any later one agree, with no tick count to wait for (#1040).
+        here: Vec3 = ctx.camera()
+        ctx.get_client_level().place_block(Math.floor(here.x() + 1.0), Math.floor(here.y() - 1.62 + 0.01) - 1, Math.floor(here.z()), "minecraft:stone")
+        ctx.not_done()
+        return
+    }
     if not moved {
         moved = true
         before: Vec3 = ctx.camera()
@@ -24,17 +35,7 @@ export tick(ctx: TestTickContext) {
         ctx.set_player_position(before.x() + 1.0, before.y() - 1.62, before.z())
         after: Vec3 = ctx.camera()
         ctx.assert(_near(after.x(), before.x() + 1.0), "The player moves to the x the test asked for.")
-        # A joined client runs its own physics between the teleport and the forwarded read, so on a
-        # dedicated server its eye has already started to fall by a fraction of a block, which the
-        # eye height's 1.62 is far from (#1040). A client's own run reads it back before any tick.
-        if me.on_dedicated_server() {
-            if not (after.y() > before.y() - 0.5 and after.y() < before.y() + 0.5) {
-                print3("the eye moved from and to", before.y(), after.y())
-            }
-            ctx.assert(after.y() > before.y() - 0.5 and after.y() < before.y() + 0.5, "A move at the feet keeps the eye height to within a fall's first ticks.")
-        } else {
-            ctx.assert(_near(after.y(), before.y()), "A move at the feet keeps the eye height.")
-        }
+        ctx.assert(_near(after.y(), before.y()), "A move at the feet keeps the eye height.")
         ctx.assert(_near(after.z(), before.z()), "A move leaves the axis the test did not name alone.")
         return
     }

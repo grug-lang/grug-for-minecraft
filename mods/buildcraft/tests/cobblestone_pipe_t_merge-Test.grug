@@ -20,6 +20,12 @@ clicked: bool = false
 # How many of the three pipes stand: the west wooden pipe, the east one, then the cobblestone pipe.
 placed: number = 0
 
+# The two wooden pipes' block entities, whose saved source the joined client's copy has to hold
+# before a frame draws them (#1162): a dedicated server's capture asks a client that learns the
+# save from the server a moment after it, which the world's settled answer does not cover.
+west: Option[BlockEntity] = Option.new()
+east: Option[BlockEntity] = Option.new()
+
 # The origin _setup built from, which the later steps build from too.
 origin_x: number = 0
 origin_y: number = 0
@@ -37,6 +43,8 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
     } else if settled_ticks < 5 {
         settled_ticks = settled_ticks + 1
+        ctx.not_done()
+    } else if not _client_has_sources(ctx) {
         ctx.not_done()
     } else if not remeshed {
         _force_remesh(ctx)
@@ -126,6 +134,11 @@ local _place_pipes(ctx: TestTickContext) {
     # chest above them, which is YPos, side 1, so the saved source is 2.
     if not me.is_reference() and placed < 2 {
         pipe_opt.unwrap().set_saved_number("source", 2)
+        if placed == 0 {
+            west.set(pipe_opt.unwrap())
+        } else {
+            east.set(pipe_opt.unwrap())
+        }
     }
     placed = placed + 1
     if placed == 3 {
@@ -134,6 +147,16 @@ local _place_pipes(ctx: TestTickContext) {
         level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
         pipe.set(pipe_opt.unwrap())
     }
+}
+
+# Whether the client's copy of each wooden pipe holds the source the test saved, which is the data
+# its frame draws the pipe from.
+local _client_has_sources(ctx: TestTickContext) bool {
+    # The reference's pipes keep their source in their own fields, and this test saves nothing there.
+    if me.is_reference() {
+        return true
+    }
+    return ctx.client_saved_number(west.unwrap(), "source") == 2 and ctx.client_saved_number(east.unwrap(), "source") == 2
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
