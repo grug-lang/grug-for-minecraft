@@ -1012,6 +1012,11 @@ public class ClientForgeAdapter extends ForgeAdapter {
         net.minecraft.core.BlockPos pos =
                 new net.minecraft.core.BlockPos(
                         (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        // set_held_item writes the server's copy of the player, and the client's copy only learns
+        // of it from a sync packet that may still be on its way, so a click right after it would
+        // be made with an empty hand. The click is made with the item the test set.
+        mc.player.setItemInHand(
+                InteractionHand.MAIN_HAND, serverSideOf(mc.player).getMainHandItem().copy());
         // Drive a real right-click through the interaction manager, so the block's own use code
         // runs rather than a copy of its GUI layout. The face is the one a ray from the test
         // player's eye to the block's centre enters, which is the face the player sees of it and

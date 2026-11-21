@@ -87,32 +87,32 @@ local _setup(ctx: TestTickContext) {
     }
 }
 
-# The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
-# right-clicking the side of a block at z + 1 with the pipe held. The block it lands in is cleared
-# again so both scenes hold the same blocks.
+# Both the reference and the port place a pipe the way a player does: hold the pipe item and
+# right-click the side of a block at z + 1, which is the face the test player's eye sees of it, so
+# the pipe lands at z. The reference's ItemPipe sets the pipe's kind, and the placement is what
+# settles the light around the pipe, so both scenes must use the same path. The block it lands
+# against is cleared again so both scenes hold the same blocks.
 local _place_cobblestone_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    if not me.is_reference() {
-        level.place_block(x, y, z, "grug:cobblestone_pipe")
-        return
-    }
     level.place_block(x, y, z + 1, "minecraft:stone")
     player: Player = ctx.get_player()
-    held: Item = item(resource_location("buildcraft:PipeItemsCobblestone"))
-    ctx.set_held_item(player, held)
+    if me.is_reference() {
+        ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsCobblestone")))
+    } else {
+        ctx.set_held_item(player, item(resource_location("grug:cobblestone_pipe")))
+    }
     ctx.use_block(level, x, y, z + 1)
     ctx.clear_held_item(player)
     level.place_block(x, y, z + 1, "minecraft:air")
 }
 
 local _place_wooden_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    if not me.is_reference() {
-        level.place_block(x, y, z, "grug:wooden_pipe")
-        return
-    }
     level.place_block(x, y, z + 1, "minecraft:stone")
     player: Player = ctx.get_player()
-    held: Item = item(resource_location("buildcraft:PipeItemsWood"))
-    ctx.set_held_item(player, held)
+    if me.is_reference() {
+        ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsWood")))
+    } else {
+        ctx.set_held_item(player, item(resource_location("grug:wooden_pipe")))
+    }
     ctx.use_block(level, x, y, z + 1)
     ctx.clear_held_item(player)
     level.place_block(x, y, z + 1, "minecraft:air")
