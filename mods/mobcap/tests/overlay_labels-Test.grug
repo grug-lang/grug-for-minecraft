@@ -73,6 +73,8 @@ export tick(ctx: TestTickContext) {
         if ctx.get_client_level().has_mob_category("water") {
             _fill(ctx, water_id, "water")
         }
+        print3("passive count right after the fill, tick", ctx.get_client_level().count_mobs("passive"), waited)
+        print3("hostile count and cap right after the fill, tick", ctx.get_client_level().count_mobs("hostile"), waited)
         ctx.not_done()
         return
     }
@@ -127,6 +129,7 @@ local _check_counts(ctx: TestTickContext) {
     }
     if level.count_mobs("passive") != level.get_mob_cap("passive") + 1 {
         print3("passive count and cap", level.count_mobs("passive"), level.get_mob_cap("passive"))
+        print3("passive count and tick of the first difference", level.count_mobs("passive"), waited)
     }
     ctx.assert(level.count_mobs("hostile") == level.get_mob_cap("hostile") + 1, "The hostile count should stay one over its cap.")
     ctx.assert(level.count_mobs("passive") == level.get_mob_cap("passive") + 1, "The passive count should stay one over its cap.")

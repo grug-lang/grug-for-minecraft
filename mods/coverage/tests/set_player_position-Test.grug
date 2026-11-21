@@ -24,7 +24,17 @@ export tick(ctx: TestTickContext) {
         ctx.set_player_position(before.x() + 1.0, before.y() - 1.62, before.z())
         after: Vec3 = ctx.camera()
         ctx.assert(_near(after.x(), before.x() + 1.0), "The player moves to the x the test asked for.")
-        ctx.assert(_near(after.y(), before.y()), "A move at the feet keeps the eye height.")
+        # A joined client runs its own physics between the teleport and the forwarded read, so on a
+        # dedicated server its eye has already started to fall by a fraction of a block, which the
+        # eye height's 1.62 is far from (#1040). A client's own run reads it back before any tick.
+        if me.on_dedicated_server() {
+            if not (after.y() > before.y() - 0.5 and after.y() < before.y() + 0.5) {
+                print3("the eye moved from and to", before.y(), after.y())
+            }
+            ctx.assert(after.y() > before.y() - 0.5 and after.y() < before.y() + 0.5, "A move at the feet keeps the eye height to within a fall's first ticks.")
+        } else {
+            ctx.assert(_near(after.y(), before.y()), "A move at the feet keeps the eye height.")
+        }
         ctx.assert(_near(after.z(), before.z()), "A move leaves the axis the test did not name alone.")
         return
     }
