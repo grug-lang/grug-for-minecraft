@@ -195,9 +195,8 @@ public final class GrugControlStationClient {
             // The GUI a server opened for its player is the capture's subject, so it stays:
             // closing it would capture the world and close the server's screen handler with it
             // (#1098). The player's own inventory is such a GUI too: open_inventory opens it on
-            // this
-            // client for a test that captures the item list over it, and closing it here framed
-            // the world without the list (dispatch 44907081330, jei_item_list).
+            // this client for a test that captures the item list over it, and closing it here
+            // framed the world without the list (dispatch 44907081330, jei_item_list).
             mc.setScreen(null);
         }
         if (waited == 1 || waited % 100 == 0) {
