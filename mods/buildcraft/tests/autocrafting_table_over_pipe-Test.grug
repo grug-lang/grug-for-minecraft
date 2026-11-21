@@ -23,7 +23,7 @@ export tick_any_side(ctx: TestTickContext) {
         _setup(ctx)
         ctx.not_done()
     } else if not pipe_entity.has() {
-        _find_pipe(ctx)
+        _place_pipe(ctx)
         ctx.not_done()
     } else if not ctx.world_settled() {
         settled_ticks = 0
@@ -64,23 +64,41 @@ local _setup(ctx: TestTickContext) {
     # table without a later neighbour update having to move it.
     _place_table(ctx, level, x, y - 0.88, z + 4)
     level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
-    _place_pipe(ctx, level, x, y - 1.88, z + 4)
+    level.place_block(x, y - 1.88, z + 5, "minecraft:stone")
 }
 
-# The pipe is placed by a click, which on 1.20.6 reaches the server as a packet, so it may not be
-# there when _setup returns: this runs every tick until it is, and the runner's tick budget ends a
-# pipe that never arrives. The reference's switchSource scans YPos, ZNeg, ZPos and the rest in that
-# order and keeps the first neighbour that is an inventory, so it finds the table at YPos and never
-# reaches the chest at XPos: this pipe extracts from the table, not from the chest. The port's
-# saved source is the side plus one, and YPos is side 1, so the saved source is 2.
-local _find_pipe(ctx: TestTickContext) {
+# Both the reference and the port place the pipe the way a player does: hold the pipe item and
+# right-click the side of the stone at z + 5, which is the face the test player's eye sees of it, so
+# the pipe lands at z + 4. The reference's ItemPipe sets the pipe's kind, and the placement is what
+# settles the light around the pipe, so both scenes must use the same path. On 1.20.6 the click is
+# the client's and reaches the server as a packet, and the client has not necessarily got the stone
+# the test just placed, so the click is made again every tick until the pipe stands in the world
+# the test reads. Only then is the stone cleared, because a stone cleared sooner is not there when
+# the packet arrives.
+local _place_pipe(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
-    table_opt: Option[BlockEntity] = level.get_block_entity(origin_x, origin_y - 0.88, origin_z + 4)
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(origin_x, origin_y - 1.88, origin_z + 4)
-    ctx.assert(table_opt.has(), "The table should have a block entity.")
+    x: number = origin_x
+    y: number = origin_y
+    z: number = origin_z
+    player: Player = ctx.get_player()
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
     if not pipe_opt.has() {
+        if me.is_reference() {
+            ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsWood")))
+        } else {
+            ctx.set_held_item(player, item(resource_location("grug:wooden_pipe")))
+        }
+        ctx.use_block(level, x, y - 1.88, z + 5)
         return
     }
+    ctx.clear_held_item(player)
+    level.place_block(x, y - 1.88, z + 5, "minecraft:air")
+    table_opt: Option[BlockEntity] = level.get_block_entity(x, y - 0.88, z + 4)
+    ctx.assert(table_opt.has(), "The table should have a block entity.")
+    # The reference's switchSource scans YPos, ZNeg, ZPos and the rest in that order and keeps the
+    # first neighbour that is an inventory, so it finds the table at YPos and never reaches the
+    # chest at XPos: this pipe extracts from the table, not from the chest. The port's saved source
+    # is the side plus one, and YPos is side 1, so the saved source is 2.
     if not me.is_reference() {
         pipe_opt.unwrap().set_saved_number("source", 2)
     }
@@ -96,23 +114,6 @@ local _place_table(ctx: TestTickContext, level: Level, x: number, y: number, z: 
         return
     }
     level.place_block(x, y, z, "buildcraft:autoWorkbenchBlock")
-}
-
-# Both the reference and the port place the pipe the way a player does: hold the pipe item and
-# right-click the side of a block at z + 1. The reference's ItemPipe sets the pipe's kind, and the
-# placement is what settles the light around the pipe, so both scenes must use the same path. The
-# temporary block is cleared again so the pipe stands alone in its row.
-local _place_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    level.place_block(x, y, z + 1, "minecraft:stone")
-    player: Player = ctx.get_player()
-    if me.is_reference() {
-        ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsWood")))
-    } else {
-        ctx.set_held_item(player, item(resource_location("grug:wooden_pipe")))
-    }
-    ctx.use_block(level, x, y, z + 1)
-    ctx.clear_held_item(player)
-    level.place_block(x, y, z + 1, "minecraft:air")
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to

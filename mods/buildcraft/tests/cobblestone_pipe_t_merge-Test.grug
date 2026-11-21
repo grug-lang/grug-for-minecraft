@@ -13,6 +13,9 @@ remeshed: bool = false
 # How many runner ticks in a row the world has answered settled. See the hold in tick_any_side().
 settled_ticks: number = 0
 
+# How many of the three pipes stand: the west wooden pipe, the east one, then the cobblestone pipe.
+placed: number = 0
+
 # The origin _setup built from, which the later steps build from too.
 origin_x: number = 0
 origin_y: number = 0
@@ -23,7 +26,7 @@ export tick_any_side(ctx: TestTickContext) {
         _setup(ctx)
         ctx.not_done()
     } else if not pipe.has() {
-        _find_pipes(ctx)
+        _place_pipes(ctx)
         ctx.not_done()
     } else if not ctx.world_settled() {
         settled_ticks = 0
@@ -63,68 +66,62 @@ local _setup(ctx: TestTickContext) {
     # finds its source and the reference's switchSource settles on YPos straight away.
     level.place_block(x - 1, y - 0.88, z + 4, "minecraft:chest")
     level.place_block(x + 1, y - 0.88, z + 4, "minecraft:chest")
-    _place_wooden_pipe(ctx, level, x - 1, y - 1.88, z + 4)
-    _place_wooden_pipe(ctx, level, x + 1, y - 1.88, z + 4)
 
-    # Cobblestone pipe in the centre, with a chest behind it as the output. The third arm points
-    # away from the camera, so it cannot stand in front of the junction the way a pipe on the
-    # camera's side would.
-    _place_cobblestone_pipe(ctx, level, x, y - 1.88, z + 4)
-    level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
+    # The stones the three pipes are placed against, one block behind each pipe's cell. The centre
+    # one is cleared for the output chest once the pipes stand.
+    level.place_block(x - 1, y - 1.88, z + 5, "minecraft:stone")
+    level.place_block(x + 1, y - 1.88, z + 5, "minecraft:stone")
+    level.place_block(x, y - 1.88, z + 5, "minecraft:stone")
 }
 
-# The pipes are placed by a click, which on 1.20.6 reaches the server as a packet, so they may not
-# be there when _setup returns: this runs every tick until all three are, and the runner's tick
-# budget ends a pipe that never arrives. The port's wooden pipe source side is the side plus one.
-# Both wooden pipes extract from the chest above them, which is YPos, side 1, so the saved source
-# is 2.
-local _find_pipes(ctx: TestTickContext) {
+# Both the reference and the port place each pipe the way a player does: hold the pipe item and
+# right-click the side of the stone at z + 5, which is the face the test player's eye sees of it, so
+# the pipe lands at z + 4. The reference's ItemPipe sets the pipe's kind, and the placement is what
+# settles the light around the pipe, so both scenes must use the same path. On 1.20.6 the click is
+# the client's and reaches the server as a packet, and the client has not necessarily got the stone
+# the test just placed, so the click is made again every tick until the pipe stands in the world
+# the test reads. Only then is its stone cleared, because a stone cleared sooner is not there when
+# the packet arrives. The pipes go in one after another: the two wooden ones, then the cobblestone.
+local _place_pipes(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     x: number = origin_x
     y: number = origin_y
     z: number = origin_z
-    centre: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
-    west: Option[BlockEntity] = level.get_block_entity(x - 1, y - 1.88, z + 4)
-    east: Option[BlockEntity] = level.get_block_entity(x + 1, y - 1.88, z + 4)
-    if not centre.has() or not west.has() or not east.has() {
+    player: Player = ctx.get_player()
+    px: number = x - 1
+    if placed == 1 {
+        px = x + 1
+    } else if placed == 2 {
+        px = x
+    }
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(px, y - 1.88, z + 4)
+    if not pipe_opt.has() {
+        if me.is_reference() and placed < 2 {
+            ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsWood")))
+        } else if me.is_reference() {
+            ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsCobblestone")))
+        } else if placed < 2 {
+            ctx.set_held_item(player, item(resource_location("grug:wooden_pipe")))
+        } else {
+            ctx.set_held_item(player, item(resource_location("grug:cobblestone_pipe")))
+        }
+        ctx.use_block(level, px, y - 1.88, z + 5)
         return
     }
-    if not me.is_reference() {
-        west.unwrap().set_saved_number("source", 2)
-        east.unwrap().set_saved_number("source", 2)
-    }
-    pipe.set(centre.unwrap())
-}
-
-# Both the reference and the port place a pipe the way a player does: hold the pipe item and
-# right-click the side of a block at z + 1, which is the face the test player's eye sees of it, so
-# the pipe lands at z. The reference's ItemPipe sets the pipe's kind, and the placement is what
-# settles the light around the pipe, so both scenes must use the same path. The block it lands
-# against is cleared again so both scenes hold the same blocks.
-local _place_cobblestone_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    level.place_block(x, y, z + 1, "minecraft:stone")
-    player: Player = ctx.get_player()
-    if me.is_reference() {
-        ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsCobblestone")))
-    } else {
-        ctx.set_held_item(player, item(resource_location("grug:cobblestone_pipe")))
-    }
-    ctx.use_block(level, x, y, z + 1)
     ctx.clear_held_item(player)
-    level.place_block(x, y, z + 1, "minecraft:air")
-}
-
-local _place_wooden_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    level.place_block(x, y, z + 1, "minecraft:stone")
-    player: Player = ctx.get_player()
-    if me.is_reference() {
-        ctx.set_held_item(player, item(resource_location("buildcraft:PipeItemsWood")))
-    } else {
-        ctx.set_held_item(player, item(resource_location("grug:wooden_pipe")))
+    level.place_block(px, y - 1.88, z + 5, "minecraft:air")
+    # The port's wooden pipe source side is the side plus one. Both wooden pipes extract from the
+    # chest above them, which is YPos, side 1, so the saved source is 2.
+    if not me.is_reference() and placed < 2 {
+        pipe_opt.unwrap().set_saved_number("source", 2)
     }
-    ctx.use_block(level, x, y, z + 1)
-    ctx.clear_held_item(player)
-    level.place_block(x, y, z + 1, "minecraft:air")
+    placed = placed + 1
+    if placed == 3 {
+        # The output chest behind the cobblestone pipe. The third arm points away from the camera,
+        # so it cannot stand in front of the junction the way a pipe on the camera's side would.
+        level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
+        pipe.set(pipe_opt.unwrap())
+    }
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
