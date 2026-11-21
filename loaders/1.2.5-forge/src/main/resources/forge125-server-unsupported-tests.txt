@@ -9,8 +9,6 @@
 #
 # Block selection. The selection box is the client's outline, so Test.block_selection refuses on a
 # dedicated server.
-buildcraft/tests/wooden_pipe_boxes-Test.grug
-coverage/tests/block_shape-Test.grug
 #
 # The overlay's click and the cursor it deletes now run here: #1425 sends the clear an overlay's
 # delete performs to the server that holds the test's menu, so the client's mirror and the server's

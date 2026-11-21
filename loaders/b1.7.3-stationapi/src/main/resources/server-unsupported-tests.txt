@@ -23,7 +23,6 @@
 #
 # The forced-normalization item list. It stays listed: #1475 fixed the stationapi forced-normalization
 # force, but no dispatch has proven this leg's item list since then, so a proof is pending.
-jei/tests/item_list_forced_normalization-Test.grug
 #
 # The wall-backed buildcraft captures that still differ. cobblestone_pipe_shapes passes here (#1213).
 # Proof 43763297057 (#1096) failed redstone_engine_green in 33 of 34100 px, and proof 43819785598 in
@@ -40,6 +39,5 @@ jei/tests/item_list_forced_normalization-Test.grug
 # coverage_frame is off the list: its 2800 px were the bottom ten rows, where the joined client drew
 # the red chat lines of the mod's own host-function error tests, and the joined client is now silent
 # like a CI run (#1092); dispatch 44853820377 passed it on this leg. The client-only run of this loader still checks the golden.
-coverage/tests/coverage_render-Test.grug
 #
 # Proof 43764853785 (#1096) failed wooden_pipe_shapes' wooden_pipe_corner capture in 965 of 115200 px, so it stays listed (#1351); proof 43821458574 measured 2430 of 115200 px of wooden_pipe_straight. The client-only run checks both goldens.
