@@ -1,8 +1,14 @@
 package net.grug.minecraft.forge;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 
 import net.grug.minecraft.forge.gui.GrugScreen;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -19,6 +25,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.item.Item;
@@ -379,46 +386,47 @@ public final class GrugOverlayHost {
                 }
                 buffers.endBatch(RenderType.lines());
             }
-            drawTriangles(buffers, pose, triangles, position);
+            drawTriangles(pose, triangles, position);
         }
     }
 
     /**
-     * Draws the world pass's translucent triangles after its lines into the debug quad render type,
-     * which is the version's translucent debug geometry: it blends, does not cull, and takes {@code
-     * POSITION_COLOR} vertices.
-     *
-     * <p>That type takes four vertices per primitive, so each triangle repeats its first corner as
-     * the fourth: the second triangle the quad is split into has no area, and exactly the
-     * triangle's own area is filled. Its depth writes stay on, unlike the fixed-function loaders'
-     * depth mask, because the type is the version's own debug draw and the terrain in front still
-     * hides the triangle.
+     * Draws the world pass's translucent triangles after its lines with the position-color shader,
+     * blending on, culling off and depth writes off, so terrain in front still hides a triangle
+     * while two translucent shells do not hide each other and the inside of a closed shape is
+     * drawn. The version's debug quad render type writes depth, which would hide the far shell, so
+     * the state is set by hand and restored after the draw.
      */
     private static void drawTriangles(
-            MultiBufferSource.BufferSource buffers,
-            PoseStack.Pose pose,
-            List<GrugWorldOverlay.Triangle> triangles,
-            Vec3 position) {
+            PoseStack.Pose pose, List<GrugWorldOverlay.Triangle> triangles, Vec3 position) {
         if (triangles.isEmpty()) return;
-        VertexConsumer quads = buffers.getBuffer(RenderType.debugQuads());
+        BufferBuilder builder = Tesselator.getInstance().getBuilder();
+        builder.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
         for (GrugWorldOverlay.Triangle triangle : triangles) {
             int argb = triangle.argb();
             int r = (argb >> 16) & 0xFF;
             int g = (argb >> 8) & 0xFF;
             int b = argb & 0xFF;
             int a = (argb >>> 24) & 0xFF;
-            for (int corner = 0; corner < 4; corner++) {
-                int from = corner % 3;
-                quads.vertex(
+            for (int corner = 0; corner < 3; corner++) {
+                builder.vertex(
                                 pose.pose(),
-                                (float) (triangle.corner(from, 0) - position.x),
-                                (float) (triangle.corner(from, 1) - position.y),
-                                (float) (triangle.corner(from, 2) - position.z))
+                                (float) (triangle.corner(corner, 0) - position.x),
+                                (float) (triangle.corner(corner, 1) - position.y),
+                                (float) (triangle.corner(corner, 2) - position.z))
                         .color(r, g, b, a)
                         .endVertex();
             }
         }
-        buffers.endBatch(RenderType.debugQuads());
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableCull();
+        RenderSystem.depthMask(false);
+        BufferUploader.drawWithShader(builder.end());
+        RenderSystem.depthMask(true);
+        RenderSystem.enableCull();
+        RenderSystem.disableBlend();
     }
 
     /**
