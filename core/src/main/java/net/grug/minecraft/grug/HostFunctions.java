@@ -427,13 +427,14 @@ public class HostFunctions {
 
     /**
      * The forwarding end of a mod file call, or null when the call is this process's own. A
-     * dedicated server forwards the files only a client reads, a resource under {@code assets/},
-     * because its own copy reloads nothing and counts nothing; a script, a recipe or any other file
-     * the server compiles and reloads itself stays here (#1040).
+     * dedicated server forwards the files only a client reads, a resource under {@code assets/} or
+     * an overlay script (#1500), because its own copy reloads nothing a client draws and counts
+     * nothing the client did; any other script, a recipe or any other file the server compiles and
+     * reloads itself stays here (#1040).
      */
     private static GrugClientTestCalls.Forwarded forwardedModFileCalls(String relativePath) {
         GrugClientTestCalls.Forwarded forwarded = GrugCore.getAdapter().forwardedClientTestCalls();
-        if (forwarded == null || !GrugModsWatcher.isClientResource(relativePath)) {
+        if (forwarded == null || !GrugModsWatcher.isClientFile(relativePath)) {
             return null;
         }
         return forwarded;

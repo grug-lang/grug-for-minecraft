@@ -74,8 +74,9 @@ public final class GrugModFileStates {
 
     /**
      * Why {@code path} is not a path a server may forward, or null: a relative path of plain
-     * segments under a mod's {@code assets/} directory. A parent or empty segment, a backslash, a
-     * NUL or a leading slash could name a file outside the mods directory once resolved.
+     * segments under a mod's {@code assets/} directory, or an overlay script under {@code code/}. A
+     * parent or empty segment, a backslash, a NUL or a leading slash could name a file outside the
+     * mods directory once resolved.
      */
     public static String clientPathProblem(String path) {
         if (path == null || path.isEmpty()) {
@@ -89,8 +90,10 @@ public final class GrugModFileStates {
                 return "The mod file path " + path + " has an empty or relative segment.";
             }
         }
-        if (!GrugModsWatcher.isClientResource(path)) {
-            return "The mod file path " + path + " is not under <mod>/assets/.";
+        if (!GrugModsWatcher.isClientFile(path)) {
+            return "The mod file path "
+                    + path
+                    + " is not under <mod>/assets/ or a <mod>/code/ overlay script.";
         }
         return null;
     }
