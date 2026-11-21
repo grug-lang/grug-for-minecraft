@@ -42,6 +42,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketHandler;
 import net.minecraft.network.packet.Packet;
+import net.minecraft.network.packet.PlayerInventoryPacket;
 import net.minecraft.network.packet.WorldChunkPacket;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.LightType;
@@ -1143,6 +1144,24 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * Gives the server's player the held item and sends the main inventory to its joined client.
+     * Alpha's server never mirrors a change to the player's own inventory by itself (it sends the
+     * inventory only when an item is picked up), so a joined client's hand would stay empty and a
+     * capture of it would show the bare arm.
+     */
+    @Override
+    public void setHeldItem(Object playerObj, Object itemObj) {
+        super.setHeldItem(playerObj, itemObj);
+        sendInventoryToPlayer((PlayerEntity) playerObj);
+    }
+
+    /** Sends the main inventory of {@code player} to its joined client, when it has one. */
+    private static void sendInventoryToPlayer(PlayerEntity player) {
+        // The connection writes the packet later on its own thread, so it gets its own array.
+        sendToPlayer(player, new PlayerInventoryPacket(-1, player.inventory.items.clone()));
+    }
+
+    /**
      * The server's {@code Inventory} interface has no {@code setItem}, which the client's has, so
      * the call is made on {@code PlayerInventory} itself, which declares it on both.
      */
@@ -1156,6 +1175,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         inventory.selectedSlot = 0;
         CARRIED_ITEMS.remove(player);
         sendCursorToPlayer(player, null);
+        sendInventoryToPlayer(player);
     }
 
     /**
