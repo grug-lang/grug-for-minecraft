@@ -160,16 +160,7 @@ public final class GrugModelRenderer {
                 double maxV =
                         Math.max(Math.max(quad.v(0), quad.v(1)), Math.max(quad.v(2), quad.v(3)));
                 double inset = flat ? 0.0 : BLOCK_FACE_INSET;
-                for (int slot = 0; slot < 4; slot++) {
-                    // A lit face is submitted from the corner renderStandardBlock starts it at,
-                    // because the corner a quad starts at decides which way the rasteriser
-                    // splits it into triangles, and a grazing face's edge pixels follow the split.
-                    int corner = slot;
-                    if (lit != null) {
-                        for (int c = 0; c < 4; c++) {
-                            if ((int) lit[c][4] == slot) corner = c;
-                        }
-                    }
+                for (int corner = 0; corner < 4; corner++) {
                     if (lit != null) {
                         tessellator.setColorOpaque_F(
                                 lit[corner][0], lit[corner][1], lit[corner][2]);
@@ -330,11 +321,7 @@ public final class GrugModelRenderer {
                     && Math.abs(corner[1] - y) < SAME_CORNER
                     && Math.abs(corner[2] - z) < SAME_CORNER) {
                 return new float[] {
-                    (float) corner[3],
-                    (float) corner[4],
-                    (float) corner[5],
-                    (float) corner[6],
-                    i - face
+                    (float) corner[3], (float) corner[4], (float) corner[5], (float) corner[6]
                 };
             }
         }
