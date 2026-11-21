@@ -17,7 +17,7 @@
 # first-frame read answer from the joined client (#1099, #1391). Proof run 44849292024 failed
 # overlay-Test at its left click because the client applied the server's cursor packet only after
 # the click call that followed it (#1393); the client now applies its queued packets before a
-# control message, and the dispatch of this branch proves it. jei-Test and the forced-normalization
+# control message, and dispatch 44855886239 of this branch passed overlay-Test, jei-Test and the item list on this leg. jei-Test and the forced-normalization
 # item list never ran on this leg at that head, since it stops at its first failure.
 #
 # The forced-normalization probe runs here: #1430 forwards the force and the two reads to the joined
