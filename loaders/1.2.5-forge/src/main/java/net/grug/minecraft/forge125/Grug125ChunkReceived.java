@@ -16,7 +16,7 @@ final class Grug125ChunkReceived {
      */
     @GrugGenerated(
             "the multiplayer arm: every CI client is single player, so only"
-                + " Grug125ChunkReceivedTest reaches it")
+                    + " Grug125ChunkReceivedTest reaches it")
     static boolean received(IChunkProvider provider, int chunkX, int chunkZ) {
         if (provider instanceof ChunkProviderClient) {
             return !provider.provideChunk(chunkX, chunkZ).isEmpty();
