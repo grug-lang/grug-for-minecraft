@@ -10,7 +10,7 @@ pipe: Option[BlockEntity] = Option.new()
 # Whether the wall and the pipe's section have been meshed again from the settled light yet.
 remeshed: bool = false
 
-# How many runner ticks in a row the world has answered settled. See the hold in tick_any_side().
+# How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
 # Whether the click for the pipe being placed has been made. Each pipe is clicked once, see
