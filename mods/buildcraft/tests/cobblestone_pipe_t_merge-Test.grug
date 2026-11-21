@@ -134,6 +134,9 @@ local _place_pipes(ctx: TestTickContext) {
     # chest above them, which is YPos, side 1, so the saved source is 2.
     if not me.is_reference() and placed < 2 {
         pipe_opt.unwrap().set_saved_number("source", 2)
+        # The arm drawn for the source is in the chunk's mesh, which a joined client only gets the
+        # saved number for, and builds again, when the pipe asks for a redraw.
+        pipe_opt.unwrap().redraw()
         if placed == 0 {
             west.set(pipe_opt.unwrap())
         } else {
@@ -150,6 +153,7 @@ local _place_pipes(ctx: TestTickContext) {
         # asked for: it says the block entity has reached the client at all.
         if not me.is_reference() {
             pipe_opt.unwrap().set_saved_number("t_merge_synced", 1)
+            pipe_opt.unwrap().redraw()
         }
     }
 }

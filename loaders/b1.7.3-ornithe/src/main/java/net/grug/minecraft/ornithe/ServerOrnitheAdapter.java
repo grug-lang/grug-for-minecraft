@@ -947,10 +947,14 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         List<ItemEntity> items =
                 new ArrayList<>(
                         world.getEntitiesOfType(ItemEntity.class, Box.of(x1, y1, z1, x2, y2, z2)));
+        List<net.minecraft.entity.Entity> mobs = new ArrayList<>(spawnedMobs);
         super.clearItemEntities(levelObj, x1, y1, z1, x2, y2, z2);
         EntityMap tracker = MinecraftServerInstance.get().getEntityMap(0);
         for (ItemEntity item : items) {
             tracker.onEntityRemoved(item);
+        }
+        for (net.minecraft.entity.Entity mob : mobs) {
+            tracker.onEntityRemoved(mob);
         }
     }
 }

@@ -32,6 +32,7 @@ import net.grug.minecraft.ornithe.server.GrugPlayerManagerAccess;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.entity.mob.player.PlayerInventory;
@@ -1216,9 +1217,28 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         List<ItemEntity> items =
                 new ArrayList<>(
                         world.getEntitiesOfType(ItemEntity.class, Box.of(x1, y1, z1, x2, y2, z2)));
+        List<Entity> mobs = new ArrayList<>(spawnedMobs);
         super.clearItemEntities(levelObj, x1, y1, z1, x2, y2, z2);
         for (ItemEntity item : items) {
             GrugPlayerManagerAccess.untrack(item);
+        }
+        for (Entity mob : mobs) {
+            GrugPlayerManagerAccess.untrack(mob);
+        }
+    }
+
+    /**
+     * Removes the entities as the client-only game does, then tells the joined client they are
+     * gone: the removal takes them out of the world's lists itself, so the entity tracker never
+     * sends the destroy packet and the client kept a ghost of every mob a test spawned, which the
+     * mob cap overlay then counted (#1040).
+     */
+    @Override
+    public void removeEntities(Object levelObj, String kind) {
+        List<Entity> gone = entitiesOf((World) levelObj, kind);
+        super.removeEntities(levelObj, kind);
+        for (Entity entity : gone) {
+            GrugPlayerManagerAccess.untrack(entity);
         }
     }
 }

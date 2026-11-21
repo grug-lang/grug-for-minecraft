@@ -814,7 +814,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     /** The mobs {@link #spawnMob} added, which the next room build removes with the items. */
-    private final java.util.List<Entity> spawnedMobs = new java.util.ArrayList<>();
+    protected final java.util.List<Entity> spawnedMobs = new java.util.ArrayList<>();
 
     /** The game's category of a mod-facing name, in {@code GrugMobCap.CATEGORIES} order. */
     private static MobCategory mobCategory(String category) {

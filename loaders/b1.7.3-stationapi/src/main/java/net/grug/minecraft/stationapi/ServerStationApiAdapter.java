@@ -833,6 +833,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                 new ArrayList<>(
                         world.collectEntitiesByClass(
                                 ItemEntity.class, Box.create(x1, y1, z1, x2, y2, z2)));
+        List<net.minecraft.entity.Entity> mobs = new ArrayList<>(spawnedMobs);
         super.clearItemEntities(levelObj, x1, y1, z1, x2, y2, z2);
         EntityTracker tracker =
                 ((net.minecraft.server.MinecraftServer)
@@ -841,6 +842,9 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                         .getEntityTracker(0);
         for (ItemEntity item : items) {
             tracker.onEntityRemoved(item);
+        }
+        for (net.minecraft.entity.Entity mob : mobs) {
+            tracker.onEntityRemoved(mob);
         }
     }
 }
