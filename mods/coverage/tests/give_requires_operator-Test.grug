@@ -22,7 +22,7 @@ was_operator: bool = false
 first_pressed: bool = false
 second_pressed: bool = false
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if not started {
         started = true
         if not me.on_dedicated_server() or (me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge" and me.loader_name() != "a1.1.2_01-ornithe" and me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi") or not me.overlay_supported() {

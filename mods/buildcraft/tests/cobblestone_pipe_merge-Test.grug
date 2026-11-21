@@ -60,7 +60,7 @@ export init(ctx: TestInitContext) {
     ctx.set_max_ticks(4000)
 }
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
     }

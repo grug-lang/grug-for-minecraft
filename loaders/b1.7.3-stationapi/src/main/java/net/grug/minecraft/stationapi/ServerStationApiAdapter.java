@@ -13,7 +13,6 @@ import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
-import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.Grug;
@@ -37,13 +36,8 @@ import net.minecraft.world.LightType;
 import net.minecraft.world.World;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * The adapter for a b1.7.3 dedicated server, which is the same loader as {@link StationApiAdapter}
@@ -750,32 +744,6 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     @Override
     public void forgetQueuedGivesForTest() {
         GrugControlStation.server().forgetQueuedGives();
-    }
-
-    /** The tests listed in {@code server-unsupported-tests.txt}, which says why. */
-    @Override
-    public Set<String> serverUnsupportedTests() {
-        try (InputStream in =
-                ServerStationApiAdapter.class.getResourceAsStream(
-                        "/server-unsupported-tests.txt")) {
-            if (in == null) {
-                throw new IllegalStateException(
-                        "server-unsupported-tests.txt is not in the layer.");
-            }
-            return GrugTestRunner.parseTestList(new String(readAll(in), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not read server-unsupported-tests.txt.", e);
-        }
-    }
-
-    private static byte[] readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int n;
-        while ((n = in.read(buffer)) > 0) {
-            out.write(buffer, 0, n);
-        }
-        return out.toByteArray();
     }
 
     /** The client's cap of ticks for one frame, which the server takes as extra ticks per tick. */

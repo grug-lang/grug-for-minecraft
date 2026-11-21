@@ -6,7 +6,7 @@
 # normal drop path, where it is an item entity rather than a silent destruction. This test loads the
 # pipe back with no slots through ctx.load_nbt, the same route a save takes, and asserts the stack is
 # dropped.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     x: number = origin.x()

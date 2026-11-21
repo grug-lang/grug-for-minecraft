@@ -9,7 +9,7 @@
 # inventory; the port's _enter_pipe has a branch for a pipe block whose block entity is missing, which
 # no test can build because every placed pipe has one, so this covers the same _drop_moving call
 # through the route a test can reach. See #1013.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     x: number = origin.x()

@@ -19,7 +19,7 @@ clicked_row: number = 5
 stack_column: number = 1
 stack_row: number = 0
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if not started {
         started = true
         if not me.overlay_supported() {

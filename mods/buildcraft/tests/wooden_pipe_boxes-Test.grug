@@ -19,7 +19,7 @@ origin_y: number = 0
 origin_z: number = 0
 scene: number = -1
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if scene < 0 {
         level: Level = ctx.get_client_level()
         origin: Vec3 = ctx.get_origin()

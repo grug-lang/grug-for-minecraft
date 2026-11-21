@@ -17,7 +17,7 @@ graphics_table: Option[BlockEntity] = Option.new()
 graphics_chest1: Option[BlockEntity] = Option.new()
 graphics_chest2: Option[BlockEntity] = Option.new()
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         # The runner has already snapped the player, so this builds at the same origin the graphics
         # phase below does.

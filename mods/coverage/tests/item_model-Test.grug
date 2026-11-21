@@ -4,7 +4,6 @@
 # (#1237). This places the crack block, whose entity draws both item forms through the frame host,
 # and waits for a drawn frame: a missing item model is a mod-tree defect, which prints the
 # [GRUG CI] FAIL line the run fails on, so this test cannot pass without the two item models.
-# It defines tick, so a dedicated server skips it: the item list is the client's.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)

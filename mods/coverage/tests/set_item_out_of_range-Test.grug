@@ -2,7 +2,7 @@
 # usually taken the stack from its source already, so a write that lands nowhere destroys it. The
 # a1 pipe lost items this way when its inbox was shorter than the slot it wrote (#1205).
 # coverage_init_block declares a one-slot inventory, so slot 1 is one past it.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     x: number = origin.x()

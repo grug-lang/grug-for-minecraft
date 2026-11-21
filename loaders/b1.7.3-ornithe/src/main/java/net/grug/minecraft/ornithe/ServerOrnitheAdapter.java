@@ -15,7 +15,6 @@ import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
-import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -43,13 +42,8 @@ import net.minecraft.world.World;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * The adapter for a b1.7.3 dedicated server, which is the same loader as {@link OrnitheAdapter} in
@@ -863,31 +857,6 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public void restorePlayerAfterTest() {
         GrugServerRun.restoreTestPlayer((PlayerEntity) testPlayer());
-    }
-
-    /** The tests listed in {@code server-unsupported-tests.txt}, which says why. */
-    @Override
-    public Set<String> serverUnsupportedTests() {
-        try (InputStream in =
-                ServerOrnitheAdapter.class.getResourceAsStream("/server-unsupported-tests.txt")) {
-            if (in == null) {
-                throw new IllegalStateException(
-                        "server-unsupported-tests.txt is not in the layer.");
-            }
-            return GrugTestRunner.parseTestList(new String(readAll(in), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not read server-unsupported-tests.txt.", e);
-        }
-    }
-
-    private static byte[] readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int n;
-        while ((n = in.read(buffer)) > 0) {
-            out.write(buffer, 0, n);
-        }
-        return out.toByteArray();
     }
 
     /** The world's own tick, as on the other loaders, so a test need not wait for the server. */

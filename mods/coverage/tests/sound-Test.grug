@@ -7,7 +7,7 @@
 # answers has_sound itself, while Alpha, Beta and 1.2.5 keep their pool on the client and forward the
 # question to the client of the player who started the run (#1040). play_ui_sound, when a test plays
 # one, also reaches that client, which owns the sound engine, so a server forwards the play (#1032).
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     print2("has_sound ui.button.click", has_sound("minecraft:ui.button.click"))
     print2("has_sound random.click", has_sound("minecraft:random.click"))
 

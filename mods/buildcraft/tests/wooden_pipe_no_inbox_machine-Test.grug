@@ -5,7 +5,7 @@
 # pipe would never empty. The machine branch therefore stays quiet for such a pipe, as the store path
 # does, and this test proves both halves: the table keeps its result, and the tick still spends the
 # energy it was given.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     x: number = origin.x()

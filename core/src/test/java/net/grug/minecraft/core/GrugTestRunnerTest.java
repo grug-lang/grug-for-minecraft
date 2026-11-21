@@ -49,22 +49,7 @@ class GrugTestRunnerTest {
         long nextHandle = 100;
         long exportFnId = 1;
 
-        /**
-         * The id of tick_any_side, which a test defines instead of tick, or alongside it by
-         * mistake.
-         */
-        long anySideFnId = 2;
-
-        /** The paths whose file defines tick_any_side; every other defines tick. */
-        java.util.Set<String> anySide = new java.util.HashSet<>();
-
-        /** The paths whose file defines both, which the runner refuses. */
-        java.util.Set<String> both = new java.util.HashSet<>();
-
-        /** Whether the tick of a file that defines both aborts with a runtime error instead. */
-        boolean bothRaise = false;
-
-        /** The paths whose file defines neither tick, so both exports answer false. */
+        /** The paths whose tick answers false at once, as an export that aborted does. */
         java.util.Set<String> neither = new java.util.HashSet<>();
 
         /** What the runner is told for the init export; invalid for a test without one. */
@@ -104,21 +89,12 @@ class GrugTestRunnerTest {
         @Override
         public long getExportFnId(String entityType, String fnName) {
             if (fnName.equals("init")) return initFnId;
-            return fnName.equals("tick_any_side") ? anySideFnId : exportFnId;
+            return exportFnId;
         }
 
         @Override
         public boolean callExportFn(long entityHandle, long exportFnId) {
-            // A missing export answers false and raises nothing, which the runner reads as absent.
-            boolean anyDefined = anySide.contains(activePath) || both.contains(activePath);
-            boolean tickDefined = !anySide.contains(activePath);
             if (neither.contains(activePath)) return false;
-            if (exportFnId == anySideFnId && !anyDefined) return false;
-            if (exportFnId == this.exportFnId && !tickDefined) return false;
-            if (bothRaise && exportFnId == this.exportFnId && both.contains(activePath)) {
-                GrugTestState.runtimeErrorCount++;
-                return false;
-            }
             if (onCall != null) onCall.run();
             if (throwOnCall != null) throw throwOnCall;
             return completed;
@@ -1327,38 +1303,13 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void aServerRunsOnlyTheTestsThatDefineTheAnySideTickAndSaysHowManyItSkipped() {
+    void aServerFailsATestWhenItsCallNeedsAClient() {
+        // A test that runs on a dedicated server fails when one of its calls needs a client: the
+        // host function's refusal aborts the tick and the run FAILS. That refusal is what a
+        // client-only host function leaves behind (ModLoaderAdapter.refuseWithoutAClient reports it
+        // through Grug.hostFunctionErrorHappened, which stops the script), and the forwarded_
+        // refusal tests are the game-run proof of its message.
         FakeOps ops = new FakeOps();
-        ops.anySide.addAll(
-                Set.of(
-                        "buildcraft/code/a-Test.grug",
-                        "coverage/tests/a-Test.grug",
-                        "jei/code/a-Test.grug"));
-        String printed = capture(() -> runToEnd(sideRunner(ops, true)));
-
-        assertEquals(
-                List.of(
-                        "[GRUG CI] PASS buildcraft/code/a-Test.grug",
-                        "[GRUG CI] PASS coverage/tests/a-Test.grug",
-                        "[GRUG CI] PASS jei/code/a-Test.grug"),
-                printed.lines()
-                        .filter(l -> l.contains("[GRUG CI] PASS "))
-                        .collect(Collectors.toList()));
-        assertTrue(printed.contains("Skipped 2 test(s)"), printed);
-        assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
-    }
-
-    @Test
-    void aServerFailsATestThatDeclaredItRunsThereWhenItsCallNeedsAClient() {
-        // The declaration is what makes a skip legal, so a test that declared it runs on a
-        // dedicated server is never skipped: when one of its calls needs a client, the host
-        // function's refusal aborts the tick and the run FAILS. That refusal is what a client-only
-        // host function leaves behind (ModLoaderAdapter.refuseWithoutAClient reports it through
-        // Grug.hostFunctionErrorHappened, which stops the script), and the forwarded_ refusal tests
-        // are the game-run proof of its message. Without this, the skip branch would hide a test
-        // that declared it can run but cannot.
-        FakeOps ops = new FakeOps();
-        ops.anySide.add("coverage/tests/a-Test.grug");
         ops.onCall =
                 () -> {
                     if (!"coverage/tests/a-Test.grug".equals(ops.activePath)) return;
@@ -1370,11 +1321,6 @@ class GrugTestRunnerTest {
 
         String printed = capture(() -> runToEnd(sideRunner(ops, true)));
 
-        // The FAIL line is the discriminator: a skipped test prints none, so the abort was read as
-        // this test's own error, which is only possible because the host function error raised the
-        // runtime error count the any-side probe looks at. Without that count the file would have
-        // looked like one that defines neither tick, and the dedicated server would have skipped
-        // the only declared test here.
         assertTrue(printed.contains("[GRUG CI] FAIL coverage/tests/a-Test.grug"), printed);
         assertTrue(
                 printed.contains("The test script reported a runtime error and stopped early"),
@@ -1399,28 +1345,24 @@ class GrugTestRunnerTest {
                 Set.of(),
                 Set.of(),
                 dedicatedServer,
-                Set.of(),
                 forwardsClientCalls);
     }
 
     @Test
     void aForwardingServerRunsAForwardedTestWithItsPlainTick() {
         FakeOps ops = new FakeOps();
-        ops.anySide.addAll(Set.of("buildcraft/code/a-Test.grug", "jei/code/a-Test.grug"));
         String printed = capture(() -> runToEnd(forwardedRunner(ops, true, true)));
 
         assertTrue(
                 printed.contains("[GRUG CI] PASS coverage/tests/forwarded_a-Test.grug"), printed);
-        assertTrue(printed.contains("Skipped 3 test(s)"), printed);
         assertTrue(!printed.contains("forwarded_ test(s)"), printed);
-        assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
+        assertTrue(printed.contains("ALL 6 TESTS PASSED"), printed);
     }
 
     @Test
     void aClientAndANonForwardingServerSkipAForwardedTestAndSayWhy() {
         for (boolean[] side : new boolean[][] {{false, false}, {false, true}, {true, false}}) {
             FakeOps ops = new FakeOps();
-            ops.anySide.addAll(Set.of("buildcraft/code/a-Test.grug", "jei/code/a-Test.grug"));
             String printed = capture(() -> runToEnd(forwardedRunner(ops, side[0], side[1])));
 
             assertTrue(
@@ -1440,66 +1382,8 @@ class GrugTestRunnerTest {
         assertTrue(!GrugTestRunner.runsForwardedTests(false, true));
     }
 
-    private GrugTestRunner listedRunner(FakeOps ops, boolean dedicatedServer, Set<String> listed) {
-        Map<String, Long> files = threeMods();
-        ops.pathsAre(files);
-        return new GrugTestRunner(
-                files,
-                List.of(),
-                ops,
-                System::nanoTime,
-                new SweepLog(new ArrayList<>()),
-                1,
-                new CoverageLog(),
-                Set.of(),
-                GrugTestRunner.MAX_GAME_SPEED,
-                Set.of(),
-                Set.of(),
-                dedicatedServer,
-                listed);
-    }
-
-    @Test
-    void aServerSkipsATestTheLoaderListsEvenWhenItDefinesTheAnySideTick() {
-        FakeOps ops = new FakeOps();
-        ops.anySide.addAll(
-                Set.of(
-                        "buildcraft/code/a-Test.grug",
-                        "buildcraft/code/b-Test.grug",
-                        "coverage/tests/a-Test.grug",
-                        "coverage/tests/b-Test.grug",
-                        "jei/code/a-Test.grug"));
-        String printed =
-                capture(
-                        () ->
-                                runToEnd(
-                                        listedRunner(
-                                                ops, true, Set.of("coverage/tests/a-Test.grug"))));
-
-        assertFalse(printed.contains("PASS coverage/tests/a-Test.grug"), printed);
-        assertTrue(printed.contains("PASS jei/code/a-Test.grug"), printed);
-        assertTrue(printed.contains("Skipped 1 test(s)"), printed);
-        assertTrue(printed.contains("ALL "), printed);
-    }
-
-    @Test
-    void aClientRunsATestTheLoaderListsForItsServer() {
-        FakeOps ops = new FakeOps();
-        String printed =
-                capture(
-                        () ->
-                                runToEnd(
-                                        listedRunner(
-                                                ops, false, Set.of("coverage/tests/a-Test.grug"))));
-
-        assertTrue(printed.contains("PASS coverage/tests/a-Test.grug"), printed);
-    }
-
     private GrugTestRunner forcedRunner(
-            FakeOps ops,
-            Map<String, Long> files,
-            GrugTestRunner.TestBoxBuilder boxBuilder,
-            Set<String> listed) {
+            FakeOps ops, Map<String, Long> files, GrugTestRunner.TestBoxBuilder boxBuilder) {
         ops.pathsAre(files);
         return new GrugTestRunner(
                 files,
@@ -1513,57 +1397,23 @@ class GrugTestRunnerTest {
                 GrugTestRunner.MAX_GAME_SPEED,
                 Set.of(),
                 Set.of(),
-                true,
-                listed,
+                false,
                 true);
     }
 
     @Test
-    void aMarkedTestTheLoaderListsIsNotForcedBeforeItIsSkipped() {
-        // The force asks the joined client on a forwarding server, so a test the server skips must
-        // not be forced on the way to the skip. Without the guard the force and its restore both
-        // run for a test that never draws, which spends a forwarded call and logs a force that
-        // never reached a test, so this case measures the wasted force and its line rather than a
-        // state left on for a later test (#1040).
-        FakeOps ops = new FakeOps();
-        String marked = "coverage/tests/item_list_forced_normalization-Test.grug";
-        Map<String, Long> files = new LinkedHashMap<>();
-        files.put(marked, 1L);
-        files.put("jei/code/a-Test.grug", 2L);
-        ops.anySide.add("jei/code/a-Test.grug");
-        List<String> events = new ArrayList<>();
-
-        String printed =
-                capture(
-                        () ->
-                                runToEnd(
-                                        forcedRunner(
-                                                ops,
-                                                files,
-                                                new NormalizationLog(events),
-                                                Set.of(marked))));
-
-        assertFalse(events.contains("force"), events.toString());
-        assertFalse(events.contains("restore"), events.toString());
-        assertFalse(printed.contains("Forcing normalized normals"), printed);
-        assertTrue(printed.contains("PASS jei/code/a-Test.grug"), printed);
-    }
-
-    @Test
     void aMarkedTestSkippedAfterItsForceFailsWhenTheRestoreDoesNotTake() {
-        // A marked test that defines only tick is skipped after its force ran, and the restore that
-        // force owes is asked on the way to the skip. A false answer must fail the run for that
-        // test, as the pass path does, rather than pass green with the capabilities left on for
-        // the tests after it (#1040).
+        // A marked forwarded_ test is skipped on a client's run after its force ran, and the
+        // restore that force owes is asked on the way to the skip. A false answer must fail the
+        // run for that test, as the pass path does, rather than pass green with the capabilities
+        // left on for the tests after it (#1040).
         FakeOps ops = new FakeOps();
-        String marked = "coverage/tests/item_list_forced_normalization-Test.grug";
+        String marked = "coverage/tests/forwarded_item_list_forced_normalization-Test.grug";
         Map<String, Long> files = new LinkedHashMap<>();
         files.put(marked, 1L);
         files.put("jei/code/a-Test.grug", 2L);
-        ops.anySide.add("jei/code/a-Test.grug");
         List<String> events = new ArrayList<>();
-        GrugTestRunner runner =
-                forcedRunner(ops, files, new NormalizationLog(events, false), Set.of());
+        GrugTestRunner runner = forcedRunner(ops, files, new NormalizationLog(events, false));
 
         String printed = capture(() -> runToEnd(runner));
 
@@ -1596,71 +1446,12 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void aLoaderListNamingNoLoadedTestFailsTheRun() {
+    void aMissingTickIdIsRefused() {
         FakeOps ops = new FakeOps();
-        for (String name :
-                new String[] {
-                    "coverage/tests/typo-Test.grug",
-                    // A loaded file that is not a test is no test either.
-                    "examplemod/code/foo-Block.grug"
-                }) {
-            IllegalStateException e =
-                    assertThrows(
-                            IllegalStateException.class,
-                            () -> listedRunner(ops, true, Set.of(name)));
-            assertTrue(e.getMessage().contains(name), e.getMessage());
-        }
-    }
-
-    @Test
-    void aLoaderListNamingOnlyLoadedTestsStartsTheRun() {
-        FakeOps ops = new FakeOps();
-        listedRunner(ops, true, Set.of("coverage/tests/a-Test.grug", "jei/code/a-Test.grug"));
-    }
-
-    @Test
-    void aTestListHoldsOnePathPerLineAndIgnoresCommentsAndBlankLines() {
-        assertEquals(
-                Set.of("a/tests/x-Test.grug", "b/tests/y-Test.grug"),
-                GrugTestRunner.parseTestList(
-                        "# why\n\n  a/tests/x-Test.grug  \r\nb/tests/y-Test.grug\n"));
-    }
-
-    @Test
-    void aRepeatedServerRunSkipsTheSameTestsOnEveryPass() {
-        FakeOps ops = new FakeOps();
-        ops.anySide.add("jei/code/a-Test.grug");
-        String printed = capture(() -> runToEnd(sideRunner(ops, true, 3)));
-
-        assertTrue(printed.contains("ALL 1 TESTS PASSED"), printed);
-    }
-
-    @Test
-    void aMissingAnySideTickIdIsRefused() {
-        FakeOps ops = new FakeOps();
-        ops.anySideFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+        ops.exportFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
         String printed = capture(() -> runToEnd(sideRunner(ops, false)));
 
         assertTrue(printed.contains("missing a tick export function"), printed);
-    }
-
-    @Test
-    void aServerWhereEveryTestIsSkippedFailsInsteadOfPassingNone() {
-        FakeOps ops = new FakeOps();
-        String[] printed = new String[1];
-        RuntimeException e =
-                assertThrows(
-                        RuntimeException.class,
-                        () -> printed[0] = capture(() -> runToEnd(sideRunner(ops, true))));
-
-        assertTrue(e.getMessage().contains("Every test was skipped"), e.getMessage());
-        assertTrue(ranNothingTable());
-    }
-
-    private boolean ranNothingTable() {
-        return GrugTestRunner.ranNothing(true, 0)
-                && !GrugTestRunner.ranNothing(true, 1)
-                && !GrugTestRunner.ranNothing(false, 0);
     }
 
     @Test
@@ -1670,49 +1461,6 @@ class GrugTestRunnerTest {
         String printed = capture(() -> runToEnd(sideRunner(ops, false)));
 
         assertTrue(printed.contains("[GRUG CI] FAIL buildcraft/code/a-Test.grug"), printed);
-    }
-
-    @Test
-    void aClientRunsBothKindsOfTest() {
-        FakeOps ops = new FakeOps();
-        ops.anySide.addAll(Set.of("buildcraft/code/a-Test.grug", "jei/code/a-Test.grug"));
-        String printed = capture(() -> runToEnd(sideRunner(ops, false)));
-
-        assertTrue(printed.contains("ALL 5 TESTS PASSED"), printed);
-        assertFalse(printed.contains("Skipped"), printed);
-    }
-
-    @Test
-    void aFileThatDefinesBothTicksFailsNamingTheFile() {
-        FakeOps ops = new FakeOps();
-        ops.both.add("buildcraft/code/a-Test.grug");
-        for (boolean server : new boolean[] {false, true}) {
-            String printed = capture(() -> runToEnd(sideRunner(ops, server)));
-
-            assertTrue(printed.contains("[GRUG CI] FAIL buildcraft/code/a-Test.grug"), printed);
-            assertTrue(
-                    printed.contains(
-                            "buildcraft/code/a-Test.grug defines both tick and tick_any_side"),
-                    printed);
-        }
-    }
-
-    @Test
-    void aFileWhoseOtherTickAbortsIsStillRefusedAsDefiningBoth() {
-        FakeOps ops = new FakeOps();
-        ops.both.add("buildcraft/code/a-Test.grug");
-        ops.bothRaise = true;
-        String printed = capture(() -> runToEnd(sideRunner(ops, false)));
-
-        assertTrue(printed.contains("defines both tick and tick_any_side"), printed);
-    }
-
-    @Test
-    void onlyAServerSkipsAndOnlyATestWithoutTheAnySideTick() {
-        assertTrue(GrugTestRunner.skipsOnServer(true, false));
-        assertFalse(GrugTestRunner.skipsOnServer(true, true));
-        assertFalse(GrugTestRunner.skipsOnServer(false, false));
-        assertFalse(GrugTestRunner.skipsOnServer(false, true));
     }
 
     @Test
@@ -2766,7 +2514,6 @@ class GrugTestRunnerTest {
             Map<String, Long> files =
                     Map.of("jei/tests/item_list_forced_normalization-Test.grug", 1L);
             ops.pathsAre(files);
-            ops.anySide.addAll(files.keySet());
             List<String> log = new ArrayList<>();
             int[] calls = {0};
             ops.onCall =
@@ -2817,7 +2564,6 @@ class GrugTestRunnerTest {
                             Set.of(),
                             Set.of(),
                             true,
-                            Set.of(),
                             forwards);
             capture(() -> runFor(runner, 200));
             // A server whose adapter hands the four questions to the joined client forces the
@@ -3940,7 +3686,6 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         Map<String, Long> files = Map.of("coverage/tests/a-Test.grug", 1L);
         ops.pathsAre(files);
-        ops.anySide.add("coverage/tests/a-Test.grug");
         int[] ticks = {0};
         ops.onCall =
                 () -> {

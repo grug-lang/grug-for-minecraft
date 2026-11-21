@@ -7,7 +7,7 @@
 
 # A client joined to a server would report these calls as an error, because the server holds the
 # list; this test never runs there, since a test runs on the side that holds the player.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         was_operator: bool = is_operator()
 

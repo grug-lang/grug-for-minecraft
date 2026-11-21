@@ -5,7 +5,7 @@
 # It runs after redstone_engine-Test.grug, which closes any screen an earlier test left open, and it
 # closes the GUI it opens for the same reason. See #195.
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
