@@ -22,6 +22,9 @@ export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
+    } else if not pipe.has() {
+        _find_pipes(ctx)
+        ctx.not_done()
     } else if not ctx.world_settled() {
         settled_ticks = 0
         ctx.not_done()
@@ -68,23 +71,29 @@ local _setup(ctx: TestTickContext) {
     # camera's side would.
     _place_cobblestone_pipe(ctx, level, x, y - 1.88, z + 4)
     level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
+}
 
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
-    ctx.assert(pipe_opt.has(), "The cobblestone pipe should have a block entity.")
-    pipe.set(pipe_opt.unwrap())
-
-    # The port's wooden pipe source side is the side plus one. Both wooden pipes extract from the
-    # chest above them, which is YPos, side 1, so the saved source is 2.
-    if not me.is_reference() {
-        west: Option[BlockEntity] = level.get_block_entity(x - 1, y - 1.88, z + 4)
-        east: Option[BlockEntity] = level.get_block_entity(x + 1, y - 1.88, z + 4)
-        if west.has() {
-            west.unwrap().set_saved_number("source", 2)
-        }
-        if east.has() {
-            east.unwrap().set_saved_number("source", 2)
-        }
+# The pipes are placed by a click, which on 1.20.6 reaches the server as a packet, so they may not
+# be there when _setup returns: this runs every tick until all three are, and the runner's tick
+# budget ends a pipe that never arrives. The port's wooden pipe source side is the side plus one.
+# Both wooden pipes extract from the chest above them, which is YPos, side 1, so the saved source
+# is 2.
+local _find_pipes(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    x: number = origin_x
+    y: number = origin_y
+    z: number = origin_z
+    centre: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    west: Option[BlockEntity] = level.get_block_entity(x - 1, y - 1.88, z + 4)
+    east: Option[BlockEntity] = level.get_block_entity(x + 1, y - 1.88, z + 4)
+    if not centre.has() or not west.has() or not east.has() {
+        return
     }
+    if not me.is_reference() {
+        west.unwrap().set_saved_number("source", 2)
+        east.unwrap().set_saved_number("source", 2)
+    }
+    pipe.set(centre.unwrap())
 }
 
 # Both the reference and the port place a pipe the way a player does: hold the pipe item and
