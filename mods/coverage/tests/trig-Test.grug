@@ -1,6 +1,6 @@
 # Math.pi and Math.tau are half and a whole turn in radians. Math.sin and Math.cos take radians: the quarter turns, a negative angle and a large one. The
 # results at pi are checked within a small bound, since pi itself is a rounded number.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         pi: number = Math.pi()
         ctx.assert(Math.pi() > 3.14159 and Math.pi() < 3.1416, "Math.pi() should be 3.14159...")

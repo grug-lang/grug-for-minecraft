@@ -27,7 +27,7 @@ ex: number = 0
 ey: number = 0
 ez: number = 0
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()

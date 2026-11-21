@@ -1083,6 +1083,55 @@ public final class GrugControlServer {
         return yesOrNo(result, "normalization");
     }
 
+    /**
+     * Asks the starter's client whether it asks the overlays' world key, HUD and world exports at
+     * all (#1040): a server's own answer is always false, because the loader marks support where it
+     * registers the hooks it only has on a client.
+     */
+    public boolean worldOverlaySupported() throws ControlException {
+        byte result =
+                call(
+                        GrugControlWire.CALL_WORLD_OVERLAY,
+                        "",
+                        GrugControlWire.WORLD_OVERLAY_SUPPORTED,
+                        0,
+                        0);
+        return yesOrNo(result, "world_overlay_supported");
+    }
+
+    /**
+     * Asks the starter's client whether a frame has drawn the world overlay of the mod named {@code
+     * mod}, which owns the running test, since its last key press (#1040). The client keeps the
+     * mark for the mod it was last told, so a test of another mod does not read this one's frame.
+     */
+    public boolean worldOverlayDrawn(String mod) throws ControlException {
+        byte result =
+                call(
+                        GrugControlWire.CALL_WORLD_OVERLAY,
+                        mod,
+                        GrugControlWire.WORLD_OVERLAY_DRAWN,
+                        0,
+                        0);
+        return yesOrNo(result, "world_overlay_drawn");
+    }
+
+    /**
+     * Presses one letter or digit key in the world of the starter's client, which delivers it to
+     * the world_key export of every overlay the way a real press does while no screen is open
+     * (#1040). The mod is the one that owns the running test, so the frame the press causes is
+     * counted for it.
+     */
+    public void pressWorldKey(String mod, int key, boolean ctrl) throws ControlException {
+        byte result =
+                call(
+                        GrugControlWire.CALL_WORLD_OVERLAY,
+                        mod,
+                        GrugControlWire.WORLD_OVERLAY_PRESS_KEY,
+                        key,
+                        ctrl ? 1 : 0);
+        yesOrNo(result, "press_world_key");
+    }
+
     /** The 1 or 0 a yes-or-no call answers, or the error that fails the call. */
     private static boolean yesOrNo(byte result, String call) throws ControlException {
         if (result != 0 && result != 1) {
@@ -1193,6 +1242,8 @@ public final class GrugControlServer {
                 return overlayModProblem(name);
             case GrugControlWire.CALL_OVERLAY_FIRST_FRAME:
                 return overlayModProblem(name);
+            case GrugControlWire.CALL_WORLD_OVERLAY:
+                return worldOverlayProblem(name, volume, pitch, third);
             case GrugControlWire.CALL_MINING_CRACK:
                 return positionProblem(volume, pitch, third);
             case GrugControlWire.CALL_MOD_FILE_STATE:
@@ -1309,6 +1360,26 @@ public final class GrugControlServer {
             return "The test mod's name is over " + GrugControlWire.MAX_NAME + " bytes.";
         }
         return null;
+    }
+
+    /**
+     * Why a forwarded world overlay call carries what it cannot, or null: the first number picks
+     * the question, a read of the drawn mark and a press name the test's mod, and a press carries a
+     * key and a control flag.
+     */
+    private static String worldOverlayProblem(
+            String mod, double operation, double key, double ctrl) {
+        if (operation != Math.floor(operation)
+                || operation < GrugControlWire.WORLD_OVERLAY_SUPPORTED
+                || operation > GrugControlWire.WORLD_OVERLAY_PRESS_KEY) {
+            return "A world overlay call asks for 0 to 2, and was " + operation + ".";
+        }
+        if (operation == GrugControlWire.WORLD_OVERLAY_SUPPORTED) return null;
+        String problem = overlayModProblem(mod);
+        if (problem != null || operation == GrugControlWire.WORLD_OVERLAY_DRAWN) return problem;
+        problem = screenKeyProblem(key);
+        if (problem != null) return problem;
+        return flagProblem(ctrl, 0);
     }
 
     /** Why the two flags of a forwarded key press are not booleans, or null. */
@@ -1546,6 +1617,9 @@ public final class GrugControlServer {
         }
         if (call == GrugControlWire.CALL_MOD_FILE_STATE) {
             return "mod file state " + (int) volume + " of \"" + name + "\"";
+        }
+        if (call == GrugControlWire.CALL_WORLD_OVERLAY) {
+            return "world overlay " + (int) volume + " of \"" + name + "\"";
         }
         if (call == GrugControlWire.CALL_NORMALIZATION) {
             return "normalization " + (int) volume;

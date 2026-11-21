@@ -7,7 +7,7 @@
 # ticks, which a test at game speed 1 may not exceed.
 # The tick count is a duration here, not a stand-in for a condition: nothing in the game says that
 # a killed client's disconnect has been handled, which is what the arm waits for (#688).
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() < 150 {
         ctx.not_done()
     }

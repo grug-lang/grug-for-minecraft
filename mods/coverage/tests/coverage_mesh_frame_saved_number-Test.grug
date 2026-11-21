@@ -36,7 +36,7 @@
 # after the pedestal capture and the pedestal frame is taken again, as coverage_mesh_saved_number
 # does: a light step is otherwise read as a stack that stayed (#1179). A frame with the stacks
 # still drawn is decided before that, so a light step cannot make it the pedestal.
-# It defines tick_any_side, so a dedicated server runs it too: the settle wait and the read of the
+# A dedicated server runs it too: the settle wait and the read of the
 # client's copy are forwarded to the joined client, and the captures are the client's (#1086).
 mesh_block: Option[BlockEntity] = Option.new()
 empty: Option[Screenshot] = Option.new()
@@ -85,7 +85,7 @@ export init(ctx: TestInitContext) {
     ctx.set_max_ticks(3000)
 }
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _wall(ctx)
         ctx.not_done()

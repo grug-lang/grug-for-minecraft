@@ -12,7 +12,7 @@ started: bool = false
 was_operator: bool = false
 waited: number = 0
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if not started {
         started = true
         if me.loader_name() != "1.20.6-forge" or me.on_dedicated_server() {

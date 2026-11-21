@@ -78,13 +78,11 @@ class GrugTestRunnerEntityRootTest {
         @Override
         public long getExportFnId(String entityType, String fnName) {
             if (fnName.equals("init")) return Grug.INVALID_GRUG_EXPORT_FN_ID;
-            return fnName.equals("tick_any_side") ? 2 : 1;
+            return 1;
         }
 
         @Override
         public boolean callExportFn(long entityHandle, long exportFnId) {
-            // tick_any_side is not defined: a missing export answers false and raises nothing.
-            if (exportFnId == 2) return false;
             // The real path one of the test's ticks takes, so what it creates is rooted the way a
             // tick's entities are.
             GrugTestState.callWithContext(

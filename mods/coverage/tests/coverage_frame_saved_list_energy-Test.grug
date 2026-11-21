@@ -2,7 +2,7 @@
 # pass reads the client's copy, while the test's calls write the copy the game simulates, so on a
 # dedicated server they only arrive if the loader sends them, which the same packet carries. The
 # coverage_frame block draws its extra row once its list has an item or its energy store is above 0,
-# and each assertion is that the frame changed. It defines tick_any_side, so a dedicated server runs
+# and each assertion is that the frame changed. A dedicated server runs
 # it too: the settle wait is forwarded to the joined client, and the captures are the client's
 # (#1086). The row alone cannot say which of the two paths arrived, so the test walks three
 # transitions on one block, each compared with the capture before it: an empty frame, then the list
@@ -27,7 +27,7 @@ export init(ctx: TestInitContext) {
     ctx.set_max_ticks(1000)
 }
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()

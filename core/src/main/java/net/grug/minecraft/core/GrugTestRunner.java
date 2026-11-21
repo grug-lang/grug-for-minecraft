@@ -296,14 +296,8 @@ public class GrugTestRunner {
 
     private int nextTestIndex = 0;
 
-    /** Whether this run is on a dedicated server, which runs only the tests that declare it. */
+    /** Whether this run is on a dedicated server, which runs every test (#1040). */
     private final boolean dedicatedServer;
-
-    /**
-     * Tests the loader declares its dedicated server cannot run, by path. An interim mechanism
-     * (#1021) that goes away together with {@code tick_any_side} when #1040 lands.
-     */
-    private final Set<String> unsupportedOnServer;
 
     /**
      * Whether this loader's dedicated server forwards a test's client-only calls to the joined
@@ -320,9 +314,6 @@ public class GrugTestRunner {
     /** The file name prefix of a test that only a run that forwards client calls can run. */
     static final String FORWARDED_PREFIX = "forwarded_";
 
-    /** The tests a dedicated server skipped, so a repeat neither probes nor counts them again. */
-    private final Set<String> skippedForSide = new LinkedHashSet<>();
-
     private int passedCount = 0;
 
     /** How many times the suite runs, and how many of those are left to start. */
@@ -335,10 +326,9 @@ public class GrugTestRunner {
 
     private long currentTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
 
-    /** The ids of the two tick exports of the running test, which tick() resolves at its first. */
+    /** The id of the running test's tick export. */
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
 
-    private long anySideTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private int currentTick = 0;
 
     /**
@@ -549,7 +539,6 @@ public class GrugTestRunner {
                 carryOverCoverageTestsFromEnv(),
                 testsFromEnv(),
                 GrugCore.getAdapter().getSide().isDedicatedServer(),
-                GrugCore.getAdapter().serverUnsupportedTests(),
                 GrugCore.getAdapter().forwardsClientCalls());
         // A host function error with no grug call to fail belongs to this run from now on, so a
         // report is recorded for the runner instead of only reported. A run refused before it
@@ -704,8 +693,7 @@ public class GrugTestRunner {
 
     /**
      * Visible for tests: the same, on a dedicated server when {@code dedicatedServer} is set. A
-     * dedicated server runs only the tests that define {@code tick_any_side} (#168); the others are
-     * skipped at their first tick, counted and said, and are not part of the total the run reports.
+     * dedicated server runs every test, as a client does (#1040).
      */
     public GrugTestRunner(
             Map<String, Long> fileIds,
@@ -733,41 +721,6 @@ public class GrugTestRunner {
                 carryOverCoverageTests,
                 selectedTests,
                 dedicatedServer,
-                Collections.emptySet());
-    }
-
-    /**
-     * Visible for tests: the same, with the tests the loader says its dedicated server cannot run,
-     * which a server skips like the ones without {@code tick_any_side} (#1021).
-     */
-    public GrugTestRunner(
-            Map<String, Long> fileIds,
-            List<String> referenceErrors,
-            TestEntityOps ops,
-            LongSupplier clock,
-            TestBoxBuilder boxBuilder,
-            int repeats,
-            CoverageRecorder coverage,
-            Set<String> selectedMods,
-            int maxGameSpeed,
-            Set<String> carryOverCoverageTests,
-            Set<String> selectedTests,
-            boolean dedicatedServer,
-            Set<String> unsupportedOnServer) {
-        this(
-                fileIds,
-                referenceErrors,
-                ops,
-                clock,
-                boxBuilder,
-                repeats,
-                coverage,
-                selectedMods,
-                maxGameSpeed,
-                carryOverCoverageTests,
-                selectedTests,
-                dedicatedServer,
-                unsupportedOnServer,
                 false);
     }
 
@@ -789,10 +742,8 @@ public class GrugTestRunner {
             Set<String> carryOverCoverageTests,
             Set<String> selectedTests,
             boolean dedicatedServer,
-            Set<String> unsupportedOnServer,
             boolean forwardsClientCalls) {
         this.dedicatedServer = dedicatedServer;
-        this.unsupportedOnServer = unsupportedOnServer;
         this.forwardsClientCalls = forwardsClientCalls;
         this.maxGameSpeed = maxGameSpeed;
         this.ops = ops;
@@ -831,7 +782,6 @@ public class GrugTestRunner {
         checkSelectedModsExist(selectedMods, fileIds);
         checkCarryOverTestsExist(carryOverCoverageTests, fileIds);
         checkSelectedTestsExist(selectedTests, fileIds);
-        checkUnsupportedTestsExist(unsupportedOnServer, fileIds);
         for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
             if (entry.getKey().endsWith(GrugFileIndex.TEST_SUFFIX)
                     && (selectedMods.isEmpty() || selectedMods.contains(owningMod(entry.getKey())))
@@ -999,8 +949,8 @@ public class GrugTestRunner {
      *
      * <p>It is how a run that cannot execute every test picks the ones it can: a dedicated server
      * has no screen to capture, so it names the tests that need none. It stands in until a test
-     * declares for itself whether it can run on a dedicated server (#168), and it combines with
-     * {@code GRUG_CI_MODS} by intersection.
+     * declares for itself whether it can run on a dedicated server, and it combines with {@code
+     * GRUG_CI_MODS} by intersection.
      *
      * <p>A non-empty list with an empty entry is fatal, for the same reason as {@link #parseMods}:
      * running fewer tests than the author meant while reporting green is the one outcome to avoid.
@@ -1045,23 +995,6 @@ public class GrugTestRunner {
                                 + test
                                 + "', but the loaded tests are: "
                                 + String.join(", ", loaded));
-            }
-        }
-    }
-
-    /**
-     * Fails when a loader's list of tests its server cannot run names a test that was not loaded,
-     * because a typo or a deleted test would otherwise leave the list silently skipping nothing
-     * while looking as if it still covered something (#1021).
-     */
-    static void checkUnsupportedTestsExist(Set<String> unsupported, Map<String, Long> fileIds) {
-        for (String test : unsupported) {
-            if (!fileIds.containsKey(test) || !test.endsWith(GrugFileIndex.TEST_SUFFIX)) {
-                throw Grug.fatal(
-                        "The loader lists '"
-                                + test
-                                + "' as a test its dedicated server cannot run, but no loaded"
-                                + " test has that path: fix the typo or remove the entry.");
             }
         }
     }
@@ -1217,12 +1150,6 @@ public class GrugTestRunner {
             // left was taken by the drain at the top of this tick, so the run cannot end green for
             // one. See GrugTestState.testRunActive.
             GrugTestState.testRunActive = false;
-            if (ranNothing(dedicatedServer, totalCount)) {
-                // "ALL 0 TESTS PASSED" would read as a green run that proved nothing.
-                throw Grug.fatal(
-                        "Every test was skipped on the dedicated server, so none ran: no test"
-                                + " defines tick_any_side.");
-            }
             if (passedCount == totalCount) {
                 // Before announcing the run, because run-loader.sh reads that line as the whole run
                 // succeeding and stops watching: anything that goes wrong after it is never looked
@@ -1240,14 +1167,6 @@ public class GrugTestRunner {
                                     + " forwarded_ test(s): they run only on a dedicated server"
                                     + " that forwards client calls to the player who started the"
                                     + " run.");
-                }
-                if (skippedForSide.size() > skippedForwarded.size()) {
-                    System.out.println(
-                            "[GRUG CI] Skipped "
-                                    + (skippedForSide.size() - skippedForwarded.size())
-                                    + " test(s) that a dedicated server cannot run: they do not"
-                                    + " define tick_any_side, or the loader lists them as"
-                                    + " unsupported.");
                 }
                 System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
             }
@@ -1299,19 +1218,13 @@ public class GrugTestRunner {
             // Cleared for every test, so the test after a marked one reads the state it has rather
             // than the one the marked test asked for. See TestTickContext.normalization_forced.
             GrugTestState.forcedNormalization = false;
-            // A path the loader lists as one its server cannot run is skipped before its first
-            // tick, having run none of it, so the force must not be asked on the way to that skip.
-            // On a dedicated server that forwards client calls the force reaches the joined
-            // client, which would be asked to force a state for a test that never draws, and the
-            // log would say a skipped test was forced (#1040). A skip that is only known once a
-            // tick has been tried settles the force's restore in skipForSide, so a false answer
-            // fails the run rather than outliving it.
-            boolean skippedBeforeItsTick = dedicatedServer && unsupportedOnServer.contains(path);
-            if (!skippedBeforeItsTick
-                    && GrugForcedNormalization.appliesTo(
-                            path,
-                            dedicatedServer && !forwardsClientCalls,
-                            GrugReference.isReferenceRun())) {
+            // A skip that is only known once the first tick has been tried (a forwarded_ test on a
+            // run that does not forward) settles the force's restore in skipForwarded, so a false
+            // answer fails the run rather than outliving it.
+            if (GrugForcedNormalization.appliesTo(
+                    path,
+                    dedicatedServer && !forwardsClientCalls,
+                    GrugReference.isReferenceRun())) {
                 // Due before the force runs, so a hook that changes a capability before it finds
                 // out it could not force is put back too, and a loader that keeps the no-op
                 // default restore is asked like every other.
@@ -1781,8 +1694,9 @@ public class GrugTestRunner {
         Map.Entry<String, Long> entry = tests.get(nextTestIndex);
         String path = entry.getKey();
 
-        // Skipped on an earlier pass of a repeat: the declaration does not change between passes.
-        if (skippedForSide.contains(path)) {
+        // Skipped on an earlier pass of a repeat: whether a run forwards does not change between
+        // passes.
+        if (skippedForwarded.contains(path)) {
             nextTestIndex++;
             return startNextTest();
         }
@@ -1809,13 +1723,9 @@ public class GrugTestRunner {
                 throw new RuntimeException("Failed to create an entity for the test.");
             }
 
-            // The test defines one of the two, which only its first tick can tell: a missing export
-            // answers like an aborted one, so the first tick tells them apart by the errors raised.
             currentTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
             tickFnId = ops.getExportFnId("Test", "tick");
-            anySideTickFnId = ops.getExportFnId("Test", "tick_any_side");
-            if (tickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID
-                    | anySideTickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
+            if (tickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
                 throw new RuntimeException("Test entity missing a tick export function.");
             }
         } catch (Exception e) {
@@ -1877,14 +1787,6 @@ public class GrugTestRunner {
         return true;
     }
 
-    /**
-     * Whether a test is skipped: only on a dedicated server, and only when it does not define
-     * {@code tick_any_side}.
-     */
-    static boolean skipsOnServer(boolean dedicatedServer, boolean definesAnySideTick) {
-        return dedicatedServer && !definesAnySideTick;
-    }
-
     /** Whether a test is a {@code forwarded_} one, by its file name. */
     static boolean isForwarded(String path) {
         return path.substring(path.lastIndexOf('/') + 1).startsWith(FORWARDED_PREFIX);
@@ -1900,77 +1802,23 @@ public class GrugTestRunner {
         return dedicatedServer && forwardsClientCalls;
     }
 
-    /**
-     * Reads a loader's list of tests its server cannot run: one path per line, blank lines and
-     * lines that start with {@code #} ignored, so the file can say why.
-     */
-    public static Set<String> parseTestList(String text) {
-        Set<String> paths = new LinkedHashSet<>();
-        for (String line : text.split("\\R")) {
-            String trimmed = line.trim();
-            if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
-                paths.add(trimmed);
-            }
-        }
-        return paths;
-    }
-
-    /** Whether a run ended on a dedicated server with every test skipped, which is a failure. */
-    static boolean ranNothing(boolean dedicatedServer, int totalCount) {
-        return dedicatedServer && totalCount == 0;
-    }
-
     /** Set by {@link #callFirstTick} when it skipped the test, so tick() returns. */
     private boolean skippedThisTick = false;
 
     /**
-     * Makes a test's first tick call and settles which of its two tick exports it defines, which
-     * the engine cannot be asked: a missing export answers false like an aborted one, and only the
-     * errors raised tell the two apart. {@code tick_any_side} is tried first. Defined, it is the
-     * tick, and {@code tick} is tried once to refuse a file that defines both; the probe of a
-     * missing export runs nothing. Not defined, a dedicated server skips the test, having run none
-     * of its tick, and a client runs {@code tick}.
+     * Makes a test's first tick call. A {@code forwarded_} test is skipped unless this run is a
+     * dedicated server that forwards client calls: its fault-injection tests expect an error that
+     * only a joined client with the fault set can raise, so a client's own run would fail them.
      */
     private boolean callFirstTick(String path) {
-        if (dedicatedServer && unsupportedOnServer.contains(path)) {
-            skipForSide(path);
+        if (isForwarded(path) && !runsForwardedTests(dedicatedServer, forwardsClientCalls)) {
+            skippedForwarded.add(path);
+            skipForwarded(path);
             skippedThisTick = true;
             return false;
         }
-        if (isForwarded(path)) {
-            if (!runsForwardedTests(dedicatedServer, forwardsClientCalls)) {
-                skippedForwarded.add(path);
-                skipForSide(path);
-                skippedThisTick = true;
-                return false;
-            }
-            // A plain tick that runs on the server: its client-only calls go to the player's
-            // client.
-            currentTickFnId = tickFnId;
-            return ops.callExportFn(currentEntityHandle, tickFnId);
-        }
-        int errorsBefore = GrugTestState.runtimeErrorCount;
-        boolean completed = ops.callExportFn(currentEntityHandle, anySideTickFnId);
-        boolean definesAnySide = completed || GrugTestState.runtimeErrorCount != errorsBefore;
-        if (skipsOnServer(dedicatedServer, definesAnySide)) {
-            skipForSide(path);
-            skippedThisTick = true;
-            return false;
-        }
-        if (!definesAnySide) {
-            currentTickFnId = tickFnId;
-            return ops.callExportFn(currentEntityHandle, tickFnId);
-        }
-        currentTickFnId = anySideTickFnId;
-        if (completed) {
-            errorsBefore = GrugTestState.runtimeErrorCount;
-            boolean tickRan = ops.callExportFn(currentEntityHandle, tickFnId);
-            if (tickRan | GrugTestState.runtimeErrorCount != errorsBefore) {
-                throw Grug.fatal(
-                        path + " defines both tick and tick_any_side, but a test defines one.");
-            }
-        }
-        return completed;
+        currentTickFnId = tickFnId;
+        return ops.callExportFn(currentEntityHandle, tickFnId);
     }
 
     /**
@@ -1984,13 +1832,12 @@ public class GrugTestRunner {
      * {@link #destroyCurrentEntity} then finds the restore already settled and does not ask again
      * (#1040).
      */
-    private void skipForSide(String path) {
+    private void skipForwarded(String path) {
         String failure = restoreForcedNormalization();
         if (failure != null) {
             fail(path, failure);
             return;
         }
-        skippedForSide.add(path);
         totalCount--;
         destroyCurrentEntity();
         nextTestIndex++;

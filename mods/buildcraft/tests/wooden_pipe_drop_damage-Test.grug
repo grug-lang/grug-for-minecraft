@@ -6,7 +6,7 @@ pipe_drop_damage: number = 0
 pipe_drop_count: number = 0
 pipe_drop_sampled: bool = false
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _drop_setup(ctx)
         ctx.not_done()

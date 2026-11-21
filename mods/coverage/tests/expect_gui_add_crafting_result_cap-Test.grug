@@ -1,7 +1,7 @@
 # A GUI's layout holds at most 64 of each record, which is what a client's reader accepts. A layout
 # past that is one the client refuses, and refusing it costs the connection the server sent it over,
 # so the 65th result has to fail the call that adds it instead. See #1216.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
 
     added: number = 0

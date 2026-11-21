@@ -1,5 +1,5 @@
 # Putting a missing mod file into a state must report an IO error rather than doing nothing.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     ctx.expect_error("TestTickContext.set_mod_file_state")
     ctx.set_mod_file_state("does/not/exist.grug", "invalid")
 }

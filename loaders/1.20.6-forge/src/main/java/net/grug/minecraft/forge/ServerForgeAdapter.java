@@ -11,7 +11,7 @@ import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
-import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -35,11 +35,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -201,6 +196,29 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * its floor hold uses, so the room, origin and fixtures land on the grid a client-only run's
      * snap puts them on (#1161). The joined client's camera and view follow the packet.
      */
+    /**
+     * Moves this server's copy of the test player to the feet position when the server has that
+     * chunk, through the teleport the run's floor hold uses, so the joined client's camera follows
+     * (#1040). False when there is no player, no world or the chunk is not loaded, which the caller
+     * reports without moving anyone: a teleport into a chunk the joined client has not received
+     * crashes this generation of the game.
+     */
+    @Override
+    public boolean setPlayerPositionForTest(double x, double y, double z) {
+        ServerPlayer player = (ServerPlayer) testPlayer();
+        ServerLevel level = (ServerLevel) getLevel();
+        boolean hasWorld = level != null;
+        boolean loaded =
+                hasWorld
+                        && level.hasChunkAt(
+                                new BlockPos((int) Math.floor(x), 64, (int) Math.floor(z)));
+        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, loaded)) {
+            return false;
+        }
+        GrugServerRun.moveToFeet(player, x, y, z);
+        return true;
+    }
+
     @Override
     public void snapPlayerForTestOnServer() {
         GrugServerRun.snapToBlockCentre((ServerPlayer) testPlayer());
@@ -417,6 +435,31 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * Whether the joined client asks the overlays' world key, HUD and world exports, which this
+     * server's own answer would deny: the loader marks support where it registers the hooks, and a
+     * server has none (#1040).
+     */
+    @Override
+    public boolean worldOverlaySupportedForTest() {
+        return overlays.worldSupported();
+    }
+
+    /**
+     * Whether a frame of the joined client drew the world overlay of the running test's mod since
+     * its last key press (#1040): the mark belongs to that client's frame pass.
+     */
+    @Override
+    public boolean worldOverlayDrawnForTest() {
+        return overlays.worldDrawn(GrugTestState.currentTestMod);
+    }
+
+    /** The press is delivered by the joined client's own key path (#1040). */
+    @Override
+    public void pressWorldKey(int key, boolean ctrl) {
+        overlays.pressWorldKey(GrugTestState.currentTestMod, key, ctrl);
+    }
+
+    /**
      * This server forwards a test's client-only calls to the player who started the run (#1040).
      */
     @Override
@@ -527,31 +570,6 @@ public class ServerForgeAdapter extends ForgeAdapter {
     @Override
     public void openInventory(Object playerObj) {
         screens.openInventory();
-    }
-
-    /**
-     * The tests listed in {@code forge-1.20.6-server-unsupported-tests.txt}, which says why. The
-     * name carries the loader because this layer is at the universal jar's root, and a root file of
-     * the bare name would shadow the nested layers' own lists on the class path.
-     */
-    @Override
-    public Set<String> serverUnsupportedTests() {
-        String name = "/forge-1.20.6-server-unsupported-tests.txt";
-        try (InputStream in = ServerForgeAdapter.class.getResourceAsStream(name)) {
-            if (in == null) {
-                throw new IllegalStateException(name + " is not in the jar.");
-            }
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
-            int n;
-            while ((n = in.read(buffer)) > 0) {
-                out.write(buffer, 0, n);
-            }
-            return GrugTestRunner.parseTestList(
-                    new String(out.toByteArray(), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not read " + name + ".", e);
-        }
     }
 
     /**

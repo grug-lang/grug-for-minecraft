@@ -13,7 +13,7 @@
 # parity unproven. b1.7.3-ornithe carries it: its server keeps the feet in the player's position
 # where the client keeps the eye, and ServerOrnitheAdapter adds the eye height (#1178). The
 # a1.1.2_01 server carries it the same way (#1190).
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     # The first wait is for the client to have drawn the room, which is also when its camera has
     # arrived: the runner teleports the player to the room's start before the test, and the camera
     # follows that teleport. Asking before a frame is drawn could read a camera still on the old

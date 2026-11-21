@@ -1,6 +1,6 @@
 # ctx.tick_level advances a whole number of ticks, so a fraction must report an error rather than
 # be rounded: a test asking for 2.5 ticks has a bug that rounding would hide.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
 
     ctx.expect_error("whole number from 0 to")

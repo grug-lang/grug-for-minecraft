@@ -6,7 +6,7 @@
 # sits at (30, 17) inside it. Slot 0 is therefore drawn at (466, 162), and the crop covers its 16 by 16 pixels
 # scaled to 48 by 48. See redstone_engine_item-Test.grug.
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()

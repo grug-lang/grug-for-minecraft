@@ -3,7 +3,7 @@
 # on the b1.7.3-stationapi dedicated-server leg (run 42217883281): the test then completed without
 # the error it asks for. The comparison still covers Screenshot.differs_from's unchanged branch,
 # which is what stops the assertion from passing a loader that never reloaded anything.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     # Matched on the wording rather than the number, so the check does not depend on how the
     # share is formatted.
     ctx.expect_error("the frame still shows what it showed before")
