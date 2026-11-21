@@ -13,17 +13,12 @@
 # screen is the client's own. Proof run 44809935576 failed overlay-Test on this loader at line 129
 # for the container click that was missing; the dispatch of this branch is what proves the fix.
 #
-# The overlay click and the item list. Test.overlay_supported, Test.overlay_drawn and the first-frame
-# read answer from the joined client (#1099, #1391), so overlay_screen_open is unlisted here and
-# measured by proof run 44678178827. jei-Test stays; overlay-Test runs on this leg since #1393's ordering fix: #1099 and #1391 answer the
-# overlay hooks from the joined client and #1470 fixed the cursor read and the write, but proof run
-# 44809935576 still failed overlay-Test on this leg, at its left click on the overlay, because the
-# Alpha server does not apply the container click the joined client presses (#1393). jei-Test did not
-# run at that head because the leg stops at its first failure, so it stays unproven too. The
-# forced-normalization item list also stays: no dispatch has proven this leg's item list since #1470,
-# so a proof is pending.
-jei/tests/jei-Test.grug
-jei/tests/item_list_forced_normalization-Test.grug
+# The overlay click and the item list run here. Test.overlay_supported, Test.overlay_drawn and the
+# first-frame read answer from the joined client (#1099, #1391). Proof run 44849292024 failed
+# overlay-Test at its left click because the client applied the server's cursor packet only after
+# the click call that followed it (#1393); the client now applies its queued packets before a
+# control message, and the dispatch of this branch proves it. jei-Test and the forced-normalization
+# item list never ran on this leg at that head, since it stops at its first failure.
 #
 # The forced-normalization probe runs here: #1430 forwards the force and the two reads to the joined
 # client, whose GL state the frame pass draws with (#1040). Proof run 44650333692 passed it on this
