@@ -11,9 +11,11 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
+import net.grug.minecraft.ornithe.client.ClientGrugScreens;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
+import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.Display;
@@ -86,8 +88,21 @@ public final class GrugControlAlphaClient {
         return client;
     }
 
-    /** A message from the server, on the game thread. */
+    /**
+     * A message from the server, on the game thread.
+     *
+     * <p>The packets the server sent before it (a cursor, a menu's contents) are queued by {@link
+     * ClientGrugScreens} and applied at the head of the next client tick, while the game reads this
+     * connection after that point in the same tick. A call that read the client's state here, such
+     * as a click on the overlay that deletes the cursor, would therefore see the state from before
+     * the server's own earlier write (#1393, #1389), so the queue is applied first, in the order
+     * the server sent it.
+     */
     static void onMessage(byte[] bytes) {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (minecraft != null) {
+            ClientGrugScreens.applyPending(minecraft);
+        }
         client().onMessage(bytes);
     }
 
