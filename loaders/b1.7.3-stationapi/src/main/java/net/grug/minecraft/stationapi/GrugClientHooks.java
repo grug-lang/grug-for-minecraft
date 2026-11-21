@@ -580,7 +580,7 @@ public class GrugClientHooks {
 
         // A CI run is not watched, and the readout is drawn into every capture that reaches
         // down to it, so the log is all it gets. See #412.
-        if (GrugReference.isCiRun()) {
+        if (GrugReference.isCiChatSilenced()) {
             return;
         }
 

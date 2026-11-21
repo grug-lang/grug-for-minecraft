@@ -32,6 +32,12 @@ public final class GrugReference {
     /** The system property equivalent of {@link #CI_ENV_VAR}. */
     public static final String CI_PROPERTY = "grug.ci";
 
+    /** The environment variable that makes a CI client join a dedicated server (#167). */
+    public static final String CI_CONNECT_ENV_VAR = "GRUG_CI_CONNECT";
+
+    /** The system property equivalent of {@link #CI_CONNECT_ENV_VAR}. */
+    public static final String CI_CONNECT_PROPERTY = "grug.ci.connect";
+
     /**
      * The environment variable that makes a run accept new goldens instead of failing on a miss.
      */
@@ -54,6 +60,21 @@ public final class GrugReference {
      */
     public static boolean isCiRun() {
         return isTruthy(System.getProperty(CI_PROPERTY, System.getenv(CI_ENV_VAR)));
+    }
+
+    /**
+     * Whether the chat readout stays silent: a CI run, and the client a CI run joins to a dedicated
+     * server, which runs without {@code GRUG_CI} (the server holds the test run) but has a
+     * capture's crop drawn from its screen all the same. A joined client that showed the readout
+     * drew the red host-function errors of a mod's own error tests into the bottom ten rows of
+     * every capture, which single-player never showed (#1092).
+     */
+    public static boolean isCiChatSilenced() {
+        if (isCiRun()) {
+            return true;
+        }
+        String connect = System.getProperty(CI_CONNECT_PROPERTY, System.getenv(CI_CONNECT_ENV_VAR));
+        return connect != null && !connect.isEmpty();
     }
 
     /**
