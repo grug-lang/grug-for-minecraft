@@ -148,10 +148,25 @@ public final class GrugEntities {
     /**
      * Empties {@code roots}, under the monitor {@link #root} and {@link #unroot} take, so a clear
      * on one thread cannot change the list under an unroot's iteration on another. See #1108.
+     *
+     * <p>What it releases is handed to the call that is running, when one is: a block entity whose
+     * script destroys its own block (an explosion, {@code place_block} of air) is removed while its
+     * {@code tick} is still on the stack, so clearing its child list freed the {@code Level} its
+     * member kept and the script's next {@code level} call reported the id as collected. The call's
+     * own list is dropped when the call returns, so the entities live exactly as long as the script
+     * that can still use them. See #93.
      */
     public static void clearRoots(List<GrugObject> roots) {
+        List<GrugObject> released;
         synchronized (roots) {
+            released = new ArrayList<>(roots);
             roots.clear();
+        }
+        List<GrugObject> running = fnEntities;
+        if (!released.isEmpty() && running != roots && running != retainedFnEntities) {
+            synchronized (running) {
+                running.addAll(released);
+            }
         }
     }
 
