@@ -85,8 +85,8 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   subagent's diff against the issue, watches CI, merges, and keeps its own context small. Its brief
   opens with the worktree and the repository's configured commit identity, then holds the issue and
   its acceptance points, the rules of this file that apply, the exact steps, that the change's own
-  unit tests and grug compile pass before the first dispatch, that Minecraft runs only in CI, and
-  how to report. A dispatch whose new tests fail is a local failure found late, not a measurement.
+  unit tests and grug compile pass before the first dispatch, that Minecraft runs only in CI
+  (except the debugger exception under "Where Minecraft runs"), and how to report. A dispatch whose new tests fail is a local failure found late, not a measurement.
   Every subagent runs at its default thinking level, as the review
   subagent below does: the orchestrator sets no reasoning-effort override, whatever the task. A
   measurement arm's brief says its instrumentation must not land or must be excluded from the
@@ -158,8 +158,17 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
 
 ## Where Minecraft runs
 
-Minecraft never runs on the maintainer's machine: it is pointless there and has hard-locked the
-laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay local: Gradle builds,
+Minecraft does not run on the maintainer's machine by default: it is pointless there and has
+hard-locked the laptop (about 15 GB of RAM). Every game run goes through CI. The one exception, the
+maintainer's call on 2026-11-22: when every idea from reading code and logs is exhausted (a defect
+that a CI log cannot localize, such as an entity removed by an unknown caller), a subagent may run
+the game locally to attach a debugger (JDWP with `jdb`, or breakpoints in the client and the
+server JVM) and trace the bytecode. At most one local game runs at a time, taken under
+`flock ~/agent-workspaces/local-game.lock`; `free -m` must show at least 6 GB available first (a
+single 1.20.6 client with 2 GB free rebooted the laptop); give the JVMs an `-Xmx` cap; use the
+lightest loader that shows the defect (a dedicated server beats a client); and the evidence goes
+into the issue, because a local run is a diagnosis and never a verification: the fix is proved in
+CI. Light jobs stay local: Gradle builds,
 `javap`, the JaCoCo CLI, the Python and script tests, `pre-commit`.
 
 - A pull request runs 7 to 10 jobs of `build.yml`, or `discover` alone when no test can read the
