@@ -295,6 +295,11 @@ public final class GrugServerRun {
         // The runner ticks once per world tick, as the client's does at speed: a server tick has
         // run the world once already, and each extra tick of a faster game is a world tick followed
         // by a runner tick (#163).
+        // The server's setup sets the difficulty from "spawn-monsters", which the harness turns off
+        // so that nothing spawns around the test player, and difficulty 0 makes the game remove
+        // every monster a test spawns in its first tick. Tests run at the difficulty the client's
+        // own options default to, normal, and spawn-monsters still decides the spawning (#1040).
+        server.getWorld(0).difficulty = 2;
         for (int step = 0; step < Math.max(1, gameSpeed); step++) {
             if (step > 0) {
                 advance(server.getWorld(0), 1);
