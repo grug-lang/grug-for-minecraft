@@ -2559,7 +2559,7 @@
 					]
 				},
 				"draw_triangle": {
-					"description": "Draws one filled triangle between three positions in the world, in blocks, in the color's alpha: a color made with Color.rgba(r, g, b, 128) lets what is behind it show through by half. Both faces are drawn, so a closed shape of triangles, such as a ball, shows its inside when the camera is in it. It is plain color that no texture or light changes; blocks nearer than it hide it as they hide anything else, and two translucent triangles do not hide each other, so the order they are drawn in does not matter. Only the Beta 1.7.3 loaders draw triangles so far: on any other loader the call stops the game, as every call a loader does not support does. The corners have to be finite, or they are reported and the triangle is not drawn. Only legal on the context render_world() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Draws one filled triangle between three positions in the world, in blocks, in the color's alpha: a color made with Color.rgba(r, g, b, 128) lets what is behind it show through by half. Both faces are drawn, so a closed shape of triangles, such as a ball, shows its inside when the camera is in it. It is plain color that no texture or light changes; blocks nearer than it hide it as they hide anything else, and two translucent triangles do not hide each other, so the order they are drawn in does not matter. Every loader draws triangles: a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi, 1.2.5-forge and 1.20.6-forge. The corners have to be finite, or they are reported and the triangle is not drawn. Only legal on the context render_world() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "x1",
@@ -3947,7 +3947,7 @@
 					]
 				},
 				"set_player_position": {
-					"description": "Moves the player so their feet are at the position, in blocks, which is how a test stands inside or outside a shape drawn around a point, or looks at the world from somewhere other than the room's middle. The chunk there has to be loaded on the client: a teleport into one it has not received crashes the game, so the call is refused and the player stays where they were, and the test moves in steps and waits for the world to settle between them. The runner puts the player back where it found them when the test ends, and get_origin keeps answering the room's middle. Only the Beta 1.7.3 clients support it so far: on any other loader the call stops the game. The position has to be finite.",
+					"description": "Moves the player so their feet are at the position, in blocks, which is how a test stands inside or outside a shape drawn around a point, or looks at the world from somewhere other than the room's middle. The chunk there has to be loaded on the client: a teleport into one it has not received crashes the game, so the call is refused and the player stays where they were, and the test moves in steps and waits for the world to settle between them. The runner puts the player back where it found them when the test ends, and get_origin keeps answering the room's middle. Every loader's client supports it: a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi, 1.2.5-forge and 1.20.6-forge; a dedicated server refuses it. The position has to be finite.",
 					"parameters": [
 						{
 							"name": "x",
