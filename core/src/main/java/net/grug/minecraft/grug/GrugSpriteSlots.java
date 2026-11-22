@@ -28,4 +28,23 @@ public final class GrugSpriteSlots {
         }
         return result;
     }
+
+    /**
+     * Hands out terrain.png slots one after another from a first slot, skipping the animated ones,
+     * so a loader keeps no counter of its own to get wrong.
+     */
+    public static final class Allocator {
+        private int cursor;
+
+        public Allocator(int first) {
+            cursor = first;
+        }
+
+        /** The next slot the game does not animate. */
+        public int next() {
+            int slot = firstUsable(cursor);
+            cursor = slot + 1;
+            return slot;
+        }
+    }
 }

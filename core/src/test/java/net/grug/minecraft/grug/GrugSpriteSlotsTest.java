@@ -25,14 +25,18 @@ class GrugSpriteSlotsTest {
     }
 
     @Test
-    void walkingFromTheFirstSlotNeverLandsOnOne() {
-        // The way the loaders hand out slots: take the first usable one at or after the cursor and
-        // move past it. Enough blocks to walk over both animated pairs must still land clear.
-        int cursor = 160;
+    void theAllocatorNeverHandsOutAnAnimatedSlotAndNeverRepeats() {
+        GrugSpriteSlots.Allocator allocator = new GrugSpriteSlots.Allocator(160);
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        int previous = 159;
         for (int block = 0; block < 90; block++) {
-            int slot = GrugSpriteSlots.firstUsable(cursor);
+            int slot = allocator.next();
             assertFalse(GrugSpriteSlots.isAnimated(slot), "block " + block + " got " + slot);
-            cursor = slot + 1;
+            assertTrue(slot > previous, "block " + block + " got " + slot);
+            assertTrue(seen.add(slot), "block " + block + " repeated " + slot);
+            previous = slot;
         }
+        // 90 slots from 160 end at 253 once the four animated ones are skipped.
+        assertEquals(253, previous);
     }
 }
