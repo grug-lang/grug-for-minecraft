@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Line coverage of smoketest.c from the mods/coverage/ tests, for the smoketest job (#1589).
+"""Line and branch coverage of smoketest.c from the mods/coverage/ tests, for the smoketest job (#1589).
 
     line_coverage.py <gcov-json-file> <smoketest.c> [--assert]
 
-The first argument is the output of ``gcov --json-format --stdout`` (``-`` reads stdin). Only lines,
-never branches, are counted. A line may be excluded only with a written reason, so that a missing
+The first argument is the output of ``gcov --json-format --stdout`` (``-`` reads stdin). A line is
+covered when its count is above 0, and a branch (gcov's per-line ``branches``) when its count is
+above 0. A marker excludes its line and that line's branches alike. A line may be excluded only with a written reason, so that a missing
 test is never hidden by a bare marker:
 
     code();  // SMOKETEST_EXCL: why no committed test can reach this line
@@ -13,8 +14,8 @@ test is never hidden by a bare marker:
     // SMOKETEST_EXCL_STOP
 
 A marker with no reason, a START with no STOP, a STOP with no START and a nested START are errors.
-It prints the percentage and the uncovered lines and exits 0, unless ``--assert`` is given, which
-exits 1 below 100% or on a bad marker. The job turns the assertion on with SMOKETEST_ASSERT_COVERAGE.
+It prints both percentages and the uncovered ``line`` numbers and branch lines, and exits 0, unless ``--assert`` is given, which
+exits 1 below 100% of either or on a bad marker. The job turns the assertion on with SMOKETEST_ASSERT_COVERAGE.
 """
 
 from __future__ import annotations
@@ -64,21 +65,34 @@ def excluded_lines(source: str) -> tuple[set[int], list[str]]:
     return excluded, problems
 
 
-def measure(
-    gcov: dict, source: str, name: str = "smoketest.c"
-) -> tuple[int, int, list[int], list[str]]:
-    """Counted lines, covered lines, the uncovered ones and the marker problems."""
+def measure(gcov: dict, source: str, name: str = "smoketest.c") -> tuple:
+    """Counted lines, covered lines, uncovered lines, counted branches, covered branches, the
+    uncovered branches as (line, index) pairs, and the marker problems."""
     excluded, problems = excluded_lines(source)
     counts: dict[int, int] = {}
+    branches: dict[tuple[int, int], int] = {}
     for file in gcov.get("files", []):
         if Path(file["file"]).name != name:
             continue
         for line in file["lines"]:
             number = line["line_number"]
             counts[number] = counts.get(number, 0) + line["count"]
+            for index, branch in enumerate(line.get("branches", [])):
+                key = (number, index)
+                branches[key] = branches.get(key, 0) + branch["count"]
     counted = {n: c for n, c in counts.items() if n not in excluded}
     missed = sorted(n for n, c in counted.items() if c == 0)
-    return len(counted), len(counted) - len(missed), missed, problems
+    kept = {k: c for k, c in branches.items() if k[0] not in excluded}
+    missed_branches = sorted(k for k, c in kept.items() if c == 0)
+    return (
+        len(counted),
+        len(counted) - len(missed),
+        missed,
+        len(kept),
+        len(kept) - len(missed_branches),
+        missed_branches,
+        problems,
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -88,16 +102,26 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--assert", dest="check", action="store_true")
     args = parser.parse_args(argv)
     raw = sys.stdin.read() if args.gcov_json == "-" else Path(args.gcov_json).read_text()
-    total, covered, missed, problems = measure(json.loads(raw), Path(args.source).read_text())
+    total, covered, missed, btotal, bcovered, bmissed, problems = measure(
+        json.loads(raw), Path(args.source).read_text()
+    )
     percent = 100.0 * covered / total if total else 0.0
+    bpercent = 100.0 * bcovered / btotal if btotal else 0.0
     print(f"smoketest.c line coverage: {covered}/{total} lines, {percent:.1f}%")
     if missed:
         print("uncovered lines: " + ", ".join(map(str, missed)))
+    print(f"smoketest.c branch coverage: {bcovered}/{btotal} branches, {bpercent:.1f}%")
+    if bmissed:
+        # One entry per line, with how many of its branches are uncovered.
+        per_line: dict[int, int] = {}
+        for number, _ in bmissed:
+            per_line[number] = per_line.get(number, 0) + 1
+        print("uncovered branches: " + ", ".join(f"{n} ({c})" for n, c in per_line.items()))
     for problem in problems:
         print(f"::warning::smoketest.c exclusion problem, {problem}")
         print(f"EXCLUSION PROBLEM: {problem}")
-    if args.check and (missed or problems or total == 0):
-        print("line coverage assertion: FAILED")
+    if args.check and (missed or bmissed or problems or total == 0):
+        print("coverage assertion: FAILED")
         return 1
     return 0
 

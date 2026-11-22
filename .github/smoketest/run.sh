@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # The smoketest job's steps (#1589), runnable locally: builds the host twice, once with
 # AddressSanitizer and UBSan and once with gcov instrumentation, runs every mods/coverage/ logic
-# test on each, and prints the contract and line coverage counts. Advisory by default.
+# test on each, and prints the contract, line and branch coverage counts. Advisory by default.
 #
 #   GRUG_RS=<grug-rs checkout holding target/release/libgruggers.a> .github/smoketest/run.sh
 #
 # Switches, each off by default until the host has its core (#1586), on only when set to exactly
 # `true` (so `false`, `0` and empty are off):
 #   SMOKETEST_ASSERT_CONTRACT   fail when a mod_api.json entry has no implementation
-#   SMOKETEST_ASSERT_COVERAGE   fail below 100% line coverage of smoketest.c (see line_coverage.py)
+#   SMOKETEST_ASSERT_COVERAGE   fail below 100% line or branch coverage of smoketest.c (see line_coverage.py)
 #   SMOKETEST_ASSERT_TESTS      fail when a test fails, not only on a sanitizer error or a crash
 # Nothing here is cached: a run takes about a second.
 set -u
@@ -52,10 +52,10 @@ echo "== AddressSanitizer and UBSan =="
 make -C "$here" OUT="$build/asan" SAN="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" >/dev/null || exit 1
 run "$build/asan" sanitizers
 
-echo "== line coverage of smoketest.c, from the mods/coverage/ tests =="
+echo "== line and branch coverage of smoketest.c, from the mods/coverage/ tests =="
 make -C "$here" OUT="$build/cov" CFLAGS="-O0 -g -Wall -Wextra -std=gnu11" SAN="--coverage" >/dev/null || exit 1
 run "$build/cov" coverage
-(cd "$build" && gcov --json-format --stdout cov-smoketest.gcda >gcov.json 2>/dev/null)
+(cd "$build" && gcov --branch-probabilities --json-format --stdout cov-smoketest.gcda >gcov.json 2>/dev/null)
 cov_args=()
 [ "${SMOKETEST_ASSERT_COVERAGE:-}" = true ] && cov_args=(--assert)
 python3 "$here/line_coverage.py" "$build/gcov.json" "$here/smoketest.c" "${cov_args[@]}" || status=1
