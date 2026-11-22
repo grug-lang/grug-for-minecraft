@@ -371,6 +371,7 @@ REGISTER("Level", "random_float", Level_random_float);
 // Random.nextGaussian, the polar method: each loop makes two values and the second is kept for the next call.
 // StrictMath.log is fdlibm's __ieee754_log, which Random.nextGaussian uses; glibc's log differs from it
 // in the last bit for some arguments (a selftest vector from seed 42 shows it), so it is written out here.
+// SMOKETEST_EXCL_START: reached only by selftest.c, whose JDK known-answer vectors prove it
 static double strict_log(double x) {
     static const double ln2_hi = 6.93147180369123816490e-01, ln2_lo = 1.90821492927058770002e-10,
         two54 = 1.80143985094819840000e+16, Lg1 = 6.666666666666735130e-01, Lg2 = 3.999999999940941908e-01,
@@ -415,6 +416,7 @@ static double strict_log(double x) {
     }
     return k == 0 ? f - s * (f - R) : dk * ln2_hi - ((s * (f - R) - dk * ln2_lo) - f);
 }
+// SMOKETEST_EXCL_STOP
 static double rnd_gaussian(void) {
     if (rnd_have_gaussian) { rnd_have_gaussian = false; return rnd_next_gaussian; }
     double v1, v2, s;
