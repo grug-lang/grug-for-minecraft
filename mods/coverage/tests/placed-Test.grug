@@ -18,6 +18,9 @@ export tick(ctx: TestTickContext) {
     z: number = Math.floor(origin.z())
 
     if ctx.current_tick() == 0 {
+        # The glass is outside the room the runner clears, so a repeated run in one session clears it first.
+        level.place_block(x, y - 1 + 20, z, "minecraft:air")
+        level.place_block(x, y - 1 + 21, z, "minecraft:air")
         level.place_block(x, y, z, "grug:coverage_decline_use")
         ctx.set_held_item(ctx.get_player(), item(resource_location("grug:coverage_placed")))
         ctx.use_block(level, x, y, z)

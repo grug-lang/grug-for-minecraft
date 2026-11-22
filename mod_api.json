@@ -2746,7 +2746,7 @@
 					}
 				},
 				"position": {
-					"description": "The player's position: the horizontal centre of the player and the height of their feet, the same on every loader whatever the game keeps (Alpha and 1.2.5 store the eye, 1.20.6 and Beta the feet). It is the position a block's `placed` export reads to work out which way the player stood.",
+					"description": "The player's position: the horizontal centre of the player and the height of their feet, the same on every loader whatever the game keeps (Alpha, Beta and 1.2.5 store the eye in their position fields, 1.20.6 stores the feet). It is the position a block's `placed` export reads to work out which way the player stood.",
 					"return_type": {
 						"name": "Vec3"
 					}

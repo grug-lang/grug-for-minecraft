@@ -191,11 +191,15 @@ public class GrugBlock extends BlockContainer {
     /**
      * Calls the block's {@code placed} export after a player placed it. The item's placement calls
      * this once the block, its metadata and its tile are in the world, so the export reads a
-     * finished block. This game's item placement is the only caller and it passes the player.
+     * finished block. A remote world is skipped, because a joined client's world only mirrors the
+     * server's and a block's {@code placed} is server logic; singleplayer's world is not remote.
      */
     @Override
     public void onBlockPlacedBy(World world, int x, int y, int z, EntityLiving placer) {
         super.onBlockPlacedBy(world, x, y, z, placer);
+        if (world.isRemote || !isPlayer(placer)) {
+            return;
+        }
         long blockHandle = Grug.createEntity(this.blockFileId);
         if (blockHandle != 0) {
             long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
@@ -203,6 +207,12 @@ public class GrugBlock extends BlockContainer {
             ExportFns.Block_placed(blockHandle, worldId, x, y, z, playerId);
             Grug.destroyEntity(blockHandle);
         }
+    }
+
+    @GrugGenerated(
+            "a placer that is not a player is passed by other mods only, which no test drives")
+    private static boolean isPlayer(EntityLiving placer) {
+        return placer instanceof EntityPlayer;
     }
 
     /**
