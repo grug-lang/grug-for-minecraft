@@ -400,6 +400,16 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 | `loaders/<loader>/` | one per Minecraft version and mod loader |
 | `test-saves/<name>.zip`, `loaders/<loader>/test-save.txt` | the world a loader's tests start from |
 | `recreation.py`, `about_schema.py`, `dead_links.py` | metadata validation, each with its own tests |
+| `.github/smoketest/` | the local logic smoketest (#1548): a C host on grug-rs that runs a mod's logic tests in about a second, without the game |
+
+- The smoketest is a hint for porting agents and never a merge gate: the real loader stays the oracle
+  and the only source of goldens, and a green smoketest means only that the tests we wrote pass. It
+  covers logic and stubs every graphics call. A behaviour enters it only when a committed test asserts
+  it and the real loader passes that test, and `mod_api.json` is its contract (`smoketest --contract`
+  lists the entries it lacks). Its hand-written code stays in one file, `smoketest.c`, in
+  banner-commented sections, with generated code beside it. Once it can run a mod's logic tests
+  (#1586), run them there before a port's first push instead of using CI to find out whether the
+  mod's shape works.
 
 - Add to `mod_api.json` whenever grug code would otherwise need a workaround. grug code stays
   plain and the API grows, so a hack in a `.grug` file is a defect and the missing
