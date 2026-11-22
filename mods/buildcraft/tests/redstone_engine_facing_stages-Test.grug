@@ -5,7 +5,7 @@
 # this one pins the stage colour on the five rotated trunks too. The first capture shows six engines
 # in the green stage (251 to 500 of 1000 energy) and the second six in the red stage (over 750), facing
 # 0 at the right and 5 at the left, since the camera looks towards +z, each with its plate out at a
-# progress of 0.5. The energy is set to the middle of the stage, 375 and 875, so the one energy an
+# progress of 0.5. The energy is set near the top of the stage, 495 and 995, so the one energy an
 # unpowered engine loses each tick cannot take it out of the stage before the capture. The reference
 # run has no grug saved data, so it sets the real TileEngine's "orientation", "progress" and "energy"
 # through its NBT, and ctx.load_nbt replaces the engine with one loaded from it and redraws the block.
@@ -56,9 +56,9 @@ export tick(ctx: TestTickContext) {
             return
         }
         if capture == 0 {
-            _show(ctx, 375)
+            _show(ctx, 495)
         } else {
-            _show(ctx, 875)
+            _show(ctx, 995)
         }
         changed = true
         settled_ticks = 0
@@ -67,23 +67,30 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    # An unpowered engine loses one energy on every tick, and the runner plays up to ten ticks a frame,
-    # so on a slow runner the 375 or 875 set once drifts out of its stage before the frame is
-    # captured (the a1 dedicated leg drew the blue stage, 1 energy). The port's engines are set again
-    # on every tick until the capture, so the energy the frame draws is never more than a few ticks
-    # old, well inside the 124 ticks the stage leaves. The reference's NBT load redraws the block, so
-    # it is set once and its engine, which the reference run does not tick here, holds it.
-    if not me.is_reference() {
-        if capture == 0 {
-            _show(ctx, 375)
-        } else {
-            _show(ctx, 875)
-        }
-    }
-
     if not _ready(ctx) {
         ctx.not_done()
         return
+    }
+
+    # An unpowered engine loses one energy on every tick, and the runner plays up to ten ticks a frame,
+    # so on a slow runner the 495 or 995 set once drifts out of its stage while the waits above run
+    # (the a1 dedicated leg drew the blue stage, 1 energy, in the green capture). The engine is set
+    # again, with the settle wait restarted, only once it has lost 150, which leaves 94 ticks of the
+    # stage for the frame the capture reads. The energies are the tops of the stages, 495 of 251 to
+    # 500 and 995 of over 750 to 1000, for the most room. Setting it on every tick instead keeps the
+    # world from settling and the test ran out of ticks.
+    # Only the port's engine ticks; the reference's NBT load is made once.
+    if not me.is_reference() {
+        target: number = 495
+        if capture == 1 {
+            target = 995
+        }
+        if _engine(ctx, 0).get_saved_number("energy") < target - 150 {
+            _show(ctx, target)
+            settled_ticks = 0
+            ctx.not_done()
+            return
+        }
     }
 
     # Both runs compare against the same committed pixels, because the port draws the engine from the
