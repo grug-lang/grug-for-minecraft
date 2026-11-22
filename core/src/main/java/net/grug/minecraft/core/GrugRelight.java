@@ -118,19 +118,19 @@ public final class GrugRelight {
                 pieces.add(box);
                 continue;
             }
-            int xSpan = box[3] - box[0];
-            int ySpan = box[4] - box[1];
-            int zSpan = box[5] - box[2];
+            long xSpan = (long) box[3] - box[0];
+            long ySpan = (long) box[4] - box[1];
+            long zSpan = (long) box[5] - box[2];
             if (xSpan >= ySpan && xSpan >= zSpan) {
-                int middle = Math.floorDiv(box[0] + box[3], 2);
+                int middle = box[0] + (int) Math.floorDiv((long) box[3] - box[0], 2);
                 pending.add(new int[] {box[0], box[1], box[2], middle, box[4], box[5]});
                 pending.add(new int[] {middle + 1, box[1], box[2], box[3], box[4], box[5]});
             } else if (ySpan >= zSpan) {
-                int middle = Math.floorDiv(box[1] + box[4], 2);
+                int middle = box[1] + (int) Math.floorDiv((long) box[4] - box[1], 2);
                 pending.add(new int[] {box[0], box[1], box[2], box[3], middle, box[5]});
                 pending.add(new int[] {box[0], middle + 1, box[2], box[3], box[4], box[5]});
             } else {
-                int middle = Math.floorDiv(box[2] + box[5], 2);
+                int middle = box[2] + (int) Math.floorDiv((long) box[5] - box[2], 2);
                 pending.add(new int[] {box[0], box[1], box[2], box[3], box[4], middle});
                 pending.add(new int[] {box[0], box[1], middle + 1, box[3], box[4], box[5]});
             }
@@ -140,7 +140,9 @@ public final class GrugRelight {
 
     /** How many cells a box covers, as the engine counts them. */
     private static long cells(int[] box) {
-        return (long) (box[3] - box[0] + 1) * (box[4] - box[1] + 1) * (box[5] - box[2] + 1);
+        return ((long) box[3] - box[0] + 1)
+                * ((long) box[4] - box[1] + 1)
+                * ((long) box[5] - box[2] + 1);
     }
 
     /**

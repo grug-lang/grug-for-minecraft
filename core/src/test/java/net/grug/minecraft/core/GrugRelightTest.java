@@ -54,6 +54,23 @@ class GrugRelightTest {
     }
 
     @Test
+    void aBoxNearTheIntegerLimitsIsSplitWithoutOverflow() {
+        int low = (1 << 30) + 10;
+        List<int[]> pieces = GrugRelight.pieces(low, 0, 0, low + 41, 28, 28);
+
+        assertTrue(pieces.size() > 1);
+        long total = 0;
+        for (int[] piece : pieces) {
+            assertTrue(piece[0] <= piece[3] && piece[0] >= low && piece[3] <= low + 41);
+            total +=
+                    (long) (piece[3] - piece[0] + 1)
+                            * (piece[4] - piece[1] + 1)
+                            * (piece[5] - piece[2] + 1);
+        }
+        assertEquals(42L * 29 * 29, total);
+    }
+
+    @Test
     void sweepsContinueWhileTheLightKeepsChanging() {
         long[] hashes = {1, 2, 3, 3};
         AtomicInteger next = new AtomicInteger();
