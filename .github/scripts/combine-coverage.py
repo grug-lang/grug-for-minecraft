@@ -363,6 +363,65 @@ def exec_without(paths: list[Path], names: set[str], out_dir: Path) -> list[Path
     return written
 
 
+def base_server_exec(base_dir: Path | None) -> dict[str, tuple[list[Path], list[Path]]]:
+    """The exec and dropped files of the base run's server-exec-<loader> artifacts, per runner.
+
+    Each artifact sits in a directory of its own under base_dir, named as it was uploaded. A
+    missing directory or one with no such artifact answers nothing: the base run ran no dedicated
+    leg, or its retention (7 days) ended, and the workflow step says which (#1602).
+    """
+    found: dict[str, tuple[list[Path], list[Path]]] = {}
+    if base_dir is None or not base_dir.is_dir():
+        return found
+    for entry in sorted(base_dir.iterdir()):
+        if not entry.is_dir() or not entry.name.startswith(SERVER_EXEC):
+            continue
+        execs = sorted(entry.glob("*.exec"))
+        if execs:
+            found[entry.name[len(SERVER_EXEC) :]] = (execs, sorted(entry.glob("*.dropped")))
+    return found
+
+
+def carry_over_server_exec(
+    runners: dict[str, dict], base: dict[str, tuple[list[Path], list[Path]]]
+) -> tuple[dict[str, tuple[list[Path], list[Path]]], list[str]]:
+    """Which runners take the base run's dedicated-server exec data, and the lines that say why.
+
+    A runner takes it only when this run's own leg uploaded none (its info has no server_exec),
+    since the run's own data is the newer and a union of two recordings would be a second source
+    for nothing. A runner this run has no classes for takes none either. The data is only
+    appended to the runner's exec list: JaCoCo analyses it against this run's class bytes and
+    ignores a class whose id no longer matches, which counts as nothing and never as an error
+    (#1602). It is never the Ornithe server set, since that needs this run's layer jar.
+    """
+    taken: dict[str, tuple[list[Path], list[Path]]] = {}
+    lines: list[str] = []
+    if not base:
+        lines.append("no dedicated-server exec data carried over: the base run has none to carry")
+        return taken, lines
+    for runner, (execs, dropped) in sorted(base.items()):
+        info = runners.get(runner)
+        if info is None or "classes" not in info:
+            lines.append(f"{runner}: base run's server exec not carried: this run has no classes")
+        elif info.get("server_exec"):
+            lines.append(f"{runner}: this run's own leg uploaded server exec, none carried over")
+        else:
+            taken[runner] = (execs, dropped)
+            lines.append(
+                f"{runner}: carrying over {len(execs)} dedicated-server exec file(s) of the base run"
+            )
+    return taken, lines
+
+
+def carried_unmatched(unmatched: list[str], carried: list[Path]) -> list[str]:
+    """The classes JaCoCo dropped whose exec data came from the base run, sorted.
+
+    Their ids no longer match this run's bytes, so the base run's recording says nothing about
+    them: they count as nothing, which is not a miss of anything the run covered (#1602).
+    """
+    return sorted(set(unmatched) & exec_class_names(carried))
+
+
 def server_class_set(
     layer_jar: Path, client_classes: Path, client_names: set[str], work: Path
 ) -> tuple[Path, Path, list[str], set[str]]:
@@ -950,6 +1009,16 @@ def main() -> int:
             "through rescue_class_initializers."
         ),
     )
+    parser.add_argument(
+        "--base-server-exec",
+        type=Path,
+        default=None,
+        help=(
+            "A directory of the base run's server-exec-<loader> artifacts, one subdirectory each "
+            "(#1602): a runner whose own run uploaded no dedicated-server exec data counts them "
+            "like its own, so a diff that runs no dedicated leg keeps what the last run recorded."
+        ),
+    )
     args = parser.parse_args()
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -957,6 +1026,16 @@ def main() -> int:
     if CORE not in runners:
         print("error: no coverage-exec-core artifact found", file=sys.stderr)
         return 1
+
+    carried_server, carried_server_lines = carry_over_server_exec(
+        runners, base_server_exec(args.base_server_exec)
+    )
+    if args.base_server_exec is not None:
+        for line in carried_server_lines:
+            print(line)
+    for runner, (server_execs, server_dropped_files) in carried_server.items():
+        runners[runner]["exec"] = [*runners[runner].get("exec", []), *server_execs]
+        runners[runner]["dropped"] = [*runners[runner].get("dropped", []), *server_dropped_files]
 
     carried = carried_by_runner(args.carry_over, "--carry-over")
     carried_dropped = carried_by_runner(args.carry_over_dropped, "--carry-over-dropped")
@@ -1051,6 +1130,14 @@ def main() -> int:
             args.output / f"{runner}.xml",
         )
         print_unmatched(runner, unmatched or [])
+        if runner in carried_server:
+            stale = carried_unmatched(unmatched or [], carried_server[runner][0])
+            if stale:
+                print(
+                    f"{runner}: the base run's server exec data of {len(stale)} class(es) no "
+                    "longer matches this run's class bytes and counts as nothing: "
+                    + ", ".join(stale)
+                )
         if dropped:
             # Kept out of coverage/report like the filtered classes, since it is only an input.
             everything_xml = args.output.parent / "everything-reports" / f"{runner}.xml"
