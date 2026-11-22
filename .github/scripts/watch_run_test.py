@@ -22,6 +22,9 @@ if [ "$1" = "api" ]; then
   fi
   if [ -n "$FAKE_GH_SHORT_LOG" ]; then
     seq 1 3 | sed 's/^/log line /'
+    if [ -n "$FAKE_GH_HINT" ]; then
+      echo "hint: if you need to wait for this run, use gh event listen" >&2
+    fi
     echo "##[error]Process completed with exit code 1."
     seq 4 5 | sed 's/^/log line /'
     exit 0
