@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # The smoketest job's steps (#1589), runnable locally: builds the host twice, once with
 # AddressSanitizer and UBSan and once with gcov instrumentation, runs every mods/coverage/ logic
-# test on each, and prints the contract, line and branch coverage counts. Advisory by default.
+# test on each, and prints the contract, line and branch coverage counts. A build or sanitizer
+# failure, a failing selftest, an orphaned or duplicate implementation and a host that does not start
+# fail it; the counts of passing tests, missing entries and coverage are reported unless a switch
+# below turns one into a failure.
 #
 #   GRUG_RS=<grug-rs checkout holding target/release/libgruggers.a> .github/smoketest/run.sh
 #
@@ -65,8 +68,15 @@ cov_args=()
 python3 "$here/line_coverage.py" "$build/gcov.json" "$here/smoketest.c" "${cov_args[@]}" || status=1
 
 echo "== contract: every mod_api.json entry needs an implementation =="
-"$build/asan" --contract | tail -1
-if [ "${SMOKETEST_ASSERT_CONTRACT:-}" = true ]; then
-    "$build/asan" --contract >/dev/null || status=1
+"$build/asan" --contract >"$build/contract.log"
+contract_rc=$?
+tail -1 "$build/contract.log"
+if [ "$contract_rc" -ge 2 ]; then
+    # An orphan or a duplicate is a defect of the host (a typo, a removed function), not progress.
+    echo "::error::the contract check found an implementation that mod_api.json does not have, or one registered twice"
+    cat "$build/contract.log"
+    status=1
+elif [ "$contract_rc" -eq 1 ] && [ "${SMOKETEST_ASSERT_CONTRACT:-}" = true ]; then
+    status=1
 fi
 exit $status
