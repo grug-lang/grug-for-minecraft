@@ -1,12 +1,86 @@
 {
-    "parent": "block/cube",
-    "textures": {
-        "up": "grug:block/quarry_top",
-        "down": "grug:block/quarry_side",
-        "north": "grug:block/quarry_side",
-        "south": "grug:block/quarry_front",
-        "east": "grug:block/quarry_side",
-        "west": "grug:block/quarry_side",
-        "particle": "grug:block/quarry_side"
-    }
+	"format_version": "1.9.0",
+	"parent": "minecraft:block/block",
+	"textures": {
+		"front": "grug:block/quarry_front",
+		"top": "grug:block/quarry_top",
+		"side": "grug:block/quarry_side",
+		"particle": "grug:block/quarry_side"
+	},
+	"elements": [
+		{
+			"from": [
+				0,
+				0,
+				0
+			],
+			"to": [
+				16,
+				16,
+				16
+			],
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						16,
+						16
+					],
+					"texture": "#side",
+					"cullface": "north"
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						16,
+						16
+					],
+					"texture": "#front",
+					"cullface": "south"
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						16,
+						16
+					],
+					"texture": "#side",
+					"cullface": "east"
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						16,
+						16
+					],
+					"texture": "#side",
+					"cullface": "west"
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						16,
+						16
+					],
+					"texture": "#side",
+					"cullface": "down"
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						16,
+						16
+					],
+					"texture": "#top",
+					"cullface": "up"
+				}
+			}
+		}
+	]
 }
