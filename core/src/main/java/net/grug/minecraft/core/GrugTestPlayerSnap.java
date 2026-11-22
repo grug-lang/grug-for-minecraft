@@ -45,6 +45,9 @@ public final class GrugTestPlayerSnap {
      * x and z, the saved height (the floor hold owns that), and a level view.
      */
     public static final class ServerSave {
+        private final boolean fixedStart;
+        private final double startX;
+        private final double startZ;
         private boolean saved;
         private Object owner;
         private double x;
@@ -52,6 +55,27 @@ public final class GrugTestPlayerSnap {
         private double z;
         private float yaw;
         private float pitch;
+
+        /** A save whose snap goes to the centre of the block the player was found in. */
+        public ServerSave() {
+            this.fixedStart = false;
+            this.startX = 0;
+            this.startZ = 0;
+        }
+
+        /**
+         * A save whose snap always goes to the save's start, {@code startX} and {@code startZ}, the
+         * block centre the singleplayer client's runs begin at. A joined client reports its own
+         * position, which drifts by a block or more between tests, and the renderer's single
+         * precision arithmetic draws the same room differently at another absolute position, so a
+         * dedicated leg's captures differed from a singleplayer golden in one to seven pixels
+         * (#1550).
+         */
+        public ServerSave(double startX, double startZ) {
+            this.fixedStart = true;
+            this.startX = blockCentre(startX);
+            this.startZ = blockCentre(startZ);
+        }
 
         /**
          * Saves the player as the game reports them, before the snap moves them. {@code owner} is
@@ -92,9 +116,11 @@ public final class GrugTestPlayerSnap {
             return true;
         }
 
-        /** The x the snap writes: the centre of the block the player was saved in. */
+        /**
+         * The x the snap writes: the start's, or the centre of the block the player was saved in.
+         */
         public double snappedX() {
-            return blockCentre(x);
+            return fixedStart ? startX : blockCentre(x);
         }
 
         /**
@@ -106,7 +132,7 @@ public final class GrugTestPlayerSnap {
 
         /** The z the snap writes: the centre of the block the player was saved in. */
         public double snappedZ() {
-            return blockCentre(z);
+            return fixedStart ? startZ : blockCentre(z);
         }
 
         /**

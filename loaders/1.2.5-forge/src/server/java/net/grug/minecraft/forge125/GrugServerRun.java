@@ -46,7 +46,8 @@ public final class GrugServerRun implements ITickHandler {
     private static final EnumSet<TickType> TICKS = EnumSet.of(TickType.GAME);
 
     /** The player as the snap found them, so the end of the test can put them back (#1161). */
-    private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
+    private static final GrugTestPlayerSnap.ServerSave SNAP =
+            new GrugTestPlayerSnap.ServerSave(START_X, START_Z);
 
     private static GrugTestRunner runner = null;
     private static long waitStartMillis = 0;

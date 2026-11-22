@@ -36,9 +36,6 @@ public final class GrugServerRun {
     /** How long to wait for a client to join before failing the run. */
     static final long PLAYER_JOIN_TIMEOUT_MILLIS = GrugServerJoin.timeoutMillis();
 
-    /** The player as the snap found them, so the end of the test can put them back (#1161). */
-    private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
-
     private static MinecraftServer server;
     private static GrugTestRunner runner;
     private static long waitStartMillis;
@@ -61,6 +58,10 @@ public final class GrugServerRun {
 
     private static final double START_FEET_Y = 70.0;
     private static final double START_Z = -63.5;
+
+    /** The player as the snap found them, so the end of the test can put them back (#1161). */
+    private static final GrugTestPlayerSnap.ServerSave SNAP =
+            new GrugTestPlayerSnap.ServerSave(START_X, START_Z);
 
     /** Remembers the starter placed at the start above, so each new starter is placed once. */
     private static final GrugStarterPlacement STARTER_PLACEMENT = new GrugStarterPlacement();

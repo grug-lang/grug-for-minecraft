@@ -195,6 +195,34 @@ class GrugTestPlayerSnapTest {
      * An adapter that says which side it is on and counts the client snaps. It leaves the server
      * half to its default, which is the no-op a server adapter without a player copy uses.
      */
+    @Test
+    void aFixedStartSnapsToTheSameBlockWhereverTheJoinedPlayerWasFound() {
+        // The singleplayer client starts at the save's own position, -18.5, -63.5, and snaps to
+        // the centre of that block. A joined client that drifted a block or a half block, on
+        // either side of zero, must be put at the same place (#1550).
+        double[][] found = {
+            {-18.5, -63.5}, {-17.5, -63.5}, {-17.0, -62.99}, {-18.01, -64.0}, {0.0, 0.0}
+        };
+        for (double[] at : found) {
+            GrugTestPlayerSnap.ServerSave fixed = new GrugTestPlayerSnap.ServerSave(-18.5, -63.5);
+            fixed.save(new Object(), at[0], 70.0, at[1], 0.0F, 0.0F);
+            assertEquals(-18.5, fixed.snappedX());
+            assertEquals(-63.5, fixed.snappedZ());
+            assertEquals(70.0, fixed.snappedY());
+        }
+        // A start given off the block centre is the centre of its block, as the singleplayer snap
+        // would make it, including for a negative coordinate.
+        GrugTestPlayerSnap.ServerSave off = new GrugTestPlayerSnap.ServerSave(-18.2, -63.9);
+        off.save(new Object(), 5.0, 70.0, 5.0, 0.0F, 0.0F);
+        assertEquals(GrugTestPlayerSnap.blockCentre(-18.2), off.snappedX());
+        assertEquals(GrugTestPlayerSnap.blockCentre(-63.9), off.snappedZ());
+        // Without a start the snap still follows the player's block.
+        GrugTestPlayerSnap.ServerSave free = new GrugTestPlayerSnap.ServerSave();
+        free.save(new Object(), -17.3, 70.0, -63.2, 0.0F, 0.0F);
+        assertEquals(-17.5, free.snappedX());
+        assertEquals(-63.5, free.snappedZ());
+    }
+
     private static ModLoaderAdapter adapter(GrugSide side, AtomicInteger clientSnaps) {
         return (ModLoaderAdapter)
                 Proxy.newProxyInstance(
