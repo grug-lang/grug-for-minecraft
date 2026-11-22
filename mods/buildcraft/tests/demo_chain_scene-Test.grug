@@ -34,7 +34,7 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
     } else {
         ctx.assert(pipe.has(), "The pipe should have a block entity.")
-        ctx.screenshot().equals(r"screenshots/demo_chain", 100, 150, 700, 450)
+        ctx.screenshot().equals(r"screenshots/demo_chain", 100, 230, 620, 430)
     }
 }
 
