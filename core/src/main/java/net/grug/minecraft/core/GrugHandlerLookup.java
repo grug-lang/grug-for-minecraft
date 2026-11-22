@@ -57,7 +57,7 @@ public final class GrugHandlerLookup {
     }
 
     private static boolean isJdk(Class<?> type) {
-        return type == null || type.getName().startsWith("java.");
+        return type.getName().startsWith("java.");
     }
 
     @GrugGenerated(
