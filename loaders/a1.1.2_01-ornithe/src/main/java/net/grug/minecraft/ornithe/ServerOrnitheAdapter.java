@@ -909,8 +909,11 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     public void buildTestBox(int radius) {
         World world = (World) getLevel();
         if (world != null && world.ambientDarkness != 0) {
-            world.setTime(world.ticks - world.ticks % 24000L + 24000L + 6000L);
-            world.initAmbientDarkness();
+            // The fields, not World.setTime and initAmbientDarkness: the a0.2.1 server jar names
+            // those methods differently from the development jar and crashed the run with a
+            // NoSuchMethodError, while it resolves these two fields by the same names.
+            world.ticks = world.ticks - world.ticks % 24000L + 24000L + 6000L;
+            world.ambientDarkness = 0;
         }
         super.buildTestBox(radius);
     }
