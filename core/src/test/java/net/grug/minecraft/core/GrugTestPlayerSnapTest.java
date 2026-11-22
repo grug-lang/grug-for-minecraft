@@ -176,6 +176,13 @@ class GrugTestPlayerSnapTest {
         assertEquals(List.of(), cleared);
     }
 
+    @Test
+    void aSideWithNoAchievementsMarksNothingEarned() throws Throwable {
+        // The default is a no-op, so Alpha, the dedicated servers and 1.20.6 (which clears its
+        // toasts every tick) need no override. See #1576.
+        inventoryAdapter(null, new ArrayList<>()).markAchievementsEarnedForTest();
+    }
+
     private static ModLoaderAdapter inventoryAdapter(Object player, List<Object> cleared) {
         return (ModLoaderAdapter)
                 Proxy.newProxyInstance(

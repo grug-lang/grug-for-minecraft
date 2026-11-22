@@ -127,6 +127,12 @@ public class GrugTestRunner {
         default void resetPlayerInventory() {}
 
         /**
+         * Marks every achievement earned and drops the toast on screen, before every test starts,
+         * so the first pass of a suite and every later one capture the same corner. See #1576.
+         */
+        default void markAchievementsEarned() {}
+
+        /**
          * Drops the gives a joined client sent for the test that just ended, before the next test
          * starts, so a give which outlived its test cannot change what the next one starts with.
          * See #1144.
@@ -465,6 +471,11 @@ public class GrugTestRunner {
                     @Override
                     public void resetPlayerInventory() {
                         GrugCore.getAdapter().resetPlayerInventoryForTest();
+                    }
+
+                    @Override
+                    public void markAchievementsEarned() {
+                        GrugCore.getAdapter().markAchievementsEarnedForTest();
                     }
 
                     @Override
@@ -1747,6 +1758,9 @@ public class GrugTestRunner {
         // the centre of their block with a level view when any of them looks. See #609.
         boxBuilder.snapPlayer();
         boxBuilder.resetPlayerInventory();
+        // Every pass and every test, so a toast the game queued since the last one is dropped too.
+        // See #1576.
+        boxBuilder.markAchievementsEarned();
         // After the inventory reset, so a give the client sent as the previous test ended cannot
         // land in the fresh inventory and the test that starts here reads its own starting state.
         // See #1144.
