@@ -3,6 +3,7 @@ package net.grug.minecraft.stationapi.control;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugHandlerLookup;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -12,9 +13,9 @@ import net.minecraft.network.Connection;
 import net.minecraft.network.NetworkHandler;
 import net.minecraft.world.World;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -224,51 +225,15 @@ public final class GrugControlStation {
 
     /**
      * The connection a handler holds, found by type so it does not depend on field names. The walk
-     * stops at the JDK's own classes (a reader thread is a {@code Thread}), whose fields are not
-     * ours to open.
+     * is core's, which its unit tests reach, and it stops at the JDK's own classes (a reader thread
+     * is a {@code Thread}), whose fields are not ours to open.
      */
     static Connection findConnection(Object holder, int depth) {
-        if (holder == null) return null;
-        for (Class<?> type = holder.getClass(); !isJdk(type); type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
-                try {
-                    field.setAccessible(true);
-                    if (field.getType() == Connection.class) {
-                        return (Connection) field.get(holder);
-                    }
-                    Connection nested = nestedConnection(field, holder, depth);
-                    if (nested != null) return nested;
-                } catch (IllegalAccessException e) {
-                    throw new IllegalStateException(
-                            "cannot read " + field + " to find the connection", e);
-                }
-            }
-        }
-        return null;
-    }
-
-    /** The connection inside a client handler a holder keeps, or null for any other field. */
-    private static Connection nestedConnection(Field field, Object holder, int depth)
-            throws IllegalAccessException {
-        if (depth > 0
-                && field.getType()
-                        .getName()
-                        .equals("net.minecraft.client.network.ClientNetworkHandler")) {
-            return nestedWalk(field.get(holder), depth);
-        }
-        return null;
-    }
-
-    /** The walk into the client handler a holder wraps, which a StationAPI server never reaches. */
-    @GrugGenerated(
-            "the reflection fallback for a handler that wraps the client's: a StationAPI server"
-                    + " finds its connection on the first level, so no run enters a wrapped one")
-    private static Connection nestedWalk(Object handler, int depth) {
-        return findConnection(handler, depth - 1);
-    }
-
-    private static boolean isJdk(Class<?> type) {
-        return type == null || type.getName().startsWith("java.");
+        return GrugHandlerLookup.connectionOf(
+                holder,
+                Connection.class,
+                "net.minecraft.client.network.ClientNetworkHandler",
+                depth);
     }
 
     /**
@@ -276,38 +241,9 @@ public final class GrugControlStation {
      * the player in the world that holds this handler. Null before the player is in the world.
      */
     private static PlayerEntity playerOf(NetworkHandler handler) {
-        try {
-            for (Class<?> type = handler.getClass(); !isJdk(type); type = type.getSuperclass()) {
-                for (Field field : type.getDeclaredFields()) {
-                    if (PlayerEntity.class.isAssignableFrom(field.getType())) {
-                        field.setAccessible(true);
-                        Object value = field.get(handler);
-                        if (value != null) return (PlayerEntity) value;
-                    }
-                }
-            }
-            return playerHoldingHandler(handler);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException("cannot read the handler's player", e);
-        }
-    }
-
-    /** The player in the world that holds {@code handler} in a field, or null. */
-    @GrugGenerated(
-            "the reflection fallback for a handler with no player field: a StationAPI server's"
-                    + " handler holds its player, so the second lookup is never taken")
-    private static PlayerEntity playerHoldingHandler(NetworkHandler handler)
-            throws IllegalAccessException {
         World world = GrugServerRun.world();
-        if (world == null) return null;
-        for (Object candidate : new ArrayList<>(world.players)) {
-            for (Class<?> type = candidate.getClass(); !isJdk(type); type = type.getSuperclass()) {
-                for (Field field : type.getDeclaredFields()) {
-                    field.setAccessible(true);
-                    if (field.get(candidate) == handler) return (PlayerEntity) candidate;
-                }
-            }
-        }
-        return null;
+        List<Object> candidates =
+                world == null ? Collections.emptyList() : new ArrayList<Object>(world.players);
+        return GrugHandlerLookup.playerOf(handler, PlayerEntity.class, candidates);
     }
 }
