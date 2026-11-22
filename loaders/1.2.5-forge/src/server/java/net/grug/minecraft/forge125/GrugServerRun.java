@@ -416,6 +416,13 @@ public final class GrugServerRun implements ITickHandler {
     }
 
     private static void tick() {
+        // The multiplayer scripts write spawn-animals=false so that no animal spawns by itself, and
+        // WorldServer.updateEntityWithOptionalForce then calls setDead on every EntityAnimal the
+        // moment it is updated, which kills the pigs a test spawns on its first update (the
+        // mobcap overlay_labels test saw its passive count go from 17 to 0). The worlds' own flag
+        // that stops natural spawning was set from the property at load and is not read from here,
+        // so raising the server's flag keeps natural spawns off and lets a spawned animal live.
+        server().spawnPeacefulMobs = true;
         List<?> players = players();
         pollModFiles();
         heldOnFloorThisTick = false;
