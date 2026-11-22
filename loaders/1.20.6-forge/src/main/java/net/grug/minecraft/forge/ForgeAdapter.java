@@ -715,6 +715,12 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("asks the game for an item's own name: a unit test has no game")
+    public String itemDisplayName(Object itemObj) {
+        return new ItemStack((Item) itemObj).getHoverName().getString();
+    }
+
+    @Override
     public int getItemMaxStack(Object itemObj) {
         return new ItemStack((Item) itemObj).getMaxStackSize();
     }

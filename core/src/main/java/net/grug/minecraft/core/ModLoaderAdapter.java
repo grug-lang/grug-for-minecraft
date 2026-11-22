@@ -223,6 +223,16 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * The name the game shows for the item, in the language it runs in, which the item list's
+     * search reads (#865). A loader that has no name for the item, or no item list, answers null
+     * and the search reads the item's own {@link #itemName} instead.
+     */
+    @GrugGenerated("no item names: a loader that cannot enumerate items names none")
+    default String itemDisplayName(Object itemObj) {
+        return null;
+    }
+
+    /**
      * The largest stack the item can come in, which the overlay's give and a test that checks a
      * full stack need. A loader with no item list answers 0.
      */

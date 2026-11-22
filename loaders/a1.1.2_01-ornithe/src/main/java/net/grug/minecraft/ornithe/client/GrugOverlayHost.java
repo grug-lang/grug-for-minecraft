@@ -7,6 +7,7 @@ import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugOverlayScripts;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
+import net.grug.minecraft.grug.GrugScreenText;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.GrugWorldKeys;
 import net.grug.minecraft.grug.GrugWorldOverlay;
@@ -102,7 +103,7 @@ public final class GrugOverlayHost {
                             mouseX,
                             mouseY);
 
-            if (!drawn.items().isEmpty() || !drawn.boxes().isEmpty()) {
+            if (!drawn.items().isEmpty() || !drawn.boxes().isEmpty() || !drawn.texts().isEmpty()) {
                 if (overlay.mod.equals(testMod)) {
                     GrugOverlay.noteDrawn();
                 }
@@ -142,9 +143,34 @@ public final class GrugOverlayHost {
                 if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
                 if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
             }
+            drawTexts(minecraft, drawn.texts());
             boxes.addAll(drawn.boxes());
         }
         return boxes;
+    }
+
+    /**
+     * Draws an overlay's texts with the game's own font and shadow, over its icons. The font draw
+     * needs textures, blending and no lighting, which the frame's last element may have left
+     * otherwise, so the state it pins is put back.
+     */
+    private static void drawTexts(Minecraft minecraft, List<GrugScreenText> texts) {
+        if (texts.isEmpty()) return;
+        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_CURRENT_BIT);
+        try {
+            GL11.glDisable(GL11.GL_LIGHTING);
+            GL11.glDisable(GL11.GL_DEPTH_TEST);
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+            for (GrugScreenText text : texts) {
+                minecraft.textRenderer.drawWithShadow(
+                        text.text(), (int) text.x(), (int) text.y(), text.rgb());
+            }
+        } finally {
+            GL11.glPopAttrib();
+        }
     }
 
     /** Clears the drawn mark when a screen opens, before its first frame. */
@@ -192,14 +218,16 @@ public final class GrugOverlayHost {
      * Asks the overlays about one key press and answers whether one took it, recording the answer
      * for {@code TestTickContext.press_screen_key}.
      *
-     * <p>Only a letter or a digit key is asked, given as its upper case character code, which is
-     * the same number on every loader. A key the game reports again while it is held is a repeat
-     * and is not asked, so a toggle flips once per press.
+     * <p>Only a letter, a digit, the space bar and backspace are asked, given as the upper case
+     * character code or the ASCII code, which is the same number on every loader. A key the game
+     * reports again while it is held is a repeat and is not asked, so a toggle flips once per
+     * press.
      */
     public static boolean key(Screen screen, int key) {
         if (geometry(screen) == null) return false;
         int code = GrugOverlay.keyCodeForName(Keyboard.getKeyName(key));
-        if (code < 0 || isRepeat()) return false;
+        if (code < 0) return false;
+        if (isRepeat()) return false;
 
         boolean ctrl = isControlDown();
         for (GrugOverlayScripts.Script overlay : overlays()) {
@@ -239,7 +267,7 @@ public final class GrugOverlayHost {
      */
     public static boolean pressKey(Object screen, int charCode, boolean ctrl, boolean release) {
         if (!(screen instanceof GrugScreenGeometry)) return false;
-        int key = Keyboard.getKeyIndex(String.valueOf((char) charCode));
+        int key = Keyboard.getKeyIndex(GrugOverlay.keyNameForCode(charCode));
         if (key == Keyboard.KEY_NONE) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,

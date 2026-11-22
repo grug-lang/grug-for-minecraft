@@ -984,12 +984,13 @@ public class ClientForgeAdapter extends ForgeAdapter {
         }
         GrugOverlay.beginTestPress();
         int modifiers = ctrl ? GrugOverlayHost.controlModifier() : 0;
-        if (!ForgeEventFactoryClient.onScreenKeyPressedPre(screen, key, 0, modifiers)) {
-            screen.keyPressed(key, 0, modifiers);
+        int glfwKey = GrugOverlayHost.glfwKey(key);
+        if (!ForgeEventFactoryClient.onScreenKeyPressedPre(screen, glfwKey, 0, modifiers)) {
+            screen.keyPressed(glfwKey, 0, modifiers);
         }
         outcome[1] = GrugOverlay.testPressTaken();
         if (release) {
-            ForgeEventFactoryClient.onScreenKeyReleasedPre(screen, key, 0, modifiers);
+            ForgeEventFactoryClient.onScreenKeyReleasedPre(screen, glfwKey, 0, modifiers);
         }
     }
 

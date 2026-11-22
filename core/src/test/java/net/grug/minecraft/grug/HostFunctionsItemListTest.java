@@ -1,8 +1,11 @@
 package net.grug.minecraft.grug;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import net.grug.minecraft.core.GrugItemSearch;
 
 import org.junit.jupiter.api.Test;
 
@@ -117,5 +120,23 @@ class HostFunctionsItemListTest {
         assertTrue(HostFunctions.screenClickProblem(1, 2, 3).contains("0 to 2"));
         assertTrue(HostFunctions.screenClickProblem(1, 2, 256).contains("0 to 2"));
         assertTrue(HostFunctions.screenClickProblem(1, 2, 255).contains("0 to 2"));
+    }
+
+    @Test
+    void theSearchsViewOfTheNamesIsTheArraysItWasGiven() {
+        GrugItemSearch.Names names =
+                HostFunctions.searchNames(new String[] {"a", "b"}, new String[] {"x", "y"});
+        assertEquals(2, names.count());
+        assertEquals("b", names.name(1));
+        assertEquals("x", names.modId(0));
+    }
+
+    @Test
+    void aSearchIndexMustBeAWholeNumberAmongTheMatches() {
+        assertNull(HostFunctions.searchIndexProblem(0, 1));
+        assertTrue(HostFunctions.searchIndexProblem(1, 1).contains("search_item_count is 1"));
+        assertTrue(HostFunctions.searchIndexProblem(-1, 1).contains("whole number"));
+        assertTrue(HostFunctions.searchIndexProblem(0.5, 1).contains("whole number"));
+        assertTrue(HostFunctions.searchIndexProblem(3e9, 1).contains("whole number"));
     }
 }

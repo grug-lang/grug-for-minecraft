@@ -4,8 +4,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * What one overlay's render pass drew: the item icons and highlight boxes its render() recorded, in
- * the order it drew them.
+ * What one overlay's render pass drew: the item icons, texts and highlight boxes its render()
+ * recorded, in the order it drew them.
  *
  * <p>An overlay pass draws on top of the screen every frame, so nothing here is baked and nothing
  * needs rebuilding: the loader draws what this holds straight away and throws it away. There is no
@@ -15,10 +15,13 @@ import java.util.List;
 public final class GrugOverlayGeometry {
     private final List<GrugScreenItemDraw> items;
     private final List<GrugScreenBox> boxes;
+    private final List<GrugScreenText> texts;
 
-    public GrugOverlayGeometry(List<GrugScreenItemDraw> items, List<GrugScreenBox> boxes) {
+    public GrugOverlayGeometry(
+            List<GrugScreenItemDraw> items, List<GrugScreenBox> boxes, List<GrugScreenText> texts) {
         this.items = Collections.unmodifiableList(items);
         this.boxes = Collections.unmodifiableList(boxes);
+        this.texts = Collections.unmodifiableList(texts);
     }
 
     /** The item icons to draw, in the order the script drew them. */
@@ -29,5 +32,12 @@ public final class GrugOverlayGeometry {
     /** The highlight boxes to draw, in the order the script drew them. */
     public List<GrugScreenBox> boxes() {
         return boxes;
+    }
+
+    /**
+     * The texts to draw, in the order the script drew them, after the icons and before the boxes.
+     */
+    public List<GrugScreenText> texts() {
+        return texts;
     }
 }
