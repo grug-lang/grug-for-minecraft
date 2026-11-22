@@ -1,0 +1,49 @@
+# The render camera is bit-identical on every tick of a settled test (#1550). A capture compares
+# pixels exactly, and on a grazing textured floor a camera that moves by a few thousandths of a
+# pixel moves a texel boundary by a whole pixel, so a pose that depends on which tick of the
+# player's gravity cycle or which partial tick the capture lands on is a flake. camera-Test allows a
+# block in 1024, which is far looser than that, so this test requires the very same doubles on
+# 120 consecutive ticks after the world has settled, with the player standing on a block the test
+# lays under the feet, as overlay_crosses has it.
+state: number = 0
+ticks: number = 0
+settled: number = 0
+x: number = 0
+y: number = 0
+z: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    ctx.assert(ctx.current_tick() < 600, "Wait: the world should settle.")
+    if state == 0 {
+        origin: Vec3 = ctx.get_origin()
+        level.place_block(Math.floor(origin.x()), Math.floor(origin.y() - 4.12) - 1, Math.floor(origin.z()), "minecraft:stone")
+        state = 1
+        ctx.not_done()
+        return
+    }
+    if not ctx.world_settled() {
+        settled = 0
+        ctx.not_done()
+        return
+    }
+    if settled < 20 {
+        settled = settled + 1
+        ctx.not_done()
+        return
+    }
+    camera: Vec3 = ctx.camera()
+    if state == 1 {
+        x = camera.x()
+        y = camera.y()
+        z = camera.z()
+        state = 2
+    }
+    ctx.assert(camera.x() == x, "The camera's x changed between ticks.")
+    ctx.assert(camera.y() == y, "The camera's y changed between ticks.")
+    ctx.assert(camera.z() == z, "The camera's z changed between ticks.")
+    ticks = ticks + 1
+    if ticks < 120 {
+        ctx.not_done()
+    }
+}
