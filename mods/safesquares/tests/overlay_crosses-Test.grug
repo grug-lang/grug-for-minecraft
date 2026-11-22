@@ -22,6 +22,10 @@ settled_ticks: number = 0
 fy: number = 0
 hx: number = 0
 hz: number = 0
+px: number = 0
+py: number = 0
+pz: number = 0
+clock_at: number = 0
 
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
@@ -35,10 +39,10 @@ export tick(ctx: TestTickContext) {
         level.set_time(6000)
         ctx.set_box_radius(6)
         origin: Vec3 = ctx.get_origin()
-        px: number = Math.floor(origin.x())
+        px = Math.floor(origin.x())
         # The origin is the camera plus 3, and the eye is 1.62 above the feet the room is built around.
-        py: number = Math.floor(origin.y() - 4.12)
-        pz: number = Math.floor(origin.z())
+        py = Math.floor(origin.y() - 4.12)
+        pz = Math.floor(origin.z())
         # The squares are on a flat-coloured platform the test lays over the room at the block the player stands
         # on, so they are 1.62 below the eye: the room's own floor is four blocks lower, which a level
         # camera cannot see at this distance, and its torches would light them from below.
@@ -46,6 +50,20 @@ export tick(ctx: TestTickContext) {
         hx = px + 5
         hz = pz + 5
 
+        clock_at = waited
+        state = 4
+        ctx.not_done()
+        return
+    }
+
+    if state == 4 {
+        # A joined client, and 1.20.6's, learn the new time from a packet the server sends every 20 ticks, and
+        # a mesh built before it keeps the old hour's light, so the platform is placed only after 40 ticks, which
+        # outlast one packet, and its blocks are the ones that rebuild the meshes in view (#1550).
+        if waited - clock_at < 40 {
+            ctx.not_done()
+            return
+        }
         x: number = px - 6
         while x <= px + 6 {
             z: number = pz - 6
