@@ -8,7 +8,9 @@ The core job and every loader job upload:
 
 and the multiplayer job uploads its dedicated server's exec data apart, as
 server-exec-<loader>/<name>.exec, which is appended to that loader's own exec list (#1027): the
-runner's classes are then reported once, over the client run and the server run together.
+runner's classes are then reported once, over the client run and the server run together. An Ornithe
+runner's classes only the server ran come from the layer-<loader> artifact instead, which holds the
+jar the server loads, and are reported as a second class set of that runner (#169).
 
 A single combined JaCoCo report is not possible, because different loaders compile different classes
 with the same fully-qualified names (net.grug.minecraft.ornithe.OrnitheAdapter exists in both Ornithe
@@ -57,6 +59,7 @@ import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 CORE = "core"
@@ -68,6 +71,11 @@ SERVER_EXEC = "server-exec-"
 
 # These loaders compile shared/ornithe as an extra source directory.
 ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
+
+# The artifact the layer job uploads: the loader's remapped jar, which is what an Ornithe dedicated
+# server loads as its mod, so its class bytes are the ones the server's exec data was recorded
+# against (the client run's staged classes are the dev build's, with other names).
+LAYER = "layer-"
 
 # Classes deliberately left out of the combined report, kept in one place so the exclusions stay
 # reviewable:
@@ -230,6 +238,10 @@ def discover_runners(artifacts: Path) -> dict[str, dict]:
         elif entry.name.startswith("coverage-classes-"):
             runner = entry.name[len("coverage-classes-") :]
             runners.setdefault(runner, {})["classes"] = entry
+        elif entry.name.startswith(LAYER):
+            jars = sorted(entry.glob("*.jar"))
+            if jars:
+                runners.setdefault(entry.name[len(LAYER) :], {})["layer_jar"] = jars[0]
         elif entry.name.startswith(SERVER_EXEC):
             runner = entry.name[len(SERVER_EXEC) :]
             server_execs.setdefault(runner, []).extend(sorted(entry.glob("*.exec")))
@@ -249,20 +261,24 @@ def discover_runners(artifacts: Path) -> dict[str, dict]:
     # bytes on every leg, since the server loads the same core classes the client does. A loader's
     # own server-only classes count on 1.20.6-forge and b1.7.3-stationapi, whose runServer launches
     # the staged dev classes, and on 1.2.5-forge, whose coverageClasses also stages the classes only
-    # its reobfuscated server jar has (#1324). They do not count on the three Ornithe legs, whose
-    # servers run a remapped jar instead, so every one of their loader classes is dropped with a
-    # per-class "[WARN] ... does not match" and only core's contributes, and a 1.2.5 class that both
-    # jars have is the client's copy: counting those would need a per-class-set analysis with a
-    # line-level union over the two sets of bytes, never a second report summed by sum_csvs
-    # (#1027). main() prints each runner's dropped classes so the report says it.
+    # its reobfuscated server jar has (#1324). The three Ornithe legs' servers run the layer jar
+    # instead, whose bytes differ from the client's dev classes for every class that names a renamed
+    # Minecraft type: server_class_set analyses the classes only the server ran from that jar
+    # against the server's exec data, in a second report of the same runner that holds those classes
+    # and no others (#169). A class both runs ran with other bytes stays the client's copy, and a
+    # 1.2.5 class that both jars have is the client's copy too: counting those would need a
+    # line-level union over the two sets of bytes, never a second report over the same classes
+    # summed by sum_csvs (#1027). main() prints each runner's dropped classes so the report says it.
     for runner, execs in server_execs.items():
         info = runners.setdefault(runner, {})
         info["exec"] = [*info.get("exec", []), *execs]
+        info["server_exec"] = execs
         # Loud enough to tell a coverage job that held the artifacts from one that never got them,
         # since a leg that recorded nothing and a job that downloaded nothing look the same.
         print(f"appending {len(execs)} dedicated-server exec file(s) to {runner}'s report")
         dropped = server_dropped.get(runner, [])
         info["dropped"] = [*info.get("dropped", []), *dropped]
+        info["server_dropped"] = dropped
         if dropped:
             print(f"appending {len(dropped)} dedicated-server dropped file(s) to {runner}'s report")
     return runners
@@ -278,6 +294,126 @@ def source_dirs(runner: str) -> list[Path]:
     if runner in ORNITHE_LOADERS:
         dirs.append(Path("shared/ornithe/src/main/java"))
     return dirs
+
+
+def exec_blocks(data: bytes):
+    """Yield (kind, name, raw) for each block of a JaCoCo exec file; name is set for class data.
+
+    The format (ExecutionDataWriter): a header block 0x01 with a two byte magic and a two byte
+    version, session blocks 0x10 (a UTF id and two longs) and class blocks 0x11 (a long id, a UTF
+    name and a probe array, which is a variable length integer of the probe count and the packed
+    bits). The raw bytes of every block are kept so a filtered file is written back unchanged.
+    """
+    position = 0
+    total = len(data)
+    while position < total:
+        start = position
+        kind = data[position]
+        position += 1
+        name = None
+        if kind == 0x01:
+            position += 4
+        elif kind == 0x10:
+            position += 2 + int.from_bytes(data[position : position + 2], "big") + 16
+        elif kind == 0x11:
+            position += 8
+            size = int.from_bytes(data[position : position + 2], "big")
+            name = data[position + 2 : position + 2 + size].decode("utf-8", errors="replace")
+            position += 2 + size
+            count = shift = 0
+            while True:
+                byte = data[position]
+                position += 1
+                count |= (byte & 0x7F) << shift
+                shift += 7
+                if not byte & 0x80:
+                    break
+            position += (count + 7) // 8
+        else:
+            raise ValueError(f"unknown exec block type {kind:#x} at offset {start}")
+        yield kind, name, data[start:position]
+
+
+def exec_class_names(paths: list[Path]) -> set[str]:
+    """The names of the classes the exec files hold data for."""
+    names: set[str] = set()
+    for path in paths:
+        names.update(name for _, name, _ in exec_blocks(path.read_bytes()) if name is not None)
+    return names
+
+
+def exec_without(paths: list[Path], names: set[str], out_dir: Path) -> list[Path]:
+    """Copies of the exec files with the data of the named classes left out.
+
+    JaCoCo warns for exec data recorded against bytes other than the analysed ones, and a class
+    the client set keeps with the client's bytes has the dedicated server's data recorded against
+    the other bytes, so that data is not handed to the report that cannot use it.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for index, path in enumerate(paths):
+        kept = b"".join(
+            raw
+            for _, name, raw in exec_blocks(path.read_bytes())
+            if name is None or name not in names
+        )
+        target = out_dir / f"{index:05d}-{path.name}"
+        target.write_bytes(kept)
+        written.append(target)
+    return written
+
+
+def server_class_set(
+    layer_jar: Path, client_classes: Path, client_names: set[str], work: Path
+) -> tuple[Path, Path, list[str], set[str]]:
+    """Split an Ornithe runner's classes into the client's set and the dedicated server's own.
+
+    The dedicated server runs the layer jar, whose bytes differ from the client run's dev classes
+    for every class that names a renamed Minecraft type, and JaCoCo analyses exec data only against
+    the bytes it was recorded on. A class whose bytes differ and which the client run never
+    initialised (client_names holds the ones it did) can only have the server's exec data, so it is
+    analysed from the layer jar's copy alone and left out of the client set: no class is counted in
+    two reports, which sum_csvs would add up as two sets of misses (#169, #1027). A class both runs
+    ran with other bytes stays the client's copy, as it always was, since counting it from both
+    needs a line-level union of two sets of bytes. Returns the client set, the server set, the
+    sorted names of the classes that moved and the names of the differing ones that stayed.
+    """
+    shutil.rmtree(work, ignore_errors=True)
+    layer_dir = work / "layer"
+    with zipfile.ZipFile(layer_jar) as jar:
+        for name in jar.namelist():
+            if name.endswith(".class"):
+                target = layer_dir / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(jar.read(name))
+    layer_dir = filtered_classes(layer_dir, work / "layer-filtered")
+    client_dir = work / "client"
+    server_dir = work / "server"
+    client_dir.mkdir(parents=True, exist_ok=True)
+    server_dir.mkdir(parents=True, exist_ok=True)
+    moved: list[str] = []
+    stayed: set[str] = set()
+    for path in sorted(layer_dir.rglob("*.class")):
+        relative = path.relative_to(layer_dir)
+        name = relative.with_suffix("").as_posix()
+        counterpart = client_classes / relative
+        if counterpart.is_file() and counterpart.read_bytes() == path.read_bytes():
+            continue
+        if name in client_names:
+            stayed.add(name)
+            continue
+        moved.append(name)
+        target = server_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+    for path in client_classes.rglob("*.class"):
+        relative = path.relative_to(client_classes)
+        if relative.with_suffix("").as_posix() in moved:
+            continue
+        target = client_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+    return client_dir, server_dir, sorted(moved), stayed
 
 
 def jacoco_report(
@@ -865,6 +1001,34 @@ def main() -> int:
             continue
         # Kept out of coverage/report so it isn't uploaded with the report artifact.
         classes = filtered_classes(classes, args.output.parent / "filtered-classes" / runner)
+        server_classes = None
+        layer_jar = info.get("layer_jar")
+        if runner in ORNITHE_LOADERS and layer_jar is not None and info.get("server_exec"):
+            work = args.output.parent / "class-sets" / runner
+            server_only = set(info["server_exec"])
+            server_dropped = set(info.get("server_dropped", []))
+            client_names = exec_class_names(
+                [p for p in execs if p not in server_only]
+                + [p for p in dropped if p not in server_dropped]
+            )
+            classes, server_classes, moved, stayed = server_class_set(
+                layer_jar, classes, client_names, work
+            )
+            print(
+                f"{runner}: {len(moved)} class(es) only the dedicated server ran have other bytes "
+                "in its jar and are analysed from it against the server's exec data: "
+                + ", ".join(moved)
+            )
+            # The data of the classes both runs ran with other bytes stays out of the client set's
+            # report, which holds the client's copy of them.
+            execs = [
+                *(p for p in execs if p not in server_only),
+                *exec_without(sorted(server_only), stayed, work / "server-exec"),
+            ]
+            dropped = [
+                *(p for p in dropped if p not in server_dropped),
+                *exec_without(sorted(server_dropped), stayed, work / "server-dropped"),
+            ]
         csv_path = args.output / f"{runner}.csv"
         unmatched = jacoco_report(
             args.jacoco_cli,
@@ -891,6 +1055,18 @@ def main() -> int:
                 csv_path, args.output / f"{runner}.xml", everything_xml, classes
             )
         csv_paths.append(csv_path)
+        if server_classes is not None:
+            server_csv = args.output / f"{runner}-server.csv"
+            unmatched = jacoco_report(
+                args.jacoco_cli,
+                info["server_exec"],
+                server_classes,
+                source_dirs(runner),
+                server_csv,
+                args.output / f"{runner}-server.xml",
+            )
+            print_unmatched(f"{runner} (server set)", unmatched or [])
+            csv_paths.append(server_csv)
         print(f"reported {runner} from {len(execs)} exec files and {len(dropped)} dropped ones")
 
     combined = args.output / "combined.csv"

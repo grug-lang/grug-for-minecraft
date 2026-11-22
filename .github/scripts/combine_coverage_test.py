@@ -16,6 +16,7 @@ import tempfile
 import unittest
 import unittest.mock
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 SPEC = importlib.util.spec_from_file_location(
@@ -917,6 +918,177 @@ class ServerExecTest(unittest.TestCase):
             )
 
         self.assertIn("Exception while analyzing net/grug/A", out.getvalue())
+
+
+def exec_bytes(*names):
+    """A JaCoCo exec file holding one class block per name: the writer's header, a session, and
+    for each class a long id, the UTF name and a 10 probe array (a count and two packed bytes)."""
+    data = bytearray(b"\x01\xc0\xc0\x10\x07")
+    session = b"s"
+    data += b"\x10" + len(session).to_bytes(2, "big") + session + bytes(16)
+    for index, name in enumerate(names):
+        raw = name.encode()
+        data += b"\x11" + index.to_bytes(8, "big") + len(raw).to_bytes(2, "big") + raw
+        data += bytes([10, 0b10101010, 0b11])
+    return bytes(data)
+
+
+class ServerClassSetTest(unittest.TestCase):
+    """The Ornithe dedicated server runs the remapped layer jar, whose bytes differ from the client's
+    dev classes, so its exec data cannot match the client set (#169). A class only the server ran is
+    analysed from the layer jar against the server's exec data; one both ran stays the client's."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def layer_jar(self, classes):
+        jar = self.root / "layer.jar"
+        with zipfile.ZipFile(jar, "w") as archive:
+            archive.writestr("fabric.mod.json", "{}")
+            for name, body in classes.items():
+                archive.writestr(name + ".class", body)
+        return jar
+
+    def client_tree(self, classes):
+        tree = self.root / "client-classes"
+        for name, body in classes.items():
+            target = tree / (name + ".class")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(body)
+        return tree
+
+    def test_exec_blocks_round_trip_and_name_every_class(self):
+        data = exec_bytes("net/A", "net/B$C")
+        blocks = list(combine.exec_blocks(data))
+        self.assertEqual([name for _, name, _ in blocks], [None, None, "net/A", "net/B$C"])
+        self.assertEqual(b"".join(raw for _, _, raw in blocks), data)
+
+    def test_an_unknown_block_is_an_error_rather_than_a_silent_truncation(self):
+        with self.assertRaises(ValueError):
+            list(combine.exec_blocks(b"\x01\xc0\xc0\x10\x07\x77"))
+
+    def test_exec_without_drops_only_the_named_classes(self):
+        source = self.root / "a.exec"
+        source.write_bytes(exec_bytes("net/A", "net/B", "net/C"))
+        [filtered] = combine.exec_without([source], {"net/B"}, self.root / "out")
+        self.assertEqual(combine.exec_class_names([filtered]), {"net/A", "net/C"})
+        self.assertEqual(combine.exec_class_names([source]), {"net/A", "net/B", "net/C"})
+
+    def test_the_set_is_split_by_bytes_and_by_whether_the_client_ran_the_class(self):
+        client = self.client_tree(
+            {
+                "net/Same": b"1",
+                "net/ServerOnly": b"client bytes",
+                "net/Both": b"client bytes",
+                "net/ClientOnly": b"3",
+            }
+        )
+        jar = self.layer_jar(
+            {
+                "net/Same": b"1",
+                "net/ServerOnly": b"server bytes",
+                "net/Both": b"server bytes",
+                "net/ServerOnly$Nested": b"n",
+                "GrugItem": b"excluded by name",
+            }
+        )
+        client_dir, server_dir, moved, stayed = combine.server_class_set(
+            jar, client, {"net/Both", "net/Same"}, self.root / "work"
+        )
+        self.assertEqual(moved, ["net/ServerOnly", "net/ServerOnly$Nested"])
+        self.assertEqual(stayed, {"net/Both"})
+        server_files = sorted(p.relative_to(server_dir).as_posix() for p in server_dir.rglob("*"))
+        self.assertEqual(
+            [f for f in server_files if f.endswith(".class")],
+            ["net/ServerOnly$Nested.class", "net/ServerOnly.class"],
+        )
+        self.assertEqual((server_dir / "net/ServerOnly.class").read_bytes(), b"server bytes")
+        client_files = sorted(
+            p.relative_to(client_dir).as_posix() for p in client_dir.rglob("*.class")
+        )
+        self.assertEqual(client_files, ["net/Both.class", "net/ClientOnly.class", "net/Same.class"])
+        self.assertEqual((client_dir / "net/Both.class").read_bytes(), b"client bytes")
+
+
+class OrnitheServerSetMainTest(unittest.TestCase):
+    """main() reports an Ornithe runner twice when its layer jar and server exec are there: the
+    client set with the client exec and the server's data for classes it can match, and the server
+    set with the server's exec alone, and the two CSVs are summed."""
+
+    def test_the_server_set_is_reported_apart_and_the_client_set_gets_no_unmatchable_data(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifacts = root / "artifacts"
+            for runner in ("core", "a1.1.2_01-ornithe"):
+                (artifacts / f"coverage-exec-{runner}").mkdir(parents=True)
+                (artifacts / f"coverage-classes-{runner}").mkdir(parents=True)
+            client_exec = artifacts / "coverage-exec-a1.1.2_01-ornithe" / "000-boot.exec"
+            client_exec.write_bytes(exec_bytes("net/Both"))
+            (artifacts / "coverage-exec-core" / "000-boot.exec").write_bytes(b"")
+            (artifacts / "coverage-classes-core" / "C.class").write_bytes(b"")
+            classes = artifacts / "coverage-classes-a1.1.2_01-ornithe"
+            (classes / "net").mkdir()
+            (classes / "net" / "Both.class").write_bytes(b"client")
+            (classes / "net" / "ServerOnly.class").write_bytes(b"client")
+            server = artifacts / "server-exec-a1.1.2_01-ornithe"
+            server.mkdir()
+            (server / "000-boot.exec").write_bytes(exec_bytes("net/Both", "net/ServerOnly"))
+            layer = artifacts / "layer-a1.1.2_01-ornithe"
+            layer.mkdir()
+            with zipfile.ZipFile(layer / "grug-a1.1.2_01-ornithe.jar", "w") as archive:
+                archive.writestr("net/Both.class", b"server")
+                archive.writestr("net/ServerOnly.class", b"server")
+
+            calls = []
+
+            def report(cli, execs, class_dir, sources, csv_path, xml_path):
+                calls.append(
+                    (
+                        csv_path.name,
+                        sorted(p.name for p in class_dir.rglob("*.class")),
+                        [combine.exec_class_names([p]) for p in execs if p.stat().st_size],
+                    )
+                )
+                csv_path.write_text(HEADER + f"{csv_path.stem},net,X,0,4,0,0,1,0,1,0,1,0\n")
+                xml_path.write_text('<report name="r"></report>')
+                return []
+
+            argv = sys.argv
+            original = combine.jacoco_report
+            combine.jacoco_report = report
+            sys.argv = [
+                "combine-coverage.py",
+                "--artifacts",
+                str(artifacts),
+                "--jacoco-cli",
+                str(root / "cli.jar"),
+                "--output",
+                str(root / "output"),
+                "--require-100",
+            ]
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out):
+                    self.assertEqual(combine.main(), 0)
+            finally:
+                combine.jacoco_report = original
+                sys.argv = argv
+
+            by_name = {name: (files, names) for name, files, names in calls}
+            self.assertEqual(by_name["a1.1.2_01-ornithe.csv"][0], ["Both.class"])
+            # The client set's report never sees the server's data for the class it keeps with the
+            # client's bytes, which is what JaCoCo warns about.
+            self.assertEqual(
+                by_name["a1.1.2_01-ornithe.csv"][1], [{"net/Both"}, {"net/ServerOnly"}]
+            )
+            self.assertEqual(by_name["a1.1.2_01-ornithe-server.csv"][0], ["ServerOnly.class"])
+            self.assertEqual(
+                by_name["a1.1.2_01-ornithe-server.csv"][1], [{"net/Both", "net/ServerOnly"}]
+            )
+            self.assertIn("1 class(es) only the dedicated server ran", out.getvalue())
+            self.assertTrue((root / "output" / "a1.1.2_01-ornithe-server.csv").is_file())
 
 
 if __name__ == "__main__":
