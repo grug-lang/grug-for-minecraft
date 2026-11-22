@@ -1174,11 +1174,10 @@ public interface ModLoaderAdapter {
     /**
      * Whether this loader calls a block's {@code placed} export when a player places the block,
      * which is what {@code Test.placed_supported} answers. A loader says so only once its own
-     * placement path is wired, so a test skips the check where it is not (#1558).
+     * placement path is wired, so a test skips the check where it is not (#1558). Every loader
+     * answers true now, so there is no default; a future loader without the hook answers false.
      */
-    default boolean placedSupportedForTest() {
-        return false;
-    }
+    boolean placedSupportedForTest();
 
     /**
      * Whether this loader asks an overlay's world key, HUD and world exports, which is what {@code
