@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write api_table.inc, one row per entry of mod_api.json, for smoketest.c (#1585).
+"""Write api_table.inc, one stub and one row per entry of mod_api.json, for smoketest.c (#1585).
 
     gen_api_table.py <mod_api.json> <out.inc>
 
@@ -25,12 +25,21 @@ def rows(api):
 def main(argv):
     with open(argv[1], encoding="utf-8") as f:
         api = json.load(f)
-    out = []
-    for class_name, name in rows(api):
+    rows_out = []
+    stubs = []
+    for i, (class_name, name) in enumerate(rows(api)):
         cls = "NULL" if class_name is None else json.dumps(class_name)
-        out.append("{%s, %s}," % (cls, json.dumps(name)))
+        rows_out.append("{%s, %s, stub_%d}" % (cls, json.dumps(name), i))
+        label = name if class_name is None else class_name + "." + name
+        # Each unimplemented entry gets its own stub, so a failing test names the entry it needs.
+        stubs.append(
+            'static union grug_value stub_%d(ARGS) { UNUSED; return fail("the smoketest does not '
+            'implement %s"); }' % (i, label)
+        )
+    # One output file, so a build never sees the rows without the stubs they name.
     with open(argv[2], "w", encoding="utf-8") as f:
-        f.write("\n".join(out) + "\n")
+        f.write("\n".join(stubs) + "\n#define API_ROWS \\\n")
+        f.write(" \\\n".join("    " + r + "," for r in rows_out) + "\n")
 
 
 if __name__ == "__main__":
