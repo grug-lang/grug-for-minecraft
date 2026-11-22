@@ -351,10 +351,6 @@ public final class GrugControlAlphaClient {
                         + ", viewport "
                         + glViewport()
                         + ")");
-        net.grug.minecraft.ornithe.GrugDiagCamera.capture(waited);
-        BufferedImage diagImage =
-                ((OrnitheAdapter) GrugCore.getAdapter()).captureForControl(x1, y1, x2, y2, mc);
-        net.grug.minecraft.ornithe.GrugDiagCamera.hash(diagImage);
-        done.accept(diagImage);
+        done.accept(((OrnitheAdapter) GrugCore.getAdapter()).captureForControl(x1, y1, x2, y2, mc));
     }
 }

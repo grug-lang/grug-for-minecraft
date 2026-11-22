@@ -143,6 +143,7 @@ local _fill(ctx: TestTickContext, id: string, category: string) {
 
 local _check_counts(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
+    print3("DIAG hostile count, cap and test tick", level.count_mobs("hostile"), waited)
     # A count that moved says which category, its count and its cap, so a leg's log names the
     # difference instead of only that one exists (#1040).
     if level.count_mobs("hostile") != level.get_mob_cap("hostile") + 1 {
@@ -151,6 +152,10 @@ local _check_counts(ctx: TestTickContext) {
     if level.count_mobs("passive") != level.get_mob_cap("passive") + 1 {
         print3("passive count and cap", level.count_mobs("passive"), level.get_mob_cap("passive"))
         print3("passive count and tick of the first difference", level.count_mobs("passive"), waited)
+    }
+    if level.count_mobs("hostile") != level.get_mob_cap("hostile") + 1 {
+        print3("DIAG hostile count, expected and test tick at the failure", level.count_mobs("hostile"), waited)
+        print3("DIAG hostile cap, passive count and clock", level.get_mob_cap("hostile"), level.get_time())
     }
     ctx.assert(level.count_mobs("hostile") == level.get_mob_cap("hostile") + 1, "The hostile count should stay one over its cap.")
     ctx.assert(level.count_mobs("passive") == level.get_mob_cap("passive") + 1, "The passive count should stay one over its cap.")

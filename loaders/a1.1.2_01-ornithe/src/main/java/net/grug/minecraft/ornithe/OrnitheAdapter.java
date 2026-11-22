@@ -2070,6 +2070,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     image.setRGB(column, height - 1 - row, (r << 16) | (g << 8) | b);
                 }
             }
+            GrugDiagCamera.capture(0);
+            GrugDiagCamera.hash(image);
             return image;
         } catch (RuntimeException e) {
             Grug.hostFunctionErrorHappened(
