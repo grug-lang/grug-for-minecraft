@@ -91,4 +91,35 @@ public final class GrugServerJoin {
             "[GRUG CI] Every player disconnected from the dedicated server during the run."
         };
     }
+
+    /** The minimum gap between two reports that the run is still waiting for the world. */
+    static final long WAIT_REPORT_INTERVAL_MILLIS = 5000;
+
+    /** Whether the run says it is still waiting: a player is here and the last report is old. */
+    public static boolean waitReportDue(boolean hasPlayers, long nowMillis, long lastReportMillis) {
+        return hasPlayers && nowMillis - lastReportMillis >= WAIT_REPORT_INTERVAL_MILLIS;
+    }
+
+    /** The line a run prints while it waits for the world around a joined player. */
+    public static String waitMessage(double x, double y, double z) {
+        return "[GRUG CI] waiting for the world: player at " + x + ", " + y + ", " + z;
+    }
+
+    /** Prints each line of a report to {@code out}. */
+    public static void print(java.io.PrintStream out, String[] lines) {
+        for (String line : lines) {
+            out.println(line);
+        }
+    }
+
+    /**
+     * The report of a run that has to fail now, or null when it carries on: the wait that began at
+     * {@code waitStartMillis} has lasted the whole timeout.
+     */
+    public static String[] timeoutReportIfDue(
+            long waitStartMillis, long nowMillis, long timeoutMillis) {
+        return timedOut(waitStartMillis, nowMillis, timeoutMillis)
+                ? timeoutReport(timeoutMillis)
+                : null;
+    }
 }
