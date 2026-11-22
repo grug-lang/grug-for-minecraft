@@ -1,0 +1,6 @@
+# TileQuarry's block, BlockQuarry: hardness 1.5 and Material.iron, which is the port's "metal". The
+# frame, the energy intake and the mining are later pieces of #1543, so this block is inert for now.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1.5)
+    ctx.set_material("metal")
+}
