@@ -407,7 +407,10 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
   covers logic and stubs every graphics call. A behaviour enters it only when a committed test asserts
   it and the real loader passes that test, and `mod_api.json` is its contract (`smoketest --contract`
   lists the entries it lacks). Its hand-written code stays in one file, `smoketest.c`, in
-  banner-commented sections, with generated code beside it. Once it can run a mod's logic tests
+  banner-commented sections, with generated code beside it. Its coverage (lines and branches, 100%
+  eventually) comes from `mods/coverage/` tests alone; C tests of pure helpers go in a separate
+  `selftest` binary that never feeds it, with expected values from a real JDK where a number is
+  checked. Once it can run a mod's logic tests
   (#1586), run them there before a port's first push instead of using CI to find out whether the
   mod's shape works.
 
