@@ -597,7 +597,7 @@ static struct files_ref {
     uint64_t be_init;
     uint64_t be_tick;
 } G;
-static char bg_missing[512];   // a "does not implement" raised inside a block entity call
+static char bg_missing[4096];   // a "does not implement" raised inside a block entity call
 static char last_error[4096];  // the last runtime error the handler saw, with its source line and call stack
 static char last_msg[4096];    // the same error's message alone, which is what expect_error matches
 
