@@ -300,6 +300,12 @@ public final class GrugServerRun {
         // every monster a test spawns in its first tick. Tests run at the difficulty the client's
         // own options default to, normal, and spawn-monsters still decides the spawning (#1040).
         server.getWorld(0).difficulty = 2;
+        // The same setup reads "spawn-animals", also turned off by the harness, and the world's
+        // entity update then marks every animal dead on its first update, which killed the pigs
+        // the mob cap overlay test spawns. The worlds' natural-spawn flags were set from the
+        // properties at load and are not read from here, so raising the server's flag keeps
+        // natural spawns off and lets a spawned animal live (#1040).
+        server.spawnAnimals = true;
         for (int step = 0; step < Math.max(1, gameSpeed); step++) {
             if (step > 0) {
                 advance(server.getWorld(0), 1);
