@@ -117,12 +117,15 @@ enum kind {
     K_ITEM,
     K_BLOCKPOS,
     K_PLAYER,
+    K_EXTRACT_RESPONSE,
+    K_ADD_RESPONSE,
     K_SHOT,
 };
 struct obj {
     enum kind kind;
     double x, y, z;
     bool has;
+    bool open;  // a response: valid until the call it was passed to returns
     union grug_value val;
     const char* str;
 };
@@ -669,7 +672,7 @@ REGISTER("Player", "get_held_item", Player_get_held_item);
 struct kv { char* k; double v; };
 struct record { struct kv* n; size_t nn; uint64_t item; bool has_item; };
 struct list { char* name; struct record* r; size_t nr; };
-struct slot { double count; };  // only the count is read by a committed test; the item and damage wait for get_item_in_slot and its tests
+struct slot { bool has; uint64_t item; double count, damage; };
 struct be {
     bool live;
     bool doomed;  // replaced or removed while one of its calls was running; freed when the call returns
@@ -679,6 +682,7 @@ struct be {
     struct list* lists; size_t nlists;
     struct slot* slots; size_t nslots;  // the inventory, sized by Block.init's set_inventory_size (a chest has 27)
     bool power; double energy, max_energy;  // set_power_receiver
+    bool has_insertable, has_extractable; double ins_first, ins_last, ext_first, ext_last;  // declared slot ranges
 };
 static struct be* bes;
 static size_t nbes, capbes;
@@ -688,6 +692,8 @@ static struct files_ref {
     uint64_t block_init;
     uint64_t be_init;
     uint64_t be_tick;
+    uint64_t be_extract_item;
+    uint64_t be_add_item;
 } G;
 static char bg_missing[4096];   // a "does not implement" raised inside a block entity call
 static char last_error[4096];  // the last runtime error the handler saw, with its source line and call stack
@@ -699,21 +705,28 @@ static struct be* be_of(uint64_t h) { return h >= BE_BASE && h - BE_BASE < nbes 
 // that is not is a missing smoketest entry, which would make every later assertion meaningless.
 static int call_depth;
 static void reap_bes(void);
-static void call_contained(void* entity, uint64_t fn, const union grug_value* args, size_t n) {
+// Returns whether the export ran (false for an entity without it) and, in `err` when not NULL, the
+// message of an error it raised, which the caller may re-raise.
+static bool call_export(void* entity, uint64_t fn, const union grug_value* args, size_t n, char* err) {
     char saved[sizeof last_error], saved_msg[sizeof last_msg];
     memcpy(saved, last_error, sizeof saved);
     memcpy(saved_msg, last_msg, sizeof saved_msg);
     last_error[0] = 0;
     call_depth++;
-    if (!grug_call_export_fn(g_state, entity, fn, args, n) && strstr(last_error, "does not implement") && !bg_missing[0])
+    bool ok = grug_call_export_fn(g_state, entity, fn, args, n);
+    if (!ok && strstr(last_error, "does not implement") && !bg_missing[0])
         snprintf(bg_missing, sizeof bg_missing, "%s", last_error);
+    bool ran = ok || last_error[0];
+    if (err) snprintf(err, 4096, "%s", last_msg);
     // A block entity script can place or break blocks, so `bes` may have moved and a block entity
     // may have been replaced while it ran: nothing holds a `struct be*` across this call, and a
     // replaced one is only marked until the outermost call returns (see free_be).
     if (--call_depth == 0) reap_bes();
     memcpy(last_error, saved, sizeof saved);
     memcpy(last_msg, saved_msg, sizeof saved_msg);
+    return ran;
 }
+static void call_contained(void* entity, uint64_t fn, const union grug_value* args, size_t n) { (void)call_export(entity, fn, args, n, NULL); }
 
 static void free_list(struct list* l) {
     for (size_t i = 0; i < l->nr; i++) {
@@ -980,11 +993,13 @@ static bool slot_in_range(const struct be* b, double s) {
     if (!is_whole(s) || s < 0) stubbed = true;  // SMOKETEST_EXCL: no committed test
     return false;
 }
+static struct slot* slot_of(struct be* b, double s) { return slot_in_range(b, s) ? &b->slots[(size_t)s] : NULL; }
 static union grug_value BE_get_item_count_in_slot(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.get_item_count_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    return num(slot_in_range(b, a[1]._number) ? b->slots[(size_t)a[1]._number].count : 0);
+    struct slot* sl = slot_of(b, a[1]._number);
+    return num(sl ? sl->count : 0);
 }
 REGISTER("BlockEntity", "get_item_count_in_slot", BE_get_item_count_in_slot);
 static uint64_t be_inserted_fn;
@@ -997,7 +1012,8 @@ static union grug_value BE_set_item_in_slot(ARGS) {
     // The tests write whole positive counts; any other count (negative, fractional, NaN) is not
     // asserted by a test, so it is stored as given and the test is marked stubbed.
     if (!(is_whole(a[3]._number) && a[3]._number > 0)) stubbed = true;  // SMOKETEST_EXCL: no committed test
-    sl->count = a[3]._number;
+    // The 1.2.5 adapter writes `new ItemStack(item, count)`, so the stack starts undamaged.
+    sl->has = true; sl->item = a[2]._id; sl->count = a[3]._number; sl->damage = 0;
     // block_entity_me-Test: the block entity's item_inserted runs at once, once per write. Its amount is
     // the count written, which no committed test reads.
     if (b->entity) {
@@ -1007,6 +1023,234 @@ static union grug_value BE_set_item_in_slot(ARGS) {
     return none();
 }
 REGISTER("BlockEntity", "set_item_in_slot", BE_set_item_in_slot);
+// The other slot calls inventory_ops-Test asserts: an empty slot reads as no item and no damage, a
+// write to a slot that does not exist or to an empty one is ignored, a count of 0 empties the slot,
+// and taking more than is there removes what is there.
+static void slot_clear(struct slot* sl) { memset(sl, 0, sizeof *sl); }
+static union grug_value BE_get_item_in_slot(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_item_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    struct slot* sl = slot_of(b, a[1]._number);
+    uint64_t o = new_obj(K_OPTION);
+    if (sl && sl->has && sl->count > 0) { objs[o - 1].has = true; objs[o - 1].val = id(sl->item); }
+    return id(o);
+}
+REGISTER("BlockEntity", "get_item_in_slot", BE_get_item_in_slot);
+static union grug_value BE_get_item_damage_in_slot(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_item_damage_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    struct slot* sl = slot_of(b, a[1]._number);
+    return num(sl && sl->has ? sl->damage : 0);
+}
+REGISTER("BlockEntity", "get_item_damage_in_slot", BE_get_item_damage_in_slot);
+static union grug_value BE_set_item_damage_in_slot(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.set_item_damage_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    struct slot* sl = slot_of(b, a[1]._number);
+    if (sl && sl->has) sl->damage = a[2]._number;
+    return none();
+}
+REGISTER("BlockEntity", "set_item_damage_in_slot", BE_set_item_damage_in_slot);
+static union grug_value BE_set_item_count_in_slot(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.set_item_count_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    struct slot* sl = slot_of(b, a[1]._number);
+    if (!sl || !sl->has) return none();
+    if (a[2]._number == 0) slot_clear(sl);
+    else sl->count = a[2]._number;
+    if (!(is_whole(a[2]._number) && a[2]._number >= 0)) stubbed = true;  // SMOKETEST_EXCL: no committed test
+    return none();
+}
+REGISTER("BlockEntity", "set_item_count_in_slot", BE_set_item_count_in_slot);
+// How many of a slot's stack leave when `amount` are asked for, and the slot emptied when none is left.
+static double slot_take(struct slot* sl, double amount) {
+    double took = amount < sl->count ? amount : sl->count;
+    if (took < 0) took = 0;  // SMOKETEST_EXCL: no committed test
+    sl->count -= took;
+    if (sl->count <= 0) slot_clear(sl);
+    return took;
+}
+static union grug_value BE_take_item_from_slot(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.take_item_from_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    struct slot* sl = slot_of(b, a[1]._number);
+    if (!sl || !sl->has) return num(0);
+    // item_extracted ("immediately when an item is removed") is not run: no committed test reads it,
+    // so a script block entity, which may declare it, marks the test stubbed.
+    if (b->entity) stubbed = true;
+    return num(slot_take(sl, a[2]._number));
+}
+REGISTER("BlockEntity", "take_item_from_slot", BE_take_item_from_slot);
+static union grug_value BE_count_item_in_inventory(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.count_item_in_inventory: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    double total = 0;
+    for (size_t i = 0; i < b->nslots; i++)
+        if (b->slots[i].has && b->slots[i].item == a[1]._id && b->slots[i].damage == a[2]._number) total += b->slots[i].count;
+    return num(total);
+}
+REGISTER("BlockEntity", "count_item_in_inventory", BE_count_item_in_inventory);
+static union grug_value BE_extract_item_from_inventory(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.extract_item_from_inventory: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (b->entity) stubbed = true;  // item_extracted is not run, as in take_item_from_slot
+    double left = a[3]._number, total = 0;
+    for (size_t i = 0; i < b->nslots && left > 0; i++)
+        if (b->slots[i].has && b->slots[i].item == a[1]._id && b->slots[i].damage == a[2]._number) {
+            double took = slot_take(&b->slots[i], left);
+            total += took; left -= took;
+        }
+    return num(total);
+}
+REGISTER("BlockEntity", "extract_item_from_inventory", BE_extract_item_from_inventory);
+
+// Slot rules (slot_access-Test, power_declare_again-Test): a block entity that declares nothing is
+// open everywhere, a declared range is inclusive, a last below the first declares no slot, and
+// declaring again replaces the range. Only legal during init(), like set_power_receiver.
+static union grug_value BIC_set_slots(const union grug_value a[], bool insertable) {
+    if (!cur_init_be) return fail("BlockEntityInitContext: slot ranges are only legal while init() is running");  // SMOKETEST_EXCL: no committed test
+    struct be* b = &bes[cur_init_be - 1];
+    if (insertable) { b->has_insertable = true; b->ins_first = a[1]._number; b->ins_last = a[2]._number; }
+    else { b->has_extractable = true; b->ext_first = a[1]._number; b->ext_last = a[2]._number; }
+    return none();
+}
+static union grug_value BIC_set_insertable_slots(ARGS) { UNUSED; return BIC_set_slots(a, true); }
+static union grug_value BIC_set_extractable_slots(ARGS) { UNUSED; return BIC_set_slots(a, false); }
+REGISTER("BlockEntityInitContext", "set_insertable_slots", BIC_set_insertable_slots);
+REGISTER("BlockEntityInitContext", "set_extractable_slots", BIC_set_extractable_slots);
+static union grug_value BE_is_slot_insertable(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.is_slot_insertable: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    return boolean(!b->has_insertable || (a[1]._number >= b->ins_first && a[1]._number <= b->ins_last));
+}
+REGISTER("BlockEntity", "is_slot_insertable", BE_is_slot_insertable);
+static union grug_value BE_is_slot_extractable(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.is_slot_extractable: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    return boolean(!b->has_extractable || (a[1]._number >= b->ext_first && a[1]._number <= b->ext_last));
+}
+REGISTER("BlockEntity", "is_slot_extractable", BE_is_slot_extractable);
+
+// Responses (expect_response_extract_*-Test, expect_response_add_*-Test): the three rules of
+// GrugResponse, which each answering method claims through begin_answer. The host function that
+// asked finishes the response when the export returns. A response's error inside the export is
+// re-raised by the asking host function, which is what aborts the test's tick as expect_error needs.
+static bool begin_answer(struct obj* r, const char* method, const char* export_name) {
+    if (!r->open) { fail("%s: the response is only valid during the %s call it was passed to, and that call has returned.", method, export_name); return false; }  // SMOKETEST_EXCL: reached once TestTickContext.notify_neighbors exists (expect_response_*_stale-Test)
+    if (r->has) { fail("%s: %s has already been answered, and a response is answered once.", method, export_name); return false; }
+    r->has = true;
+    return true;
+}
+enum { ANS_REFUSE = 1, ANS_SLOT, ANS_CRAFT, ANS_CRAFT_CONSUMED };  // r->z; 0 is unanswered
+static union grug_value Resp_extract_answer(const union grug_value a[], const char* method, int kind) {
+    struct obj* r = get_obj(a[0]._id, K_EXTRACT_RESPONSE);
+    if (!r) return fail("%s: not an ExtractResponse", method);  // SMOKETEST_EXCL: no committed test
+    if (!begin_answer(r, method, "extract_item")) return none();
+    r->z = kind;
+    if (kind == ANS_SLOT) { r->x = a[1]._number; r->y = a[2]._number; }
+    return none();
+}
+static union grug_value ER_refuse(ARGS) { UNUSED; return Resp_extract_answer(a, "ExtractResponse.refuse", ANS_REFUSE); }
+static union grug_value ER_give_from_slot(ARGS) { UNUSED; return Resp_extract_answer(a, "ExtractResponse.give_from_slot", ANS_SLOT); }
+static union grug_value ER_give_crafting_result(ARGS) { UNUSED; return Resp_extract_answer(a, "ExtractResponse.give_crafting_result", ANS_CRAFT); }
+static union grug_value ER_give_crafting_result_consumed(ARGS) { UNUSED; return Resp_extract_answer(a, "ExtractResponse.give_crafting_result_consumed", ANS_CRAFT_CONSUMED); }  // SMOKETEST_EXCL: reached once update_recipe_output exists (expect_response_extract_twice_crafting_result_consumed-Test)
+REGISTER("ExtractResponse", "refuse", ER_refuse);
+REGISTER("ExtractResponse", "give_from_slot", ER_give_from_slot);
+REGISTER("ExtractResponse", "give_crafting_result", ER_give_crafting_result);
+REGISTER("ExtractResponse", "give_crafting_result_consumed", ER_give_crafting_result_consumed);
+static union grug_value AR_answer(const union grug_value a[], const char* method, int kind) {
+    struct obj* r = get_obj(a[0]._id, K_ADD_RESPONSE);
+    if (!r) return fail("%s: not an AddResponse", method);  // SMOKETEST_EXCL: no committed test
+    if (!begin_answer(r, method, "add_item")) return none();
+    r->z = kind;
+    if (kind == ANS_SLOT) r->x = a[1]._number;
+    return none();
+}
+static union grug_value AR_refuse(ARGS) { UNUSED; return AR_answer(a, "AddResponse.refuse", ANS_REFUSE); }
+static union grug_value AR_accept_into_slot(ARGS) { UNUSED; return AR_answer(a, "AddResponse.accept_into_slot", ANS_SLOT); }
+REGISTER("AddResponse", "refuse", AR_refuse);
+REGISTER("AddResponse", "accept_into_slot", AR_accept_into_slot);
+
+// Calls an export that takes a response. Returns false when the entity has no such export (the
+// caller answers -1), else true with the response's answer in *r (copied: the table may move) after
+// the unanswered rule. An error the export raised is raised again here.
+static bool ask_response(struct be* b, uint64_t fn, enum kind kind, const union grug_value* args, size_t nargs, struct obj* out, bool* errored, const char* export_name) {
+    char err[4096];
+    uint64_t rid = new_obj(kind);
+    objs[rid - 1].open = true;
+    union grug_value all[8];
+    memcpy(all, args, nargs * sizeof *args);
+    all[nargs] = id(rid);
+    bool ran = call_export(b->entity, fn, all, nargs + 1, err);
+    objs[rid - 1].open = false;
+    if (!ran) return false;  // SMOKETEST_EXCL: no committed test asks a block entity without the export
+    *errored = false;
+    if (err[0]) { *errored = true; fail("%s", err); }
+    else if (!objs[rid - 1].has) { *errored = true; fail("%s returned without answering its response, and refusing has to be said with response.refuse().", export_name); }
+    *out = objs[rid - 1];
+    return true;
+}
+static bool slot_named_ok(const struct be* b, double slot, const char* export_name) {
+    if (slot_in_range(b, slot)) return true;
+    fail("%s named slot %g, but the inventory has slots 0 to %ld.", export_name, slot, (long)b->nslots - 1);
+    return false;
+}
+static union grug_value BE_ask_extract_item(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.ask_extract_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return num(-1);  // SMOKETEST_EXCL: no committed test asks a vanilla block entity
+    struct obj r; bool errored;
+    union grug_value args[2] = {num(a[1]._number), boolean(false)};
+    uint64_t self = a[0]._id;
+    bool ran = ask_response(b, G.be_extract_item, K_EXTRACT_RESPONSE, args, 2, &r, &errored, "extract_item");
+    if (!ran) return num(-1);  // SMOKETEST_EXCL: no committed test asks a block entity without the export
+    if (errored) return none();
+    b = be_of(self);
+    if (!b) return num(0);  // SMOKETEST_EXCL: no committed test replaces a block entity from inside extract_item
+    if (r.z == ANS_SLOT) {
+        if (!slot_named_ok(b, r.x, "extract_item")) return none();
+        // SMOKETEST_EXCL_START: reached once extract_item_into exists (response_extract-Test)
+        struct slot* sl = &b->slots[(size_t)r.x];
+        return num(r.y < sl->count ? r.y : sl->count);
+        // SMOKETEST_EXCL_STOP
+    }
+    // The smoketest has no crafting result to give (update_recipe_output is missing), so a request for
+    // one answers nothing and marks the test stubbed.
+    if (r.z != ANS_REFUSE) stubbed = true;  // SMOKETEST_EXCL: reached once update_recipe_output exists
+    return num(0);
+}
+REGISTER("BlockEntity", "ask_extract_item", BE_ask_extract_item);
+static union grug_value BE_add_item(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.add_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return num(-1);
+    uint64_t self = a[0]._id;
+    double count = a[3]._number, remaining = count;
+    while (remaining > 0) {
+        struct obj r; bool errored;
+        union grug_value args[5] = {a[1], num(a[2]._number), num(remaining), num(a[4]._number), boolean(a[5]._bool)};
+        if (!ask_response(be_of(self), G.be_add_item, K_ADD_RESPONSE, args, 5, &r, &errored, "add_item")) return remaining == count ? num(-1) : num(count - remaining);  // SMOKETEST_EXCL: no committed test asks twice
+        if (errored) return none();
+        b = be_of(self);
+        if (r.z == ANS_REFUSE || !b || !slot_named_ok(b, r.x, "add_item")) break;
+        // Putting the items in needs insert_item_into_inventory's stack rules, which the smoketest
+        // lacks, so a block entity that accepts fails here naming it.
+        return fail("the smoketest does not implement BlockEntity.insert_item_into_inventory, which add_item uses to put the items in");  // SMOKETEST_EXCL: reached once insert_item_into_inventory exists (response_add-Test)
+    }
+    return num(count - remaining);
+}
+REGISTER("BlockEntity", "add_item", BE_add_item);
 
 static union grug_value TTC_tick_block_entity(ARGS) {
     UNUSED;
@@ -1447,6 +1691,8 @@ int main(int argc, char** argv) {
     G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
     G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
     be_inserted_fn = grug_get_on_fn_id(g_state, "BlockEntity", "item_inserted");
+    G.be_extract_item = grug_get_on_fn_id(g_state, "BlockEntity", "extract_item");
+    G.be_add_item = grug_get_on_fn_id(g_state, "BlockEntity", "add_item");
     uint64_t tick_fn = grug_get_on_fn_id(g_state, "Test", "tick");
     uint64_t init_fn = grug_get_on_fn_id(g_state, "Test", "init");
     if (!strcmp(argv[2], "--all")) { rc = run_all(files, tick_fn, init_fn); goto done; }
