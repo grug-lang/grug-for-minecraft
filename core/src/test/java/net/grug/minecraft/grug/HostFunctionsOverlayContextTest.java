@@ -233,11 +233,13 @@ class HostFunctionsOverlayContextTest {
         HostFunctions.OverlayRenderContext_mouse_y(context);
         HostFunctions.OverlayRenderContext_draw_item(context, 1, 0, 0);
         HostFunctions.OverlayRenderContext_draw_box(context, 0, 0, 1, 1);
+        HostFunctions.OverlayRenderContext_screen_serial(context);
 
         List<String> reports = drain();
-        assertEquals(10, reports.size(), "Every method names its own refusal.");
+        assertEquals(11, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("OverlayRenderContext.screen_width"), reports.get(0));
         assertTrue(reports.get(9).contains("OverlayRenderContext.draw_box"), reports.get(9));
+        assertTrue(reports.get(10).contains("OverlayRenderContext.screen_serial"), reports.get(10));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }
