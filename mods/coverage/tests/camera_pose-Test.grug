@@ -35,7 +35,11 @@ export tick(ctx: TestTickContext) {
         # loader whose client holds its player at the snap (#1580).
         i: number = 0
         while i < 10 {
-            ctx.spawn_mob(level, "minecraft:pig", snap_x, snap_y - 1.62, snap_z)
+            if me.loader_name() == "1.20.6-forge" {
+                ctx.spawn_mob(level, "minecraft:pig", snap_x, snap_y - 1.62, snap_z)
+            } else {
+                ctx.spawn_mob(level, "Pig", snap_x, snap_y - 1.62, snap_z)
+            }
             i = i + 1
         }
         state = 1
