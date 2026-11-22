@@ -22,6 +22,7 @@ filled: bool = false
 pressed: bool = false
 settled_ticks: number = 0
 waited: number = 0
+filled_at: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -57,6 +58,7 @@ export tick(ctx: TestTickContext) {
 
     if not filled {
         filled = true
+        filled_at = waited
         hostile_id: string = "PigZombie"
         passive_id: string = "Pig"
         water_id: string = "Squid"
@@ -92,6 +94,14 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
+    # The counts have to hold for 60 ticks, not only up to the capture: the mobs that would die of
+    # a fall die and leave the world 31 ticks after they land, and a capture taken late on a slow
+    # leg would see fewer of them. The duration is the thing waited for, and _check_counts asserts
+    # on every one of these ticks.
+    if waited < filled_at + 60 {
+        ctx.not_done()
+        return
+    }
     # Three lines of 12 GUI pixels at the 3x scale of a 1280x720 frame, and "count / cap" ends at
     # 106 GUI pixels at its widest.
     ctx.screenshot().equals(r"screenshots/overlay_labels", 0, 0, 330, 120)
@@ -108,13 +118,18 @@ local _fill(ctx: TestTickContext, id: string, category: string) {
     origin: Vec3 = ctx.get_origin()
     target: number = level.get_mob_cap(category) + 1
     ctx.remove_entities(level, category)
+    # The room's torch floor is 3 blocks below the player's feet and the player's feet are 4.62
+    # below the origin (the 3.0 lift and the 1.62 eye), so a mob spawned at the origin falls 7.62
+    # blocks and takes 5 damage, which kills every Alpha slime of size 1 and 2 (health 1 and 4) 31
+    # ticks after it lands. Spawning on the floor takes no damage on any loader.
+    floor_y: number = origin.y() - 7.62
     z: number = origin.z() - 5
     if me.loader_name() == "a1.1.2_01-ornithe" {
         z = origin.z() - 17
     }
     i: number = 0
     while level.count_mobs(category) < target {
-        ctx.spawn_mob(level, id, origin.x() - 5 + Math.remainder(i, 11), origin.y(), z)
+        ctx.spawn_mob(level, id, origin.x() - 5 + Math.remainder(i, 11), floor_y, z)
         i = i + 1
         ctx.assert(i < 300, "Spawning should reach the target.")
     }
