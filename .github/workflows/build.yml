@@ -605,6 +605,7 @@ jobs:
             .github/scripts/ci_timing_test.py \
             .github/scripts/combine_coverage_test.py \
             .github/scripts/base_coverage_map_run_test.py \
+            .github/scripts/base_server_exec_artifacts_test.py \
             .github/scripts/watch_run_test.py \
             .github/scripts/affected_mods_test.py \
             .github/scripts/affected_loaders_test.py \
@@ -2417,6 +2418,36 @@ jobs:
             --other-mods-dir coverage/carry-over-dropped \
             "${loader_args[@]}"
 
+      # The base commit's dedicated-server exec data, for a diff that runs no dedicated leg (#1602):
+      # combine-coverage.py counts it for a runner only when this run's own leg uploaded none, and
+      # JaCoCo ignores a class whose id no longer matches this run's bytes. Retention is 7 days, so
+      # a base run older than that carries nothing, and the log says so. This changes no gate result
+      # until a class is promoted, since a push to main runs no dedicated leg and uploads no such
+      # artifact. A lookup or download that fails carries nothing and never fails the run.
+      - name: Retrieve the base commit's dedicated-server exec data
+        if: ${{ needs.discover.outputs.base-run != '' }}
+        env:
+          REPO: ${{ github.repository }}
+          BASE_RUN: ${{ needs.discover.outputs.base-run }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p coverage/base-server-exec
+          listing=$(curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/actions/runs/$BASE_RUN/artifacts?per_page=100") \
+            || { echo "Carrying over no dedicated-server exec data: the artifacts of base run $BASE_RUN could not be listed."; exit 0; }
+          printf '%s' "$listing" | python3 .github/scripts/base_server_exec_artifacts.py > coverage/base-server-exec.txt || true
+          while read -r name url; do
+            [ -n "$name" ] || continue
+            mkdir -p "coverage/base-server-exec/$name"
+            if curl -sfL -H "Authorization: Bearer $GITHUB_TOKEN" "$url" -o "coverage/base-server-exec/$name.zip" \
+              && unzip -o -q "coverage/base-server-exec/$name.zip" -d "coverage/base-server-exec/$name"; then
+              echo "Retrieved $name of base run $BASE_RUN."
+            else
+              echo "Carrying over no $name: it could not be downloaded."
+              rm -rf "coverage/base-server-exec/$name"
+            fi
+          done < coverage/base-server-exec.txt
+
       - name: Combine the coverage data and require 100%
         run: |
           set -eu
@@ -2450,6 +2481,7 @@ jobs:
             --jacoco-cli coverage/tools/jacoco-cli.jar \
             --output coverage/report \
             --require-100 \
+            --base-server-exec coverage/base-server-exec \
             "${carry[@]}" \
             "${other_mods[@]}"
 
