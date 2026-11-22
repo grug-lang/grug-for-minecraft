@@ -53,6 +53,10 @@ toggle_key: number = 79
 # which says when the screen changed.
 query: string = ""
 focused: bool = false
+
+# Whether the last frame drew the field, which it does not when the grid does not fit: a field that
+# is not on the screen takes no key.
+field_visible: bool = false
 seen_screen: number = -1
 
 # The reference's search field height (IngredientListOverlay.SEARCH_HEIGHT), and the most characters
@@ -65,6 +69,13 @@ key_space: number = 32
 key_backspace: number = 8
 
 export render(ctx: OverlayRenderContext) {
+    # A new screen unfocuses the field before anything can return early, so a screen where the grid
+    # does not fit cannot leave an invisible field holding the keyboard.
+    if ctx.screen_serial() != seen_screen {
+        focused = false
+        seen_screen = ctx.screen_serial()
+    }
+    field_visible = false
     if not shown {
         return
     }
@@ -81,10 +92,7 @@ export render(ctx: OverlayRenderContext) {
     mouse_x: number = ctx.mouse_x()
     mouse_y: number = ctx.mouse_y()
     count: number = search_item_count(query)
-    if ctx.screen_serial() != seen_screen {
-        focused = false
-        seen_screen = ctx.screen_serial()
-    }
+    field_visible = true
     _fit_page(columns * rows, count)
     _draw_search(ctx, grid_x, columns * slot, screen_height)
     ctx.draw_box(grid_x, border_margin, grid_x + button_size, border_margin + button_size)
@@ -117,12 +125,21 @@ export click(ctx: OverlayClickContext) {
     columns: number = _columns(screen_width, ctx.gui_left(), ctx.gui_width())
     rows: number = _rows(ctx.screen_height())
     if columns < min_columns or rows < min_rows {
+        focused = false
         return
     }
 
     count: number = search_item_count(query)
     per_page: number = columns * rows
     _fit_page(per_page, count)
+    if button == 1 and _on_search(ctx.mouse_x(), ctx.mouse_y(), screen_width, ctx.gui_left(), ctx.gui_width(), columns, ctx.screen_height()) {
+        # A right click on the field clears it and focuses it, the reference's text field.
+        query = ""
+        page = 0
+        focused = true
+        ctx.take()
+        return
+    }
     if button == 0 {
         if _on_search(ctx.mouse_x(), ctx.mouse_y(), screen_width, ctx.gui_left(), ctx.gui_width(), columns, ctx.screen_height()) {
             focused = true
@@ -171,7 +188,7 @@ export key(ctx: OverlayKeyContext) {
         ctx.take()
         return
     }
-    if not shown or not focused or ctx.ctrl() {
+    if not shown or not field_visible or not focused or ctx.ctrl() {
         return
     }
 

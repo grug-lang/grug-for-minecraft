@@ -1,5 +1,5 @@
 # The item list's search field: a press on it focuses it, the typed letters narrow the list to the
-# items that match, and backspace widens it again. The test reads the list through what a right
+# items that match, and a right click empties it. The test reads the list through what a right
 # click on the grid's first cell gives, because the overlay takes the press and the give reaches
 # the player's hand some frames later, which the test waits for rather than counting ticks. A key
 # typed while the field is not focused is not taken. See #865.
@@ -81,8 +81,8 @@ export tick_any_side(ctx: TestTickContext) {
     }
 
     if step == 1 {
-        # A press on an item unfocuses the field, so the field is pressed again, and the four
-        # backspaces empty it.
+        # A press on an item unfocuses the field, so the field is pressed again, and a right
+        # click on it empties it.
         ctx.clear_held_item(ctx.get_player())
         step = 5
         waited = 0
@@ -99,10 +99,8 @@ export tick_any_side(ctx: TestTickContext) {
             return
         }
         ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 0), "The overlay should take a press on its search field.")
-        ctx.assert(ctx.press_screen_key(8, false, true), "Backspace should be taken while the field is focused.")
-        ctx.assert(ctx.press_screen_key(8, false, true), "Backspace should be taken while the field is focused.")
-        ctx.assert(ctx.press_screen_key(8, false, true), "Backspace should be taken while the field is focused.")
-        ctx.assert(ctx.press_screen_key(8, false, true), "Backspace should be taken while the field is focused.")
+        # A right click on the field clears it, as the reference's text field does, and focuses it.
+        ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 1), "The overlay should take a right click on its search field.")
         ctx.assert(ctx.press_screen_key(8, false, true), "Backspace on an empty field should still be taken.")
         ctx.assert(ctx.click_screen(_cell_x(ctx), _cell_y(), 1), "The overlay should take a press on its first item.")
         step = 2
