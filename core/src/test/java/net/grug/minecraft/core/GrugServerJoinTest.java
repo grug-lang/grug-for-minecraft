@@ -1,5 +1,6 @@
 package net.grug.minecraft.core;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -92,5 +93,29 @@ class GrugServerJoinTest {
         assertFalse(GrugServerJoin.timedOut(1000, 1499, 500));
         assertTrue(GrugServerJoin.timedOut(1000, 1500, 500));
         assertTrue(GrugServerJoin.timedOut(1000, 9000, 500));
+    }
+
+    @Test
+    void theReportsNameTheFailureAndItsNumbers() {
+        assertArrayEquals(
+                new String[] {
+                    "[GRUG CI] FAIL world readiness",
+                    "[GRUG CI] No player joined the dedicated server within 240 seconds, so the"
+                            + " tests were not started."
+                },
+                GrugServerJoin.timeoutReport(240_000));
+        assertArrayEquals(
+                new String[] {
+                    "[GRUG CI] FAIL the test player left",
+                    "[GRUG CI] The player who started the run disconnected while 2 player(s) were"
+                            + " still on the dedicated server."
+                },
+                GrugServerJoin.starterLeftReport(2));
+        assertArrayEquals(
+                new String[] {
+                    "[GRUG CI] FAIL the test player left",
+                    "[GRUG CI] Every player disconnected from the dedicated server during the run."
+                },
+                GrugServerJoin.everyoneLeftReport());
     }
 }

@@ -156,4 +156,24 @@ public final class GrugPlayerFloor {
         double top = blocks.collisionTop((int) Math.floor(x), blockY, (int) Math.floor(z), x, z);
         return top != BlockSource.NO_COLLISION && feetY < blockY + top - TOLERANCE;
     }
+
+    /** The minimum gap between two reports of the floor hold, in milliseconds. */
+    static final long HOLD_REPORT_INTERVAL_MILLIS = 5000;
+
+    /**
+     * Whether the floor hold says so now: on its first hold, and then at most once per {@link
+     * #HOLD_REPORT_INTERVAL_MILLIS}. {@code holds} counts this hold already.
+     */
+    public static boolean holdReportDue(long holds, long nowMillis, long lastReportMillis) {
+        return holds == 1 || nowMillis - lastReportMillis >= HOLD_REPORT_INTERVAL_MILLIS;
+    }
+
+    /** The line the floor hold prints when it puts a player back on the floor. */
+    public static String holdMessage(double floorTop, double feetY) {
+        return "[GRUG CI] holding the test player on the floor at "
+                + floorTop
+                + ", up from "
+                + feetY
+                + " (inside the ground)";
+    }
 }

@@ -239,7 +239,8 @@ public final class GrugControlStation {
                     Connection nested = nestedConnection(field, holder, depth);
                     if (nested != null) return nested;
                 } catch (IllegalAccessException e) {
-                    throw unreadable("cannot read " + field + " to find the connection", e);
+                    throw new IllegalStateException(
+                            "cannot read " + field + " to find the connection", e);
                 }
             }
         }
@@ -247,26 +248,23 @@ public final class GrugControlStation {
     }
 
     /** The connection inside a client handler a holder keeps, or null for any other field. */
-    @GrugGenerated(
-            "the reflection fallback for a handler that wraps the client's: a StationAPI server"
-                    + " finds its connection on the first level and never takes it")
     private static Connection nestedConnection(Field field, Object holder, int depth)
             throws IllegalAccessException {
         if (depth > 0
                 && field.getType()
                         .getName()
                         .equals("net.minecraft.client.network.ClientNetworkHandler")) {
-            return findConnection(field.get(holder), depth - 1);
+            return nestedWalk(field.get(holder), depth);
         }
         return null;
     }
 
-    /** The error for a field the reflection walk may not read. */
+    /** The walk into the client handler a holder wraps, which a StationAPI server never reaches. */
     @GrugGenerated(
-            "the IllegalAccessException arm: setAccessible has opened the field, so no run can"
-                    + " make the read fail")
-    private static IllegalStateException unreadable(String message, IllegalAccessException cause) {
-        return new IllegalStateException(message, cause);
+            "the reflection fallback for a handler that wraps the client's: a StationAPI server"
+                    + " finds its connection on the first level, so no run enters a wrapped one")
+    private static Connection nestedWalk(Object handler, int depth) {
+        return findConnection(handler, depth - 1);
     }
 
     private static boolean isJdk(Class<?> type) {
@@ -290,7 +288,7 @@ public final class GrugControlStation {
             }
             return playerHoldingHandler(handler);
         } catch (IllegalAccessException e) {
-            throw unreadable("cannot read the handler's player", e);
+            throw new IllegalStateException("cannot read the handler's player", e);
         }
     }
 

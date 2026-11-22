@@ -61,4 +61,34 @@ public final class GrugServerJoin {
     public static boolean timedOut(long waitStartMillis, long nowMillis, long timeoutMillis) {
         return nowMillis - waitStartMillis >= timeoutMillis;
     }
+
+    /** The two lines a run prints when no player joined within {@code timeoutMillis}. */
+    public static String[] timeoutReport(long timeoutMillis) {
+        return new String[] {
+            "[GRUG CI] FAIL world readiness",
+            "[GRUG CI] No player joined the dedicated server within "
+                    + (timeoutMillis / 1000)
+                    + " seconds, so the tests were not started."
+        };
+    }
+
+    /**
+     * The two lines a run prints when the player who started it left, with {@code remaining} left.
+     */
+    public static String[] starterLeftReport(int remaining) {
+        return new String[] {
+            "[GRUG CI] FAIL the test player left",
+            "[GRUG CI] The player who started the run disconnected while "
+                    + remaining
+                    + " player(s) were still on the dedicated server."
+        };
+    }
+
+    /** The two lines a run prints when every player left during it. */
+    public static String[] everyoneLeftReport() {
+        return new String[] {
+            "[GRUG CI] FAIL the test player left",
+            "[GRUG CI] Every player disconnected from the dedicated server during the run."
+        };
+    }
 }

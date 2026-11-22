@@ -419,4 +419,21 @@ class GrugPlayerFloorTest {
         assertEquals(70.0, GrugPlayerFloor.buildAnchor(70.0, 70.0));
         assertEquals(71.3, GrugPlayerFloor.buildAnchor(71.3, 70.0));
     }
+
+    @Test
+    void theHoldReportsOnTheFirstHoldAndThenOncePerInterval() {
+        assertTrue(GrugPlayerFloor.holdReportDue(1, 100, 100));
+        assertFalse(GrugPlayerFloor.holdReportDue(2, 100, 100));
+        assertFalse(GrugPlayerFloor.holdReportDue(2, 5099, 100));
+        assertTrue(GrugPlayerFloor.holdReportDue(2, 5100, 100));
+        assertTrue(GrugPlayerFloor.holdReportDue(9, 9000, 100));
+    }
+
+    @Test
+    void theHoldMessageNamesTheFloorAndTheFeet() {
+        assertEquals(
+                "[GRUG CI] holding the test player on the floor at 70.5, up from 70.25"
+                        + " (inside the ground)",
+                GrugPlayerFloor.holdMessage(70.5, 70.25));
+    }
 }
