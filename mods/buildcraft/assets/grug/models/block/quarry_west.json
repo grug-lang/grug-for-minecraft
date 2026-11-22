@@ -1,0 +1,12 @@
+{
+    "parent": "block/cube",
+    "textures": {
+        "up": "grug:block/quarry_top",
+        "down": "grug:block/quarry_side",
+        "north": "grug:block/quarry_side",
+        "south": "grug:block/quarry_side",
+        "east": "grug:block/quarry_side",
+        "west": "grug:block/quarry_front",
+        "particle": "grug:block/quarry_side"
+    }
+}
