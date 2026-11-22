@@ -20,7 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @GrugGenerated(
         "a mixin into the game's block code: the game runs it, and the placed test fails without"
-            + " it")
+                + " it")
 @Mixin(Block.class)
 public abstract class BlockPlacedMixin {
     @Inject(method = "onPlaced", at = @At("HEAD"))
