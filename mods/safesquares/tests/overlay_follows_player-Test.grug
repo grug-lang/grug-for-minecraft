@@ -1,0 +1,122 @@
+# The overlay's crosses follow the squares as the player moves (#1255): the room of overlay_crosses
+# is built the same way, the overlay is turned on, the player steps three blocks along x, and the
+# overlay is turned off and on again so the next frame is drawn after the step. The scan is centred on
+# the camera, so the crosses seen are the ones around the new position: the hole's yellow cluster
+# sits three blocks nearer the middle of the frame than in overlay_crosses, and the golden is the
+# check that every cross is drawn on its square from the new camera. The crop and the reasons for the
+# room are overlay_crosses', and so is the reason the crop stops at x 880.
+state: number = 0
+moved: bool = false
+waited: number = 0
+settled_ticks: number = 0
+fy: number = 0
+hx: number = 0
+hz: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    waited = waited + 1
+    late: bool = waited >= 1500
+
+    if state == 0 {
+        if not me.world_overlay_supported() {
+            return
+        }
+        ctx.set_box_radius(6)
+        origin: Vec3 = ctx.get_origin()
+        px: number = Math.floor(origin.x())
+        # The origin is the camera plus 3, and the eye is 1.62 above the feet the room is built around.
+        py: number = Math.floor(origin.y() - 4.12)
+        pz: number = Math.floor(origin.z())
+        # The squares are on a stone platform the test lays over the room at the block the player stands
+        # on, so they are 1.62 below the eye: the room's own floor is four blocks lower, which a level
+        # camera cannot see at this distance, and its torches would light them from below.
+        fy = py
+        hx = px + 5
+        hz = pz + 5
+
+        x: number = px - 6
+        while x <= px + 6 {
+            z: number = pz - 6
+            while z <= pz + 6 {
+                level.place_block(x, fy - 1, z, "minecraft:stone")
+                z = z + 1
+            }
+            x = x + 1
+        }
+
+        # The roof is the room's top layer, at py + 13; terrain over the hole would shade it, so the
+        # column over it is cleared too.
+        hy: number = py + 13
+        while hy <= py + 45 {
+            level.place_block(hx, hy, hz, "minecraft:air")
+            hy = hy + 1
+        }
+        state = 1
+        ctx.not_done()
+        return
+    }
+
+    if state == 1 {
+        # Yellow under the hole, red on the far side of the room from it, both on a bare floor.
+        ctx.assert(not (late and level.get_block_light(hx, fy, hz) != 0), "Wait 1: the square under the hole should lose its block light.")
+        ctx.assert(not (late and level.get_block_light(hx - 10, fy, hz - 2) != 0), "Wait 2: the far square should lose its block light.")
+        ctx.assert(not (late and level.get_sky_light(hx, fy, hz) <= 7), "Wait 3: the square under the hole should get sky light above 7.")
+        ctx.assert(not (late and level.get_sky_light(hx - 10, fy, hz - 2) > 7), "Wait 4: the far square should have sky light of at most 7.")
+        if level.get_block_light(hx, fy, hz) != 0 or level.get_block_light(hx - 10, fy, hz - 2) != 0 {
+            ctx.not_done()
+            return
+        }
+        if level.get_sky_light(hx, fy, hz) <= 7 or level.get_sky_light(hx - 10, fy, hz - 2) > 7 {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(level.is_hostile_spawn_space(hx, fy, hz), "The square under the hole should be a spawn space.")
+        ctx.assert(level.is_hostile_spawn_space(hx - 10, fy, hz - 2), "The square far from the hole should be a spawn space.")
+        state = 2
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(not late, "Wait 5: the world should settle and the overlay draw.")
+
+    if state == 2 {
+        if not ctx.world_settled() {
+            settled_ticks = 0
+            ctx.not_done()
+            return
+        }
+        if settled_ticks < 5 {
+            settled_ticks = settled_ticks + 1
+            ctx.not_done()
+            return
+        }
+        ctx.press_world_key(76, false)
+        state = 3
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.world_overlay_drawn() {
+        ctx.not_done()
+        return
+    }
+
+    if not moved {
+        moved = true
+        before: Vec3 = ctx.camera()
+        # The feet are 1.62 under the eye; the platform is 13 wide, so three blocks along x stay over it.
+        ctx.set_player_position(before.x() + 3.0, before.y() - 1.62, before.z())
+        # Off and on again, so world_overlay_drawn is cleared and the capture is of a frame drawn
+        # from the new position.
+        ctx.press_world_key(76, false)
+        ctx.press_world_key(76, false)
+        ctx.not_done()
+        return
+    }
+    ctx.screenshot().equals(r"screenshots/overlay_follows_player", 100, 430, 880, 640)
+
+    # The overlay is one entity for the whole run: L turns it off again, or its crosses would sit in
+    # every later test's captures.
+    ctx.press_world_key(76, false)
+}
