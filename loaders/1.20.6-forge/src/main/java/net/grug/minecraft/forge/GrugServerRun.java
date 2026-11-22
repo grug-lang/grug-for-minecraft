@@ -346,49 +346,47 @@ public final class GrugServerRun {
     }
 
     /**
-     * The arm of the floor hold that puts the player back: the teleport, the count and the report.
+     * The arm of the floor hold that puts the player back. The decision to enter it is core's
+     * {@link GrugPlayerFloor#below}, and the throttle and the text of its report are {@link
+     * GrugPlayerFloor#holdReportDue} and {@link GrugPlayerFloor#holdMessage}, which core's unit
+     * tests cover.
      */
     @GrugGenerated(
-            "the floor hold's arm: it runs only when a client reports a position inside the ground,"
-                    + " which no test can make a joined client do on demand (#1136)")
+            "it runs only when the joined client has fallen into the ground, which the client's own"
+                + " collision prevents and a test cannot make it do; the teleport, the count and"
+                + " the call of core's tested helpers are all that is in it (#1136)")
     private void holdOnFloor(ServerPlayer player, double feet, double floor) {
         player.teleportTo(player.getX(), floor, player.getZ());
         player.setDeltaMovement(0.0, 0.0, 0.0);
         holds++;
         long now = System.currentTimeMillis();
-        if (holds == 1 || now - lastHoldReportMillis >= 5000) {
+        if (GrugPlayerFloor.holdReportDue(holds, now, lastHoldReportMillis)) {
             lastHoldReportMillis = now;
-            System.out.println(
-                    "[GRUG CI] holding the test player on the floor at "
-                            + floor
-                            + ", up from "
-                            + feet
-                            + " (inside the ground)");
+            System.out.println(GrugPlayerFloor.holdMessage(floor, feet));
         }
     }
 
     /** Fails the run because no player joined in time, which only a failing run reaches. */
     @GrugGenerated(
-            "the join timeout: it runs only when no client joins, which ends a run as a failure")
+            "it ends the server process through stop, with the run failed: a test that reached it"
+                    + " would end the very run it is part of; the text is core's tested"
+                    + " GrugServerJoin.timeoutReport")
     private void failJoinTimeout(MinecraftServer server) {
-        System.out.println("[GRUG CI] FAIL world readiness");
-        System.out.println(
-                "[GRUG CI] No player joined the dedicated server within "
-                        + (PLAYER_JOIN_TIMEOUT_MILLIS / 1000)
-                        + " seconds, so the tests were not started.");
+        for (String line : GrugServerJoin.timeoutReport(PLAYER_JOIN_TIMEOUT_MILLIS)) {
+            System.out.println(line);
+        }
         stop(server);
     }
 
     /** Fails the run because the starter left it, which only a failing run reaches. */
     @GrugGenerated(
-            "the starter-left stop: it runs only when the player who started the run disconnects,"
-                    + " which ends a run as a failure")
+            "it ends the server process through stop, with the run failed: a test that reached it"
+                    + " would end the very run it is part of; the text is core's tested"
+                    + " GrugServerJoin.starterLeftReport")
     private void failStarterLeft(MinecraftServer server, int playersLeft) {
-        System.out.println("[GRUG CI] FAIL the test player left");
-        System.out.println(
-                "[GRUG CI] The player who started the run disconnected while "
-                        + playersLeft
-                        + " player(s) were still on the dedicated server.");
+        for (String line : GrugServerJoin.starterLeftReport(playersLeft)) {
+            System.out.println(line);
+        }
         stop(server);
     }
 
