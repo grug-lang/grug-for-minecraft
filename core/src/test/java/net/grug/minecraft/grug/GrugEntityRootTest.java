@@ -73,6 +73,25 @@ class GrugEntityRootTest {
         assertTrue(collected(ENTITY), "the entity is freed once the call is over");
     }
 
+    @Test
+    void clearingTheRunningListItselfOrTheRetainedDefaultKeepsNothing()
+            throws InterruptedException {
+        List<GrugObject> owner = new ArrayList<>();
+        GrugEntities.fnEntities = owner;
+        GrugEntities.addEntityWithId(ENTITY, GrugEntityType.Item, "member");
+        GrugEntities.clearRoots(owner);
+        assertTrue(collected(ENTITY), "clearing the running list itself frees its entities");
+
+        GrugEntities.fnEntities = GrugEntities.retainedFnEntities;
+        List<GrugObject> other = new ArrayList<>();
+        GrugEntities.fnEntities = other;
+        GrugEntities.addEntityWithId(ENTITY, GrugEntityType.Item, "member");
+        GrugEntities.fnEntities = GrugEntities.retainedFnEntities;
+        GrugEntities.clearRoots(other);
+        assertTrue(collected(ENTITY), "no call is running, so nothing keeps them");
+        assertTrue(GrugEntities.retainedFnEntities.isEmpty());
+    }
+
     private static boolean collected(long id) throws InterruptedException {
         for (int attempt = 0; attempt < 50 && GrugEntities.entityData.get(id) != null; attempt++) {
             System.gc();
