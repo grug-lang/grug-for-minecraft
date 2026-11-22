@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write api_table.inc, one row per entry of mod_api.json, for smoketest.c (#1585).
+"""Write api_table.inc and api_table_stubs.inc, one row per entry of mod_api.json, for smoketest.c (#1585).
 
     gen_api_table.py <mod_api.json> <out.inc>
 
@@ -26,11 +26,20 @@ def main(argv):
     with open(argv[1], encoding="utf-8") as f:
         api = json.load(f)
     out = []
-    for class_name, name in rows(api):
+    stubs = []
+    for i, (class_name, name) in enumerate(rows(api)):
         cls = "NULL" if class_name is None else json.dumps(class_name)
-        out.append("{%s, %s}," % (cls, json.dumps(name)))
+        out.append("{%s, %s, stub_%d}," % (cls, json.dumps(name), i))
+        label = name if class_name is None else class_name + "." + name
+        stubs.append(
+            'static union grug_value stub_%d(ARGS) { UNUSED; return fail("the smoketest does not '
+            'implement %s"); }' % (i, label)
+        )
     with open(argv[2], "w", encoding="utf-8") as f:
         f.write("\n".join(out) + "\n")
+    # Each unimplemented entry gets its own stub, so a failing test names the entry it needs.
+    with open(argv[2].replace(".inc", "_stubs.inc"), "w", encoding="utf-8") as f:
+        f.write("\n".join(stubs) + "\n")
 
 
 if __name__ == "__main__":

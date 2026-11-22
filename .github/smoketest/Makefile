@@ -6,11 +6,11 @@ CFLAGS ?= -O2 -g -Wall -Wextra -std=gnu11
 SAN ?=
 ROOT := $(abspath $(CURDIR)/../..)
 
-smoketest: smoketest.c api_table.inc $(GRUG_RS)/target/release/libgruggers.a
+smoketest: smoketest.c api_table.inc api_table_stubs.inc $(GRUG_RS)/target/release/libgruggers.a
 	$(CC) $(CFLAGS) $(SAN) -o $@ smoketest.c $(GRUG_RS)/target/release/libgruggers.a -lm -lpthread -ldl
 
-api_table.inc: gen_api_table.py $(ROOT)/mod_api.json
+api_table.inc api_table_stubs.inc: gen_api_table.py $(ROOT)/mod_api.json
 	python3 gen_api_table.py $(ROOT)/mod_api.json $@
 
 clean:
-	rm -f smoketest api_table.inc
+	rm -f smoketest api_table.inc api_table_stubs.inc

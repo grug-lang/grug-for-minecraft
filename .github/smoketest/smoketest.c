@@ -80,12 +80,13 @@ extern uint64_t grug_get_on_fn_id(void*, const char* entity_type, const char* on
 extern bool grug_call_export_fn(void*, void* entity, uint64_t fn_id, const union grug_value* args, size_t n);
 extern void grug_deinit_entity(void*, void* entity);
 extern void grug_set_runtime_error(void*, const char* message);
+extern void grug_set_next_entity_id(void*, uint64_t next_id);
 
 // ---------------------------------------------------------------------------------------------
 // Objects. A grug value of a class type is an id; here it indexes this table and is never reused
 // within a test. The table is emptied between tests, so a handle a test saved cannot leak across.
-enum kind { K_NONE, K_LEVEL, K_VEC3, K_OPTION, K_CTX, K_ME };
-struct obj { enum kind kind; double x, y, z; bool has; union grug_value val; };
+enum kind { K_NONE, K_LEVEL, K_VEC3, K_OPTION, K_CTX, K_ME, K_RL, K_ITEM, K_BLOCKPOS, K_SHOT };
+struct obj { enum kind kind; double x, y, z; bool has; union grug_value val; const char* str; };
 static struct obj* objs;
 static size_t nobjs, capobjs;
 
@@ -178,6 +179,7 @@ static void clear_world(void) {
 static long cur_tick;
 static bool not_done_called;
 static char* expected_error;
+static bool quiet;
 
 #define ARGS void* gst, const union grug_value a[], const struct grug_type g[]
 #define UNUSED (void)gst; (void)a; (void)g
@@ -221,6 +223,7 @@ static union grug_value Level_get_block(ARGS) {
     struct block* b = find_block((long)floor(a[1]._number), (long)floor(a[2]._number), (long)floor(a[3]._number));
     return str(b ? b->name : "minecraft:air");
 }
+static void on_block_placed(long x, long y, long z, const char* name);
 static union grug_value Level_place_block(ARGS) {
     UNUSED;
     double x = a[1]._number, y = a[2]._number, z = a[3]._number;
@@ -229,9 +232,44 @@ static union grug_value Level_place_block(ARGS) {
         return fail("Level.place_block: the game did not put %s at (%g, %g, %g)", a[4]._string, x, y, z);
     if (!strchr(a[4]._string, ':')) return fail("Level.place_block: '%s' is not a block name", a[4]._string);
     set_block((long)floor(x), (long)floor(y), (long)floor(z), a[4]._string);
+    on_block_placed((long)floor(x), (long)floor(y), (long)floor(z), a[4]._string);
     return none();
 }
-static union grug_value Level_get_time(ARGS) { UNUSED; return num((double)cur_tick); }
+// The level's random is java.util.Random with a fixed seed (the algorithm random_int's description names).
+static uint64_t rnd_seed = (42ull ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
+static int32_t rnd_next(int bits) {
+    rnd_seed = (rnd_seed * 0x5DEECE66Dull + 0xB) & ((1ull << 48) - 1);
+    return (int32_t)(rnd_seed >> (48 - bits));
+}
+static union grug_value Level_random_int(ARGS) {
+    UNUSED;
+    double b = a[1]._number;
+    if (!is_whole(b) || b < 1 || b > 2147483647.0) return fail("The bound has to be a whole number from 1 to 2147483647");
+    int32_t bound = (int32_t)b, r = rnd_next(31), m = bound - 1;
+    if ((bound & m) == 0) return num((double)(int32_t)(((int64_t)bound * (int64_t)r) >> 31));
+    for (int32_t u = r; u - (r = u % bound) + m < 0; u = rnd_next(31)) {}
+    return num((double)r);
+}
+static union grug_value Level_random_float(ARGS) { UNUSED; return num(rnd_next(24) / (double)(1 << 24)); }
+static union grug_value Level_random_gaussian(ARGS) {
+    UNUSED;
+    double v1, v2, s;
+    do {
+        v1 = 2 * ((((int64_t)rnd_next(26) << 27) + rnd_next(27)) * (1.0 / (1ll << 53))) - 1;
+        v2 = 2 * ((((int64_t)rnd_next(26) << 27) + rnd_next(27)) * (1.0 / (1ll << 53))) - 1;
+        s = v1 * v1 + v2 * v2;
+    } while (s >= 1 || s == 0);
+    return num(v1 * sqrt(-2 * log(s) / s));
+}
+static double time_offset;
+static union grug_value Level_get_time(ARGS) { UNUSED; return num((double)cur_tick + time_offset); }
+static union grug_value Level_set_time(ARGS) {
+    UNUSED;
+    double t = a[1]._number;
+    if (!is_whole(t) || t < 0 || t > 9007199254740991.0) return fail("Level.set_time: The time has to be a whole number of ticks from 0 to 9007199254740991");
+    time_offset = t - (double)cur_tick;
+    return none();
+}
 
 // Vec3
 static union grug_value Vec3_x(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->x : 0); }
@@ -309,22 +347,377 @@ static void print_value(const union grug_value* v, const struct grug_type* t) {
     default: printf("<object %llu>", (unsigned long long)v->_id);
     }
 }
-static union grug_value print1(ARGS) { (void)gst; print_value(&a[0], &g[0]); putchar('\n'); return none(); }
+static union grug_value print1(ARGS) { (void)gst; if (quiet) return none(); print_value(&a[0], &g[0]); putchar('\n'); return none(); }
 static union grug_value print2(ARGS) {
     (void)gst;
+    if (quiet) return none();
     print_value(&a[0], &g[0]); putchar(' '); print_value(&a[1], &g[1]); putchar('\n');
     return none();
 }
 static union grug_value print3(ARGS) {
     (void)gst;
+    if (quiet) return none();
     print_value(&a[0], &g[0]); putchar(' '); print_value(&a[1], &g[1]); putchar(' ');
     print_value(&a[2], &g[2]); putchar('\n');
     return none();
 }
 
 // ---------------------------------------------------------------------------------------------
+// Resource locations and items. An Item is interned by its name, so grug's `==` on an Item (which
+// compares ids) and equals() agree, as they do for the game's one item per name. No item table is
+// kept: a name is taken as given, with "minecraft:" in front of a bare one.
+static union grug_value hf_resource_location(ARGS) {
+    UNUSED;
+    uint64_t r = new_obj(K_RL);
+    const char* s = a[0]._string;
+    size_t n = strlen(s) + 11;
+    char* full = malloc(n);
+    snprintf(full, n, "%s%s", strchr(s, ':') ? "" : "minecraft:", s);
+    objs[r - 1].str = keep(full);
+    return id(r);
+}
+static union grug_value hf_item(ARGS) {
+    UNUSED;
+    struct obj* rl = get_obj(a[0]._id, K_RL);
+    if (!rl) return fail("item: not a ResourceLocation");
+    for (size_t i = 0; i < nobjs; i++)
+        if (objs[i].kind == K_ITEM && !strcmp(objs[i].str, rl->str)) return id(i + 1);
+    uint64_t it = new_obj(K_ITEM);
+    objs[it - 1].str = rl->str;
+    return id(it);
+}
+
+// BlockPos: the two methods the committed block entity scripts and tests call.
+static union grug_value BlockPos_above_n(ARGS) {
+    UNUSED;
+    struct obj* p = get_obj(a[0]._id, K_BLOCKPOS);
+    if (!p) return fail("BlockPos.above_n: not a BlockPos");
+    uint64_t q = new_obj(K_BLOCKPOS);
+    objs[q - 1].x = p->x; objs[q - 1].y = p->y + a[1]._number; objs[q - 1].z = p->z;
+    return id(q);
+}
+static union grug_value BlockPos_center(ARGS) {
+    UNUSED;
+    struct obj* p = get_obj(a[0]._id, K_BLOCKPOS);
+    if (!p) return fail("BlockPos.center: not a BlockPos");
+    uint64_t v = new_obj(K_VEC3);
+    objs[v - 1].x = p->x + 0.5; objs[v - 1].y = p->y + 0.5; objs[v - 1].z = p->z + 0.5;
+    return id(v);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Block entities. A block with a BlockEntity script gets a grug entity when it is placed, whose
+// init() runs at once (block_entity_init_moment-Test) and whose tick() runs once per runner tick
+// (the toy world has no game-tick/frame split). A block entity's handle is its grug entity's id,
+// which is what `me` holds, set with grug_set_next_entity_id before the entity is created because
+// the member scope already calls me.block_pos(). The ids start far above the object table's.
+#define BE_BASE (1ull << 40)
+struct kv { char* k; double v; };
+struct record { struct kv* n; size_t nn; uint64_t item; bool has_item; };
+struct list { char* name; struct record* r; size_t nr; };
+struct be {
+    bool live;
+    long x, y, z;
+    void* entity;
+    struct kv* nums; size_t nnums;
+    struct list* lists; size_t nlists;
+};
+static struct be* bes;
+static size_t nbes, capbes;
+
+static struct files_ref { struct grug_files_slice f; uint64_t block_init, be_init, be_tick; } G;
+static char bg_missing[512];   // a "does not implement" raised inside a block entity call
+static char last_error[4096];  // the last runtime error the handler saw
+
+static struct be* be_of(uint64_t h) { return h >= BE_BASE && h - BE_BASE < nbes && bes[h - BE_BASE].live ? &bes[h - BE_BASE] : NULL; }
+
+// Runs a block entity or block export. A grug mod err is contained, as in the game; the one error
+// that is not is a missing smoketest entry, which would make every later assertion meaningless.
+static void call_contained(void* entity, uint64_t fn, const union grug_value* args, size_t n) {
+    char saved[sizeof last_error];
+    memcpy(saved, last_error, sizeof saved);
+    last_error[0] = 0;
+    if (!grug_call_export_fn(g_state, entity, fn, args, n) && strstr(last_error, "does not implement") && !bg_missing[0])
+        snprintf(bg_missing, sizeof bg_missing, "%s", last_error);
+    memcpy(last_error, saved, sizeof saved);
+}
+
+static void free_list(struct list* l) {
+    for (size_t i = 0; i < l->nr; i++) {
+        for (size_t j = 0; j < l->r[i].nn; j++) free(l->r[i].n[j].k);
+        free(l->r[i].n);
+    }
+    free(l->r); free(l->name);
+}
+static void free_be(struct be* b) {
+    if (!b->live) return;
+    if (b->entity) grug_deinit_entity(g_state, b->entity);
+    for (size_t i = 0; i < b->nnums; i++) free(b->nums[i].k);
+    free(b->nums);
+    for (size_t i = 0; i < b->nlists; i++) free_list(&b->lists[i]);
+    free(b->lists);
+    memset(b, 0, sizeof *b);
+}
+static void clear_bes(void) {
+    for (size_t i = 0; i < nbes; i++) free_be(&bes[i]);
+    nbes = 0;
+}
+
+// Per-block registry: Block.init runs once per test on first placement, with set_block_entity and
+// set_inventory_size the only BlockInitContext entries implemented. Any other setter a block calls
+// fails the placement naming the entry.
+struct blockdef { const char* name; bool inited; long be_file; };
+static struct blockdef* blockdefs;
+static size_t nblockdefs;
+static struct { long be_file; bool in_init; } cur_binit;
+
+static union grug_value BIC_set_block_entity(ARGS) {
+    UNUSED;
+    const char* e = a[1]._string;
+    const char* colon = strchr(e, ':');
+    e = colon ? colon + 1 : e;
+    for (size_t i = 0; i < G.f.len; i++)
+        if (G.f.ptr[i].entity_type && !strcmp(G.f.ptr[i].entity_type, "BlockEntity") && !strcmp(G.f.ptr[i].entity_name, e)) cur_binit.be_file = (long)i;
+    return none();
+}
+static union grug_value BIC_set_inventory_size(ARGS) { UNUSED; return none(); }
+// Recorded and read by nothing yet: no committed logic test observes a block's hardness or material
+// without mining or a world capture, which the toy world has not. A test that does needs the mining
+// entry first and fails on that, by name.
+static union grug_value BIC_set_hardness(ARGS) {
+    UNUSED;
+    if (!isfinite(a[1]._number) || a[1]._number < 0) return fail("BlockInitContext.set_hardness: the hardness has to be a finite number of at least 0");
+    return none();
+}
+static union grug_value BIC_set_material(ARGS) { UNUSED; return none(); }
+// Graphics flags (#1548: graphics calls stay stubs): nothing draws, so nothing reads them.
+static union grug_value BIC_graphics_flag(ARGS) { UNUSED; return none(); }
+
+static struct blockdef* find_blockdef(const char* name) {
+    if (strncmp(name, "grug:", 5)) return NULL;
+    for (size_t i = 0; i < nblockdefs; i++) if (!strcmp(blockdefs[i].name, name)) return &blockdefs[i];
+    for (size_t i = 0; i < G.f.len; i++) {
+        struct grug_file_info* fi = &G.f.ptr[i];
+        if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Block") || strcmp(fi->entity_name, name + 5)) continue;
+        blockdefs = realloc(blockdefs, (nblockdefs + 1) * sizeof *blockdefs);
+        struct blockdef* d = &blockdefs[nblockdefs++];
+        d->name = keep(strdup(name)); d->inited = false; d->be_file = -1;
+        // Block.init has no entity to hold: create, run, drop.
+        void* ent = grug_create_entity(g_state, fi->file_id);
+        cur_binit.be_file = -1;
+        union grug_value arg = id(new_obj(K_CTX));
+        call_contained(ent, G.block_init, &arg, 1);
+        d->be_file = cur_binit.be_file;
+        grug_deinit_entity(g_state, ent);
+        return d;
+    }
+    return NULL;
+}
+
+static struct be* be_at(long x, long y, long z) {
+    for (size_t i = 0; i < nbes; i++) if (bes[i].live && bes[i].x == x && bes[i].y == y && bes[i].z == z) return &bes[i];
+    return NULL;
+}
+static void make_be(long x, long y, long z, long file) {
+    if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = realloc(bes, capbes * sizeof *bes); if (!bes) abort(); }
+    struct be* b = &bes[nbes];
+    memset(b, 0, sizeof *b);
+    b->live = true; b->x = x; b->y = y; b->z = z;
+    uint64_t handle = BE_BASE + nbes++;
+    grug_set_next_entity_id(g_state, handle);
+    b->entity = grug_create_entity(g_state, G.f.ptr[file].file_id);
+    union grug_value arg = id(new_obj(K_CTX));
+    call_contained(b->entity, G.be_init, &arg, 1);
+}
+static void on_block_placed(long x, long y, long z, const char* name) {
+    struct be* old = be_at(x, y, z);
+    if (old) free_be(old);
+    struct blockdef* d = find_blockdef(name);
+    if (d && d->be_file >= 0) make_be(x, y, z, d->be_file);
+}
+static void tick_bes(void) {
+    for (size_t i = 0; i < nbes; i++)
+        if (bes[i].live && bes[i].entity) call_contained(bes[i].entity, G.be_tick, NULL, 0);
+}
+
+static union grug_value Level_get_block_entity(ARGS) {
+    UNUSED;
+    struct be* b = be_at((long)floor(a[1]._number), (long)floor(a[2]._number), (long)floor(a[3]._number));
+    uint64_t o = new_obj(K_OPTION);
+    if (b) { objs[o - 1].has = true; objs[o - 1].val = id(BE_BASE + (uint64_t)(b - bes)); }
+    return id(o);
+}
+static union grug_value BE_block_pos(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.block_pos: not a live block entity");
+    uint64_t p = new_obj(K_BLOCKPOS);
+    objs[p - 1].x = (double)b->x; objs[p - 1].y = (double)b->y; objs[p - 1].z = (double)b->z;
+    return id(p);
+}
+static union grug_value BE_level(ARGS) { UNUSED; return id(new_obj(K_LEVEL)); }
+
+static union grug_value TTC_tick_block_entity(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[1]._id);
+    if (!b) return fail("TestTickContext.tick_block_entity: not a live block entity");
+    if (!b->entity) return fail("Only a grug block entity has a tick to run");
+    double n = a[2]._number;
+    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("The ticks have to be a whole number from 0 to 2147483647");
+    for (long i = 0; i < (long)n; i++) call_contained(b->entity, G.be_tick, NULL, 0);
+    return none();
+}
+
+// Saved numbers and saved lists. Index and key errors use the texts the expect_*saved* tests wait for.
+static union grug_value BE_set_saved_number(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.set_saved_number: not a live block entity");
+    for (size_t i = 0; i < b->nnums; i++) if (!strcmp(b->nums[i].k, a[1]._string)) { b->nums[i].v = a[2]._number; return none(); }
+    b->nums = realloc(b->nums, (b->nnums + 1) * sizeof *b->nums);
+    b->nums[b->nnums].k = strdup(a[1]._string);
+    b->nums[b->nnums++].v = a[2]._number;
+    return none();
+}
+static union grug_value BE_get_saved_number(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_saved_number: not a live block entity");
+    for (size_t i = 0; i < b->nnums; i++) if (!strcmp(b->nums[i].k, a[1]._string)) return num(b->nums[i].v);
+    return num(0);
+}
+static struct list* find_list(struct be* b, const char* name) {
+    for (size_t i = 0; i < b->nlists; i++) if (!strcmp(b->lists[i].name, name)) return &b->lists[i];
+    return NULL;
+}
+// The record a call names, or NULL after raising the error.
+static struct record* record_at(struct be* b, const char* name, double index, size_t* out_n) {
+    struct list* l = find_list(b, name);
+    size_t n = l ? l->nr : 0;
+    if (out_n) *out_n = n;
+    if (!is_whole(index) || index < 0) { fail("The index has to be a whole number from 0 to %zu", n ? n - 1 : 0); return NULL; }
+    if (!l || (size_t)index >= n) { fail("There is no record at index %.0f", index); return NULL; }
+    return &l->r[(size_t)index];
+}
+static union grug_value BE_get_saved_list_size(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_saved_list_size: not a live block entity");
+    struct list* l = find_list(b, a[1]._string);
+    return num(l ? (double)l->nr : 0);
+}
+static union grug_value BE_append_saved_list_record(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.append_saved_list_record: not a live block entity");
+    struct list* l = find_list(b, a[1]._string);
+    if (!l) {
+        b->lists = realloc(b->lists, (b->nlists + 1) * sizeof *b->lists);
+        l = &b->lists[b->nlists++];
+        memset(l, 0, sizeof *l);
+        l->name = strdup(a[1]._string);
+    }
+    l->r = realloc(l->r, (l->nr + 1) * sizeof *l->r);
+    memset(&l->r[l->nr], 0, sizeof *l->r);
+    return num((double)l->nr++);
+}
+static union grug_value BE_remove_saved_list_record(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.remove_saved_list_record: not a live block entity");
+    struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
+    if (!r) return none();
+    struct list* l = find_list(b, a[1]._string);
+    for (size_t j = 0; j < r->nn; j++) free(r->n[j].k);
+    free(r->n);
+    memmove(r, r + 1, (size_t)(l->r + l->nr - (r + 1)) * sizeof *r);
+    l->nr--;
+    return none();
+}
+static union grug_value BE_get_saved_list_number(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_saved_list_number: not a live block entity");
+    struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
+    if (!r) return none();
+    for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) return num(r->n[j].v);
+    return num(0);
+}
+static union grug_value BE_set_saved_list_number(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.set_saved_list_number: not a live block entity");
+    struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
+    if (!r) return none();
+    for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) { r->n[j].v = a[4]._number; return none(); }
+    r->n = realloc(r->n, (r->nn + 1) * sizeof *r->n);
+    r->n[r->nn].k = strdup(a[3]._string);
+    r->n[r->nn++].v = a[4]._number;
+    return none();
+}
+static union grug_value BE_set_saved_list_item(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.set_saved_list_item: not a live block entity");
+    struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
+    if (r) { r->has_item = true; r->item = a[3]._id; }
+    return none();
+}
+static union grug_value BE_get_saved_list_item(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_saved_list_item: not a live block entity");
+    struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
+    uint64_t o = new_obj(K_OPTION);
+    if (r && r->has_item) { objs[o - 1].has = true; objs[o - 1].val = id(r->item); }
+    return id(o);
+}
+
+// The runner's own test settings. Graphics calls are stubs: a capture is a token equal to itself,
+// and the world is always settled, so a test that mixes world changes with a screenshot goes on.
+static int max_ticks = 200;
+static union grug_value TIC_set_max_ticks(ARGS) {
+    UNUSED;
+    double n = a[1]._number;
+    if (!is_whole(n) || n < 200 || n > 2147483647.0) return fail("The ticks have to be a whole number from 200 to 2147483647");
+    if (n > max_ticks) max_ticks = (int)n;
+    return none();
+}
+static union grug_value TTC_set_box_radius(ARGS) {
+    UNUSED;
+    // The room itself is not built: the toy world has no walls, and a stub can only check the argument.
+    if (!is_whole(a[1]._number) || a[1]._number < 1) return fail("The radius has to be a whole number of at least 1");
+    if (a[1]._number > 30) return fail("The radius has to be at most 30: a wider room would reach chunks the client never receives");
+    return none();
+}
+// Screenshots are tokens equal to themselves (#1548): nothing is drawn, so a capture is always the
+// same as the reference and a test that mixes world changes with a screenshot goes on. The one
+// comparison that cannot hold is differs_from, which fails unless asked for no difference.
+static union grug_value TTC_screenshot(ARGS) { UNUSED; return id(new_obj(K_SHOT)); }
+static union grug_value Shot_self(ARGS) { UNUSED; return a[0]; }
+static union grug_value Shot_equals(ARGS) { UNUSED; return none(); }
+static union grug_value Shot_change_from(ARGS) { UNUSED; return num(0); }
+static union grug_value Shot_differs_from(ARGS) {
+    UNUSED;
+    if (a[2]._number > 0) return fail("Screenshot.differs_from: the smoketest draws nothing, so two captures never differ");
+    return none();
+}
+// A loader that draws no overlays and no world overlays is one a test returns early on, which is
+// what a test that asks has to handle; the smoketest is such a loader.
+static union grug_value Test_overlay_supported(ARGS) { UNUSED; return boolean(false); }
+static union grug_value TTC_world_settled(ARGS) { UNUSED; return boolean(true); }
+// A stall only has to take time on the real game; the toy world has no clock to block.
+static union grug_value TTC_stall(ARGS) {
+    UNUSED;
+    if (!isfinite(a[1]._number) || a[1]._number < 0 || a[1]._number > 10000) return fail("The time has to be from 0 to 10000 milliseconds");
+    return none();
+}
+static union grug_value TTC_close_screen(ARGS) { UNUSED; return none(); }
+
+// ---------------------------------------------------------------------------------------------
 // The registry: every entry of mod_api.json, and which of them have an implementation.
-struct api_row { const char* cls; const char* name; };
+struct api_row { const char* cls; const char* name; host_fn stub; };
+#include "api_table_stubs.inc"
 static const struct api_row api_rows[] = {
 #include "api_table.inc"
 };
@@ -338,6 +731,50 @@ static const struct impl impls[] = {
     {"TestTickContext", "expect_error", TTC_expect_error},
     {"TestTickContext", "get_client_level", TTC_get_client_level},
     {"TestTickContext", "get_origin", TTC_get_origin},
+    {"TestInitContext", "get_origin", TTC_get_origin},
+    {"TestInitContext", "set_max_ticks", TIC_set_max_ticks},
+    {"TestTickContext", "tick_block_entity", TTC_tick_block_entity},
+    {"TestTickContext", "set_box_radius", TTC_set_box_radius},
+    {"TestTickContext", "world_settled", TTC_world_settled},
+    {"TestTickContext", "stall", TTC_stall},
+    {"TestTickContext", "close_screen", TTC_close_screen},
+    {NULL, "resource_location", hf_resource_location},
+    {NULL, "item", hf_item},
+    {"BlockPos", "above_n", BlockPos_above_n},
+    {"BlockPos", "center", BlockPos_center},
+    {"BlockInitContext", "set_block_entity", BIC_set_block_entity},
+    {"BlockInitContext", "set_inventory_size", BIC_set_inventory_size},
+    {"BlockInitContext", "set_hardness", BIC_set_hardness},
+    {"BlockInitContext", "set_material", BIC_set_material},
+    {"BlockInitContext", "set_custom_render", BIC_graphics_flag},
+    {"BlockInitContext", "set_frame_render", BIC_graphics_flag},
+    {"BlockInitContext", "set_flat_lighting", BIC_graphics_flag},
+    {"BlockInitContext", "set_display_tick", BIC_graphics_flag},
+    {"BlockInitContext", "set_shape", BIC_graphics_flag},
+    {"Level", "get_block_entity", Level_get_block_entity},
+    {"BlockEntity", "block_pos", BE_block_pos},
+    {"BlockEntity", "level", BE_level},
+    {"BlockEntity", "set_saved_number", BE_set_saved_number},
+    {"BlockEntity", "get_saved_number", BE_get_saved_number},
+    {"BlockEntity", "get_saved_list_size", BE_get_saved_list_size},
+    {"BlockEntity", "append_saved_list_record", BE_append_saved_list_record},
+    {"BlockEntity", "remove_saved_list_record", BE_remove_saved_list_record},
+    {"BlockEntity", "get_saved_list_number", BE_get_saved_list_number},
+    {"BlockEntity", "set_saved_list_number", BE_set_saved_list_number},
+    {"BlockEntity", "set_saved_list_item", BE_set_saved_list_item},
+    {"BlockEntity", "get_saved_list_item", BE_get_saved_list_item},
+    {"TestTickContext", "screenshot", TTC_screenshot},
+    {"Screenshot", "tolerance", Shot_self},
+    {"Screenshot", "capture", Shot_self},
+    {"Screenshot", "equals", Shot_equals},
+    {"Screenshot", "change_from", Shot_change_from},
+    {"Screenshot", "differs_from", Shot_differs_from},
+    {"Test", "overlay_supported", Test_overlay_supported},
+    {"Test", "world_overlay_supported", Test_overlay_supported},
+    {"Level", "random_int", Level_random_int},
+    {"Level", "random_float", Level_random_float},
+    {"Level", "random_gaussian", Level_random_gaussian},
+    {"Level", "set_time", Level_set_time},
     {"Test", "is_reference", Test_is_reference},
     {"Test", "loader_name", Test_loader_name},
     {"Level", "is_air", Level_is_air},
@@ -399,11 +836,6 @@ static int contract(void) {
     return missing || orphans ? 1 : 0;
 }
 
-static union grug_value unimplemented(ARGS) {
-    UNUSED;
-    return fail("the smoketest does not implement this mod_api.json entry yet");
-}
-
 // ---------------------------------------------------------------------------------------------
 static double now_ms(void) {
     struct timespec t;
@@ -411,20 +843,38 @@ static double now_ms(void) {
     return t.tv_sec * 1e3 + t.tv_nsec / 1e6;
 }
 
-static char last_error[4096];
 static void on_runtime_error(void* data, struct grug_runtime_error* e) {
     (void)data;
     snprintf(last_error, sizeof last_error, "%s", e && e->error_string ? e->error_string : "(no message)");
 }
 
-static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn, int max_ticks) {
+// The outcome of the last run_test, for the --all summary. quiet silences the per-test lines and
+// the tests' own print calls.
+static char fail_reason[4096];
+static void report(const char* verdict, const char* label, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+static void report(const char* verdict, const char* label, const char* fmt, ...) {
+    char buf[4096];
+    __builtin_va_list ap;
+    __builtin_va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    __builtin_va_end(ap);
+    snprintf(fail_reason, sizeof fail_reason, "%s", buf);
+    if (!quiet) printf("%s %s%s%s\n", verdict, label, buf[0] ? ": " : "", buf);
+}
+
+static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn) {
+    clear_bes();
     free_test_state();
     clear_world();
+    nblockdefs = 0;
+    max_ticks = 200;
+    time_offset = 0;
+    bg_missing[0] = 0;
     cur_tick = 0;
     free(expected_error);
     expected_error = NULL;
     void* entity = grug_create_entity(g_state, file_id);
-    if (!entity) { printf("FAIL %s: could not create the entity\n", label); return 1; }
+    if (!entity) { report("FAIL", label, "could not create the entity"); return 1; }
     uint64_t ctx = new_obj(K_CTX);
     union grug_value arg = id(ctx);
     int rc = 0;
@@ -434,7 +884,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         union grug_value iarg = id(ictx);
         // A false with no error recorded is a file that has no init, which most tests do not.
         if (!grug_call_export_fn(g_state, entity, init_fn, &iarg, 1) && last_error[0]) {
-            printf("FAIL %s: init stopped: %s\n", label, last_error);
+            report("FAIL", label, "init stopped: %s", last_error);
             rc = 1;
         }
     }
@@ -442,21 +892,57 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         last_error[0] = 0;
         not_done_called = false;
         bool completed = grug_call_export_fn(g_state, entity, tick_fn, &arg, 1);
-        if (!completed) {
-            if (expected_error && strstr(last_error, expected_error)) { printf("PASS %s (expected error)\n", label); break; }
-            if (expected_error) printf("FAIL %s: expected an error containing '%s', but got: %s\n", label, expected_error, last_error);
-            else printf("FAIL %s: %s\n", label, last_error);
+        if (bg_missing[0]) { report("FAIL", label, "%s", bg_missing); rc = 1; }
+        else if (!completed) {
+            if (expected_error && strstr(last_error, expected_error)) { report("PASS", label, "%s", ""); break; }
+            if (expected_error) report("FAIL", label, "expected an error containing '%s', but got: %s", expected_error, last_error);
+            else report("FAIL", label, "%s", last_error);
             rc = 1;
         } else if (not_done_called) {
-            if (++cur_tick >= max_ticks) { printf("FAIL %s: exceeded %d ticks\n", label, max_ticks); rc = 1; }
+            tick_bes();
+            if (++cur_tick >= max_ticks) { report("FAIL", label, "exceeded %d ticks", max_ticks); rc = 1; }
         } else {
-            if (expected_error) { printf("FAIL %s: expected an error containing '%s', but it completed without one\n", label, expected_error); rc = 1; }
-            else printf("PASS %s\n", label);
+            if (expected_error) { report("FAIL", label, "expected an error containing '%s', but it completed without one", expected_error); rc = 1; }
+            else report("PASS", label, "%s", "");
             break;
         }
     }
     grug_deinit_entity(g_state, entity);
     return rc;
+}
+
+// --all: run every test of the mods in `mods`, and print each failure with the first entry it
+// needed that is missing, then the counts and a tally of the missing entries.
+struct tally { char name[160]; int n; };
+static int run_all(struct grug_files_slice files, uint64_t tick_fn, uint64_t init_fn) {
+    static struct tally tallies[512];
+    size_t ntally = 0;
+    int passed = 0, failed = 0, missing_failures = 0;
+    quiet = true;
+    for (size_t i = 0; i < files.len; i++) {
+        const char* path = files.ptr[i].path;
+        if (!strstr(path, "/tests/") || files.ptr[i].file_id == UINT64_MAX) continue;
+        if (!run_test(path, files.ptr[i].file_id, tick_fn, init_fn)) { passed++; continue; }
+        failed++;
+        const char* m = strstr(fail_reason, "does not implement ");
+        printf("FAIL %s: %.*s\n", path, (int)strcspn(fail_reason, "\n"), fail_reason);
+        if (!m) continue;
+        m += strlen("does not implement ");
+        missing_failures++;
+        size_t k = 0;
+        while (k < ntally && strncmp(tallies[k].name, m, strlen(tallies[k].name)) != 0) k++;
+        if (k == ntally && ntally < 512) {
+            snprintf(tallies[ntally].name, sizeof tallies[ntally].name, "%.*s", (int)strcspn(m, " \n"), m);
+            tallies[ntally++].n = 0;
+        }
+        if (k < ntally) tallies[k].n++;
+    }
+    quiet = false;
+    for (size_t i = 1; i < ntally; i++)
+        for (size_t j = i; j > 0 && tallies[j].n > tallies[j - 1].n; j--) { struct tally t = tallies[j]; tallies[j] = tallies[j - 1]; tallies[j - 1] = t; }
+    for (size_t k = 0; k < ntally; k++) printf("  needs %s: %d tests\n", tallies[k].name, tallies[k].n);
+    printf("smoketest --all: %d passed, %d failed (%d on a missing entry), %d total\n", passed, failed, missing_failures, passed + failed);
+    return failed ? 1 : 0;
 }
 
 int main(int argc, char** argv) {
@@ -488,7 +974,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < NAPI; i++) {
         host_fn f = find_impl(api_rows[i].cls, api_rows[i].name);
         implemented += f != NULL;
-        if (!f) f = unimplemented;
+        if (!f) f = api_rows[i].stub;
         struct grug_error* e = api_rows[i].cls ? grug_register_host_method(g_state, api_rows[i].cls, api_rows[i].name, f)
                                                : grug_register_host_fn(g_state, api_rows[i].name, f);
         if (e) { fprintf(stderr, "register %s: %s\n", api_rows[i].name, e->error_string); return 2; }
@@ -511,21 +997,29 @@ int main(int argc, char** argv) {
 
     int rc = 0;
     if (!strcmp(argv[2], "--compile-only")) { grug_deinit(g_state); return bad ? 1 : 0; }
+    G.f = files;
+    G.block_init = grug_get_on_fn_id(g_state, "Block", "init");
+    G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
+    G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
     uint64_t tick_fn = grug_get_on_fn_id(g_state, "Test", "tick");
     uint64_t init_fn = grug_get_on_fn_id(g_state, "Test", "init");
+    if (!strcmp(argv[2], "--all")) { rc = run_all(files, tick_fn, init_fn); goto done; }
     int ran = 0;
     for (int i = 2; i < argc; i++) {
         size_t found = files.len;
         for (size_t j = 0; j < files.len; j++) if (!strcmp(files.ptr[j].path, argv[i])) found = j;
         if (found == files.len || files.ptr[found].file_id == UINT64_MAX) { printf("FAIL %s: not compiled\n", argv[i]); rc = 1; continue; }
         double a = now_ms();
-        rc |= run_test(argv[i], files.ptr[found].file_id, tick_fn, init_fn, 200);
+        rc |= run_test(argv[i], files.ptr[found].file_id, tick_fn, init_fn);
         printf("  %s: %.3f ms\n", argv[i], now_ms() - a);
         ran++;
     }
     printf("ran %d tests, %s\n", ran, rc ? "FAILED" : "all passed");
+done:
+    clear_bes();
     free_test_state();
     clear_world();
+    free(bes); free(blockdefs);
     free(world); free(objs); free(arena); free(expected_error);
     grug_deinit(g_state);
     return rc;
