@@ -117,18 +117,6 @@ public class ClientForgeAdapter extends ForgeAdapter {
                 : super.entitiesOf(level);
     }
 
-    /**
-     * A level that only mirrors a server's takes the day time itself; the server's is the parent's.
-     */
-    @Override
-    public void setWorldTime(Object levelObj, long time) {
-        if (levelObj instanceof ClientLevel client) {
-            client.setDayTime(time);
-        } else {
-            super.setWorldTime(levelObj, time);
-        }
-    }
-
     @Override
     public Object testPlayer() {
         return Minecraft.getInstance().player;

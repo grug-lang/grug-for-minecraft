@@ -1176,9 +1176,9 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * Sets the day time of the level the game simulates, as {@code /time set} does. A client that
-     * only mirrors a server's level is {@link ClientForgeAdapter}'s, which names the client class
-     * this adapter must not load on a dedicated server.
+     * Sets the day time of the level the game simulates, as {@code /time set} does. A client's
+     * mirror of it is not set: the server's time packet would overwrite it, and the mirror follows
+     * the server's within 20 ticks.
      */
     @Override
     public void setWorldTime(Object levelObj, long time) {
