@@ -85,6 +85,8 @@ def in_harness(path: str, harness: set[str], mod: str) -> bool:
 def reason_to_run(path: str, harness: set[str], mod: str, loader: str) -> str | None:
     """Why this changed path can change what the reference job observes, or None when it cannot."""
     parts = PurePosixPath(path).parts
+    if path.startswith(".github/smoketest/"):
+        return None  # the advisory smoketest host is no part of the reference harness (#1589)
     if in_harness(path, harness, mod):
         return f"{path} is staged into the reference harness"
     if len(parts) >= 3 and parts[0] == "mods":

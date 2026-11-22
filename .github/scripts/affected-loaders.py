@@ -268,6 +268,8 @@ def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], lis
     chosen &= current
     reasons: dict[str, list[str]] = {}
     for path in paths:
+        if path.startswith(".github/smoketest/"):
+            continue  # the advisory smoketest host: no loader runs it (#1589)
         parts = PurePosixPath(path).parts
         if len(parts) >= 3 and parts[0] == LOADERS and parts[1] in loaders:
             owner = parts[1]
