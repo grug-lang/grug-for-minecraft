@@ -4,7 +4,7 @@
 # the camera, so the crosses seen are the ones around the new position: the hole's yellow cluster
 # sits three blocks nearer the middle of the frame than in overlay_crosses, and the golden is the
 # check that every cross is drawn on its square from the new camera. The crop and the reasons for the
-# room are overlay_crosses', and so is the reason the crop stops at x 880.
+# room are overlay_crosses', and so is the reason the crop stops at x 840 (#1550).
 state: number = 0
 moved: bool = false
 waited: number = 0
@@ -114,7 +114,7 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    ctx.screenshot().equals(r"screenshots/overlay_follows_player", 100, 430, 880, 640)
+    ctx.screenshot().equals(r"screenshots/overlay_follows_player", 100, 430, 840, 640)
 
     # The overlay is one entity for the whole run: L turns it off again, or its crosses would sit in
     # every later test's captures.
