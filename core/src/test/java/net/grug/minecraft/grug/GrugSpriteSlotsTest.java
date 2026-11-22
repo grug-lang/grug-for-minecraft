@@ -9,16 +9,19 @@ import org.junit.jupiter.api.Test;
 class GrugSpriteSlotsTest {
     @Test
     void theAnimatedWaterAndLavaSlotsAreRefused() {
-        for (int slot : new int[] {205, 206, 237, 238}) {
+        // Each flowing frame is replicated over a 2x2 block of tiles (DynamicTexture.replicate).
+        int[] animated = {205, 206, 207, 222, 223, 237, 238, 239, 254, 255};
+        for (int slot : animated) {
             assertTrue(GrugSpriteSlots.isAnimated(slot), "slot " + slot);
-            assertEquals(
-                    slot == 205 ? 207 : slot == 206 ? 207 : 239, GrugSpriteSlots.firstUsable(slot));
         }
+        assertEquals(208, GrugSpriteSlots.firstUsable(205));
+        assertEquals(224, GrugSpriteSlots.firstUsable(222));
+        assertEquals(240, GrugSpriteSlots.firstUsable(237));
     }
 
     @Test
     void anyOtherSlotIsKept() {
-        for (int slot : new int[] {160, 204, 207, 236, 239, 255}) {
+        for (int slot : new int[] {160, 204, 208, 221, 224, 236, 240, 253}) {
             assertFalse(GrugSpriteSlots.isAnimated(slot), "slot " + slot);
             assertEquals(slot, GrugSpriteSlots.firstUsable(slot));
         }
@@ -29,14 +32,14 @@ class GrugSpriteSlotsTest {
         GrugSpriteSlots.Allocator allocator = new GrugSpriteSlots.Allocator(160);
         java.util.Set<Integer> seen = new java.util.HashSet<>();
         int previous = 159;
-        for (int block = 0; block < 90; block++) {
+        for (int block = 0; block < 72; block++) {
             int slot = allocator.next();
             assertFalse(GrugSpriteSlots.isAnimated(slot), "block " + block + " got " + slot);
             assertTrue(slot > previous, "block " + block + " got " + slot);
             assertTrue(seen.add(slot), "block " + block + " repeated " + slot);
             previous = slot;
         }
-        // 90 slots from 160 end at 253 once the four animated ones are skipped.
-        assertEquals(253, previous);
+        // 72 slots from 160 end at 236 once the animated 205, 206, 207, 222 and 223 are skipped.
+        assertEquals(236, previous);
     }
 }
