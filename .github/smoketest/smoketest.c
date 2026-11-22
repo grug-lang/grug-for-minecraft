@@ -9,6 +9,24 @@
 // passes. An entry this file does not implement gets a stub that raises a runtime error naming it,
 // so a test that needs it fails by name instead of reading a wrong value. Graphics calls are
 // meant to be stubs that answer a value equal to itself; none is needed by a stage 1 test yet.
+// Sections, in file order (search "SECTION:"). Each new entry goes inside its own section, so
+// parallel changes stay local; one file on purpose, to be split into a unity build at ~5000 lines.
+//   Objects and string arena
+//   World storage
+//   Runner state
+//   TestTickContext
+//   Test (the entity me)
+//   Level
+//   Vec3 and BlockPos
+//   Option
+//   Math
+//   String
+//   Generic host functions and print
+//   Items and resource locations
+//   BlockEntity
+//   Runner settings and graphics stubs
+//   Registry and contract
+//   Runner (run_test, --all, main)
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -82,7 +100,9 @@ extern void grug_deinit_entity(void*, void* entity);
 extern void grug_set_runtime_error(void*, const char* message);
 extern void grug_set_next_entity_id(void*, uint64_t next_id);
 
-// ---------------------------------------------------------------------------------------------
+// =============================================================================================
+// SECTION: Objects and string arena
+// =============================================================================================
 // Objects. A grug value of a class type is an id; here it indexes this table and is never reused
 // within a test. The table is emptied between tests, so a handle a test saved cannot leak across.
 enum kind { K_NONE, K_LEVEL, K_VEC3, K_OPTION, K_CTX, K_ME, K_RL, K_ITEM, K_BLOCKPOS, K_SHOT };
@@ -141,7 +161,9 @@ static void free_test_state(void) {
     nobjs = 0;
 }
 
-// ---------------------------------------------------------------------------------------------
+// =============================================================================================
+// SECTION: World storage
+// =============================================================================================
 // The toy world: a sparse list of the blocks that are not air. A real level is a chunk store; no
 // test reads more than a few hundred positions.
 struct block { long x, y, z; char* name; };
@@ -174,7 +196,9 @@ static void clear_world(void) {
     nworld = 0;
 }
 
-// ---------------------------------------------------------------------------------------------
+// =============================================================================================
+// SECTION: Runner state
+// =============================================================================================
 // Test state, the part of the runner a test can reach.
 static long cur_tick;
 static bool not_done_called;
@@ -186,6 +210,9 @@ static bool quiet;
 
 static bool is_whole(double d) { return isfinite(d) && d == floor(d); }
 
+// =============================================================================================
+// SECTION: TestTickContext
+// =============================================================================================
 // TestTickContext
 static union grug_value TTC_assert(ARGS) {
     UNUSED;
@@ -208,10 +235,16 @@ static union grug_value TTC_get_origin(ARGS) {
     return id(v);
 }
 
+// =============================================================================================
+// SECTION: Test (the entity me)
+// =============================================================================================
 // Test (the entity `me`)
 static union grug_value Test_is_reference(ARGS) { UNUSED; return boolean(false); }
 static union grug_value Test_loader_name(ARGS) { UNUSED; return str("smoketest"); }
 
+// =============================================================================================
+// SECTION: Level
+// =============================================================================================
 // Level
 static union grug_value Level_is_air(ARGS) {
     UNUSED;
@@ -271,6 +304,9 @@ static union grug_value Level_set_time(ARGS) {
     return none();
 }
 
+// =============================================================================================
+// SECTION: Vec3 and BlockPos
+// =============================================================================================
 // Vec3
 static union grug_value Vec3_x(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->x : 0); }
 static union grug_value Vec3_y(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->y : 0); }
@@ -283,6 +319,9 @@ static union grug_value Vec3_new(ARGS) {
 }
 static union grug_value Vec3_zero(ARGS) { UNUSED; return id(new_obj(K_VEC3)); }
 
+// =============================================================================================
+// SECTION: Option
+// =============================================================================================
 // Option: the value is stored as the raw grug value, which is the same size for every $Value.
 static union grug_value Option_new(ARGS) { UNUSED; return id(new_obj(K_OPTION)); }
 static union grug_value Option_has(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_OPTION); return boolean(o && o->has); }
@@ -299,6 +338,9 @@ static union grug_value Option_unwrap(ARGS) {
     return o->val;
 }
 
+// =============================================================================================
+// SECTION: Math
+// =============================================================================================
 // Math
 static union grug_value Math_remainder(ARGS) {
     UNUSED;
@@ -311,6 +353,9 @@ static union grug_value Math_cos(ARGS) { UNUSED; return num(cos(a[0]._number)); 
 static union grug_value Math_pi(ARGS) { UNUSED; return num(3.14159265358979323846); }
 static union grug_value Math_tau(ARGS) { UNUSED; return num(2 * 3.14159265358979323846); }
 
+// =============================================================================================
+// SECTION: String
+// =============================================================================================
 // String
 static union grug_value String_length(ARGS) { UNUSED; return num((double)strlen(a[0]._string)); }
 static union grug_value String_concat(ARGS) {
@@ -329,6 +374,9 @@ static union grug_value String_from_number(ARGS) {
     return str(keep(strdup(buf)));
 }
 
+// =============================================================================================
+// SECTION: Generic host functions and print
+// =============================================================================================
 // Host functions generic over their value: dispatch on the resolved generic like the real adapter.
 static union grug_value equals(ARGS) {
     (void)gst;
@@ -362,7 +410,9 @@ static union grug_value print3(ARGS) {
     return none();
 }
 
-// ---------------------------------------------------------------------------------------------
+// =============================================================================================
+// SECTION: Items and resource locations
+// =============================================================================================
 // Resource locations and items. An Item is interned by its name, so grug's `==` on an Item (which
 // compares ids) and equals() agree, as they do for the game's one item per name. No item table is
 // kept: a name is taken as given, with "minecraft:" in front of a bare one.
@@ -405,7 +455,9 @@ static union grug_value BlockPos_center(ARGS) {
     return id(v);
 }
 
-// ---------------------------------------------------------------------------------------------
+// =============================================================================================
+// SECTION: BlockEntity
+// =============================================================================================
 // Block entities. A block with a BlockEntity script gets a grug entity when it is placed, whose
 // init() runs at once (block_entity_init_moment-Test) and whose tick() runs once per runner tick
 // (the toy world has no game-tick/frame split). A block entity's handle is its grug entity's id,
@@ -673,6 +725,9 @@ static union grug_value BE_get_saved_list_item(ARGS) {
     return id(o);
 }
 
+// =============================================================================================
+// SECTION: Runner settings and graphics stubs
+// =============================================================================================
 // The runner's own test settings. Graphics calls are stubs: a capture is a token equal to itself,
 // and the world is always settled, so a test that mixes world changes with a screenshot goes on.
 static int max_ticks = 200;
@@ -714,7 +769,9 @@ static union grug_value TTC_stall(ARGS) {
 }
 static union grug_value TTC_close_screen(ARGS) { UNUSED; return none(); }
 
-// ---------------------------------------------------------------------------------------------
+// =============================================================================================
+// SECTION: Registry and contract
+// =============================================================================================
 // The registry: every entry of mod_api.json, and which of them have an implementation.
 struct api_row { const char* cls; const char* name; host_fn stub; };
 #include "api_table_stubs.inc"
@@ -836,7 +893,9 @@ static int contract(void) {
     return missing || orphans ? 1 : 0;
 }
 
-// ---------------------------------------------------------------------------------------------
+// =============================================================================================
+// SECTION: Runner (run_test, --all, main)
+// =============================================================================================
 static double now_ms(void) {
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
