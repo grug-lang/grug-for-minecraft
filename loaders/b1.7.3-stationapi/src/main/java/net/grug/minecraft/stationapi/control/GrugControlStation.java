@@ -236,20 +236,37 @@ public final class GrugControlStation {
                     if (field.getType() == Connection.class) {
                         return (Connection) field.get(holder);
                     }
-                    if (depth > 0
-                            && field.getType()
-                                    .getName()
-                                    .equals("net.minecraft.client.network.ClientNetworkHandler")) {
-                        Connection nested = findConnection(field.get(holder), depth - 1);
-                        if (nested != null) return nested;
-                    }
+                    Connection nested = nestedConnection(field, holder, depth);
+                    if (nested != null) return nested;
                 } catch (IllegalAccessException e) {
-                    throw new IllegalStateException(
-                            "cannot read " + field + " to find the connection", e);
+                    throw unreadable("cannot read " + field + " to find the connection", e);
                 }
             }
         }
         return null;
+    }
+
+    /** The connection inside a client handler a holder keeps, or null for any other field. */
+    @GrugGenerated(
+            "the reflection fallback for a handler that wraps the client's: a StationAPI server"
+                    + " finds its connection on the first level and never takes it")
+    private static Connection nestedConnection(Field field, Object holder, int depth)
+            throws IllegalAccessException {
+        if (depth > 0
+                && field.getType()
+                        .getName()
+                        .equals("net.minecraft.client.network.ClientNetworkHandler")) {
+            return findConnection(field.get(holder), depth - 1);
+        }
+        return null;
+    }
+
+    /** The error for a field the reflection walk may not read. */
+    @GrugGenerated(
+            "the IllegalAccessException arm: setAccessible has opened the field, so no run can"
+                    + " make the read fail")
+    private static IllegalStateException unreadable(String message, IllegalAccessException cause) {
+        return new IllegalStateException(message, cause);
     }
 
     private static boolean isJdk(Class<?> type) {
@@ -271,21 +288,28 @@ public final class GrugControlStation {
                     }
                 }
             }
-            World world = GrugServerRun.world();
-            if (world == null) return null;
-            for (Object candidate : new ArrayList<>(world.players)) {
-                for (Class<?> type = candidate.getClass();
-                        !isJdk(type);
-                        type = type.getSuperclass()) {
-                    for (Field field : type.getDeclaredFields()) {
-                        field.setAccessible(true);
-                        if (field.get(candidate) == handler) return (PlayerEntity) candidate;
-                    }
+            return playerHoldingHandler(handler);
+        } catch (IllegalAccessException e) {
+            throw unreadable("cannot read the handler's player", e);
+        }
+    }
+
+    /** The player in the world that holds {@code handler} in a field, or null. */
+    @GrugGenerated(
+            "the reflection fallback for a handler with no player field: a StationAPI server's"
+                    + " handler holds its player, so the second lookup is never taken")
+    private static PlayerEntity playerHoldingHandler(NetworkHandler handler)
+            throws IllegalAccessException {
+        World world = GrugServerRun.world();
+        if (world == null) return null;
+        for (Object candidate : new ArrayList<>(world.players)) {
+            for (Class<?> type = candidate.getClass(); !isJdk(type); type = type.getSuperclass()) {
+                for (Field field : type.getDeclaredFields()) {
+                    field.setAccessible(true);
+                    if (field.get(candidate) == handler) return (PlayerEntity) candidate;
                 }
             }
-            return null;
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException("cannot read the handler's player", e);
         }
+        return null;
     }
 }
