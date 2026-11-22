@@ -1003,7 +1003,16 @@ def main() -> int:
         classes = filtered_classes(classes, args.output.parent / "filtered-classes" / runner)
         server_classes = None
         layer_jar = info.get("layer_jar")
-        if runner in ORNITHE_LOADERS and layer_jar is not None and info.get("server_exec"):
+        if runner in ORNITHE_LOADERS and info.get("server_exec"):
+            if layer_jar is None:
+                # Counting the client's copy alone would drop the server's data for every class
+                # with other bytes without a word, which is the state this set exists to end.
+                print(
+                    f"error: {runner} has dedicated-server exec data but no layer-{runner} "
+                    "artifact, so the server's classes cannot be analysed",
+                    file=sys.stderr,
+                )
+                return 1
             work = args.output.parent / "class-sets" / runner
             server_only = set(info["server_exec"])
             server_dropped = set(info.get("server_dropped", []))
@@ -1014,6 +1023,9 @@ def main() -> int:
             classes, server_classes, moved, stayed = server_class_set(
                 layer_jar, classes, client_names, work
             )
+            if not moved:
+                # An empty set has nothing to report, and its exec data would only be ignored.
+                server_classes = None
             print(
                 f"{runner}: {len(moved)} class(es) only the dedicated server ran have other bytes "
                 "in its jar and are analysed from it against the server's exec data: "

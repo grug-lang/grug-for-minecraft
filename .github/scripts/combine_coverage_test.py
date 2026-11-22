@@ -788,11 +788,20 @@ class ServerExecTest(unittest.TestCase):
         # attach its agent looks like. The artifact that is there is appended to the runner it names
         # and to core, and the runner with none keeps exactly its client's exec.
         other = self.server_exec("a1.1.2_01-ornithe")
+        # An Ornithe server's classes come from its layer jar (#169): one that holds the client's
+        # own class moves nothing.
+        layer = self.artifacts / "layer-a1.1.2_01-ornithe"
+        layer.mkdir()
+        with zipfile.ZipFile(layer / "g.jar", "w") as jar:
+            jar.writestr("C.class", b"")
         self.assertEqual(self.run_main(), 0)
         self.assertEqual(
             [path.name for path in self.report_execs("1.20.6-forge.csv")], ["000-boot.exec"]
         )
-        self.assertIn(other, self.report_execs("a1.1.2_01-ornithe.csv"))
+        # The Ornithe runner reads a filtered copy of the server's exec (#169).
+        self.assertTrue(
+            any(p.name.endswith(other.name) for p in self.report_execs("a1.1.2_01-ornithe.csv"))
+        )
         self.assertIn(other, self.report_execs("core.csv"))
         self.assertIn("appending 1 dedicated-server exec file(s) to a1.1.2_01-ornithe", self.log)
         # Nothing is appended for the leg that recorded nothing, and no line claims otherwise.
@@ -1089,6 +1098,75 @@ class OrnitheServerSetMainTest(unittest.TestCase):
             )
             self.assertIn("1 class(es) only the dedicated server ran", out.getvalue())
             self.assertTrue((root / "output" / "a1.1.2_01-ornithe-server.csv").is_file())
+
+
+class OrnitheServerSetEdgeTest(unittest.TestCase):
+    """The absent-layer, layer-only and nothing-moved cases of the Ornithe server set (#169)."""
+
+    def run_case(self, with_layer, layer_classes, client_classes):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        artifacts = root / "artifacts"
+        runner = "a1.1.2_01-ornithe"
+        for name in ("core", runner):
+            (artifacts / f"coverage-exec-{name}").mkdir(parents=True)
+            (artifacts / f"coverage-classes-{name}").mkdir(parents=True)
+            (artifacts / f"coverage-exec-{name}" / "000-boot.exec").write_bytes(b"")
+        (artifacts / "coverage-classes-core" / "C.class").write_bytes(b"")
+        classes = artifacts / f"coverage-classes-{runner}"
+        for name, body in client_classes.items():
+            (classes / (name + ".class")).write_bytes(body)
+        server = artifacts / f"server-exec-{runner}"
+        server.mkdir()
+        (server / "000-boot.exec").write_bytes(exec_bytes("A"))
+        if with_layer:
+            (artifacts / f"layer-{runner}").mkdir()
+            with zipfile.ZipFile(artifacts / f"layer-{runner}" / "g.jar", "w") as jar:
+                for name, body in layer_classes.items():
+                    jar.writestr(name + ".class", body)
+        calls = []
+
+        def report(cli, execs, class_dir, sources, csv_path, xml_path):
+            calls.append(csv_path.name)
+            csv_path.write_text(HEADER + f"{csv_path.stem},net,X,0,4,0,0,1,0,1,0,1,0\n")
+            xml_path.write_text('<report name="r"></report>')
+            return []
+
+        argv, original = sys.argv, combine.jacoco_report
+        combine.jacoco_report = report
+        sys.argv = [
+            "combine-coverage.py",
+            "--artifacts",
+            str(artifacts),
+            "--jacoco-cli",
+            str(root / "cli.jar"),
+            "--output",
+            str(root / "output"),
+        ]
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+                code = combine.main()
+        finally:
+            combine.jacoco_report, sys.argv = original, argv
+        return code, calls, err.getvalue()
+
+    def test_server_exec_without_a_layer_jar_fails_loudly(self):
+        code, calls, err = self.run_case(False, {}, {"A": b"c"})
+        self.assertEqual(code, 1)
+        self.assertIn("no layer-a1.1.2_01-ornithe artifact", err)
+        self.assertEqual(calls, [])
+
+    def test_a_class_only_the_layer_jar_has_is_reported_from_the_server_set(self):
+        code, calls, _ = self.run_case(True, {"A": b"s"}, {"B": b"c"})
+        self.assertEqual(code, 0)
+        self.assertIn("a1.1.2_01-ornithe-server.csv", calls)
+
+    def test_an_identical_layer_moves_nothing_and_reports_no_second_set(self):
+        code, calls, _ = self.run_case(True, {"A": b"c"}, {"A": b"c"})
+        self.assertEqual(code, 0)
+        self.assertNotIn("a1.1.2_01-ornithe-server.csv", calls)
 
 
 if __name__ == "__main__":
