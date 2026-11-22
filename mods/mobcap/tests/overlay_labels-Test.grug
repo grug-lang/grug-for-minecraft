@@ -119,10 +119,17 @@ local _fill(ctx: TestTickContext, id: string, category: string) {
     target: number = level.get_mob_cap(category) + 1
     ctx.remove_entities(level, category)
     # The room's torch floor is 3 blocks below the player's feet and the player's feet are 4.62
-    # below the origin (the 3.0 lift and the 1.62 eye), so a mob spawned at the origin falls 7.62
-    # blocks and takes 5 damage, which kills every Alpha slime of size 1 and 2 (health 1 and 4) 31
-    # ticks after it lands. Spawning on the floor takes no damage on any loader.
-    floor_y: number = origin.y() - 7.62
+    # below the origin (the 3.0 lift and the 1.62 eye). A mob spawned at the origin falls 7.62
+    # blocks onto the floor and takes 5 damage, which kills every Alpha slime of size 1 and 2
+    # (health 1 and 4) 31 ticks after it lands. On Alpha the row is also 17 blocks from the player,
+    # past the 16 blocks the test area clears, so the room's inside there still holds the world's
+    # terrain, with surfaces at y 64, 65 and 68 over the floor at 61. A slime that lands on a
+    # ledge takes the fall to the ledge and one that walks off it takes the rest. The terrain behind
+    # the row is cleared here, so every slime stands on the floor, and the row spawns on it.
+    floor_y: number = origin.y() - 7.62 + 0.01
+    if me.loader_name() == "a1.1.2_01-ornithe" {
+        _clear_terrain(level, origin)
+    }
     z: number = origin.z() - 5
     if me.loader_name() == "a1.1.2_01-ornithe" {
         z = origin.z() - 17
@@ -150,5 +157,25 @@ local _check_counts(ctx: TestTickContext) {
     ctx.assert(level.count_mobs("passive") == level.get_mob_cap("passive") + 1, "The passive count should stay one over its cap.")
     if level.has_mob_category("water") {
         ctx.assert(level.count_mobs("water") == level.get_mob_cap("water") + 1, "The water count should stay one over its cap.")
+    }
+}
+
+# Clears the terrain that the room build leaves between the test area (16 blocks from the player) and
+# the room's wall (20), over the part of it that the row of mobs and their wandering reach, from the
+# layer over the torch floor up to above the highest surface seen there (68).
+local _clear_terrain(level: Level, origin: Vec3) {
+    floor_y: number = Math.floor(origin.y() - 7.62 + 0.5)
+    x: number = Math.floor(origin.x()) - 14
+    while x <= Math.floor(origin.x()) + 14 {
+        z: number = Math.floor(origin.z()) - 20
+        while z <= Math.floor(origin.z()) - 16 {
+            y: number = floor_y + 1
+            while y <= floor_y + 12 {
+                level.place_block(x, y, z, "minecraft:air")
+                y = y + 1
+            }
+            z = z + 1
+        }
+        x = x + 1
     }
 }
