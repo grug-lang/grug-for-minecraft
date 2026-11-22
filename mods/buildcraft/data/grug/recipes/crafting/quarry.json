@@ -1,0 +1,28 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "ipi",
+        "gig",
+        "dDd"
+    ],
+    "key": {
+        "i": {
+            "item": "grug:iron_gear"
+        },
+        "p": {
+            "item": "minecraft:redstone"
+        },
+        "g": {
+            "item": "grug:gold_gear"
+        },
+        "d": {
+            "item": "grug:diamond_gear"
+        },
+        "D": {
+            "item": "minecraft:diamond_pickaxe"
+        }
+    },
+    "result": {
+        "id": "grug:quarry"
+    }
+}
