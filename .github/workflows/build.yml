@@ -2418,30 +2418,27 @@ jobs:
             --other-mods-dir coverage/carry-over-dropped \
             "${loader_args[@]}"
 
-      # The base commit's dedicated-server exec data, for a diff that runs no dedicated leg (#1602):
-      # combine-coverage.py counts it for a runner only when this run's own leg uploaded none, and
-      # JaCoCo ignores a class whose id no longer matches this run's bytes. Retention is 7 days, so
-      # a base run older than that carries nothing, and the log says so. This changes no gate result
-      # until a class is promoted, since a push to main runs no dedicated leg and uploads no such
-      # artifact. A lookup or download that fails carries nothing and never fails the run.
-      - name: Retrieve the base commit's dedicated-server exec data
+      # The latest dedicated-server exec data, for a diff that runs no dedicated leg (#1602). Only
+      # the dispatch-only multiplayer job uploads server-exec, so it comes from the newest dispatch
+      # or scheduled run of build.yml on main within the 7 day retention (among the 10 newest), not
+      # from the base run. combine-coverage.py counts it for a runner only when this run's own leg
+      # uploaded none, and JaCoCo ignores a class whose id no longer matches this run's bytes. The
+      # log names the run and its age, or says nothing qualified. This changes no gate result until
+      # a class is promoted, and the step cannot fail the job.
+      - name: Retrieve the latest dedicated-server exec data
         if: ${{ needs.discover.outputs.base-run != '' }}
         env:
-          REPO: ${{ github.repository }}
-          BASE_RUN: ${{ needs.discover.outputs.base-run }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           mkdir -p coverage/base-server-exec
-          listing=$(curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$REPO/actions/runs/$BASE_RUN/artifacts?per_page=100") \
-            || { echo "Carrying over no dedicated-server exec data: the artifacts of base run $BASE_RUN could not be listed."; exit 0; }
-          printf '%s' "$listing" | python3 .github/scripts/base_server_exec_artifacts.py > coverage/base-server-exec.txt || true
-          while read -r name url; do
+          python3 .github/scripts/base_server_exec_artifacts.py 2> coverage/base-server-exec.log > coverage/base-server-exec.txt || true
+          cat coverage/base-server-exec.log
+          while IFS=' ' read -r name url; do
             [ -n "$name" ] || continue
             mkdir -p "coverage/base-server-exec/$name"
             if curl -sfL -H "Authorization: Bearer $GITHUB_TOKEN" "$url" -o "coverage/base-server-exec/$name.zip" \
               && unzip -o -q "coverage/base-server-exec/$name.zip" -d "coverage/base-server-exec/$name"; then
-              echo "Retrieved $name of base run $BASE_RUN."
+              echo "Retrieved $name."
             else
               echo "Carrying over no $name: it could not be downloaded."
               rm -rf "coverage/base-server-exec/$name"
