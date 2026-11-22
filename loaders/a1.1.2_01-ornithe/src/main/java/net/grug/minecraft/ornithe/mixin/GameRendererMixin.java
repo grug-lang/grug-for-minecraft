@@ -73,6 +73,7 @@ public class GameRendererMixin {
                                     "Lnet/minecraft/client/render/world/WorldRenderer;renderClouds(F)V"),
             require = 1)
     private void grug$drawWorldOverlay(float partialTicks, CallbackInfo ci) {
+        net.grug.minecraft.ornithe.GrugDiagPose.record(MinecraftInstance.get());
         GrugOverlayHost.drawWorld(MinecraftInstance.get(), partialTicks);
     }
 

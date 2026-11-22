@@ -104,6 +104,22 @@ export tick(ctx: TestTickContext) {
     }
     # Three lines of 12 GUI pixels at the 3x scale of a 1280x720 frame, and "count / cap" ends at
     # 106 GUI pixels at its widest.
+    # DIAG pose: the origin and the camera, then the blocks and the block light along +z from the
+    # origin and along the corner ray, so a run's lines can be diffed against another's.
+    o: Vec3 = ctx.get_origin()
+    c: Vec3 = ctx.camera()
+    print3("DIAG pose origin", o.x(), o.y())
+    print3("DIAG pose origin z", o.z(), ctx.camera().x())
+    print3("DIAG pose camera y z", c.y(), c.z())
+    dl: Level = ctx.get_client_level()
+    n: number = 1
+    while n <= 25 {
+        print3("DIAG pose ray", n, dl.get_block(Math.floor(o.x()), Math.floor(o.y()), Math.floor(o.z()) + n))
+        print3("DIAG pose raylight", n, dl.get_block_light(Math.floor(o.x()), Math.floor(o.y()), Math.floor(o.z()) + n))
+        print3("DIAG pose corner", n, dl.get_block(Math.floor(o.x()) - 8, Math.floor(o.y()) + 3, Math.floor(o.z()) + n))
+        print3("DIAG pose cornerlight", n, dl.get_block_light(Math.floor(o.x()) - 8, Math.floor(o.y()) + 3, Math.floor(o.z()) + n))
+        n = n + 1
+    }
     ctx.screenshot().equals(r"screenshots/overlay_labels", 0, 0, 330, 120)
 
     # The overlay is one entity for the whole run: K hides the lines again, or they would sit in
