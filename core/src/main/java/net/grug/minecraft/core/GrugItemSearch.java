@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,7 +50,7 @@ public final class GrugItemSearch {
     public static List<Integer> search(String text, Names names) {
         List<List<Token>> keep = new ArrayList<>();
         List<List<Token>> remove = new ArrayList<>();
-        for (String alternative : text.toLowerCase().split("\\|")) {
+        for (String alternative : text.toLowerCase(Locale.ROOT).split("\\|")) {
             List<Token> toSearch = new ArrayList<>();
             List<Token> toRemove = new ArrayList<>();
             Matcher matcher = TOKEN.matcher(alternative);
@@ -141,7 +142,7 @@ public final class GrugItemSearch {
         if (colon <= 0) {
             return "minecraft";
         }
-        String namespace = registryName.substring(0, colon).toLowerCase();
+        String namespace = registryName.substring(0, colon).toLowerCase(Locale.ROOT);
         return namespace.equals("vanilla") ? "minecraft" : namespace;
     }
 }

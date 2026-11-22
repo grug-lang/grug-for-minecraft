@@ -1,0 +1,67 @@
+# The overlay's text and keys the item list's search field is made of (#865): draw_text is drawn by
+# every frame of the coverage overlay, the space bar (32) and backspace (8) reach an overlay as their
+# ASCII codes, and screen_serial changes with the screen, which the overlay reads through whether it
+# takes the key Z: the first press on a screen is taken and the second is not, and a new screen takes
+# one again. On a loader that draws no overlays the test returns before it opens a screen, which
+# about.json records as a deviation.
+started: bool = false
+opened: bool = false
+waited: number = 0
+screens: number = 0
+
+export tick_any_side(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() {
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens (#1287).
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    screens = screens + 1
+    ctx.assert(ctx.press_screen_key(32, false, true), "The overlay should take the space bar.")
+    ctx.assert(ctx.press_screen_key(8, false, true), "The overlay should take backspace.")
+    ctx.assert(not ctx.press_screen_key(32, true, true), "The overlay should leave control and the space bar alone.")
+    ctx.assert(ctx.press_screen_key(90, false, true), "The first Z on a new screen should be taken.")
+    ctx.assert(not ctx.press_screen_key(90, false, true), "A second Z on the same screen should not be taken.")
+    if screens == 1 {
+        # Another screen has another serial, so the key is taken once more.
+        ctx.close_screen()
+        opened = false
+        waited = 0
+        ctx.not_done()
+        return
+    }
+    ctx.close_screen()
+}

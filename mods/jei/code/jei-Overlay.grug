@@ -252,6 +252,12 @@ local _draw_search(ctx: OverlayRenderContext, left: number, width: number, scree
     if focused {
         text = String.concat(query, "_")
     }
+    # The text is cut to its last characters when it is wider than the field, which the typed end of
+    # it stays visible in; a character is at most 6 pixels wide with its spacing.
+    fit: number = Math.floor((width - 10) / 6)
+    if String.length(text) > fit {
+        text = String.substring(text, String.length(text) - fit, String.length(text))
+    }
     color: Color = Color.rgb(255, 255, 255)
     if search_item_count(query) == 0 {
         color = Color.rgb(255, 85, 85)

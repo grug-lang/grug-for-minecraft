@@ -3137,7 +3137,7 @@
 					]
 				},
 				"from_character": {
-					"description": "The one-character text of a Unicode code point, which is how a mod turns a key code into the character it types: String.from_character(97) is \"a\" and String.from_character(8364) is \"\u20ac\". The code has to be a whole number from 0 to 1114111 that is not a surrogate (55296 to 57343), or it is reported and the text is empty.",
+					"description": "The one-character text of a Unicode code point, which is how a mod turns a key code into the character it types: String.from_character(97) is \"a\" and String.from_character(8364) is \"\u20ac\". The code has to be a whole number from 1 to 1114111 that is not a surrogate (55296 to 57343), or it is reported and the text is empty. Zero is refused because a text with a NUL in it does not survive the trip back to the mod.",
 					"return_type": {
 						"name": "string"
 					},

@@ -2952,6 +2952,13 @@ public class HostFunctions {
     /** The item count {@link #searchedItems} was made for, so a changed list is searched again. */
     private static int searchedCount = -1;
 
+    /**
+     * The screen serial {@link #searchedItems} was made on. The names depend on the language, which
+     * only changes on a screen of its own, so a new screen searches again, and no language or item
+     * list change goes unseen however many frames the same screen draws.
+     */
+    private static double searchedScreen = -1;
+
     /** The listed items' indexes that {@link #searchedText} matched. */
     private static List<Integer> searchedIndexes = null;
 
@@ -2968,7 +2975,11 @@ public class HostFunctions {
                     Grug.statePtr, method + ": This loader has no item list to enumerate.");
             return null;
         }
-        if (searchedIndexes == null || count != searchedCount || !text.equals(searchedText)) {
+        double screen = GrugOverlay.screenSerial();
+        if (searchedIndexes == null
+                || count != searchedCount
+                || screen != searchedScreen
+                || !text.equals(searchedText)) {
             String[] names = new String[count];
             String[] modIds = new String[count];
             for (int index = 0; index < count; index++) {
@@ -2976,11 +2987,14 @@ public class HostFunctions {
                 String registryName = adapter.itemName(item);
                 String display = adapter.itemDisplayName(item);
                 names[index] =
-                        (display != null ? display : String.valueOf(registryName)).toLowerCase();
-                modIds[index] = GrugItemSearch.modIdOf(registryName);
+                        (display != null ? display : String.valueOf(registryName))
+                                .toLowerCase(Locale.ROOT);
+                String modId = adapter.itemModId(item);
+                modIds[index] = modId != null ? modId : GrugItemSearch.modIdOf(registryName);
             }
             searchedIndexes = GrugItemSearch.search(text, searchNames(names, modIds));
             searchedCount = count;
+            searchedScreen = screen;
             searchedText = text;
         }
         return searchedIndexes;
@@ -4339,10 +4353,10 @@ public class HostFunctions {
     /** Why from_character refuses this code, or null when it is a Unicode code point. */
     static String characterProblem(double code) {
         boolean surrogate = code >= Character.MIN_SURROGATE && code <= Character.MAX_SURROGATE;
-        if (!(code >= 0 && code <= Character.MAX_CODE_POINT)
+        if (!(code >= 1 && code <= Character.MAX_CODE_POINT)
                 || code != Math.floor(code)
                 || surrogate) {
-            return "The code has to be a whole number from 0 to "
+            return "The code has to be a whole number from 1 to "
                     + Character.MAX_CODE_POINT
                     + " that is not a surrogate, and was "
                     + code

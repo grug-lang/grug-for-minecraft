@@ -1,0 +1,8 @@
+# search_item_at must report an index that is not a whole number.
+export tick_any_side(ctx: TestTickContext) {
+    if not me.overlay_supported() {
+        return
+    }
+    ctx.expect_error("search_item_at: The index has to be a whole number")
+    search_item_at("", 0.5)
+}

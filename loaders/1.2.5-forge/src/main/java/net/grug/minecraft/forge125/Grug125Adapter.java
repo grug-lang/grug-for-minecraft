@@ -1266,6 +1266,20 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("asks the game which item is a grug mod's: a unit test has no game")
+    public String itemModId(Object itemObj) {
+        Item item = (Item) itemObj;
+        if (item instanceof GrugItem) {
+            return "grug";
+        }
+        int id = item.shiftedIndex;
+        if (id < Block.blocksList.length && Block.blocksList[id] instanceof GrugBlock) {
+            return "grug";
+        }
+        return null;
+    }
+
+    @Override
     @GrugGenerated("asks the game for an item's own name: a unit test has no game")
     public String itemDisplayName(Object itemObj) {
         return ((Item) itemObj).getItemDisplayName(new ItemStack((Item) itemObj));
