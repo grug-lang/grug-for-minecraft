@@ -128,8 +128,10 @@ public class GrugBlock extends Block implements EntityBlock {
 
     /**
      * Calls the block's {@code placed} export after a player placed it, once the block and its
-     * block entity are in the level. The game also calls this with no placer, as a dispenser places
-     * a block, and with a mob, which are not placements by a player and call nothing.
+     * block entity are in the level. Only the server's level counts, because the client calls this
+     * too as a prediction and a block's {@code placed} is server logic; singleplayer's integrated
+     * server is a server. The game also calls this with no placer, as a dispenser places a block,
+     * and with a mob, which are not placements by a player and call nothing.
      */
     @Override
     public void setPlacedBy(
@@ -139,7 +141,7 @@ public class GrugBlock extends Block implements EntityBlock {
             @Nullable LivingEntity placer,
             ItemStack stack) {
         super.setPlacedBy(level, pos, state, placer, stack);
-        if (isPlayer(placer)) {
+        if (!level.isClientSide() && isPlayer(placer)) {
             long blockHandle = Grug.createEntity(this.blockFileId);
             if (blockHandle != 0) {
                 long worldId = GrugEntities.addEntity(GrugEntityType.Level, level);
