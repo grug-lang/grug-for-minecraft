@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print whether a dispatch needs the dedicated-server legs (#1342), ``true`` or ``false``.
 
-    dedicated-needed.py <base> <head> [--repo <dir>] [--event <event>] [--ref <ref>]
+    dedicated-needed.py <base> <head> [--repo <dir>] [--event <event>] [--ref <ref>] [--loaders]
 
 The ``multiplayer`` job runs the suite on a dedicated server with a client joined to it, which is
 31% of a full dispatch's runner minutes (#1342). A proof or measurement dispatch names a ``base``,
@@ -21,15 +21,25 @@ beside mods. Every doubt answers ``true``, which only runs the legs: an empty di
 cannot be computed and any error in this script. The reasons go to stderr, so the CI log says why.
 
 A dispatch on ``refs/heads/main`` and a dispatch with no base always answer ``true``: they are the
-full runs the four-hourly check and the weekly release send. Every other event (a push, a pull
-request, the schedule) answers ``true`` too, because the job's own condition already limits it to
-a dispatch and this script is only asked about one.
+full runs the four-hourly check and the weekly release send.
+
+A pull request and a push read the same diff (#169): the legs run exactly when it can reach server
+code, so the coverage gate can count the dedicated servers' exec data on the path that gates a merge,
+and a push with no base commit, like any doubt, answers ``true``. The schedule never runs the legs
+(the job's own condition excludes it), so it answers ``true`` and nothing reads it.
+
+``--loaders`` prints instead the JSON list of loaders whose legs run, which is every loader that has a
+dedicated server for a dispatch and only ``GATED_LOADERS`` for a pull request or a push: the two whose
+server classes the gate can count today (1.20.6-forge and b1.7.3-stationapi, about 19 runner
+minutes), until the Ornithe class-id check and 1.2.5's unstaged server bytes let the other three
+count. Whether the legs run at all is the other answer's job.
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -37,6 +47,19 @@ from pathlib import Path
 CLIENT_ONLY_PREFIXES = ("mods/",)
 # The mod whose tests are the server legs' own subject, so a change to it runs them.
 CLIENT_ONLY_EXCEPTIONS = ("mods/coverage/",)
+
+
+# Every loader with a dedicated server, which a dispatch runs.
+DISPATCH_LOADERS = (
+    "1.2.5-forge",
+    "1.20.6-forge",
+    "a1.1.2_01-ornithe",
+    "b1.7.3-ornithe",
+    "b1.7.3-stationapi",
+)
+# The loaders whose server classes the coverage gate can count today, which a pull request and a push
+# run (#169): the other three have no counted class, so their legs would cost minutes for nothing.
+GATED_LOADERS = ("1.20.6-forge", "b1.7.3-stationapi")
 
 
 def sibling(name: str):
@@ -77,6 +100,10 @@ def needed(repo: Path, base: str, head: str) -> tuple[bool, str]:
 
 def answer(repo: Path, event: str, ref: str, base: str, head: str) -> tuple[bool, str]:
     """The answer for this event, and the reason for it."""
+    if event in ("pull_request", "push"):
+        if not base:
+            return True, f"this {event} names no base commit, so its diff cannot be read"
+        return needed(repo, base, head)
     if event != "workflow_dispatch":
         return True, f"a {event or 'non-dispatch'} run is not a base dispatch"
     if ref == "refs/heads/main":
@@ -86,6 +113,11 @@ def answer(repo: Path, event: str, ref: str, base: str, head: str) -> tuple[bool
     return needed(repo, base, head)
 
 
+def loaders(event: str) -> list[str]:
+    """The loaders whose dedicated legs run for this event when the answer is true."""
+    return list(GATED_LOADERS if event in ("pull_request", "push") else DISPATCH_LOADERS)
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("base", help="the commit the diff is taken from")
@@ -93,7 +125,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--repo", default=".", help="the git repository (default: the current one)")
     parser.add_argument("--event", default="", help="github.event_name")
     parser.add_argument("--ref", default="", help="github.ref")
+    parser.add_argument(
+        "--loaders", action="store_true", help="print the JSON list of loaders instead"
+    )
     args = parser.parse_args(argv)
+    if args.loaders:
+        print(json.dumps(loaders(args.event)))
+        return 0
     try:
         run, reason = answer(Path(args.repo), args.event, args.ref, args.base, args.head)
     except Exception as e:  # noqa: BLE001 - whatever went wrong, the answer is to run the legs
