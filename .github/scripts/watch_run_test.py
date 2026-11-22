@@ -15,9 +15,6 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parent / "watch-run.sh"
 
 FAKE_GH = """#!/usr/bin/env bash
-if [ -n "$FAKE_GH_HINT" ]; then
-  echo "hint: if you need to wait for this run, use gh event listen" >&2
-fi
 if [ "$1" = "api" ]; then
   if [ -n "$FAKE_GH_LOG_FAIL" ]; then
     echo "gh: Not Found (HTTP 404)" >&2
@@ -30,9 +27,15 @@ if [ "$1" = "api" ]; then
     exit 0
   fi
   seq 1 100 | sed 's/^/log line /'
+  if [ -n "$FAKE_GH_HINT" ]; then
+    echo "hint: if you need to wait for this run, use gh event listen" >&2
+  fi
   echo "##[error]Process completed with exit code 1."
   seq 101 120 | sed 's/^/post step /'
   exit 0
+fi
+if [ -n "$FAKE_GH_HINT" ]; then
+  echo "hint: if you need to wait for this run, use gh event listen" >&2
 fi
 dir="$FAKE_GH_DIR"
 n=$(cat "$dir/count" 2>/dev/null || echo 0)

@@ -23,6 +23,37 @@ class GrugRelightTest {
     }
 
     @Test
+    void aBoxWithNegativeCoordinatesIsSplitIntoPiecesThatTileItExactly() {
+        List<int[]> pieces = GrugRelight.pieces(-41, 0, 0, 0, 28, 28);
+
+        assertTrue(pieces.size() > 1);
+        long total = 0;
+        for (int[] piece : pieces) {
+            assertTrue(piece[0] <= piece[3] && piece[1] <= piece[4] && piece[2] <= piece[5]);
+            assertTrue(piece[0] >= -41 && piece[3] <= 0);
+            total +=
+                    (long) (piece[3] - piece[0] + 1)
+                            * (piece[4] - piece[1] + 1)
+                            * (piece[5] - piece[2] + 1);
+        }
+        assertEquals(42L * 29 * 29, total);
+        for (int i = 0; i < pieces.size(); i++) {
+            for (int j = i + 1; j < pieces.size(); j++) {
+                int[] a = pieces.get(i);
+                int[] b = pieces.get(j);
+                boolean overlap =
+                        a[0] <= b[3]
+                                && b[0] <= a[3]
+                                && a[1] <= b[4]
+                                && b[1] <= a[4]
+                                && a[2] <= b[5]
+                                && b[2] <= a[5];
+                assertFalse(overlap);
+            }
+        }
+    }
+
+    @Test
     void sweepsContinueWhileTheLightKeepsChanging() {
         long[] hashes = {1, 2, 3, 3};
         AtomicInteger next = new AtomicInteger();

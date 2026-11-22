@@ -122,15 +122,15 @@ public final class GrugRelight {
             int ySpan = box[4] - box[1];
             int zSpan = box[5] - box[2];
             if (xSpan >= ySpan && xSpan >= zSpan) {
-                int middle = (box[0] + box[3]) >>> 1;
+                int middle = Math.floorDiv(box[0] + box[3], 2);
                 pending.add(new int[] {box[0], box[1], box[2], middle, box[4], box[5]});
                 pending.add(new int[] {middle + 1, box[1], box[2], box[3], box[4], box[5]});
             } else if (ySpan >= zSpan) {
-                int middle = (box[1] + box[4]) >>> 1;
+                int middle = Math.floorDiv(box[1] + box[4], 2);
                 pending.add(new int[] {box[0], box[1], box[2], box[3], middle, box[5]});
                 pending.add(new int[] {box[0], middle + 1, box[2], box[3], box[4], box[5]});
             } else {
-                int middle = (box[2] + box[5]) >>> 1;
+                int middle = Math.floorDiv(box[2] + box[5], 2);
                 pending.add(new int[] {box[0], box[1], box[2], box[3], box[4], middle});
                 pending.add(new int[] {box[0], box[1], middle + 1, box[3], box[4], box[5]});
             }
