@@ -26,6 +26,9 @@ class GrugStringFunctionsTest {
     void aCharacterCodeMustBeAWholeCodePointThatIsNotASurrogate() {
         assertTrue(HostFunctions.characterProblem(0).contains("from 1 to"));
         assertNull(HostFunctions.characterProblem(97));
+        assertNull(HostFunctions.characterProblem(0xD7FF));
+        assertNull(HostFunctions.characterProblem(0xE000));
+        assertTrue(HostFunctions.characterProblem(0xD800 + 0.5).contains("whole number"));
         assertNull(HostFunctions.characterProblem(0x1F600));
         assertNull(HostFunctions.characterProblem(Character.MAX_CODE_POINT));
         assertTrue(HostFunctions.characterProblem(-1).contains("whole number"));
