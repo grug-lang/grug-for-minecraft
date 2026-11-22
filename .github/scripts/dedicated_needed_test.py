@@ -2,6 +2,7 @@
 """Tests dedicated-needed.py: only a diff confined to mod ports skips the dedicated legs (#1342)."""
 
 import importlib.util
+import json
 import subprocess
 import sys
 import tempfile
@@ -123,9 +124,78 @@ class DedicatedNeededTest(unittest.TestCase):
         changes = {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"}
         self.assertEqual(self.answer(changes, "0" * 40, *DISPATCH), "true")
 
-    def test_a_non_dispatch_event_keeps_the_legs(self):
+    def test_a_schedule_or_unnamed_event_keeps_the_legs(self):
         changes = {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"}
-        self.assertEqual(self.answer(changes, None, "--event", "push"), "true")
+        self.assertEqual(self.answer(changes, None, "--event", "schedule"), "true")
+        self.assertEqual(self.answer(changes, None), "true")
+
+    def test_a_pull_request_or_push_of_mod_ports_skips_the_legs(self):
+        changes = {
+            "mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n",
+            "AGENTS.md": "agents2\n",
+        }
+        for event in ("pull_request", "push"):
+            with self.subTest(event):
+                self.setUp()
+                self.assertEqual(self.answer(changes, None, "--event", event), "false")
+                self.assertIn("all 2 changed paths", self.reason)
+
+    def test_a_pull_request_or_push_that_reaches_server_code_runs_the_legs(self):
+        for event in ("pull_request", "push"):
+            for path in (
+                "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+                "mods/coverage/tests/x-Test.grug",
+            ):
+                with self.subTest(event=event, path=path):
+                    self.setUp()
+                    changes = {
+                        "mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n",
+                        path: "changed\n",
+                    }
+                    self.assertEqual(self.answer(changes, None, "--event", event), "true")
+                    self.assertIn(path, self.reason)
+
+    def test_a_pull_request_or_push_with_no_base_runs_the_legs(self):
+        changes = {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"}
+        for event in ("pull_request", "push"):
+            with self.subTest(event):
+                self.assertEqual(self.answer(changes, "", "--event", event), "true")
+                self.assertIn("names no base", self.reason)
+
+    def test_an_unreachable_pull_request_base_runs_the_legs(self):
+        changes = {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"}
+        self.assertEqual(self.answer(changes, "0" * 40, "--event", "pull_request"), "true")
+
+    def loaders(self, *extra: str) -> list:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "b", "h", "--loaders", *extra],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_a_dispatch_runs_every_loader_with_a_server(self):
+        self.assertEqual(
+            self.loaders("--event", "workflow_dispatch"),
+            [
+                "1.2.5-forge",
+                "1.20.6-forge",
+                "a1.1.2_01-ornithe",
+                "b1.7.3-ornithe",
+                "b1.7.3-stationapi",
+            ],
+        )
+        self.assertEqual(self.loaders(), self.loaders("--event", "workflow_dispatch"))
+
+    def test_a_pull_request_or_push_runs_only_the_loaders_whose_classes_count(self):
+        for event in ("pull_request", "push"):
+            self.assertEqual(self.loaders("--event", event), ["1.20.6-forge", "b1.7.3-stationapi"])
+
+    def test_every_loader_is_a_loader_directory_with_a_server(self):
+        root = HERE.parent.parent / "loaders"
+        for name in self.loaders():
+            self.assertTrue((root / name).is_dir(), name)
 
 
 if __name__ == "__main__":
