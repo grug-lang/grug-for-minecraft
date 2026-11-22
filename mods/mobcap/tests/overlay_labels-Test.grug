@@ -94,6 +94,16 @@ export tick(ctx: TestTickContext) {
     }
     # Three lines of 12 GUI pixels at the 3x scale of a 1280x720 frame, and "count / cap" ends at
     # 106 GUI pixels at its widest.
+    # DIAG: the same frame twelve times in one run, so the log says whether the capture is steady
+    # within a run (the state differs between runs) or moves frame to frame (the render does).
+    first: Screenshot = ctx.screenshot().capture(0, 0, 330, 120)
+    print3("DIAG clock of day and ambient", ctx.get_client_level().get_time(), waited)
+    i: number = 0
+    while i < 12 {
+        again: Screenshot = ctx.screenshot().capture(0, 0, 330, 120)
+        print3("DIAG change of repeat from the first", i, again.change_from(first))
+        i = i + 1
+    }
     ctx.screenshot().equals(r"screenshots/overlay_labels", 0, 0, 330, 120)
 
     # The overlay is one entity for the whole run: K hides the lines again, or they would sit in
