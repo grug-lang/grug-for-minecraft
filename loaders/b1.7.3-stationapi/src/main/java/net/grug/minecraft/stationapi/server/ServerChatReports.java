@@ -37,7 +37,11 @@ public final class ServerChatReports {
         // The decisions and the formatting are core's, which the unit tests reach, so a tick here
         // runs every line on any dedicated run: nothing in this method waits for a chat to exist.
         Consumer<String> chat =
-                GrugChat.sink(actor, GrugReference.isCiRun(), ServerChatReports::chatOf);
+                GrugChat.sink(
+                        actor,
+                        GrugReference.isCiRun(),
+                        PlayerEntity.class::isInstance,
+                        ServerChatReports::chatOf);
 
         GrugChat.drain(GrugChat.reporter(InitListener.LOGGER::info, chat));
     }

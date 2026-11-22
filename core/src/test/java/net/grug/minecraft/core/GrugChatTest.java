@@ -289,7 +289,8 @@ class GrugChatTest {
         Consumer<String> chat =
                 GrugChat.sink(
                         "alice",
-                        false,
+                        actor -> true,
+                        actor -> {
                         actor -> {
                             asked.add(actor);
                             return got::add;
@@ -308,9 +309,11 @@ class GrugChatTest {
                     return piece -> asked.add(piece);
                 };
         // Nobody's chat takes a line and keeps nothing, and the real chat is never made.
-        GrugChat.sink(null, false, chatOf).accept("lost");
-        GrugChat.sink("alice", true, chatOf).accept("lost");
-        GrugChat.sink(null, true, chatOf).accept("lost");
+        GrugChat.sink(null, false, actor -> true, chatOf).accept("lost");
+        GrugChat.sink("alice", true, actor -> true, chatOf).accept("lost");
+        GrugChat.sink(null, true, actor -> true, chatOf).accept("lost");
+        // An actor that is not a player gets no chat either.
+        GrugChat.sink("alice", false, actor -> false, chatOf).accept("lost");
         assertEquals(Collections.emptyList(), asked);
     }
 

@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * What grug says to a player outside the log: the queues a client drains into its one chat every
@@ -60,14 +61,18 @@ public final class GrugChat {
 
     /**
      * The chat a dedicated server's reports go to: the acting player's, made by {@code chatOf},
-     * unless there is none or the run is a CI run, and otherwise nobody's. A CI run is not watched,
-     * and the client that joined it is the one taking the captures, so the run's chat stays clear,
-     * exactly as a client's own drain keeps it (#412). {@code chatOf} is not called in either of
-     * those cases, so it is the only code left that needs a real player.
+     * unless there is none, it is not a player ({@code isPlayer}) or the run is a CI run, and
+     * otherwise nobody's. A CI run is not watched, and the client that joined it is the one taking
+     * the captures, so the run's chat stays clear, exactly as a client's own drain keeps it (#412).
+     * {@code chatOf} is not called in any of those cases, so it is the only code left that needs a
+     * real player.
      */
     public static Consumer<String> sink(
-            Object actor, boolean ciRun, Function<Object, Consumer<String>> chatOf) {
-        if (actor == null || ciRun) {
+            Object actor,
+            boolean ciRun,
+            Predicate<Object> isPlayer,
+            Function<Object, Consumer<String>> chatOf) {
+        if (actor == null || ciRun || !isPlayer.test(actor)) {
             return NOBODY;
         }
         return chatOf.apply(actor);
