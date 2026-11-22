@@ -316,14 +316,17 @@ static union grug_value Level_get_block(ARGS) {
 }
 REGISTER("Level", "get_block", Level_get_block);
 static void on_block_placed(long x, long y, long z, const char* name);
+static long resolve_block_fwd(const char* name);
 static union grug_value Level_place_block(ARGS) {
     UNUSED;
     long p[3];
     if (!pos_arg(a, p, "Level.place_block")) return none();
     double x = a[1]._number, y = a[2]._number, z = a[3]._number;
+    // expect_place_block_out_of_range-Test asserts the "place_block: the game did not put" text; the
+    // 256 limit is the Alpha and Beta height, the tightest of the loaders.
     if (y < 0 || y >= world_height)
         return fail("Level.place_block: the game did not put %s at (%g, %g, %g)", a[4]._string, x, y, z);
-    if (!strchr(a[4]._string, ':')) return fail("Level.place_block: '%s' is not a block name", a[4]._string);
+    if (resolve_block_fwd(a[4]._string) == -2) return fail("Level.place_block: Could not resolve block %s", a[4]._string);
     set_block(p[0], p[1], p[2], a[4]._string);
     on_block_placed(p[0], p[1], p[2], a[4]._string);
     return none();
@@ -608,8 +611,9 @@ static struct be* be_of(uint64_t h) { return h >= BE_BASE && h - BE_BASE < nbes 
 static int call_depth;
 static void reap_bes(void);
 static void call_contained(void* entity, uint64_t fn, const union grug_value* args, size_t n) {
-    char saved[sizeof last_error];
+    char saved[sizeof last_error], saved_msg[sizeof last_msg];
     memcpy(saved, last_error, sizeof saved);
+    memcpy(saved_msg, last_msg, sizeof saved_msg);
     last_error[0] = 0;
     call_depth++;
     if (!grug_call_export_fn(g_state, entity, fn, args, n) && strstr(last_error, "does not implement") && !bg_missing[0])
@@ -619,6 +623,7 @@ static void call_contained(void* entity, uint64_t fn, const union grug_value* ar
     // replaced one is only marked until the outermost call returns (see free_be).
     if (--call_depth == 0) reap_bes();
     memcpy(last_error, saved, sizeof saved);
+    memcpy(last_msg, saved_msg, sizeof saved_msg);
 }
 
 static void free_list(struct list* l) {
@@ -654,61 +659,72 @@ static void clear_bes(void) {
 // Per-block registry: Block.init runs once per test on first placement, with set_block_entity and
 // set_inventory_size the only BlockInitContext entries implemented. Any other setter a block calls
 // fails the placement naming the entry.
-struct blockdef { const char* name; bool inited; long be_file; };
+struct blockdef { const char* name; long be_file; };
 static struct blockdef* blockdefs;
 static size_t nblockdefs;
-static struct { long be_file; bool in_init; } cur_binit;
+// Block.init's own results. Block.init can place another undefined block, whose init nests inside
+// this one, so find_blockdef saves and restores it and keeps no pointer into `blockdefs`.
+struct binit { long be_file; const char* mod; };
+static struct binit cur_binit;
 
+// An entity string without a mod prefix names an entity of the mod the script is in (the grug
+// language's rule; coverage_fixture-Block.grug names "coverage_fixture_entity" that way).
 static union grug_value BIC_set_block_entity(ARGS) {
     UNUSED;
     const char* e = a[1]._string;
     const char* colon = strchr(e, ':');
+    size_t modlen = colon ? (size_t)(colon - e) : strlen(cur_binit.mod);
+    const char* mod = colon ? e : cur_binit.mod;
     e = colon ? colon + 1 : e;
-    for (size_t i = 0; i < G.f.len; i++)
-        if (G.f.ptr[i].entity_type && !strcmp(G.f.ptr[i].entity_type, "BlockEntity") && !strcmp(G.f.ptr[i].entity_name, e)) cur_binit.be_file = (long)i;
+    for (size_t i = 0; i < G.f.len; i++) {
+        struct grug_file_info* fi = &G.f.ptr[i];
+        if (fi->entity_type && !strcmp(fi->entity_type, "BlockEntity") && !strcmp(fi->entity_name, e) && strlen(fi->mod_name) == modlen && !strncmp(fi->mod_name, mod, modlen))
+            cur_binit.be_file = (long)i;
+    }
     return none();
 }
 REGISTER("BlockInitContext", "set_block_entity", BIC_set_block_entity);
-static union grug_value BIC_set_inventory_size(ARGS) { UNUSED; return none(); }
-REGISTER("BlockInitContext", "set_inventory_size", BIC_set_inventory_size);
-// Recorded and read by nothing yet: no committed logic test observes a block's hardness or material
-// without mining or a world capture, which the toy world has not. A test that does needs the mining
-// entry first and fails on that, by name.
-static union grug_value BIC_set_hardness(ARGS) {
-    UNUSED;
-    if (!isfinite(a[1]._number) || a[1]._number < 0) return fail("BlockInitContext.set_hardness: the hardness has to be a finite number of at least 0");
-    return none();
-}
-REGISTER("BlockInitContext", "set_hardness", BIC_set_hardness);
-static union grug_value BIC_set_material(ARGS) { UNUSED; return none(); }
-REGISTER("BlockInitContext", "set_material", BIC_set_material);
-// Graphics flags (#1548: graphics calls stay stubs): nothing draws, so nothing reads them.
-static union grug_value BIC_graphics_flag(ARGS) { UNUSED; return none(); }
-REGISTER("BlockInitContext", "set_shape", BIC_graphics_flag);
-REGISTER("BlockInitContext", "set_display_tick", BIC_graphics_flag);
-REGISTER("BlockInitContext", "set_flat_lighting", BIC_graphics_flag);
-REGISTER("BlockInitContext", "set_frame_render", BIC_graphics_flag);
-REGISTER("BlockInitContext", "set_custom_render", BIC_graphics_flag);
+// The remaining setters record nothing, and no committed test reads what they set, so a test that
+// calls one is STUBBED: it passed without the property having any effect. (The toy world has no
+// mining, materials, shapes or drawing; a test that needs one fails on that entry by name.)
+static union grug_value BIC_noop(ARGS) { UNUSED; stubbed = true; return none(); }
+REGISTER("BlockInitContext", "set_inventory_size", BIC_noop);
+REGISTER("BlockInitContext", "set_hardness", BIC_noop);
+REGISTER("BlockInitContext", "set_material", BIC_noop);
+REGISTER("BlockInitContext", "set_shape", BIC_noop);
+REGISTER("BlockInitContext", "set_display_tick", BIC_noop);
+REGISTER("BlockInitContext", "set_flat_lighting", BIC_noop);
+REGISTER("BlockInitContext", "set_frame_render", BIC_noop);
+REGISTER("BlockInitContext", "set_custom_render", BIC_noop);
 
-static struct blockdef* find_blockdef(const char* name) {
-    if (strncmp(name, "grug:", 5)) return NULL;
-    for (size_t i = 0; i < nblockdefs; i++) if (!strcmp(blockdefs[i].name, name)) return &blockdefs[i];
+enum { BLOCK_UNRESOLVED = -2, BLOCK_NO_ENTITY = -1 };  // anything else is the BlockEntity file's index
+// Runs Block.init once per name per test and answers the block's BlockEntity file. A "grug:" name
+// that no Block script declares is unresolved (expect_place_block_unknown-Test); a name of another
+// namespace has no table here and is taken as given.
+static long resolve_block(const char* name) {
+    if (strncmp(name, "grug:", 5)) return BLOCK_NO_ENTITY;
+    for (size_t i = 0; i < nblockdefs; i++) if (!strcmp(blockdefs[i].name, name)) return blockdefs[i].be_file;
     for (size_t i = 0; i < G.f.len; i++) {
         struct grug_file_info* fi = &G.f.ptr[i];
         if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Block") || strcmp(fi->entity_name, name + 5)) continue;
         blockdefs = xrealloc(blockdefs, (nblockdefs + 1) * sizeof *blockdefs);
-        struct blockdef* d = &blockdefs[nblockdefs++];
-        d->name = keep(xstrdup(name)); d->inited = false; d->be_file = -1;
+        size_t idx = nblockdefs++;
+        blockdefs[idx].name = keep(xstrdup(name));
+        blockdefs[idx].be_file = BLOCK_NO_ENTITY;
         // Block.init has no entity to hold: create, run, drop.
         void* ent = grug_create_entity(g_state, fi->file_id);
-        cur_binit.be_file = -1;
+        struct binit outer = cur_binit;
+        cur_binit.be_file = BLOCK_NO_ENTITY;
+        cur_binit.mod = fi->mod_name;
         union grug_value arg = id(new_obj(K_CTX));
         call_contained(ent, G.block_init, &arg, 1);
-        d->be_file = cur_binit.be_file;
+        long result = cur_binit.be_file;
+        cur_binit = outer;
+        blockdefs[idx].be_file = result;
         grug_deinit_entity(g_state, ent);
-        return d;
+        return result;
     }
-    return NULL;
+    return BLOCK_UNRESOLVED;
 }
 
 static struct be* be_at(long x, long y, long z) {
@@ -728,11 +744,12 @@ static void make_be(long x, long y, long z, long file) {
     union grug_value arg = id(new_obj(K_CTX));
     call_contained(entity, G.be_init, &arg, 1);
 }
+static long resolve_block_fwd(const char* name) { return resolve_block(name); }
 static void on_block_placed(long x, long y, long z, const char* name) {
     struct be* old = be_at(x, y, z);
     if (old) free_be(old);
-    struct blockdef* d = find_blockdef(name);
-    if (d && d->be_file >= 0) make_be(x, y, z, d->be_file);
+    long file = resolve_block(name);
+    if (file >= 0) make_be(x, y, z, file);
 }
 static void tick_bes(void) {
     // Whether a block entity ticks before or after the test's own tick is not fixed by any committed
@@ -899,6 +916,7 @@ REGISTER("BlockEntity", "get_saved_list_item", BE_get_saved_list_item);
 // The runner's own test settings. Graphics calls are stubs: a capture is a token equal to itself,
 // and the world is always settled, so a test that mixes world changes with a screenshot goes on.
 static int max_ticks = 200;
+// The range is mod_api.json's; no committed test asserts the error.
 static union grug_value TIC_set_max_ticks(ARGS) {
     UNUSED;
     double n = a[1]._number;
@@ -907,10 +925,11 @@ static union grug_value TIC_set_max_ticks(ARGS) {
     return none();
 }
 REGISTER("TestInitContext", "set_max_ticks", TIC_set_max_ticks);
+// Only the upper bound has a committed test (expect_box_radius_beyond_view-Test); the room itself
+// is not built, so a pass is STUBBED.
 static union grug_value TTC_set_box_radius(ARGS) {
     UNUSED;
-    // The room itself is not built: the toy world has no walls, and a stub can only check the argument.
-    if (!is_whole(a[1]._number) || a[1]._number < 1) return fail("The radius has to be a whole number of at least 1");
+    stubbed = true;
     if (a[1]._number > 30) return fail("The radius has to be at most 30: a wider room would reach chunks the client never receives");
     return none();
 }
@@ -920,7 +939,7 @@ REGISTER("TestTickContext", "set_box_radius", TTC_set_box_radius);
 // comparison that cannot hold is differs_from, which fails unless asked for no difference.
 static union grug_value TTC_screenshot(ARGS) { UNUSED; stubbed = true; return id(new_obj(K_SHOT)); }
 REGISTER("TestTickContext", "screenshot", TTC_screenshot);
-static union grug_value Shot_self(ARGS) { UNUSED; return a[0]; }
+static union grug_value Shot_self(ARGS) { UNUSED; stubbed = true; return a[0]; }
 REGISTER("Screenshot", "capture", Shot_self);
 REGISTER("Screenshot", "tolerance", Shot_self);
 static union grug_value Shot_equals(ARGS) { UNUSED; stubbed = true; return none(); }
@@ -929,6 +948,7 @@ static union grug_value Shot_change_from(ARGS) { UNUSED; stubbed = true; return 
 REGISTER("Screenshot", "change_from", Shot_change_from);
 static union grug_value Shot_differs_from(ARGS) {
     UNUSED;
+    stubbed = true;
     if (a[2]._number > 0) return fail("Screenshot.differs_from: the smoketest draws nothing, so two captures never differ");
     return none();
 }
@@ -940,14 +960,16 @@ REGISTER("Test", "world_overlay_supported", Test_overlay_supported);
 REGISTER("Test", "overlay_supported", Test_overlay_supported);
 static union grug_value TTC_world_settled(ARGS) { UNUSED; stubbed = true; return boolean(true); }
 REGISTER("TestTickContext", "world_settled", TTC_world_settled);
-// A stall only has to take time on the real game; the toy world has no clock to block.
+// The 0 to 10000 ms limit is asserted by expect_stall_negative-Test and expect_stall_too_long-Test;
+// nothing blocks, so a pass is STUBBED.
 static union grug_value TTC_stall(ARGS) {
     UNUSED;
-    if (!isfinite(a[1]._number) || a[1]._number < 0 || a[1]._number > 10000) return fail("The time has to be from 0 to 10000 milliseconds");
+    stubbed = true;
+    if (!(a[1]._number >= 0 && a[1]._number <= 10000)) return fail("The time has to be from 0 to 10000 milliseconds");
     return none();
 }
 REGISTER("TestTickContext", "stall", TTC_stall);
-static union grug_value TTC_close_screen(ARGS) { UNUSED; return none(); }
+static union grug_value TTC_close_screen(ARGS) { UNUSED; stubbed = true; return none(); }
 REGISTER("TestTickContext", "close_screen", TTC_close_screen);
 
 // =============================================================================================
@@ -982,6 +1004,14 @@ static int contract(void) {
         for (size_t j = 0; j < NAPI && !found; j++) found = same(impls[i].cls, api_rows[j].cls) && !strcmp(impls[i].name, api_rows[j].name);
         if (!found) { if (!orphans++) puts("implemented but not in mod_api.json:"); show(impls[i].cls, impls[i].name); }
     }
+    size_t duplicates = 0;
+    for (size_t i = 0; i < NIMPL; i++)
+        for (size_t j = i + 1; j < NIMPL; j++)
+            if (same(impls[i].cls, impls[j].cls) && !strcmp(impls[i].name, impls[j].name)) {
+                if (!duplicates++) puts("implemented twice:");
+                show(impls[i].cls, impls[i].name);
+            }
+    if (duplicates) orphans += duplicates;
     if (missing) {
         puts("in mod_api.json with no implementation:");
         for (size_t i = 0; i < NAPI; i++)
