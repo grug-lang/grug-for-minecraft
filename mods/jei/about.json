@@ -68,8 +68,13 @@
 					"tracking_issue": 870
 				},
 				{
-					"what": "There is no search box, so the list cannot be filtered.",
-					"why": "Text input is not in the overlay API and a test run has no way to type into a screen; item names are not exposed either.",
+					"what": "The search field takes only letters, digits and the space bar, with backspace to delete, so a quote, a minus, a bar or an @ cannot be typed, and a held key does not repeat. It has no cursor movement, selection, paste or history, and no blinking cursor. Its box is an outline and not the reference's nine-slice texture, and it has no config button beside it.",
+					"why": "The overlay's key pass carries letters, digits, space and backspace only; a character input callback on every loader is a separate piece.",
+					"tracking_issue": 865
+				},
+				{
+					"what": "A search matches the item's name, and a word that starts with @ matches the mod id. The reference's tooltip search (its # prefix, on by default), tag search ($) and the other modes are not there: a # or $ is searched as part of the name. A mod's name is not searched, only its id, and Alpha has no item names, so its words match the registry name.",
+					"why": "The host exposes no tooltip lines or tags for an item and no mod display name.",
 					"tracking_issue": 865
 				},
 				{
@@ -103,7 +108,7 @@
 					"tracking_issue": 892
 				},
 				{
-					"what": "Hovering an item draws the reference's highlight but no tooltip, item count or mod name, and the grid draws no search bar or button.",
+					"what": "Hovering an item draws the reference's highlight but no tooltip, item count or mod name, and the grid draws no page number or config button.",
 					"why": "The overlay API has no tooltip callback or item-name source, and the first version draws no chrome beyond the icons and the highlight.",
 					"tracking_issue": 870
 				},

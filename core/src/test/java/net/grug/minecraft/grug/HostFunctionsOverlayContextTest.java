@@ -150,6 +150,52 @@ class HostFunctionsOverlayContextTest {
     }
 
     @Test
+    void aRenderPassRecordsItsTextsInOrderAndAClosedPassRecordsNone() {
+        openRender();
+        assertTrue(GrugOverlay.recordText("first", 4, 5, 0xFFFFFF));
+        assertTrue(GrugOverlay.recordText("second", 6, 7, 0x123456));
+        GrugOverlayGeometry geometry = GrugOverlay.closeRender();
+        assertEquals(2, geometry.texts().size());
+        assertEquals("first", geometry.texts().get(0).text());
+        assertEquals(4, geometry.texts().get(0).x());
+        assertEquals(5, geometry.texts().get(0).y());
+        assertEquals(0xFFFFFF, geometry.texts().get(0).rgb());
+        assertEquals("second", geometry.texts().get(1).text());
+        assertFalse(GrugOverlay.recordText("late", 0, 0, 0));
+
+        openRender();
+        assertTrue(GrugOverlay.closeRender().texts().isEmpty(), "The next pass starts empty.");
+    }
+
+    @Test
+    void theScreenSerialChangesWithTheScreenAFrameIsDrawnOn() {
+        Object first = new Object();
+        Object second = new Object();
+        GrugOverlay.noteFrame(first);
+        openRender();
+        double serial = HostFunctions.OverlayRenderContext_screen_serial(renderContext());
+        GrugOverlay.closeRender();
+
+        GrugOverlay.noteFrame(first);
+        openRender();
+        assertEquals(serial, HostFunctions.OverlayRenderContext_screen_serial(renderContext()));
+        GrugOverlay.closeRender();
+
+        GrugOverlay.noteFrame(second);
+        openRender();
+        assertEquals(serial + 1, HostFunctions.OverlayRenderContext_screen_serial(renderContext()));
+        GrugOverlay.closeRender();
+    }
+
+    @Test
+    void aTestsKeyNumberNamesTheKeyTheGameLooksUp() {
+        assertEquals("O", GrugOverlay.keyNameForCode('O'));
+        assertEquals("7", GrugOverlay.keyNameForCode('7'));
+        assertEquals("SPACE", GrugOverlay.keyNameForCode(32));
+        assertEquals("BACK", GrugOverlay.keyNameForCode(8));
+    }
+
+    @Test
     void aClickContextAnswersItsPressAndTakesIt() {
         openClick();
         long context = clickContext();
@@ -400,6 +446,8 @@ class HostFunctionsOverlayContextTest {
         assertEquals('O', GrugOverlay.keyCodeForName("O"));
         assertEquals('O', GrugOverlay.keyCodeForName("o"));
         assertEquals('7', GrugOverlay.keyCodeForName("7"));
+        assertEquals(32, GrugOverlay.keyCodeForName("SPACE"));
+        assertEquals(8, GrugOverlay.keyCodeForName("BACK"));
         assertEquals(-1, GrugOverlay.keyCodeForName(null));
         assertEquals(-1, GrugOverlay.keyCodeForName("NUMPAD7"));
         assertEquals(-1, GrugOverlay.keyCodeForName(""));

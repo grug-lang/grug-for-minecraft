@@ -1111,6 +1111,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("asks the game for an item's own name: a unit test has no game")
+    public String itemDisplayName(Object itemObj) {
+        return ((Item) itemObj).getTranslatedName();
+    }
+
+    @Override
     public int getItemMaxStack(Object itemObj) {
         return ((Item) itemObj).getMaxCount();
     }

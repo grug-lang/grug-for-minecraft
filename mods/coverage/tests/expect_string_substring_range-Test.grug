@@ -1,0 +1,5 @@
+# String.substring must report a range that reaches past the end of the text.
+export tick_any_side(ctx: TestTickContext) {
+    ctx.expect_error("String.substring: The range has to be whole numbers")
+    String.substring("abc", 1, 4)
+}

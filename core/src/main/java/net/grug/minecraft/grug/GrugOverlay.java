@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugOverlayFirstFrame;
 import net.grug.minecraft.core.GrugTestScreens;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,6 +48,7 @@ public final class GrugOverlay {
 
     private static final List<GrugScreenItemDraw> ITEMS = new ArrayList<>();
     private static final List<GrugScreenBox> BOXES = new ArrayList<>();
+    private static final List<GrugScreenText> TEXTS = new ArrayList<>();
 
     private static boolean open = false;
     private static boolean render = false;
@@ -117,17 +119,36 @@ public final class GrugOverlay {
     /**
      * The number an overlay's {@code key()} is given for a key whose LWJGL 2 name is {@code
      * keyName}, or -1 when the key is not asked: the upper case character code of a letter or a
-     * digit key, which is the same number on every loader. A name longer than one character (an
-     * arrow, a function key, a numpad key) and a name that is not a letter or a digit are not
-     * asked.
+     * digit key, which is the same number on every loader, 32 for the space bar and 8 for
+     * backspace, which are the ASCII codes. Any other name longer than one character (an arrow, a
+     * function key, a numpad key) and a name that is not a letter or a digit are not asked.
      */
     public static int keyCodeForName(String keyName) {
-        if (keyName == null || keyName.length() != 1) return -1;
+        if (keyName == null) return -1;
+        if (keyName.equals("SPACE")) return KEY_SPACE;
+        if (keyName.equals("BACK")) return KEY_BACKSPACE;
+        if (keyName.length() != 1) return -1;
         char c = Character.toUpperCase(keyName.charAt(0));
         boolean letter = c >= 'A' && c <= 'Z';
         boolean digit = c >= '0' && c <= '9';
         return letter || digit ? c : -1;
     }
+
+    /**
+     * The LWJGL 2 name of the key a key() number stands for, the inverse of {@link
+     * #keyCodeForName}: what a test's press of that number looks up on the loaders that name keys.
+     */
+    public static String keyNameForCode(int code) {
+        if (code == KEY_SPACE) return "SPACE";
+        if (code == KEY_BACKSPACE) return "BACK";
+        return String.valueOf((char) code);
+    }
+
+    /** The code a key pass gives the space bar, the same on every loader. */
+    public static final int KEY_SPACE = 32;
+
+    /** The code a key pass gives backspace, the same on every loader. */
+    public static final int KEY_BACKSPACE = 8;
 
     /** Whether this loader draws overlays on the inventory and container screens. */
     public static boolean overlaySupported() {
@@ -157,6 +178,24 @@ public final class GrugOverlay {
      */
     public static void noteFrame(Object screen) {
         FIRST_FRAME.frameStarted(screen, overlayDrawn);
+        if (frameScreen.get() != screen) {
+            frameScreen = new WeakReference<>(screen);
+            screenSerial++;
+        }
+    }
+
+    /** The screen the last frame was drawn on, held weakly so a closed screen can be collected. */
+    private static WeakReference<Object> frameScreen = new WeakReference<>(null);
+
+    /** How many different screens frames have been drawn on, which tells a screen from the last. */
+    private static double screenSerial = 0.0;
+
+    /**
+     * A number that changes whenever a frame is drawn on a different screen object than the frame
+     * before it, so an overlay can tell a screen it just opened from the one it drew on last.
+     */
+    public static double screenSerial() {
+        return screenSerial;
     }
 
     /**
@@ -459,6 +498,7 @@ public final class GrugOverlay {
         }
         ITEMS.clear();
         BOXES.clear();
+        TEXTS.clear();
         render = !isClick;
         taken = false;
         context = new Context();
@@ -510,6 +550,19 @@ public final class GrugOverlay {
         return true;
     }
 
+    /**
+     * Records one text for the render pass to draw.
+     *
+     * @return false when no render pass is open. The caller reports that rather than this class.
+     */
+    public static boolean recordText(String text, double x, double y, int rgb) {
+        if (!isRender()) {
+            return false;
+        }
+        TEXTS.add(new GrugScreenText(text, x, y, rgb));
+        return true;
+    }
+
     /** Called by the {@code take} functions of the click, key and scroll contexts. */
     public static void take() {
         if (open && !render) {
@@ -529,7 +582,8 @@ public final class GrugOverlay {
                     "An overlay pass was closed as a render pass while it was not a render pass.");
         }
         GrugOverlayGeometry geometry =
-                new GrugOverlayGeometry(new ArrayList<>(ITEMS), new ArrayList<>(BOXES));
+                new GrugOverlayGeometry(
+                        new ArrayList<>(ITEMS), new ArrayList<>(BOXES), new ArrayList<>(TEXTS));
         finish();
         return geometry;
     }
@@ -584,6 +638,7 @@ public final class GrugOverlay {
         ctrl = false;
         ITEMS.clear();
         BOXES.clear();
+        TEXTS.clear();
         open = false;
         render = false;
         taken = false;

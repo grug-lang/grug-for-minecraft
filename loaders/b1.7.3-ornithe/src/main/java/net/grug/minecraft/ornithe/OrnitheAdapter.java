@@ -664,6 +664,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("asks the game for an item's own name: a unit test has no game")
+    public String itemDisplayName(Object itemObj) {
+        return ((Item) itemObj).getDisplayName();
+    }
+
+    @Override
     public int getItemMaxStack(Object itemObj) {
         return ((Item) itemObj).getMaxStackSize();
     }

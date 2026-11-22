@@ -1,0 +1,43 @@
+# search_item_count and search_item_at list the items a search text matches, in the reference JEI's
+# search syntax (#865): the host lists every item for a text that holds no word to search, a word
+# matches a name or, after an @, a mod id, and a minus removes what it matches. Alpha has no item
+# names, so there a word is matched against the registry name, and the name words are only asserted
+# elsewhere.
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() != 0 {
+        return
+    }
+    if not me.overlay_supported() {
+        # This loader lists no items.
+        return
+    }
+
+    total: number = item_count()
+    ctx.assert(total > 0, "The host should list some items.")
+    ctx.assert(search_item_count("") == total, "An empty search should list every item.")
+    ctx.assert(search_item_count("   ") == total, "A search of spaces should list every item.")
+    ctx.assert(search_item_count("-zzzzqqqq") == total, "A search of only a minus word should list every item.")
+    ctx.assert(search_item_count("@") == total, "A lone at sign should be no word.")
+    ctx.assert(equals(search_item_at("", 0), item_at(0)), "An empty search should list the items in the host's order.")
+    ctx.assert(equals(search_item_at("", total - 1), item_at(total - 1)), "An empty search should list the last item last.")
+
+    ctx.assert(search_item_count("zzzzqqqq") == 0, "A word no item has should list nothing.")
+    ctx.assert(search_item_count("@zzzzqqqq") == 0, "A mod id no item has should list nothing.")
+    ctx.assert(search_item_count("@minecraft") > 0, "The game's own items should be listed for @minecraft.")
+    ctx.assert(search_item_count("@MINECRAFT") == search_item_count("@minecraft"), "A search should ignore the case.")
+    ctx.assert(search_item_count("@minecraft|@zzzzqqqq") == search_item_count("@minecraft"), "An alternative that lists nothing should add nothing.")
+    ctx.assert(search_item_count("@minecraft -@minecraft") == 0, "A minus word should remove what it matches.")
+    ctx.assert(search_item_count("\"@minecraft\"") == search_item_count("@minecraft"), "A quoted word should be the same word.")
+
+    if me.loader_name() != "a1.1.2_01-ornithe" {
+        ctx.assert(search_item_count("iron") > 0, "A word in an item's name should list it.")
+        ctx.assert(search_item_count("iron") < total, "A word should not list every item.")
+        ctx.assert(search_item_count("IRON") == search_item_count("iron"), "A search should ignore the case.")
+        ctx.assert(search_item_count("iron ingot") > 0, "Two words of one name should list it.")
+        ctx.assert(search_item_count("iron ingot") < search_item_count("iron"), "A second word should narrow the list.")
+        ctx.assert(search_item_count("ingot iron") == search_item_count("iron ingot"), "The order of the words should not matter.")
+        ctx.assert(search_item_count("iron|ingot") > search_item_count("iron"), "An alternative should add its items.")
+        ctx.assert(search_item_count("iron -ingot") < search_item_count("iron"), "A minus word should remove its items.")
+        ctx.assert(not equals(search_item_at("iron", 0), item_at(0)), "The first match should not be the first item.")
+    }
+}
