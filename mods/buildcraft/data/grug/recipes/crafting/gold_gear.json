@@ -1,0 +1,19 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        " i ",
+        "igi",
+        " i "
+    ],
+    "key": {
+        "i": {
+            "item": "minecraft:gold_ingot"
+        },
+        "g": {
+            "item": "grug:iron_gear"
+        }
+    },
+    "result": {
+        "id": "grug:gold_gear"
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        " i ",
+        "igi",
+        " i "
+    ],
+    "key": {
+        "i": {
+            "item": "minecraft:diamond"
+        },
+        "g": {
+            "item": "grug:gold_gear"
+        }
+    },
+    "result": {
+        "id": "grug:diamond_gear"
+    }
+}
