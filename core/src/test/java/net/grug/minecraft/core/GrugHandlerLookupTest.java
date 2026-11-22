@@ -22,6 +22,10 @@ class GrugHandlerLookupTest {
         }
     }
 
+    private static class Unrelated {
+        private final String name = "x";
+    }
+
     private static class Direct {
         private final String name = "x";
         private final Conn conn;
@@ -60,7 +64,7 @@ class GrugHandlerLookupTest {
     void noHolderAndNoFieldOfTheTypeGiveNull() {
         assertNull(GrugHandlerLookup.connectionOf(null, Conn.class, WRAPPER, 1));
         assertNull(GrugHandlerLookup.connectionOf(new Object(), Conn.class, WRAPPER, 1));
-        assertNull(GrugHandlerLookup.connectionOf("text", Conn.class, WRAPPER, 1));
+        assertNull(GrugHandlerLookup.connectionOf(new Unrelated(), Conn.class, WRAPPER, 1));
     }
 
     @Test
