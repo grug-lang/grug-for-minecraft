@@ -483,6 +483,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
         if (clockWorld != null && clockWorld.ambientDarkness != 0) {
             clockWorld.setTime(
                     clockWorld.getTime() - clockWorld.getTime() % 24000L + 24000L + 6000L);
+            // The darkness is a field the world refreshes on its own tick, so a capture before
+            // that tick drew with the night's value: this is the Ornithe call initAmbientDarkness
+            // under this version's name, which also tells the renderer the light changed.
+            clockWorld.updateSkyBrightness();
         }
         // y is the eye reference in this version, so the feet come from the collision box. The room
         // is anchored to the feet: built around the eye, the block the player stands on lands
