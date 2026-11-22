@@ -682,6 +682,7 @@ struct be {
     struct list* lists; size_t nlists;
     struct slot* slots; size_t nslots;  // the inventory, sized by Block.init's set_inventory_size (a chest has 27)
     bool power; double energy, max_energy;  // set_power_receiver
+    bool item_extracted;  // the script declares an item_extracted export, which no host call here runs yet
     bool has_insertable, has_extractable; double ins_first, ins_last, ext_first, ext_last;  // declared slot ranges
 };
 static struct be* bes;
@@ -717,7 +718,7 @@ static bool call_export(void* entity, uint64_t fn, const union grug_value* args,
     if (!ok && strstr(last_error, "does not implement") && !bg_missing[0])
         snprintf(bg_missing, sizeof bg_missing, "%s", last_error);
     bool ran = ok || last_error[0];
-    if (err) snprintf(err, 4096, "%s", last_msg);
+    if (err) snprintf(err, 4096, "%s", ok ? "" : last_msg);
     // A block entity script can place or break blocks, so `bes` may have moved and a block entity
     // may have been replaced while it ran: nothing holds a `struct be*` across this call, and a
     // replaced one is only marked until the outermost call returns (see free_be).
@@ -854,12 +855,28 @@ static void give_slots(struct be* b, long n) {
     if (n) memset(b->slots, 0, (size_t)n * sizeof *b->slots);
     b->nslots = (size_t)n;
 }
+static const char* g_mods_dir;
+// Whether a block entity's script text declares an export, found by reading the file: grug-rs
+// answers a call on an entity without the export with false and no error, which cannot be told from
+// an export that ran, so this is how the host learns what to leave stubbed.
+static bool file_has_export(long file, const char* name) {
+    char path[4096], needle[128], buf[65536];
+    snprintf(path, sizeof path, "%s/%s", g_mods_dir, G.f.ptr[file].path);
+    snprintf(needle, sizeof needle, "export %s(", name);
+    FILE* f = fopen(path, "rb");
+    if (!f) return false;  // SMOKETEST_EXCL: a compiled file is always readable
+    size_t n = fread(buf, 1, sizeof buf - 1, f);
+    fclose(f);
+    buf[n] = 0;
+    return strstr(buf, needle) != NULL;
+}
 static void make_be(long x, long y, long z, long file, long slots) {
     if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }
     size_t idx = nbes++;  // an index, not a pointer: the member scope below can place blocks
     memset(&bes[idx], 0, sizeof bes[idx]);
     bes[idx].live = true; bes[idx].x = x; bes[idx].y = y; bes[idx].z = z;
     give_slots(&bes[idx], slots);
+    bes[idx].item_extracted = file_has_export(file, "item_extracted");
     grug_set_next_entity_id(g_state, BE_BASE + idx);
     call_depth++;
     void* entity = grug_create_entity(g_state, G.f.ptr[file].file_id);
@@ -1011,7 +1028,8 @@ static union grug_value BE_set_item_in_slot(ARGS) {
     struct slot* sl = &b->slots[(size_t)a[1]._number];
     // The tests write whole positive counts; any other count (negative, fractional, NaN) is not
     // asserted by a test, so it is stored as given and the test is marked stubbed.
-    if (!(is_whole(a[3]._number) && a[3]._number > 0)) stubbed = true;  // SMOKETEST_EXCL: no committed test
+    // A count above the item's stack limit would be clamped by some loaders, which the smoketest has no table for.
+    if (!(is_whole(a[3]._number) && a[3]._number > 0) || a[3]._number > 64) stubbed = true;  // SMOKETEST_EXCL: no committed test
     // The 1.2.5 adapter writes `new ItemStack(item, count)`, so the stack starts undamaged.
     sl->has = true; sl->item = a[2]._id; sl->count = a[3]._number; sl->damage = 0;
     // block_entity_me-Test: the block entity's item_inserted runs at once, once per write. Its amount is
@@ -1050,6 +1068,8 @@ static union grug_value BE_set_item_damage_in_slot(ARGS) {
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.set_item_damage_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
     struct slot* sl = slot_of(b, a[1]._number);
+    // Damage is a whole number in the game (the adapter truncates it to an int); inventory_ops-Test sets whole ones.
+    if (!(is_whole(a[2]._number) && a[2]._number >= 0)) stubbed = true;  // SMOKETEST_EXCL: no committed test
     if (sl && sl->has) sl->damage = a[2]._number;
     return none();
 }
@@ -1062,14 +1082,17 @@ static union grug_value BE_set_item_count_in_slot(ARGS) {
     if (!sl || !sl->has) return none();
     if (a[2]._number == 0) slot_clear(sl);
     else sl->count = a[2]._number;
-    if (!(is_whole(a[2]._number) && a[2]._number >= 0)) stubbed = true;  // SMOKETEST_EXCL: no committed test
+    if (!(is_whole(a[2]._number) && a[2]._number >= 0) || a[2]._number > 64) stubbed = true;  // SMOKETEST_EXCL: no committed test
     return none();
 }
 REGISTER("BlockEntity", "set_item_count_in_slot", BE_set_item_count_in_slot);
 // How many of a slot's stack leave when `amount` are asked for, and the slot emptied when none is left.
 static double slot_take(struct slot* sl, double amount) {
+    // inventory_ops-Test takes whole positive amounts. The adapter truncates one to an int and a
+    // negative one takes nothing, which no test asserts, so any other amount marks the test stubbed.
+    if (!(is_whole(amount) && amount >= 0)) stubbed = true;  // SMOKETEST_EXCL: no committed test
     double took = amount < sl->count ? amount : sl->count;
-    if (took < 0) took = 0;  // SMOKETEST_EXCL: no committed test
+    if (!(took > 0)) took = 0;  // SMOKETEST_EXCL: no committed test
     sl->count -= took;
     if (sl->count <= 0) slot_clear(sl);
     return took;
@@ -1081,11 +1104,14 @@ static union grug_value BE_take_item_from_slot(ARGS) {
     struct slot* sl = slot_of(b, a[1]._number);
     if (!sl || !sl->has) return num(0);
     // item_extracted ("immediately when an item is removed") is not run: no committed test reads it,
-    // so a script block entity, which may declare it, marks the test stubbed.
-    if (b->entity) stubbed = true;
+    // so a block entity whose script declares it marks the test stubbed.
+    if (b->item_extracted) stubbed = true;
     return num(slot_take(sl, a[2]._number));
 }
 REGISTER("BlockEntity", "take_item_from_slot", BE_take_item_from_slot);
+// GrugSlotAccess truncates the slot to an int before it tests the range, so 0.5 asks about slot 0.
+static double jint(double d) { return isnan(d) ? 0 : d >= 2147483647.0 ? 2147483647.0 : d <= -2147483648.0 ? -2147483648.0 : trunc(d); }
+static bool slot_extractable(const struct be* b, double slot) { return !b->has_extractable || (jint(slot) >= b->ext_first && jint(slot) <= b->ext_last); }
 static union grug_value BE_count_item_in_inventory(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -1100,10 +1126,11 @@ static union grug_value BE_extract_item_from_inventory(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.extract_item_from_inventory: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    if (b->entity) stubbed = true;  // item_extracted is not run, as in take_item_from_slot
+    if (b->item_extracted) stubbed = true;  // item_extracted is not run, as in take_item_from_slot
+    if (!is_whole(a[2]._number) || !is_whole(a[3]._number)) stubbed = true;  // SMOKETEST_EXCL: no committed test
     double left = a[3]._number, total = 0;
     for (size_t i = 0; i < b->nslots && left > 0; i++)
-        if (b->slots[i].has && b->slots[i].item == a[1]._id && b->slots[i].damage == a[2]._number) {
+        if (slot_extractable(b, (double)i) && b->slots[i].has && b->slots[i].item == a[1]._id && b->slots[i].damage == a[2]._number) {
             double took = slot_take(&b->slots[i], left);
             total += took; left -= took;
         }
@@ -1129,14 +1156,14 @@ static union grug_value BE_is_slot_insertable(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.is_slot_insertable: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    return boolean(!b->has_insertable || (a[1]._number >= b->ins_first && a[1]._number <= b->ins_last));
+    return boolean(!b->has_insertable || (jint(a[1]._number) >= b->ins_first && jint(a[1]._number) <= b->ins_last));
 }
 REGISTER("BlockEntity", "is_slot_insertable", BE_is_slot_insertable);
 static union grug_value BE_is_slot_extractable(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.is_slot_extractable: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    return boolean(!b->has_extractable || (a[1]._number >= b->ext_first && a[1]._number <= b->ext_last));
+    return boolean(slot_extractable(b, a[1]._number));
 }
 REGISTER("BlockEntity", "is_slot_extractable", BE_is_slot_extractable);
 
@@ -1185,6 +1212,7 @@ REGISTER("AddResponse", "accept_into_slot", AR_accept_into_slot);
 // the unanswered rule. An error the export raised is raised again here.
 static bool ask_response(struct be* b, uint64_t fn, enum kind kind, const union grug_value* args, size_t nargs, struct obj* out, bool* errored, const char* export_name) {
     char err[4096];
+    if (!b || !b->entity) return false;  // a vanilla block entity has no export
     uint64_t rid = new_obj(kind);
     objs[rid - 1].open = true;
     union grug_value all[8];
@@ -1193,6 +1221,9 @@ static bool ask_response(struct be* b, uint64_t fn, enum kind kind, const union 
     bool ran = call_export(b->entity, fn, all, nargs + 1, err);
     objs[rid - 1].open = false;
     if (!ran) return false;  // SMOKETEST_EXCL: no committed test asks a block entity without the export
+    // The real host closes the response and answers -1 when the export errors, the error already
+    // contained; here the error is raised again so the asking tick aborts, the only way a test can see
+    // it. That tick ends there, so the value the call would have answered is never read.
     *errored = false;
     if (err[0]) { *errored = true; fail("%s", err); }
     else if (!objs[rid - 1].has) { *errored = true; fail("%s returned without answering its response, and refusing has to be said with response.refuse().", export_name); }
@@ -1208,7 +1239,6 @@ static union grug_value BE_ask_extract_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.ask_extract_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    if (!b->entity) return num(-1);  // SMOKETEST_EXCL: no committed test asks a vanilla block entity
     struct obj r; bool errored;
     union grug_value args[2] = {num(a[1]._number), boolean(false)};
     uint64_t self = a[0]._id;
@@ -1234,7 +1264,6 @@ static union grug_value BE_add_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.add_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    if (!b->entity) return num(-1);
     uint64_t self = a[0]._id;
     double count = a[3]._number, remaining = count;
     while (remaining > 0) {
@@ -1643,6 +1672,7 @@ int main(int argc, char** argv) {
     char api_path[4096], mods_path[4096];
     snprintf(api_path, sizeof api_path, "%s/mod_api.json", argv[1]);
     snprintf(mods_path, sizeof mods_path, "%s/mods", argv[1]);
+    g_mods_dir = mods_path;
     // SMOKETEST_MODS points at another mods directory, to time a subset of the files.
     if (getenv("SMOKETEST_MODS")) snprintf(mods_path, sizeof mods_path, "%s", getenv("SMOKETEST_MODS"));
 
