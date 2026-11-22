@@ -14,8 +14,6 @@ In the video above, four different Minecraft environments all hot-reload the sam
 
 If a mod contains copyrighted material or prohibits redistribution, please [open a GitHub issue](https://github.com/grug-lang/grug-for-minecraft/issues) with supporting evidence.
 
-grug for Minecraft is not affiliated with Mojang or Microsoft. Mods may contain Minecraft assets, which are kept for archival purposes. You need your own copy of the game to run it, so please support its developers by buying it from [minecraft.net](https://www.minecraft.net).
-
 Every mod must ship its license text as a non-empty `LICENSE` file next to its `about.json`. grug refuses to start when one is missing, so the requirement is enforced by the game itself rather than only by CI.
 
 [`mods/examplemod`](mods/examplemod) is the reference mod that tutorials and other mods are meant to copy from. It's licensed under the [BSD Zero Clause License](https://spdx.org/licenses/0BSD.html), the license grug recommends for all mods written from scratch, so that snippets and files can be copied between mods as freely as possible.
