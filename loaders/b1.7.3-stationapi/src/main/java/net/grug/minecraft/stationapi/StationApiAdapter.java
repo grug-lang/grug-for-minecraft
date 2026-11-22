@@ -476,6 +476,14 @@ public class StationApiAdapter implements ModLoaderAdapter {
         renderSettle.reset();
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
+        // Beta lights what it draws with the sky light less the darkness the world's clock gives,
+        // so a capture taken at night is a different frame from the golden's. A test that starts at
+        // night has the clock moved on to the next noon, the way the a1 server's room build does.
+        net.minecraft.world.World clockWorld = (net.minecraft.world.World) getLevel();
+        if (clockWorld != null && clockWorld.ambientDarkness != 0) {
+            clockWorld.setTime(
+                    clockWorld.getTime() - clockWorld.getTime() % 24000L + 24000L + 6000L);
+        }
         // y is the eye reference in this version, so the feet come from the collision box. The room
         // is anchored to the feet: built around the eye, the block the player stands on lands
         // inside
