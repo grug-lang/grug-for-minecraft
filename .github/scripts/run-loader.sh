@@ -65,6 +65,14 @@ if [ "$PHASE" != build ] && [ "$WINDOWS" = false ] && [ -z "${DISPLAY:-}" ]; the
   exit 2
 fi
 
+# Record which CPU renders the run, because Mesa's llvmpipe compiles its rasterizer for the host's
+# vector extensions and the same single-pixel difference in a capture (#1550) has shown up on the same
+# coordinates in different runs, which points at a runner CPU class and not at the test. The line is
+# printed for every game phase so a failing job can be matched with the CPU it ran on.
+if [ "$PHASE" != build ] && [ "$WINDOWS" = false ] && [ -r /proc/cpuinfo ]; then
+  echo "==> CPU: $(grep -m1 'model name' /proc/cpuinfo | sed 's/.*: //') | flags: $(grep -m1 '^flags' /proc/cpuinfo | grep -o -w 'avx2\|avx512f\|fma' | sort -u | tr '\n' ' ')"
+fi
+
 mkdir -p "${LOADER_DIR}/run"
 LOG_FILE="${REPO_ROOT}/${LOADER_DIR}/run/ci-run-loader.log"
 
