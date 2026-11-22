@@ -15,6 +15,7 @@ import net.grug.minecraft.grug.GrugShapes;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
@@ -150,6 +151,33 @@ public class GrugBlock extends TemplateBlockWithEntity {
             Grug.destroyEntity(blockHandle);
         }
         super.onBreak(world, x, y, z);
+    }
+
+    /**
+     * Calls the block's {@code placed} export after a player placed it. The block item's placement
+     * calls this once the block, its metadata and its block entity are in the world. A remote world
+     * is skipped, because a joined client's world only mirrors the server's and a block's {@code
+     * placed} is server logic; singleplayer's world is not remote.
+     */
+    @Override
+    public void onPlaced(World world, int x, int y, int z, LivingEntity placer) {
+        super.onPlaced(world, x, y, z, placer);
+        if (world.isRemote || !isPlayer(placer)) {
+            return;
+        }
+        long blockHandle = Grug.createEntity(this.blockFileId);
+        if (blockHandle != 0) {
+            long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
+            long playerId = GrugEntities.addEntity(GrugEntityType.Player, placer);
+            ExportFns.Block_placed(blockHandle, worldId, x, y, z, playerId);
+            Grug.destroyEntity(blockHandle);
+        }
+    }
+
+    @GrugGenerated(
+            "a placer that is not a player is passed by other mods only, which no test drives")
+    private static boolean isPlayer(LivingEntity placer) {
+        return placer instanceof PlayerEntity;
     }
 
     @Override

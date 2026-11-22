@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.grug.minecraft.ornithe.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "BlockItemPlacedMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

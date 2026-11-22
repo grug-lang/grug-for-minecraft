@@ -1,0 +1,9 @@
+# search_item_at must report an index past the matches, so the overlay cannot give an item that is
+# not listed (#865).
+export tick_any_side(ctx: TestTickContext) {
+    if not me.overlay_supported() {
+        return
+    }
+    ctx.expect_error("search_item_at: There is no item at index")
+    search_item_at("zzzzqqqq", 0)
+}

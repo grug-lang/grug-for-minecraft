@@ -27,6 +27,9 @@ import unittest
 import zipfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import parallel_test_runner  # noqa: E402
+
 SCRIPTS = Path(__file__).resolve().parent
 LOADER = "b1.7.3-ornithe"
 SERVER_VERSION = "b1.7.3"
@@ -950,5 +953,24 @@ class ServerUnlistedTest(unittest.TestCase):
         self.assertIn("jei/tests/jei-Test.grug", log)
 
 
+def main(argv: list[str]) -> int:
+    """Runs every case in a process of its own, side by side, unless argv names cases.
+
+    The fake server's sleeps are the whole cost of the file (184 s one case after another), and
+    each case builds its own fake repository and temporary directory, so the cases share nothing.
+    GRUG_TEST_JOBS, or --jobs N, sets the number of processes; a case named on the command line,
+    or unittest's own options, run in this process one at a time, the way the file used to.
+    """
+    jobs, args = parallel_test_runner.parse_jobs(argv)
+    if args:
+        unittest.main(argv=[sys.argv[0], *args])
+    commands = []
+    for group in unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]):
+        for case in group:
+            label = case.id().split(".", 1)[1]
+            commands.append((label, [sys.executable, str(Path(__file__).resolve()), label]))
+    return parallel_test_runner.run(commands, jobs)
+
+
 if __name__ == "__main__":
-    unittest.main()
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,6 @@
+# String.from_character must report a code that is a surrogate, which is half of a character and
+# not a character of its own.
+export tick_any_side(ctx: TestTickContext) {
+    ctx.expect_error("String.from_character: The code has to be a whole number")
+    String.from_character(55296)
+}

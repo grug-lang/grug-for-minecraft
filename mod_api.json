@@ -83,6 +83,42 @@
 					]
 				},
 				{
+					"name": "placed",
+					"description": "Called by the game after a player placed this block, once the block is in the world and its block entity exists. It runs only for a placement by a player, through the game's own placing of a block item, and not for a block a test or a mod writes with `Level.place_block`, a piston or an explosion. `placer` is the player who placed it, so a block can read where they stood with `Player.position` and face away from them the way the game's own directional blocks do. A block without this export is placed as usual. A loader that does not call it yet is told apart by `Test.placed_supported`.",
+					"parameters": [
+						{
+							"name": "world",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "placer",
+							"type": {
+								"name": "Player"
+							}
+						}
+					]
+				},
+				{
 					"name": "shape",
 					"description": "Called by the game whenever it needs this block's boxes at a position, for a block whose init() called `set_shape`. Declare them through `ctx`: the boxes entities collide with, and the boxes the game targets and outlines. It is asked again on every query rather than once at registration, because a shape can follow what is around it: a pipe's arms follow the inventories and pipes beside it, so read the world in this call rather than saving what it said last time. A block that declares `set_shape` and exports no shape function, or that adds no box at all, reports an error and keeps the full cube. A block that exports shape without calling `set_shape` is reported too, since the game would never run its export, and keeps the full cube until it declares one.",
 					"parameters": [
@@ -1090,6 +1126,12 @@
 				},
 				"overlay_supported": {
 					"description": "Whether this loader draws overlays on the inventory and container screens at all, which a test asks before it opens a screen: a loader that does not cannot open the inventory either, so a test that needs an overlay returns early there instead of driving a screen the loader cannot show. It is a property of the loader, answered from the start of a run, and a loader that draws overlays answers true whether or not a screen has been open yet. On a dedicated server this is the joined client's own answer, which the server asks the client of the player who started the run.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"placed_supported": {
+					"description": "Whether this loader calls a block's placed export when a player places it, which a test asks before it places a block with the held item: a loader that does not returns early there instead of waiting for a call that never comes. It is a property of the loader, answered from the start of a run.",
 					"return_type": {
 						"name": "bool"
 					}
@@ -2300,7 +2342,7 @@
 					}
 				},
 				"key": {
-					"description": "The key that was pressed, the same on every loader: a letter key is the character code of its upper case letter (65 for A, 79 for O) and a digit key the code of its digit (48 for 0), so a mod compares it with those numbers. A key with no such character (an arrow, escape) is not given to the overlay yet.",
+					"description": "The key that was pressed, the same on every loader: a letter key is the character code of its upper case letter (65 for A, 79 for O) and a digit key the code of its digit (48 for 0), so a mod compares it with those numbers. The space bar is 32 and backspace is 8, which a text field needs. A key with no such character (an arrow, escape, a punctuation key) is not given to the overlay yet.",
 					"return_type": {
 						"name": "number"
 					}
@@ -2365,6 +2407,35 @@
 						}
 					]
 				},
+				"draw_text": {
+					"description": "Draws a text over the screen with the game's own font and a shadow, with its top-left corner at the position in screen pixels from the top-left of the window, in the color given. It is drawn after the overlay's items and before its boxes. The color's alpha is ignored and the text is always drawn opaque, and the text is not clipped or wrapped: it runs on past the screen's edge, so a mod cuts it to the width it has. The position has to be finite, or it is reported and the text is not drawn. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "color",
+							"type": {
+								"name": "Color"
+							}
+						}
+					]
+				},
 				"gui_height": {
 					"description": "The height of the screen's GUI, its inventory panel, in pixels.",
 					"return_type": {
@@ -2403,6 +2474,12 @@
 				},
 				"screen_height": {
 					"description": "The height of the screen in pixels, from its top edge. The overlay's grid runs from the top of the screen down, so it is measured from 0 to here.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"screen_serial": {
+					"description": "A number that changes whenever the frame is drawn on a different screen than the frame before it, such as when the inventory is closed and opened again, and stays the same for every frame of one screen. An overlay compares it with the number it saw last to reset what belongs to one screen, such as the focus of a text field. Its value means nothing else.",
 					"return_type": {
 						"name": "number"
 					}
@@ -2653,6 +2730,12 @@
 								"name": "Item"
 							}
 						]
+					}
+				},
+				"position": {
+					"description": "The player's position: the horizontal centre of the player and the height of their feet, the same on every loader whatever the game keeps (Alpha, Beta and 1.2.5 store the eye in their position fields, 1.20.6 stores the feet). It is the position a block's `placed` export reads to work out which way the player stood.",
+					"return_type": {
+						"name": "Vec3"
 					}
 				}
 			}
@@ -3068,6 +3151,40 @@
 		"String": {
 			"description": "Functions on text that need no instance.",
 			"static_methods": {
+				"concat": {
+					"description": "The two texts joined, the first and then the second, since `+` does not join strings: String.concat(\"ab\", \"c\") is \"abc\". It is how a mod builds a text it edits, such as the text of a search field.",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "first",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "second",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"from_character": {
+					"description": "The one-character text of a Unicode code point, which is how a mod turns a key code into the character it types: String.from_character(97) is \"a\" and String.from_character(8364) is \"\u20ac\". The code has to be a whole number from 1 to 1114111 that is not a surrogate (55296 to 57343), or it is reported and the text is empty. Zero is refused because a text with a NUL in it does not survive the trip back to the mod.",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "code",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"from_number": {
 					"description": "The text of a number, which is how a mod puts a count or a measurement on screen, since `+` does not join strings and a number is not text. A whole number prints as an integer with no decimal point and no exponent, however large: String.from_number(41) is \"41\", String.from_number(-7) is \"-7\", String.from_number(1e20) is \"100000000000000000000\" and negative zero is \"0\". A number with a fraction prints as Java's shortest text that reads back as the same double (Double.toString): String.from_number(2.5) is \"2.5\" and String.from_number(0.1) is \"0.1\", with an exponent only for a magnitude below 0.001 or at least 10 million, such as \"1.0E-4\". NaN and the infinities print as \"NaN\", \"Infinity\" and \"-Infinity\". The text never depends on the player's locale, so the same number is the same text on every machine.",
 					"return_type": {
@@ -3076,6 +3193,46 @@
 					"parameters": [
 						{
 							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"length": {
+					"description": "How many characters the text has, a character outside the basic plane counting once: String.length(\"abc\") is 3 and String.length(\"\") is 0.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"substring": {
+					"description": "The characters of the text from start up to but not including end, counted from 0 in the characters String.length counts: String.substring(\"abcd\", 1, 3) is \"bc\", and String.substring(text, 0, String.length(text) - 1) is the text without its last character. Both have to be whole numbers with 0 <= start <= end <= String.length(text), or it is reported and the text is empty.",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "start",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "end",
 							"type": {
 								"name": "number"
 							}
@@ -4456,6 +4613,40 @@
 			"parameters": [
 				{
 					"name": "resource_location_string",
+					"type": {
+						"name": "string"
+					}
+				}
+			]
+		},
+		"search_item_at": {
+			"description": "The item at index, from 0 up to search_item_count minus 1, among the items the search text lists, in the order item_at lists them. An index outside that range is reported and answers nothing, since there is no item there to hand back.",
+			"return_type": {
+				"name": "Item"
+			},
+			"parameters": [
+				{
+					"name": "text",
+					"type": {
+						"name": "string"
+					}
+				},
+				{
+					"name": "index",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"search_item_count": {
+			"description": "How many of the items item_count counts the search text lists, in the search syntax of the reference JEI's item list: the text is lower case, split on `|` into alternatives, and each alternative into words that all have to match, a word being a quoted run or a run of characters that are not spaces. A word matches an item whose name, in the language the game runs in, contains it, and a word that starts with `@` matches an item whose mod id contains the rest of it, so `@minecraft` lists the game's own items. A word that starts with `-` lists no item it matches. An item is listed when it matches every word of one alternative, and the text that holds no word to search, an empty one included, lists every item. Alpha has no item names, so there an item's name is its registry name. The tooltip, tag and color searches of the reference are not supported.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "text",
 					"type": {
 						"name": "string"
 					}

@@ -17,6 +17,7 @@ import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugOverlayScripts;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
+import net.grug.minecraft.grug.GrugScreenText;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.GrugWorldKeys;
 import net.grug.minecraft.grug.GrugWorldOverlay;
@@ -124,7 +125,9 @@ public final class GrugOverlayHost {
             // coverage mod's overlay draws on every screen too, and would otherwise hide a port
             // whose render export never ran or declined to draw. A render with nothing to draw is
             // not a frame of the test's list.
-            if (!geometry.items().isEmpty() || !geometry.boxes().isEmpty()) {
+            if (!geometry.items().isEmpty()
+                    || !geometry.boxes().isEmpty()
+                    || !geometry.texts().isEmpty()) {
                 if (overlay.mod.equals(testMod)) {
                     GrugOverlay.noteDrawn();
                 }
@@ -133,6 +136,14 @@ public final class GrugOverlayHost {
             for (GrugScreenItemDraw item : geometry.items()) {
                 graphics.renderItem(
                         new ItemStack((Item) item.item()), (int) item.x(), (int) item.y());
+            }
+            for (GrugScreenText text : geometry.texts()) {
+                graphics.drawString(
+                        Minecraft.getInstance().font,
+                        text.text(),
+                        (int) text.x(),
+                        (int) text.y(),
+                        0xFF000000 | text.rgb());
             }
             for (GrugScreenBox box : geometry.boxes()) {
                 graphics.fill(
@@ -231,14 +242,12 @@ public final class GrugOverlayHost {
     public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
         AbstractContainerScreen<?> container = eligible(event.getScreen());
         if (container == null) return;
-        int key = event.getKeyCode();
-        boolean letter = key >= 'A' && key <= 'Z';
-        boolean digit = key >= '0' && key <= '9';
-        if (!letter && !digit) return;
+        int key = overlayKey(event.getKeyCode());
+        if (key < 0) return;
 
         // A held key repeats the press event, and a toggle must flip once per press.
-        if (key == heldKey) return;
-        heldKey = key;
+        if (event.getKeyCode() == heldKey) return;
+        heldKey = event.getKeyCode();
 
         boolean ctrl = (event.getModifiers() & controlModifier()) != 0;
         for (GrugOverlayScripts.Script overlay : overlays()) {
@@ -248,6 +257,24 @@ public final class GrugOverlayHost {
                 return;
             }
         }
+    }
+
+    /**
+     * The number an overlay's key() is given for a GLFW key code, or -1 for a key that is not
+     * asked: the upper case character code of a letter or a digit key, and the ASCII codes of the
+     * space bar and of backspace, so every loader gives the same number.
+     */
+    static int overlayKey(int glfwKey) {
+        if (glfwKey == GLFW_KEY_BACKSPACE) return GrugOverlay.KEY_BACKSPACE;
+        if (glfwKey == GLFW_KEY_SPACE) return GrugOverlay.KEY_SPACE;
+        boolean letter = glfwKey >= 'A' && glfwKey <= 'Z';
+        boolean digit = glfwKey >= '0' && glfwKey <= '9';
+        return letter || digit ? glfwKey : -1;
+    }
+
+    /** The GLFW key code of the key an overlay's key() number stands for. */
+    static int glfwKey(int overlayKey) {
+        return overlayKey == GrugOverlay.KEY_BACKSPACE ? GLFW_KEY_BACKSPACE : overlayKey;
     }
 
     /** The key held since its first press, or -1: a second press event for it is a key repeat. */
@@ -287,6 +314,8 @@ public final class GrugOverlayHost {
 
     private static final GrugWorldKeys worldKeys = new GrugWorldKeys();
 
+    private static final int GLFW_KEY_SPACE = 32;
+    private static final int GLFW_KEY_BACKSPACE = 259;
     private static final int GLFW_KEY_LEFT_CONTROL = 341;
     private static final int GLFW_KEY_RIGHT_CONTROL = 345;
     private static final int GLFW_KEY_LEFT_SUPER = 343;

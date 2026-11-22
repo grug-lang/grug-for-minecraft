@@ -3,6 +3,9 @@
     "block.grug.cobblestone_pipe": "Cobblestone Pipe",
     "block.grug.redstone_engine": "Redstone Engine",
     "block.grug.wooden_pipe": "Wooden Pipe",
+    "item.grug.diamond_gear": "Diamond Gear",
+    "item.grug.gold_gear": "Gold Gear",
+    "item.grug.iron_gear": "Iron Gear",
     "item.grug.stone_gear": "Stone Gear",
     "item.grug.wooden_gear": "Wooden Gear",
     "item.grug.wrench": "Wrench"

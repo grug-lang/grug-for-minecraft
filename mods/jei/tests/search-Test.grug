@@ -1,0 +1,176 @@
+# The item list's search field: a press on it focuses it, the typed letters narrow the list to the
+# items that match, and a right click empties it. The test reads the list through what a right
+# click on the grid's first cell gives, because the overlay takes the press and the give reaches
+# the player's hand some frames later, which the test waits for rather than counting ticks. A key
+# typed while the field is not focused is not taken. See #865.
+# Alpha has no item names, so its list has nothing to search by and the test is not run there.
+
+started: bool = false
+opened: bool = false
+waited: number = 0
+step: number = 0
+
+export tick_any_side(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() or me.loader_name() == "a1.1.2_01-ornithe" {
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens (#1287); the failure
+    # bound is what says it never came, not a wait.
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        ctx.assert(search_item_count("iron") > 0, "The list should hold an item named iron.")
+        ctx.assert(search_item_count("iron") < item_count(), "A search should narrow the list.")
+        ctx.assert(not equals(search_item_at("iron", 0), item_at(0)), "The first iron item should not be the first item.")
+        ctx.clear_carried_item()
+        # The field is not focused yet, so a typed letter goes to the screen.
+        ctx.assert(not ctx.press_screen_key(73, false, true), "A letter should not be taken while the field is not focused.")
+        ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 0), "The overlay should take a press on its search field.")
+        _type(ctx, "iron")
+        # The cell now holds the first match.
+        ctx.assert(ctx.click_screen(_cell_x(ctx), _cell_y(), 1), "The overlay should take a press on its first item.")
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        # Handled below.
+    } else if step == 1 {
+        if not _arrived(ctx, search_item_at("iron", 0), "A press on the first cell should give the first item that matches iron.") {
+            ctx.not_done()
+            return
+        }
+    } else if not _arrived(ctx, item_at(0), "A press on the first cell of the emptied search should give the first item.") {
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # A press on an item unfocuses the field, so the field is pressed again, and a right
+        # click on it empties it.
+        ctx.clear_held_item(ctx.get_player())
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        # The hand is empty before the next press, so the item that arrives is the one it gives.
+        if ctx.get_player().get_held_item().has() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The hand should be empty after it is cleared.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 0), "The overlay should take a press on its search field.")
+        # A right click on the field clears it, as the reference's text field does, and focuses it.
+        ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 1), "The overlay should take a right click on its search field.")
+        ctx.assert(ctx.press_screen_key(8, false, true), "Backspace on an empty field should still be taken.")
+        ctx.assert(ctx.click_screen(_cell_x(ctx), _cell_y(), 1), "The overlay should take a press on its first item.")
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    ctx.close_screen()
+}
+
+# Types the letters of a word, which the overlay should take every one of.
+local _type(ctx: TestTickContext, word: string) {
+    index: number = 0
+    while index < String.length(word) {
+        letter: number = 0
+        if String.substring(word, index, index + 1) == "i" {
+            letter = 73
+        } else if String.substring(word, index, index + 1) == "r" {
+            letter = 82
+        } else if String.substring(word, index, index + 1) == "o" {
+            letter = 79
+        } else {
+            letter = 78
+        }
+        ctx.assert(ctx.press_screen_key(letter, false, true), "A letter should be taken while the field is focused.")
+        index = index + 1
+    }
+}
+
+# Whether the item the last press gave has reached the player's hand, and is the expected one.
+local _arrived(ctx: TestTickContext, expected: Item, message: string) bool {
+    waited = waited + 1
+    held: Option[Item] = ctx.get_player().get_held_item()
+    if not held.has() {
+        ctx.assert(waited < 200, "The item a press on the list gives should reach the player's hand.")
+        return false
+    }
+    ctx.assert(equals(held.unwrap(), expected), message)
+    return true
+}
+
+# The field is the 20 pixel bar 6 pixels above the bottom of the screen, as wide as the grid.
+local _field_x(ctx: TestTickContext) number {
+    return _grid_x(ctx) + 10
+}
+
+local _field_y(ctx: TestTickContext) number {
+    return ctx.gui_top() * 2 + ctx.gui_height() - 6 - 10
+}
+
+local _cell_x(ctx: TestTickContext) number {
+    return _grid_x(ctx) + 9
+}
+
+local _cell_y() number {
+    return 28 + 9
+}
+
+local _grid_x(ctx: TestTickContext) number {
+    display_left: number = ctx.gui_left() + ctx.gui_width()
+    available_width: number = ctx.screen_width() - display_left - 12
+    return display_left + 6 + (available_width - _columns(ctx) * 18)
+}
+
+local _columns(ctx: TestTickContext) number {
+    available_width: number = ctx.screen_width() - ctx.gui_left() - ctx.gui_width() - 12
+    columns: number = Math.floor(available_width / 18)
+    if columns > 9 {
+        columns = 9
+    }
+    return columns
+}

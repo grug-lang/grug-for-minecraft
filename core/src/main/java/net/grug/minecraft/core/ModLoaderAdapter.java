@@ -213,6 +213,26 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * The name the game shows for the item, in the language it runs in, which the item list's
+     * search reads (#865). A loader that has no name for the item, or no item list, answers null
+     * and the search reads the item's own {@link #itemName} instead.
+     */
+    @GrugGenerated("no item names: a loader that cannot enumerate items names none")
+    default String itemDisplayName(Object itemObj) {
+        return null;
+    }
+
+    /**
+     * The mod id the item belongs to when {@link #itemName} cannot say, or null to read it from
+     * that name. A version with no registry key names a grug mod's items without a namespace, so
+     * its adapter answers {@code grug}, the namespace every other loader gives them (#865).
+     */
+    @GrugGenerated("no namespace to add: only a version with no registry key answers")
+    default String itemModId(Object itemObj) {
+        return null;
+    }
+
+    /**
      * The largest stack the item can come in, which the overlay's give and a test that checks a
      * full stack need. A loader with no item list answers 0.
      */
@@ -1129,6 +1149,25 @@ public interface ModLoaderAdapter {
     default boolean overlayFirstFrameClearedForTest(String mod) {
         return GrugOverlay.firstFrameClearedForTest(mod, screenIdentityForTest());
     }
+
+    /**
+     * The position of {@code player} as {@code Player.position} answers it: the horizontal centre
+     * of the player and the height of their feet, whatever the game stores. The games differ, since
+     * 1.2.5 and Beta keep the eye in the position fields and 1.20.6 keeps the feet, so each loader
+     * reads the feet from its own bounding box or position.
+     */
+    @GrugGenerated("no player position: a loader that has not added it keeps this default")
+    default Vec3 playerPosition(Object player) {
+        throw Grug.fatal("Player.position is not supported on this loader");
+    }
+
+    /**
+     * Whether this loader calls a block's {@code placed} export when a player places the block,
+     * which is what {@code Test.placed_supported} answers. A loader says so only once its own
+     * placement path is wired, so a test skips the check where it is not (#1558). Every loader
+     * answers true now, so there is no default; a future loader without the hook answers false.
+     */
+    boolean placedSupportedForTest();
 
     /**
      * Whether this loader asks an overlay's world key, HUD and world exports, which is what {@code

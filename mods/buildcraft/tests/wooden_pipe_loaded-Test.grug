@@ -1,0 +1,203 @@
+# Covers a wooden pipe holding several travelling items and the same pipe once it is broken, as the
+# player sees them. The first capture shows a pipe with an arm to the east chest and three items
+# standing in it side by side, a block drawn as a cube and two items as sprites. The second capture is
+# taken after the pipe is broken: the pipe and its arm are gone, the chest stays, and nothing else
+# is drawn. The three records are put in directly and given no speed, as wooden_pipe_items-Test.grug
+# does, so they stand still and the frame is the same every time. Breaking the pipe drops its items at
+# random places, which no capture can pin, so the dropped item entities are removed again before the
+# second capture; wooden_pipe_break-Test.grug checks the drops. The screenshots are the assertion.
+pipe: Option[BlockEntity] = Option.new()
+
+# 0 while the loaded pipe is captured, 1 once it is broken and the broken scene is captured.
+phase: number = 0
+
+# Whether the wall and the pipe's section have been meshed again from the settled light yet.
+remeshed: bool = false
+
+# How many runner ticks in a row the world has answered settled. See the hold in tick().
+settled_ticks: number = 0
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+    } else if not ctx.world_settled() {
+        # The mesh below has to read the settled light, so the wait comes first. See coverage_render
+        # and #257 for why one settled answer is not enough.
+        settled_ticks = 0
+        ctx.not_done()
+    } else if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+    } else if not remeshed {
+        _force_remesh(ctx)
+        remeshed = true
+        ctx.not_done()
+    } else if not ctx.world_settled() {
+        # Waiting for the swap's blocks to reach the client and for the mesh they scheduled.
+        ctx.not_done()
+    } else if phase == 0 {
+        ctx.assert(pipe.has(), "The pipe should have a block entity.")
+        if not me.is_reference() {
+            ctx.assert(pipe.unwrap().get_saved_list_size("traveling") == 3, "The pipe should hold its three items.")
+        }
+        ctx.screenshot().equals(r"screenshots/wooden_pipe_loaded", 100, 100, 578, 596)
+        _break(ctx)
+        phase = 1
+        remeshed = false
+        settled_ticks = 0
+        ctx.not_done()
+    } else {
+        ctx.screenshot().equals(r"screenshots/wooden_pipe_broken", 100, 100, 578, 596)
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+
+    # The default room is small, so ask for one that holds the pipe, its neighbours and the wall.
+    ctx.set_box_radius(6)
+
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    _wall(level, x - 6, y - 9, z + 6)
+
+    # The scene stands two blocks east of the camera's line, which draws it left of the crosshair,
+    # and one block lower, so it fits in a crop that leaves out the crosshair and the selection
+    # outline the 1.2.5 client draws around the block under it, the achievement popup in the top
+    # right, the version text in the top left and the hearts above the hotbar.
+    x = x + 2
+    y = y - 1
+
+    _place_pipe(ctx, level, x, y - 1.88, z + 4)
+
+    # The east chest goes in first, while it is the only neighbour, so the reference's source,
+    # which it keeps while it still holds an inventory, is the east side.
+    level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
+
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    ctx.assert(pipe_opt.has(), "The pipe should have a block entity.")
+    pipe.set(pipe_opt.unwrap())
+
+    # The port's saved number is the side plus one, like the reference's metadata; side 5 is east.
+    if not me.is_reference() {
+        pipe.unwrap().set_saved_number("source", 6)
+    }
+
+    if me.is_reference() {
+        _hold_reference(ctx, pipe.unwrap())
+        ctx.load_nbt(pipe.unwrap())
+        pipe.set(level.get_block_entity(x, y - 1.88, z + 4).unwrap())
+        return
+    }
+    _hold(pipe.unwrap(), item(resource_location("minecraft:oak_log")), -0.3)
+    _hold(pipe.unwrap(), item(resource_location("minecraft:stick")), 0.0)
+    _hold(pipe.unwrap(), item(resource_location("minecraft:diamond")), 0.3)
+}
+
+# Breaks the pipe the way a test breaks a block, which fires its removal and drops the three items,
+# then removes those item entities so the capture does not depend on where they landed.
+local _break(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x() + 2
+    y: number = origin.y() - 1 - 1.88
+    z: number = origin.z() + 4
+    level.place_block(x, y, z, "minecraft:air")
+    ctx.assert(level.is_air(x, y, z), "The pipe should be gone.")
+    ctx.remove_entities(level, "item")
+    ctx.assert(level.count_item_entities(x, y, z, 10) == 0, "No dropped item should remain.")
+}
+
+# The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
+# right-clicking the side of a block at z + 1 with the pipe held, so the pipe lands at z; that
+# block is cleared again so both scenes hold the same blocks.
+local _place_pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    if not me.is_reference() {
+        level.place_block(x, y, z, "grug:wooden_pipe")
+        return
+    }
+    level.place_block(x, y, z + 1, "minecraft:stone")
+    player: Player = ctx.get_player()
+    held: Item = item(resource_location("buildcraft:PipeItemsWood"))
+    ctx.set_held_item(player, held)
+    ctx.use_block(level, x, y, z + 1)
+    ctx.clear_held_item(player)
+    level.place_block(x, y, z + 1, "minecraft:air")
+}
+
+# Stages the reference's three records, the same ones _hold adds: EntityPassiveItem's world position
+# and speed, and EntityData's toCenter and orientation, 3 being ZPos as the port's direction 3 is.
+local _hold_reference(ctx: TestTickContext, pipe_entity: BlockEntity) {
+    center: Vec3 = pipe_entity.block_pos().center()
+    ctx.set_nbt_item(pipe_entity, "travelingEntities.0.Item", item(resource_location("minecraft:oak_log")))
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.0.x", "double", center.x() + -0.3)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.0.y", "double", center.y() - 0.25)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.0.z", "double", center.z())
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.0.speed", "float", 0)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.0.toCenter", "byte", 1)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.0.orientation", "int", 3)
+    ctx.set_nbt_item(pipe_entity, "travelingEntities.1.Item", item(resource_location("minecraft:stick")))
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.1.x", "double", center.x() + 0.0)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.1.y", "double", center.y() - 0.25)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.1.z", "double", center.z())
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.1.speed", "float", 0)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.1.toCenter", "byte", 1)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.1.orientation", "int", 3)
+    ctx.set_nbt_item(pipe_entity, "travelingEntities.2.Item", item(resource_location("minecraft:diamond")))
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.2.x", "double", center.x() + 0.3)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.2.y", "double", center.y() - 0.25)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.2.z", "double", center.z())
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.2.speed", "float", 0)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.2.toCenter", "byte", 1)
+    ctx.set_nbt_number(pipe_entity, "travelingEntities.2.orientation", "int", 3)
+}
+
+# Adds one travelling record that stands still at the pipe floor, offset dx along x from the pipe's
+# centre, as wooden_pipe_items-Test.grug does.
+local _hold(pipe_entity: BlockEntity, held: Item, dx: number) {
+    center: Vec3 = pipe_entity.block_pos().center()
+    index: number = pipe_entity.append_saved_list_record("traveling")
+    pipe_entity.set_saved_list_number("traveling", index, "x", center.x() + dx)
+    pipe_entity.set_saved_list_number("traveling", index, "y", center.y() - 0.25)
+    pipe_entity.set_saved_list_number("traveling", index, "z", center.z())
+    pipe_entity.set_saved_list_number("traveling", index, "speed", 0.0)
+    pipe_entity.set_saved_list_number("traveling", index, "direction", 3)
+    pipe_entity.set_saved_list_number("traveling", index, "steps", -1000000)
+    pipe_entity.set_saved_list_number("traveling", index, "to_center", 1)
+    pipe_entity.set_saved_list_number("traveling", index, "count", 1)
+    pipe_entity.set_saved_list_number("traveling", index, "damage", 0)
+    pipe_entity.set_saved_list_item("traveling", index, held)
+}
+
+# Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
+# spare. Kept small on purpose: every block placed re-lights the columns around it for several ticks
+# afterwards.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 13 {
+        wx: number = x0
+        while wx < x0 + 13 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Meshes the crop's section again from the settled light by changing a block state and putting it
+# back. The swapped block is outside the crop, and dirt and stone are both opaque and unlit, so the
+# swap changes no light and no compared pixel.
+local _force_remesh(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
+    ctx.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}

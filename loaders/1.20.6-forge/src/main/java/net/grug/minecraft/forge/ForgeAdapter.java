@@ -715,6 +715,12 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("asks the game for an item's own name: a unit test has no game")
+    public String itemDisplayName(Object itemObj) {
+        return new ItemStack((Item) itemObj).getHoverName().getString();
+    }
+
+    @Override
     public int getItemMaxStack(Object itemObj) {
         return new ItemStack((Item) itemObj).getMaxStackSize();
     }
@@ -1200,6 +1206,17 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
         if (server == null || !player.level().isClientSide) return player;
         ServerPlayer serverPlayer = server.getPlayerList().getPlayer(player.getUUID());
         return serverPlayer != null ? serverPlayer : player;
+    }
+
+    @Override
+    public Vec3 playerPosition(Object playerObj) {
+        Player player = (Player) playerObj;
+        return new Vec3(player.getX(), player.getY(), player.getZ());
+    }
+
+    @Override
+    public boolean placedSupportedForTest() {
+        return true;
     }
 
     @Override

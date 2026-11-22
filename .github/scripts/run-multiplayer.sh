@@ -52,6 +52,8 @@ if [ -z "${DISPLAY:-}" ]; then
   echo "DISPLAY is not set. Start an X server first, e.g. run under xvfb-run." >&2
   exit 2
 fi
+# shellcheck source=pin-llvmpipe.sh
+. "$(dirname "${BASH_SOURCE[0]}")/pin-llvmpipe.sh"
 SERVER_DIR="${REPO_ROOT}/${LOADER_DIR}/run-server"
 # The installed Ornithe server, which is the server's toolchain and not its world (#1244). The script
 # below wipes run-server and extracts a pristine save into it before every launch, so the install

@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugGiveCalls;
+import net.grug.minecraft.core.GrugItemSearch;
 import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugOperatorCalls;
 import net.grug.minecraft.core.GrugScreenCalls;
@@ -18,6 +19,7 @@ import net.grug.minecraft.gui.GrugGuiLayoutCodec;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.function.BiConsumer;
@@ -164,6 +166,17 @@ public class HostFunctions {
         }
 
         GrugDisplayTicks.context().spawn(name, x, y, z, vx, vy, vz);
+    }
+
+    public static long Player_position(long playerId) {
+        return withEntity(
+                "Player.position",
+                "player",
+                playerId,
+                player ->
+                        GrugEntities.addEntity(
+                                GrugEntityType.Vec3, GrugCore.getAdapter().playerPosition(player)),
+                0L);
     }
 
     public static long Player_get_held_item(long playerId) {
@@ -2944,6 +2957,134 @@ public class HostFunctions {
         return null;
     }
 
+    /** The search text the cached answer of {@link #searchedItems} was made for. */
+    private static String searchedText = null;
+
+    /** The item count {@link #searchedItems} was made for, so a changed list is searched again. */
+    private static int searchedCount = -1;
+
+    /**
+     * The screen serial {@link #searchedItems} was made on. The names depend on the language, which
+     * only changes on a screen of its own, so a new screen searches again, and no language or item
+     * list change goes unseen however many frames the same screen draws.
+     */
+    private static double searchedScreen = -1;
+
+    /** The listed items' indexes that {@link #searchedText} matched. */
+    private static List<Integer> searchedIndexes = null;
+
+    /**
+     * The listed items' indexes the search text matches, searched again only when the text or the
+     * list changed, since an overlay asks once per frame. Null when this loader has no item list.
+     */
+    @GrugGenerated("reads the adapter's item list: a unit test has no game")
+    private static List<Integer> searchedItems(String method, String text) {
+        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        int count = adapter.listedItemCount();
+        if (itemListMissing(count)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, method + ": This loader has no item list to enumerate.");
+            return null;
+        }
+        double screen = GrugOverlay.screenSerial();
+        if (searchedIndexes == null
+                || count != searchedCount
+                || screen != searchedScreen
+                || !text.equals(searchedText)) {
+            String[] names = new String[count];
+            String[] modIds = new String[count];
+            for (int index = 0; index < count; index++) {
+                Object item = adapter.listedItemByIndex(index);
+                String registryName = adapter.itemName(item);
+                String display = adapter.itemDisplayName(item);
+                names[index] =
+                        (display != null ? display : String.valueOf(registryName))
+                                .toLowerCase(Locale.ROOT);
+                String modId = adapter.itemModId(item);
+                modIds[index] = modId != null ? modId : GrugItemSearch.modIdOf(registryName);
+            }
+            searchedIndexes = GrugItemSearch.search(text, searchNames(names, modIds));
+            searchedCount = count;
+            searchedScreen = screen;
+            searchedText = text;
+        }
+        return searchedIndexes;
+    }
+
+    /** The search's view of the names {@link #searchedItems} read. */
+    static GrugItemSearch.Names searchNames(String[] names, String[] modIds) {
+        return new GrugItemSearch.Names() {
+            @Override
+            public int count() {
+                return names.length;
+            }
+
+            @Override
+            public String name(int index) {
+                return names[index];
+            }
+
+            @Override
+            public String modId(int index) {
+                return modIds[index];
+            }
+        };
+    }
+
+    /**
+     * How many of the host's listed items the search text lists, in the reference JEI's search
+     * syntax (see {@link GrugItemSearch}); an empty text lists them all.
+     */
+    @GrugGenerated("reads the adapter's item list: a unit test has no game")
+    public static double search_item_count(String text) {
+        List<Integer> indexes = searchedItems("search_item_count", text);
+        return indexes == null ? 0.0 : indexes.size();
+    }
+
+    /**
+     * The item at index among the items the search text lists, from 0 up to search_item_count minus
+     * 1, in the order the host lists its items. An index outside that range is reported.
+     */
+    @GrugGenerated("reads the adapter's item list: a unit test has no game")
+    public static long search_item_at(String text, double index) {
+        List<Integer> indexes = searchedItems("search_item_at", text);
+        if (indexes == null) {
+            return 0;
+        }
+        String problem = searchIndexProblem(index, indexes.size());
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "search_item_at: " + problem);
+            return 0;
+        }
+        Object item = GrugCore.getAdapter().listedItemByIndex(indexes.get((int) index));
+        if (item == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "search_item_at: The item at index " + (int) index + " could not be read.");
+            return 0;
+        }
+        return GrugEntities.addEntity(GrugEntityType.Item, item);
+    }
+
+    /** Why search_item_at refuses this index among {@code count} matches, or null when it can. */
+    static String searchIndexProblem(double index, int count) {
+        if (index < 0 || index > Integer.MAX_VALUE || index != Math.floor(index)) {
+            return "The index has to be a whole number from 0 to "
+                    + Integer.MAX_VALUE
+                    + ", and was "
+                    + index
+                    + ".";
+        }
+        if (index >= count) {
+            return "There is no item at index "
+                    + (int) index
+                    + ", since search_item_count is "
+                    + count
+                    + ".";
+        }
+        return null;
+    }
+
     /** How many items the host lists, or a refusal for a loader that has no list to enumerate. */
     @GrugGenerated("reads the adapter's item list: a unit test has no game")
     public static double item_count() {
@@ -3407,6 +3548,13 @@ public class HostFunctions {
         return GrugOverlay.mouseX();
     }
 
+    public static double OverlayRenderContext_screen_serial(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.screen_serial", contextId)) {
+            return 0.0;
+        }
+        return GrugOverlay.screenSerial();
+    }
+
     public static double OverlayRenderContext_mouse_y(long contextId) {
         if (!requireOverlayRenderContext("OverlayRenderContext.mouse_y", contextId)) return 0.0;
         return GrugOverlay.mouseY();
@@ -3437,6 +3585,25 @@ public class HostFunctions {
             return "The position has to be finite, and was " + x + ", " + y + ".";
         }
         return null;
+    }
+
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    public static void OverlayRenderContext_draw_text(
+            long contextId, String text, double x, double y, long colorId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.draw_text", contextId)) return;
+
+        String problem = overlayItemProblem(x, y);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "OverlayRenderContext.draw_text: " + problem);
+            return;
+        }
+
+        withEntity(
+                "OverlayRenderContext.draw_text",
+                "color",
+                colorId,
+                color -> GrugOverlay.recordText(text, x, y, ((Color) color).getRGB()));
     }
 
     @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
@@ -3788,6 +3955,14 @@ public class HostFunctions {
     public static boolean OverlayWorldKeyContext_ctrl(long contextId) {
         if (!requireWorldKeyContext("OverlayWorldKeyContext.ctrl", contextId)) return false;
         return GrugWorldOverlay.ctrl();
+    }
+
+    /**
+     * Whether this loader calls a block's placed export when a player places the block, which a
+     * test asks before it places one with the held item, so a loader without the hook skips it.
+     */
+    public static boolean Test_placed_supported(long testId) {
+        return GrugCore.getAdapter().placedSupportedForTest();
     }
 
     /**
@@ -4173,5 +4348,77 @@ public class HostFunctions {
             return new java.math.BigDecimal(value).toBigInteger().toString();
         }
         return Double.toString(value);
+    }
+
+    /** The two texts joined, the first then the second. */
+    public static String String_concat(String first, String second) {
+        return first + second;
+    }
+
+    /**
+     * The one character whose Unicode code point the number is, as text, which is how a mod turns
+     * the key code it was given into the character it types.
+     */
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    public static String String_from_character(double code) {
+        String problem = characterProblem(code);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "String.from_character: " + problem);
+            return "";
+        }
+        return new String(Character.toChars((int) code));
+    }
+
+    /** Why from_character refuses this code, or null when it is a Unicode code point. */
+    static String characterProblem(double code) {
+        boolean surrogate = code >= Character.MIN_SURROGATE && code <= Character.MAX_SURROGATE;
+        if (!(code >= 1 && code <= Character.MAX_CODE_POINT)
+                || code != Math.floor(code)
+                || surrogate) {
+            return "The code has to be a whole number from 1 to "
+                    + Character.MAX_CODE_POINT
+                    + " that is not a surrogate, and was "
+                    + code
+                    + ".";
+        }
+        return null;
+    }
+
+    /** How many characters the text has, counting a character outside the basic plane once. */
+    public static double String_length(String text) {
+        return text.codePointCount(0, text.length());
+    }
+
+    /**
+     * The characters of the text from start up to but not including end, counted from 0 in the
+     * characters String.length counts.
+     */
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    public static String String_substring(String text, double start, double end) {
+        String problem = substringProblem(text, start, end);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "String.substring: " + problem);
+            return "";
+        }
+        int from = text.offsetByCodePoints(0, (int) start);
+        int to = text.offsetByCodePoints(from, (int) end - (int) start);
+        return text.substring(from, to);
+    }
+
+    /** Why substring refuses this range of the text, or null when it is a range inside it. */
+    static String substringProblem(String text, double start, double end) {
+        int length = text.codePointCount(0, text.length());
+        if (!(start >= 0 && end >= start && end <= length)
+                || start != Math.floor(start)
+                || end != Math.floor(end)) {
+            return "The range has to be whole numbers with 0 <= start <= end <= "
+                    + length
+                    + ", the length of the text, and was "
+                    + start
+                    + " to "
+                    + end
+                    + ".";
+        }
+        return null;
     }
 }

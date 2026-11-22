@@ -16,7 +16,9 @@ import net.grug.minecraft.grug.GrugShapes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -122,6 +124,38 @@ public class GrugBlock extends Block implements EntityBlock {
             }
             super.onRemove(state, level, pos, newState, isMoving);
         }
+    }
+
+    /**
+     * Calls the block's {@code placed} export after a player placed it, once the block and its
+     * block entity are in the level. Only the server's level counts, because the client calls this
+     * too as a prediction and a block's {@code placed} is server logic; singleplayer's integrated
+     * server is a server. The game also calls this with no placer, as a dispenser places a block,
+     * and with a mob, which are not placements by a player and call nothing.
+     */
+    @Override
+    public void setPlacedBy(
+            Level level,
+            BlockPos pos,
+            BlockState state,
+            @Nullable LivingEntity placer,
+            ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        if (!level.isClientSide() && isPlayer(placer)) {
+            long blockHandle = Grug.createEntity(this.blockFileId);
+            if (blockHandle != 0) {
+                long worldId = GrugEntities.addEntity(GrugEntityType.Level, level);
+                long playerId = GrugEntities.addEntity(GrugEntityType.Player, placer);
+                ExportFns.Block_placed(
+                        blockHandle, worldId, pos.getX(), pos.getY(), pos.getZ(), playerId);
+                Grug.destroyEntity(blockHandle);
+            }
+        }
+    }
+
+    @GrugGenerated("a dispenser places a block with no player, which no test drives")
+    private static boolean isPlayer(@Nullable LivingEntity placer) {
+        return placer instanceof Player;
     }
 
     @Override

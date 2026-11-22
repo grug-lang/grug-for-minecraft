@@ -6,13 +6,21 @@
 # either wraps around at the ends like the reference's. The mouse wheel pages the list too, over the
 # grid and its page buttons: down shows the next page and up the previous one, which is the
 # reference's IngredientGridWithNavigation input handler. Ctrl+O hides and shows the whole overlay,
-# the reference's default for its overlay toggle (KeyBindings.toggleOverlay). There is no search and
-# no recipe categories, and the layout is the reference's own (IngredientGrid,
+# the reference's default for its overlay toggle (KeyBindings.toggleOverlay). There are no recipe
+# categories, and the layout is the reference's own (IngredientGrid,
 # IngredientGridConfig, IngredientListOverlay): a slot is its 16 by 16 icon plus one pixel of padding on each side, the
 # grid is at most 9 columns by 16 rows and at least 4 columns by 1 row, and it sits in the display
 # area to the right of the GUI, inset 6 pixels, with 22 pixels left at the bottom for the search bar
 # and 22 pixels reserved at the top for the page buttons. A grid that does not fit is not drawn at
 # all, which is also what the reference does.
+
+# The search field is the 20 pixel bar at the bottom of that area, as wide as the grid. A left press
+# on it focuses it, a press anywhere else on the list or the screen unfocuses it, and the reference
+# also unfocuses it when the screen changes. While it is focused the letters, the digits and the
+# space are typed into it and backspace deletes the last character, and the list shows only the
+# items the text matches, the reference's own search syntax (see search_item_count): words are
+# matched against the item name, an @ word against the mod, a minus removes, a bar separates
+# alternatives. A change of the text goes back to the first page. See #865.
 
 slot: number = 18
 max_columns: number = 9
@@ -41,7 +49,33 @@ shown: bool = true
 # The key code the overlay gets for the letter O, the same on every loader.
 toggle_key: number = 79
 
+# The search field's text, whether it has the keyboard, and the serial of the screen last drawn,
+# which says when the screen changed.
+query: string = ""
+focused: bool = false
+
+# Whether the last frame drew the field, which it does not when the grid does not fit: a field that
+# is not on the screen takes no key.
+field_visible: bool = false
+seen_screen: number = -1
+
+# The reference's search field height (IngredientListOverlay.SEARCH_HEIGHT), and the most characters
+# its text field lets the player type.
+search_height: number = 20
+max_query: number = 128
+
+# The key codes of the keys that edit the field, which the host gives the same on every loader.
+key_space: number = 32
+key_backspace: number = 8
+
 export render(ctx: OverlayRenderContext) {
+    # A new screen unfocuses the field before anything can return early, so a screen where the grid
+    # does not fit cannot leave an invisible field holding the keyboard.
+    if ctx.screen_serial() != seen_screen {
+        focused = false
+        seen_screen = ctx.screen_serial()
+    }
+    field_visible = false
     if not shown {
         return
     }
@@ -57,8 +91,10 @@ export render(ctx: OverlayRenderContext) {
     grid_y: number = _grid_y()
     mouse_x: number = ctx.mouse_x()
     mouse_y: number = ctx.mouse_y()
-    count: number = item_count()
+    count: number = search_item_count(query)
+    field_visible = true
     _fit_page(columns * rows, count)
+    _draw_search(ctx, grid_x, columns * slot, screen_height)
     ctx.draw_box(grid_x, border_margin, grid_x + button_size, border_margin + button_size)
     ctx.draw_box(grid_x + columns * slot - button_size, border_margin, grid_x + columns * slot, border_margin + button_size)
     first: number = page * columns * rows
@@ -67,7 +103,7 @@ export render(ctx: OverlayRenderContext) {
         if first + index < count {
             slot_x: number = grid_x + _column(index, columns) * slot
             slot_y: number = grid_y + _row(index, columns) * slot
-            ctx.draw_item(item_at(first + index), slot_x + 1, slot_y + 1)
+            ctx.draw_item(search_item_at(query, first + index), slot_x + 1, slot_y + 1)
             if _inside(mouse_x, mouse_y, slot_x, slot_y) {
                 ctx.draw_box(slot_x, slot_y, slot_x + slot, slot_y + slot)
             }
@@ -89,13 +125,27 @@ export click(ctx: OverlayClickContext) {
     columns: number = _columns(screen_width, ctx.gui_left(), ctx.gui_width())
     rows: number = _rows(ctx.screen_height())
     if columns < min_columns or rows < min_rows {
+        focused = false
         return
     }
 
-    count: number = item_count()
+    count: number = search_item_count(query)
     per_page: number = columns * rows
     _fit_page(per_page, count)
+    if button == 1 and _on_search(ctx.mouse_x(), ctx.mouse_y(), screen_width, ctx.gui_left(), ctx.gui_width(), columns, ctx.screen_height()) {
+        # A right click on the field clears it and focuses it, the reference's text field.
+        query = ""
+        page = 0
+        focused = true
+        ctx.take()
+        return
+    }
     if button == 0 {
+        if _on_search(ctx.mouse_x(), ctx.mouse_y(), screen_width, ctx.gui_left(), ctx.gui_width(), columns, ctx.screen_height()) {
+            focused = true
+            ctx.take()
+            return
+        }
         step: number = _button_step(ctx.mouse_x(), ctx.mouse_y(), screen_width, ctx.gui_left(), ctx.gui_width(), columns)
         if step != 0 {
             pages: number = _page_count(per_page, count)
@@ -106,6 +156,7 @@ export click(ctx: OverlayClickContext) {
         }
     }
 
+    focused = false
     index: number = _clicked_index(ctx.mouse_x(), ctx.mouse_y(), screen_width, ctx.gui_left(), ctx.gui_width(), columns, rows)
     if index < 0 {
         return
@@ -124,9 +175,9 @@ export click(ctx: OverlayClickContext) {
     # A right click gives one, like a left click, and shift+left or the middle button gives a stack,
     # which are the reference's cheatOneItem2 and cheatItemStack bindings.
     if button == 2 or (button == 0 and ctx.shift()) {
-        give_item_stack(item_at(index))
+        give_item_stack(search_item_at(query, index))
     } else {
-        give_item(item_at(index))
+        give_item(search_item_at(query, index))
     }
     ctx.take()
 }
@@ -135,7 +186,38 @@ export key(ctx: OverlayKeyContext) {
     if ctx.key() == toggle_key and ctx.ctrl() {
         shown = not shown
         ctx.take()
+        return
     }
+    if not shown or not field_visible or not focused or ctx.ctrl() {
+        return
+    }
+
+    key: number = ctx.key()
+    length: number = String.length(query)
+    if key == key_backspace {
+        if length > 0 {
+            query = String.substring(query, 0, length - 1)
+            page = 0
+        }
+        ctx.take()
+        return
+    }
+    # A letter arrives as its upper-case code and is typed in lower case, which the search does not
+    # tell apart anyway.
+    typed: number = -1
+    if key >= 65 and key <= 90 {
+        typed = key + 32
+    } else if key == key_space or (key >= 48 and key <= 57) {
+        typed = key
+    }
+    if typed < 0 {
+        return
+    }
+    if length < max_query {
+        query = String.concat(query, String.from_character(typed))
+        page = 0
+    }
+    ctx.take()
 }
 
 export scroll(ctx: OverlayScrollContext) {
@@ -157,7 +239,7 @@ export scroll(ctx: OverlayScrollContext) {
         return
     }
 
-    count: number = item_count()
+    count: number = search_item_count(query)
     per_page: number = columns * rows
     _fit_page(per_page, count)
     pages: number = _page_count(per_page, count)
@@ -168,6 +250,43 @@ export scroll(ctx: OverlayScrollContext) {
     }
     page = Math.remainder(page + step + pages, pages)
     ctx.take()
+}
+
+# The search field: an outline that is drawn white while it has the keyboard, with the text and,
+# while focused, an underscore cursor after it. The field's text is white, the reference's own
+# colour, and red when nothing matches, which is its filter-empty colour.
+local _draw_search(ctx: OverlayRenderContext, left: number, width: number, screen_height: number) {
+    top: number = screen_height - border_margin - search_height
+    right: number = left + width
+    bottom: number = top + search_height
+    if focused {
+        ctx.draw_box(left, top, right, top + 1)
+        ctx.draw_box(left, bottom - 1, right, bottom)
+        ctx.draw_box(left, top + 1, left + 1, bottom - 1)
+        ctx.draw_box(right - 1, top + 1, right, bottom - 1)
+    }
+    text: string = query
+    if focused {
+        text = String.concat(query, "_")
+    }
+    # The text is cut to its last characters when it is wider than the field, which the typed end of
+    # it stays visible in; a character is at most 6 pixels wide with its spacing.
+    fit: number = Math.floor((width - 10) / 6)
+    if String.length(text) > fit {
+        text = String.substring(text, String.length(text) - fit, String.length(text))
+    }
+    color: Color = Color.rgb(255, 255, 255)
+    if search_item_count(query) == 0 {
+        color = Color.rgb(255, 85, 85)
+    }
+    ctx.draw_text(text, left + 4, top + 6, color)
+}
+
+# Whether a point is on the search field.
+local _on_search(mouse_x: number, mouse_y: number, screen_width: number, gui_left: number, gui_width: number, columns: number, screen_height: number) bool {
+    left: number = _grid_x(screen_width, gui_left, gui_width)
+    top: number = screen_height - border_margin - search_height
+    return mouse_x >= left and mouse_x < left + columns * slot and mouse_y >= top and mouse_y < top + search_height
 }
 
 # A page button plays the game's button click, the way the reference's buttons do (Button's

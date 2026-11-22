@@ -65,6 +65,12 @@ if [ "$PHASE" != build ] && [ "$WINDOWS" = false ] && [ -z "${DISPLAY:-}" ]; the
   exit 2
 fi
 
+# Print the CPU and pin llvmpipe to one rasterizer on every CPU class (#1550).
+if [ "$PHASE" != build ] && [ "$WINDOWS" = false ]; then
+  # shellcheck source=pin-llvmpipe.sh
+  . "$(dirname "${BASH_SOURCE[0]}")/pin-llvmpipe.sh"
+fi
+
 mkdir -p "${LOADER_DIR}/run"
 LOG_FILE="${REPO_ROOT}/${LOADER_DIR}/run/ci-run-loader.log"
 

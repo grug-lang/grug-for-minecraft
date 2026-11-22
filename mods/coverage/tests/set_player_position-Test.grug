@@ -4,8 +4,11 @@
 # (#1427). The room's floor is three blocks below the feet, so a move one block along x stays over
 # the floor and the player is read back before the game can tick them anywhere.
 started: bool = false
-supported: bool = false
+laid: bool = false
 moved: bool = false
+feet_x: number = 0.0
+feet_y: number = 0.0
+feet_z: number = 0.0
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -17,26 +20,42 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    if not supported {
-        supported = true
-        # The player lands on a block one along x, so a joined client, which runs its own physics,
-        # has nothing to fall through and its eye stays where the teleport put it: the first read
-        # after the teleport and any later one agree, with no tick count to wait for (#1040).
-        here: Vec3 = ctx.camera()
-        ctx.get_client_level().place_block(Math.floor(here.x() + 1.0), Math.floor(here.y() - 1.62 + 0.01) - 1, Math.floor(here.z()), "minecraft:stone")
+    if not laid {
+        # The client simulates its own player, so a client tick that lands between the move and the
+        # read-back applies gravity to a player with nothing under them: the eye then reads 0.0784
+        # lower, which is #1553's failure on 1.20.6-forge (a client tick falls in that gap about once
+        # in a hundred moves). Stone under the destination holds the player at their feet, so the
+        # read-back is the move alone however many client ticks run between.
+        start: Vec3 = ctx.camera()
+        feet_x = Math.floor(start.x() + 1.0)
+        feet_y = Math.floor(start.y() - 1.62 + 0.5)
+        feet_z = Math.floor(start.z())
+        ctx.get_client_level().place_block(feet_x, feet_y - 1.0, feet_z, "minecraft:stone")
+        laid = true
         ctx.not_done()
         return
     }
     if not moved {
+        # The client's own copy of the world holds the stone before the player is moved onto it.
+        if ctx.get_client_level().is_air(feet_x, feet_y - 1.0, feet_z) {
+            ctx.not_done()
+            return
+        }
         moved = true
         before: Vec3 = ctx.camera()
         # The origin is the camera plus 3 on y only, and the feet are 1.62 blocks under the eye, so
         # this stands one block along x at the same height and depth.
-        ctx.set_player_position(before.x() + 1.0, before.y() - 1.62, before.z())
-        after: Vec3 = ctx.camera()
-        ctx.assert(_near(after.x(), before.x() + 1.0), "The player moves to the x the test asked for.")
-        ctx.assert(_near(after.y(), before.y()), "A move at the feet keeps the eye height.")
-        ctx.assert(_near(after.z(), before.z()), "A move leaves the axis the test did not name alone.")
+        i: number = 0
+        # Repeating the move makes the client tick that used to land between it and the read-back
+        # likely instead of rare.
+        while i < 300 {
+            ctx.set_player_position(before.x() + 1.0, before.y() - 1.62, before.z())
+            after: Vec3 = ctx.camera()
+            ctx.assert(_near(after.x(), before.x() + 1.0), "The player moves to the x the test asked for.")
+            ctx.assert(_near(after.y(), before.y()), "A move at the feet keeps the eye height.")
+            ctx.assert(_near(after.z(), before.z()), "A move leaves the axis the test did not name alone.")
+            i = i + 1
+        }
         return
     }
 }

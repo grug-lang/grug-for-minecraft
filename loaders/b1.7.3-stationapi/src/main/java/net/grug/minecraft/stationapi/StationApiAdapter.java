@@ -1030,6 +1030,17 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Vec3 playerPosition(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        return new Vec3(player.x, player.boundingBox.minY, player.z);
+    }
+
+    @Override
+    public boolean placedSupportedForTest() {
+        return true;
+    }
+
+    @Override
     public Object getHeldItem(Object playerObj) {
         ItemStack stack = ((PlayerEntity) playerObj).inventory.getSelectedItem();
         return (stack != null) ? stack.getItem() : null;
@@ -1108,6 +1119,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
     public String itemName(Object itemObj) {
         Identifier id = ItemRegistry.INSTANCE.getId((Item) itemObj);
         return id == null ? null : id.toString();
+    }
+
+    @Override
+    @GrugGenerated("asks the game for an item's own name: a unit test has no game")
+    public String itemDisplayName(Object itemObj) {
+        return ((Item) itemObj).getTranslatedName();
     }
 
     @Override

@@ -1,0 +1,17 @@
+# Fixture block for coverage: its placed export writes down where the placing player stood, as glass the
+# test can read back. One glass block goes twenty above the block, in the column of the player's feet, which
+# says where the player stood horizontally. A second goes twenty-one above the block, in the block's own
+# column, only when the player's feet were between 2.5 and 3.7 below the block, which is the height they are
+# at when the block is placed below the origin: that tells the feet from the eye, which 1.2.5 and Beta keep
+# in their position fields.
+export init(ctx: BlockInitContext) {
+    ctx.set_material("stone")
+}
+
+export placed(world: Level, x: number, y: number, z: number, placer: Player) {
+    position: Vec3 = placer.position()
+    world.place_block(Math.floor(position.x()), y + 20, Math.floor(position.z()), "minecraft:glass")
+    if position.y() - y < -2.5 and position.y() - y > -3.7 {
+        world.place_block(x, y + 21, z, "minecraft:glass")
+    }
+}

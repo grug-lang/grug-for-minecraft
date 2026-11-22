@@ -25,7 +25,8 @@
         "grug.custom_geometry.mixins.json",
         "grug.world_settle.mixins.json",
         "grug.control.mixins.json",
-        "grug.server.mixins.json"
+        "grug.server.mixins.json",
+        "grug.placed.mixins.json"
     ],
     "depends": {
         "minecraft": "1.0.0-beta.7.3",

@@ -595,6 +595,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Vec3 playerPosition(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        return new Vec3(player.x, player.y - GrugTestOrigin.EYE_HEIGHT, player.z);
+    }
+
+    @Override
+    public boolean placedSupportedForTest() {
+        return true;
+    }
+
+    @Override
     public Object getHeldItem(Object playerObj) {
         ItemStack stack = ((PlayerEntity) playerObj).inventory.getSelectedItem();
         return (stack != null) ? stack.getItem() : null;

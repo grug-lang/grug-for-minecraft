@@ -1192,6 +1192,17 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Vec3 playerPosition(Object playerObj) {
+        EntityPlayer player = (EntityPlayer) playerObj;
+        return new Vec3(player.posX, player.boundingBox.minY, player.posZ);
+    }
+
+    @Override
+    public boolean placedSupportedForTest() {
+        return true;
+    }
+
+    @Override
     public Object getHeldItem(Object playerObj) {
         ItemStack stack = ((EntityPlayer) playerObj).inventory.getCurrentItem();
         return (stack != null) ? stack.getItem() : null;
@@ -1263,6 +1274,26 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
                     + " gate counts never names an item and gives it to its own player")
     public String itemName(Object itemObj) {
         return ((Item) itemObj).getItemName();
+    }
+
+    @Override
+    @GrugGenerated("asks the game which item is a grug mod's: a unit test has no game")
+    public String itemModId(Object itemObj) {
+        Item item = (Item) itemObj;
+        if (item instanceof GrugItem) {
+            return "grug";
+        }
+        int id = item.shiftedIndex;
+        if (id < Block.blocksList.length && Block.blocksList[id] instanceof GrugBlock) {
+            return "grug";
+        }
+        return null;
+    }
+
+    @Override
+    @GrugGenerated("asks the game for an item's own name: a unit test has no game")
+    public String itemDisplayName(Object itemObj) {
+        return ((Item) itemObj).getItemDisplayName(new ItemStack((Item) itemObj));
     }
 
     @Override

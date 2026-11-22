@@ -122,6 +122,25 @@ public class GrugBlock extends BlockWithBlockEntity {
         return super.use(world, x, y, z, player);
     }
 
+    /**
+     * Calls the block's {@code placed} export after a player placed it. A mixin into the game's
+     * block placement calls this, because Alpha has no placer callback and the two versions name
+     * Beta's differently, which this shared source cannot override. A joined client's world is
+     * skipped, because it only mirrors the server's and a block's {@code placed} is server logic.
+     */
+    public void grugPlaced(World world, int x, int y, int z, PlayerEntity placer) {
+        if (world.isMultiplayer) {
+            return;
+        }
+        long blockHandle = Grug.createEntity(this.blockFileId);
+        if (blockHandle != 0) {
+            long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
+            long playerId = GrugEntities.addEntity(GrugEntityType.Player, placer);
+            ExportFns.Block_placed(blockHandle, worldId, x, y, z, playerId);
+            Grug.destroyEntity(blockHandle);
+        }
+    }
+
     @Override
     public void onRemoved(World world, int x, int y, int z) {
         GrugStaleBlockEntity.duringRemoval(() -> removeGrugBlock(world, x, y, z));
