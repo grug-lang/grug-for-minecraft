@@ -118,4 +118,36 @@ class GrugServerJoinTest {
                 },
                 GrugServerJoin.everyoneLeftReport());
     }
+
+    @Test
+    void theWaitReportNeedsAPlayerAndAnOldReport() {
+        assertTrue(GrugServerJoin.waitReportDue(true, 5000, 0));
+        assertFalse(GrugServerJoin.waitReportDue(true, 4999, 0));
+        assertFalse(GrugServerJoin.waitReportDue(false, 5000, 0));
+        assertFalse(GrugServerJoin.waitReportDue(false, 1, 0));
+    }
+
+    @Test
+    void theWaitMessageNamesThePosition() {
+        assertEquals(
+                "[GRUG CI] waiting for the world: player at 1.5, 70.0, -2.5",
+                GrugServerJoin.waitMessage(1.5, 70.0, -2.5));
+    }
+
+    @Test
+    void printWritesEachLine() {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+
+        GrugServerJoin.print(new java.io.PrintStream(bytes), new String[] {"a", "b"});
+
+        assertEquals("a" + System.lineSeparator() + "b" + System.lineSeparator(), bytes.toString());
+    }
+
+    @Test
+    void theTimeoutReportComesOnlyOnceTheWaitHasLastedTheTimeout() {
+        assertArrayEquals(
+                GrugServerJoin.timeoutReport(1000),
+                GrugServerJoin.timeoutReportIfDue(0, 1000, 1000));
+        assertEquals(null, GrugServerJoin.timeoutReportIfDue(0, 999, 1000));
+    }
 }

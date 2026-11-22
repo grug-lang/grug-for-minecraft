@@ -176,4 +176,39 @@ public final class GrugPlayerFloor {
                 + feetY
                 + " (inside the ground)";
     }
+
+    /**
+     * The count of holds a run made and when it last said so, which is all a loader's floor hold
+     * keeps besides the teleport. The loaders call {@link #record} from the one arm that moves the
+     * player and {@link #printSummary} from the stop, so neither the throttle nor the totals live
+     * in a class the gate cannot count.
+     */
+    public static final class HoldLog {
+        private long holds;
+        private long lastReportMillis;
+
+        /**
+         * Counts one hold and prints its line to {@code out} on the first one and then at most once
+         * per {@link #HOLD_REPORT_INTERVAL_MILLIS}.
+         */
+        public void record(java.io.PrintStream out, double floorTop, double feetY, long nowMillis) {
+            holds++;
+            if (holdReportDue(holds, nowMillis, lastReportMillis)) {
+                lastReportMillis = nowMillis;
+                out.println(holdMessage(floorTop, feetY));
+            }
+        }
+
+        /** How many holds were counted. */
+        public long holds() {
+            return holds;
+        }
+
+        /** Prints how often the player was held, and nothing when they never were. */
+        public void printSummary(java.io.PrintStream out) {
+            if (holds > 0) {
+                out.println("[GRUG CI] The test player was held on the floor " + holds + " times.");
+            }
+        }
+    }
 }

@@ -82,9 +82,7 @@ public final class GrugServerRun {
     private boolean done = false;
 
     /** How many times the hold put the player back on the floor, and when it last said so. */
-    private long holds = 0;
-
-    private long lastHoldReportMillis = 0;
+    private final GrugPlayerFloor.HoldLog holdLog = new GrugPlayerFloor.HoldLog();
 
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
@@ -114,11 +112,8 @@ public final class GrugServerRun {
                                 + " ms. Firing tests!");
                 runner = new GrugTestRunner();
                 moveStrangersAway(server);
-            } else if (GrugServerJoin.timedOut(
-                    waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS)) {
-                failJoinTimeout(server);
-                return;
             } else {
+                failJoinTimeoutIfDue(server);
                 return;
             }
         }
@@ -347,34 +342,35 @@ public final class GrugServerRun {
 
     /**
      * The arm of the floor hold that puts the player back. The decision to enter it is core's
-     * {@link GrugPlayerFloor#below}, and the throttle and the text of its report are {@link
-     * GrugPlayerFloor#holdReportDue} and {@link GrugPlayerFloor#holdMessage}, which core's unit
-     * tests cover.
+     * {@link GrugPlayerFloor#below}, and the count, the throttle and the text of its report are
+     * core's {@link GrugPlayerFloor.HoldLog}, which core's unit tests cover.
      */
     @GrugGenerated(
             "it runs only when the joined client has fallen into the ground, which the client's own"
-                + " collision prevents and a test cannot make it do; the teleport, the count and"
-                + " the call of core's tested helpers are all that is in it (#1136)")
+                + " collision prevents and a test cannot make it do; the teleport and the call of"
+                + " core's tested log are all that is in it (#1136)")
     private void holdOnFloor(ServerPlayer player, double feet, double floor) {
         player.teleportTo(player.getX(), floor, player.getZ());
         player.setDeltaMovement(0.0, 0.0, 0.0);
-        holds++;
-        long now = System.currentTimeMillis();
-        if (GrugPlayerFloor.holdReportDue(holds, now, lastHoldReportMillis)) {
-            lastHoldReportMillis = now;
-            System.out.println(GrugPlayerFloor.holdMessage(floor, feet));
-        }
+        holdLog.record(System.out, floor, feet, System.currentTimeMillis());
     }
 
-    /** Fails the run because no player joined in time, which only a failing run reaches. */
+    /**
+     * Fails the run when no player joined in time, which only a failing run reaches. Every waiting
+     * tick calls it and core's {@link GrugServerJoin#timeoutReportIfDue} answers whether it is due.
+     */
     @GrugGenerated(
-            "it ends the server process through stop, with the run failed: a test that reached it"
-                    + " would end the very run it is part of; the text is core's tested"
-                    + " GrugServerJoin.timeoutReport")
-    private void failJoinTimeout(MinecraftServer server) {
-        for (String line : GrugServerJoin.timeoutReport(PLAYER_JOIN_TIMEOUT_MILLIS)) {
-            System.out.println(line);
+            "its failing arm ends the server process through stop, with the run failed: a test that"
+                    + " reached it would end the very run it is part of; the decision and the text"
+                    + " are core's tested GrugServerJoin.timeoutReportIfDue")
+    private void failJoinTimeoutIfDue(MinecraftServer server) {
+        String[] report =
+                GrugServerJoin.timeoutReportIfDue(
+                        waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS);
+        if (report == null) {
+            return;
         }
+        GrugServerJoin.print(System.out, report);
         stop(server);
     }
 
@@ -384,19 +380,14 @@ public final class GrugServerRun {
                     + " would end the very run it is part of; the text is core's tested"
                     + " GrugServerJoin.starterLeftReport")
     private void failStarterLeft(MinecraftServer server, int playersLeft) {
-        for (String line : GrugServerJoin.starterLeftReport(playersLeft)) {
-            System.out.println(line);
-        }
+        GrugServerJoin.print(System.out, GrugServerJoin.starterLeftReport(playersLeft));
         stop(server);
     }
 
     private void stop(MinecraftServer server) {
         done = true;
         GrugControlForge.server().endRun();
-        if (holds > 0) {
-            System.out.println(
-                    "[GRUG CI] The test player was held on the floor " + holds + " times.");
-        }
+        holdLog.printSummary(System.out);
         // The run's players are read after the last forwarded call, so a second player who is
         // still here proves the freeze did not drop its connection (#1027). run-multiplayer.sh
         // asserts this line on the 1.20.6 leg, which is the one that launches a second client.

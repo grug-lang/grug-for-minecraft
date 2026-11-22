@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.control;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -84,14 +85,11 @@ public final class GrugControlBeta {
             // A dead connection takes a packet into its queue without a word, so the starter is
             // asked about instead: a player who left is no longer in the world.
             PlayerEntity player = PLAYERS.get((Connection) starter);
-            World world = GrugServerRun.world();
-            if (player == null
-                    || world == null
-                    || !new ArrayList<>(world.players).contains(player)) {
-                return false;
-            }
-            ((Connection) starter).send(new GrugControlPacket(message));
-            return true;
+            return GrugLinkArms.deliverIf(
+                    GrugLinkArms.stillHere(
+                            player, GrugServerRun.world(), world -> new ArrayList<>(world.players)),
+                    (Connection) starter,
+                    connection -> connection.send(new GrugControlPacket(message)));
         }
 
         @Override
@@ -112,10 +110,7 @@ public final class GrugControlBeta {
          */
         @Override
         public void applyClientWork() {
-            Object starter = server().starter();
-            if (starter instanceof Connection) {
-                ((Connection) starter).tick();
-            }
+            GrugLinkArms.applyTo(server().starter(), Connection.class, Connection::tick);
         }
 
         /**
@@ -125,7 +120,7 @@ public final class GrugControlBeta {
          */
         @Override
         public boolean mayStartRun(Object sender) {
-            return PLAYERS.get((Connection) sender) != null;
+            return GrugLinkArms.known(PLAYERS.get((Connection) sender));
         }
 
         /** This loader gives to the player who asked, after the operator check (#882). */

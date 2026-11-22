@@ -3,6 +3,7 @@ package net.grug.minecraft.forge125.control;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.forge125.GrugServerRun;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.EntityPlayerMP;
@@ -90,11 +91,12 @@ public final class GrugControlServer125 implements GrugControlRouter {
             // A dead connection takes a packet into its queue without a word, so the starter is
             // asked about instead: a player who left is no longer in the player list.
             EntityPlayerMP player = playerOf((NetworkManager) starter);
-            if (player == null || !GrugServerRun.isConnected(player)) {
-                return false;
-            }
-            player.playerNetServerHandler.sendPacket(new GrugControlPacket(message));
-            return true;
+            return GrugLinkArms.deliverIf(
+                    GrugLinkArms.stillConnected(player, GrugServerRun::isConnected),
+                    player,
+                    found ->
+                            found.playerNetServerHandler.sendPacket(
+                                    new GrugControlPacket(message)));
         }
 
         @Override
