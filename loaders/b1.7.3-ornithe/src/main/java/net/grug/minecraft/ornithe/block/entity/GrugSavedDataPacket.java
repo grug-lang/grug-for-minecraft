@@ -120,12 +120,36 @@ public class GrugSavedDataPacket extends Packet {
         BlockEntity blockEntity = world.getBlockEntity(x, y, z);
         if (blockEntity instanceof GrugBlockEntity) {
             ((GrugBlockEntity) blockEntity).readSavedData(data);
+            remember(x, y, z, blockId, data);
             if (redraw) {
                 // The client builds its own mesh again from the data it just read, which is the
                 // local world's mark, not a packet: the data travels server to client only.
                 GrugCore.getAdapter().redraw(blockEntity);
             }
         }
+    }
+
+    /**
+     * The last data this client received for each block, so a copy the game makes again at the same
+     * place for the same block starts from it. The client drops and remakes its block entities in a
+     * chunk region a later region packet covers, which leaves the new copy empty and waiting for a
+     * send that already came, and a chunk-mesh block such as the redstone engine then stays drawn
+     * from empty data (#1040).
+     */
+    private static final java.util.Map<String, NbtCompound> RECEIVED =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static String key(int x, int y, int z, int blockId) {
+        return x + "," + y + "," + z + "," + blockId;
+    }
+
+    private static void remember(int x, int y, int z, int blockId, NbtCompound data) {
+        RECEIVED.put(key(x, y, z, blockId), data);
+    }
+
+    /** The data this client last received for the block at the position, or null. */
+    public static NbtCompound received(int x, int y, int z, int blockId) {
+        return RECEIVED.get(key(x, y, z, blockId));
     }
 
     /**

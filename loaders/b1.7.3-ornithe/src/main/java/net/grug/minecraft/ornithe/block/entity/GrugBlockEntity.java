@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.block.entity;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugStaleBlockEntity;
 import net.grug.minecraft.grug.ExportFns;
@@ -203,8 +204,19 @@ public class GrugBlockEntity extends BlockEntity
         // render path waits for the first update, which the server sends from the game's own
         // block entity update hook (#1053). A server's own copy and a singleplayer world hold the
         // data the script wrote, so they never wait.
-        GrugSavedDataSync.clientCopyCreated(this, world != null && world.isMultiplayer);
+        boolean joined = world != null && world.isMultiplayer;
+        GrugSavedDataSync.clientCopyCreated(this, joined);
         initGrug();
+        if (joined) {
+            // The game remakes a joined client's copies when a chunk region packet arrives, after
+            // the server's data for them, so a copy made again starts from the data this client
+            // last received for the block and builds its mesh from it (#1040).
+            NbtCompound known = GrugSavedDataPacket.received(x, y, z, world.getBlock(x, y, z));
+            if (known != null) {
+                readSavedData(known);
+                GrugCore.getAdapter().redraw(this);
+            }
+        }
     }
 
     /**
