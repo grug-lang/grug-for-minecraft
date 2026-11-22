@@ -49,7 +49,8 @@ public final class GrugBlocks {
     public static final Map<Integer, String> BLOCK_SPRITE_PATHS = new HashMap<>();
     // Texture reference ("grug:block/foo") -> sprite id, so identical textures share a slot
     private static final Map<String, Integer> TEXTURE_SPRITES = new HashMap<>();
-    private static int nextBlockSpriteId = 160;
+    private static final GrugSpriteSlots.Allocator BLOCK_SPRITE_SLOTS =
+            new GrugSpriteSlots.Allocator(160);
     private static int nextItemSpriteId = 160;
 
     public static void init() {
@@ -99,8 +100,7 @@ public final class GrugBlocks {
                 block.faceSprites = faceSprites;
                 block.sprite = faceSprites[2];
             } else {
-                int blockSprite = GrugSpriteSlots.firstUsable(nextBlockSpriteId);
-                nextBlockSpriteId = blockSprite + 1;
+                int blockSprite = BLOCK_SPRITE_SLOTS.next();
                 BLOCK_SPRITES.put(cleanName, blockSprite);
                 block.sprite = blockSprite;
             }
@@ -152,8 +152,7 @@ public final class GrugBlocks {
         if (existing != null) {
             return existing;
         }
-        int sprite = GrugSpriteSlots.firstUsable(nextBlockSpriteId);
-        nextBlockSpriteId = sprite + 1;
+        int sprite = BLOCK_SPRITE_SLOTS.next();
         TEXTURE_SPRITES.put(textureRef, sprite);
         BLOCK_SPRITE_PATHS.put(sprite, GrugBlockModels.toTexturePath(textureRef));
         return sprite;
