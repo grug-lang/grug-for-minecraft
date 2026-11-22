@@ -605,6 +605,7 @@ jobs:
             .github/scripts/ci_timing_test.py \
             .github/scripts/combine_coverage_test.py \
             .github/scripts/base_coverage_map_run_test.py \
+            .github/scripts/base_server_exec_artifacts_test.py \
             .github/scripts/watch_run_test.py \
             .github/scripts/affected_mods_test.py \
             .github/scripts/affected_loaders_test.py \
@@ -2417,6 +2418,33 @@ jobs:
             --other-mods-dir coverage/carry-over-dropped \
             "${loader_args[@]}"
 
+      # The latest dedicated-server exec data, for a diff that runs no dedicated leg (#1602). Only
+      # the dispatch-only multiplayer job uploads server-exec, so it comes from the newest dispatch
+      # or scheduled run of build.yml on main within the 7 day retention (among the 10 newest), not
+      # from the base run. combine-coverage.py counts it for a runner only when this run's own leg
+      # uploaded none, and JaCoCo ignores a class whose id no longer matches this run's bytes. The
+      # log names the run and its age, or says nothing qualified. This changes no gate result until
+      # a class is promoted, and the step cannot fail the job.
+      - name: Retrieve the latest dedicated-server exec data
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p coverage/base-server-exec
+          python3 .github/scripts/base_server_exec_artifacts.py 2> coverage/base-server-exec.log > coverage/base-server-exec.txt || true
+          cat coverage/base-server-exec.log
+          while IFS=' ' read -r name url; do
+            [ -n "$name" ] || continue
+            mkdir -p "coverage/base-server-exec/$name"
+            if curl -sfL -H "Authorization: Bearer $GITHUB_TOKEN" "$url" -o "coverage/base-server-exec/$name.zip" \
+              && unzip -o -q "coverage/base-server-exec/$name.zip" -d "coverage/base-server-exec/$name"; then
+              echo "Retrieved $name."
+            else
+              echo "Carrying over no $name: it could not be downloaded."
+              rm -rf "coverage/base-server-exec/$name"
+            fi
+          done < coverage/base-server-exec.txt
+
       - name: Combine the coverage data and require 100%
         run: |
           set -eu
@@ -2450,6 +2478,7 @@ jobs:
             --jacoco-cli coverage/tools/jacoco-cli.jar \
             --output coverage/report \
             --require-100 \
+            --base-server-exec coverage/base-server-exec \
             "${carry[@]}" \
             "${other_mods[@]}"
 

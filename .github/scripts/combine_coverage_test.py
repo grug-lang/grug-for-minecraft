@@ -1169,5 +1169,68 @@ class OrnitheServerSetEdgeTest(unittest.TestCase):
         self.assertNotIn("a1.1.2_01-ornithe-server.csv", calls)
 
 
+class BaseServerExecCarryOverTest(unittest.TestCase):
+    """The base run's server-exec artifacts count for a runner whose own run uploaded none, so a
+    diff that runs no dedicated leg keeps the last recording (#1602)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def base(self, **runners):
+        for runner, names in runners.items():
+            directory = self.root / f"server-exec-{runner}"
+            directory.mkdir(parents=True)
+            (directory / "a.exec").write_bytes(exec_bytes(*names))
+        return combine.base_server_exec(self.root)
+
+    def test_no_leg_ran_so_the_base_data_is_taken(self):
+        base = self.base(a=["net/A"])
+        taken, lines = combine.carry_over_server_exec({"a": {"classes": Path("c")}}, base)
+        self.assertEqual(list(taken), ["a"])
+        self.assertIn("carrying over 1", lines[0])
+
+    def test_a_leg_that_ran_keeps_its_own_data_and_nothing_is_carried(self):
+        base = self.base(a=["net/A"])
+        runners = {"a": {"classes": Path("c"), "server_exec": [Path("own.exec")]}}
+        taken, lines = combine.carry_over_server_exec(runners, base)
+        self.assertEqual(taken, {})
+        self.assertIn("own leg uploaded", lines[0])
+
+    def test_a_base_without_server_exec_carries_nothing_and_says_so(self):
+        for directory in (None, self.root / "missing", self.root):
+            taken, lines = combine.carry_over_server_exec(
+                {"a": {"classes": Path("c")}}, combine.base_server_exec(directory)
+            )
+            self.assertEqual(taken, {})
+            self.assertIn("base run has none", lines[0])
+
+    def test_a_base_directory_of_other_artifacts_or_empty_ones_is_no_server_exec(self):
+        (self.root / "coverage-exec-core").mkdir()
+        (self.root / "server-exec-a").mkdir()
+        self.assertEqual(combine.base_server_exec(self.root), {})
+
+    def test_a_runner_this_run_lacks_is_not_carried(self):
+        base = self.base(gone=["net/A"])
+        taken, lines = combine.carry_over_server_exec({}, base)
+        self.assertEqual(taken, {})
+        self.assertIn("no classes", lines[0])
+
+    def test_dropped_files_travel_with_the_exec_files(self):
+        self.base(a=["net/A"])
+        (self.root / "server-exec-a" / "b.dropped").write_bytes(exec_bytes("net/B"))
+        taken, _ = combine.carry_over_server_exec(
+            {"a": {"classes": Path("c")}}, combine.base_server_exec(self.root)
+        )
+        self.assertEqual([p.name for p in taken["a"][1]], ["b.dropped"])
+
+    def test_ids_that_no_longer_match_are_named_and_only_the_carried_ones(self):
+        base = self.base(a=["net/A", "net/B"])
+        stale = combine.carried_unmatched(["net/B", "net/Own"], base["a"][0])
+        self.assertEqual(stale, ["net/B"])
+        self.assertEqual(combine.carried_unmatched([], base["a"][0]), [])
+
+
 if __name__ == "__main__":
     unittest.main()

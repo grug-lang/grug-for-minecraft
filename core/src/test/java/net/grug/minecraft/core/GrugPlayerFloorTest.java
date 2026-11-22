@@ -436,4 +436,40 @@ class GrugPlayerFloorTest {
                         + " (inside the ground)",
                 GrugPlayerFloor.holdMessage(70.5, 70.25));
     }
+
+    private static String lines(java.io.ByteArrayOutputStream bytes) {
+        return bytes.toString();
+    }
+
+    @Test
+    void theHoldLogSaysTheFirstHoldAndThenOncePerInterval() {
+        GrugPlayerFloor.HoldLog log = new GrugPlayerFloor.HoldLog();
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream out = new java.io.PrintStream(bytes);
+
+        log.record(out, 70.5, 70.25, 1000);
+        String first = lines(bytes);
+        log.record(out, 70.5, 70.25, 2000);
+        assertEquals(first, lines(bytes));
+        log.record(out, 70.5, 70.25, 6000);
+
+        assertEquals(first + first, lines(bytes));
+        assertEquals(3, log.holds());
+    }
+
+    @Test
+    void theHoldLogSummaryIsSilentWithoutHoldsAndCountsThemOtherwise() {
+        GrugPlayerFloor.HoldLog log = new GrugPlayerFloor.HoldLog();
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream out = new java.io.PrintStream(bytes);
+
+        log.printSummary(out);
+        assertEquals("", lines(bytes));
+
+        log.record(new java.io.PrintStream(new java.io.ByteArrayOutputStream()), 1, 0, 0);
+        log.printSummary(out);
+        assertEquals(
+                "[GRUG CI] The test player was held on the floor 1 times." + System.lineSeparator(),
+                lines(bytes));
+    }
 }

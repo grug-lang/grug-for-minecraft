@@ -3,6 +3,7 @@ package net.grug.minecraft.forge;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.forge.mixin.ChunkMapAccessor;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.ChatFormatting;
@@ -144,16 +145,16 @@ public final class GrugControlForge {
             "the Forge channel glue of #1040: no test the coverage gate counts can reach it, since"
                     + " only the multiplayer job runs it")
     private static final class ServerLink implements GrugControlServer.Link {
-        @GrugGenerated(
-                "a race arm: the starter leaves between the server's check and its send, so the"
-                        + " player is gone; no test can time a disconnect to land here")
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
             MinecraftServer minecraft = ServerLifecycleHooks.getCurrentServer();
             ServerPlayer player = minecraft.getPlayerList().getPlayer((UUID) starter);
-            if (player == null) return false;
-            channel.send(new Packet(message), PacketDistributor.PLAYER.with(player));
-            return true;
+            // A starter who left between the server's check and this send is core's decision.
+            return GrugLinkArms.deliver(
+                    player,
+                    found ->
+                            channel.send(
+                                    new Packet(message), PacketDistributor.PLAYER.with(found)));
         }
 
         @Override
@@ -194,13 +195,10 @@ public final class GrugControlForge {
          * Any player who has finished login may send a start; core then judges it on the server
          * thread and accepts only an operator's (#37), the first accepted one winning.
          */
-        @GrugGenerated(
-                "a race arm: a start that arrives before its sender has finished login finds no"
-                        + " player; no test can time a message to land before the login ends")
         @Override
         public boolean mayStartRun(Object sender) {
             MinecraftServer minecraft = ServerLifecycleHooks.getCurrentServer();
-            return minecraft.getPlayerList().getPlayer((UUID) sender) != null;
+            return GrugLinkArms.known(minecraft.getPlayerList().getPlayer((UUID) sender));
         }
 
         /**
@@ -234,14 +232,10 @@ public final class GrugControlForge {
          * forwarded click queued are (#1094). The server thread is not frozen here: the caller runs
          * between two runner ticks, so a click's effect lands before the test's next assertion.
          */
-        @GrugGenerated(
-                "the client drain: it runs only between two runner ticks of a dedicated server"
-                        + " that has a client joined, which the multiplayer job alone launches")
         @Override
         public void applyClientWork() {
             MinecraftServer minecraft = ServerLifecycleHooks.getCurrentServer();
-            if (minecraft == null) return;
-            while (minecraft.pollTask()) {}
+            GrugLinkArms.drain(minecraft, () -> minecraft.pollTask());
         }
     }
 }
