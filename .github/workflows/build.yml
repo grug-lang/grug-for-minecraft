@@ -116,6 +116,9 @@ jobs:
       windows: ${{ steps.windows.outputs.dirs }}
       # Whether the dedicated-server legs run, true or false (#1342).
       dedicated: ${{ steps.dedicated.outputs.dedicated }}
+      # The loaders whose dedicated legs run: every loader with a server on a dispatch, and the two
+      # whose server classes the gate counts on a pull request and a push (#169).
+      dedicated-loaders: ${{ steps.dedicated.outputs.loaders }}
     steps:
       # The run timeout of a repeats run is 300 s plus 200 s per extra pass (see the loader job), and
       # the job's own limit is 90 minutes, so 26 passes is the most whose deadline the script reaches
@@ -358,11 +361,16 @@ jobs:
         id: dedicated
         env:
           EVENT: ${{ github.event_name }}
-          BASE: ${{ steps.base.outputs.base }}
+          BASE: ${{ steps.base.outputs.base || github.event.pull_request.base.sha || github.event.before }}
           REF: ${{ github.ref }}
         run: |
+          # A pull request and a push (#169) read their diff against the base commit the steps above
+          # fetched; one that cannot be read answers true, like every doubt.
           needed=$(python3 .github/scripts/dedicated-needed.py --event "$EVENT" --ref "$REF" "$BASE" HEAD) || needed=true
+          loaders=$(python3 .github/scripts/dedicated-needed.py --event "$EVENT" --loaders x x) \
+            || loaders='["1.2.5-forge","1.20.6-forge","a1.1.2_01-ornithe","b1.7.3-ornithe","b1.7.3-stationapi"]'
           echo "dedicated=$needed" >> "$GITHUB_OUTPUT"
+          echo "loaders=$loaders" >> "$GITHUB_OUTPUT"
 
   # grug-rs builds once per run and the loader jobs link the very same libgruggers.a. It depends on
   # nothing in this repository except the revision core/build.gradle.kts pins, so before this job each
@@ -992,14 +1000,16 @@ jobs:
     name: ${{ matrix.loader }} on a dedicated server
     # A base dispatch whose diff cannot reach server code skips the legs (#1342); coverage
     # accepts the skipped result, and the gate counts server exec data only when a leg uploaded it.
-    if: github.event_name == 'workflow_dispatch' && needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.dedicated != 'false'
+    # A pull request and a push run them, on two loaders, exactly when dedicated-needed.py says the
+    # diff can reach server code (#169), so a diff of mod ports and prose runs none, as before.
+    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'push') && needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.dedicated != 'false'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        loader: [1.2.5-forge, 1.20.6-forge, a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi]
+        loader: ${{ fromJSON(needs.discover.outputs.dedicated-loaders) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2230,8 +2240,8 @@ jobs:
     # The test jobs produce what it reads, so it skips with them (#785): a diff of prose alone
     # cannot change coverage, and main's next full run restores the global guarantee.
     # The dedicated servers' exec data is downloaded here (#1027), so on a dispatch this job waits
-    # for those legs rather than downloading artifacts that do not exist yet. A pull request runs no
-    # multiplayer job, and !cancelled() keeps this job running when a need was skipped or failed:
+    # for those legs rather than downloading artifacts that do not exist yet. A pull request runs the
+    # multiplayer legs only when its diff can reach server code (#169), and !cancelled() keeps this job running when a need was skipped or failed:
     # its own verdict is what the gate reports, and a failed leg already fails the run.
     if: ${{ !cancelled() && needs.discover.outputs.no-tests != 'true' }}
     # discover is a need because this job reads its carry-over: the two outputs are what names
@@ -2485,7 +2495,7 @@ jobs:
   pr-gate:
     name: pr gate
     if: always() && github.event_name == 'pull_request'
-    needs: [discover, grug-rs, core, build, reference, coverage]
+    needs: [discover, grug-rs, core, build, multiplayer, reference, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
