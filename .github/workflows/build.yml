@@ -116,7 +116,7 @@ jobs:
       windows: ${{ steps.windows.outputs.dirs }}
       # Whether the dedicated-server legs run, true or false (#1342).
       dedicated: ${{ steps.dedicated.outputs.dedicated }}
-      # Whether the advisory smoketest job runs (#1589).
+      # Whether the smoketest job runs on a pull request (#1589).
       smoketest: ${{ steps.smoketest.outputs.smoketest }}
     steps:
       # The run timeout of a repeats run is 300 s plus 200 s per extra pass (see the loader job), and
@@ -310,9 +310,10 @@ jobs:
           fi
           echo "no-tests=$no_tests" >> "$GITHUB_OUTPUT"
 
-      # Whether the advisory smoketest job (#1589) runs: only for a pull request whose diff touches
-      # what it reads, which smoketest-needed.py explains in this log. Every other event and any
-      # doubt skips it, since it is a hint and not a test of the game. Only an explicit true runs it.
+      # Whether the smoketest job (#1589) runs on a pull request: only when its diff touches
+      # .github/smoketest/, which smoketest-needed.py explains in this log, so a change to the tool
+      # is checked. Every other pull request and any doubt skips it: a porting agent runs it locally
+      # before pushing. Only an explicit true runs it.
       - name: Choose whether the smoketest job runs
         id: smoketest
         env:
@@ -1269,19 +1270,24 @@ jobs:
 
   # The smoketest (#1589, part of #1548): the C host under .github/smoketest/ runs the mods/coverage/
   # logic tests on grug-rs's C API in about a second, so a porting agent gets a hint before the real
-  # game runs. It is ADVISORY and never a merge gate: it is not in `pr gate`'s needs, no job needs
-  # it, and continue-on-error keeps a red step from reddening the run (and from cancel-red). It runs
-  # beside the game jobs on a standard runner, so it never delays them. Nothing in it is cached: the
-  # whole run takes about a second, so a cache would cost more in stale results than it saves. The
-  # contract check, the line coverage assertion and failing tests are reported only until the host
-  # has its core (#1586); run.sh names the variables that turn each into a failure.
+  # game runs. A porting agent runs it locally before pushing, so a pull request runs this job only
+  # when its diff touches .github/smoketest/, to check the tool itself: a build or sanitizer
+  # failure, a failing selftest, an orphaned or duplicate implementation or a host that does not
+  # start fails the pull request, through `pr gate`. How many tests pass, how many entries are
+  # missing and the coverage are reported and never fail it, until the host has its core (#1586);
+  # run.sh names the variables that turn each into a failure. A dispatch and the weekly schedule run
+  # it too, as a report that cannot fail the run (continue-on-error), so drift against the mods shows
+  # up as a number. Nothing in it is cached: the whole run takes about a second, so a cache would
+  # cost more in stale results than it saves.
   smoketest:
     name: smoketest
-    if: needs.discover.outputs.smoketest == 'true'
+    if: >-
+      needs.discover.outputs.smoketest == 'true'
+      || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    continue-on-error: true
+    continue-on-error: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2582,7 +2588,7 @@ jobs:
   pr-gate:
     name: pr gate
     if: always() && github.event_name == 'pull_request'
-    needs: [discover, grug-rs, core, build, reference, coverage]
+    needs: [discover, grug-rs, core, build, reference, coverage, smoketest]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

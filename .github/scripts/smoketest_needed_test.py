@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests smoketest-needed.py: only a diff that reaches what the smoketest reads runs the job."""
+"""Tests smoketest-needed.py: only a diff of the smoketest itself runs the job on a pull request."""
 
 import importlib.util
 import subprocess
@@ -45,14 +45,8 @@ class SmoketestNeededTest(unittest.TestCase):
         self.reason = result.stderr
         return result.stdout.strip()
 
-    def test_what_the_smoketest_reads_runs_it(self):
-        for path in (
-            ".github/smoketest/smoketest.c",
-            ".github/smoketest/new.py",
-            "mods/coverage/tests/frame-Test.grug",
-            "mods/coverage/code/new-Block.grug",
-            "mod_api.json",
-        ):
+    def test_a_change_to_the_smoketest_runs_it(self):
+        for path in (".github/smoketest/smoketest.c", ".github/smoketest/new.py"):
             with self.subTest(path=path):
                 self.assertEqual(self.answer({path: "changed\n"}), "true")
                 self.assertIn("running", self.reason)
@@ -62,14 +56,18 @@ class SmoketestNeededTest(unittest.TestCase):
             "README.md",
             "core/src/Main.java",
             "mods/examplemod/code/foo-Block.grug",
-            "mod_api.json.bak",
+            "mods/coverage/tests/frame-Test.grug",
+            "mod_api.json",
+            ".github/smoketest.md",
         ):
             with self.subTest(path=path):
                 self.assertEqual(self.answer({path: "changed\n"}), "false")
                 self.assertIn("skipping", self.reason)
 
     def test_one_path_among_others_runs_it(self):
-        self.assertEqual(self.answer({"README.md": "x\n", "mod_api.json": "[]"}), "true")
+        self.assertEqual(
+            self.answer({"README.md": "x\n", ".github/smoketest/run.sh": "#\n"}), "true"
+        )
 
     def test_a_doubt_skips_it(self):
         self.assertEqual(self.answer({"README.md": "x\n"}, base="0" * 40), "false")

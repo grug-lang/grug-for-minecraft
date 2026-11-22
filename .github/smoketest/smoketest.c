@@ -1262,7 +1262,9 @@ static int contract(void) {
             if (!find_impl(api_rows[i].cls, api_rows[i].name)) show(api_rows[i].cls, api_rows[i].name);
     }
     printf("contract: %zu entries, %zu implemented, %zu missing, %zu orphans\n", NAPI, implemented, missing, orphans);
-    return missing || orphans ? 1 : 0;
+    // 2 is a defect of the smoketest itself (a typo, a removed function, a duplicate), 1 only means
+    // entries are still missing, which is progress to report and never a failure of the tool.
+    return orphans ? 2 : missing ? 1 : 0;
 }
 
 // =============================================================================================

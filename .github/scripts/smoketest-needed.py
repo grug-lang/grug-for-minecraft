@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Print whether the advisory smoketest job runs (#1589), ``true`` or ``false``.
+"""Print whether the smoketest job runs on a pull request (#1589), ``true`` or ``false``.
 
     smoketest-needed.py <base> <head> [--repo <dir>]
 
 The smoketest job builds the C host under .github/smoketest/ on grug-rs's C API and runs the
-``mods/coverage/`` logic tests on it. It is a hint for porting agents and never a merge gate, so it
-runs only when the diff touches what it reads: ``.github/smoketest/``, ``mods/coverage/`` (its tests)
-or ``mod_api.json`` (its contract). Any other diff answers ``false``, which only skips the hint.
-Every doubt answers ``false`` too: an empty diff, a diff that cannot be computed and any error in
-this script, because a hint that costs a runner on every doubt is not worth it. The reasons go to
-stderr, so the CI log says why.
+``mods/coverage/`` logic tests on it. A porting agent runs it locally before pushing, so a pull
+request runs it only to check the tool itself: when the diff touches ``.github/smoketest/``, whose
+build, selftest and contract check then fail the pull request. Any other diff answers ``false``,
+and the weekly dispatch reports how far the host has come. Every doubt answers ``false`` too: an
+empty diff, a diff that cannot be computed and any error in this script. The reasons go to stderr,
+so the CI log says why.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-READ = (".github/smoketest/", "mods/coverage/", "mod_api.json")
+READ = ".github/smoketest/"
 
 
 def sibling(name: str):
@@ -36,9 +36,9 @@ def needed(repo: Path, base: str, head: str) -> tuple[bool, str]:
     if not paths:
         return False, "the diff is empty"
     for path in paths:
-        if path == "mod_api.json" or path.startswith(READ[:2]):
-            return True, f"{path} is read by the smoketest"
-    return False, f"none of the {len(paths)} changed paths is read by the smoketest"
+        if path.startswith(READ):
+            return True, f"{path} is part of the smoketest"
+    return False, f"none of the {len(paths)} changed paths is part of the smoketest"
 
 
 def main(argv: list[str]) -> int:
