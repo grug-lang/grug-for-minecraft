@@ -62,8 +62,8 @@ from pathlib import Path
 CORE = "core"
 
 # The artifact name a dedicated server's exec data comes in, without the loader it belongs to. The
-# loader jobs' own names start with coverage-, which the map build and the server-reachable check
-# read, so the server's data deliberately does not (#1027).
+# loader jobs' own names start with coverage-, which the map build reads, so the server's data
+# deliberately does not (#1027).
 SERVER_EXEC = "server-exec-"
 
 # These loaders compile shared/ornithe as an extra source directory.

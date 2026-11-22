@@ -433,11 +433,10 @@ class GrugHostFunctionExceptionTest {
     }
 
     /**
-     * The runner's entity operations for a test that its first tick completes: the tick_any_side
-     * probe misses, then the tick runs {@code onTick} and answers that it completed.
+     * The runner's entity operations for a test that its first tick completes: the tick runs {@code
+     * onTick} and answers that it completed.
      */
     private static GrugTestRunner.TestEntityOps completingOps(Runnable onTick) {
-        int[] calls = {0};
         return new GrugTestRunner.TestEntityOps() {
             @Override
             public long createEntity(long fileId) {
@@ -451,11 +450,8 @@ class GrugHostFunctionExceptionTest {
 
             @Override
             public boolean callExportFn(long entityHandle, long exportFnId) {
-                if (++calls[0] == 2) {
-                    onTick.run();
-                    return true;
-                }
-                return false;
+                onTick.run();
+                return true;
             }
 
             @Override

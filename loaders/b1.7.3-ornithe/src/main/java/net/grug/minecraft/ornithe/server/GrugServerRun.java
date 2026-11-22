@@ -36,9 +36,6 @@ public final class GrugServerRun {
     /** How long to wait for a client to join before failing the run. */
     static final long PLAYER_JOIN_TIMEOUT_MILLIS = GrugServerJoin.timeoutMillis();
 
-    /** The player as the snap found them, so the end of the test can put them back (#1161). */
-    private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
-
     private static GrugTestRunner runner = null;
     private static long waitStartMillis = 0;
     private static long lastReportMillis = 0;
@@ -57,6 +54,10 @@ public final class GrugServerRun {
 
     private static final double START_FEET_Y = 70.0;
     private static final double START_Z = -63.5;
+
+    /** The player as the snap found them, so the end of the test can put them back (#1161). */
+    private static final GrugTestPlayerSnap.ServerSave SNAP =
+            new GrugTestPlayerSnap.ServerSave(START_X, START_Z);
 
     /** Remembers the starter placed at the start above, so each new starter is placed once. */
     private static final GrugStarterPlacement STARTER_PLACEMENT = new GrugStarterPlacement();
@@ -293,6 +294,17 @@ public final class GrugServerRun {
         // run the world once already, and each extra tick of a faster game is a world tick followed
         // by a runner tick. Running the extra world ticks first and the runner once let an item a
         // test dropped fall out of the area its check looks in between two runner ticks (#163).
+        // The server's setup sets the difficulty from "spawn-monsters", which the harness turns off
+        // so that nothing spawns around the test player, and difficulty 0 makes the game remove
+        // every monster a test spawns in its first tick. Tests run at the difficulty the client's
+        // own options default to, normal, and spawn-monsters still decides the spawning (#1040).
+        server.getWorld(0).difficulty = 2;
+        // The same setup reads "spawn-animals", also turned off by the harness, and the world's
+        // entity update then marks every animal dead on its first update, which killed the pigs
+        // the mob cap overlay test spawns. The worlds' natural-spawn flags were set from the
+        // properties at load and are not read from here, so raising the server's flag keeps
+        // natural spawns off and lets a spawned animal live (#1040).
+        server.spawnAnimals = true;
         for (int step = 0; step < gameSpeed; step++) {
             if (step > 0) {
                 advance(server.getWorld(0), 1);
@@ -364,6 +376,19 @@ public final class GrugServerRun {
         serverPlayer.networkHandler.teleport(
                 SNAP.savedX(), SNAP.savedY(), SNAP.savedZ(), SNAP.savedYaw(), SNAP.savedPitch());
         SNAP.clear();
+    }
+
+    /**
+     * Moves the server's copy of the test player to the feet position, keeping their view, through
+     * the teleport the floor hold uses so the joined client's camera follows (#1040).
+     */
+    public static void moveToFeet(PlayerEntity player, double x, double feetY, double z) {
+        if (!(player instanceof ServerPlayerEntity)) {
+            return;
+        }
+        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        serverPlayer.networkHandler.teleport(x, feetY, z, serverPlayer.yaw, serverPlayer.pitch);
+        serverPlayer.velocityY = 0.0;
     }
 
     /**

@@ -10,7 +10,7 @@
 # their measured time rather than by name; the unit tests over the queue are the deterministic proof.
 started: bool = false
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if not started {
         started = true
         # One more tick, so the drain that would apply a queued give has run: the leak the pair

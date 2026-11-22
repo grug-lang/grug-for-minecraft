@@ -79,16 +79,6 @@ public interface ModLoaderAdapter {
     }
 
     /**
-     * The tests, by path such as {@code coverage/tests/a-Test.grug}, that this loader's dedicated
-     * server cannot run although they define {@code tick_any_side}, and that it skips. Empty unless
-     * the server lacks something a test needs. Interim, and removed with {@code tick_any_side} when
-     * #1040 lands (#1021).
-     */
-    default java.util.Set<String> serverUnsupportedTests() {
-        return java.util.Collections.emptySet();
-    }
-
-    /**
      * Whether this loader's dedicated server forwards a test's client-only calls (so far {@code
      * Screenshot.capture}) to the joined client of the player who started the run, over the
      * test-control channel (#1040, option A). The server then runs the {@code forwarded_} tests,

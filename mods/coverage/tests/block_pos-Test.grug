@@ -1,5 +1,5 @@
 # Covers get_block_pos_of_block_entity + BlockPos.above_n + BlockPos.center.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = ctx.get_client_level()
         origin: Vec3 = ctx.get_origin()

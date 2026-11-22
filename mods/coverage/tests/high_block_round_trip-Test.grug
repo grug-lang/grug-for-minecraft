@@ -7,7 +7,7 @@
 # the game's file IO thread after saveChunk has returned, and a load landing in that window once
 # read back the id from before the write (#1188, #1206). Each call puts the test cell back in the
 # world and releases the stand-ins it took, so every repetition starts from the same chunk.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     rounds: number = 0
     while rounds < 8 {
         id: number = ctx.high_block_round_trip()

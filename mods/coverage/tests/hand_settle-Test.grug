@@ -13,7 +13,7 @@ started: bool = false
 waited: number = 0
 saw_rising: bool = false
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if not started {
         if not ctx.world_settled() {
             ctx.not_done()

@@ -1,6 +1,6 @@
 # String.concat, String.from_character, String.length and String.substring edit text the way a search
 # field does: a key's character is appended and the last character is dropped (#865).
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.assert(String.concat("ab", "c") == "abc", "String.concat should join the two texts in order.")
         ctx.assert(String.concat("", "") == "", "String.concat of two empty texts should be empty.")

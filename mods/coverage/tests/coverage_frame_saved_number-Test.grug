@@ -14,7 +14,7 @@
 # captures of an unchanged frame (about 0.3 percent), which alone cannot pass the wait.
 # Setting the number again to the value it holds changes nothing the client needs, so that is no
 # new send; the loader skips it, and the test reaches that path by saving the same value again.
-# It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
+# A dedicated server runs it too: the settle wait is forwarded to the
 # joined client, and the captures are the client's (#1086). The wait ends on the frame itself:
 # Screenshot.change_from reports how much of it changed, so a client that is behind is captured
 # again instead of being assumed to have caught up after a tick count.
@@ -33,7 +33,7 @@ export init(ctx: TestInitContext) {
     ctx.set_max_ticks(400)
 }
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()

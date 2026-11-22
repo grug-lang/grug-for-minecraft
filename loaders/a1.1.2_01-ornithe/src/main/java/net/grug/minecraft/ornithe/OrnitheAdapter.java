@@ -597,7 +597,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public Vec3 playerPosition(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
-        return new Vec3(player.x, player.y - GrugTestOrigin.EYE_HEIGHT, player.z);
+        return new Vec3(player.x, feetY(player), player.z);
     }
 
     @Override

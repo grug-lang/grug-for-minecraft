@@ -20,7 +20,7 @@ export init(ctx: TestInitContext) {
     ctx.set_max_ticks(1500)
 }
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if not started {
         started = true
         if not me.overlay_supported() {

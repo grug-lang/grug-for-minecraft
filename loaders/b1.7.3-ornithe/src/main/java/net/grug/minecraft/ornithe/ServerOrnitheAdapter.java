@@ -15,7 +15,7 @@ import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
-import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -23,6 +23,8 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
+import net.grug.minecraft.ornithe.block.entity.GrugSavedDataPacket;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.grug.minecraft.ornithe.gui.GrugMenu;
 import net.grug.minecraft.ornithe.gui.GrugScreenPacket;
@@ -43,13 +45,8 @@ import net.minecraft.world.World;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * The adapter for a b1.7.3 dedicated server, which is the same loader as {@link OrnitheAdapter} in
@@ -450,12 +447,12 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
-     * The eye the capture is drawn from: the origin the running test's room was built above, less
-     * {@link GrugTestOrigin#LIFT}, or null when this side has no player to measure one from.
+     * The eye the capture is drawn from: where the test moved the player to, else the origin the
+     * running test's room was built above, less {@link GrugTestOrigin#LIFT}, or null when this side
+     * has no player to measure one from.
      */
     private Vec3 captureEye() {
-        Vec3 origin = GrugTestState.captureTestOrigin(this::getTestOrigin);
-        return origin == null ? null : GrugTestOrigin.eyeOf(origin);
+        return GrugTestState.captureEye(this::getTestOrigin);
     }
 
     /** The joined client's own camera, which is where its captures are drawn from (#1161). */
@@ -530,6 +527,31 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public boolean overlayFirstFrameClearedForTest(String mod) {
         return overlays.firstFrameCleared(mod);
+    }
+
+    /**
+     * Whether the joined client asks the overlays' world key, HUD and world exports, which this
+     * server's own answer would deny: the loader marks support where it registers the hooks, and a
+     * server has none (#1040).
+     */
+    @Override
+    public boolean worldOverlaySupportedForTest() {
+        return overlays.worldSupported();
+    }
+
+    /**
+     * Whether a frame of the joined client drew the world overlay of the running test's mod since
+     * its last key press (#1040): the mark belongs to that client's frame pass.
+     */
+    @Override
+    public boolean worldOverlayDrawnForTest() {
+        return overlays.worldDrawn(GrugTestState.currentTestMod);
+    }
+
+    /** The press is delivered by the joined client's own key path (#1040). */
+    @Override
+    public void pressWorldKey(int key, boolean ctrl) {
+        overlays.pressWorldKey(GrugTestState.currentTestMod, key, ctrl);
     }
 
     /** This server forwards a test's client-only calls to the player who started the run. */
@@ -765,8 +787,29 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                             new WorldChunkPacket(
                                     region[0], region[1], region[2], region[3], region[4],
                                     region[5], world));
+            resendSavedData(world, (ServerPlayerEntity) starter, region);
         }
         return true;
+    }
+
+    /**
+     * Sends the saved data of every grug block entity the region holds, because the client drops
+     * its block entities in a region a chunk region packet covers and makes empty ones on the next
+     * read, and this version's region packet carries no tile entity data. Without it a number a
+     * script saved before the resend is never seen by the client again (#1040).
+     */
+    private static void resendSavedData(World world, ServerPlayerEntity player, int[] region) {
+        for (int x = region[0]; x < region[0] + region[3]; x++) {
+            for (int y = region[1]; y < region[1] + region[4]; y++) {
+                for (int z = region[2]; z < region[2] + region[5]; z++) {
+                    BlockEntity entity = world.getBlockEntity(x, y, z);
+                    if (entity instanceof GrugBlockEntity) {
+                        player.networkHandler.sendPacket(
+                                new GrugSavedDataPacket((GrugBlockEntity) entity, true));
+                    }
+                }
+            }
+        }
     }
 
     /** Sweeps of the room's cells the light may take before it is called not settling. */
@@ -840,16 +883,32 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * Moves this server's copy of the test player to the feet position when the server has that
+     * chunk, through the teleport the run's floor hold uses, so the joined client's camera follows
+     * (#1040). False when there is no player, no world or the chunk is not loaded, which the caller
+     * reports without moving anyone: a teleport into a chunk the joined client has not received
+     * crashes this generation of the game.
+     */
+    @Override
+    public boolean setPlayerPositionForTest(double x, double y, double z) {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        World world = (World) getLevel();
+        boolean hasWorld = world != null;
+        boolean loaded =
+                hasWorld && world.isChunkLoaded((int) Math.floor(x), 64, (int) Math.floor(z));
+        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, loaded)) {
+            return false;
+        }
+        GrugServerRun.moveToFeet(player, x, y, z);
+        GrugTestState.playerMovedTo(x, y, z);
+        return true;
+    }
+
+    /**
      * Snaps this server's copy of the test player to their block centre, so the room, origin and
      * fixtures land on the grid a client-only run's snap puts them on (#1161). The teleport is the
      * one the server run's floor hold uses, so the joined client's camera and view follow it.
      */
-    /** A dedicated server has no local player to move: the call is for a client run. */
-    @Override
-    public boolean setPlayerPositionForTest(double x, double y, double z) {
-        throw Grug.fatal("TestTickContext.set_player_position is not supported on a server");
-    }
-
     @Override
     public void snapPlayerForTestOnServer() {
         GrugServerRun.snapToBlockCentre((PlayerEntity) testPlayer());
@@ -863,31 +922,6 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public void restorePlayerAfterTest() {
         GrugServerRun.restoreTestPlayer((PlayerEntity) testPlayer());
-    }
-
-    /** The tests listed in {@code server-unsupported-tests.txt}, which says why. */
-    @Override
-    public Set<String> serverUnsupportedTests() {
-        try (InputStream in =
-                ServerOrnitheAdapter.class.getResourceAsStream("/server-unsupported-tests.txt")) {
-            if (in == null) {
-                throw new IllegalStateException(
-                        "server-unsupported-tests.txt is not in the layer.");
-            }
-            return GrugTestRunner.parseTestList(new String(readAll(in), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not read server-unsupported-tests.txt.", e);
-        }
-    }
-
-    private static byte[] readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int n;
-        while ((n = in.read(buffer)) > 0) {
-            out.write(buffer, 0, n);
-        }
-        return out.toByteArray();
     }
 
     /** The world's own tick, as on the other loaders, so a test need not wait for the server. */
@@ -936,10 +970,14 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         List<ItemEntity> items =
                 new ArrayList<>(
                         world.getEntitiesOfType(ItemEntity.class, Box.of(x1, y1, z1, x2, y2, z2)));
+        List<net.minecraft.entity.Entity> mobs = new ArrayList<>(spawnedMobs);
         super.clearItemEntities(levelObj, x1, y1, z1, x2, y2, z2);
         EntityMap tracker = MinecraftServerInstance.get().getEntityMap(0);
         for (ItemEntity item : items) {
             tracker.onEntityRemoved(item);
+        }
+        for (net.minecraft.entity.Entity mob : mobs) {
+            tracker.onEntityRemoved(mob);
         }
     }
 }

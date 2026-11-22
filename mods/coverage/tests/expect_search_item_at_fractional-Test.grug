@@ -1,5 +1,5 @@
 # search_item_at must report an index that is not a whole number.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if not me.overlay_supported() {
         return
     }

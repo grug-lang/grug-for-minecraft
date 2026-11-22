@@ -10,7 +10,7 @@
 # calls is a round trip that freezes the world and waits for the client's answer, and every one of them
 # has to come back: the 30 round trips are also the standing proof that forwarded close_screen neither
 # deadlocks nor times out.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     # A frame is only drawn for a test that asks for one (#770), and the draw path this test exists
     # to provoke runs only on a drawn frame: a rebuild of the block entities the runner just cleared
     # has to be under way for a worker thread to enter grug mid-call. So ask every tick. The settle

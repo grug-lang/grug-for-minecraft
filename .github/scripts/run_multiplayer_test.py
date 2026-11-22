@@ -36,10 +36,9 @@ SERVER_VERSION = "b1.7.3"
 SECOND_LOADER = "1.20.6-forge"
 
 # The eleven overlay and JEI tests every leg but a1.1.2_01 requires twice: its PASS line and the line
-# only a test whose overlay was drawn on the joined client writes. a1.1.2_01 lists overlay and
-# jei/jei, because its server does not apply the container click the joined client presses (#1393),
-# so it excludes those two. The forced-normalization item list is left out, because the legs that
-# still list it skip it.
+# only a test whose overlay was drawn on the joined client writes. a1.1.2_01 does not require
+# overlay and jei/jei, because its server does not apply the container click the joined client
+# presses (#1393). The forced-normalization item list is left out here.
 OVERLAY_DRAWN_TESTS = [
     "coverage/tests/give_requires_operator",
     "coverage/tests/overlay",
@@ -465,7 +464,8 @@ class SecondPlayerTest(unittest.TestCase):
                 # what this fixture is about; the game itself never passes anything. A case that
                 # needs the client to die first sets a wider deadline.
                 "GRUG_CI_BUILD_TIMEOUT": "30",
-                "GRUG_CI_RUN_TIMEOUT": "1",
+                # 5 s and not 1: the fixture's second client needs the margin to join (#1514).
+                "GRUG_CI_RUN_TIMEOUT": "5",
                 "GRUG_CI_SECOND_JOIN_TIMEOUT": "2",
             }
         )
@@ -828,14 +828,13 @@ exit 0
 
 
 class ServerUnlistedTest(unittest.TestCase):
-    """A standalone leg whose list still names the forced-normalization item list (#1040)."""
+    """A standalone leg the script does not require the forced-normalization item list of (#1040)."""
 
     LOADER = "b1.7.3-stationapi"
 
     # The paths the success branch of run-multiplayer.sh requires of this leg.
-    # jei/tests/item_list_forced_normalization is absent on purpose: this leg's
-    # server-unsupported-tests.txt still names it and the script excludes it, so a leg that skipped
-    # it must pass. Every other required block of the branch is satisfied, so a check that required
+    # jei/tests/item_list_forced_normalization is absent on purpose: the script does not require it
+    # on this leg, so a leg that skipped it must pass. Every other required block of the branch is satisfied, so a check that required
     # the item list here would fail this case and nothing else.
     REQUIRED_PASSES = (
         """
