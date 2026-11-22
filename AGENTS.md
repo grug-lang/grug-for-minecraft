@@ -7,8 +7,8 @@ requests; delete lines that stopped being true. Detail moved out of this file li
 ## How work gets done
 
 One orchestrator agent works the open issues, often while the maintainer is
-away. The maintainer reads the merged pull requests afterwards, on their Changes tabs. Pull requests
-are by members only (#617).
+away. The maintainer does not read the merged pull requests, so the orchestrator's own review is the
+review that counts. Pull requests are by members only (#617).
 
 **The goal is progress per hour.** The orchestrator is judged by how much verified work reaches
 `main` per hour and by the research that decides what that work is or unblocks it, not by how
