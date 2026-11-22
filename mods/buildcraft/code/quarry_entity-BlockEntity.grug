@@ -6,6 +6,11 @@
 # The time of the last energy loss: SafeTimeTracker's lastMark, which is not saved, so it starts again
 # at 0 whenever the quarry's chunk is loaded.
 loss_mark: number = 0
+level: Level = me.level()
+pos: BlockPos = me.block_pos()
+center: Vec3 = pos.center()
+x: number = Math.floor(center.x())
+z: number = Math.floor(center.z())
 
 # The provider the constructor configures holds at most 7000, and the reference saves it with the
 # tile, which the energy host functions do too.
