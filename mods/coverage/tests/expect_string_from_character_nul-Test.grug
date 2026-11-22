@@ -1,6 +1,6 @@
 # String.from_character must refuse code 0, since a text with a NUL does not survive the trip back
 # to the mod.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     ctx.expect_error("String.from_character: The code has to be a whole number from 1 to")
     String.from_character(0)
 }
