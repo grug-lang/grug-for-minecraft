@@ -105,16 +105,38 @@ extern void grug_set_next_entity_id(void*, uint64_t next_id);
 // =============================================================================================
 // Objects. A grug value of a class type is an id; here it indexes this table and is never reused
 // within a test. The table is emptied between tests, so a handle a test saved cannot leak across.
-enum kind { K_NONE, K_LEVEL, K_VEC3, K_OPTION, K_CTX, K_ME, K_RL, K_ITEM, K_BLOCKPOS, K_SHOT };
-struct obj { enum kind kind; double x, y, z; bool has; union grug_value val; const char* str; };
+// One kind per line, so a new kind in another change is a separate hunk.
+enum kind {
+    K_NONE,
+    K_LEVEL,
+    K_VEC3,
+    K_OPTION,
+    K_CTX,
+    K_ME,
+    K_RL,
+    K_ITEM,
+    K_BLOCKPOS,
+    K_SHOT,
+};
+struct obj {
+    enum kind kind;
+    double x, y, z;
+    bool has;
+    union grug_value val;
+    const char* str;
+};
 static struct obj* objs;
 static size_t nobjs, capobjs;
+
+static void die_oom(void) { fputs("smoketest: out of memory\n", stderr); abort(); }  // SMOKETEST_EXCL: no test can force an allocation failure
+static void* xrealloc(void* p, size_t n) { void* q = realloc(p, n); if (!q) die_oom(); return q; }
+static void* xmalloc(size_t n) { void* q = malloc(n); if (!q) die_oom(); return q; }
+static char* xstrdup(const char* s) { char* q = strdup(s); if (!q) die_oom(); return q; }
 
 static uint64_t new_obj(enum kind kind) {
     if (nobjs == capobjs) {
         capobjs = capobjs ? capobjs * 2 : 256;
-        objs = realloc(objs, capobjs * sizeof *objs);
-        if (!objs) abort();
+        objs = xrealloc(objs, capobjs * sizeof *objs);
     }
     memset(&objs[nobjs], 0, sizeof objs[nobjs]);
     objs[nobjs].kind = kind;
@@ -144,14 +166,24 @@ static union grug_value fail(const char* fmt, ...) {
     return none();
 }
 
+// The three coordinates of a call, floored. A host function receives a double, and casting one that
+// is not finite or does not fit a long is undefined, so a call with such a coordinate fails by name.
+static bool pos_arg(const union grug_value a[], long out[3], const char* who) {
+    for (int i = 0; i < 3; i++) {
+        double d = a[1 + i]._number;
+        if (!isfinite(d) || fabs(d) > 1e15) { fail("%s: a coordinate is not a finite number within 1e15", who); return false; }
+        out[i] = (long)floor(d);
+    }
+    return true;
+}
+
 // Strings handed to grug must outlive the call; a test's strings are freed with its arena.
 static char** arena;
 static size_t narena, caparena;
 static const char* keep(char* s) {
     if (narena == caparena) {
         caparena = caparena ? caparena * 2 : 64;
-        arena = realloc(arena, caparena * sizeof *arena);
-        if (!arena) abort();
+        arena = xrealloc(arena, caparena * sizeof *arena);
     }
     return arena[narena++] = s;
 }
@@ -182,14 +214,13 @@ static void set_block(long x, long y, long z, const char* name) {
     if (!b) {
         if (nworld == capworld) {
             capworld = capworld ? capworld * 2 : 256;
-            world = realloc(world, capworld * sizeof *world);
-            if (!world) abort();
+            world = xrealloc(world, capworld * sizeof *world);
         }
         b = &world[nworld++];
         b->x = x; b->y = y; b->z = z; b->name = NULL;
     }
     free(b->name);
-    b->name = strdup(name);
+    b->name = xstrdup(name);
 }
 static void clear_world(void) {
     for (size_t i = 0; i < nworld; i++) free(world[i].name);
@@ -204,9 +235,19 @@ static long cur_tick;
 static bool not_done_called;
 static char* expected_error;
 static bool quiet;
+static bool stubbed;  // the running test called a graphics or capability stub, so a pass proves less
 
+struct impl { const char* cls; const char* name; host_fn fn; };
+// An implementation registers itself where it is defined, with REGISTER right after its function,
+// into a linker section, so adding an entry touches no shared line (GNU ld's __start_/__stop_).
+extern const struct impl __start_smoke_impls[], __stop_smoke_impls[];
+#define SMOKE_CAT2(a, b) a##b
+#define SMOKE_CAT(a, b) SMOKE_CAT2(a, b)
+#define REGISTER(cls, name, fn) \
+    static const struct impl SMOKE_CAT(smoke_impl_, __LINE__) __attribute__((used, section("smoke_impls"), aligned(8))) = {cls, name, fn}
 #define ARGS void* gst, const union grug_value a[], const struct grug_type g[]
 #define UNUSED (void)gst; (void)a; (void)g
+#include "api_table.inc"
 
 static bool is_whole(double d) { return isfinite(d) && d == floor(d); }
 
@@ -219,28 +260,40 @@ static union grug_value TTC_assert(ARGS) {
     if (!a[1]._bool) return fail("%s", a[2]._string);
     return none();
 }
+REGISTER("TestTickContext", "assert", TTC_assert);
 static union grug_value TTC_not_done(ARGS) { UNUSED; not_done_called = true; return none(); }
+REGISTER("TestTickContext", "not_done", TTC_not_done);
 static union grug_value TTC_current_tick(ARGS) { UNUSED; return num((double)cur_tick); }
+REGISTER("TestTickContext", "current_tick", TTC_current_tick);
 static union grug_value TTC_expect_error(ARGS) {
     UNUSED;
+    // The real runner matches with contains(), so an empty message would accept every error; here
+    // it is a defect of the test instead of a silent pass.
+    if (!a[1]._string[0]) return fail("TestTickContext.expect_error: the message is empty, which matches every error");
     free(expected_error);
-    expected_error = strdup(a[1]._string);
+    expected_error = xstrdup(a[1]._string);
     return none();
 }
+REGISTER("TestTickContext", "expect_error", TTC_expect_error);
 static union grug_value TTC_get_client_level(ARGS) { UNUSED; return id(new_obj(K_LEVEL)); }
+REGISTER("TestTickContext", "get_client_level", TTC_get_client_level);
 static union grug_value TTC_get_origin(ARGS) {
     UNUSED;
     uint64_t v = new_obj(K_VEC3);
     objs[v - 1].x = origin_x; objs[v - 1].y = origin_y; objs[v - 1].z = origin_z;
     return id(v);
 }
+REGISTER("TestInitContext", "get_origin", TTC_get_origin);
+REGISTER("TestTickContext", "get_origin", TTC_get_origin);
 
 // =============================================================================================
 // SECTION: Test (the entity me)
 // =============================================================================================
 // Test (the entity `me`)
 static union grug_value Test_is_reference(ARGS) { UNUSED; return boolean(false); }
+REGISTER("Test", "is_reference", Test_is_reference);
 static union grug_value Test_loader_name(ARGS) { UNUSED; return str("smoketest"); }
+REGISTER("Test", "loader_name", Test_loader_name);
 
 // =============================================================================================
 // SECTION: Level
@@ -248,54 +301,83 @@ static union grug_value Test_loader_name(ARGS) { UNUSED; return str("smoketest")
 // Level
 static union grug_value Level_is_air(ARGS) {
     UNUSED;
-    struct block* b = find_block((long)floor(a[1]._number), (long)floor(a[2]._number), (long)floor(a[3]._number));
+    long p[3];
+    if (!pos_arg(a, p, "Level.is_air")) return none();
+    struct block* b = find_block(p[0], p[1], p[2]);
     return boolean(!b || strcmp(b->name, "minecraft:air") == 0);
 }
+REGISTER("Level", "is_air", Level_is_air);
 static union grug_value Level_get_block(ARGS) {
     UNUSED;
-    struct block* b = find_block((long)floor(a[1]._number), (long)floor(a[2]._number), (long)floor(a[3]._number));
+    long p[3];
+    if (!pos_arg(a, p, "Level.get_block")) return none();
+    struct block* b = find_block(p[0], p[1], p[2]);
     return str(b ? b->name : "minecraft:air");
 }
+REGISTER("Level", "get_block", Level_get_block);
 static void on_block_placed(long x, long y, long z, const char* name);
 static union grug_value Level_place_block(ARGS) {
     UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.place_block")) return none();
     double x = a[1]._number, y = a[2]._number, z = a[3]._number;
-    if (!isfinite(x) || !isfinite(y) || !isfinite(z)) return fail("Level.place_block: a coordinate is not finite");
     if (y < 0 || y >= world_height)
         return fail("Level.place_block: the game did not put %s at (%g, %g, %g)", a[4]._string, x, y, z);
     if (!strchr(a[4]._string, ':')) return fail("Level.place_block: '%s' is not a block name", a[4]._string);
-    set_block((long)floor(x), (long)floor(y), (long)floor(z), a[4]._string);
-    on_block_placed((long)floor(x), (long)floor(y), (long)floor(z), a[4]._string);
+    set_block(p[0], p[1], p[2], a[4]._string);
+    on_block_placed(p[0], p[1], p[2], a[4]._string);
     return none();
 }
+REGISTER("Level", "place_block", Level_place_block);
 // The level's random is java.util.Random with a fixed seed (the algorithm random_int's description names).
-static uint64_t rnd_seed = (42ull ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
+static uint64_t rnd_seed;
+static bool rnd_have_gaussian;
+static double rnd_next_gaussian;
+static void rnd_reset(void) {  // every test starts from the same seed, so --all equals a single run
+    rnd_seed = (42ull ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
+    rnd_have_gaussian = false;
+}
 static int32_t rnd_next(int bits) {
     rnd_seed = (rnd_seed * 0x5DEECE66Dull + 0xB) & ((1ull << 48) - 1);
-    return (int32_t)(rnd_seed >> (48 - bits));
+    return (int32_t)(uint32_t)(rnd_seed >> (48 - bits));
+}
+static double rnd_double(void) {  // Random.nextDouble: the two draws are sequenced, high bits first
+    int64_t hi = rnd_next(26);
+    int64_t lo = rnd_next(27);
+    return (double)((hi << 27) + lo) * (1.0 / (double)(1ll << 53));
 }
 static union grug_value Level_random_int(ARGS) {
     UNUSED;
     double b = a[1]._number;
     if (!is_whole(b) || b < 1 || b > 2147483647.0) return fail("The bound has to be a whole number from 1 to 2147483647");
-    int32_t bound = (int32_t)b, r = rnd_next(31), m = bound - 1;
+    uint32_t bound = (uint32_t)b, r = (uint32_t)rnd_next(31), m = bound - 1;
     if ((bound & m) == 0) return num((double)(int32_t)(((int64_t)bound * (int64_t)r) >> 31));
-    for (int32_t u = r; u - (r = u % bound) + m < 0; u = rnd_next(31)) {}
+    // Java's loop rejects a draw when u - r + m overflows int; the same test on unsigned values.
+    for (uint32_t u = r; (int32_t)(u - (r = u % bound) + m) < 0; u = (uint32_t)rnd_next(31)) {}
     return num((double)r);
 }
+REGISTER("Level", "random_int", Level_random_int);
 static union grug_value Level_random_float(ARGS) { UNUSED; return num(rnd_next(24) / (double)(1 << 24)); }
+REGISTER("Level", "random_float", Level_random_float);
+// Random.nextGaussian, the polar method: each loop makes two values and the second is kept for the next call.
 static union grug_value Level_random_gaussian(ARGS) {
     UNUSED;
+    if (rnd_have_gaussian) { rnd_have_gaussian = false; return num(rnd_next_gaussian); }
     double v1, v2, s;
     do {
-        v1 = 2 * ((((int64_t)rnd_next(26) << 27) + rnd_next(27)) * (1.0 / (1ll << 53))) - 1;
-        v2 = 2 * ((((int64_t)rnd_next(26) << 27) + rnd_next(27)) * (1.0 / (1ll << 53))) - 1;
+        v1 = 2 * rnd_double() - 1;
+        v2 = 2 * rnd_double() - 1;
         s = v1 * v1 + v2 * v2;
     } while (s >= 1 || s == 0);
-    return num(v1 * sqrt(-2 * log(s) / s));
+    double multiplier = sqrt(-2 * log(s) / s);
+    rnd_next_gaussian = v2 * multiplier;
+    rnd_have_gaussian = true;
+    return num(v1 * multiplier);
 }
+REGISTER("Level", "random_gaussian", Level_random_gaussian);
 static double time_offset;
 static union grug_value Level_get_time(ARGS) { UNUSED; return num((double)cur_tick + time_offset); }
+REGISTER("Level", "get_time", Level_get_time);
 static union grug_value Level_set_time(ARGS) {
     UNUSED;
     double t = a[1]._number;
@@ -303,40 +385,50 @@ static union grug_value Level_set_time(ARGS) {
     time_offset = t - (double)cur_tick;
     return none();
 }
+REGISTER("Level", "set_time", Level_set_time);
 
 // =============================================================================================
 // SECTION: Vec3 and BlockPos
 // =============================================================================================
 // Vec3
 static union grug_value Vec3_x(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->x : 0); }
+REGISTER("Vec3", "x", Vec3_x);
 static union grug_value Vec3_y(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->y : 0); }
+REGISTER("Vec3", "y", Vec3_y);
 static union grug_value Vec3_z(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->z : 0); }
+REGISTER("Vec3", "z", Vec3_z);
 static union grug_value Vec3_new(ARGS) {
     UNUSED;
     uint64_t v = new_obj(K_VEC3);
     objs[v - 1].x = a[0]._number; objs[v - 1].y = a[1]._number; objs[v - 1].z = a[2]._number;
     return id(v);
 }
+REGISTER("Vec3", "new", Vec3_new);
 static union grug_value Vec3_zero(ARGS) { UNUSED; return id(new_obj(K_VEC3)); }
+REGISTER("Vec3", "zero", Vec3_zero);
 
 // =============================================================================================
 // SECTION: Option
 // =============================================================================================
 // Option: the value is stored as the raw grug value, which is the same size for every $Value.
 static union grug_value Option_new(ARGS) { UNUSED; return id(new_obj(K_OPTION)); }
+REGISTER("Option", "new", Option_new);
 static union grug_value Option_has(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_OPTION); return boolean(o && o->has); }
+REGISTER("Option", "has", Option_has);
 static union grug_value Option_set(ARGS) {
     UNUSED;
     struct obj* o = get_obj(a[0]._id, K_OPTION);
     if (o) { o->has = true; o->val = a[1]; }
     return none();
 }
+REGISTER("Option", "set", Option_set);
 static union grug_value Option_unwrap(ARGS) {
     UNUSED;
     struct obj* o = get_obj(a[0]._id, K_OPTION);
     if (!o || !o->has) return fail("Option.unwrap: the Option is empty");
     return o->val;
 }
+REGISTER("Option", "unwrap", Option_unwrap);
 
 // =============================================================================================
 // SECTION: Math
@@ -347,32 +439,41 @@ static union grug_value Math_remainder(ARGS) {
     if (a[1]._number == 0) return fail("Math.remainder: the divisor is 0");
     return num(fmod(a[0]._number, a[1]._number));
 }
+REGISTER("Math", "remainder", Math_remainder);
 static union grug_value Math_floor(ARGS) { UNUSED; return num(floor(a[0]._number)); }
+REGISTER("Math", "floor", Math_floor);
 static union grug_value Math_sin(ARGS) { UNUSED; return num(sin(a[0]._number)); }
+REGISTER("Math", "sin", Math_sin);
 static union grug_value Math_cos(ARGS) { UNUSED; return num(cos(a[0]._number)); }
+REGISTER("Math", "cos", Math_cos);
 static union grug_value Math_pi(ARGS) { UNUSED; return num(3.14159265358979323846); }
+REGISTER("Math", "pi", Math_pi);
 static union grug_value Math_tau(ARGS) { UNUSED; return num(2 * 3.14159265358979323846); }
+REGISTER("Math", "tau", Math_tau);
 
 // =============================================================================================
 // SECTION: String
 // =============================================================================================
 // String
 static union grug_value String_length(ARGS) { UNUSED; return num((double)strlen(a[0]._string)); }
+REGISTER("String", "length", String_length);
 static union grug_value String_concat(ARGS) {
     UNUSED;
     size_t n = strlen(a[0]._string), m = strlen(a[1]._string);
-    char* s = malloc(n + m + 1);
+    char* s = xmalloc(n + m + 1);
     memcpy(s, a[0]._string, n);
     memcpy(s + n, a[1]._string, m + 1);
     return str(keep(s));
 }
+REGISTER("String", "concat", String_concat);
 static union grug_value String_from_number(ARGS) {
     UNUSED;
     char buf[64];
     if (is_whole(a[0]._number) && fabs(a[0]._number) < 1e15) snprintf(buf, sizeof buf, "%.0f", a[0]._number);
     else snprintf(buf, sizeof buf, "%g", a[0]._number);
-    return str(keep(strdup(buf)));
+    return str(keep(xstrdup(buf)));
 }
+REGISTER("String", "from_number", String_from_number);
 
 // =============================================================================================
 // SECTION: Generic host functions and print
@@ -387,6 +488,7 @@ static union grug_value equals(ARGS) {
     default: return boolean(a[0]._id == a[1]._id);
     }
 }
+REGISTER(NULL, "equals", equals);
 static void print_value(const union grug_value* v, const struct grug_type* t) {
     switch (t->type) {
     case TYPE_NUMBER: printf("%g", v->_number); break;
@@ -396,12 +498,14 @@ static void print_value(const union grug_value* v, const struct grug_type* t) {
     }
 }
 static union grug_value print1(ARGS) { (void)gst; if (quiet) return none(); print_value(&a[0], &g[0]); putchar('\n'); return none(); }
+REGISTER(NULL, "print", print1);
 static union grug_value print2(ARGS) {
     (void)gst;
     if (quiet) return none();
     print_value(&a[0], &g[0]); putchar(' '); print_value(&a[1], &g[1]); putchar('\n');
     return none();
 }
+REGISTER(NULL, "print2", print2);
 static union grug_value print3(ARGS) {
     (void)gst;
     if (quiet) return none();
@@ -409,6 +513,7 @@ static union grug_value print3(ARGS) {
     print_value(&a[2], &g[2]); putchar('\n');
     return none();
 }
+REGISTER(NULL, "print3", print3);
 
 // =============================================================================================
 // SECTION: Items and resource locations
@@ -421,39 +526,47 @@ static union grug_value hf_resource_location(ARGS) {
     uint64_t r = new_obj(K_RL);
     const char* s = a[0]._string;
     size_t n = strlen(s) + 11;
-    char* full = malloc(n);
+    char* full = xmalloc(n);
     snprintf(full, n, "%s%s", strchr(s, ':') ? "" : "minecraft:", s);
     objs[r - 1].str = keep(full);
     return id(r);
 }
+REGISTER(NULL, "resource_location", hf_resource_location);
 static union grug_value hf_item(ARGS) {
     UNUSED;
     struct obj* rl = get_obj(a[0]._id, K_RL);
     if (!rl) return fail("item: not a ResourceLocation");
+    // new_obj may move the table, so the name is read before it and rl is not used after it.
+    const char* name = rl->str;
     for (size_t i = 0; i < nobjs; i++)
-        if (objs[i].kind == K_ITEM && !strcmp(objs[i].str, rl->str)) return id(i + 1);
+        if (objs[i].kind == K_ITEM && !strcmp(objs[i].str, name)) return id(i + 1);
     uint64_t it = new_obj(K_ITEM);
-    objs[it - 1].str = rl->str;
+    objs[it - 1].str = name;
     return id(it);
 }
+REGISTER(NULL, "item", hf_item);
 
 // BlockPos: the two methods the committed block entity scripts and tests call.
 static union grug_value BlockPos_above_n(ARGS) {
     UNUSED;
     struct obj* p = get_obj(a[0]._id, K_BLOCKPOS);
     if (!p) return fail("BlockPos.above_n: not a BlockPos");
+    double px = p->x, py = p->y, pz = p->z;  // before new_obj, which may move the table
     uint64_t q = new_obj(K_BLOCKPOS);
-    objs[q - 1].x = p->x; objs[q - 1].y = p->y + a[1]._number; objs[q - 1].z = p->z;
+    objs[q - 1].x = px; objs[q - 1].y = py + a[1]._number; objs[q - 1].z = pz;
     return id(q);
 }
+REGISTER("BlockPos", "above_n", BlockPos_above_n);
 static union grug_value BlockPos_center(ARGS) {
     UNUSED;
     struct obj* p = get_obj(a[0]._id, K_BLOCKPOS);
     if (!p) return fail("BlockPos.center: not a BlockPos");
+    double px = p->x, py = p->y, pz = p->z;  // before new_obj, which may move the table
     uint64_t v = new_obj(K_VEC3);
-    objs[v - 1].x = p->x + 0.5; objs[v - 1].y = p->y + 0.5; objs[v - 1].z = p->z + 0.5;
+    objs[v - 1].x = px + 0.5; objs[v - 1].y = py + 0.5; objs[v - 1].z = pz + 0.5;
     return id(v);
 }
+REGISTER("BlockPos", "center", BlockPos_center);
 
 // =============================================================================================
 // SECTION: BlockEntity
@@ -469,6 +582,7 @@ struct record { struct kv* n; size_t nn; uint64_t item; bool has_item; };
 struct list { char* name; struct record* r; size_t nr; };
 struct be {
     bool live;
+    bool doomed;  // replaced or removed while one of its calls was running; freed when the call returns
     long x, y, z;
     void* entity;
     struct kv* nums; size_t nnums;
@@ -477,20 +591,33 @@ struct be {
 static struct be* bes;
 static size_t nbes, capbes;
 
-static struct files_ref { struct grug_files_slice f; uint64_t block_init, be_init, be_tick; } G;
+static struct files_ref {
+    struct grug_files_slice f;
+    uint64_t block_init;
+    uint64_t be_init;
+    uint64_t be_tick;
+} G;
 static char bg_missing[512];   // a "does not implement" raised inside a block entity call
-static char last_error[4096];  // the last runtime error the handler saw
+static char last_error[4096];  // the last runtime error the handler saw, with its source line and call stack
+static char last_msg[4096];    // the same error's message alone, which is what expect_error matches
 
 static struct be* be_of(uint64_t h) { return h >= BE_BASE && h - BE_BASE < nbes && bes[h - BE_BASE].live ? &bes[h - BE_BASE] : NULL; }
 
 // Runs a block entity or block export. A grug mod err is contained, as in the game; the one error
 // that is not is a missing smoketest entry, which would make every later assertion meaningless.
+static int call_depth;
+static void reap_bes(void);
 static void call_contained(void* entity, uint64_t fn, const union grug_value* args, size_t n) {
     char saved[sizeof last_error];
     memcpy(saved, last_error, sizeof saved);
     last_error[0] = 0;
+    call_depth++;
     if (!grug_call_export_fn(g_state, entity, fn, args, n) && strstr(last_error, "does not implement") && !bg_missing[0])
         snprintf(bg_missing, sizeof bg_missing, "%s", last_error);
+    // A block entity script can place or break blocks, so `bes` may have moved and a block entity
+    // may have been replaced while it ran: nothing holds a `struct be*` across this call, and a
+    // replaced one is only marked until the outermost call returns (see free_be).
+    if (--call_depth == 0) reap_bes();
     memcpy(last_error, saved, sizeof saved);
 }
 
@@ -501,8 +628,7 @@ static void free_list(struct list* l) {
     }
     free(l->r); free(l->name);
 }
-static void free_be(struct be* b) {
-    if (!b->live) return;
+static void release_be(struct be* b) {
     if (b->entity) grug_deinit_entity(g_state, b->entity);
     for (size_t i = 0; i < b->nnums; i++) free(b->nums[i].k);
     free(b->nums);
@@ -510,8 +636,18 @@ static void free_be(struct be* b) {
     free(b->lists);
     memset(b, 0, sizeof *b);
 }
+// Dropping a block entity whose script is running (a tick that replaces its own block) must not
+// deinit the entity under the VM, so inside any call it is only marked and freed by reap_bes.
+static void free_be(struct be* b) {
+    if (!b->live) return;
+    if (call_depth > 0) { b->live = false; b->doomed = true; return; }
+    release_be(b);
+}
+static void reap_bes(void) {
+    for (size_t i = 0; i < nbes; i++) if (bes[i].doomed) release_be(&bes[i]);
+}
 static void clear_bes(void) {
-    for (size_t i = 0; i < nbes; i++) free_be(&bes[i]);
+    for (size_t i = 0; i < nbes; i++) if (bes[i].live || bes[i].doomed) release_be(&bes[i]);
     nbes = 0;
 }
 
@@ -532,7 +668,9 @@ static union grug_value BIC_set_block_entity(ARGS) {
         if (G.f.ptr[i].entity_type && !strcmp(G.f.ptr[i].entity_type, "BlockEntity") && !strcmp(G.f.ptr[i].entity_name, e)) cur_binit.be_file = (long)i;
     return none();
 }
+REGISTER("BlockInitContext", "set_block_entity", BIC_set_block_entity);
 static union grug_value BIC_set_inventory_size(ARGS) { UNUSED; return none(); }
+REGISTER("BlockInitContext", "set_inventory_size", BIC_set_inventory_size);
 // Recorded and read by nothing yet: no committed logic test observes a block's hardness or material
 // without mining or a world capture, which the toy world has not. A test that does needs the mining
 // entry first and fails on that, by name.
@@ -541,9 +679,16 @@ static union grug_value BIC_set_hardness(ARGS) {
     if (!isfinite(a[1]._number) || a[1]._number < 0) return fail("BlockInitContext.set_hardness: the hardness has to be a finite number of at least 0");
     return none();
 }
+REGISTER("BlockInitContext", "set_hardness", BIC_set_hardness);
 static union grug_value BIC_set_material(ARGS) { UNUSED; return none(); }
+REGISTER("BlockInitContext", "set_material", BIC_set_material);
 // Graphics flags (#1548: graphics calls stay stubs): nothing draws, so nothing reads them.
 static union grug_value BIC_graphics_flag(ARGS) { UNUSED; return none(); }
+REGISTER("BlockInitContext", "set_shape", BIC_graphics_flag);
+REGISTER("BlockInitContext", "set_display_tick", BIC_graphics_flag);
+REGISTER("BlockInitContext", "set_flat_lighting", BIC_graphics_flag);
+REGISTER("BlockInitContext", "set_frame_render", BIC_graphics_flag);
+REGISTER("BlockInitContext", "set_custom_render", BIC_graphics_flag);
 
 static struct blockdef* find_blockdef(const char* name) {
     if (strncmp(name, "grug:", 5)) return NULL;
@@ -551,9 +696,9 @@ static struct blockdef* find_blockdef(const char* name) {
     for (size_t i = 0; i < G.f.len; i++) {
         struct grug_file_info* fi = &G.f.ptr[i];
         if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Block") || strcmp(fi->entity_name, name + 5)) continue;
-        blockdefs = realloc(blockdefs, (nblockdefs + 1) * sizeof *blockdefs);
+        blockdefs = xrealloc(blockdefs, (nblockdefs + 1) * sizeof *blockdefs);
         struct blockdef* d = &blockdefs[nblockdefs++];
-        d->name = keep(strdup(name)); d->inited = false; d->be_file = -1;
+        d->name = keep(xstrdup(name)); d->inited = false; d->be_file = -1;
         // Block.init has no entity to hold: create, run, drop.
         void* ent = grug_create_entity(g_state, fi->file_id);
         cur_binit.be_file = -1;
@@ -571,15 +716,17 @@ static struct be* be_at(long x, long y, long z) {
     return NULL;
 }
 static void make_be(long x, long y, long z, long file) {
-    if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = realloc(bes, capbes * sizeof *bes); if (!bes) abort(); }
-    struct be* b = &bes[nbes];
-    memset(b, 0, sizeof *b);
-    b->live = true; b->x = x; b->y = y; b->z = z;
-    uint64_t handle = BE_BASE + nbes++;
-    grug_set_next_entity_id(g_state, handle);
-    b->entity = grug_create_entity(g_state, G.f.ptr[file].file_id);
+    if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }
+    size_t idx = nbes++;  // an index, not a pointer: the member scope below can place blocks
+    memset(&bes[idx], 0, sizeof bes[idx]);
+    bes[idx].live = true; bes[idx].x = x; bes[idx].y = y; bes[idx].z = z;
+    grug_set_next_entity_id(g_state, BE_BASE + idx);
+    call_depth++;
+    void* entity = grug_create_entity(g_state, G.f.ptr[file].file_id);
+    call_depth--;
+    bes[idx].entity = entity;
     union grug_value arg = id(new_obj(K_CTX));
-    call_contained(b->entity, G.be_init, &arg, 1);
+    call_contained(entity, G.be_init, &arg, 1);
 }
 static void on_block_placed(long x, long y, long z, const char* name) {
     struct be* old = be_at(x, y, z);
@@ -588,17 +735,23 @@ static void on_block_placed(long x, long y, long z, const char* name) {
     if (d && d->be_file >= 0) make_be(x, y, z, d->be_file);
 }
 static void tick_bes(void) {
+    // Whether a block entity ticks before or after the test's own tick is not fixed by any committed
+    // test, nor is the order of block entities among themselves; this runs them after the test, in
+    // the order they were created.
     for (size_t i = 0; i < nbes; i++)
         if (bes[i].live && bes[i].entity) call_contained(bes[i].entity, G.be_tick, NULL, 0);
 }
 
 static union grug_value Level_get_block_entity(ARGS) {
     UNUSED;
-    struct be* b = be_at((long)floor(a[1]._number), (long)floor(a[2]._number), (long)floor(a[3]._number));
+    long p[3];
+    if (!pos_arg(a, p, "Level.get_block_entity")) return none();
+    struct be* b = be_at(p[0], p[1], p[2]);
     uint64_t o = new_obj(K_OPTION);
     if (b) { objs[o - 1].has = true; objs[o - 1].val = id(BE_BASE + (uint64_t)(b - bes)); }
     return id(o);
 }
+REGISTER("Level", "get_block_entity", Level_get_block_entity);
 static union grug_value BE_block_pos(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -607,7 +760,9 @@ static union grug_value BE_block_pos(ARGS) {
     objs[p - 1].x = (double)b->x; objs[p - 1].y = (double)b->y; objs[p - 1].z = (double)b->z;
     return id(p);
 }
+REGISTER("BlockEntity", "block_pos", BE_block_pos);
 static union grug_value BE_level(ARGS) { UNUSED; return id(new_obj(K_LEVEL)); }
+REGISTER("BlockEntity", "level", BE_level);
 
 static union grug_value TTC_tick_block_entity(ARGS) {
     UNUSED;
@@ -616,9 +771,12 @@ static union grug_value TTC_tick_block_entity(ARGS) {
     if (!b->entity) return fail("Only a grug block entity has a tick to run");
     double n = a[2]._number;
     if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("The ticks have to be a whole number from 0 to 2147483647");
-    for (long i = 0; i < (long)n; i++) call_contained(b->entity, G.be_tick, NULL, 0);
+    size_t idx = (size_t)(a[1]._id - BE_BASE);
+    // A tick may replace this block entity or move `bes`, so each round looks it up again by index.
+    for (long i = 0; i < (long)n && bes[idx].live; i++) call_contained(bes[idx].entity, G.be_tick, NULL, 0);
     return none();
 }
+REGISTER("TestTickContext", "tick_block_entity", TTC_tick_block_entity);
 
 // Saved numbers and saved lists. Index and key errors use the texts the expect_*saved* tests wait for.
 static union grug_value BE_set_saved_number(ARGS) {
@@ -626,11 +784,12 @@ static union grug_value BE_set_saved_number(ARGS) {
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.set_saved_number: not a live block entity");
     for (size_t i = 0; i < b->nnums; i++) if (!strcmp(b->nums[i].k, a[1]._string)) { b->nums[i].v = a[2]._number; return none(); }
-    b->nums = realloc(b->nums, (b->nnums + 1) * sizeof *b->nums);
-    b->nums[b->nnums].k = strdup(a[1]._string);
+    b->nums = xrealloc(b->nums, (b->nnums + 1) * sizeof *b->nums);
+    b->nums[b->nnums].k = xstrdup(a[1]._string);
     b->nums[b->nnums++].v = a[2]._number;
     return none();
 }
+REGISTER("BlockEntity", "set_saved_number", BE_set_saved_number);
 static union grug_value BE_get_saved_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -638,6 +797,7 @@ static union grug_value BE_get_saved_number(ARGS) {
     for (size_t i = 0; i < b->nnums; i++) if (!strcmp(b->nums[i].k, a[1]._string)) return num(b->nums[i].v);
     return num(0);
 }
+REGISTER("BlockEntity", "get_saved_number", BE_get_saved_number);
 static struct list* find_list(struct be* b, const char* name) {
     for (size_t i = 0; i < b->nlists; i++) if (!strcmp(b->lists[i].name, name)) return &b->lists[i];
     return NULL;
@@ -648,6 +808,7 @@ static struct record* record_at(struct be* b, const char* name, double index, si
     size_t n = l ? l->nr : 0;
     if (out_n) *out_n = n;
     if (!is_whole(index) || index < 0) { fail("The index has to be a whole number from 0 to %zu", n ? n - 1 : 0); return NULL; }
+    if (index > 2147483647.0) { fail("The index has to be a whole number from 0 to %zu", n ? n - 1 : 0); return NULL; }
     if (!l || (size_t)index >= n) { fail("There is no record at index %.0f", index); return NULL; }
     return &l->r[(size_t)index];
 }
@@ -658,21 +819,23 @@ static union grug_value BE_get_saved_list_size(ARGS) {
     struct list* l = find_list(b, a[1]._string);
     return num(l ? (double)l->nr : 0);
 }
+REGISTER("BlockEntity", "get_saved_list_size", BE_get_saved_list_size);
 static union grug_value BE_append_saved_list_record(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.append_saved_list_record: not a live block entity");
     struct list* l = find_list(b, a[1]._string);
     if (!l) {
-        b->lists = realloc(b->lists, (b->nlists + 1) * sizeof *b->lists);
+        b->lists = xrealloc(b->lists, (b->nlists + 1) * sizeof *b->lists);
         l = &b->lists[b->nlists++];
         memset(l, 0, sizeof *l);
-        l->name = strdup(a[1]._string);
+        l->name = xstrdup(a[1]._string);
     }
-    l->r = realloc(l->r, (l->nr + 1) * sizeof *l->r);
+    l->r = xrealloc(l->r, (l->nr + 1) * sizeof *l->r);
     memset(&l->r[l->nr], 0, sizeof *l->r);
     return num((double)l->nr++);
 }
+REGISTER("BlockEntity", "append_saved_list_record", BE_append_saved_list_record);
 static union grug_value BE_remove_saved_list_record(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -686,6 +849,7 @@ static union grug_value BE_remove_saved_list_record(ARGS) {
     l->nr--;
     return none();
 }
+REGISTER("BlockEntity", "remove_saved_list_record", BE_remove_saved_list_record);
 static union grug_value BE_get_saved_list_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -695,6 +859,7 @@ static union grug_value BE_get_saved_list_number(ARGS) {
     for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) return num(r->n[j].v);
     return num(0);
 }
+REGISTER("BlockEntity", "get_saved_list_number", BE_get_saved_list_number);
 static union grug_value BE_set_saved_list_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -702,11 +867,12 @@ static union grug_value BE_set_saved_list_number(ARGS) {
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
     if (!r) return none();
     for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) { r->n[j].v = a[4]._number; return none(); }
-    r->n = realloc(r->n, (r->nn + 1) * sizeof *r->n);
-    r->n[r->nn].k = strdup(a[3]._string);
+    r->n = xrealloc(r->n, (r->nn + 1) * sizeof *r->n);
+    r->n[r->nn].k = xstrdup(a[3]._string);
     r->n[r->nn++].v = a[4]._number;
     return none();
 }
+REGISTER("BlockEntity", "set_saved_list_number", BE_set_saved_list_number);
 static union grug_value BE_set_saved_list_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -715,6 +881,7 @@ static union grug_value BE_set_saved_list_item(ARGS) {
     if (r) { r->has_item = true; r->item = a[3]._id; }
     return none();
 }
+REGISTER("BlockEntity", "set_saved_list_item", BE_set_saved_list_item);
 static union grug_value BE_get_saved_list_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -724,6 +891,7 @@ static union grug_value BE_get_saved_list_item(ARGS) {
     if (r && r->has_item) { objs[o - 1].has = true; objs[o - 1].val = id(r->item); }
     return id(o);
 }
+REGISTER("BlockEntity", "get_saved_list_item", BE_get_saved_list_item);
 
 // =============================================================================================
 // SECTION: Runner settings and graphics stubs
@@ -738,6 +906,7 @@ static union grug_value TIC_set_max_ticks(ARGS) {
     if (n > max_ticks) max_ticks = (int)n;
     return none();
 }
+REGISTER("TestInitContext", "set_max_ticks", TIC_set_max_ticks);
 static union grug_value TTC_set_box_radius(ARGS) {
     UNUSED;
     // The room itself is not built: the toy world has no walls, and a stub can only check the argument.
@@ -745,123 +914,52 @@ static union grug_value TTC_set_box_radius(ARGS) {
     if (a[1]._number > 30) return fail("The radius has to be at most 30: a wider room would reach chunks the client never receives");
     return none();
 }
+REGISTER("TestTickContext", "set_box_radius", TTC_set_box_radius);
 // Screenshots are tokens equal to themselves (#1548): nothing is drawn, so a capture is always the
 // same as the reference and a test that mixes world changes with a screenshot goes on. The one
 // comparison that cannot hold is differs_from, which fails unless asked for no difference.
-static union grug_value TTC_screenshot(ARGS) { UNUSED; return id(new_obj(K_SHOT)); }
+static union grug_value TTC_screenshot(ARGS) { UNUSED; stubbed = true; return id(new_obj(K_SHOT)); }
+REGISTER("TestTickContext", "screenshot", TTC_screenshot);
 static union grug_value Shot_self(ARGS) { UNUSED; return a[0]; }
-static union grug_value Shot_equals(ARGS) { UNUSED; return none(); }
-static union grug_value Shot_change_from(ARGS) { UNUSED; return num(0); }
+REGISTER("Screenshot", "capture", Shot_self);
+REGISTER("Screenshot", "tolerance", Shot_self);
+static union grug_value Shot_equals(ARGS) { UNUSED; stubbed = true; return none(); }
+REGISTER("Screenshot", "equals", Shot_equals);
+static union grug_value Shot_change_from(ARGS) { UNUSED; stubbed = true; return num(0); }
+REGISTER("Screenshot", "change_from", Shot_change_from);
 static union grug_value Shot_differs_from(ARGS) {
     UNUSED;
     if (a[2]._number > 0) return fail("Screenshot.differs_from: the smoketest draws nothing, so two captures never differ");
     return none();
 }
+REGISTER("Screenshot", "differs_from", Shot_differs_from);
 // A loader that draws no overlays and no world overlays is one a test returns early on, which is
 // what a test that asks has to handle; the smoketest is such a loader.
-static union grug_value Test_overlay_supported(ARGS) { UNUSED; return boolean(false); }
-static union grug_value TTC_world_settled(ARGS) { UNUSED; return boolean(true); }
+static union grug_value Test_overlay_supported(ARGS) { UNUSED; stubbed = true; return boolean(false); }
+REGISTER("Test", "world_overlay_supported", Test_overlay_supported);
+REGISTER("Test", "overlay_supported", Test_overlay_supported);
+static union grug_value TTC_world_settled(ARGS) { UNUSED; stubbed = true; return boolean(true); }
+REGISTER("TestTickContext", "world_settled", TTC_world_settled);
 // A stall only has to take time on the real game; the toy world has no clock to block.
 static union grug_value TTC_stall(ARGS) {
     UNUSED;
     if (!isfinite(a[1]._number) || a[1]._number < 0 || a[1]._number > 10000) return fail("The time has to be from 0 to 10000 milliseconds");
     return none();
 }
+REGISTER("TestTickContext", "stall", TTC_stall);
 static union grug_value TTC_close_screen(ARGS) { UNUSED; return none(); }
+REGISTER("TestTickContext", "close_screen", TTC_close_screen);
 
 // =============================================================================================
 // SECTION: Registry and contract
 // =============================================================================================
 // The registry: every entry of mod_api.json, and which of them have an implementation.
 struct api_row { const char* cls; const char* name; host_fn stub; };
-#include "api_table_stubs.inc"
-static const struct api_row api_rows[] = {
-#include "api_table.inc"
-};
+static const struct api_row api_rows[] = {API_ROWS};
 #define NAPI (sizeof api_rows / sizeof api_rows[0])
 
-struct impl { const char* cls; const char* name; host_fn fn; };
-static const struct impl impls[] = {
-    {"TestTickContext", "assert", TTC_assert},
-    {"TestTickContext", "not_done", TTC_not_done},
-    {"TestTickContext", "current_tick", TTC_current_tick},
-    {"TestTickContext", "expect_error", TTC_expect_error},
-    {"TestTickContext", "get_client_level", TTC_get_client_level},
-    {"TestTickContext", "get_origin", TTC_get_origin},
-    {"TestInitContext", "get_origin", TTC_get_origin},
-    {"TestInitContext", "set_max_ticks", TIC_set_max_ticks},
-    {"TestTickContext", "tick_block_entity", TTC_tick_block_entity},
-    {"TestTickContext", "set_box_radius", TTC_set_box_radius},
-    {"TestTickContext", "world_settled", TTC_world_settled},
-    {"TestTickContext", "stall", TTC_stall},
-    {"TestTickContext", "close_screen", TTC_close_screen},
-    {NULL, "resource_location", hf_resource_location},
-    {NULL, "item", hf_item},
-    {"BlockPos", "above_n", BlockPos_above_n},
-    {"BlockPos", "center", BlockPos_center},
-    {"BlockInitContext", "set_block_entity", BIC_set_block_entity},
-    {"BlockInitContext", "set_inventory_size", BIC_set_inventory_size},
-    {"BlockInitContext", "set_hardness", BIC_set_hardness},
-    {"BlockInitContext", "set_material", BIC_set_material},
-    {"BlockInitContext", "set_custom_render", BIC_graphics_flag},
-    {"BlockInitContext", "set_frame_render", BIC_graphics_flag},
-    {"BlockInitContext", "set_flat_lighting", BIC_graphics_flag},
-    {"BlockInitContext", "set_display_tick", BIC_graphics_flag},
-    {"BlockInitContext", "set_shape", BIC_graphics_flag},
-    {"Level", "get_block_entity", Level_get_block_entity},
-    {"BlockEntity", "block_pos", BE_block_pos},
-    {"BlockEntity", "level", BE_level},
-    {"BlockEntity", "set_saved_number", BE_set_saved_number},
-    {"BlockEntity", "get_saved_number", BE_get_saved_number},
-    {"BlockEntity", "get_saved_list_size", BE_get_saved_list_size},
-    {"BlockEntity", "append_saved_list_record", BE_append_saved_list_record},
-    {"BlockEntity", "remove_saved_list_record", BE_remove_saved_list_record},
-    {"BlockEntity", "get_saved_list_number", BE_get_saved_list_number},
-    {"BlockEntity", "set_saved_list_number", BE_set_saved_list_number},
-    {"BlockEntity", "set_saved_list_item", BE_set_saved_list_item},
-    {"BlockEntity", "get_saved_list_item", BE_get_saved_list_item},
-    {"TestTickContext", "screenshot", TTC_screenshot},
-    {"Screenshot", "tolerance", Shot_self},
-    {"Screenshot", "capture", Shot_self},
-    {"Screenshot", "equals", Shot_equals},
-    {"Screenshot", "change_from", Shot_change_from},
-    {"Screenshot", "differs_from", Shot_differs_from},
-    {"Test", "overlay_supported", Test_overlay_supported},
-    {"Test", "world_overlay_supported", Test_overlay_supported},
-    {"Level", "random_int", Level_random_int},
-    {"Level", "random_float", Level_random_float},
-    {"Level", "random_gaussian", Level_random_gaussian},
-    {"Level", "set_time", Level_set_time},
-    {"Test", "is_reference", Test_is_reference},
-    {"Test", "loader_name", Test_loader_name},
-    {"Level", "is_air", Level_is_air},
-    {"Level", "get_block", Level_get_block},
-    {"Level", "place_block", Level_place_block},
-    {"Level", "get_time", Level_get_time},
-    {"Vec3", "x", Vec3_x},
-    {"Vec3", "y", Vec3_y},
-    {"Vec3", "z", Vec3_z},
-    {"Vec3", "new", Vec3_new},
-    {"Vec3", "zero", Vec3_zero},
-    {"Option", "new", Option_new},
-    {"Option", "has", Option_has},
-    {"Option", "set", Option_set},
-    {"Option", "unwrap", Option_unwrap},
-    {"Math", "remainder", Math_remainder},
-    {"Math", "floor", Math_floor},
-    {"Math", "sin", Math_sin},
-    {"Math", "cos", Math_cos},
-    {"Math", "pi", Math_pi},
-    {"Math", "tau", Math_tau},
-    {"String", "length", String_length},
-    {"String", "concat", String_concat},
-    {"String", "from_number", String_from_number},
-    {NULL, "equals", equals},
-    {NULL, "print", print1},
-    {NULL, "print2", print2},
-    {NULL, "print3", print3},
-};
-#define NIMPL (sizeof impls / sizeof impls[0])
+#define impls __start_smoke_impls
+#define NIMPL ((size_t)(__stop_smoke_impls - __start_smoke_impls))
 
 static bool same(const char* a, const char* b) { return (a == NULL) == (b == NULL) && (!a || !strcmp(a, b)); }
 static host_fn find_impl(const char* cls, const char* name) {
@@ -905,6 +1003,9 @@ static double now_ms(void) {
 static void on_runtime_error(void* data, struct grug_runtime_error* e) {
     (void)data;
     snprintf(last_error, sizeof last_error, "%s", e && e->error_string ? e->error_string : "(no message)");
+    // Matching only the message, not the source line the error string carries, so an expectation
+    // cannot pass on the test's own text.
+    snprintf(last_msg, sizeof last_msg, "%s", e && e->error_message ? e->error_message : last_error);
 }
 
 // The outcome of the last run_test, for the --all summary. quiet silences the per-test lines and
@@ -921,19 +1022,24 @@ static void report(const char* verdict, const char* label, const char* fmt, ...)
     if (!quiet) printf("%s %s%s%s\n", verdict, label, buf[0] ? ": " : "", buf);
 }
 
+// run_test's verdicts: a pass that called a stub is STUBBED, because it may have returned early or
+// compared a capture with itself and says nothing about the behaviour under test.
+enum { OUT_PASS = 0, OUT_FAIL = 1, OUT_STUBBED = 2 };
 static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn) {
     clear_bes();
     free_test_state();
     clear_world();
     nblockdefs = 0;
     max_ticks = 200;
+    rnd_reset();
     time_offset = 0;
     bg_missing[0] = 0;
+    stubbed = false;
     cur_tick = 0;
     free(expected_error);
     expected_error = NULL;
     void* entity = grug_create_entity(g_state, file_id);
-    if (!entity) { report("FAIL", label, "could not create the entity"); return 1; }
+    if (!entity) { report("FAIL", label, "could not create the entity"); return OUT_FAIL; }
     uint64_t ctx = new_obj(K_CTX);
     union grug_value arg = id(ctx);
     int rc = 0;
@@ -949,12 +1055,13 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     }
     while (!rc) {
         last_error[0] = 0;
+        last_msg[0] = 0;
         not_done_called = false;
         bool completed = grug_call_export_fn(g_state, entity, tick_fn, &arg, 1);
         if (bg_missing[0]) { report("FAIL", label, "%s", bg_missing); rc = 1; }
         else if (!completed) {
-            if (expected_error && strstr(last_error, expected_error)) { report("PASS", label, "%s", ""); break; }
-            if (expected_error) report("FAIL", label, "expected an error containing '%s', but got: %s", expected_error, last_error);
+            if (expected_error && strstr(last_msg, expected_error)) { report(stubbed ? "STUBBED" : "PASS", label, "%s", ""); break; }
+            if (expected_error) report("FAIL", label, "expected an error containing '%s', but got: %s", expected_error, last_msg);
             else report("FAIL", label, "%s", last_error);
             rc = 1;
         } else if (not_done_called) {
@@ -962,12 +1069,12 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
             if (++cur_tick >= max_ticks) { report("FAIL", label, "exceeded %d ticks", max_ticks); rc = 1; }
         } else {
             if (expected_error) { report("FAIL", label, "expected an error containing '%s', but it completed without one", expected_error); rc = 1; }
-            else report("PASS", label, "%s", "");
+            else report(stubbed ? "STUBBED" : "PASS", label, "%s", "");
             break;
         }
     }
     grug_deinit_entity(g_state, entity);
-    return rc;
+    return rc ? OUT_FAIL : stubbed ? OUT_STUBBED : OUT_PASS;
 }
 
 // --all: run every test of the mods in `mods`, and print each failure with the first entry it
@@ -976,12 +1083,14 @@ struct tally { char name[160]; int n; };
 static int run_all(struct grug_files_slice files, uint64_t tick_fn, uint64_t init_fn) {
     static struct tally tallies[512];
     size_t ntally = 0;
-    int passed = 0, failed = 0, missing_failures = 0;
+    int passed = 0, stubbed_n = 0, failed = 0, missing_failures = 0;
     quiet = true;
     for (size_t i = 0; i < files.len; i++) {
         const char* path = files.ptr[i].path;
         if (!strstr(path, "/tests/") || files.ptr[i].file_id == UINT64_MAX) continue;
-        if (!run_test(path, files.ptr[i].file_id, tick_fn, init_fn)) { passed++; continue; }
+        int outcome = run_test(path, files.ptr[i].file_id, tick_fn, init_fn);
+        if (outcome == OUT_PASS) { passed++; continue; }
+        if (outcome == OUT_STUBBED) { stubbed_n++; continue; }
         failed++;
         const char* m = strstr(fail_reason, "does not implement ");
         printf("FAIL %s: %.*s\n", path, (int)strcspn(fail_reason, "\n"), fail_reason);
@@ -1000,7 +1109,9 @@ static int run_all(struct grug_files_slice files, uint64_t tick_fn, uint64_t ini
     for (size_t i = 1; i < ntally; i++)
         for (size_t j = i; j > 0 && tallies[j].n > tallies[j - 1].n; j--) { struct tally t = tallies[j]; tallies[j] = tallies[j - 1]; tallies[j - 1] = t; }
     for (size_t k = 0; k < ntally; k++) printf("  needs %s: %d tests\n", tallies[k].name, tallies[k].n);
-    printf("smoketest --all: %d passed, %d failed (%d on a missing entry), %d total\n", passed, failed, missing_failures, passed + failed);
+    // passed ran its asserts; stubbed passed but called a graphics or capability stub (returned early
+    // on an overlay flag, or compared a capture with itself), so it proves less than a pass.
+    printf("smoketest --all: %d passed, %d stubbed, %d failed (%d on a missing entry), %d total\n", passed, stubbed_n, failed, missing_failures, passed + stubbed_n + failed);
     return failed ? 1 : 0;
 }
 
@@ -1069,7 +1180,7 @@ int main(int argc, char** argv) {
         for (size_t j = 0; j < files.len; j++) if (!strcmp(files.ptr[j].path, argv[i])) found = j;
         if (found == files.len || files.ptr[found].file_id == UINT64_MAX) { printf("FAIL %s: not compiled\n", argv[i]); rc = 1; continue; }
         double a = now_ms();
-        rc |= run_test(argv[i], files.ptr[found].file_id, tick_fn, init_fn);
+        rc |= run_test(argv[i], files.ptr[found].file_id, tick_fn, init_fn) == OUT_FAIL;
         printf("  %s: %.3f ms\n", argv[i], now_ms() - a);
         ran++;
     }
