@@ -2254,10 +2254,12 @@ jobs:
       # own names, so the map build below, which reads coverage-exec-* only, never sees it. Only a
       # dispatch has a multiplayer job at all, and one that uploads nothing leaves the coverage-*
       # match this pattern still needs, so the step names both rather than failing on an empty one.
+      # The layer-<loader> artifacts are the jars the Ornithe dedicated servers load, whose class
+      # bytes the server's exec data was recorded against (#169).
       - name: Download the coverage data
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: '{coverage-*,server-exec-*}'
+          pattern: '{coverage-*,server-exec-*,layer-*}'
           path: coverage/artifacts
 
       # The jar the core job resolved, so this job never starts Gradle. It used to run a
