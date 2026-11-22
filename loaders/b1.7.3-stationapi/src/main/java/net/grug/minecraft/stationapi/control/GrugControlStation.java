@@ -79,6 +79,10 @@ public final class GrugControlStation {
             "the StationAPI channel glue of #1040: no test the coverage gate counts can reach it,"
                     + " since only the multiplayer job runs it")
     private static final class StationLink implements GrugControlServer.Link {
+        @GrugGenerated(
+                "a race arm: the starter leaves between the server's check and its send, so the"
+                        + " connection is dead or the player gone; no test can time a disconnect"
+                        + " to land here")
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
             // A dead connection takes a packet into its queue without a word, so the starter is
@@ -110,6 +114,9 @@ public final class GrugControlStation {
          * only read from its own tick, a frozen one never reaches, so the caller runs this between
          * two runner ticks.
          */
+        @GrugGenerated(
+                "the client drain: it runs only between two runner ticks of a dedicated server"
+                        + " that has a client joined, which the multiplayer job alone launches")
         @Override
         public void applyClientWork() {
             Object starter = server().starter();
@@ -123,6 +130,9 @@ public final class GrugControlStation {
          * connection whose player was not found has not finished login. Operator-only starting is a
          * possible later hardening.
          */
+        @GrugGenerated(
+                "a race arm: a start that arrives before its connection has finished login finds"
+                        + " no player; no test can time a message to land before the login ends")
         @Override
         public boolean mayStartRun(Object sender) {
             return PLAYERS.get((Connection) sender) != null;
