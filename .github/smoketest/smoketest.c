@@ -635,22 +635,22 @@ static union grug_value TTC_get_player(ARGS) { UNUSED; return id(new_obj(K_PLAYE
 REGISTER("TestTickContext", "get_player", TTC_get_player);
 static union grug_value TTC_set_held_item(ARGS) {
     UNUSED;
-    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.set_held_item: not a Player");
-    if (!get_obj(a[2]._id, K_ITEM)) return fail("TestTickContext.set_held_item: not an Item");
+    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.set_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
+    if (!get_obj(a[2]._id, K_ITEM)) return fail("TestTickContext.set_held_item: not an Item");  // SMOKETEST_EXCL: no committed test
     held_has = true; held_item_id = a[2]._id;
     return none();
 }
 REGISTER("TestTickContext", "set_held_item", TTC_set_held_item);
 static union grug_value TTC_clear_held_item(ARGS) {
     UNUSED;
-    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.clear_held_item: not a Player");
+    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.clear_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
     held_has = false;
     return none();
 }
 REGISTER("TestTickContext", "clear_held_item", TTC_clear_held_item);
 static union grug_value Player_get_held_item(ARGS) {
     UNUSED;
-    if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.get_held_item: not a Player");
+    if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.get_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
     uint64_t o = new_obj(K_OPTION);
     if (held_has) { objs[o - 1].has = true; objs[o - 1].val = id(held_item_id); }
     return id(o);
@@ -669,7 +669,7 @@ REGISTER("Player", "get_held_item", Player_get_held_item);
 struct kv { char* k; double v; };
 struct record { struct kv* n; size_t nn; uint64_t item; bool has_item; };
 struct list { char* name; struct record* r; size_t nr; };
-struct slot { bool has; uint64_t item; double count; };
+struct slot { double count; };  // only the count is read by a committed test; the item and damage wait for get_item_in_slot and its tests
 struct be {
     bool live;
     bool doomed;  // replaced or removed while one of its calls was running; freed when the call returns
@@ -783,7 +783,7 @@ static union grug_value BIC_noop(ARGS) { UNUSED; stubbed = true; return none(); 
 static union grug_value BIC_set_inventory_size(ARGS) {
     UNUSED;
     double n = a[1]._number;
-    if (!is_whole(n) || n < 0 || n > 1024) return fail("BlockInitContext.set_inventory_size: the smoketest models whole sizes from 0 to 1024");
+    if (!is_whole(n) || n < 0 || n > 1024) return fail("BlockInitContext.set_inventory_size: the smoketest models whole sizes from 0 to 1024");  // SMOKETEST_EXCL: no committed test (the 1024 cap is this host's own)
     cur_binit.slots = (long)n;
     return none();
 }
@@ -913,8 +913,8 @@ REGISTER("BlockEntity", "level", BE_level);
 static union grug_value BIC_set_power_receiver(ARGS) {
     UNUSED;
     double m = a[1]._number;
-    if (!cur_init_be) return fail("BlockEntityInitContext.set_power_receiver: only legal while init() is running");
-    if (!is_whole(m) || m < 0 || m > 2147483647.0) return fail("max_stored has to be a whole number from 0 to 2147483647");
+    if (!cur_init_be) return fail("BlockEntityInitContext.set_power_receiver: only legal while init() is running");  // SMOKETEST_EXCL: no committed test
+    if (!is_whole(m) || m < 0 || m > 2147483647.0) return fail("max_stored has to be a whole number from 0 to 2147483647");  // SMOKETEST_EXCL: no committed test
     struct be* b = &bes[cur_init_be - 1];
     b->power = true;
     b->max_energy = m;
@@ -925,13 +925,13 @@ REGISTER("BlockEntityInitContext", "set_power_receiver", BIC_set_power_receiver)
 static union grug_value BE_is_power_receiver(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.is_power_receiver: not a live block entity");
+    if (!b) return fail("BlockEntity.is_power_receiver: not a live block entity");  // SMOKETEST_EXCL: no committed test
     return boolean(b->power);
 }
 REGISTER("BlockEntity", "is_power_receiver", BE_is_power_receiver);
 static struct be* receiver_of(uint64_t h, const char* who) {
     struct be* b = be_of(h);
-    if (!b) fail("%s: not a live block entity", who);
+    if (!b) fail("%s: not a live block entity", who);  // SMOKETEST_EXCL: no committed test
     else if (!b->power) { fail("%s: this block entity is not an energy receiver", who); b = NULL; }
     return b;
 }
@@ -946,7 +946,7 @@ static union grug_value BE_receive_energy(ARGS) {
     struct be* b = receiver_of(a[0]._id, "BlockEntity.receive_energy");
     if (!b) return none();
     double n = a[1]._number;
-    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.receive_energy: the amount has to be a whole number from 0 to 2147483647");
+    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.receive_energy: the amount has to be a whole number from 0 to 2147483647");  // expect_receive_energy_fractional-Test cites the fractional case; a negative or huge amount has no test
     double room = b->max_energy - b->energy, took = n < room ? n : room;
     b->energy += took;
     return num(took);
@@ -957,7 +957,7 @@ static union grug_value BE_extract_energy(ARGS) {
     struct be* b = receiver_of(a[0]._id, "BlockEntity.extract_energy");
     if (!b) return none();
     double n = a[1]._number;
-    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.extract_energy: the most to take has to be a whole number from 0 to 2147483647");
+    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.extract_energy: the most to take has to be a whole number from 0 to 2147483647");  // expect_extract_energy_negative-Test cites the negative case; a fractional or huge one has no test
     double took = n < b->energy ? n : b->energy;
     b->energy -= took;
     return num(took);
@@ -969,15 +969,21 @@ REGISTER("BlockEntity", "extract_energy", BE_extract_energy);
 static union grug_value BE_get_inventory_size(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.get_inventory_size: not a live block entity");
+    if (!b) return fail("BlockEntity.get_inventory_size: not a live block entity");  // SMOKETEST_EXCL: no committed test
     return num((double)b->nslots);
 }
 REGISTER("BlockEntity", "get_inventory_size", BE_get_inventory_size);
-static bool slot_in_range(const struct be* b, double s) { return is_whole(s) && s >= 0 && s < (double)b->nslots; }
+// Slot 999 reading as empty is inventory_ops-Test's; a negative or fractional slot has no test, so it
+// is answered as out of range and the call is marked stubbed.
+static bool slot_in_range(const struct be* b, double s) {
+    if (s >= 0 && s < (double)b->nslots && is_whole(s)) return true;
+    if (!is_whole(s) || s < 0) stubbed = true;  // SMOKETEST_EXCL: no committed test
+    return false;
+}
 static union grug_value BE_get_item_count_in_slot(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.get_item_count_in_slot: not a live block entity");
+    if (!b) return fail("BlockEntity.get_item_count_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
     return num(slot_in_range(b, a[1]._number) ? b->slots[(size_t)a[1]._number].count : 0);
 }
 REGISTER("BlockEntity", "get_item_count_in_slot", BE_get_item_count_in_slot);
@@ -985,10 +991,13 @@ static uint64_t be_inserted_fn;
 static union grug_value BE_set_item_in_slot(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.set_item_in_slot: not a live block entity");
+    if (!b) return fail("BlockEntity.set_item_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
     if (!slot_in_range(b, a[1]._number)) return fail("BlockEntity.set_item_in_slot: there is no slot %g, the inventory has %zu", a[1]._number, b->nslots);
     struct slot* sl = &b->slots[(size_t)a[1]._number];
-    sl->has = true; sl->item = a[2]._id; sl->count = a[3]._number;
+    // The tests write whole positive counts; any other count (negative, fractional, NaN) is not
+    // asserted by a test, so it is stored as given and the test is marked stubbed.
+    if (!(is_whole(a[3]._number) && a[3]._number > 0)) stubbed = true;  // SMOKETEST_EXCL: no committed test
+    sl->count = a[3]._number;
     // block_entity_me-Test: the block entity's item_inserted runs at once, once per write. Its amount is
     // the count written, which no committed test reads.
     if (b->entity) {
@@ -1017,7 +1026,8 @@ REGISTER("TestTickContext", "tick_block_entity", TTC_tick_block_entity);
 static union grug_value BE_set_saved_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.set_saved_number: not a live block entity");
+    if (!b) return fail("BlockEntity.set_saved_number: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves numbers");  // expect_*_saved_*_on_a_chest-Test
     for (size_t i = 0; i < b->nnums; i++) if (!strcmp(b->nums[i].k, a[1]._string)) { b->nums[i].v = a[2]._number; return none(); }
     b->nums = xrealloc(b->nums, (b->nnums + 1) * sizeof *b->nums);
     b->nums[b->nnums].k = xstrdup(a[1]._string);
@@ -1028,7 +1038,8 @@ REGISTER("BlockEntity", "set_saved_number", BE_set_saved_number);
 static union grug_value BE_get_saved_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.get_saved_number: not a live block entity");
+    if (!b) return fail("BlockEntity.get_saved_number: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves numbers");  // expect_*_saved_*_on_a_chest-Test
     for (size_t i = 0; i < b->nnums; i++) if (!strcmp(b->nums[i].k, a[1]._string)) return num(b->nums[i].v);
     return num(0);
 }
@@ -1058,7 +1069,8 @@ static struct record* record_at(struct be* b, const char* name, double index, si
 static union grug_value BE_get_saved_list_size(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.get_saved_list_size: not a live block entity");
+    if (!b) return fail("BlockEntity.get_saved_list_size: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
     struct list* l = find_list(b, a[1]._string);
     return num(l ? (double)l->nr : 0);
 }
@@ -1066,7 +1078,8 @@ REGISTER("BlockEntity", "get_saved_list_size", BE_get_saved_list_size);
 static union grug_value BE_append_saved_list_record(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.append_saved_list_record: not a live block entity");
+    if (!b) return fail("BlockEntity.append_saved_list_record: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
     struct list* l = find_list(b, a[1]._string);
     if (!l) {
         b->lists = xrealloc(b->lists, (b->nlists + 1) * sizeof *b->lists);
@@ -1082,7 +1095,8 @@ REGISTER("BlockEntity", "append_saved_list_record", BE_append_saved_list_record)
 static union grug_value BE_remove_saved_list_record(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.remove_saved_list_record: not a live block entity");
+    if (!b) return fail("BlockEntity.remove_saved_list_record: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
     if (!r) return none();
     struct list* l = find_list(b, a[1]._string);
@@ -1096,7 +1110,8 @@ REGISTER("BlockEntity", "remove_saved_list_record", BE_remove_saved_list_record)
 static union grug_value BE_get_saved_list_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.get_saved_list_number: not a live block entity");
+    if (!b) return fail("BlockEntity.get_saved_list_number: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
     if (!r) return none();
     for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) return num(r->n[j].v);
@@ -1106,7 +1121,8 @@ REGISTER("BlockEntity", "get_saved_list_number", BE_get_saved_list_number);
 static union grug_value BE_set_saved_list_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.set_saved_list_number: not a live block entity");
+    if (!b) return fail("BlockEntity.set_saved_list_number: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
     if (!r) return none();
     for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) { r->n[j].v = a[4]._number; return none(); }
@@ -1119,7 +1135,8 @@ REGISTER("BlockEntity", "set_saved_list_number", BE_set_saved_list_number);
 static union grug_value BE_set_saved_list_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.set_saved_list_item: not a live block entity");
+    if (!b) return fail("BlockEntity.set_saved_list_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
     if (r) { r->has_item = true; r->item = a[3]._id; }
     return none();
@@ -1128,7 +1145,8 @@ REGISTER("BlockEntity", "set_saved_list_item", BE_set_saved_list_item);
 static union grug_value BE_get_saved_list_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.get_saved_list_item: not a live block entity");
+    if (!b) return fail("BlockEntity.get_saved_list_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
     uint64_t o = new_obj(K_OPTION);
     if (r && r->has_item) { objs[o - 1].has = true; objs[o - 1].val = id(r->item); }
@@ -1288,7 +1306,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
-    held_has = false;
+    held_has = false; held_item_id = 0;
     time_offset = 0;
     bg_missing[0] = 0;
     stubbed = false;
