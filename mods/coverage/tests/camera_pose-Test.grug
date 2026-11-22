@@ -30,14 +30,10 @@ export tick(ctx: TestTickContext) {
         snap_x = origin.x()
         snap_y = origin.y() - 3.0
         snap_z = origin.z()
-        # Ten pigs on the player: each overlaps them, so each pushes them every tick. Only a1 holds
-        # its player (#1580); the other loaders' players are not pinned, and a pig would move them.
+        # Ten pigs on the player: each overlaps them, so each pushes them every tick, on every
+        # loader whose client holds its player at the snap (#1580).
         i: number = 0
-        crowd: number = 0
-        if me.loader_name() == "a1.1.2_01-ornithe" {
-            crowd = 10
-        }
-        while i < crowd {
+        while i < 10 {
             ctx.spawn_mob(level, "minecraft:pig", snap_x, snap_y - 1.62, snap_z)
             i = i + 1
         }

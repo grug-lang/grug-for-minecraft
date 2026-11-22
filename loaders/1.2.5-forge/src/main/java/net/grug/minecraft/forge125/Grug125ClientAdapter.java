@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerMove;
+import net.grug.minecraft.core.GrugTestPlayerPin;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.forge125.block.GrugBlocks;
@@ -524,6 +525,9 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         }
         player.setPositionAndRotation(
                 x, y + GrugTestOrigin.EYE_HEIGHT, z, player.rotationYaw, player.rotationPitch);
+        if (GrugTestPlayerPin.target() != null) {
+            GrugTestPlayerPin.hold(x, y + GrugTestOrigin.EYE_HEIGHT, z);
+        }
         return true;
     }
 

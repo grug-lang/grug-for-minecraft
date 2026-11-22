@@ -403,6 +403,7 @@ public class GrugClientHooks implements ITickHandler {
      * game tick, the cadence the other four loaders use.
      */
     private void gameTick(Minecraft minecraft) {
+        net.grug.minecraft.forge125.Grug125Adapter.holdPlayerForTest(minecraft.thePlayer);
         GrugControl125Client.onClientTick(minecraft, this);
         GrugOverlayHost.pollWorldKeys(minecraft);
         // The grug sprites cannot be handed to the texture manager before the atlas exists: FML
