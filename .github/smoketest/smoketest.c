@@ -116,6 +116,7 @@ enum kind {
     K_RL,
     K_ITEM,
     K_BLOCKPOS,
+    K_PLAYER,
     K_SHOT,
 };
 struct obj {
@@ -571,6 +572,37 @@ static union grug_value BlockPos_center(ARGS) {
 }
 REGISTER("BlockPos", "center", BlockPos_center);
 
+// The player and their hand, as held_item-Test asserts them: one local player, whose hand holds
+// an item or nothing. Nothing else about the player is modelled (position, inventory and the use
+// of items each wait for a committed test that needs them).
+static bool held_has;
+static uint64_t held_item_id;
+static union grug_value TTC_get_player(ARGS) { UNUSED; return id(new_obj(K_PLAYER)); }
+REGISTER("TestTickContext", "get_player", TTC_get_player);
+static union grug_value TTC_set_held_item(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.set_held_item: not a Player");
+    if (!get_obj(a[2]._id, K_ITEM)) return fail("TestTickContext.set_held_item: not an Item");
+    held_has = true; held_item_id = a[2]._id;
+    return none();
+}
+REGISTER("TestTickContext", "set_held_item", TTC_set_held_item);
+static union grug_value TTC_clear_held_item(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.clear_held_item: not a Player");
+    held_has = false;
+    return none();
+}
+REGISTER("TestTickContext", "clear_held_item", TTC_clear_held_item);
+static union grug_value Player_get_held_item(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.get_held_item: not a Player");
+    uint64_t o = new_obj(K_OPTION);
+    if (held_has) { objs[o - 1].has = true; objs[o - 1].val = id(held_item_id); }
+    return id(o);
+}
+REGISTER("Player", "get_held_item", Player_get_held_item);
+
 // =============================================================================================
 // SECTION: BlockEntity
 // =============================================================================================
@@ -583,6 +615,7 @@ REGISTER("BlockPos", "center", BlockPos_center);
 struct kv { char* k; double v; };
 struct record { struct kv* n; size_t nn; uint64_t item; bool has_item; };
 struct list { char* name; struct record* r; size_t nr; };
+struct slot { bool has; uint64_t item; double count; };
 struct be {
     bool live;
     bool doomed;  // replaced or removed while one of its calls was running; freed when the call returns
@@ -590,6 +623,8 @@ struct be {
     void* entity;
     struct kv* nums; size_t nnums;
     struct list* lists; size_t nlists;
+    struct slot* slots; size_t nslots;  // the inventory, sized by Block.init's set_inventory_size (a chest has 27)
+    bool power; double energy, max_energy;  // set_power_receiver
 };
 static struct be* bes;
 static size_t nbes, capbes;
@@ -639,6 +674,7 @@ static void release_be(struct be* b) {
     free(b->nums);
     for (size_t i = 0; i < b->nlists; i++) free_list(&b->lists[i]);
     free(b->lists);
+    free(b->slots);
     memset(b, 0, sizeof *b);
 }
 // Dropping a block entity whose script is running (a tick that replaces its own block) must not
@@ -659,12 +695,12 @@ static void clear_bes(void) {
 // Per-block registry: Block.init runs once per test on first placement, with set_block_entity and
 // set_inventory_size the only BlockInitContext entries implemented. Any other setter a block calls
 // fails the placement naming the entry.
-struct blockdef { const char* name; long be_file; };
+struct blockdef { const char* name; long be_file; long slots; };
 static struct blockdef* blockdefs;
 static size_t nblockdefs;
 // Block.init's own results. Block.init can place another undefined block, whose init nests inside
 // this one, so find_blockdef saves and restores it and keeps no pointer into `blockdefs`.
-struct binit { long be_file; const char* mod; };
+struct binit { long be_file; long slots; const char* mod; };
 static struct binit cur_binit;
 
 // An entity string without a mod prefix names an entity of the mod the script is in (the grug
@@ -688,7 +724,16 @@ REGISTER("BlockInitContext", "set_block_entity", BIC_set_block_entity);
 // calls one is STUBBED: it passed without the property having any effect. (The toy world has no
 // mining, materials, shapes or drawing; a test that needs one fails on that entry by name.)
 static union grug_value BIC_noop(ARGS) { UNUSED; stubbed = true; return none(); }
-REGISTER("BlockInitContext", "set_inventory_size", BIC_noop);
+// inventory_size-Test, set_item_out_of_range-Test and block_entity_me-Test read the size back. The
+// 1024 cap is this host's, not the game's, so a bigger size fails by name instead of allocating.
+static union grug_value BIC_set_inventory_size(ARGS) {
+    UNUSED;
+    double n = a[1]._number;
+    if (!is_whole(n) || n < 0 || n > 1024) return fail("BlockInitContext.set_inventory_size: the smoketest models whole sizes from 0 to 1024");
+    cur_binit.slots = (long)n;
+    return none();
+}
+REGISTER("BlockInitContext", "set_inventory_size", BIC_set_inventory_size);
 REGISTER("BlockInitContext", "set_hardness", BIC_noop);
 REGISTER("BlockInitContext", "set_material", BIC_noop);
 REGISTER("BlockInitContext", "set_shape", BIC_noop);
@@ -701,9 +746,11 @@ enum { BLOCK_UNRESOLVED = -2, BLOCK_NO_ENTITY = -1 };  // anything else is the B
 // Runs Block.init once per name per test and answers the block's BlockEntity file. A "grug:" name
 // that no Block script declares is unresolved (expect_place_block_unknown-Test); a name of another
 // namespace has no table here and is taken as given.
+static long resolved_slots;  // the inventory size of the block resolve_block last answered
 static long resolve_block(const char* name) {
+    resolved_slots = 0;
     if (strncmp(name, "grug:", 5)) return BLOCK_NO_ENTITY;
-    for (size_t i = 0; i < nblockdefs; i++) if (!strcmp(blockdefs[i].name, name)) return blockdefs[i].be_file;
+    for (size_t i = 0; i < nblockdefs; i++) if (!strcmp(blockdefs[i].name, name)) { resolved_slots = blockdefs[i].slots; return blockdefs[i].be_file; }
     for (size_t i = 0; i < G.f.len; i++) {
         struct grug_file_info* fi = &G.f.ptr[i];
         if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Block") || strcmp(fi->entity_name, name + 5)) continue;
@@ -715,12 +762,15 @@ static long resolve_block(const char* name) {
         void* ent = grug_create_entity(g_state, fi->file_id);
         struct binit outer = cur_binit;
         cur_binit.be_file = BLOCK_NO_ENTITY;
+        cur_binit.slots = 0;
         cur_binit.mod = fi->mod_name;
         union grug_value arg = id(new_obj(K_CTX));
         call_contained(ent, G.block_init, &arg, 1);
-        long result = cur_binit.be_file;
+        long result = cur_binit.be_file, slots = cur_binit.slots;
         cur_binit = outer;
         blockdefs[idx].be_file = result;
+        blockdefs[idx].slots = slots;
+        resolved_slots = slots;
         grug_deinit_entity(g_state, ent);
         return result;
     }
@@ -731,25 +781,47 @@ static struct be* be_at(long x, long y, long z) {
     for (size_t i = 0; i < nbes; i++) if (bes[i].live && bes[i].x == x && bes[i].y == y && bes[i].z == z) return &bes[i];
     return NULL;
 }
-static void make_be(long x, long y, long z, long file) {
+static size_t cur_init_be;  // 1 + the index of the block entity whose init() is running (0: none); an index, since `bes` can move
+static void give_slots(struct be* b, long n) {
+    b->slots = n ? xmalloc((size_t)n * sizeof *b->slots) : NULL;
+    if (n) memset(b->slots, 0, (size_t)n * sizeof *b->slots);
+    b->nslots = (size_t)n;
+}
+static void make_be(long x, long y, long z, long file, long slots) {
     if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }
     size_t idx = nbes++;  // an index, not a pointer: the member scope below can place blocks
     memset(&bes[idx], 0, sizeof bes[idx]);
     bes[idx].live = true; bes[idx].x = x; bes[idx].y = y; bes[idx].z = z;
+    give_slots(&bes[idx], slots);
     grug_set_next_entity_id(g_state, BE_BASE + idx);
     call_depth++;
     void* entity = grug_create_entity(g_state, G.f.ptr[file].file_id);
     call_depth--;
     bes[idx].entity = entity;
     union grug_value arg = id(new_obj(K_CTX));
+    // init() can place a block that makes its own block entity, whose init runs inside this one.
+    size_t outer = cur_init_be;
+    cur_init_be = idx + 1;
     call_contained(entity, G.be_init, &arg, 1);
+    cur_init_be = outer;
 }
 static long resolve_block_fwd(const char* name) { return resolve_block(name); }
 static void on_block_placed(long x, long y, long z, const char* name) {
     struct be* old = be_at(x, y, z);
     if (old) free_be(old);
     long file = resolve_block(name);
-    if (file >= 0) make_be(x, y, z, file);
+    long slots = resolved_slots;
+    if (file >= 0) make_be(x, y, z, file, slots);
+    else if (!strcmp(name, "minecraft:chest")) {
+        // The one vanilla block entity the committed tests place (chest_inventory-Test and
+        // inventory_size-Test assert its 27 slots, power-Test and expect_receive_energy_not_a_receiver-Test
+        // that it is no receiver). It has no script, so it never ticks.
+        if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }
+        struct be* b = &bes[nbes++];
+        memset(b, 0, sizeof *b);
+        b->live = true; b->x = x; b->y = y; b->z = z;
+        give_slots(b, 27);
+    }
 }
 static void tick_bes(void) {
     // Whether a block entity ticks before or after the test's own tick is not fixed by any committed
@@ -780,6 +852,98 @@ static union grug_value BE_block_pos(ARGS) {
 REGISTER("BlockEntity", "block_pos", BE_block_pos);
 static union grug_value BE_level(ARGS) { UNUSED; return id(new_obj(K_LEVEL)); }
 REGISTER("BlockEntity", "level", BE_level);
+
+// Energy (power-Test, power_nbt_round_trip-Test's first half, expect_*energy* tests). The store is a
+// whole number from 0 to 2147483647, which the tests assert only as the text "has to be a whole
+// number from 0 to".
+static union grug_value BIC_set_power_receiver(ARGS) {
+    UNUSED;
+    double m = a[1]._number;
+    if (!cur_init_be) return fail("BlockEntityInitContext.set_power_receiver: only legal while init() is running");
+    if (!is_whole(m) || m < 0 || m > 2147483647.0) return fail("max_stored has to be a whole number from 0 to 2147483647");
+    struct be* b = &bes[cur_init_be - 1];
+    b->power = true;
+    b->max_energy = m;
+    if (b->energy > m) b->energy = m;  // power_declare_again-Test: cut down, never raised
+    return none();
+}
+REGISTER("BlockEntityInitContext", "set_power_receiver", BIC_set_power_receiver);
+static union grug_value BE_is_power_receiver(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.is_power_receiver: not a live block entity");
+    return boolean(b->power);
+}
+REGISTER("BlockEntity", "is_power_receiver", BE_is_power_receiver);
+static struct be* receiver_of(uint64_t h, const char* who) {
+    struct be* b = be_of(h);
+    if (!b) fail("%s: not a live block entity", who);
+    else if (!b->power) { fail("%s: this block entity is not an energy receiver", who); b = NULL; }
+    return b;
+}
+static union grug_value BE_get_energy_stored(ARGS) {
+    UNUSED;
+    struct be* b = receiver_of(a[0]._id, "BlockEntity.get_energy_stored");
+    return b ? num(b->energy) : none();
+}
+REGISTER("BlockEntity", "get_energy_stored", BE_get_energy_stored);
+static union grug_value BE_receive_energy(ARGS) {
+    UNUSED;
+    struct be* b = receiver_of(a[0]._id, "BlockEntity.receive_energy");
+    if (!b) return none();
+    double n = a[1]._number;
+    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.receive_energy: the amount has to be a whole number from 0 to 2147483647");
+    double room = b->max_energy - b->energy, took = n < room ? n : room;
+    b->energy += took;
+    return num(took);
+}
+REGISTER("BlockEntity", "receive_energy", BE_receive_energy);
+static union grug_value BE_extract_energy(ARGS) {
+    UNUSED;
+    struct be* b = receiver_of(a[0]._id, "BlockEntity.extract_energy");
+    if (!b) return none();
+    double n = a[1]._number;
+    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.extract_energy: the most to take has to be a whole number from 0 to 2147483647");
+    double took = n < b->energy ? n : b->energy;
+    b->energy -= took;
+    return num(took);
+}
+REGISTER("BlockEntity", "extract_energy", BE_extract_energy);
+
+// Inventory slots. A write to a slot that does not exist is an error naming "slot" (set_item_out_of_range-Test);
+// a read of one answers empty (inventory_ops-Test).
+static union grug_value BE_get_inventory_size(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_inventory_size: not a live block entity");
+    return num((double)b->nslots);
+}
+REGISTER("BlockEntity", "get_inventory_size", BE_get_inventory_size);
+static bool slot_in_range(const struct be* b, double s) { return is_whole(s) && s >= 0 && s < (double)b->nslots; }
+static union grug_value BE_get_item_count_in_slot(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_item_count_in_slot: not a live block entity");
+    return num(slot_in_range(b, a[1]._number) ? b->slots[(size_t)a[1]._number].count : 0);
+}
+REGISTER("BlockEntity", "get_item_count_in_slot", BE_get_item_count_in_slot);
+static uint64_t be_inserted_fn;
+static union grug_value BE_set_item_in_slot(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.set_item_in_slot: not a live block entity");
+    if (!slot_in_range(b, a[1]._number)) return fail("BlockEntity.set_item_in_slot: there is no slot %g, the inventory has %zu", a[1]._number, b->nslots);
+    struct slot* sl = &b->slots[(size_t)a[1]._number];
+    sl->has = true; sl->item = a[2]._id; sl->count = a[3]._number;
+    // block_entity_me-Test: the block entity's item_inserted runs at once, once per write. Its amount is
+    // the count written, which no committed test reads.
+    if (b->entity) {
+        union grug_value args[2] = {num(a[1]._number), num(a[3]._number)};
+        call_contained(b->entity, be_inserted_fn, args, 2);
+    }
+    return none();
+}
+REGISTER("BlockEntity", "set_item_in_slot", BE_set_item_in_slot);
 
 static union grug_value TTC_tick_block_entity(ARGS) {
     UNUSED;
@@ -1062,6 +1226,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
+    held_has = false;
     time_offset = 0;
     bg_missing[0] = 0;
     stubbed = false;
@@ -1201,6 +1366,7 @@ int main(int argc, char** argv) {
     G.block_init = grug_get_on_fn_id(g_state, "Block", "init");
     G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
     G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
+    be_inserted_fn = grug_get_on_fn_id(g_state, "BlockEntity", "item_inserted");
     uint64_t tick_fn = grug_get_on_fn_id(g_state, "Test", "tick");
     uint64_t init_fn = grug_get_on_fn_id(g_state, "Test", "init");
     if (!strcmp(argv[2], "--all")) { rc = run_all(files, tick_fn, init_fn); goto done; }
