@@ -65,17 +65,10 @@ if [ "$PHASE" != build ] && [ "$WINDOWS" = false ] && [ -z "${DISPLAY:-}" ]; the
   exit 2
 fi
 
-# Record which CPU renders the run, because Mesa's llvmpipe compiles its rasterizer for the host's
-# vector extensions and the same single-pixel difference in a capture (#1550) has shown up on the same
-# coordinates in different runs, which points at a runner CPU class and not at the test. The line is
-# printed for every game phase so a failing job can be matched with the CPU it ran on.
-if [ "$PHASE" != build ] && [ "$WINDOWS" = false ] && [ -r /proc/cpuinfo ]; then
-  echo "==> CPU: $(grep -m1 'model name' /proc/cpuinfo | sed 's/.*: //') | flags: $(grep -m1 '^flags' /proc/cpuinfo | grep -o -w 'avx2\|avx512f\|fma' | sort -u | tr '\n' ' ')"
-  # Pin the rasterizer's vector width, so every runner CPU class compiles the same code. llvmpipe
-  # takes the width from the host (256 bits with AVX2, which AVX-512 hosts keep), so the pool's AMD
-  # EPYC 7763 and its AVX-512 Intel Xeons and EPYC 9V45 render a capture differently in a pixel (#1550).
-  export LP_NATIVE_VECTOR_WIDTH=128
-  echo "==> llvmpipe LP_NATIVE_VECTOR_WIDTH=${LP_NATIVE_VECTOR_WIDTH}"
+# Print the CPU and pin llvmpipe to one rasterizer on every CPU class (#1550).
+if [ "$PHASE" != build ] && [ "$WINDOWS" = false ]; then
+  # shellcheck source=pin-llvmpipe.sh
+  . "$(dirname "${BASH_SOURCE[0]}")/pin-llvmpipe.sh"
 fi
 
 mkdir -p "${LOADER_DIR}/run"
