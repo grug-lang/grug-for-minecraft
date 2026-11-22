@@ -17,7 +17,7 @@ shell_x: number = 0
 shell_y: number = 0
 shell_z: number = 0
 
-# The serial of the last screen the overlay drew on, and whether the key Z has not yet been answered
+# The serial of the last screen the overlay drew on, and whether the key Ctrl+Z has not yet been answered
 # on it, which lets a test tell a new screen from the same one (OverlayRenderContext.screen_serial,
 # #865).
 last_serial: number = -1
@@ -104,11 +104,12 @@ export key(ctx: OverlayKeyContext) {
     }
     # The space bar (32) and backspace (8) reach an overlay as their ASCII codes on every loader
     # (#865), and Z takes only the first press on a screen, so a test can tell a new screen from the
-    # one before it.
-    if (ctx.key() == 32 or ctx.key() == 8) and not ctx.ctrl() {
+    # one before it. All three need Control, because this overlay runs before the item list's and a
+    # plain space or backspace it took would never reach the search field.
+    if (ctx.key() == 32 or ctx.key() == 8) and ctx.ctrl() {
         ctx.take()
     }
-    if ctx.key() == 90 and not ctx.ctrl() and fresh_screen {
+    if ctx.key() == 90 and ctx.ctrl() and fresh_screen {
         fresh_screen = false
         ctx.take()
     }
