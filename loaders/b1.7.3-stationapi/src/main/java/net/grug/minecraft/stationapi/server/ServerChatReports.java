@@ -7,6 +7,8 @@ import net.grug.minecraft.stationapi.control.GrugControlStation;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.minecraft.entity.player.PlayerEntity;
 
+import java.util.function.Consumer;
+
 /**
  * Hands grug's reports to the player whose work raised them, on a dedicated server (#165).
  *
@@ -25,38 +27,31 @@ import net.minecraft.entity.player.PlayerEntity;
  */
 @GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public final class ServerChatReports {
-    /** The colour a grug err is drawn in, which is the client's own. */
-    private static final String RED = "\u00A7c";
-
     private ServerChatReports() {}
 
     /** Called at the end of every server tick, from the server entrypoint. */
     public static void onServerTick() {
         Object actor =
                 GrugChat.actingPlayer(GrugServerRun.players(), GrugControlStation.starterPlayer());
-        PlayerEntity player = actor instanceof PlayerEntity ? (PlayerEntity) actor : null;
 
-        // A CI run is not watched, and the client that joined it is the one taking the captures, so
-        // the run's chat stays clear, exactly as a client's own drain keeps it (#412). The queues
-        // are still emptied, or a suite's progress lines would pile up.
-        boolean chat = player != null && !GrugReference.isCiRun();
+        // The decisions and the formatting are core's, which the unit tests reach, so a tick here
+        // runs every line on any dedicated run: nothing in this method waits for a chat to exist.
+        Consumer<String> chat =
+                GrugChat.sink(actor, GrugReference.isCiRun(), ServerChatReports::chatOf);
 
-        GrugChat.drain(
-                (text, error) -> {
-                    String prefix = error ? RED : "";
+        GrugChat.drain(GrugChat.reporter(InitListener.LOGGER::info, chat));
+    }
 
-                    // Every line reaches the log, as a client's drain gives it, so a print is not
-                    // lost when there is no chat to show it in.
-                    for (String line : text.split("\n")) {
-                        InitListener.LOGGER.info(prefix + line);
-                    }
-
-                    if (!chat) {
-                        return;
-                    }
-                    for (String piece : GrugChat.wrap(text)) {
-                        player.sendMessage(prefix + piece);
-                    }
-                });
+    /**
+     * The chat of one connected player. It runs only when a report has a player to go to and the
+     * run is not a CI run, and every dedicated run in CI sets {@code GRUG_CI}, which the server
+     * process reads from its own environment, so no grug test and no unit test can reach it: a unit
+     * test would need a live {@code PlayerEntity}, which only a running game makes.
+     */
+    @GrugGenerated(
+            "a player's chat exists only outside a CI run, and every dedicated run in CI is one")
+    private static Consumer<String> chatOf(Object actor) {
+        PlayerEntity player = (PlayerEntity) actor;
+        return player::sendMessage;
     }
 }

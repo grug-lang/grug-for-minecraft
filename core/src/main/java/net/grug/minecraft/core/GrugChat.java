@@ -4,6 +4,8 @@ import net.grug.minecraft.grug.GrugErrors;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * What grug says to a player outside the log: the queues a client drains into its one chat every
@@ -29,6 +31,12 @@ public final class GrugChat {
     /** The sign a chat reads as the start of a colour code, whose character follows it. */
     private static final char SECTION_SIGN = '\u00a7';
 
+    /** The colour a grug err is drawn in, which is the client's own. */
+    public static final String RED = "\u00A7c";
+
+    /** The chat of nobody: what a report goes to when no one player's work it was. */
+    private static final Consumer<String> NOBODY = piece -> {};
+
     private GrugChat() {}
 
     /** One chat, which takes a line of grug's text and whether grug reported it as an error. */
@@ -48,6 +56,39 @@ public final class GrugChat {
             return starter;
         }
         return connected.size() == 1 ? connected.get(0) : null;
+    }
+
+    /**
+     * The chat a dedicated server's reports go to: the acting player's, made by {@code chatOf},
+     * unless there is none or the run is a CI run, and otherwise nobody's. A CI run is not watched,
+     * and the client that joined it is the one taking the captures, so the run's chat stays clear,
+     * exactly as a client's own drain keeps it (#412). {@code chatOf} is not called in either of
+     * those cases, so it is the only code left that needs a real player.
+     */
+    public static Consumer<String> sink(
+            Object actor, boolean ciRun, Function<Object, Consumer<String>> chatOf) {
+        if (actor == null || ciRun) {
+            return NOBODY;
+        }
+        return chatOf.apply(actor);
+    }
+
+    /**
+     * A {@link Chat} that gives every line of a report to {@code log}, as a client's drain gives
+     * it, so a print is not lost when there is no chat to show it in, and every wrapped piece of it
+     * to {@code chat}. An err carries {@link #RED} in front of each line and piece, so it can never
+     * be exactly a translation key, which a server's own chat would translate on its way.
+     */
+    public static Chat reporter(Consumer<String> log, Consumer<String> chat) {
+        return (text, error) -> {
+            String prefix = error ? RED : "";
+            for (String line : text.split("\n")) {
+                log.accept(prefix + line);
+            }
+            for (String piece : wrap(text)) {
+                chat.accept(prefix + piece);
+            }
+        };
     }
 
     /**
