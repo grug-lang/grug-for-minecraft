@@ -41,6 +41,7 @@ import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.Packet51MapChunk;
+import net.minecraft.src.StringTranslate;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
 
@@ -896,6 +897,19 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                                 world.getSavedLightValue(
                                         EnumSkyBlock.Block, lightX, lightY, lightZ));
         return clientLight.lightApplied(x, y, z, simulated);
+    }
+
+    /**
+     * An item's name in the language the server holds, which {@code Item.getItemDisplayName} is not
+     * the way to ask for: the server's item class has no such method (the game puts it on the
+     * client alone), so a search over the item list that read it on this side died with a
+     * NoSuchMethodError (#1040). The client's method is the translation of the item's name key plus
+     * {@code .name}, and the server carries the same language tables.
+     */
+    @Override
+    public String itemDisplayName(Object itemObj) {
+        String key = ((Item) itemObj).getItemName();
+        return key == null ? null : StringTranslate.getInstance().translateKey(key + ".name");
     }
 
     /**

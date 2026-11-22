@@ -464,7 +464,7 @@ class SecondPlayerTest(unittest.TestCase):
                 # what this fixture is about; the game itself never passes anything. A case that
                 # needs the client to die first sets a wider deadline.
                 "GRUG_CI_BUILD_TIMEOUT": "30",
-                "GRUG_CI_RUN_TIMEOUT": "1",
+                "GRUG_CI_RUN_TIMEOUT": "5",
                 "GRUG_CI_SECOND_JOIN_TIMEOUT": "2",
             }
         )

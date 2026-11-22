@@ -47,8 +47,15 @@ export tick(ctx: TestTickContext) {
         # this stands one block along x at the same height and depth.
         i: number = 0
         # Repeating the move makes the client tick that used to land between it and the read-back
-        # likely instead of rare.
-        while i < 300 {
+        # likely instead of rare. On a dedicated server every read of the eye is three calls to the
+        # joined client, about 300 ms each on a loaded runner, so 300 repeats took longer than the
+        # whole run's budget on b1.7.3-stationapi (#1040); the stone holds the client's player
+        # there, so a few repeats prove the conversion.
+        repeats: number = 300
+        if me.on_dedicated_server() {
+            repeats = 10
+        }
+        while i < repeats {
             ctx.set_player_position(before.x() + 1.0, before.y() - 1.62, before.z())
             after: Vec3 = ctx.camera()
             ctx.assert(_near(after.x(), before.x() + 1.0), "The player moves to the x the test asked for.")
