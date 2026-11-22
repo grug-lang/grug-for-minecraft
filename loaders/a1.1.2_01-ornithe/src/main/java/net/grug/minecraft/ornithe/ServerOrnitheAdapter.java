@@ -895,6 +895,27 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * Brings the world to the next noon when it is dark, before the test's room is built.
+     *
+     * <p>Alpha lights what it draws with the sky light minus the world's ambient darkness, which
+     * follows the clock, so a scene with an opening to the sky is a different brightness at every
+     * hour. A client-only run reaches the same hour on every run, but a dedicated server's clock is
+     * wherever the run's many ticks left it, so a joined client drew {@code
+     * safesquares/overlay_crosses}'s sky-lit floor almost black (#1040). The jump is forward, so a
+     * scheduled tick only comes sooner, and it happens only at night, so a test that starts by day
+     * sees an unbroken clock.
+     */
+    @Override
+    public void buildTestBox(int radius) {
+        World world = (World) getLevel();
+        if (world != null && world.ambientDarkness != 0) {
+            world.setTime(world.ticks - world.ticks % 24000L + 24000L + 6000L);
+            world.initAmbientDarkness();
+        }
+        super.buildTestBox(radius);
+    }
+
+    /**
      * Asks the client of the player who started the run whether it has drawn the server's world,
      * with the world frozen, and answers the same to the test (#1086). A server on its own is
      * settled as soon as a test asks, because no client frame or block packet is owed to anyone;
