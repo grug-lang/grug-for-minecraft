@@ -9,8 +9,10 @@
 # overlay on, so a capture that cannot hold both crosses fails here rather than as a golden that
 # was accepted with only one. The golden is the position check: every cross in the crop is drawn
 # where the square is, from the camera, which looks towards +z, so the hole's side is on the left.
-# The crop stops at x 880: the player's held item is drawn at the bottom right and differs between
-# the client-only run and the installed jar's, which is not what this test is about.
+# The crop stops at x 840: the player's held item is drawn at the bottom right and differs between
+# the client-only run and the installed jar's, which is not what this test is about. It stops short of
+# 852 and 877 because a1's flat floor showed two seam pixels there (screen y 589 and 616) whose red and
+# green values jittered between runs (#1550, cause not proven, a1 only); every cross stays inside it.
 # Beta stores sky light as at full day, so the reads and the capture do not change with the clock.
 state: number = 0
 waited: number = 0
@@ -107,7 +109,7 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    ctx.screenshot().equals(r"screenshots/overlay_crosses", 100, 430, 880, 640)
+    ctx.screenshot().equals(r"screenshots/overlay_crosses", 100, 430, 840, 640)
 
     # The overlay is one entity for the whole run: L turns it off again, or its crosses would sit in
     # every later test's captures.
