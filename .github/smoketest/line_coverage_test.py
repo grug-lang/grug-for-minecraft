@@ -49,6 +49,13 @@ class LineCoverageTest(unittest.TestCase):
                 _, _, _, problems = lc.measure(gcov({1: 1}), src)
                 self.assertTrue(problems)
 
+    def test_a_marker_inside_a_string_is_no_marker(self):
+        src = 'puts("// SMOKETEST_EXCL: not a comment");\n'
+        total, covered, missed, problems = lc.measure(gcov({1: 0}), src)
+        self.assertEqual((total, covered, missed, problems), (1, 0, [1], []))
+        src = 'puts("x"); // SMOKETEST_EXCL: after a string\n'
+        self.assertEqual(lc.measure(gcov({1: 0}), src)[0], 0)
+
     def test_unbalanced_ranges_are_problems(self):
         self.assertTrue(lc.excluded_lines("// SMOKETEST_EXCL_START: r\na\n")[1])
         self.assertTrue(lc.excluded_lines("a\n// SMOKETEST_EXCL_STOP\n")[1])
@@ -78,6 +85,11 @@ class LineCoverageTest(unittest.TestCase):
             self.assertEqual(run().returncode, 0)
             self.assertIn("1/2", run().stdout)
             self.assertEqual(run("--assert").returncode, 1)
+            c.write_text("a // SMOKETEST_EXCL\nb\n")
+            loud = run()
+            self.assertEqual(loud.returncode, 0)
+            self.assertIn("EXCLUSION PROBLEM", loud.stdout)
+            c.write_text("a\nb\n")
             j.write_text(json.dumps(gcov({1: 1, 2: 4})))
             self.assertEqual(run("--assert").returncode, 0)
 
