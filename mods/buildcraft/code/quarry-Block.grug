@@ -1,6 +1,52 @@
 # TileQuarry's block, BlockQuarry: hardness 1.5 and Material.iron, which is the port's "metal". The
-# frame, the energy intake and the mining are later pieces of #1543, so this block is inert for now.
+# frame, the energy intake and the mining are later pieces of #1543.
+# The block draws its own geometry, because which side shows the front texture depends on the facing
+# its block entity keeps, as BlockQuarry.a(side, meta) picks it from the block's metadata. That makes
+# the block non-opaque in the port, which the reference's cube is not (#1568).
 export init(ctx: BlockInitContext) {
     ctx.set_hardness(1.5)
     ctx.set_material("metal")
+    ctx.set_block_entity(e"quarry_entity")
+    ctx.set_custom_render()
+}
+
+# BlockQuarry.a(world, i, j, k, entityliving): the metadata is Utils.get2dOrientation(placer, block)
+# turned round, so the front faces the player. The placer's position is its x and z, and the block's is
+# its corner, not its centre, as the reference passes new Position(i, j, k). The metadata is in
+# Orientations order, which is also the number of the side the front is on: 2 north, 3 south, 4 west
+# and 5 east.
+# get2dOrientation takes the angle atan2(Dz, Dx) in degrees plus 180 and cuts it at 45, 135, 225 and
+# 315 degrees. grug has no atan2, so the same four cuts are made on Dx and Dz, which are the placer's
+# offset from the corner: the diagonals belong to the sector the reference's strict and non-strict
+# comparisons give them, and an offset of exactly zero is the angle 0 that atan2 answers, 180 once
+# the 180 is added.
+export placed(world: Level, x: number, y: number, z: number, placer: Player) {
+    position: Vec3 = placer.position()
+    dx: number = position.x() - x
+    dz: number = position.z() - z
+
+    # XPos, ZPos, XNeg and ZNeg, turned round, are 4, 2, 5 and 3.
+    meta: number = 3
+    if dx < 0 and _abs(dz) < _abs(dx) {
+        meta = 4
+    } else if dx > 0 and dz >= -dx and dz < dx {
+        meta = 5
+    } else if dz < 0 and _abs(dx) <= _abs(dz) {
+        meta = 2
+    } else if dx == 0 and dz == 0 {
+        meta = 5
+    }
+
+    quarry: Option[BlockEntity] = world.get_block_entity(x, y, z)
+    if quarry.has() {
+        quarry.unwrap().set_saved_number("meta", meta)
+        quarry.unwrap().redraw()
+    }
+}
+
+local _abs(value: number) number {
+    if value < 0 {
+        return -value
+    }
+    return value
 }
