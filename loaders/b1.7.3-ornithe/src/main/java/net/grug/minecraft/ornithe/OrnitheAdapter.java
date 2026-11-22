@@ -38,6 +38,7 @@ import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
 import net.grug.minecraft.ornithe.inventory.DummyCraftingInventory;
+import net.grug.minecraft.ornithe.item.GrugItem;
 import net.grug.minecraft.ornithe.mixin.ItemInHandRendererAccess;
 import net.grug.minecraft.ornithe.mixin.SoundEngineAccess;
 import net.grug.minecraft.ornithe.mixin.WorldNotifyAccess;
@@ -661,6 +662,20 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     + " gate counts never names an item and gives it to its own player")
     public String itemName(Object itemObj) {
         return ((Item) itemObj).getTranslationKey();
+    }
+
+    @Override
+    @GrugGenerated("asks the game which item is a grug mod's: a unit test has no game")
+    public String itemModId(Object itemObj) {
+        Item item = (Item) itemObj;
+        if (item instanceof GrugItem) {
+            return "grug";
+        }
+        int id = item.id;
+        if (id < Block.BY_ID.length && Block.BY_ID[id] instanceof GrugBlock) {
+            return "grug";
+        }
+        return null;
     }
 
     @Override

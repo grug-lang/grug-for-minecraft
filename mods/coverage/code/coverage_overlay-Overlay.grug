@@ -17,6 +17,12 @@ shell_x: number = 0
 shell_y: number = 0
 shell_z: number = 0
 
+# The serial of the last screen the overlay drew on, and whether the key Z has not yet been answered
+# on it, which lets a test tell a new screen from the same one (OverlayRenderContext.screen_serial,
+# #865).
+last_serial: number = -1
+fresh_screen: bool = false
+
 # Whether the HUD reads the mob counts and caps from the frame's level, which only overlay_mob_cap-Test turns on
 # (key I), because not every loader answers them.
 mob_cap_on: bool = false
@@ -33,6 +39,12 @@ export render(ctx: OverlayRenderContext) {
     box_x: number = Math.floor(ctx.screen_width() / 2) - 9
     box_y: number = Math.floor(ctx.screen_height() / 2) - 9
     ctx.draw_item(item_at(0), box_x + 1, box_y + 1)
+    # A line of text above the box, drawn with the game's font (OverlayRenderContext.draw_text, #865).
+    ctx.draw_text("coverage overlay text", box_x - 40, box_y - 12, Color.rgb(255, 255, 255))
+    if ctx.screen_serial() != last_serial {
+        last_serial = ctx.screen_serial()
+        fresh_screen = true
+    }
     over_box: bool = ctx.mouse_x() >= box_x and ctx.mouse_x() < box_x + 18 and ctx.mouse_y() >= box_y and ctx.mouse_y() < box_y + 18
     over_gui_x: bool = ctx.mouse_x() >= ctx.gui_left() and ctx.mouse_x() < ctx.gui_left() + ctx.gui_width()
     inside_gui: bool = over_gui_x and ctx.mouse_y() >= ctx.gui_top() and ctx.mouse_y() < ctx.gui_top() + ctx.gui_height()
@@ -88,6 +100,16 @@ export click(ctx: OverlayClickContext) {
 # handles itself. Any other key is left alone.
 export key(ctx: OverlayKeyContext) {
     if ctx.key() == 75 and ctx.ctrl() {
+        ctx.take()
+    }
+    # The space bar (32) and backspace (8) reach an overlay as their ASCII codes on every loader
+    # (#865), and Z takes only the first press on a screen, so a test can tell a new screen from the
+    # one before it.
+    if (ctx.key() == 32 or ctx.key() == 8) and not ctx.ctrl() {
+        ctx.take()
+    }
+    if ctx.key() == 90 and not ctx.ctrl() and fresh_screen {
+        fresh_screen = false
         ctx.take()
     }
 }

@@ -166,7 +166,7 @@ public final class GrugOverlayHost {
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
             for (GrugScreenText text : texts) {
                 minecraft.textRenderer.drawWithShadow(
-                        text.text(), (int) text.x(), (int) text.y(), text.rgb());
+                        text.text(), (int) text.x(), (int) text.y(), 0xFF000000 | text.rgb());
             }
         } finally {
             GL11.glPopAttrib();
@@ -378,7 +378,7 @@ public final class GrugOverlayHost {
                             window.getHeight());
             for (GrugWorldOverlay.Text text : texts) {
                 minecraft.textRenderer.drawWithShadow(
-                        text.text(), (int) text.x(), (int) text.y(), text.rgb());
+                        text.text(), (int) text.x(), (int) text.y(), 0xFF000000 | text.rgb());
             }
             if (!texts.isEmpty() && overlay.mod.equals(testMod)) {
                 GrugWorldOverlay.noteDrawn();

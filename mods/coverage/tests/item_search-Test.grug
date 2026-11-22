@@ -21,6 +21,13 @@ export tick_any_side(ctx: TestTickContext) {
     ctx.assert(equals(search_item_at("", 0), item_at(0)), "An empty search should list the items in the host's order.")
     ctx.assert(equals(search_item_at("", total - 1), item_at(total - 1)), "An empty search should list the last item last.")
 
+    # A grug mod's items are in the namespace grug on every loader, the versions with no registry key
+    # included, where the adapter says so.
+    ctx.assert(search_item_count("@grug") > 0, "The grug mods' own items should be listed for @grug.")
+    ctx.assert(search_item_count("@grug") < total, "The game's own items should not be listed for @grug.")
+    ctx.assert(search_item_count("@grug -@grug") == 0, "A minus word should remove the grug items.")
+    ctx.assert(search_item_count("@grug") + search_item_count("-@grug") == total, "An item should be a grug item or not.")
+
     ctx.assert(search_item_count("zzzzqqqq") == 0, "A word no item has should list nothing.")
     ctx.assert(search_item_count("@zzzzqqqq") == 0, "A mod id no item has should list nothing.")
     ctx.assert(search_item_count("@minecraft") > 0, "The game's own items should be listed for @minecraft.")

@@ -233,6 +233,16 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * The mod id the item belongs to when {@link #itemName} cannot say, or null to read it from
+     * that name. A version with no registry key names a grug mod's items without a namespace, so
+     * its adapter answers {@code grug}, the namespace every other loader gives them (#865).
+     */
+    @GrugGenerated("no namespace to add: only a version with no registry key answers")
+    default String itemModId(Object itemObj) {
+        return null;
+    }
+
+    /**
      * The largest stack the item can come in, which the overlay's give and a test that checks a
      * full stack need. A loader with no item list answers 0.
      */
