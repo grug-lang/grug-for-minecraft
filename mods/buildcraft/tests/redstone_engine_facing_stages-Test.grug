@@ -1,0 +1,203 @@
+# Covers how a charged redstone engine is drawn in each of its six facings: the trunk colour for its
+# energy stage and the plate at its farthest, both turned about the block's centre by RenderEngine. The
+# existing captures show the facings and the stroke on a blue engine at rest (redstone_engine_facings,
+# redstone_engine_stroke_facings) and the four stages on one engine facing up (redstone_engine_*), so
+# this one pins the stage colour on the five rotated trunks too. The first capture shows six engines
+# in the green stage (251 to 500 of 1000 energy) and the second six in the red stage (over 750), facing
+# 0 at the right and 5 at the left, since the camera looks towards +z, each with its plate out at a
+# progress of 0.5. The energy is set to the middle of the stage, 375 and 875, so the one energy an
+# unpowered engine loses each tick cannot take it out of the stage before the capture. The reference
+# run has no grug saved data, so it sets the real TileEngine's "orientation", "progress" and "energy"
+# through its NBT, and ctx.load_nbt replaces the engine with one loaded from it and redraws the block.
+# The capture stops high on the screen because the runner prints each test's name to the chat on
+# every loader but 1.2.5, and that readout grows to ten lines of 27 pixels once a repeat has run, so
+# anything below about y=250 holds text in a later repeat. As in redstone_engine_animation-Test.grug,
+# each capture first lets the engines at rest settle and be meshed, then changes them and meshes the
+# wall again, so the frame the capture reads shows the change.
+# Where the leftmost engine is, which is where the row starts, one block apart towards +x.
+ex: number = 0
+ey: number = 0
+ez: number = 0
+
+# Which capture is next: 0 is the green stage and 1 is the red stage.
+capture: number = 0
+
+# Whether the capture's change has been made. A capture needs the scene settled before the change,
+# which is _ready, and settled again after it, which is _settled.
+changed: bool = false
+
+# The waits before each capture, as coverage_render-Test.grug explains them. See _ready.
+settled_ticks: number = 0
+remeshed: bool = false
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+        return
+    }
+
+    # redstone_engine-Test.grug, which runs before this, leaves its torch lit to the end, and the red
+    # particles that torch gave off live for up to 40 ticks after it is cleared away. One of them in
+    # the crop is a few pixels that are never in the same place twice, so wait out the longest life
+    # with some to spare. The world has no way to say how many particles are left.
+    if ctx.current_tick() < 60 {
+        ctx.not_done()
+        return
+    }
+
+    # The scene is settled and meshed once, with every engine at rest and facing up, before anything
+    # changes. The change itself is only numbers a renderer reads, so the wait after it meshes the
+    # wall once more: that edit is what the wait counts frames from, and the frame the capture reads
+    # therefore shows the change. See _ready.
+    if not changed {
+        if not _ready(ctx) {
+            ctx.not_done()
+            return
+        }
+        if capture == 0 {
+            _show(ctx, 375)
+        } else {
+            _show(ctx, 875)
+        }
+        changed = true
+        settled_ticks = 0
+        remeshed = false
+        ctx.not_done()
+        return
+    }
+
+    if not _ready(ctx) {
+        ctx.not_done()
+        return
+    }
+
+    # Both runs compare against the same committed pixels, because the port draws the engine from the
+    # path the reference does. See the top of this file.
+    if capture == 0 {
+        ctx.screenshot().equals(r"screenshots/redstone_engine_green_facings", 400, 100, 880, 230)
+        capture = 1
+        changed = false
+        ctx.not_done()
+        return
+    }
+
+    ctx.screenshot().equals(r"screenshots/redstone_engine_red_facings", 400, 100, 880, 230)
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+
+    ctx.set_box_radius(10)
+
+    origin: Vec3 = ctx.get_origin()
+    ex = origin.x() - 3
+    ey = origin.y() + 0.12
+    ez = origin.z() + 8
+
+    _wall(level, origin.x() - 8, origin.y() - 9, origin.z() + 10)
+
+    i: number = 0
+    while i < 6 {
+        _place_engine(ctx, level, ex + i, ey, ez)
+        i = i + 1
+    }
+}
+
+# Seventeen blocks square of stone two blocks behind the engines, as in coverage_render-Test.grug.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 17 {
+        wx: number = x0
+        while wx < x0 + 17 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Gives the engine in each place the facing of its number, the progress 0.5 and the energy.
+local _show(ctx: TestTickContext, energy: number) {
+    i: number = 0
+    while i < 6 {
+        engine: BlockEntity = _engine(ctx, i)
+        if me.is_reference() {
+            ctx.set_nbt_number(engine, "orientation", "int", i)
+            ctx.set_nbt_number(engine, "progress", "float", 0.5)
+            ctx.set_nbt_number(engine, "energy", "int", energy)
+            ctx.load_nbt(engine)
+        } else {
+            engine.set_saved_number("orientation", i)
+            engine.set_saved_number("oriented", 1)
+            engine.set_saved_number("progress", 0.5)
+            engine.set_saved_number("energy", energy)
+        }
+        i = i + 1
+    }
+}
+
+# The engine i blocks along the row.
+local _engine(ctx: TestTickContext, i: number) BlockEntity {
+    level: Level = ctx.get_client_level()
+    engine_opt: Option[BlockEntity] = level.get_block_entity(ex + i, ey, ez)
+    ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    return engine_opt.unwrap()
+}
+
+# Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
+# light to settle, for the section to be meshed again from it, and for that mesh to be drawn. Run
+# after a change it is also what anchors the wait to the change: the swap is a block edit the
+# renderer has not seen, so no settled answer can come from frames drawn before it, and the numbers
+# the engines now hold are drawn by the frame pass in those same frames.
+local _ready(ctx: TestTickContext) bool {
+    if not ctx.world_settled() {
+        settled_ticks = 0
+        return false
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        return false
+    }
+    if not remeshed {
+        _force_remesh(ctx)
+        remeshed = true
+        return false
+    }
+    # The swap's blocks have to reach the client and the mesh they scheduled has to be drawn, which
+    # is what the fixed tick hold used to stand in for. See coverage_render, #259 and #804.
+    return ctx.world_settled()
+}
+
+# Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
+# the capture's mesh is built from the settled light. See coverage_render-Test.grug.
+local _force_remesh(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    level.place_block(x - 6, y + 3, z + 10, "minecraft:dirt")
+    level.place_block(x - 6, y + 3, z + 10, "minecraft:stone")
+    ctx.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}
+
+# Places the engine as a player does, because the reference's BlockEngine.c, which faces a new
+# engine up and looks for a receptor to face, is only called for a player's placement. The port does
+# the same on its first tick, so placing its block is enough. The reference's engine is placed by
+# right-clicking the side of a block at z + 1 with the engine held, which is the face the test
+# player's eye sees of it, so the engine lands at z; that block is cleared again so both scenes
+# hold the same blocks. The reference's placement ignores the face. See redstone_engine-Test.grug.
+local _place_engine(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    if not me.is_reference() {
+        level.place_block(x, y, z, "grug:redstone_engine")
+        return
+    }
+    level.place_block(x, y, z + 1, "minecraft:stone")
+    player: Player = ctx.get_player()
+    held: Item = item(resource_location("buildcraft:engineWood"))
+    ctx.set_held_item(player, held)
+    ctx.use_block(level, x, y, z + 1)
+    ctx.clear_held_item(player)
+    level.place_block(x, y, z + 1, "minecraft:air")
+}
