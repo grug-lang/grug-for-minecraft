@@ -53,7 +53,9 @@ public class GameRendererMixin {
         net.grug.minecraft.ornithe.client.GrugModelRenderer.flushPendingUploads();
         if (!GrugFrameRequest.wanted()) {
             ci.cancel();
+            return;
         }
+        net.grug.minecraft.ornithe.GrugDiagCamera.record(MinecraftInstance.get(), partialTicks);
     }
 
     /**
