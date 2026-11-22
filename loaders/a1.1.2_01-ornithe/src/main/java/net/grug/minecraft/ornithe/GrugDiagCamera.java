@@ -126,6 +126,70 @@ public final class GrugDiagCamera {
                 + e.chunkZ;
     }
 
+    private static final java.util.List<net.minecraft.entity.Entity> sample =
+            new java.util.ArrayList<>();
+    private static long sampledTick = -1;
+    private static java.lang.reflect.Field fall;
+
+    private static float fallOf(net.minecraft.entity.Entity e) {
+        try {
+            if (fall == null) {
+                fall = net.minecraft.entity.Entity.class.getDeclaredField("fallDistance");
+                fall.setAccessible(true);
+            }
+            return fall.getFloat(e);
+        } catch (Throwable t) {
+            return Float.NaN;
+        }
+    }
+
+    /** Five slimes chosen at the first hostile count, logged once per world tick until gone. */
+    private static void sampleTick(net.minecraft.world.World world, java.util.List<Object> all) {
+        if (sample.isEmpty() && all.size() >= 100) {
+            int step = Math.max(1, all.size() / 5);
+            for (int i = 0; i < all.size() && sample.size() < 5; i += step) {
+                sample.add((net.minecraft.entity.Entity) all.get(i));
+            }
+        }
+        if (sample.isEmpty() || world.ticks == sampledTick) {
+            return;
+        }
+        sampledTick = world.ticks;
+        for (net.minecraft.entity.Entity e : sample) {
+            String mob = "";
+            if (e instanceof net.minecraft.entity.mob.MobEntity) {
+                net.minecraft.entity.mob.MobEntity m = (net.minecraft.entity.mob.MobEntity) e;
+                mob =
+                        " health="
+                                + m.health
+                                + " deathTicks="
+                                + m.deathTicks
+                                + " damagedTimer="
+                                + m.damagedTimer
+                                + " invulnerableTicks="
+                                + m.invulnerableTicks;
+            }
+            System.out.println(
+                    "DIAG sample clock="
+                            + world.ticks
+                            + " id="
+                            + System.identityHashCode(e)
+                            + " ticks="
+                            + e.ticks
+                            + " y="
+                            + e.y
+                            + " velY="
+                            + e.velocityY
+                            + " onGround="
+                            + e.onGround
+                            + " fall="
+                            + fallOf(e)
+                            + " removed="
+                            + e.removed
+                            + mob);
+        }
+    }
+
     /** Called on every hostile count: reports each entity that left the list or is dying. */
     public static void mobs(net.minecraft.world.World world, Class<?> type) {
         java.util.Map<Integer, String> now = new java.util.HashMap<>();
@@ -168,6 +232,13 @@ public final class GrugDiagCamera {
             }
         }
         previousCount = count;
+        java.util.List<Object> all = new java.util.ArrayList<>();
+        for (Object o : world.entities) {
+            if (type.isAssignableFrom(o.getClass())) {
+                all.add(o);
+            }
+        }
+        sampleTick(world, all);
         seen.clear();
         seen.putAll(now);
     }
