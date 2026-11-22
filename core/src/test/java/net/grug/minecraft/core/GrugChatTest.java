@@ -289,8 +289,8 @@ class GrugChatTest {
         Consumer<String> chat =
                 GrugChat.sink(
                         "alice",
+                        false,
                         actor -> true,
-                        actor -> {
                         actor -> {
                             asked.add(actor);
                             return got::add;
