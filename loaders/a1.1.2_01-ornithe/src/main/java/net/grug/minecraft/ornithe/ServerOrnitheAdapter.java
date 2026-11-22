@@ -1002,8 +1002,31 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                 continue;
             }
             sendToPlayer(starter, buildWorldChunkPacket(world, region));
+            resendSavedData(world, starter, region);
         }
         return true;
+    }
+
+    /**
+     * Sends the saved data of every grug block entity the region holds, because the client drops
+     * its block entities in a region a chunk region packet covers and this version's region packet
+     * carries no tile entity data. Without it a number a script saved before the resend, such as a
+     * redstone engine's energy, is never seen by the client again (#1040).
+     */
+    private static void resendSavedData(World world, PlayerEntity player, int[] region) {
+        for (int x = region[0]; x < region[0] + region[3]; x++) {
+            for (int y = region[1]; y < region[1] + region[4]; y++) {
+                for (int z = region[2]; z < region[2] + region[5]; z++) {
+                    BlockEntity entity = world.getBlockEntity(x, y, z);
+                    if (entity instanceof GrugBlockEntity) {
+                        sendToPlayer(
+                                player,
+                                new net.grug.minecraft.ornithe.block.entity.GrugSavedDataPacket(
+                                        (GrugBlockEntity) entity, true));
+                    }
+                }
+            }
+        }
     }
 
     /** Sweeps of the room's cells the light may take before it is called not settling. */
