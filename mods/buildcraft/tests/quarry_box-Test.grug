@@ -6,7 +6,7 @@
 # up to 7000, and ticks the quarry: the reference's provider loses 1 every 100 ticks of the world's
 # clock, and tick_block_entity leaves that clock alone, so a world time past 100 gives exactly one loss
 # on the first tick and none on the second.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     if level.get_time() < 100 {
         ctx.not_done()
