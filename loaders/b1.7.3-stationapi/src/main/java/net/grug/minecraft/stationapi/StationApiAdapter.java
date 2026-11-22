@@ -43,9 +43,12 @@ import net.grug.minecraft.stationapi.gui.StationGuiHelper;
 import net.grug.minecraft.stationapi.mixin.HeldItemRendererAccess;
 import net.grug.minecraft.stationapi.mixin.SoundManagerAccess;
 import net.grug.minecraft.stationapi.mixin.WorldRendererAccess;
+import net.minecraft.achievement.Achievement;
+import net.minecraft.achievement.Achievements;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.hud.toast.AchievementToast;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.chunk.ChunkBuilder;
 import net.minecraft.entity.Entity;
@@ -75,6 +78,7 @@ import org.lwjgl.opengl.GL12;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -465,6 +469,49 @@ public class StationApiAdapter implements ModLoaderAdapter {
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         return mc.player;
+    }
+
+    /**
+     * The toast's achievement, the only {@code Achievement} field of {@code AchievementToast}. The
+     * field is private, so it is found by type, which holds whatever names the running game
+     * carries. See #1576.
+     */
+    private static final Field TOAST_ACHIEVEMENT = toastAchievementField();
+
+    @GrugGenerated("AchievementToast has exactly one Achievement field, so the fatal cannot fire")
+    private static Field toastAchievementField() {
+        for (Field field : AchievementToast.class.getDeclaredFields()) {
+            if (field.getType() == Achievement.class) {
+                field.setAccessible(true);
+                return field;
+            }
+        }
+        throw Grug.fatal("AchievementToast has no Achievement field");
+    }
+
+    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
+    private static void dropToast(AchievementToast toast) {
+        try {
+            TOAST_ACHIEVEMENT.set(toast, null);
+        } catch (IllegalAccessException e) {
+            throw Grug.fatal("AchievementToast's toast cannot be cleared", e);
+        }
+    }
+
+    /**
+     * Earns every achievement for the player and drops the toast on screen. {@code mobTick} shows
+     * the hint for "Taking Inventory" on every tick while it is missing from the stats, and an
+     * award shows a toast, so with every achievement in the stats neither is drawn. See #1576.
+     */
+    @SuppressWarnings("deprecation")
+    @Override
+    public void markAchievementsEarnedForTest() {
+        net.minecraft.client.Minecraft minecraft =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        for (Object achievement : Achievements.ACHIEVEMENTS) {
+            minecraft.stats.increment((net.minecraft.stat.Stat) achievement, 1);
+        }
+        dropToast(minecraft.toast);
     }
 
     @Override

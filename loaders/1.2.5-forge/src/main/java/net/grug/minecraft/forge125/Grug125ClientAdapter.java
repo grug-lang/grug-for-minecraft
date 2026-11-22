@@ -20,8 +20,11 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
+import net.minecraft.src.Achievement;
+import net.minecraft.src.AchievementList;
 import net.minecraft.src.Block;
 import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.GuiAchievement;
 import net.minecraft.src.GuiContainer;
 import net.minecraft.src.GuiInventory;
 import net.minecraft.src.GuiScreen;
@@ -124,6 +127,49 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     @Override
     public Object testPlayer() {
         return ModLoader.getMinecraftInstance().thePlayer;
+    }
+
+    /**
+     * The toast's achievement, the only {@code Achievement} field of {@code GuiAchievement}. It is
+     * private and 1.2.5 has no Mixin, so it is found by type, which the reobfuscated game keeps
+     * where it renames the field. See #1576.
+     */
+    private static final Field TOAST_ACHIEVEMENT = toastAchievementField();
+
+    @GrugGenerated("GuiAchievement has exactly one Achievement field, so the fatal cannot fire")
+    private static Field toastAchievementField() {
+        for (Field field : GuiAchievement.class.getDeclaredFields()) {
+            if (field.getType() == Achievement.class) {
+                field.setAccessible(true);
+                return field;
+            }
+        }
+        throw Grug.fatal("GuiAchievement has no Achievement field");
+    }
+
+    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
+    private static void dropToast(GuiAchievement toast) {
+        try {
+            TOAST_ACHIEVEMENT.set(toast, null);
+        } catch (IllegalAccessException e) {
+            throw Grug.fatal("GuiAchievement's toast cannot be cleared", e);
+        }
+    }
+
+    /**
+     * Earns every achievement for the player and drops the toast on screen, so neither the hint for
+     * "Taking Inventory" nor the toast an award queues is ever drawn. {@code addStat} queues a
+     * toast only for an achievement the stat file lacks, and {@code onLivingUpdate} queues the hint
+     * only while "Taking Inventory" is missing, so both stop once the stat file holds every one.
+     * See #1576.
+     */
+    @Override
+    public void markAchievementsEarnedForTest() {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        for (Object achievement : AchievementList.achievementList) {
+            minecraft.statFileWriter.readStat((Achievement) achievement, 1);
+        }
+        dropToast(minecraft.guiAchievement);
     }
 
     /**

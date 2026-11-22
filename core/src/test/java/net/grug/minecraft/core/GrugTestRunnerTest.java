@@ -375,6 +375,11 @@ class GrugTestRunnerTest {
                             }
 
                             @Override
+                            public void markAchievementsEarned() {
+                                reset.add("achievements");
+                            }
+
+                            @Override
                             public void forgetQueuedGivesForTest() {
                                 reset.add("gives");
                             }
@@ -390,10 +395,18 @@ class GrugTestRunnerTest {
                         1);
 
         runner.tick(null);
-        assertEquals(List.of("inventory", "gives", "room"), reset);
+        assertEquals(List.of("inventory", "achievements", "gives", "room"), reset);
         runner.tick(null);
         assertEquals(
-                List.of("inventory", "gives", "room", "inventory", "gives", "room"),
+                List.of(
+                        "inventory",
+                        "achievements",
+                        "gives",
+                        "room",
+                        "inventory",
+                        "achievements",
+                        "gives",
+                        "room"),
                 reset,
                 "every test starts with its own reset, not only the first");
     }

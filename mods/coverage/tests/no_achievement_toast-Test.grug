@@ -1,0 +1,55 @@
+# No capture on any loader has an achievement toast in its top-right corner (#1576). 1.2.5 and
+# b1.7.3 draw a hint for the "Taking Inventory" achievement on every tick until the player has
+# earned it, and a toast when they earn it, so the first pass of a suite on a fresh player showed
+# one that every later pass did not, and the committed goldens that pinned it failed on a repeat.
+# The runner marks every achievement earned before each test (markAchievementsEarnedForTest), so
+# this test reads the corner, earns "Taking Inventory" the way a player does by opening the
+# inventory, waits out the toast's three seconds with a stall, and requires the corner to look the
+# same afterwards: a hint or a toast in the first capture is gone from the second and fails the
+# comparison. Alpha has no achievements and 1.20.6 clears its toasts, so both pass trivially.
+# Two captures of one session are compared, so no golden is needed.
+corner: Option[Screenshot] = Option.new()
+step: number = 0
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    waited = waited + 1
+    ctx.assert(waited < 1000, "The test should finish within its bound.")
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.close_screen()
+        corner.set(ctx.screenshot().capture(600, 0, 1280, 150))
+        ctx.open_inventory(ctx.get_player())
+        step = 1
+        ctx.not_done()
+    } else if step == 1 {
+        if not ctx.screen_open() {
+            ctx.not_done()
+            return
+        }
+        ctx.close_screen()
+        step = 2
+        ctx.not_done()
+    } else if step == 2 {
+        if ctx.screen_open() {
+            ctx.not_done()
+            return
+        }
+        # The toast of a newly earned achievement stays about three seconds of real time, which no
+        # tick count measures, so the thread is held past it and a frame is drawn afterwards.
+        ctx.stall(3500)
+        step = 3
+        ctx.not_done()
+    } else if step == 3 {
+        # One frame has to be drawn after the stall, in which the game drops the expired toast.
+        step = 4
+        ctx.not_done()
+    } else {
+        after: Screenshot = ctx.screenshot().capture(600, 0, 1280, 150)
+        ctx.assert(after.change_from(corner.unwrap()) < 0.5, "The top-right corner should show no achievement toast before or after the inventory opens.")
+    }
+}
