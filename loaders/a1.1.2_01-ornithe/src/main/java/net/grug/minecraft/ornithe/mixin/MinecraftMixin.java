@@ -85,6 +85,8 @@ public abstract class MinecraftMixin implements GrugClientAccess {
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
+        net.grug.minecraft.ornithe.OrnitheAdapter.holdPlayerForTest(
+                ((Minecraft) (Object) this).player);
         grug$hooks.tick();
         // A saved-data packet arrives on the network thread, whose world lookup answers a tile the
         // frame pass does not draw, so it is applied here, on the thread that draws. See #1093.
