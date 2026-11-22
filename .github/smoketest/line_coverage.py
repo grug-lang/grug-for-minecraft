@@ -25,7 +25,10 @@ import re
 import sys
 from pathlib import Path
 
-MARKER = re.compile(r"//\s*SMOKETEST_EXCL(_START|_STOP)?\b(?:\s*:\s*(\S.*))?")
+# The marker has to start a // comment: the text outside a comment, such as a string, is no marker.
+MARKER = re.compile(
+    r"^(?:[^\"\n]|\"(?:[^\"\\\n]|\\.)*\")*?//\s*SMOKETEST_EXCL(_START|_STOP)?\b(?:\s*:\s*(\S.*))?"
+)
 
 
 def excluded_lines(source: str) -> tuple[set[int], list[str]]:
@@ -91,7 +94,8 @@ def main(argv: list[str]) -> int:
     if missed:
         print("uncovered lines: " + ", ".join(map(str, missed)))
     for problem in problems:
-        print(f"exclusion problem: {problem}")
+        print(f"::warning::smoketest.c exclusion problem, {problem}")
+        print(f"EXCLUSION PROBLEM: {problem}")
     if args.check and (missed or problems or total == 0):
         print("line coverage assertion: FAILED")
         return 1

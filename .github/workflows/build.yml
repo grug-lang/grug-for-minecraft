@@ -1266,13 +1266,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The reference run (#574, #832): the reference named by the mod under test's first derived_from
-  # entry, on that entry's runtime, driven by the mod's screenshot tests and compared with the
-  # committed goldens. A dispatch names the mod; every other event runs the default, buildcraft, so a
-  # pull request's reference is unchanged. Only the reference's runtime is a strict graphical
-  # reference, so a mismatch here means the port's golden is not what the reference draws, and it
-  # fails like any loader job. GrugScreenshots compares a reference run only with the PNG named
-  # after its own loader, so it cannot pass on another loader's golden.
   # The smoketest (#1589, part of #1548): the C host under .github/smoketest/ runs the mods/coverage/
   # logic tests on grug-rs's C API in about a second, so a porting agent gets a hint before the real
   # game runs. It is ADVISORY and never a merge gate: it is not in `pr gate`'s needs, no job needs
@@ -1302,10 +1295,11 @@ jobs:
       - name: Test the line coverage script
         run: python3 .github/smoketest/line_coverage_test.py
 
-      # Flip a variable to true to make that check a failure: SMOKETEST_ASSERT_CONTRACT (an entry
-      # of mod_api.json with no implementation), SMOKETEST_ASSERT_COVERAGE (below 100% line
-      # coverage of smoketest.c from mods/coverage/'s tests) and SMOKETEST_ASSERT_TESTS (a failing
-      # test). All three are off until the host's core exists (#1586).
+      # Set a repository variable to exactly `true` (`false`, `0` and empty leave it off) to make
+      # that check a failure: SMOKETEST_ASSERT_CONTRACT (an entry of mod_api.json with no
+      # implementation), SMOKETEST_ASSERT_COVERAGE (below 100% line coverage of smoketest.c from
+      # mods/coverage/'s tests) and SMOKETEST_ASSERT_TESTS (a failing test). All three are off until
+      # the host's core exists (#1586). A run that prints no PASS or FAIL line always fails.
       - name: Run the smoketest with sanitizers and line coverage
         env:
           GRUG_RS: ${{ github.workspace }}/.grug-ci
@@ -1314,6 +1308,13 @@ jobs:
           SMOKETEST_ASSERT_TESTS: ${{ vars.SMOKETEST_ASSERT_TESTS }}
         run: .github/smoketest/run.sh
 
+  # The reference run (#574, #832): the reference named by the mod under test's first derived_from
+  # entry, on that entry's runtime, driven by the mod's screenshot tests and compared with the
+  # committed goldens. A dispatch names the mod; every other event runs the default, buildcraft, so a
+  # pull request's reference is unchanged. Only the reference's runtime is a strict graphical
+  # reference, so a mismatch here means the port's golden is not what the reference draws, and it
+  # fails like any loader job. GrugScreenshots compares a reference run only with the PNG named
+  # after its own loader, so it cannot pass on another loader's golden.
   reference:
     name: reference
     # A diff that touches neither the harness of the mod this job runs nor its loader cannot change

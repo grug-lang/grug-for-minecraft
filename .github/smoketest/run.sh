@@ -5,7 +5,8 @@
 #
 #   GRUG_RS=<grug-rs checkout holding target/release/libgruggers.a> .github/smoketest/run.sh
 #
-# Switches, each off by default until the host has its core (#1586), set to any non-empty value:
+# Switches, each off by default until the host has its core (#1586), on only when set to exactly
+# `true` (so `false`, `0` and empty are off):
 #   SMOKETEST_ASSERT_CONTRACT   fail when a mod_api.json entry has no implementation
 #   SMOKETEST_ASSERT_COVERAGE   fail below 100% line coverage of smoketest.c (see line_coverage.py)
 #   SMOKETEST_ASSERT_TESTS      fail when a test fails, not only on a sanitizer error or a crash
@@ -33,11 +34,15 @@ run() { # <binary> <label>
     pass=$(grep -c '^PASS' "$build/$2.log")
     fail=$(grep -c '^FAIL' "$build/$2.log")
     echo "$2: $pass tests passed, $fail failed (exit $rc)"
-    if [ "$rc" -gt 1 ]; then
+    if [ $((pass + fail)) -eq 0 ]; then
+        echo "::error::the $2 run printed no PASS or FAIL line, so the host did not start (exit $rc)"
+        tail -60 "$build/$2.log"
+        status=1
+    elif [ "$rc" -gt 1 ]; then
         echo "::error::the $2 run crashed or a sanitizer found something (exit $rc)"
         tail -60 "$build/$2.log"
         status=1
-    elif [ "$rc" -eq 1 ] && [ -n "${SMOKETEST_ASSERT_TESTS:-}" ]; then
+    elif [ "$rc" -eq 1 ] && [ "${SMOKETEST_ASSERT_TESTS:-}" = true ]; then
         grep '^FAIL' "$build/$2.log" | head -20
         status=1
     fi
@@ -52,12 +57,12 @@ make -C "$here" OUT="$build/cov" CFLAGS="-O0 -g -Wall -Wextra -std=gnu11" SAN="-
 run "$build/cov" coverage
 (cd "$build" && gcov --json-format --stdout cov-smoketest.gcda >gcov.json 2>/dev/null)
 cov_args=()
-[ -n "${SMOKETEST_ASSERT_COVERAGE:-}" ] && cov_args=(--assert)
+[ "${SMOKETEST_ASSERT_COVERAGE:-}" = true ] && cov_args=(--assert)
 python3 "$here/line_coverage.py" "$build/gcov.json" "$here/smoketest.c" "${cov_args[@]}" || status=1
 
 echo "== contract: every mod_api.json entry needs an implementation =="
 "$build/asan" --contract | tail -1
-if [ -n "${SMOKETEST_ASSERT_CONTRACT:-}" ]; then
+if [ "${SMOKETEST_ASSERT_CONTRACT:-}" = true ]; then
     "$build/asan" --contract >/dev/null || status=1
 fi
 exit $status
