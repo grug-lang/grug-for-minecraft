@@ -472,29 +472,38 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * The toast's achievement, the only {@code Achievement} field of {@code AchievementToast}. The
-     * field is private, so it is found by type, which holds whatever names the running game
-     * carries. See #1576.
+     * Clears an achievement toast's achievement. It lives in a holder class so the client-only
+     * {@code AchievementToast} is loaded only when a client calls it: this adapter is also loaded
+     * by the dedicated server, where a static field naming that class fails the boot with "Cannot
+     * load class ... in environment type SERVER" (#1246).
      */
-    private static final Field TOAST_ACHIEVEMENT = toastAchievementField();
+    private static final class ToastAchievement {
+        /**
+         * The toast's achievement, the only {@code Achievement} field of {@code AchievementToast}.
+         * The field is private, so it is found by type, which holds whatever names the running game
+         * carries. See #1576.
+         */
+        private static final Field FIELD = field();
 
-    @GrugGenerated("AchievementToast has exactly one Achievement field, so the fatal cannot fire")
-    private static Field toastAchievementField() {
-        for (Field field : AchievementToast.class.getDeclaredFields()) {
-            if (field.getType() == Achievement.class) {
-                field.setAccessible(true);
-                return field;
+        @GrugGenerated(
+                "AchievementToast has exactly one Achievement field, so the fatal cannot fire")
+        private static Field field() {
+            for (Field field : AchievementToast.class.getDeclaredFields()) {
+                if (field.getType() == Achievement.class) {
+                    field.setAccessible(true);
+                    return field;
+                }
             }
+            throw Grug.fatal("AchievementToast has no Achievement field");
         }
-        throw Grug.fatal("AchievementToast has no Achievement field");
-    }
 
-    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
-    private static void dropToast(AchievementToast toast) {
-        try {
-            TOAST_ACHIEVEMENT.set(toast, null);
-        } catch (IllegalAccessException e) {
-            throw Grug.fatal("AchievementToast's toast cannot be cleared", e);
+        @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
+        static void drop(AchievementToast toast) {
+            try {
+                FIELD.set(toast, null);
+            } catch (IllegalAccessException e) {
+                throw Grug.fatal("AchievementToast's toast cannot be cleared", e);
+            }
         }
     }
 
@@ -511,7 +520,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         for (Object achievement : Achievements.ACHIEVEMENTS) {
             minecraft.stats.increment((net.minecraft.stat.Stat) achievement, 1);
         }
-        dropToast(minecraft.toast);
+        ToastAchievement.drop(minecraft.toast);
     }
 
     @Override
