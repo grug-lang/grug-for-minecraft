@@ -807,6 +807,26 @@ class ServerExecTest(unittest.TestCase):
         # Nothing is appended for the leg that recorded nothing, and no line claims otherwise.
         self.assertNotIn("to 1.20.6-forge's report", self.log)
 
+    def test_a_failing_server_only_measurement_leaves_the_gate_verdict_alone(self):
+        (self.artifacts / "coverage-classes-1.20.6-forge" / "ServerForgeAdapter.class").write_bytes(
+            b"x"
+        )
+        exec_file = self.server_exec()
+        self.assertEqual(exec_file.exists(), True)
+        reports = self.fake_report
+
+        def report(cli, execs, classes, sources, csv_path, xml_path):
+            if csv_path.name == "measure.csv":
+                raise RuntimeError("jacoco broke")
+            return reports(cli, execs, classes, sources, csv_path, xml_path)
+
+        self.fake_report = report
+        self.assertEqual(self.run_main(), 0)
+        self.assertIn(
+            "server-only 1.20.6-forge: not measured: RuntimeError: jacoco broke", self.log
+        )
+        self.assertIn("combined instruction coverage", self.log)
+
     def test_a_server_exec_is_appended_to_its_loader_and_to_core(self):
         exec_file = self.server_exec()
         self.assertEqual(self.run_main(), 0)
@@ -1199,8 +1219,26 @@ class ServerOnlyMeasurementTest(unittest.TestCase):
         self.assertNotEqual(combine.class_id(body), combine.class_id(patched))
 
     def test_the_class_id_is_the_jacoco_crc64(self):
+        # A real class and the id JaCoCo wrote for it: net/grug/minecraft/forge/GrugForgeDevMod from
+        # coverage-classes-1.20.6-forge of build.yml dispatch 45053541096, whose coverage-exec-
+        # 1.20.6-forge/000-boot.exec holds the block for it under the id 8816ffa12e20a3af.
+        data = bytes.fromhex(
+            ""
+            "cafebabe0000004100140a000200030700040c000500060100296e65742f677275672f6d696e656372616674"
+            "2f626f6f7473747261702f47727567466f7267654d6f640100063c696e69743e010003282956070008010028"
+            "6e65742f677275672f6d696e6563726166742f666f7267652f47727567466f7267654465764d6f6401000443"
+            "6f646501000f4c696e654e756d6265725461626c650100124c6f63616c5661726961626c655461626c650100"
+            "047468697301002a4c6e65742f677275672f6d696e6563726166742f666f7267652f47727567466f72676544"
+            "65764d6f643b01000a536f7572636546696c6501001447727567466f7267654465764d6f642e6a6176610100"
+            "1952756e74696d6556697369626c65416e6e6f746174696f6e730100234c6e65742f6d696e65637261667466"
+            "6f7267652f666d6c2f636f6d6d6f6e2f4d6f643b01000576616c756501000467727567002100070002000000"
+            "000001000100050006000100090000002f00010001000000052ab70001b100000002000a0000000600010000"
+            "000e000b0000000c000100000005000c000d00000002000e00000002000f00100000000b0001001100010012"
+            "730013"
+        )
+        self.assertEqual(len(data), 443)
+        self.assertEqual(combine.class_id(data), 0x8816FFA12E20A3AF)
         self.assertEqual(combine.class_id(b""), 0)
-        self.assertEqual(combine.class_id(b"a"), 0x5BB0000000000000)
 
     def test_the_exec_is_cut_to_the_named_classes_under_their_new_ids(self):
         source = self.root / "a.exec"
@@ -1246,7 +1284,8 @@ class ServerOnlyMeasurementTest(unittest.TestCase):
         self.assertEqual(body, b"Lx/GrugGeneratxd;")
         self.assertEqual(execs, [{"net/x/GrugServerRun"}])
         self.assertEqual(
-            rows, [("GrugServerRun", 5, 10, 2, 4), ("GrugServerRun$Inner", 0, 3, 0, 0)]
+            rows,
+            [("net/x/GrugServerRun", 5, 10, 2, 4), ("net/x/GrugServerRun$Inner", 0, 3, 0, 0)],
         )
         self.assertEqual(seen, {"net/x/GrugServerRun"})
 
@@ -1260,13 +1299,13 @@ class ServerOnlyMeasurementTest(unittest.TestCase):
 
     def test_every_class_prints_its_counts_and_a_missing_one_says_so(self):
         out = io.StringIO()
-        rows = [("GrugServerRun", 5, 10, 2, 4), ("GrugServerRun.Inner", 0, 3, 0, 0)]
+        rows = [("net/GrugServerRun", 5, 10, 2, 4), ("net/GrugServerRun$Inner", 0, 3, 0, 0)]
         with contextlib.redirect_stdout(out):
             combine.print_measurements("1.2.5-forge", rows, {"net/GrugServerRun"}, "staged")
         lines = out.getvalue().splitlines()
         self.assertEqual(
             lines[0],
-            "server-only 1.2.5-forge GrugServerRun: 5 instructions and 2 branches missed "
+            "server-only 1.2.5-forge net/GrugServerRun: 5 instructions and 2 branches missed "
             "(10 and 4 covered) staged",
         )
         self.assertTrue(lines[1].endswith("staged (no exec data: not run)"), lines[1])
@@ -1275,6 +1314,51 @@ class ServerOnlyMeasurementTest(unittest.TestCase):
                 f"server-only 1.2.5-forge {name}: not in the staged class bytes, not measured",
                 lines,
             )
+
+    def test_a_failing_measurement_is_a_line_not_a_crash(self):
+        tree = self.class_tree({"net/x/GrugServerRun": b"x"})
+
+        def report(*args):
+            raise subprocess.CalledProcessError(1, "java")
+
+        combine.jacoco_report = report
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            combine.report_server_only(
+                "1.20.6-forge", {"classes": tree}, [], Path("cli"), self.root / "o"
+            )
+        self.assertIn("server-only 1.20.6-forge: not measured: CalledProcessError", out.getvalue())
+        self.assertFalse((self.root / "o" / "server-only" / "1.20.6-forge").exists())
+
+    def test_a_bad_layer_jar_is_a_line_not_a_crash(self):
+        jar = self.root / "layer.jar"
+        jar.write_bytes(b"not a zip")
+        out = io.StringIO()
+        info = {"classes": self.root, "layer_jar": jar, "server_exec": [Path("s.exec")]}
+        with contextlib.redirect_stdout(out):
+            combine.report_server_only("b1.7.3-ornithe", info, [], Path("cli"), self.root / "o")
+        self.assertIn("server-only b1.7.3-ornithe: not measured: BadZipFile", out.getvalue())
+
+    def test_only_the_wanted_layer_entries_are_extracted(self):
+        jar = self.root / "layer.jar"
+        with zipfile.ZipFile(jar, "w") as archive:
+            archive.writestr("net/x/ServerOrnitheAdapter.class", b"a")
+            archive.writestr("net/x/ServerOrnitheAdapter$W.class", b"b")
+            archive.writestr("net/x/Other.class", b"c")
+        server = self.root / "server.exec"
+        server.write_bytes(exec_bytes("net/x/ServerOrnitheAdapter"))
+        trees = []
+
+        def report(cli, execs, classes, sources, csv_path, xml_path):
+            trees.append(sorted(p.name for p in classes.rglob("*.class")))
+            csv_path.write_text(HEADER)
+            return []
+
+        combine.jacoco_report = report
+        info = {"classes": self.root, "layer_jar": jar, "server_exec": [server]}
+        with contextlib.redirect_stdout(io.StringIO()):
+            combine.report_server_only("a1.1.2_01-ornithe", info, [], Path("cli"), self.root / "o")
+        self.assertEqual(trees, [["ServerOrnitheAdapter$W.class", "ServerOrnitheAdapter.class"]])
 
     def test_the_twenty_one_classes_are_named(self):
         self.assertEqual(sum(len(names) for names in combine.SERVER_ONLY.values()), 21)
@@ -1317,7 +1401,7 @@ class ServerOnlyMeasurementTest(unittest.TestCase):
             )
         self.assertEqual(calls, [(b"layer bytes", [{"net/x/ServerOrnitheAdapter"}])])
         self.assertIn(
-            "server-only a1.1.2_01-ornithe ServerOrnitheAdapter: 1 instructions and 3 branches "
+            "server-only a1.1.2_01-ornithe net/x/ServerOrnitheAdapter: 1 instructions and 3 branches "
             "missed (2 and 4 covered) layer jar",
             out.getvalue().splitlines(),
         )

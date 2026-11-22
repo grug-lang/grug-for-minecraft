@@ -476,17 +476,24 @@ def jacoco_report(
     return sorted(set(DOES_NOT_MATCH.findall(result.stdout)))
 
 
-def class_id(data: bytes) -> int:
-    """JaCoCo's class id: the CRC64 (reflected, polynomial 0xd800000000000000) of the class bytes."""
+def _crc64_table() -> list[int]:
     table = []
     for index in range(256):
         value = index
         for _ in range(8):
             value = (value >> 1) ^ 0xD800000000000000 if value & 1 else value >> 1
         table.append(value)
+    return table
+
+
+CRC64_TABLE = _crc64_table()
+
+
+def class_id(data: bytes) -> int:
+    """JaCoCo's class id: the CRC64 (reflected, polynomial 0xd800000000000000) of the class bytes."""
     total = 0
     for byte in data:
-        total = (total >> 8) ^ table[(total ^ byte) & 0xFF]
+        total = (total >> 8) ^ CRC64_TABLE[(total ^ byte) & 0xFF]
     return total
 
 
@@ -558,7 +565,7 @@ def measure_server_only(
         for row in csv.DictReader(handle):
             rows.append(
                 (
-                    row["CLASS"],
+                    row["PACKAGE"].replace(".", "/") + "/" + row["CLASS"].replace(".", "$"),
                     int(row["INSTRUCTION_MISSED"]),
                     int(row["INSTRUCTION_COVERED"]),
                     int(row["BRANCH_MISSED"]),
@@ -579,20 +586,35 @@ def report_server_only(
     measured from the jar's bytes against the server's exec data alone.
     """
     measure_dir = work / "server-only" / runner
-    raw_classes = info["classes"]
-    where = "staged"
-    if runner in ORNITHE_LOADERS:
-        if not info.get("server_exec") or info.get("layer_jar") is None:
-            print(f"server-only {runner}: no dedicated-server exec data, not measured")
-            return
-        raw_classes = measure_dir / "layer"
-        shutil.rmtree(raw_classes, ignore_errors=True)
-        with zipfile.ZipFile(info["layer_jar"]) as jar:
-            jar.extractall(raw_classes)
-        where = "layer jar"
-        execs = info["server_exec"]
-    rows, seen = measure_server_only(runner, raw_classes, execs, jacoco_cli, measure_dir / "report")
-    print_measurements(runner, rows, seen, where)
+    try:
+        raw_classes = info["classes"]
+        where = "staged"
+        if runner in ORNITHE_LOADERS:
+            if not info.get("server_exec") or info.get("layer_jar") is None:
+                print(f"server-only {runner}: no dedicated-server exec data, not measured")
+                return
+            raw_classes = measure_dir / "layer"
+            shutil.rmtree(raw_classes, ignore_errors=True)
+            wanted = set(SERVER_ONLY[runner])
+            with zipfile.ZipFile(info["layer_jar"]) as jar:
+                for entry in jar.namelist():
+                    stem = entry.rsplit("/", 1)[-1]
+                    if entry.endswith(".class") and stem[:-6].split("$", 1)[0] in wanted:
+                        target = raw_classes / entry
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes(jar.read(entry))
+            where = "layer jar"
+            execs = info["server_exec"]
+        rows, seen = measure_server_only(
+            runner, raw_classes, execs, jacoco_cli, measure_dir / "report"
+        )
+        print_measurements(runner, rows, seen, where)
+    except Exception as error:
+        # The measurement is a report, never a gate input: whatever breaks it must not stop the
+        # coverage job before its verdict.
+        print(f"server-only {runner}: not measured: {type(error).__name__}: {error}")
+    finally:
+        shutil.rmtree(measure_dir, ignore_errors=True)
 
 
 def print_measurements(
@@ -600,17 +622,16 @@ def print_measurements(
 ) -> None:
     """One line per measured class, so the coverage job's log names a missed count for each.
 
-    The names are the class files' (package/Outer$Inner), the rows' are JaCoCo's CSV ones, so a row
-    matches an exec name by its last path segment with the dots of a nested class as dollars.
+    A row's name is the class file's (package/Outer$Inner), built from the CSV's package and class
+    columns, which is also the exec data's name for it, so the two match exactly.
     """
-    seen_names = {name.rsplit("/", 1)[-1] for name in seen}
     for name, missed, covered, branch_missed, branch_covered in rows:
-        note = "" if name.replace(".", "$") in seen_names else " (no exec data: not run)"
+        note = "" if name in seen else " (no exec data: not run)"
         print(
             f"server-only {runner} {name}: {missed} instructions and {branch_missed} branches "
             f"missed ({covered} and {branch_covered} covered) {where}{note}"
         )
-    found = {name.split("$", 1)[0] for name, *_ in rows}
+    found = {name.rsplit("/", 1)[-1].split("$", 1)[0] for name, *_ in rows}
     for name in SERVER_ONLY.get(runner, []):
         if name not in found:
             print(f"server-only {runner} {name}: not in the {where} class bytes, not measured")
