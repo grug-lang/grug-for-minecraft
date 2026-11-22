@@ -259,12 +259,7 @@ public final class GrugServerRun {
                 runner = new GrugTestRunner();
             } else if (GrugServerJoin.timedOut(
                     waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS)) {
-                System.out.println("[GRUG CI] FAIL world readiness");
-                System.out.println(
-                        "[GRUG CI] No player joined the dedicated server within "
-                                + (PLAYER_JOIN_TIMEOUT_MILLIS / 1000)
-                                + " seconds, so the tests were not started.");
-                stop(1);
+                failJoinTimeout();
                 return;
             } else {
                 long now = System.currentTimeMillis();
@@ -284,12 +279,7 @@ public final class GrugServerRun {
         }
 
         if (players.isEmpty() || !players.contains(GrugControlStation.starterPlayer())) {
-            GrugControlStation.server().onDisconnect(GrugControlStation.server().starter());
-            System.out.println("[GRUG CI] FAIL the test player left");
-            System.out.println(
-                    "[GRUG CI] Every player disconnected from the dedicated server during the"
-                            + " run.");
-            stop(1);
+            failPlayerLeft();
             return;
         }
 
@@ -423,7 +413,16 @@ public final class GrugServerRun {
         if (!GrugPlayerFloor.below(feet, floor)) {
             return;
         }
-        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        holdOnFloor((ServerPlayerEntity) player, feet, floor);
+    }
+
+    /**
+     * The arm of the floor hold that puts the player back: the teleport, the count and the report.
+     */
+    @GrugGenerated(
+            "the floor hold's arm: it runs only when a client reports a position inside the ground,"
+                    + " which no test can make a joined client do on demand (#1136)")
+    private static void holdOnFloor(ServerPlayerEntity serverPlayer, double feet, double floor) {
         serverPlayer.networkHandler.teleport(
                 serverPlayer.x, floor, serverPlayer.z, serverPlayer.yaw, serverPlayer.pitch);
         serverPlayer.velocityY = 0.0;
@@ -438,6 +437,30 @@ public final class GrugServerRun {
                             + feet
                             + " (inside the ground)");
         }
+    }
+
+    /** Fails the run because no player joined in time, which only a failing run reaches. */
+    @GrugGenerated(
+            "the join timeout: it runs only when no client joins, which ends a run as a failure")
+    private static void failJoinTimeout() {
+        System.out.println("[GRUG CI] FAIL world readiness");
+        System.out.println(
+                "[GRUG CI] No player joined the dedicated server within "
+                        + (PLAYER_JOIN_TIMEOUT_MILLIS / 1000)
+                        + " seconds, so the tests were not started.");
+        stop(1);
+    }
+
+    /** Fails the run because the starter left it, which only a failing run reaches. */
+    @GrugGenerated(
+            "the player-left stop: it runs only when every player disconnects during a run, which"
+                    + " ends a run as a failure")
+    private static void failPlayerLeft() {
+        GrugControlStation.server().onDisconnect(GrugControlStation.server().starter());
+        System.out.println("[GRUG CI] FAIL the test player left");
+        System.out.println(
+                "[GRUG CI] Every player disconnected from the dedicated server during the run.");
+        stop(1);
     }
 
     /** Ends the server process; a non-zero status says the run did not pass. */
