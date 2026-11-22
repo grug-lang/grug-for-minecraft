@@ -1,0 +1,2 @@
+# grug-rs hands the compile_all_files result to the host and keeps no owner for it (grug.h: it exists until the next grug_update), so one 52 KB block is reported at exit.
+leak:compile_all_files
