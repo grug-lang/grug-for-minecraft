@@ -52,6 +52,10 @@ echo "== AddressSanitizer and UBSan =="
 make -C "$here" OUT="$build/asan" SAN="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" >/dev/null || exit 1
 run "$build/asan" sanitizers
 
+echo "== selftest.c: C tests of the pure helpers, with known answers from a real JDK =="
+make -C "$here" SELFTEST="$build/selftest" "$build/selftest" SAN="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" >/dev/null || exit 1
+"$build/selftest" || status=1
+
 echo "== line and branch coverage of smoketest.c, from the mods/coverage/ tests =="
 make -C "$here" OUT="$build/cov" CFLAGS="-O0 -g -Wall -Wextra -std=gnu11" SAN="--coverage" >/dev/null || exit 1
 run "$build/cov" coverage
