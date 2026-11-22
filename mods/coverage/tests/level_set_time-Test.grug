@@ -1,0 +1,26 @@
+# Covers Level.set_time(), which a test that captures a scene lit by the sky uses to put the sky at
+# a known hour. Each time is read back in the same call, before the game ticks, so it is the time
+# that was set on every version. A day is 24000 ticks: 0 is dawn, 6000 noon and 18000 midnight. The
+# last is the largest whole number a double holds exactly. The test sets the clock back where it
+# found it, so a later test's sky is not this test's.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    original: number = level.get_time()
+
+    level.set_time(6000)
+    ctx.assert(level.get_time() == 6000, "The time should read back as 6000 after set_time(6000).")
+
+    level.set_time(0)
+    ctx.assert(level.get_time() == 0, "The time should read back as 0 after set_time(0).")
+
+    level.set_time(18000)
+    ctx.assert(level.get_time() == 18000, "The time should read back as 18000 after set_time(18000).")
+
+    level.set_time(24000 * 1000 + 6000)
+    ctx.assert(level.get_time() == 24006000, "A time of many days should read back unchanged.")
+
+    level.set_time(9007199254740991)
+    ctx.assert(level.get_time() == 9007199254740991, "The largest accepted time should read back unchanged.")
+
+    level.set_time(original)
+}

@@ -2125,6 +2125,30 @@ public class HostFunctions {
                 0.0);
     }
 
+    /**
+     * The largest tick count a double holds exactly, so every accepted time is the one asked for.
+     */
+    private static final double MAX_WORLD_TIME = 9007199254740991.0;
+
+    public static void Level_set_time(long levelId, double ticks) {
+        if (!(ticks >= 0) || ticks > MAX_WORLD_TIME || ticks != Math.floor(ticks)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "set_time: The time has to be a whole number of ticks from 0 to "
+                            + (long) MAX_WORLD_TIME
+                            + ", and was "
+                            + ticks
+                            + ".");
+            return;
+        }
+        worldChanged();
+        withEntity(
+                "Level.set_time",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().setWorldTime(level, (long) ticks));
+    }
+
     public static double Level_random_int(long levelId, double bound) {
         if (bound < 1 || bound > Integer.MAX_VALUE || bound != Math.floor(bound)) {
             Grug.hostFunctionErrorHappened(

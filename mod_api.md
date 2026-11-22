@@ -164,6 +164,7 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .random_float() number
 .random_gaussian() number
 .random_int(bound: number) number
+.set_time(ticks: number)
 
 ## Math
 Math.cos(angle: number) number

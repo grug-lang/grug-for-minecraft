@@ -530,6 +530,11 @@ class HostFunctionsStaleIdTest {
         assertEquals(List.of(), reports);
 
         adapterCalls.clear();
+        HostFunctions.Level_set_time(level, 6000);
+        assertEquals(List.of("setWorldTime[the level, 6000]"), adapterCalls);
+        assertEquals(List.of(), reports);
+
+        adapterCalls.clear();
         HostFunctions.TestTickContext_set_held_item(
                 GrugTestContexts.tick(),
                 live(GrugEntityType.Player, "the player"),

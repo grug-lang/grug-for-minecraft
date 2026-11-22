@@ -1172,6 +1172,16 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setWorldTime(Object levelObj, long time) {
+        World world = (World) levelObj;
+        world.setWorldTime(time);
+        // The sky light that is drawn is the stored light less skylightSubtracted, which the world
+        // refreshes at the end of its next tick: a capture meshed before that tick would carry the
+        // old hour's value.
+        world.skylightSubtracted = world.calculateSkylightSubtracted(1.0F);
+    }
+
+    @Override
     public int nextRandomInt(Object levelObj, int bound) {
         return ((World) levelObj).rand.nextInt(bound);
     }

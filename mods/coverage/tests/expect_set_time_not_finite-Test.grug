@@ -1,0 +1,17 @@
+# set_time reports a time that is not a number at all, NaN here, rather than hand the clock a value
+# the cast to a whole number would turn into 0. Squaring 10000000000.0 five times overflows a double
+# to infinity, and infinity minus infinity is NaN.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+
+    infinity: number = 10000000000.0
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    nan: number = infinity - infinity
+
+    ctx.expect_error("set_time: The time has to be a whole number of ticks from 0 to")
+    level.set_time(nan)
+}

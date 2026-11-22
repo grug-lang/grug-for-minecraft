@@ -1,0 +1,8 @@
+# set_time takes a whole number of ticks from 0, so a negative time is reported rather than handed to
+# a clock that counts up.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+
+    ctx.expect_error("set_time: The time has to be a whole number of ticks from 0 to")
+    level.set_time(-1)
+}

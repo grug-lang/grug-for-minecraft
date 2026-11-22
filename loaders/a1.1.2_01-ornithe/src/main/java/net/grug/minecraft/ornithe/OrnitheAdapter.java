@@ -575,6 +575,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setWorldTime(Object levelObj, long time) {
+        // The field, as ServerOrnitheAdapter.buildTestBox does: the a0.2.1 server jar names
+        // World.setTime differently from the development jar. The world's ambient darkness follows
+        // the clock on its own tick.
+        ((World) levelObj).ticks = time;
+    }
+
+    @Override
     public int nextRandomInt(Object levelObj, int bound) {
         return ((World) levelObj).random.nextInt(bound);
     }

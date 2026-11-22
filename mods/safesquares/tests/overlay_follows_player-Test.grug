@@ -4,7 +4,8 @@
 # the camera, so the crosses seen are the ones around the new position: the hole's yellow cluster
 # sits three blocks nearer the middle of the frame than in overlay_crosses, and the golden is the
 # check that every cross is drawn on its square from the new camera. The crop and the reasons for the
-# room are overlay_crosses', and so is the reason the crop stops at x 840 (#1550).
+# room are overlay_crosses', and so is the reason the crop stops at x 840 (#1550). So is the clock:
+# the test sets noon first, so the sky light that is drawn is the same at every hour of the run.
 state: number = 0
 moved: bool = false
 waited: number = 0
@@ -22,6 +23,7 @@ export tick(ctx: TestTickContext) {
         if not me.world_overlay_supported() {
             return
         }
+        level.set_time(6000)
         ctx.set_box_radius(6)
         origin: Vec3 = ctx.get_origin()
         px: number = Math.floor(origin.x())
