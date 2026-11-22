@@ -199,6 +199,29 @@ class AffectedModsTest(unittest.TestCase):
             "",
         )
 
+    def test_the_smoketest_directory_selects_no_mod_of_its_own(self):
+        # Only the coverage mod, which always runs: the advisory smoketest host is read by no mod.
+        self.assertEqual(self.select({".github/smoketest/smoketest.c": "int x;\n"}), "coverage")
+
+    def test_the_smoketest_directory_beside_a_mod_selects_that_mod_only(self):
+        self.assertEqual(
+            self.select(
+                {
+                    ".github/smoketest/smoketest.c": "int x;\n",
+                    "mods/solo/code/solo-Block.grug": "# a\n",
+                }
+            ),
+            "coverage,solo",
+        )
+
+    def test_the_smoketest_directory_beside_core_still_selects_every_mod(self):
+        self.assertEqual(
+            self.select(
+                {".github/smoketest/smoketest.c": "int x;\n", "core/src/Main.java": "//\n"}
+            ),
+            "",
+        )
+
     def test_a_file_directly_in_mods_selects_every_mod(self):
         self.assertEqual(self.select({"mods/README.md": "x\n"}), "")
 

@@ -4,9 +4,10 @@ GRUG_RS ?= $(HOME)/agent-workspaces/grug-rs-1585
 CC ?= gcc
 CFLAGS ?= -O2 -g -Wall -Wextra -std=gnu11
 SAN ?=
+OUT ?= smoketest
 ROOT := $(abspath $(CURDIR)/../..)
 
-smoketest: smoketest.c api_table.inc $(GRUG_RS)/target/release/libgruggers.a
+$(OUT): smoketest.c api_table.inc $(GRUG_RS)/target/release/libgruggers.a
 	$(CC) $(CFLAGS) $(SAN) -o $@ smoketest.c $(GRUG_RS)/target/release/libgruggers.a -lm -lpthread -ldl
 
 api_table.inc: gen_api_table.py $(ROOT)/mod_api.json

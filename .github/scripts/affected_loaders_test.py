@@ -341,6 +341,18 @@ class AffectedLoadersTest(SelectionCase):
     def test_a_file_directly_in_loaders_runs_the_representatives(self):
         self.assertEqual(self.select({"loaders/README.md": "loaders\n"}), REPRESENTATIVES)
 
+    def test_the_smoketest_directory_alone_runs_the_representatives(self):
+        self.assertEqual(
+            self.select({".github/smoketest/smoketest.c": "int x;\n"}), REPRESENTATIVES
+        )
+
+    def test_the_smoketest_directory_beside_a_loader_runs_that_loader_too(self):
+        changes = {
+            ".github/smoketest/smoketest.c": "int x;\n",
+            "loaders/b1.7.3-ornithe/src/Main.java": "// new\n",
+        }
+        self.assertIn("b1.7.3-ornithe", self.select(changes))
+
     def test_a_deleted_loader_runs_the_representatives_of_the_rest(self):
         # The Ornithe pair is what is left of the Fabric family, and the newer of the two takes it.
         self.assertEqual(

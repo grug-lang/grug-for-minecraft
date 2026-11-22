@@ -47,6 +47,8 @@ import sys
 from pathlib import Path, PurePosixPath
 
 ALWAYS = "coverage"
+# Only the advisory smoketest job reads this directory (#1589), so it selects no mod.
+SMOKETEST_DIR = ".github/smoketest/"
 # The namespace whose files only the mods that name them can see. Any other namespace under a mod's
 # data/ or assets/ (c, minecraft, ...) is shared with vanilla and with every other mod.
 PRIVATE_NAMESPACE = "grug"
@@ -230,6 +232,8 @@ def affected_mods(repo: Path, base: str, head: str):
 
     changed: set[str] = set()
     for path in paths:
+        if path.startswith(SMOKETEST_DIR):
+            continue  # the advisory smoketest host: no mod's test in the game reads it (#1589)
         parts = PurePosixPath(path).parts
         if len(parts) < 3 or parts[0] != "mods":
             raise SelectEverything(f"{path} is not inside a mod directory")

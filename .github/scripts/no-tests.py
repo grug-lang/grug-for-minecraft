@@ -17,6 +17,8 @@ The set is prose only:
   mod is not prose: a mod's own files are what its tests read, and GrugScreenshots walks a mod's
   screenshots/ and refuses a .md it finds there.
 - ``.github/ISSUE_TEMPLATE/``, the forms GitHub fills in for a new issue, which only GitHub reads.
+- ``.github/smoketest/``, the C host of the smoketest job (#1589), which no game or unit test job reads:
+  the smoketest job has its own filter in build.yml and is advisory.
 
 Everything else runs the tests, and the CI's own scripts least of all may skip: reference-needed.py
 and watch-run.sh look like development-only files, but reference_needed_test.py and watch_run_test.py
@@ -38,7 +40,7 @@ import sys
 from pathlib import Path, PurePosixPath
 
 # A path inside one of these directories is read by nothing but GitHub.
-ALLOWED_DIRS = (".github/ISSUE_TEMPLATE/",)
+ALLOWED_DIRS = (".github/ISSUE_TEMPLATE/", ".github/smoketest/")
 # A file with one of these names, anywhere outside mods/, is a readme.
 ALLOWED_NAMES = ("README",)
 ALLOWED_SUFFIXES = (".md",)

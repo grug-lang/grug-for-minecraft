@@ -116,6 +116,8 @@ jobs:
       windows: ${{ steps.windows.outputs.dirs }}
       # Whether the dedicated-server legs run, true or false (#1342).
       dedicated: ${{ steps.dedicated.outputs.dedicated }}
+      # Whether the advisory smoketest job runs (#1589).
+      smoketest: ${{ steps.smoketest.outputs.smoketest }}
     steps:
       # The run timeout of a repeats run is 300 s plus 200 s per extra pass (see the loader job), and
       # the job's own limit is 90 minutes, so 26 passes is the most whose deadline the script reaches
@@ -308,6 +310,27 @@ jobs:
           fi
           echo "no-tests=$no_tests" >> "$GITHUB_OUTPUT"
 
+      # Whether the advisory smoketest job (#1589) runs: only for a pull request whose diff touches
+      # what it reads, which smoketest-needed.py explains in this log. Every other event and any
+      # doubt skips it, since it is a hint and not a test of the game. Only an explicit true runs it.
+      - name: Choose whether the smoketest job runs
+        id: smoketest
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          needed=false
+          if [ "$EVENT" = pull_request ]; then
+            if [ -n "$BASE_SHA" ] && git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
+              needed=$(python3 .github/scripts/smoketest-needed.py "$BASE_SHA" HEAD) || needed=false
+            else
+              echo "Skipping the smoketest: the pull request's base commit '$BASE_SHA' could not be fetched."
+            fi
+          else
+            echo "Skipping the smoketest: a $EVENT run is not a pull request."
+          fi
+          echo "smoketest=$needed" >> "$GITHUB_OUTPUT"
+
       # The loader directories the Windows boot jobs run on (#632, #826). A change that boots on Linux
       # cannot fail to boot on Windows without failing on Linux first, and the two Windows jobs are
       # 219 s of a loader's 484 s on main while running no tests (#707), so a push runs them only for
@@ -371,7 +394,9 @@ jobs:
   # same runner image, from the revision this commit pins.
   grug-rs:
     name: build grug-rs
-    if: needs.discover.outputs.no-tests != 'true'
+    # The smoketest job (#1589) links this library too, and a diff of .github/smoketest/ alone is one
+    # no game test reads, so it skips every test job and still needs the library.
+    if: needs.discover.outputs.no-tests != 'true' || needs.discover.outputs.smoketest == 'true'
     needs: discover
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -593,6 +618,7 @@ jobs:
             .github/scripts/reference_needed_test.py \
             .github/scripts/reference_selection_test.py \
             .github/scripts/no_tests_test.py \
+            .github/scripts/smoketest_needed_test.py \
             .github/scripts/server_path_client_classes_test.py \
             .github/scripts/drain_caches_test.py \
             .github/scripts/sweep_caches_test.py \
@@ -1247,6 +1273,47 @@ jobs:
   # reference, so a mismatch here means the port's golden is not what the reference draws, and it
   # fails like any loader job. GrugScreenshots compares a reference run only with the PNG named
   # after its own loader, so it cannot pass on another loader's golden.
+  # The smoketest (#1589, part of #1548): the C host under .github/smoketest/ runs the mods/coverage/
+  # logic tests on grug-rs's C API in about a second, so a porting agent gets a hint before the real
+  # game runs. It is ADVISORY and never a merge gate: it is not in `pr gate`'s needs, no job needs
+  # it, and continue-on-error keeps a red step from reddening the run (and from cancel-red). It runs
+  # beside the game jobs on a standard runner, so it never delays them. Nothing in it is cached: the
+  # whole run takes about a second, so a cache would cost more in stale results than it saves. The
+  # contract check, the line coverage assertion and failing tests are reported only until the host
+  # has its core (#1586); run.sh names the variables that turn each into a failure.
+  smoketest:
+    name: smoketest
+    if: needs.discover.outputs.smoketest == 'true'
+    needs: [discover, grug-rs]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # run.sh expects a grug-rs checkout's layout, so the artifact goes where Make looks for it.
+      - name: Download the grug-rs static library
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-rs-library
+          path: .grug-ci/target/release
+
+      - name: Test the line coverage script
+        run: python3 .github/smoketest/line_coverage_test.py
+
+      # Flip a variable to true to make that check a failure: SMOKETEST_ASSERT_CONTRACT (an entry
+      # of mod_api.json with no implementation), SMOKETEST_ASSERT_COVERAGE (below 100% line
+      # coverage of smoketest.c from mods/coverage/'s tests) and SMOKETEST_ASSERT_TESTS (a failing
+      # test). All three are off until the host's core exists (#1586).
+      - name: Run the smoketest with sanitizers and line coverage
+        env:
+          GRUG_RS: ${{ github.workspace }}/.grug-ci
+          SMOKETEST_ASSERT_CONTRACT: ${{ vars.SMOKETEST_ASSERT_CONTRACT }}
+          SMOKETEST_ASSERT_COVERAGE: ${{ vars.SMOKETEST_ASSERT_COVERAGE }}
+          SMOKETEST_ASSERT_TESTS: ${{ vars.SMOKETEST_ASSERT_TESTS }}
+        run: .github/smoketest/run.sh
+
   reference:
     name: reference
     # A diff that touches neither the harness of the mod this job runs nor its loader cannot change
@@ -2480,7 +2547,7 @@ jobs:
         # runs 43929769694 and 43918504625), and one such flake discarded the other legs. They stay
         # red in the run when they fail, they only do not cancel it; `adapter.dll (Windows)` is a
         # compile of this repository's code and still cancels.
-        run: python3 .github/scripts/cancel-red.py "$GITHUB_RUN_ID" --own-job 'cancel red' --repo-slug "$GITHUB_REPOSITORY" --exempt '\blayer\b' --exempt '^(?!adapter\.dll)[^ ]+ (installed )?\(Windows\)$'
+        run: python3 .github/scripts/cancel-red.py "$GITHUB_RUN_ID" --own-job 'cancel red' --repo-slug "$GITHUB_REPOSITORY" --exempt '\blayer\b' --exempt '^smoketest$' --exempt '^(?!adapter\.dll)[^ ]+ (installed )?\(Windows\)$'
 
   pr-gate:
     name: pr gate

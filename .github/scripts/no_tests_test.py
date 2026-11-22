@@ -93,6 +93,17 @@ class NoTestsTest(unittest.TestCase):
                 self.assertEqual(self.answer({path: content}), "true")
                 self.assertIn("skipping", self.reason)
 
+    def test_the_smoketest_directory_alone_skips(self):
+        self.assertEqual(self.answer({".github/smoketest/smoketest.c": "int x;\n"}), "true")
+        self.assertIn("skipping", self.reason)
+
+    def test_the_smoketest_directory_with_a_mod_file_still_runs(self):
+        changes = {
+            ".github/smoketest/smoketest.c": "int x;\n",
+            "mods/coverage/tests/frame-Test.grug": "tick() { }\n",
+        }
+        self.assertEqual(self.answer(changes), "false")
+
     def test_every_prose_path_at_once_skips(self):
         self.assertEqual(
             self.answer(

@@ -96,6 +96,16 @@ class ReferenceNeededTest(unittest.TestCase):
         }
         self.assertEqual(self.answer(changes), "false")
 
+    def test_the_smoketest_directory_skips(self):
+        self.assertEqual(self.answer({".github/smoketest/smoketest.c": "int x;\n"}), "false")
+
+    def test_the_smoketest_directory_beside_the_harness_runs_it(self):
+        changes = {
+            ".github/smoketest/smoketest.c": "int x;\n",
+            "loaders/1.2.5-forge/src/Main.java": "// new\n",
+        }
+        self.assertEqual(self.answer(changes), "true")
+
     def test_a_change_to_another_loader_skips(self):
         self.assertEqual(self.answer({"loaders/1.20.6-forge/src/Main.java": "// new\n"}), "false")
 
