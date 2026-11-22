@@ -6,6 +6,7 @@ import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugIdPool;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugSpriteSlots;
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.item.GrugItem;
@@ -98,7 +99,8 @@ public final class GrugBlocks {
                 block.faceSprites = faceSprites;
                 block.sprite = faceSprites[2];
             } else {
-                int blockSprite = nextBlockSpriteId++;
+                int blockSprite = GrugSpriteSlots.firstUsable(nextBlockSpriteId);
+                nextBlockSpriteId = blockSprite + 1;
                 BLOCK_SPRITES.put(cleanName, blockSprite);
                 block.sprite = blockSprite;
             }
@@ -150,7 +152,8 @@ public final class GrugBlocks {
         if (existing != null) {
             return existing;
         }
-        int sprite = nextBlockSpriteId++;
+        int sprite = GrugSpriteSlots.firstUsable(nextBlockSpriteId);
+        nextBlockSpriteId = sprite + 1;
         TEXTURE_SPRITES.put(textureRef, sprite);
         BLOCK_SPRITE_PATHS.put(sprite, GrugBlockModels.toTexturePath(textureRef));
         return sprite;
