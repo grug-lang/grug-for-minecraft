@@ -26,22 +26,23 @@ public final class GrugTestPlayerPin {
 
     private GrugTestPlayerPin() {}
 
-    /** A held position: the coordinates the loader's own player object reports. */
+    /** A held position on the two horizontal axes. */
     public static final class Pose {
         public final double x;
-        public final double y;
         public final double z;
 
-        private Pose(double x, double y, double z) {
+        private Pose(double x, double z) {
             this.x = x;
-            this.y = y;
             this.z = z;
         }
     }
 
-    /** Holds the player at this position from the next client tick until {@link #release}. */
-    public static void hold(double x, double y, double z) {
-        target = new Pose(x, y, z);
+    /**
+     * Holds the player at this horizontal position from the next client tick until {@link
+     * #release}.
+     */
+    public static void hold(double x, double z) {
+        target = new Pose(x, z);
     }
 
     /** The test ended, so the player is free to move and be restored. */

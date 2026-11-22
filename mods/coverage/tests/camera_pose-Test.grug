@@ -5,8 +5,9 @@
 # block in 1024, which is far looser than that, so this test requires the very same doubles on
 # 120 consecutive ticks after the world has settled, with the player standing on a block the test
 # lays under the feet, as overlay_crosses has it.
-# The camera must also be the snap itself (#1580): the pose get_origin names, lowered by its 3 block
-# lift, with no drift on any axis. A crowd of mobs spawned on the player pushes and hits them, and
+# The camera must also be on the snap's x and z (#1580): the pose get_origin names, with no drift. The
+# height is left to gravity, which settles it on the floor the test lays, so it is only required to be
+# stable. A crowd of mobs spawned on the player pushes and hits them, and
 # the a1 client's camera left the snap by 0.1 to 0.5 blocks and jumped in an arc within a second
 # (the mobcap golden's dark stone moved one to three pixels between runs), so the test crowds the
 # player and requires the pin to hold them. The bob terms are zero by construction: the camera is
@@ -59,7 +60,6 @@ export tick(ctx: TestTickContext) {
         state = 2
     }
     ctx.assert(camera.x() > snap_x - 0.000001 and camera.x() < snap_x + 0.000001, "The camera's x left the snap.")
-    ctx.assert(camera.y() > snap_y - 0.000001 and camera.y() < snap_y + 0.000001, "The camera's y left the snap.")
     ctx.assert(camera.z() > snap_z - 0.000001 and camera.z() < snap_z + 0.000001, "The camera's z left the snap.")
     ctx.assert(camera.x() == x, "The camera's x changed between ticks.")
     ctx.assert(camera.y() == y, "The camera's y changed between ticks.")

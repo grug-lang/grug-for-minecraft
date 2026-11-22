@@ -2101,16 +2101,16 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
                 0.0F,
                 0.0F);
         GrugTestPlayerPin.hold(
-                GrugTestPlayerSnap.blockCentre(savedX),
-                savedY,
-                GrugTestPlayerSnap.blockCentre(savedZ));
+                GrugTestPlayerSnap.blockCentre(savedX), GrugTestPlayerSnap.blockCentre(savedZ));
     }
 
     /**
-     * Puts the player back on the pose the snap, or the last {@code set_player_position}, gave
+     * Puts the player back on the x and z the snap, or the last {@code set_player_position}, gave
      * them, once per client tick at its head. Whatever moved them since, a crowd of mobs pushing or
-     * hitting them, would otherwise move the camera a capture is drawn from (#1580). The velocity
-     * goes too, because the game moves the player by the velocity the previous tick ended with.
+     * hitting them, would otherwise move the camera a capture is drawn from (#1580). The horizontal
+     * velocity goes too, because the game moves the player by the velocity the previous tick ended
+     * with. The height is left to gravity: holding it at the snap's height changed the buildcraft
+     * goldens.
      */
     @GrugGenerated("screenshot/GL integration: needs a running client with a player")
     public static void holdPlayerForTest(EntityPlayer player) {
@@ -2118,9 +2118,12 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         if (pose == null || player == null) {
             return;
         }
-        player.setPositionAndRotation(pose.x, pose.y, pose.z, 0.0F, 0.0F);
+        player.setPosition(pose.x, player.posY, pose.z);
+        player.prevPosX = pose.x;
+        player.prevPosZ = pose.z;
+        player.lastTickPosX = pose.x;
+        player.lastTickPosZ = pose.z;
         player.motionX = 0.0;
-        player.motionY = 0.0;
         player.motionZ = 0.0;
     }
 

@@ -21,11 +21,10 @@ class GrugTestPlayerPinTest {
 
     @Test
     void aHoldNamesThePoseUntilItIsReleased() {
-        GrugTestPlayerPin.hold(314.5, 65.62, 148.5);
+        GrugTestPlayerPin.hold(314.5, 148.5);
         GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.target();
         assertNotNull(pose);
         assertEquals(314.5, pose.x);
-        assertEquals(65.62, pose.y);
         assertEquals(148.5, pose.z);
         GrugTestPlayerPin.release();
         assertNull(GrugTestPlayerPin.target());
@@ -33,8 +32,8 @@ class GrugTestPlayerPinTest {
 
     @Test
     void aSecondHoldMovesTheTarget() {
-        GrugTestPlayerPin.hold(1, 2, 3);
-        GrugTestPlayerPin.hold(4, 5, 6);
+        GrugTestPlayerPin.hold(1, 3);
+        GrugTestPlayerPin.hold(4, 6);
         assertEquals(4, GrugTestPlayerPin.target().x);
     }
 }

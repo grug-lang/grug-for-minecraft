@@ -526,7 +526,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         player.setPositionAndRotation(
                 x, y + GrugTestOrigin.EYE_HEIGHT, z, player.rotationYaw, player.rotationPitch);
         if (GrugTestPlayerPin.target() != null) {
-            GrugTestPlayerPin.hold(x, y + GrugTestOrigin.EYE_HEIGHT, z);
+            GrugTestPlayerPin.hold(x, z);
         }
         return true;
     }
