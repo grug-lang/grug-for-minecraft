@@ -56,11 +56,13 @@ local _setup(ctx: TestTickContext) {
     z = z + 8
 
     level.place_block(x + 1, y, z, "minecraft:chest")
-    _place_table(ctx, level, x + 2, y, z)
-    _place_table(ctx, level, x + 4, y, z)
+    _place_table(level, x + 2, y, z)
+    _place_table(level, x + 4, y, z)
     level.place_block(x + 6, y, z, "minecraft:chest")
 
-    # The engines go in before the pipes, so each pipe finds its engine when it is placed.
+    # The engines go in before the pipes. BlockEngine.onBlockAdded sets an engine's orientation to YPos and
+    # then to the first powered neighbour after it, whatever side was clicked, so each engine faces up
+    # at the pipe above it, as the sibling demo_chain-Test.grug's engines do.
     _place_engine(ctx, level, x + 3, y - 1, z)
     _place_engine(ctx, level, x + 5, y - 1, z)
     _place_pipe(ctx, level, x + 3, y, z)
@@ -71,7 +73,7 @@ local _setup(ctx: TestTickContext) {
     pipe.set(pipe_opt.unwrap())
 }
 
-local _place_table(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+local _place_table(level: Level, x: number, y: number, z: number) {
     if not me.is_reference() {
         level.place_block(x, y, z, "grug:autocrafting_table")
         return
