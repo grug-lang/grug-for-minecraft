@@ -87,4 +87,88 @@ public final class GrugDiagCamera {
         }
         System.out.println("DIAG capture pixel hash " + Long.toHexString(h));
     }
+
+    private static final java.util.Map<Integer, String> seen = new java.util.HashMap<>();
+    private static final java.util.Set<Integer> reportedDying = new java.util.HashSet<>();
+    private static int previousCount = -1;
+
+    private static String describe(net.minecraft.entity.Entity e) {
+        String size = "";
+        if (e instanceof net.minecraft.entity.mob.monster.SlimeEntity) {
+            size = " size=" + ((net.minecraft.entity.mob.monster.SlimeEntity) e).size;
+        }
+        String mob = "";
+        if (e instanceof net.minecraft.entity.mob.MobEntity) {
+            net.minecraft.entity.mob.MobEntity m = (net.minecraft.entity.mob.MobEntity) e;
+            mob = " health=" + m.health + " deathTicks=" + m.deathTicks;
+        }
+        return "id="
+                + System.identityHashCode(e)
+                + " class="
+                + e.getClass().getSimpleName()
+                + " pos="
+                + e.x
+                + ","
+                + e.y
+                + ","
+                + e.z
+                + " ticks="
+                + e.ticks
+                + mob
+                + size
+                + " removed="
+                + e.removed
+                + " inChunk="
+                + e.inChunk
+                + " chunk="
+                + e.chunkX
+                + ","
+                + e.chunkZ;
+    }
+
+    /** Called on every hostile count: reports each entity that left the list or is dying. */
+    public static void mobs(net.minecraft.world.World world, Class<?> type) {
+        java.util.Map<Integer, String> now = new java.util.HashMap<>();
+        int count = 0;
+        for (Object o : new java.util.ArrayList<Object>(world.entities)) {
+            if (!type.isAssignableFrom(o.getClass())) {
+                continue;
+            }
+            count++;
+            net.minecraft.entity.Entity e = (net.minecraft.entity.Entity) o;
+            int id = System.identityHashCode(e);
+            now.put(id, describe(e));
+            if (e instanceof net.minecraft.entity.mob.MobEntity
+                    && ((net.minecraft.entity.mob.MobEntity) e).health <= 0
+                    && reportedDying.add(id)) {
+                System.out.println("DIAG hostile dying " + describe(e));
+            }
+        }
+        if (previousCount >= 0 && count < previousCount) {
+            String player = "no player";
+            if (!world.players.isEmpty()) {
+                net.minecraft.entity.Entity p = (net.minecraft.entity.Entity) world.players.get(0);
+                player = p.x + "," + p.y + "," + p.z;
+            }
+            System.out.println(
+                    "DIAG hostile count dropped "
+                            + previousCount
+                            + " to "
+                            + count
+                            + " clock="
+                            + world.ticks
+                            + " difficulty="
+                            + world.difficulty
+                            + " player="
+                            + player);
+            for (java.util.Map.Entry<Integer, String> g : seen.entrySet()) {
+                if (!now.containsKey(g.getKey())) {
+                    System.out.println("DIAG hostile gone " + g.getValue());
+                }
+            }
+        }
+        previousCount = count;
+        seen.clear();
+        seen.putAll(now);
+    }
 }

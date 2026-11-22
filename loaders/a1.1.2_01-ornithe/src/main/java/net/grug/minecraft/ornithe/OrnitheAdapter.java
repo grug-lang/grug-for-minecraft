@@ -1369,6 +1369,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     /** {@code World.getEntityCount} of the category's class, which is what the spawner counts. */
     @Override
     public int countMobs(Object levelObj, String category) {
+        if ("hostile".equals(category)) {
+            GrugDiagCamera.mobs((World) levelObj, mobType(category));
+        }
         return ((World) levelObj).getEntityCount(mobType(category));
     }
 
