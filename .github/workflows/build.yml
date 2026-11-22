@@ -2426,7 +2426,7 @@ jobs:
       # log names the run and its age, or says nothing qualified. This changes no gate result until
       # a class is promoted, and the step cannot fail the job.
       - name: Retrieve the latest dedicated-server exec data
-        if: ${{ needs.discover.outputs.base-run != '' }}
+        if: ${{ github.event_name == 'pull_request' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
