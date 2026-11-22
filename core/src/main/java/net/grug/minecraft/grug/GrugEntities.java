@@ -163,7 +163,7 @@ public final class GrugEntities {
             roots.clear();
         }
         List<GrugObject> running = fnEntities;
-        if (!released.isEmpty() && running != roots && running != retainedFnEntities) {
+        if (running != roots && running != retainedFnEntities) {
             synchronized (running) {
                 running.addAll(released);
             }
