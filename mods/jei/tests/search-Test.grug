@@ -68,7 +68,9 @@ export tick_any_side(ctx: TestTickContext) {
         return
     }
 
-    if step == 1 {
+    if step == 5 {
+        # Handled below.
+    } else if step == 1 {
         if not _arrived(ctx, search_item_at("iron", 0), "A press on the first cell should give the first item that matches iron.") {
             ctx.not_done()
             return
@@ -82,6 +84,20 @@ export tick_any_side(ctx: TestTickContext) {
         # A press on an item unfocuses the field, so the field is pressed again, and the four
         # backspaces empty it.
         ctx.clear_held_item(ctx.get_player())
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        # The hand is empty before the next press, so the item that arrives is the one it gives.
+        if ctx.get_player().get_held_item().has() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The hand should be empty after it is cleared.")
+            ctx.not_done()
+            return
+        }
         ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 0), "The overlay should take a press on its search field.")
         ctx.assert(ctx.press_screen_key(8, false, true), "Backspace should be taken while the field is focused.")
         ctx.assert(ctx.press_screen_key(8, false, true), "Backspace should be taken while the field is focused.")
