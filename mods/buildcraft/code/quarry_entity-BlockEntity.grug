@@ -1,0 +1,77 @@
+# BuildCraft 2.2.14's TileQuarry, as far as its facing, its box and its energy go: the frame, the arm
+# and the mining are later pieces of #1543.
+# The block's placed export saves the metadata as "meta", 2 to 5 as Orientations numbers the side the
+# front faces, and 0 for a quarry nothing placed, which BlockQuarry.a(side, meta) draws like a 3.
+
+# The time of the last energy loss: SafeTimeTracker's lastMark, which is not saved, so it starts again
+# at 0 whenever the quarry's chunk is loaded.
+loss_mark: number = 0
+
+# The provider the constructor configures holds at most 7000, and the reference saves it with the
+# tile, which the energy host functions do too.
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_power_receiver(7000)
+}
+
+# BlockQuarry.a(side, meta): the front on the side the metadata names, the top texture on the top and
+# the side texture everywhere else, with a quarry of metadata 0 showing its front on the south.
+export render(ctx: RenderContext) {
+    meta: number = me.get_saved_number("meta")
+    if meta == 2 {
+        ctx.draw_model(r"assets/grug/models/block/quarry_north.json", 0, 0, 0, 0, 0, 0)
+    } else if meta == 4 {
+        ctx.draw_model(r"assets/grug/models/block/quarry_west.json", 0, 0, 0, 0, 0, 0)
+    } else if meta == 5 {
+        ctx.draw_model(r"assets/grug/models/block/quarry_east.json", 0, 0, 0, 0, 0, 0)
+    } else {
+        ctx.draw_model(r"assets/grug/models/block/quarry_south.json", 0, 0, 0, 0, 0, 0)
+    }
+}
+
+export tick() {
+    # TileQuarry.setBoundaries with the default area. The reference does it when the quarry first needs
+    # its box, which only the block's own position and metadata decide, so the first tick gives the
+    # same box. A nearby laser marker's area, which the reference prefers, is a later piece.
+    if me.get_saved_number("box_set") == 0 {
+        _set_default_box()
+    }
+
+    # PowerProvider.update: the energy loss, which TileQuarry never configures away, so the default of
+    # 1 energy every 100 ticks stays. SafeTimeTracker.markTimeIfDelay: a clock that went backwards
+    # moves the mark and does not fire.
+    time: number = level.get_time()
+    if time < loss_mark {
+        loss_mark = time
+    } else if loss_mark + 100 <= time {
+        loss_mark = time
+        me.extract_energy(1)
+    }
+}
+
+# The default area is 11 by 5 by 11 from the quarry's own coordinates, and the box starts on the side
+# the quarry does not face: Orientations.values()[meta].reverse() is the placer's orientation, which
+# is XPos for a front on the west.
+# A quarry of metadata 0 matches none of the four cases, so the reference leaves its box at 0, 0.
+local _set_default_box() {
+    meta: number = me.get_saved_number("meta")
+    box_x: number = 0
+    box_z: number = 0
+    if meta == 4 {
+        box_x = x + 1
+        box_z = z - 4 - 1
+    } else if meta == 5 {
+        box_x = x - 9 - 2
+        box_z = z - 4 - 1
+    } else if meta == 2 {
+        box_x = x - 4 - 1
+        box_z = z + 1
+    } else if meta == 3 {
+        box_x = x - 4 - 1
+        box_z = z - 9 - 2
+    }
+
+    me.set_saved_number("box_x", box_x)
+    me.set_saved_number("box_z", box_z)
+    me.set_saved_number("box_set", 1)
+    me.redraw()
+}

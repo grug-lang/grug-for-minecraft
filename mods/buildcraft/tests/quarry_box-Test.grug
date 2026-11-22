@@ -1,0 +1,51 @@
+# Covers the quarry's default box and its energy, as TileQuarry.setBoundaries and PowerProvider do in
+# BuildCraft 2.2.14 (#1543). Each quarry is given the metadata BlockQuarry.a would have stored and
+# ticked once, which is when the port sets the box: the box starts one block beside the quarry on the
+# side its front does not face, 4 blocks over to the side along it, and a metadata of 0 or 1, which
+# the reference's switch does not know, leaves it at 0, 0. The energy part receives 100, which is held
+# up to 7000, and ticks the quarry: the reference's provider loses 1 every 100 ticks of the world's
+# clock, and tick_block_entity leaves that clock alone, so a world time past 100 gives exactly one loss
+# on the first tick and none on the second.
+export tick_any_side(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    if level.get_time() < 100 {
+        ctx.not_done()
+        return
+    }
+
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x())
+    y: number = Math.floor(origin.y()) + 10
+    z: number = Math.floor(origin.z())
+
+    # Front on the west, the north, the east and the south, and the unplaced quarry.
+    _box(ctx, level, x, y, z, 4, x + 1, z - 4 - 1)
+    _box(ctx, level, x + 20, y, z, 2, x + 20 - 4 - 1, z + 1)
+    _box(ctx, level, x + 40, y, z, 5, x + 40 - 9 - 2, z - 4 - 1)
+    _box(ctx, level, x + 60, y, z, 3, x + 60 - 4 - 1, z - 9 - 2)
+    _box(ctx, level, x + 80, y, z, 0, 0, 0)
+
+    quarry: BlockEntity = _place(ctx, level, x + 100, y, z, 3)
+    ctx.assert(quarry.receive_energy(100) == 100, "A quarry should take 100 energy into its store.")
+    ctx.assert(quarry.receive_energy(8000) == 6900, "A quarry should hold at most 7000.")
+    ctx.assert(quarry.get_energy_stored() == 7000, "A full quarry should hold 7000.")
+    ctx.tick_block_entity(quarry, 1)
+    ctx.assert(quarry.get_energy_stored() == 6999, "A quarry should lose 1 energy on its first tick past 100 ticks of world time.")
+    ctx.tick_block_entity(quarry, 1)
+    ctx.assert(quarry.get_energy_stored() == 6999, "A quarry should lose no energy while the world's clock has not moved 100 ticks.")
+}
+
+local _place(ctx: TestTickContext, level: Level, x: number, y: number, z: number, meta: number) BlockEntity {
+    level.place_block(x, y, z, "grug:quarry")
+    quarry: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(quarry.has(), "The quarry should have a block entity.")
+    quarry.unwrap().set_saved_number("meta", meta)
+    return quarry.unwrap()
+}
+
+local _box(ctx: TestTickContext, level: Level, x: number, y: number, z: number, meta: number, box_x: number, box_z: number) {
+    quarry: BlockEntity = _place(ctx, level, x, y, z, meta)
+    ctx.tick_block_entity(quarry, 1)
+    ctx.assert(quarry.get_saved_number("box_x") == box_x, "The quarry's box should start at the x TileQuarry.setBoundaries gives its facing.")
+    ctx.assert(quarry.get_saved_number("box_z") == box_z, "The quarry's box should start at the z TileQuarry.setBoundaries gives its facing.")
+}

@@ -1,0 +1,52 @@
+# Covers the quarry remembering which way its placer stood (#1543), as BlockQuarry.a does with
+# Utils.get2dOrientation: a player placing the quarry with the held item reaches the block's placed
+# export, which saves the metadata the front faces, and the quarry's box starts on its other side.
+# The fixture above the origin declines the click, so the held quarry is placed against the face the eye
+# sees, below the fixture, as coverage's placed-Test.grug does. The player stands at the origin, inside
+# the block's column, so Dx and Dz are both between 0 and 1, which leaves the front on the south when Dz
+# is not below Dx and on the east otherwise. The test reads the player's own position to know which.
+# A loader that does not call the export yet, which Test.placed_supported says, returns before it builds
+# anything. The test runs on the client only, as coverage's does, because the saved numbers are read from
+# the client's copy of the block entity.
+export tick(ctx: TestTickContext) {
+    if not me.placed_supported() {
+        return
+    }
+
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x())
+    y: number = Math.floor(origin.y())
+    z: number = Math.floor(origin.z())
+
+    if ctx.current_tick() == 0 {
+        level.place_block(x, y - 1, z, "minecraft:air")
+        level.place_block(x, y, z, "grug:coverage_decline_use")
+        ctx.set_held_item(ctx.get_player(), item(resource_location("grug:quarry")))
+        ctx.use_block(level, x, y, z)
+        ctx.not_done()
+        return
+    }
+
+    quarry: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)
+    if not quarry.has() or quarry.unwrap().get_saved_number("meta") == 0 {
+        ctx.not_done()
+        return
+    }
+
+    position: Vec3 = ctx.get_player().position()
+    expected: number = 3
+    if position.z() - z < position.x() - x {
+        expected = 5
+    }
+    ctx.assert(quarry.unwrap().get_saved_number("meta") == expected, "A quarry placed by a player at an offset from its corner should face them, as BlockQuarry.a stores it.")
+
+    ctx.tick_block_entity(quarry.unwrap(), 1)
+    ctx.assert(quarry.unwrap().get_saved_number("box_set") == 1, "A quarry's first tick should set its box.")
+    if expected == 3 {
+        ctx.assert(quarry.unwrap().get_saved_number("box_z") == z - 9 - 2, "A quarry facing south should start its box 11 blocks north of it.")
+    } else {
+        ctx.assert(quarry.unwrap().get_saved_number("box_x") == x - 9 - 2, "A quarry facing east should start its box 11 blocks west of it.")
+    }
+    ctx.clear_held_item(ctx.get_player())
+}
