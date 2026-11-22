@@ -28,7 +28,7 @@ export tick(ctx: TestTickContext) {
         # The origin is the camera plus 3, and the eye is 1.62 above the feet the room is built around.
         py: number = Math.floor(origin.y() - 4.12)
         pz: number = Math.floor(origin.z())
-        # The squares are on a stone platform the test lays over the room at the block the player stands
+        # The squares are on a flat-coloured platform the test lays over the room at the block the player stands
         # on, so they are 1.62 below the eye: the room's own floor is four blocks lower, which a level
         # camera cannot see at this distance, and its torches would light them from below.
         fy = py
@@ -39,7 +39,7 @@ export tick(ctx: TestTickContext) {
         while x <= px + 6 {
             z: number = pz - 6
             while z <= pz + 6 {
-                level.place_block(x, fy - 1, z, "minecraft:stone")
+                level.place_block(x, fy - 1, z, "grug:safesquares_floor")
                 z = z + 1
             }
             x = x + 1
