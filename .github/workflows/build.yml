@@ -2236,7 +2236,9 @@ jobs:
     if: ${{ !cancelled() && needs.discover.outputs.no-tests != 'true' }}
     # discover is a need because this job reads its carry-over: the two outputs are what names
     # the base run and the tests the loader jobs skipped (#786).
-    needs: [discover, core, build, multiplayer]
+    # layer is a need so the Ornithe server set's jar is there when this job reads it (#169): it
+    # needs only discover and grug-rs, so it finishes with the loader jobs this job already waits for.
+    needs: [discover, core, build, multiplayer, layer]
     runs-on: ubuntu-24.04
     # Its own steps only: a job's timeout does not count the time it waits for the jobs it needs.
     timeout-minutes: 5
