@@ -6,6 +6,7 @@ Generated from mod_api.json by mod_api_catalog.py; do not edit. Descriptions are
 export display_tick(ctx: DisplayTickContext, world: Level, x: number, y: number, z: number)
 export init(ctx: BlockInitContext)
 export on_break(world: Level, x: number, y: number, z: number)
+export placed(world: Level, x: number, y: number, z: number, placer: Player)
 export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number)
 export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player)
 
@@ -78,6 +79,7 @@ export tick_any_side(ctx: TestTickContext)
 .loader_name() string
 .on_dedicated_server() bool
 .overlay_supported() bool
+.placed_supported() bool
 .registers_mod_recipes() bool
 .world_overlay_supported() bool
 
@@ -245,6 +247,7 @@ Option.new() Option[$Value]
 
 ## Player
 .get_held_item() Option[Item]
+.position() Vec3
 
 ## RenderContext
 .draw_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)

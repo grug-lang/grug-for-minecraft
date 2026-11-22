@@ -1,0 +1,31 @@
+# Covers a block's placed export (#1558): a player placing the block with the held item reaches it with the
+# player who placed it, and Player.position answers the horizontal centre of the player and the height of
+# their feet on every loader. The fixture above the origin declines the click, so the held block is placed
+# against the face the eye sees, below the fixture, and the block's placed export writes glass where the
+# player stood (see coverage_placed). The test reads the two glass blocks back.
+# A loader that does not call the export yet, which Test.placed_supported says, returns before it builds
+# anything. This test runs on the client only, because the placement of a dedicated server's test player
+# reaches the export on the server and its glass is not read there yet (#1558).
+export tick(ctx: TestTickContext) {
+    if not me.placed_supported() {
+        return
+    }
+
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x())
+    y: number = Math.floor(origin.y())
+    z: number = Math.floor(origin.z())
+
+    if ctx.current_tick() == 0 {
+        level.place_block(x, y, z, "grug:coverage_decline_use")
+        ctx.set_held_item(ctx.get_player(), item(resource_location("grug:coverage_placed")))
+        ctx.use_block(level, x, y, z)
+        ctx.not_done()
+    } else if level.get_block(x, y - 1 + 20, z) != "minecraft:glass" {
+        ctx.not_done()
+    } else {
+        ctx.assert(level.get_block(x, y - 1 + 21, z) == "minecraft:glass", "Player.position should answer the player's feet, not their eye.")
+        ctx.clear_held_item(ctx.get_player())
+    }
+}

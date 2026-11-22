@@ -1203,6 +1203,17 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Vec3 playerPosition(Object playerObj) {
+        Player player = (Player) playerObj;
+        return new Vec3(player.getX(), player.getY(), player.getZ());
+    }
+
+    @Override
+    public boolean placedSupportedForTest() {
+        return true;
+    }
+
+    @Override
     public Object getHeldItem(Object playerObj) {
         ItemStack stack = serverSideOf((Player) playerObj).getMainHandItem();
         return !stack.isEmpty() ? stack.getItem() : null;

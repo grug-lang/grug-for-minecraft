@@ -432,6 +432,10 @@ class HostFunctionsStaleIdTest {
 
         assertEquals(0L, HostFunctions.Player_get_held_item(player));
         assertEquals(List.of(staleMessage("Player.get_held_item", "player", player)), reports);
+
+        reports.clear();
+        assertEquals(0L, HostFunctions.Player_position(player));
+        assertEquals(List.of(staleMessage("Player.position", "player", player)), reports);
         assertEquals(0, GrugEntities.entityData.size(), "no Option is built behind a stale id");
 
         reports.clear();

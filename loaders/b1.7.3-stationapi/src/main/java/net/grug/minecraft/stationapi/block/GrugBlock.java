@@ -15,6 +15,7 @@ import net.grug.minecraft.grug.GrugShapes;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
@@ -150,6 +151,23 @@ public class GrugBlock extends TemplateBlockWithEntity {
             Grug.destroyEntity(blockHandle);
         }
         super.onBreak(world, x, y, z);
+    }
+
+    /**
+     * Calls the block's {@code placed} export after a player placed it. The block item's placement
+     * calls this once the block, its metadata and its block entity are in the world. The player is
+     * the only placer this game passes.
+     */
+    @Override
+    public void onPlaced(World world, int x, int y, int z, LivingEntity placer) {
+        super.onPlaced(world, x, y, z, placer);
+        long blockHandle = Grug.createEntity(this.blockFileId);
+        if (blockHandle != 0) {
+            long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
+            long playerId = GrugEntities.addEntity(GrugEntityType.Player, placer);
+            ExportFns.Block_placed(blockHandle, worldId, x, y, z, playerId);
+            Grug.destroyEntity(blockHandle);
+        }
     }
 
     @Override
