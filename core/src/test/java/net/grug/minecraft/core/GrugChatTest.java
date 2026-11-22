@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 class GrugChatTest {
     /** One line a chat was given, in the order the chat took it. */
@@ -278,6 +280,59 @@ class GrugChatTest {
     @Test
     void aTrailingSpaceAtTheEndOfTheLastLineIsNotPartOfIt() {
         assertEquals(Collections.singletonList("short"), GrugChat.wrap("short "));
+    }
+
+    @Test
+    void aReportReachesTheChatOfTheActingPlayerOutsideACiRun() {
+        List<Object> asked = new ArrayList<>();
+        List<String> got = new ArrayList<>();
+        Consumer<String> chat =
+                GrugChat.sink(
+                        "alice",
+                        false,
+                        actor -> {
+                            asked.add(actor);
+                            return got::add;
+                        });
+        chat.accept("hello");
+        assertEquals(Collections.singletonList("alice"), asked);
+        assertEquals(Collections.singletonList("hello"), got);
+    }
+
+    @Test
+    void noChatIsMadeForNoPlayerOrForACiRun() {
+        List<Object> asked = new ArrayList<>();
+        Function<Object, Consumer<String>> chatOf =
+                actor -> {
+                    asked.add(actor);
+                    return piece -> asked.add(piece);
+                };
+        // Nobody's chat takes a line and keeps nothing, and the real chat is never made.
+        GrugChat.sink(null, false, chatOf).accept("lost");
+        GrugChat.sink("alice", true, chatOf).accept("lost");
+        GrugChat.sink(null, true, chatOf).accept("lost");
+        assertEquals(Collections.emptyList(), asked);
+    }
+
+    @Test
+    void aReporterLogsEveryLineAndChatsEveryWrappedPiece() {
+        List<String> log = new ArrayList<>();
+        List<String> chat = new ArrayList<>();
+        GrugChat.Chat reporter = GrugChat.reporter(log::add, chat::add);
+        reporter.line("one\n\ntwo", false);
+        // The log keeps the empty line, as a client's drain does, and the chat drops it.
+        assertEquals(Arrays.asList("one", "", "two"), log);
+        assertEquals(Arrays.asList("one", "two"), chat);
+    }
+
+    @Test
+    void anErrIsRedOnEveryLineAndPieceOfItsReport() {
+        List<String> log = new ArrayList<>();
+        List<String> chat = new ArrayList<>();
+        GrugChat.reporter(log::add, chat::add).line("bad\nworse", true);
+        assertEquals(Arrays.asList(GrugChat.RED + "bad", GrugChat.RED + "worse"), log);
+        assertEquals(Arrays.asList(GrugChat.RED + "bad", GrugChat.RED + "worse"), chat);
+        assertEquals("§c", GrugChat.RED);
     }
 
     /** {@code text} repeated {@code times} times. */
