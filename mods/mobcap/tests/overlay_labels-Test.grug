@@ -23,6 +23,7 @@ pressed: bool = false
 settled_ticks: number = 0
 waited: number = 0
 filled_at: number = 0
+captured: bool = false
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -94,17 +95,22 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    # The counts have to hold for 60 ticks, not only up to the capture: the mobs that would die of
-    # a fall die and leave the world 31 ticks after they land, and a capture taken late on a slow
-    # leg would see fewer of them. The duration is the thing waited for, and _check_counts asserts
-    # on every one of these ticks.
+    # Three lines of 12 GUI pixels at the 3x scale of a 1280x720 frame, and "count / cap" ends at
+    # 106 GUI pixels at its widest.
+    if not captured {
+        captured = true
+        ctx.screenshot().equals(r"screenshots/overlay_labels", 0, 0, 330, 120)
+    }
+    # The counts have to hold for 60 ticks after the fill, not only up to the capture: the mobs that
+    # would die of a fall die and leave the world 31 ticks after they land. The capture comes first
+    # because the 201 slimes wander to the player, a slime within 16 blocks hops at it, and one that
+    # pushes the player moves the camera by tenths of a block and shifts the dark wall's texture by
+    # pixels. The duration is the thing waited for, and _check_counts asserts on every one of these
+    # ticks.
     if waited < filled_at + 60 {
         ctx.not_done()
         return
     }
-    # Three lines of 12 GUI pixels at the 3x scale of a 1280x720 frame, and "count / cap" ends at
-    # 106 GUI pixels at its widest.
-    ctx.screenshot().equals(r"screenshots/overlay_labels", 0, 0, 330, 120)
 
     # The overlay is one entity for the whole run: K hides the lines again, or they would sit in
     # every later test's captures.
