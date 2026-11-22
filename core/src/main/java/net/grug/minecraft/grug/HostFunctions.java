@@ -168,6 +168,17 @@ public class HostFunctions {
         GrugDisplayTicks.context().spawn(name, x, y, z, vx, vy, vz);
     }
 
+    public static long Player_position(long playerId) {
+        return withEntity(
+                "Player.position",
+                "player",
+                playerId,
+                player ->
+                        GrugEntities.addEntity(
+                                GrugEntityType.Vec3, GrugCore.getAdapter().playerPosition(player)),
+                0L);
+    }
+
     public static long Player_get_held_item(long playerId) {
         return withEntity(
                 "Player.get_held_item",
@@ -3944,6 +3955,14 @@ public class HostFunctions {
     public static boolean OverlayWorldKeyContext_ctrl(long contextId) {
         if (!requireWorldKeyContext("OverlayWorldKeyContext.ctrl", contextId)) return false;
         return GrugWorldOverlay.ctrl();
+    }
+
+    /**
+     * Whether this loader calls a block's placed export when a player places the block, which a
+     * test asks before it places one with the held item, so a loader without the hook skips it.
+     */
+    public static boolean Test_placed_supported(long testId) {
+        return GrugCore.getAdapter().placedSupportedForTest();
     }
 
     /**

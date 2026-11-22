@@ -16,6 +16,7 @@ import net.grug.minecraft.grug.GrugShape;
 import net.grug.minecraft.grug.GrugShapes;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.BlockContainer;
+import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.Material;
 import net.minecraft.src.MovingObjectPosition;
@@ -185,6 +186,23 @@ public class GrugBlock extends BlockContainer {
             Grug.destroyEntity(blockHandle);
         }
         super.onBlockRemoval(world, x, y, z);
+    }
+
+    /**
+     * Calls the block's {@code placed} export after a player placed it. The item's placement calls
+     * this once the block, its metadata and its tile are in the world, so the export reads a
+     * finished block. This game's item placement is the only caller and it passes the player.
+     */
+    @Override
+    public void onBlockPlacedBy(World world, int x, int y, int z, EntityLiving placer) {
+        super.onBlockPlacedBy(world, x, y, z, placer);
+        long blockHandle = Grug.createEntity(this.blockFileId);
+        if (blockHandle != 0) {
+            long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
+            long playerId = GrugEntities.addEntity(GrugEntityType.Player, placer);
+            ExportFns.Block_placed(blockHandle, worldId, x, y, z, playerId);
+            Grug.destroyEntity(blockHandle);
+        }
     }
 
     /**

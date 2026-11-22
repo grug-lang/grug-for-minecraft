@@ -83,6 +83,42 @@
 					]
 				},
 				{
+					"name": "placed",
+					"description": "Called by the game after a player placed this block, once the block is in the world and its block entity exists. It runs only for a placement by a player, through the game's own placing of a block item, and not for a block a test or a mod writes with `Level.place_block`, a piston or an explosion. `placer` is the player who placed it, so a block can read where they stood with `Player.position` and face away from them the way the game's own directional blocks do. A block without this export is placed as usual. A loader that does not call it yet is told apart by `Test.placed_supported`.",
+					"parameters": [
+						{
+							"name": "world",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "placer",
+							"type": {
+								"name": "Player"
+							}
+						}
+					]
+				},
+				{
 					"name": "shape",
 					"description": "Called by the game whenever it needs this block's boxes at a position, for a block whose init() called `set_shape`. Declare them through `ctx`: the boxes entities collide with, and the boxes the game targets and outlines. It is asked again on every query rather than once at registration, because a shape can follow what is around it: a pipe's arms follow the inventories and pipes beside it, so read the world in this call rather than saving what it said last time. A block that declares `set_shape` and exports no shape function, or that adds no box at all, reports an error and keeps the full cube. A block that exports shape without calling `set_shape` is reported too, since the game would never run its export, and keeps the full cube until it declares one.",
 					"parameters": [
@@ -1103,6 +1139,12 @@
 				},
 				"overlay_supported": {
 					"description": "Whether this loader draws overlays on the inventory and container screens at all, which a test asks before it opens a screen: a loader that does not cannot open the inventory either, so a test that needs an overlay returns early there instead of driving a screen the loader cannot show. It is a property of the loader, answered from the start of a run, and a loader that draws overlays answers true whether or not a screen has been open yet. On a dedicated server this is the joined client's own answer, which the server asks the client of the player who started the run.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"placed_supported": {
+					"description": "Whether this loader calls a block's placed export when a player places it, which a test asks before it places a block with the held item: a loader that does not returns early there instead of waiting for a call that never comes. It is a property of the loader, answered from the start of a run.",
 					"return_type": {
 						"name": "bool"
 					}
@@ -2701,6 +2743,12 @@
 								"name": "Item"
 							}
 						]
+					}
+				},
+				"position": {
+					"description": "The player's position: the horizontal centre of the player and the height of their feet, the same on every loader whatever the game keeps (Alpha and 1.2.5 store the eye, 1.20.6 and Beta the feet). It is the position a block's `placed` export reads to work out which way the player stood.",
+					"return_type": {
+						"name": "Vec3"
 					}
 				}
 			}

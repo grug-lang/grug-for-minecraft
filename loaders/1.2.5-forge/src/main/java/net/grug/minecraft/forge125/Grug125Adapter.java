@@ -1192,6 +1192,17 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Vec3 playerPosition(Object playerObj) {
+        EntityPlayer player = (EntityPlayer) playerObj;
+        return new Vec3(player.posX, player.boundingBox.minY, player.posZ);
+    }
+
+    @Override
+    public boolean placedSupportedForTest() {
+        return true;
+    }
+
+    @Override
     public Object getHeldItem(Object playerObj) {
         ItemStack stack = ((EntityPlayer) playerObj).inventory.getCurrentItem();
         return (stack != null) ? stack.getItem() : null;

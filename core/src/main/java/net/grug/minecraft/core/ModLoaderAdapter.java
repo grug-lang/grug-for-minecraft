@@ -1161,6 +1161,26 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * The position of {@code player} as {@code Player.position} answers it: the horizontal centre
+     * of the player and the height of their feet, whatever the game stores. The games differ, since
+     * 1.2.5 and Beta keep the eye in the position fields and 1.20.6 keeps the feet, so each loader
+     * reads the feet from its own bounding box or position.
+     */
+    @GrugGenerated("no player position: a loader that has not added it keeps this default")
+    default Vec3 playerPosition(Object player) {
+        throw Grug.fatal("Player.position is not supported on this loader");
+    }
+
+    /**
+     * Whether this loader calls a block's {@code placed} export when a player places the block,
+     * which is what {@code Test.placed_supported} answers. A loader says so only once its own
+     * placement path is wired, so a test skips the check where it is not (#1558).
+     */
+    default boolean placedSupportedForTest() {
+        return false;
+    }
+
+    /**
      * Whether this loader asks an overlay's world key, HUD and world exports, which is what {@code
      * Test.world_overlay_supported} answers. Only a client that registers the hooks says so.
      */
