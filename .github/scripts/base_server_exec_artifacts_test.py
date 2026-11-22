@@ -5,7 +5,6 @@ downloaded, and a base run too old or without a dedicated leg answers nothing (#
 import contextlib
 import importlib.util
 import io
-import json
 import unittest
 import unittest.mock
 from pathlib import Path
@@ -48,18 +47,51 @@ class PickTest(unittest.TestCase):
     def test_an_empty_listing_carries_nothing(self):
         self.assertEqual(mod.pick({})[0], [])
 
-    def test_main_prints_name_and_url_and_never_fails(self):
-        out, err = io.StringIO(), io.StringIO()
-        with unittest.mock.patch(
-            "sys.stdin", io.StringIO(json.dumps({"artifacts": [art("server-exec-a")]}))
-        ):
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+    def test_the_newest_run_with_a_live_server_exec_wins(self):
+        runs = [{"id": 3}, {"id": 2}, {"id": 1}]
+        listings = {
+            3: {"artifacts": [art("coverage-exec-core")]},
+            2: {"artifacts": [art("server-exec-a")]},
+            1: {"artifacts": [art("server-exec-b")]},
+        }
+        run, pairs = mod.choose_run(runs, lambda run_id: listings[run_id])
+        self.assertEqual(run["id"], 2)
+        self.assertEqual([name for name, _ in pairs], ["server-exec-a"])
+
+    def test_no_run_with_a_live_server_exec_returns_nothing(self):
+        listings = {1: {"artifacts": [art("server-exec-a", True)]}, 2: {}}
+        self.assertEqual(mod.choose_run([{"id": 2}, {"id": 1}], listings.get), (None, []))
+        self.assertEqual(mod.choose_run([], listings.get), (None, []))
+
+    def test_candidates_are_recent_completed_dispatch_or_schedule_runs_newest_first(self):
+        now = mod.parse_time("2026-11-23T12:00:00Z")
+
+        def run(id, event, created, status="completed"):
+            return {"id": id, "event": event, "created_at": created, "status": status}
+
+        listing = {
+            "workflow_runs": [
+                run(1, "push", "2026-11-23T10:00:00Z"),
+                run(2, "workflow_dispatch", "2026-11-20T10:00:00Z"),
+                run(3, "schedule", "2026-11-22T10:00:00Z"),
+                run(4, "workflow_dispatch", "2026-11-10T10:00:00Z"),
+                run(5, "workflow_dispatch", "2026-11-23T11:00:00Z", "in_progress"),
+            ]
+        }
+        self.assertEqual([r["id"] for r in mod.candidate_runs(listing, now)], [3, 2])
+        many = {
+            "workflow_runs": [
+                run(n, "schedule", f"2026-11-23T{n % 24:02d}:00:00Z") for n in range(30)
+            ]
+        }
+        self.assertEqual(len(mod.candidate_runs(many, now)), 10)
+
+    def test_main_never_fails_when_the_lookup_does(self):
+        err = io.StringIO()
+        with unittest.mock.patch.dict("os.environ", {"GITHUB_API_URL": "http://127.0.0.1:1"}):
+            with contextlib.redirect_stderr(err):
                 self.assertEqual(mod.main(), 0)
-        self.assertEqual(out.getvalue(), "server-exec-a https://x/server-exec-a.zip\n")
-        with unittest.mock.patch("sys.stdin", io.StringIO("garbage")):
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                self.assertEqual(mod.main(), 0)
-        self.assertIn("not JSON", err.getvalue())
+        self.assertIn("lookup failed", err.getvalue())
 
 
 if __name__ == "__main__":
