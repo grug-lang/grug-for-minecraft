@@ -50,7 +50,8 @@ export tick(ctx: TestTickContext) {
         # likely instead of rare. On a dedicated server every read of the eye is three calls to the
         # joined client, about 300 ms each on a loaded runner, so 300 repeats took longer than the
         # whole run's budget on b1.7.3-stationapi (#1040); the stone holds the client's player
-        # there, so a few repeats prove the conversion.
+        # there, so a few repeats prove the conversion. The 300-repeat race check (#1551) runs on the
+        # non-dedicated legs, which read the eye without the wire.
         repeats: number = 300
         if me.on_dedicated_server() {
             repeats = 10

@@ -67,6 +67,20 @@ export tick(ctx: TestTickContext) {
         return
     }
 
+    # An unpowered engine loses one energy on every tick, and the runner plays up to ten ticks a frame,
+    # so on a slow runner the 375 or 875 set once drifts out of its stage before the frame is
+    # captured (the a1 dedicated leg drew the blue stage, 1 energy). The port's engines are set again
+    # on every tick until the capture, so the energy the frame draws is never more than a few ticks
+    # old, well inside the 124 ticks the stage leaves. The reference's NBT load redraws the block, so
+    # it is set once and its engine, which the reference run does not tick here, holds it.
+    if not me.is_reference() {
+        if capture == 0 {
+            _show(ctx, 375)
+        } else {
+            _show(ctx, 875)
+        }
+    }
+
     if not _ready(ctx) {
         ctx.not_done()
         return
