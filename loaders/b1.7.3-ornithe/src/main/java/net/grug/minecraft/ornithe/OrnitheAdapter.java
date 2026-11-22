@@ -1116,29 +1116,36 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * The toast's achievement, the only {@code AchievementStat} field of {@code ToastGui}. The
-     * field is private, so it is found by type, which holds whatever names the running game
-     * carries. See #1576.
+     * Clears an achievement toast's achievement. It lives in a holder class so the client-only
+     * {@code ToastGui} is loaded only when a client calls it: the dedicated server's adapter
+     * extends this class, and a static field naming a client class fails its boot (#1246).
      */
-    private static final Field TOAST_ACHIEVEMENT = toastAchievementField();
+    private static final class ToastAchievement {
+        /**
+         * The toast's achievement, the only {@code AchievementStat} field of {@code ToastGui}. The
+         * field is private, so it is found by type, which holds whatever names the running game
+         * carries. See #1576.
+         */
+        private static final Field FIELD = field();
 
-    @GrugGenerated("ToastGui has exactly one AchievementStat field, so the fatal cannot fire")
-    private static Field toastAchievementField() {
-        for (Field field : ToastGui.class.getDeclaredFields()) {
-            if (field.getType() == AchievementStat.class) {
-                field.setAccessible(true);
-                return field;
+        @GrugGenerated("ToastGui has exactly one AchievementStat field, so the fatal cannot fire")
+        private static Field field() {
+            for (Field field : ToastGui.class.getDeclaredFields()) {
+                if (field.getType() == AchievementStat.class) {
+                    field.setAccessible(true);
+                    return field;
+                }
             }
+            throw Grug.fatal("ToastGui has no AchievementStat field");
         }
-        throw Grug.fatal("ToastGui has no AchievementStat field");
-    }
 
-    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
-    private static void dropToast(ToastGui toast) {
-        try {
-            TOAST_ACHIEVEMENT.set(toast, null);
-        } catch (IllegalAccessException e) {
-            throw Grug.fatal("ToastGui's toast cannot be cleared", e);
+        @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
+        static void drop(ToastGui toast) {
+            try {
+                FIELD.set(toast, null);
+            } catch (IllegalAccessException e) {
+                throw Grug.fatal("ToastGui's toast cannot be cleared", e);
+            }
         }
     }
 
@@ -1153,7 +1160,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         for (AchievementStat achievement : Achievements.ALL) {
             minecraft.stats.increment(achievement, 1);
         }
-        dropToast(minecraft.toast);
+        ToastAchievement.drop(minecraft.toast);
     }
 
     /**
