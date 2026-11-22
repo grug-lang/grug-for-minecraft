@@ -1,4 +1,4 @@
-# A server-run test, a plain tick and not tick_any_side, that places the obsidian wall
+# A server-run test that places the obsidian wall
 # forwarded_capture draws and requires the joined client's frame to show it in the same tick that
 # placed it (#1123).
 # A loader sends its queued block changes from its player manager's tick, which the server runs

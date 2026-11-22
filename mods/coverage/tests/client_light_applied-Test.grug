@@ -32,7 +32,7 @@
 # adapters compare their joined client's section with the server's, and 1.2.5's room is the one
 # cannot-verify case its adapter records (#1240). A client-only run of theirs also shares one world,
 # so a far ask would be true there by construction.
-# It defines tick_any_side, so a dedicated server runs it too: the wait is forwarded to the joined
+# A dedicated server runs it too: the wait is forwarded to the joined
 # client, which is the copy the frames are drawn from.
 state: number = 0
 waited: number = 0
@@ -53,7 +53,7 @@ export init(ctx: TestInitContext) {
     second_copy = me.loader_name() == "1.20.6-forge"
 }
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if state == 0 {
         # The read is inside the room the runner builds, so its light is the room's and not the
         # sky's. The radius is set once, before anything waits, so the waits are not about a room

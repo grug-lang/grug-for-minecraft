@@ -13,7 +13,7 @@ opened: bool = false
 waited: number = 0
 step: number = 0
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if not started {
         started = true
         if not me.overlay_supported() {

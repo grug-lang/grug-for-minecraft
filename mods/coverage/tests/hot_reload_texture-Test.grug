@@ -27,7 +27,7 @@ reload_baseline: number = -1
 path: string = "coverage/assets/grug/textures/block/coverage_block.png"
 before: Option[Screenshot] = Option.new()
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         origin: Vec3 = ctx.get_origin()
         _wall_in_front_of(ctx, origin)

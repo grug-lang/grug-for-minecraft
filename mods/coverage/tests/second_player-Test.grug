@@ -25,7 +25,7 @@
 # run-multiplayer.sh requires this test in the log of the 1.20.6 leg, the only one that launches a
 # second client, so a leg that skipped it cannot report the two-player property as proven.
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()

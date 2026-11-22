@@ -3,7 +3,7 @@
 # matches a name or, after an @, a mod id, and a minus removes what it matches. Alpha has no item
 # names, so there a word is matched against the registry name, and the name words are only asserted
 # elsewhere.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() != 0 {
         return
     }

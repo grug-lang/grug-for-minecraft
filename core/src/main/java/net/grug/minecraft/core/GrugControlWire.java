@@ -274,6 +274,32 @@ public final class GrugControlWire {
      */
     public static final byte CALL_BLOCK_SELECTION = 22;
 
+    /**
+     * The call: one of the three world overlay reads or presses of the joined client, which are a
+     * client's own frame pass and key path (#1040): whether it asks the overlays' world key, HUD
+     * and world exports at all ({@link #WORLD_OVERLAY_SUPPORTED}, {@code
+     * Test.world_overlay_supported}), whether a frame has drawn the running test's overlay since
+     * the last press ({@link #WORLD_OVERLAY_DRAWN}, {@code TestTickContext.world_overlay_drawn}),
+     * and one press of a letter or digit key ({@link #WORLD_OVERLAY_PRESS_KEY}, {@code
+     * TestTickContext.press_world_key}). The first number picks it, and the call's name is the mod
+     * that owns the running test, which only the server knows and whose overlay the client's drawn
+     * mark is about. A press carries its key in the second number and its control flag in the
+     * third. The answer is 1 or 0, and a press answers 1.
+     *
+     * <p>The code is 23 and the loader's channel version is 11, above the 22 and 10 of #1441, so a
+     * pair built either side of this call refuses each other.
+     */
+    public static final byte CALL_WORLD_OVERLAY = 23;
+
+    /** The {@link #CALL_WORLD_OVERLAY} question whether the client asks the world exports. */
+    public static final int WORLD_OVERLAY_SUPPORTED = 0;
+
+    /** The {@link #CALL_WORLD_OVERLAY} question whether a frame has drawn the test's overlay. */
+    public static final int WORLD_OVERLAY_DRAWN = 1;
+
+    /** The {@link #CALL_WORLD_OVERLAY} order to press one letter or digit key in the world. */
+    public static final int WORLD_OVERLAY_PRESS_KEY = 2;
+
     /** The number of measurements a {@link #CALL_SCREEN_GEOMETRY} answers, in its one message. */
     public static final int GEOMETRY_COUNT = 5;
 
@@ -479,7 +505,7 @@ public final class GrugControlWire {
 
     /** Whether {@code call} is one of the calls this wire carries. */
     public static boolean isCall(byte call) {
-        return call >= CALL_HAS_SOUND && call <= CALL_BLOCK_SELECTION;
+        return call >= CALL_HAS_SOUND && call <= CALL_WORLD_OVERLAY;
     }
 
     /**

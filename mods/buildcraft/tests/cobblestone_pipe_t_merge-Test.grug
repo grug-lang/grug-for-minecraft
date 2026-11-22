@@ -10,7 +10,7 @@ pipe: Option[BlockEntity] = Option.new()
 # Whether the wall and the pipe's section have been meshed again from the settled light yet.
 remeshed: bool = false
 
-# How many runner ticks in a row the world has answered settled. See the hold in tick_any_side().
+# How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
 # Whether the click for the pipe being placed has been made. Each pipe is clicked once, see
@@ -20,12 +20,18 @@ clicked: bool = false
 # How many of the three pipes stand: the west wooden pipe, the east one, then the cobblestone pipe.
 placed: number = 0
 
+# The two wooden pipes' block entities, whose saved source the joined client's copy has to hold
+# before a frame draws them (#1162): a dedicated server's capture asks a client that learns the
+# save from the server a moment after it, which the world's settled answer does not cover.
+west: Option[BlockEntity] = Option.new()
+east: Option[BlockEntity] = Option.new()
+
 # The origin _setup built from, which the later steps build from too.
 origin_x: number = 0
 origin_y: number = 0
 origin_z: number = 0
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
@@ -37,6 +43,8 @@ export tick_any_side(ctx: TestTickContext) {
         ctx.not_done()
     } else if settled_ticks < 5 {
         settled_ticks = settled_ticks + 1
+        ctx.not_done()
+    } else if not _client_has_sources(ctx) {
         ctx.not_done()
     } else if not remeshed {
         _force_remesh(ctx)
@@ -126,6 +134,14 @@ local _place_pipes(ctx: TestTickContext) {
     # chest above them, which is YPos, side 1, so the saved source is 2.
     if not me.is_reference() and placed < 2 {
         pipe_opt.unwrap().set_saved_number("source", 2)
+        # The arm drawn for the source is in the chunk's mesh, which a joined client only gets the
+        # saved number for, and builds again, when the pipe asks for a redraw.
+        pipe_opt.unwrap().redraw()
+        if placed == 0 {
+            west.set(pipe_opt.unwrap())
+        } else {
+            east.set(pipe_opt.unwrap())
+        }
     }
     placed = placed + 1
     if placed == 3 {
@@ -133,7 +149,23 @@ local _place_pipes(ctx: TestTickContext) {
         # so it cannot stand in front of the junction the way a pipe on the camera's side would.
         level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
         pipe.set(pipe_opt.unwrap())
+        # The cobblestone pipe saves no number of its own, so this one is what the client's copy is
+        # asked for: it says the block entity has reached the client at all.
+        if not me.is_reference() {
+            pipe_opt.unwrap().set_saved_number("t_merge_synced", 1)
+            pipe_opt.unwrap().redraw()
+        }
     }
+}
+
+# Whether the client's copy of each wooden pipe holds the source the test saved, which is the data
+# its frame draws the pipe from, and the cobblestone pipe's copy holds the marker the test saved.
+local _client_has_sources(ctx: TestTickContext) bool {
+    # The reference's pipes keep their source in their own fields, and this test saves nothing there.
+    if me.is_reference() {
+        return true
+    }
+    return ctx.client_saved_number(west.unwrap(), "source") == 2 and ctx.client_saved_number(east.unwrap(), "source") == 2 and ctx.client_saved_number(pipe.unwrap(), "t_merge_synced") == 1
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to

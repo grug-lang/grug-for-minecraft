@@ -1,7 +1,7 @@
 # String.from_number turns a number into text: a whole number with no decimal point or exponent
 # however large or negative, and a fraction as Java's shortest text, which is what the mob cap
 # overlay (#1252) draws its counts with.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.assert(String.from_number(0) == "0", "String.from_number(0) should be 0.")
         ctx.assert(String.from_number(41) == "41", "String.from_number(41) should be 41.")

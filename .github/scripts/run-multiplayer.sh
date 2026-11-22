@@ -8,9 +8,8 @@
 # reads the client's log for a crash and for a [GRUG CI] FAIL, because the joined client reports
 # what it drew there and that report has to fail the leg (#1101).
 #
-# The server decides what it runs: a test runs there only when it defines
-# tick_any_side instead of tick (#168), and the runner skips the others and prints how many it
-# skipped. This script reads no test file. It waits for `[GRUG CI] ALL <n> TESTS PASSED` with any
+# The server runs every test, and a client-only call goes to the joined client (#1040). This script
+# reads no test file. It waits for `[GRUG CI] ALL <n> TESTS PASSED` with any
 # n of at least 1 and prints the line, so a run that selected nothing is not green. GRUG_CI_TESTS, a
 # comma separated list of runner paths, narrows the run further for a try-out. The client is not
 # started with GRUG_CI, so it opens no world of its own and runs no tests: it is only the player the
@@ -611,25 +610,24 @@ while :; do
       exit 1
     fi
     grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
-    # A server skips a test that does not define tick_any_side and skips a forwarded_ test it
-    # cannot forward, and either skip is a green run: the tests below have to show as passed. The
-    # forwarded_ ones are the channel's own tests, including forwarded_world_settled, which is the
-    # control for the forwarded settle answer (#1086), forwarded_capture_same_tick, which is what a
-    # settle ask's flush is for (#1123), and the screen calls (#1094), which every leg that
-    # forwards them asks here: the reads and close_screen with no screen, the open GUI's reads, and
-    # open_inventory, which every leg's server forwards to the joined client's own inventory:
-    # 1.20.6 and 1.2.5 from the start, and Alpha and both b1.7.3 legs since #882, whose server
-    # refused it before that, so no leg's list names it. The pixel tests stay client-only
-    # until a joined client's frame matches a singleplayer one (#1092); coverage_frame_saved_number,
-    # coverage_frame_saved_list_energy,
-    # coverage_mesh_saved_number and coverage_mesh_saved_reinit run on every server leg now that a
-    # loader sends saved numbers, a list's item and the energy store to the client's copy (#1093),
-    # sends a chunk-mesh block's saved data with the block update that rebuilds its mesh, and
-    # inits a kept tile from the block that is there (#1101). client_saved_number runs there too: it
-    # asks the joined client's copy of a block that draws into the chunk mesh and per frame for the
-    # number a save wrote with no redraw, which is the change send #1162 adds, and the one fact a
-    # capture cannot tell from a frame drawn too early (#1179). coverage_mesh_frame_saved_number
-    # runs there too, and its captures wait on that same read.
+    # A server skips a forwarded_ test it cannot forward, and a skip is a green run: the tests below
+    # have to show as passed. The forwarded_ ones are the channel's own tests, including
+    # forwarded_world_settled, which is the control for the forwarded settle answer (#1086),
+    # forwarded_capture_same_tick, which is what a settle ask's flush is for (#1123), and the screen
+    # calls (#1094), which every leg that forwards them asks here: the reads and close_screen with
+    # no screen, the open GUI's reads, and open_inventory, which every leg's server forwards to the
+    # joined client's own inventory: 1.20.6 and 1.2.5 from the start, and Alpha and both b1.7.3 legs
+    # since #882, whose server refused it before that, so no leg's list names it. The pixel tests
+    # run on every server leg, the joined client's frame being made to match a singleplayer one
+    # (#1514); coverage_frame_saved_number, coverage_frame_saved_list_energy, coverage_mesh_saved_number and
+    # coverage_mesh_saved_reinit run on every server leg now that a loader sends saved numbers, a
+    # list's item and the energy store to the client's copy (#1093), sends a chunk-mesh block's
+    # saved data with the block update that rebuilds its mesh, and inits a kept tile from the block
+    # that is there (#1101). client_saved_number runs there too: it asks the joined client's copy of
+    # a block that draws into the chunk mesh and per frame for the number a save wrote with no
+    # redraw, which is the change send #1162 adds, and the one fact a capture cannot tell from a
+    # frame drawn too early (#1179). coverage_mesh_frame_saved_number runs there too, and its
+    # captures wait on that same read.
     if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
       for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_capture_same_tick forwarded_world_settled forwarded_screen_open forwarded_screen_width forwarded_gui_left forwarded_gui_top forwarded_gui_width forwarded_gui_height forwarded_close_screen forwarded_open_inventory client_saved_number coverage_frame_saved_number coverage_frame_saved_list_energy coverage_mesh_saved_number coverage_mesh_saved_reinit coverage_mesh_frame_saved_number; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${required}-Test.grug" "$SERVER_LOG"; then
@@ -638,8 +636,8 @@ while :; do
         fi
       done
     fi
-    # A server leg that skips a use_block test (it is not tick_any_side, or the loader lists it as
-    # unsupported) still passes its run, so every leg must show that these ran (#1090). The coverage
+    # A server leg that never ran a use_block test could still pass its run, so every leg must show
+    # that these ran (#1090). The coverage
     # tests are the call itself and the face it clicks, and the other three are its first proof: a
     # block entity change, a placement, and the wrench.
     for use_block in coverage/tests/use_block_effects coverage/tests/use_block_faces buildcraft/tests/redstone_engine_wrench buildcraft/tests/wooden_pipe_wrench coverage/tests/decline_use_places; do
@@ -648,8 +646,8 @@ while :; do
         exit 1
       fi
     done
-    # The tests #1032 promoted have to show as passed too, or a leg that skips one (its export
-    # reverted, or the loader listing it as unsupported) would still look green. On the 1.20.6 leg
+    # The tests #1032 promoted have to show as passed too, or a leg that never ran one would still
+    # look green. On the 1.20.6 leg
     # sound also exercises the new play_ui_sound forwarding, because that leg plays its button click;
     # a 1.2.5 leg plays nothing, so its PASS only proves the test ran there.
     for promoted in coverage/tests/decline_use coverage/tests/sound; do
@@ -658,7 +656,7 @@ while :; do
         exit 1
       fi
     done
-    # The tests #1390, #1425 and #1430 unlisted on the legs whose proof passed (#1040) have to show
+    # The tests #1390, #1425 and #1430 made run on the legs whose proof passed (#1040) have to show
     # as passed too, or a leg that skips one quietly would still look green. The click release is
     # required on every leg, since #1390 fixes it on 1.20.6 and no leg's list names it, and so is
     # the forced-normalization probe, which no list names any more (#1430). The overlay pair and the
@@ -682,20 +680,20 @@ while :; do
       fi
     done
     # The wall-backed buildcraft captures have to show as passed, or a leg that skips one (its export
-    # reverted, or the loader listing it as unsupported) would still look green. Each compares
+    # reverted) would still look green. Each compares
     # against its single flat golden, so a leg whose joined client draws a different picture fails
     # in the test itself; this check catches one not running at all and passing quietly.
     # The four #1161 promoted are required on the leg that can run them, which is 1.20.6-forge: its
     # joined client matches the flat golden after the server half of the player snap and the particle
     # pin, and that is what proves both. The other four legs list the ones their measured residue
-    # reaches in server-unsupported-tests.txt (b1.7.3-ornithe and a1.1.2_01 all four and 1.2.5-forge
-    # two of them, #1213 and #1092), so their servers skip those; the client-only run of every loader
-    # is where all four goldens are checked. Requiring them on the four legs would only restate an
-    # open rendering defect, so the list is per loader.
+    # reaches (b1.7.3-ornithe and a1.1.2_01 all four and 1.2.5-forge two of them, #1213 and #1092),
+    # which are not required there; the client-only run of every loader is where all four goldens
+    # are checked. Requiring them on the four legs would only restate an open rendering defect, so
+    # the requirement is per loader.
     # Proof 43763297057 (#1096) measured the rest: every leg passes cobblestone_pipe_shapes, and
-    # a1.1.2_01, b1.7.3-ornithe and 1.2.5-forge also pass redstone_engine, and proof 43764853785 added wooden_pipe_items on 1.2.5-forge. The loaders list the
-    # captures that still differ in server-unsupported-tests.txt, so a leg requires exactly the ones
-    # it does not list, and the client-only run checks the goldens of the listed ones.
+    # a1.1.2_01, b1.7.3-ornithe and 1.2.5-forge also pass redstone_engine, and proof 43764853785 added
+    # wooden_pipe_items on 1.2.5-forge. The captures that still differ are not required on a leg,
+    # and the client-only run checks their goldens.
     wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes"
     case "$LOADER" in
       a1.1.2_01-ornithe|b1.7.3-ornithe|1.2.5-forge)
@@ -771,8 +769,7 @@ while :; do
     # autocrafting-table tests, whose server has no recipe manager; every other test here must show
     # it ran on every leg. A capture compares against the unchanged client-only golden, so a leg
     # whose panel draws differently fails in the test itself; this check catches the test not
-    # running at all on that leg (renamed, listed as unsupported, or no longer recognised as
-    # declared), which the run would otherwise pass with it silently skipped.
+    # running at all on that leg (renamed, or no longer recognised as declared).
     # A server that stops opening the menu fails the test on its own tick budget, before this is
     # reached. The captures wait on the server's own state, so they run here; the item texture swap
     # is the one that cannot, because it defines plain tick and waits for a resource reload to finish
@@ -826,7 +823,7 @@ while :; do
     # records whether its drawn mark was clear when a screen's first frame began (#1391), so these
     # tests open the client's screen and drive the overlay on it.
     # overlay-Test and jei-Test are required on the four legs whose lists dropped them since the
-    # cursor write and read reach the server's player (#1389). a1.1.2_01 still lists both, because
+    # cursor write and read reach the server's player (#1389). a1.1.2_01 does not require both, because
     # its server does not apply the container click the joined client presses (#1393).
     # overlay_screen_open is required too, and is unlisted everywhere.
     # The five-leg proof of #1227 made the forced-normalization item list client-only on every leg,
@@ -876,7 +873,7 @@ while :; do
     if [ -n "$overlay_tests" ]; then
       for overlay in $overlay_tests; do
         # A skipped test prints no PASS line and no marker line, so a promotion its loader's
-        # unsupported list keeps client-only is not required here.
+        # promotion that stays client-only is not required here.
         case " $excluded " in
           *" $overlay "*)
             continue

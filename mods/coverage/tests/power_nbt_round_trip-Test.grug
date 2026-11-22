@@ -1,6 +1,6 @@
 # The energy a receiver holds is saved with its block entity, so it is still there after the block
 # entity is written out and read back, as it is when its chunk is unloaded and loaded again.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     x: number = origin.x()

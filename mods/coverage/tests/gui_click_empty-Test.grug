@@ -16,7 +16,7 @@ unchanged_checked: bool = false
 pressed: bool = false
 round: number = 0
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if not started {
         started = true
         ctx.close_screen()

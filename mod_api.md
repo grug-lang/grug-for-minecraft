@@ -74,7 +74,6 @@ export world_key(ctx: OverlayWorldKeyContext)
 ## Test
 export init(ctx: TestInitContext)
 export tick(ctx: TestTickContext)
-export tick_any_side(ctx: TestTickContext)
 .is_reference() bool
 .loader_name() string
 .on_dedicated_server() bool

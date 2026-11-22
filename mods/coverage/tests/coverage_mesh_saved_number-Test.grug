@@ -34,7 +34,7 @@
 # The frame with the block is taken from the chunk compile the placement itself asked for, and no
 # retry calls redraw(): a retry that rebuilds the mesh would hide a placement whose own compile drew
 # nothing, which is exactly what a kept tile looks like.
-# It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
+# A dedicated server runs it too: the settle wait is forwarded to the
 # joined client, and the captures are the client's (#1086). The waits end on client state, not on a
 # tick count: after each save the test reads the joined client's own copy of the number until it
 # holds what was saved, so a send that never arrives fails with that message rather than as a frame
@@ -102,7 +102,7 @@ export init(ctx: TestInitContext) {
     ctx.set_max_ticks(3000)
 }
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _wall(ctx)
         ctx.not_done()

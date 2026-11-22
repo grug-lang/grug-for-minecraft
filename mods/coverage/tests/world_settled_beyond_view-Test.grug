@@ -5,7 +5,7 @@
 # own budget ran out. The placement is air because every loader accepts it: a loader whose client
 # drops the write of a real block there reports the read-back error expect_place_block_out_of_range
 # covers, and the wait is what this test is about. See #804.
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = ctx.get_client_level()
         origin: Vec3 = ctx.get_origin()

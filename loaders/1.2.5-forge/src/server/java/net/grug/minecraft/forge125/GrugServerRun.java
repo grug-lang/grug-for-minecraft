@@ -45,9 +45,6 @@ public final class GrugServerRun implements ITickHandler {
 
     private static final EnumSet<TickType> TICKS = EnumSet.of(TickType.GAME);
 
-    /** The player as the snap found them, so the end of the test can put them back (#1161). */
-    private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
-
     private static GrugTestRunner runner = null;
     private static long waitStartMillis = 0;
     private static long lastReportMillis = 0;
@@ -65,6 +62,10 @@ public final class GrugServerRun implements ITickHandler {
 
     private static final double START_FEET_Y = 70.0;
     private static final double START_Z = 24.5;
+
+    /** The player as the snap found them, so the end of the test can put them back (#1161). */
+    private static final GrugTestPlayerSnap.ServerSave SNAP =
+            new GrugTestPlayerSnap.ServerSave(START_X, START_Z);
 
     /** Remembers the starter placed at the start above, so each new starter is placed once. */
     private static final GrugStarterPlacement STARTER_PLACEMENT = new GrugStarterPlacement();
@@ -252,6 +253,18 @@ public final class GrugServerRun implements ITickHandler {
     }
 
     /**
+     * Moves the server's copy of the test player to the feet position, keeping their view, through
+     * the move the floor hold uses so the joined client's camera follows (#1040).
+     */
+    public static void moveToFeet(EntityPlayerMP player, double x, double feetY, double z) {
+        if (player == null) {
+            return;
+        }
+        player.playerNetServerHandler.teleportTo(
+                x, feetY, z, player.rotationYaw, player.rotationPitch);
+    }
+
+    /**
      * Puts the player back on the ground the server's own world has under them.
      *
      * <p>A client that fell through the terrain while its chunks were arriving reports a position a
@@ -404,6 +417,13 @@ public final class GrugServerRun implements ITickHandler {
     }
 
     private static void tick() {
+        // The multiplayer scripts write spawn-animals=false so that no animal spawns by itself, and
+        // WorldServer.updateEntityWithOptionalForce then calls setDead on every EntityAnimal the
+        // moment it is updated, which kills the pigs a test spawns on its first update (the
+        // mobcap overlay_labels test saw its passive count go from 17 to 0). The worlds' own flag
+        // that stops natural spawning was set from the property at load and is not read from here,
+        // so raising the server's flag keeps natural spawns off and lets a spawned animal live.
+        server().spawnPeacefulMobs = true;
         List<?> players = players();
         pollModFiles();
         heldOnFloorThisTick = false;

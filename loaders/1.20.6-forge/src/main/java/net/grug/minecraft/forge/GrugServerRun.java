@@ -62,8 +62,20 @@ public final class GrugServerRun {
     /** Whether the second player is standing in the starter's view right now. */
     private boolean strangerInView = false;
 
+    /**
+     * The block centre a client-only run's player is snapped to: the test save's own player stands
+     * at 0.89, 66, 52.1, so the singleplayer snap lands on the centre of block 0, 52. A joined
+     * client drifts from where it joined between tests, and the renderer's single precision
+     * arithmetic draws the same room differently at another absolute position, so the snap goes to
+     * this block whatever block the joined player was found in (#1550).
+     */
+    private static final double START_X = 0.5;
+
+    private static final double START_Z = 52.5;
+
     /** The player as the snap found them, so the end of the test can put them back (#1161). */
-    private static final GrugTestPlayerSnap.ServerSave SNAP = new GrugTestPlayerSnap.ServerSave();
+    private static final GrugTestPlayerSnap.ServerSave SNAP =
+            new GrugTestPlayerSnap.ServerSave(START_X, START_Z);
 
     private long waitStartMillis = 0;
     private GrugTestRunner runner = null;
@@ -298,6 +310,17 @@ public final class GrugServerRun {
         player.connection.teleport(
                 SNAP.savedX(), SNAP.savedY(), SNAP.savedZ(), SNAP.savedYaw(), SNAP.savedPitch());
         SNAP.clear();
+    }
+
+    /**
+     * Moves the server's copy of the test player to the feet position, keeping their view, through
+     * the move the floor hold uses so the joined client's camera follows (#1040).
+     */
+    public static void moveToFeet(ServerPlayer player, double x, double feetY, double z) {
+        if (player == null) {
+            return;
+        }
+        player.connection.teleport(x, feetY, z, player.getYRot(), player.getXRot());
     }
 
     /**

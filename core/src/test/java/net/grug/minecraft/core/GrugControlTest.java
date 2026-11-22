@@ -202,6 +202,21 @@ class GrugControlTest {
                 }
 
                 @Override
+                public boolean worldOverlaySupported() {
+                    throw new AssertionError("no overlay call was expected");
+                }
+
+                @Override
+                public boolean worldOverlayDrawn(String mod) {
+                    throw new AssertionError("no overlay call was expected");
+                }
+
+                @Override
+                public void pressWorldKey(String mod, int key, boolean ctrl) {
+                    throw new AssertionError("no overlay call was expected");
+                }
+
+                @Override
                 public boolean miningCrack(double x, double y, double z) {
                     throw new AssertionError("no call was expected");
                 }
@@ -325,6 +340,21 @@ class GrugControlTest {
         }
 
         @Override
+        public boolean worldOverlaySupported() {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
+        public boolean worldOverlayDrawn(String mod) {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
+        public void pressWorldKey(String mod, int key, boolean ctrl) {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
         public boolean miningCrack(double x, double y, double z) {
             throw new AssertionError("no call was expected");
         }
@@ -438,6 +468,21 @@ class GrugControlTest {
 
         @Override
         public boolean overlayFirstFrameCleared(String mod) {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
+        public boolean worldOverlaySupported() {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
+        public boolean worldOverlayDrawn(String mod) {
+            throw new AssertionError("no overlay call was expected");
+        }
+
+        @Override
+        public void pressWorldKey(String mod, int key, boolean ctrl) {
             throw new AssertionError("no overlay call was expected");
         }
 
@@ -614,6 +659,32 @@ class GrugControlTest {
                 throw new IllegalStateException("this client has no overlay host");
             }
             return overlayFirstFrameCleared;
+        }
+
+        @Override
+        public boolean worldOverlaySupported() {
+            seen.add("worldOverlaySupported");
+            if (overlayFails) {
+                throw new IllegalStateException("this client has no overlay host");
+            }
+            return overlaySupported;
+        }
+
+        @Override
+        public boolean worldOverlayDrawn(String mod) {
+            seen.add("worldOverlayDrawn " + mod);
+            if (overlayFails) {
+                throw new IllegalStateException("this client has no overlay host");
+            }
+            return overlayDrawn;
+        }
+
+        @Override
+        public void pressWorldKey(String mod, int key, boolean ctrl) {
+            seen.add("pressWorldKey " + mod + " " + key + " " + ctrl);
+            if (overlayFails) {
+                throw new IllegalStateException("this client has no overlay host");
+            }
         }
 
         @Override
@@ -1727,10 +1798,11 @@ class GrugControlTest {
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_SCREEN_GEOMETRY));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_OVERLAY_FIRST_FRAME));
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_BLOCK_SELECTION));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_WORLD_OVERLAY));
         assertFalse(GrugControlWire.isCall((byte) 0));
         // Above the last call the wire carries, so a code added there is not silently accepted as
         // one of these.
-        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_BLOCK_SELECTION + 1)));
+        assertFalse(GrugControlWire.isCall((byte) (GrugControlWire.CALL_WORLD_OVERLAY + 1)));
 
         // A give names its item and the count the client computed, and a count no host function
         // can ask for, or a message that names no item, is refused rather than applied.
@@ -1811,7 +1883,7 @@ class GrugControlTest {
 
         byte[] unknown =
                 GrugControlWire.callRequest(
-                        1, (byte) (GrugControlWire.CALL_BLOCK_SELECTION + 1), "x", 0, 0, 0);
+                        1, (byte) (GrugControlWire.CALL_WORLD_OVERLAY + 1), "x", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
                 GrugControlWire.callRequest(
@@ -1903,6 +1975,11 @@ class GrugControlTest {
         assertTrue(caller.overlaySupported());
         assertTrue(caller.overlayDrawn("coverage"));
         assertTrue(caller.overlayFirstFrameCleared("coverage"));
+        assertTrue(caller.worldOverlaySupported());
+        assertTrue(caller.worldOverlayDrawn("coverage"));
+        caller.pressWorldKey("coverage", 89, true);
+        // The mark and the press are about the mod the server says owns the running test.
+        assertEquals("coverage", net.grug.minecraft.grug.GrugTestState.currentTestMod);
         // The mining crack is asked of the client's own level, which the stand-in has none of.
         assertTrue(caller.miningCrack(1, 2, 3));
         // The selection box is asked of the client's own copy of the world, which the stand-in has
@@ -1936,6 +2013,9 @@ class GrugControlTest {
                         "overlaySupportedForTest",
                         "overlayDrawnForTest coverage",
                         "overlayFirstFrameClearedForTest coverage",
+                        "worldOverlaySupportedForTest",
+                        "worldOverlayDrawnForTest",
+                        "pressWorldKey 89",
                         "clientLevel",
                         "miningCrackForTest null",
                         "clientLevel",
@@ -2446,6 +2526,7 @@ class GrugControlTest {
         // A block selection adds a second position. Its point is a block-local offset, so a value
         // outside 0 to 1 is legal; only a number that is not finite is refused, in either position.
         assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_BLOCK_SELECTION));
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_WORLD_OVERLAY));
         assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_BLOCK_SELECTION));
         assertNull(
                 GrugControlServer.callProblem(
@@ -2718,6 +2799,74 @@ class GrugControlTest {
         assertEquals(1, noStarter.size());
         assertTrue(noStarter.get(0).contains("No client has started a run"), noStarter.get(0));
         GrugControlServer.clearFailure();
+    }
+
+    @Test
+    void aForwardedWorldOverlayCallIsAskedOfTheJoinedClientAndAnswered() {
+        ScreenCalls overlays = new ScreenCalls();
+        Loopback loop = wireCalls(1000, overlays);
+        loop.client.beginRun();
+        GrugOverlayCalls.Forwarded forwarded =
+                new GrugOverlayCalls.Forwarded(
+                        () -> loop.server,
+                        message -> {
+                            throw new AssertionError(message);
+                        });
+
+        assertTrue(forwarded.worldSupported());
+        assertTrue(forwarded.worldDrawn("coverage"));
+        forwarded.pressWorldKey("coverage", 89, true);
+        overlays.overlaySupported = false;
+        overlays.overlayDrawn = false;
+        assertFalse(forwarded.worldSupported());
+        assertFalse(forwarded.worldDrawn("jei"));
+        forwarded.pressWorldKey("jei", 48, false);
+        assertEquals(
+                List.of(
+                        "worldOverlaySupported",
+                        "worldOverlayDrawn coverage",
+                        "pressWorldKey coverage 89 true",
+                        "worldOverlaySupported",
+                        "worldOverlayDrawn jei",
+                        "pressWorldKey jei 48 false"),
+                overlays.seen);
+
+        // A call the client cannot answer is reported as the host function's error.
+        List<String> failed = new ArrayList<>();
+        ScreenCalls broken = new ScreenCalls();
+        broken.overlayFails = true;
+        Loopback failing = wireCalls(1000, broken);
+        failing.client.beginRun();
+        GrugOverlayCalls.Forwarded reports =
+                new GrugOverlayCalls.Forwarded(() -> failing.server, failed::add);
+        assertFalse(reports.worldSupported());
+        assertFalse(reports.worldDrawn("coverage"));
+        reports.pressWorldKey("coverage", 89, false);
+        assertEquals(3, failed.size());
+        assertTrue(failed.get(0).contains("Test.world_overlay_supported"), failed.get(0));
+        assertTrue(failed.get(1).contains("TestTickContext.world_overlay_drawn"), failed.get(1));
+        assertTrue(failed.get(2).contains("TestTickContext.press_world_key"), failed.get(2));
+        GrugControlServer.clearFailure();
+    }
+
+    @Test
+    void aForwardedWorldOverlayCallSaysWhatItCannotCarry() {
+        assertTrue(GrugControlWire.isCall(GrugControlWire.CALL_WORLD_OVERLAY));
+        assertFalse(GrugControlWire.sendsPacket(GrugControlWire.CALL_WORLD_OVERLAY));
+        byte call = GrugControlWire.CALL_WORLD_OVERLAY;
+        assertNull(GrugControlServer.callProblem(call, "", 0, 0, 0));
+        assertNull(GrugControlServer.callProblem(call, "coverage", 1, 0, 0));
+        assertNull(GrugControlServer.callProblem(call, "coverage", 2, 89, 1));
+        assertTrue(GrugControlServer.callProblem(call, "", 3, 0, 0).contains("0 to 2"));
+        assertTrue(GrugControlServer.callProblem(call, "", -1, 0, 0).contains("0 to 2"));
+        assertTrue(GrugControlServer.callProblem(call, "", 0.5, 0, 0).contains("0 to 2"));
+        assertTrue(
+                GrugControlServer.callProblem(call, null, 1, 0, 0).contains("names no test mod"));
+        assertTrue(
+                GrugControlServer.callProblem(call, null, 2, 89, 0).contains("names no test mod"));
+        assertTrue(
+                GrugControlServer.callProblem(call, "coverage", 2, -1, 0).contains("whole number"));
+        assertTrue(GrugControlServer.callProblem(call, "coverage", 2, 89, 2).contains("0 or 1"));
     }
 
     @Test
@@ -3534,7 +3683,7 @@ class GrugControlTest {
                         0,
                         new byte[0],
                         "ui.button.click",
-                        (byte) (GrugControlWire.CALL_BLOCK_SELECTION + 1),
+                        (byte) (GrugControlWire.CALL_WORLD_OVERLAY + 1),
                         0,
                         0,
                         0,
@@ -3553,7 +3702,7 @@ class GrugControlTest {
         assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
         assertEquals(7, answer.id);
         assertTrue(
-                answer.text.contains("unknown call " + (GrugControlWire.CALL_BLOCK_SELECTION + 1)),
+                answer.text.contains("unknown call " + (GrugControlWire.CALL_WORLD_OVERLAY + 1)),
                 answer.text);
     }
 
@@ -3796,6 +3945,21 @@ class GrugControlTest {
 
                             @Override
                             public boolean overlayFirstFrameCleared(String mod) {
+                                throw new AssertionError("no overlay call was expected");
+                            }
+
+                            @Override
+                            public boolean worldOverlaySupported() {
+                                throw new AssertionError("no overlay call was expected");
+                            }
+
+                            @Override
+                            public boolean worldOverlayDrawn(String mod) {
+                                throw new AssertionError("no overlay call was expected");
+                            }
+
+                            @Override
+                            public void pressWorldKey(String mod, int key, boolean ctrl) {
                                 throw new AssertionError("no overlay call was expected");
                             }
 

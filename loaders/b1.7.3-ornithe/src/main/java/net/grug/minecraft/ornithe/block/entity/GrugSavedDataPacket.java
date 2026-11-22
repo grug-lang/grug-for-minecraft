@@ -120,12 +120,46 @@ public class GrugSavedDataPacket extends Packet {
         BlockEntity blockEntity = world.getBlockEntity(x, y, z);
         if (blockEntity instanceof GrugBlockEntity) {
             ((GrugBlockEntity) blockEntity).readSavedData(data);
+            remember(world, x, y, z, blockId, data);
             if (redraw) {
                 // The client builds its own mesh again from the data it just read, which is the
                 // local world's mark, not a packet: the data travels server to client only.
                 GrugCore.getAdapter().redraw(blockEntity);
             }
         }
+    }
+
+    /**
+     * The last data this client received for each grug block entity of the world it is joined to,
+     * so a copy the game makes again at the same place for the same block starts from it. The
+     * client drops and remakes its block entities in a chunk region a later region packet covers,
+     * which leaves the new copy empty and waiting for a send that already came, and a chunk-mesh
+     * block such as the redstone engine then stays drawn from empty data (#1040).
+     *
+     * <p>The cache belongs to one world object, so a reconnect or a world change starts with none,
+     * and it holds at most one entry per position: data for another block at the position replaces
+     * it, so it never grows past the grug block entities the world holds.
+     */
+    private static final java.util.Map<
+                    World, java.util.Map<Long, java.util.Map.Entry<Integer, NbtCompound>>>
+            RECEIVED = new java.util.WeakHashMap<>();
+
+    private static long key(int x, int y, int z) {
+        return ((long) x & 0x3FFFFFFL) << 38 | ((long) z & 0x3FFFFFFL) << 12 | (y & 0xFFFL);
+    }
+
+    private static synchronized void remember(
+            World world, int x, int y, int z, int blockId, NbtCompound data) {
+        RECEIVED.computeIfAbsent(world, w -> new java.util.HashMap<>())
+                .put(key(x, y, z), new java.util.AbstractMap.SimpleEntry<>(blockId, data));
+    }
+
+    /** The data this client last received for the block at the position, or null. */
+    public static synchronized NbtCompound received(World world, int x, int y, int z, int blockId) {
+        java.util.Map<Long, java.util.Map.Entry<Integer, NbtCompound>> held = RECEIVED.get(world);
+        java.util.Map.Entry<Integer, NbtCompound> entry =
+                held == null ? null : held.get(key(x, y, z));
+        return entry != null && entry.getKey() == blockId ? entry.getValue() : null;
     }
 
     /**
