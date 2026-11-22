@@ -1253,10 +1253,14 @@ jobs:
     # what it draws, whether the run is a pull request or a push to main (#631, #909): discover asks
     # reference-needed.py, which explains its answer in this log, and a dispatch and the weekly
     # schedule run it as the full runs they are. Only an explicit false skips it, so a step that
-    # wrote no output runs it, and a diff of prose alone skips it like the game jobs (#785).
+    # wrote no output runs it, and a diff of prose alone skips it like the game jobs (#785). An
+    # update-goldens dispatch skips it: it compares the committed goldens, which that run exists to
+    # replace, so it fails on the stale ones and cancel-red then cancels the loader jobs that
+    # would have captured the new ones.
     if: |
       needs.discover.outputs.no-tests != 'true'
       && needs.discover.outputs.reference != 'false'
+      && inputs.update-goldens != true
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
