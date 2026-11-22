@@ -2379,7 +2379,7 @@
 					]
 				},
 				"draw_text": {
-					"description": "Draws a text over the screen with the game's own font and a shadow, with its top-left corner at the position in screen pixels from the top-left of the window, in the color given. It is drawn after the overlay's items and before its boxes. The position has to be finite, or it is reported and the text is not drawn. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Draws a text over the screen with the game's own font and a shadow, with its top-left corner at the position in screen pixels from the top-left of the window, in the color given. It is drawn after the overlay's items and before its boxes. The color's alpha is ignored and the text is always drawn opaque, and the text is not clipped or wrapped: it runs on past the screen's edge, so a mod cuts it to the width it has. The position has to be finite, or it is reported and the text is not drawn. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "text",
