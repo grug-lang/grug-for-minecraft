@@ -5,6 +5,7 @@ CC ?= gcc
 CFLAGS ?= -O2 -g -Wall -Wextra -std=gnu11
 SAN ?=
 OUT ?= smoketest
+SELFTEST ?= selftest
 ROOT := $(abspath $(CURDIR)/../..)
 
 $(OUT): smoketest.c api_table.inc $(GRUG_RS)/target/release/libgruggers.a
@@ -13,5 +14,9 @@ $(OUT): smoketest.c api_table.inc $(GRUG_RS)/target/release/libgruggers.a
 api_table.inc: gen_api_table.py $(ROOT)/mod_api.json
 	python3 gen_api_table.py $(ROOT)/mod_api.json $@
 
+# C tests of the pure helpers (selftest.c), a separate binary that never feeds the coverage run.
+$(SELFTEST): selftest.c smoketest.c api_table.inc $(GRUG_RS)/target/release/libgruggers.a
+	$(CC) $(CFLAGS) $(SAN) -o $@ selftest.c $(GRUG_RS)/target/release/libgruggers.a -lm -lpthread -ldl
+
 clean:
-	rm -f smoketest api_table.inc
+	rm -f smoketest selftest api_table.inc

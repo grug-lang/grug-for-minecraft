@@ -336,10 +336,11 @@ REGISTER("Level", "place_block", Level_place_block);
 static uint64_t rnd_seed;
 static bool rnd_have_gaussian;
 static double rnd_next_gaussian;
-static void rnd_reset(void) {  // every test starts from the same seed, so --all equals a single run
-    rnd_seed = (42ull ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
+static void rnd_set_seed(int64_t seed) {  // new Random(seed)
+    rnd_seed = ((uint64_t)seed ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
     rnd_have_gaussian = false;
 }
+static void rnd_reset(void) { rnd_set_seed(42); }  // every test starts from the same seed, so --all equals a single run
 static int32_t rnd_next(int bits) {
     rnd_seed = (rnd_seed * 0x5DEECE66Dull + 0xB) & ((1ull << 48) - 1);
     return (int32_t)(uint32_t)(rnd_seed >> (48 - bits));
@@ -349,34 +350,85 @@ static double rnd_double(void) {  // Random.nextDouble: the two draws are sequen
     int64_t lo = rnd_next(27);
     return (double)((hi << 27) + lo) * (1.0 / (double)(1ll << 53));
 }
+// Random.nextInt(bound) for a bound from 1 to 2147483647.
+static int32_t rnd_next_int(uint32_t bound) {
+    uint32_t r = (uint32_t)rnd_next(31), m = bound - 1;
+    if ((bound & m) == 0) return (int32_t)(((int64_t)bound * (int64_t)r) >> 31);
+    // Java's loop rejects a draw when u - r + m overflows int; the same test on unsigned values.
+    for (uint32_t u = r; (int32_t)(u - (r = u % bound) + m) < 0; u = (uint32_t)rnd_next(31)) {}
+    return (int32_t)r;
+}
 static union grug_value Level_random_int(ARGS) {
     UNUSED;
     double b = a[1]._number;
     if (!is_whole(b) || b < 1 || b > 2147483647.0) return fail("The bound has to be a whole number from 1 to 2147483647");
-    uint32_t bound = (uint32_t)b, r = (uint32_t)rnd_next(31), m = bound - 1;
-    if ((bound & m) == 0) return num((double)(int32_t)(((int64_t)bound * (int64_t)r) >> 31));
-    // Java's loop rejects a draw when u - r + m overflows int; the same test on unsigned values.
-    for (uint32_t u = r; (int32_t)(u - (r = u % bound) + m) < 0; u = (uint32_t)rnd_next(31)) {}
-    return num((double)r);
+    return num((double)rnd_next_int((uint32_t)b));
 }
 REGISTER("Level", "random_int", Level_random_int);
-static union grug_value Level_random_float(ARGS) { UNUSED; return num(rnd_next(24) / (double)(1 << 24)); }
+static double rnd_float(void) { return rnd_next(24) / (double)(1 << 24); }  // Random.nextFloat
+static union grug_value Level_random_float(ARGS) { UNUSED; return num(rnd_float()); }
 REGISTER("Level", "random_float", Level_random_float);
 // Random.nextGaussian, the polar method: each loop makes two values and the second is kept for the next call.
-static union grug_value Level_random_gaussian(ARGS) {
-    UNUSED;
-    if (rnd_have_gaussian) { rnd_have_gaussian = false; return num(rnd_next_gaussian); }
+// StrictMath.log is fdlibm's __ieee754_log, which Random.nextGaussian uses; glibc's log differs from it
+// in the last bit for some arguments (a selftest vector from seed 42 shows it), so it is written out here.
+static double strict_log(double x) {
+    static const double ln2_hi = 6.93147180369123816490e-01, ln2_lo = 1.90821492927058770002e-10,
+        two54 = 1.80143985094819840000e+16, Lg1 = 6.666666666666735130e-01, Lg2 = 3.999999999940941908e-01,
+        Lg3 = 2.857142874366239149e-01, Lg4 = 2.222219843214978396e-01, Lg5 = 1.818357216161805012e-01,
+        Lg6 = 1.531383769920937332e-01, Lg7 = 1.479819860511658591e-01;
+    union { double d; uint64_t u; } bits = {x};
+    int32_t hx = (int32_t)(bits.u >> 32);
+    uint32_t lx = (uint32_t)bits.u;
+    int32_t k = 0;
+    if (hx < 0x00100000) {  // x < 2**-1022
+        if (((hx & 0x7fffffff) | (int32_t)lx) == 0) return -INFINITY;
+        if (hx < 0) return NAN;
+        k -= 54;
+        x *= two54;
+        bits.d = x;
+        hx = (int32_t)(bits.u >> 32);
+    }
+    if (hx >= 0x7ff00000) return x + x;
+    k += (hx >> 20) - 1023;
+    hx &= 0x000fffff;
+    int32_t i = (hx + 0x95f64) & 0x100000;
+    bits.u = ((uint64_t)(uint32_t)(hx | (i ^ 0x3ff00000)) << 32) | (bits.u & 0xffffffffu);  // normalize x or x/2
+    x = bits.d;
+    k += i >> 20;
+    double f = x - 1.0;
+    double dk = (double)k;
+    if ((0x000fffff & (2 + hx)) < 3) {  // |f| < 2**-20
+        if (f == 0) return k == 0 ? 0.0 : dk * ln2_hi + dk * ln2_lo;
+        double R = f * f * (0.5 - 0.33333333333333333 * f);
+        return k == 0 ? f - R : dk * ln2_hi - ((R - dk * ln2_lo) - f);
+    }
+    double s = f / (2.0 + f);
+    double z = s * s, w = z * z;
+    i = hx - 0x6147a;
+    int32_t j = 0x6b851 - hx;
+    double t1 = w * (Lg2 + w * (Lg4 + w * Lg6)), t2 = z * (Lg1 + w * (Lg3 + w * (Lg5 + w * Lg7)));
+    i |= j;
+    double R = t2 + t1;
+    if (i > 0) {
+        double hfsq = 0.5 * f * f;
+        return k == 0 ? f - (hfsq - s * (hfsq + R)) : dk * ln2_hi - ((hfsq - (s * (hfsq + R) + dk * ln2_lo)) - f);
+    }
+    return k == 0 ? f - s * (f - R) : dk * ln2_hi - ((s * (f - R) - dk * ln2_lo) - f);
+}
+static double rnd_gaussian(void) {
+    if (rnd_have_gaussian) { rnd_have_gaussian = false; return rnd_next_gaussian; }
     double v1, v2, s;
     do {
         v1 = 2 * rnd_double() - 1;
         v2 = 2 * rnd_double() - 1;
         s = v1 * v1 + v2 * v2;
     } while (s >= 1 || s == 0);
-    double multiplier = sqrt(-2 * log(s) / s);
+    double multiplier = sqrt(-2 * strict_log(s) / s);
     rnd_next_gaussian = v2 * multiplier;
     rnd_have_gaussian = true;
-    return num(v1 * multiplier);
+    return v1 * multiplier;
 }
+static union grug_value Level_random_gaussian(ARGS) { UNUSED; return num(rnd_gaussian()); }
 REGISTER("Level", "random_gaussian", Level_random_gaussian);
 static double time_offset;
 static union grug_value Level_get_time(ARGS) { UNUSED; return num((double)cur_tick + time_offset); }
@@ -820,14 +872,22 @@ static struct list* find_list(struct be* b, const char* name) {
     return NULL;
 }
 // The record a call names, or NULL after raising the error.
+// What a record index asks of a list of `n` records (`exists`: the list was ever created).
+enum idx_check { IDX_OK, IDX_NOT_WHOLE, IDX_NO_RECORD };
+static enum idx_check check_index(double index, size_t n, bool exists) {
+    if (!is_whole(index) || index < 0 || index > 2147483647.0) return IDX_NOT_WHOLE;
+    if (!exists || index >= (double)n) return IDX_NO_RECORD;
+    return IDX_OK;
+}
 static struct record* record_at(struct be* b, const char* name, double index, size_t* out_n) {
     struct list* l = find_list(b, name);
     size_t n = l ? l->nr : 0;
     if (out_n) *out_n = n;
-    if (!is_whole(index) || index < 0) { fail("The index has to be a whole number from 0 to %zu", n ? n - 1 : 0); return NULL; }
-    if (index > 2147483647.0) { fail("The index has to be a whole number from 0 to %zu", n ? n - 1 : 0); return NULL; }
-    if (!l || (size_t)index >= n) { fail("There is no record at index %.0f", index); return NULL; }
-    return &l->r[(size_t)index];
+    switch (check_index(index, n, l != NULL)) {
+    case IDX_NOT_WHOLE: fail("The index has to be a whole number from 0 to %zu", n ? n - 1 : 0); return NULL;
+    case IDX_NO_RECORD: fail("There is no record at index %.0f", index); return NULL;
+    default: return &l->r[(size_t)index];
+    }
 }
 static union grug_value BE_get_saved_list_size(ARGS) {
     UNUSED;
