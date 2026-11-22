@@ -1,0 +1,8 @@
+# set_time stops at the largest whole number a double holds exactly, 9007199254740991, so a time
+# beyond it, which the double cannot tell from its neighbour, is reported rather than rounded.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+
+    ctx.expect_error("set_time: The time has to be a whole number of ticks from 0 to")
+    level.set_time(9007199254740992)
+}

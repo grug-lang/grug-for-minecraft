@@ -1175,6 +1175,16 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
         return ((Level) levelObj).getDayTime();
     }
 
+    /**
+     * Sets the day time of the level the game simulates, as {@code /time set} does. A client that
+     * only mirrors a server's level is {@link ClientForgeAdapter}'s, which names the client class
+     * this adapter must not load on a dedicated server.
+     */
+    @Override
+    public void setWorldTime(Object levelObj, long time) {
+        ((ServerLevel) levelObj).setDayTime(time);
+    }
+
     @Override
     public int nextRandomInt(Object levelObj, int bound) {
         return ((Level) levelObj).random.nextInt(bound);

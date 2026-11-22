@@ -13,7 +13,9 @@
 # the client-only run and the installed jar's, which is not what this test is about. It stops short of
 # 852 and 877 because a1's flat floor showed two seam pixels there (screen y 589 and 616) whose red and
 # green values jittered between runs (#1550, cause not proven, a1 only); every cross stays inside it.
-# Beta stores sky light as at full day, so the reads and the capture do not change with the clock.
+# The sky light that is drawn depends on the clock (1.2.5 draws the stored sky light less a darkness
+# that follows the time of day; Alpha and Beta do the same), so the test sets noon before it places
+# the platform, and every capture is at the same hour whatever the run's clock was (#1550).
 state: number = 0
 waited: number = 0
 settled_ticks: number = 0
@@ -30,6 +32,7 @@ export tick(ctx: TestTickContext) {
         if not me.world_overlay_supported() {
             return
         }
+        level.set_time(6000)
         ctx.set_box_radius(6)
         origin: Vec3 = ctx.get_origin()
         px: number = Math.floor(origin.x())

@@ -393,6 +393,13 @@ public interface ModLoaderAdapter {
     long getWorldTime(Object levelObj);
 
     /**
+     * Sets the world's time to {@code time} ticks, the way {@code /time set} does, so the sky is
+     * where the clock says from the next tick on. A version that lights what it draws with the sky
+     * light less the darkness the clock gives (Alpha, Beta and 1.2.5) has that darkness follow it.
+     */
+    void setWorldTime(Object levelObj, long time);
+
+    /**
      * The level's own random's next whole number below {@code bound}, which is {@code
      * World.random.nextInt(bound)} in BuildCraft 2.2.14. It is the same random the game draws from
      * for everything else, so a mod that uses it changes what the game does on that seed exactly as

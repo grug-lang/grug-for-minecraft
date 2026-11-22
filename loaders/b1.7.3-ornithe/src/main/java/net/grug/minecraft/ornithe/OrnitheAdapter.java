@@ -558,6 +558,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setWorldTime(Object levelObj, long time) {
+        World world = (World) levelObj;
+        world.setTime(time);
+        // The darkness is a field the world refreshes on its own tick, so a capture before that
+        // tick would draw with the old hour's value: this refreshes it at once, as buildTestBox
+        // does.
+        world.initAmbientDarkness();
+    }
+
+    @Override
     public int nextRandomInt(Object levelObj, int bound) {
         return ((World) levelObj).random.nextInt(bound);
     }
