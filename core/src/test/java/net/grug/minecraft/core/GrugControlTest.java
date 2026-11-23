@@ -385,6 +385,14 @@ class GrugControlTest {
     private static final class Settled implements GrugControlClient.Caller {
         boolean settled;
         int forgotten;
+        boolean holds = true;
+        GrugBlockRegion.Expected asked;
+
+        @Override
+        public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+            asked = expected;
+            return holds;
+        }
 
         @Override
         public boolean hasSound(String path) {
@@ -758,6 +766,31 @@ class GrugControlTest {
             System.setOut(original);
         }
         return bytes.toString();
+    }
+
+    @Test
+    void aSettleAskWaitsForTheClientToHoldTheBlocksTheTestPlaced() throws Exception {
+        Settled settled = new Settled();
+        Loopback loop = new Loopback() {};
+        loop.server = new GrugControlServer(loop, 1000);
+        loop.client = new GrugControlClient(loop, solid(0), settled, -1, -1);
+        loop.client.beginRun();
+        settled.settled = true;
+        settled.holds = false;
+
+        GrugBlockRegion placed = new GrugBlockRegion();
+        placed.note(3, 64, 3);
+        placed.note(2, 64, 3);
+        String ask = placed.ask((x, y, z) -> 54);
+
+        // The first ask is a new revision and always unsettled; the next finds the blocks missing.
+        assertFalse(loop.server.worldSettled(ask));
+        assertFalse(loop.server.worldSettled(ask));
+        assertArrayEquals(new int[] {2, 64, 3, 3, 64, 3}, settled.asked.box);
+
+        // The packets arrive, and the client holds them: the answer is settled.
+        settled.holds = true;
+        assertTrue(loop.server.worldSettled(ask));
     }
 
     @Test
