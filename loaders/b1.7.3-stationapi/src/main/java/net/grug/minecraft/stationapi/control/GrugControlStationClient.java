@@ -5,7 +5,6 @@ import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugTestCamera;
-import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -126,18 +125,13 @@ public final class GrugControlStationClient {
      * seam pixels fall where the exact camera puts them, so a capture drawn from a camera a few
      * billionths off lands them elsewhere than the client-only golden does (#1550, #1178).
      *
-     * <p>This version's {@code setPositionAndAngles} takes the eye and writes the previous position
-     * too, so the frame is drawn from the eye at every partial tick. The eye is the feet the room
-     * was built around, rounded to a millionth as the adapter does, plus the player's own
-     * single-precision eye height: that is the {@code y} a client-only run's player has, and a
-     * camera a few billionths off, such as the room's double 1.62 added to the feet, puts the
-     * frame's seam pixels where the client-only golden does not (dispatch 45115649682). The
-     * velocity is zeroed so the tick's physics cannot carry the player off it; the same pin as
-     * b1.7.3-ornithe's {@code pinAtCaptureEye}, which takes the feet and adds that height itself.
+     * <p>This version's {@code setPositionAndAngles} takes the eye, so the eye is passed as it is,
+     * and it writes the previous position too, so the frame is drawn from the eye at every partial
+     * tick. The velocity is zeroed so the tick's physics cannot carry the player off it; the same
+     * pin as b1.7.3-ornithe's {@code pinAtCaptureEye}, which takes the feet instead.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
-        double feet = Math.rint((eye.y() - GrugTestOrigin.EYE_HEIGHT) * 1e6) / 1e6;
-        player.setPositionAndAngles(eye.x(), feet + player.standingEyeHeight, eye.z(), 0.0F, 0.0F);
+        player.setPositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
