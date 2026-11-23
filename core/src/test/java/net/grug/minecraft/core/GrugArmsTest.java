@@ -64,4 +64,16 @@ class GrugArmsTest {
         assertFalse(GrugArms.pointInFootprint(0.5, -0.1, 0, 1, 0, 1, 1e-9), "before min z");
         assertFalse(GrugArms.pointInFootprint(0.5, 1.1, 0, 1, 0, 1, 1e-9), "after max z");
     }
+
+    @Test
+    void bothAndInRangeDecideEveryCombination() {
+        assertTrue(GrugArms.both(true, true));
+        assertFalse(GrugArms.both(true, false));
+        assertFalse(GrugArms.both(false, true));
+        assertFalse(GrugArms.both(false, false));
+        assertTrue(GrugArms.inRange(1, 1, 5));
+        assertTrue(GrugArms.inRange(4, 1, 5));
+        assertFalse(GrugArms.inRange(0, 1, 5), "below the minimum");
+        assertFalse(GrugArms.inRange(5, 1, 5), "at the limit");
+    }
 }
