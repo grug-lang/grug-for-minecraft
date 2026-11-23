@@ -8,15 +8,19 @@ OUT ?= smoketest
 SELFTEST ?= selftest
 ROOT := $(abspath $(CURDIR)/../..)
 
-$(OUT): smoketest.c api_table.inc $(GRUG_RS)/target/release/libgruggers.a
+$(OUT): smoketest.c api_table.inc recipes.inc $(GRUG_RS)/target/release/libgruggers.a
 	$(CC) $(CFLAGS) $(SAN) -o $@ smoketest.c $(GRUG_RS)/target/release/libgruggers.a -lm -lpthread -ldl
 
 api_table.inc: gen_api_table.py $(ROOT)/mod_api.json
 	python3 gen_api_table.py $(ROOT)/mod_api.json $@
 
+# The mods' crafting recipes, which update_recipe_output matches a grid against.
+recipes.inc: gen_recipes.py $(wildcard $(ROOT)/mods/*/data/*/recipes/*/*.json)
+	python3 gen_recipes.py $(ROOT)/mods $@
+
 # C tests of the pure helpers (selftest.c), a separate binary that never feeds the coverage run.
-$(SELFTEST): selftest.c smoketest.c api_table.inc $(GRUG_RS)/target/release/libgruggers.a
+$(SELFTEST): selftest.c smoketest.c api_table.inc recipes.inc $(GRUG_RS)/target/release/libgruggers.a
 	$(CC) $(CFLAGS) $(SAN) -o $@ selftest.c $(GRUG_RS)/target/release/libgruggers.a -lm -lpthread -ldl
 
 clean:
-	rm -f smoketest selftest api_table.inc
+	rm -f smoketest selftest api_table.inc recipes.inc

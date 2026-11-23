@@ -24,6 +24,7 @@
 //   Generic host functions and print
 //   Items and resource locations
 //   BlockEntity
+//   Item entities
 //   Runner settings and graphics stubs
 //   Registry and contract
 //   Runner (run_test, --all, main)
@@ -121,6 +122,8 @@ enum kind {
     K_ADD_RESPONSE,
     K_SHOT,
     K_ITEM_STACK,
+    K_ITEM_ENTITY,
+    K_ENTITY,
 };
 struct obj {
     enum kind kind;
@@ -299,6 +302,10 @@ static union grug_value Test_is_reference(ARGS) { UNUSED; return boolean(false);
 REGISTER("Test", "is_reference", Test_is_reference);
 static union grug_value Test_loader_name(ARGS) { UNUSED; return str("smoketest"); }
 REGISTER("Test", "loader_name", Test_loader_name);
+// Every loader registers a mod's recipes (shapeless_recipe-Test says so), and the smoketest matches a grid
+// against the mods' own recipe files.
+static union grug_value Test_registers_mod_recipes(ARGS) { UNUSED; return boolean(true); }
+REGISTER("Test", "registers_mod_recipes", Test_registers_mod_recipes);
 
 // =============================================================================================
 // SECTION: Level
@@ -698,17 +705,18 @@ static union grug_value hf_resource_location(ARGS) {
     return id(r);
 }
 REGISTER(NULL, "resource_location", hf_resource_location);
+static uint64_t item_named(const char* name) {
+    for (size_t i = 0; i < nobjs; i++)
+        if (objs[i].kind == K_ITEM && !strcmp(objs[i].str, name)) return i + 1;
+    uint64_t it = new_obj(K_ITEM);
+    objs[it - 1].str = name;
+    return it;
+}
 static union grug_value hf_item(ARGS) {
     UNUSED;
     struct obj* rl = get_obj(a[0]._id, K_RL);
     if (!rl) return fail("item: not a ResourceLocation");
-    // new_obj may move the table, so the name is read before it and rl is not used after it.
-    const char* name = rl->str;
-    for (size_t i = 0; i < nobjs; i++)
-        if (objs[i].kind == K_ITEM && !strcmp(objs[i].str, name)) return id(i + 1);
-    uint64_t it = new_obj(K_ITEM);
-    objs[it - 1].str = name;
-    return id(it);
+    return id(item_named(rl->str));
 }
 REGISTER(NULL, "item", hf_item);
 
@@ -812,6 +820,8 @@ struct be {
     bool power; double energy, max_energy;  // set_power_receiver
     bool item_inserted;   // the script declares an item_inserted export
     bool item_extracted;  // the script declares an item_extracted export, which no host call here runs yet
+    bool output_taken;    // the script declares an output_taken export, which a take of the cached result runs
+    bool has_result; const char* res_name; double res_count, res_damage;  // the cached crafting result
     bool has_insertable, has_extractable; double ins_first, ins_last, ext_first, ext_last;  // declared slot ranges
 };
 static struct be* bes;
@@ -1009,6 +1019,7 @@ static void make_be(long x, long y, long z, long file, long slots) {
     give_slots(&bes[idx], slots);
     bes[idx].item_extracted = file_has_export(file, "item_extracted");
     bes[idx].item_inserted = file_has_export(file, "item_inserted");
+    bes[idx].output_taken = file_has_export(file, "output_taken");
     grug_set_next_entity_id(g_state, BE_BASE + idx);
     call_depth++;
     void* entity = grug_create_entity(g_state, G.f.ptr[file].file_id);
@@ -1151,7 +1162,7 @@ static union grug_value BE_get_item_count_in_slot(ARGS) {
     return num(sl ? sl->count : 0);
 }
 REGISTER("BlockEntity", "get_item_count_in_slot", BE_get_item_count_in_slot);
-static uint64_t be_inserted_fn, be_neighbor_fn;
+static uint64_t be_inserted_fn, be_neighbor_fn, be_output_taken_fn;
 static union grug_value BE_set_item_in_slot(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -1416,21 +1427,127 @@ static union grug_value BE_insert_item_into_inventory(ARGS) {
     return num(a[3]._number - remaining);
 }
 REGISTER("BlockEntity", "insert_item_into_inventory", BE_insert_item_into_inventory);
-// The crafting result (slot_access-Test): a block entity with no result container answers an empty Option
-// and damage 0. The smoketest has no result container yet (update_recipe_output is missing), so every
-// block entity is that case.
+// The crafting result. A grug block entity holds one cached result, which update_recipe_output sets from the
+// nine slots at a start slot and take_crafting_result removes from, as the loaders' GrugBlockEntity does
+// (a take pays nothing: the ingredients stay until the script consumes them). A recipe is a mod's
+// (recipes.inc, generated from mods/*/data/*/recipes) or one of the few vanilla recipes a committed test
+// asserts: the game's own table is not modelled, so a grid that matches nothing marks the test stubbed.
+struct recipe { int shaped, w, h; const char* result; int count; const char* cells[9]; };
+#include "recipes.inc"
+static const struct recipe vanilla_recipes[] = {
+    {1, 3, 1, "minecraft:bread", 1, {"minecraft:wheat", "minecraft:wheat", "minecraft:wheat"}},  // slot_access-Test, response_extract_consumed-Test
+};
+// grid holds the item name of each of the 9 cells, NULL for an empty one. A shaped recipe fits anywhere
+// in the grid with every other cell empty; a shapeless one takes exactly its ingredients in any order.
+static const struct recipe* match_recipe(const struct recipe* rs, size_t n, const char* const grid[9]) {
+    for (size_t r = 0; r < n; r++) {
+        const struct recipe* rc = &rs[r];
+        if (rc->shaped) {
+            for (int oy = 0; oy + rc->h <= 3; oy++)
+                for (int ox = 0; ox + rc->w <= 3; ox++) {
+                    bool ok = true;
+                    for (int y = 0; y < 3 && ok; y++)
+                        for (int x = 0; x < 3 && ok; x++) {
+                            bool inside = x >= ox && x < ox + rc->w && y >= oy && y < oy + rc->h;
+                            const char* want = inside ? rc->cells[(y - oy) * rc->w + (x - ox)] : "";
+                            const char* have = grid[y * 3 + x];
+                            ok = want[0] ? have && !strcmp(have, want) : !have;
+                        }
+                    if (ok) return rc;
+                }
+        } else {
+            int n_in = rc->w, filled = 0;
+            bool used[9] = {false};
+            bool ok = true;
+            for (int c = 0; c < 9; c++) if (grid[c]) filled++;
+            for (int i = 0; i < n_in && ok; i++) {
+                ok = false;
+                for (int c = 0; c < 9 && !ok; c++)
+                    if (grid[c] && !used[c] && !strcmp(grid[c], rc->cells[i])) { used[c] = true; ok = true; }
+            }
+            if (ok && filled == n_in) return rc;
+        }
+    }
+    return NULL;
+}
+// A take of the cached result tells the block entity, as the loaders' notifyOutputTaken does.
+static void notify_output_taken(struct be* b, double amount) {
+    if (!b->output_taken) return;
+    union grug_value arg = num(amount);
+    call_contained(b->entity, be_output_taken_fn, &arg, 1);
+}
+static union grug_value BE_update_recipe_output(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.update_recipe_output: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a live block entity
+    if (!b->entity) return fail("update_recipe_output: the block entity has no crafting result container.");
+    if (!is_whole(a[1]._number) || a[1]._number < 0) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed test starts the grid at a fraction or below slot 0
+    const char* grid[9];
+    bool any = false;
+    for (int c = 0; c < 9; c++) {
+        double slot = a[1]._number + c;
+        struct slot* sl = slot >= 0 && slot < (double)b->nslots ? &b->slots[(size_t)slot] : NULL;
+        grid[c] = sl && sl->has && sl->count > 0 ? objs[sl->item - 1].str : NULL;
+        any = any || grid[c];
+    }
+    const struct recipe* rc = match_recipe(mod_recipes, sizeof mod_recipes / sizeof *mod_recipes, grid);
+    if (!rc) rc = match_recipe(vanilla_recipes, sizeof vanilla_recipes / sizeof *vanilla_recipes, grid);
+    b->has_result = rc != NULL;
+    if (rc) { b->res_name = rc->result; b->res_count = rc->count; b->res_damage = 0; }
+    else if (any) stubbed = true;  // the game's own recipes are not modelled, so a filled grid with no match proves less
+    return none();
+}
+REGISTER("BlockEntity", "update_recipe_output", BE_update_recipe_output);
+// slot_access-Test: a block entity with no result answers an empty Option and damage 0.
 static union grug_value BE_get_crafting_result_item(ARGS) {
     UNUSED;
-    if (!be_of(a[0]._id)) return fail("BlockEntity.get_crafting_result_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    return id(new_obj(K_OPTION));
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_crafting_result_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    uint64_t o = new_obj(K_OPTION);
+    if (b->has_result) { objs[o - 1].has = true; objs[o - 1].val = id(item_named(b->res_name)); }
+    return id(o);
 }
 REGISTER("BlockEntity", "get_crafting_result_item", BE_get_crafting_result_item);
 static union grug_value BE_get_crafting_result_damage(ARGS) {
     UNUSED;
-    if (!be_of(a[0]._id)) return fail("BlockEntity.get_crafting_result_damage: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    return num(0);
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_crafting_result_damage: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    return num(b->has_result ? b->res_damage : 0);
 }
 REGISTER("BlockEntity", "get_crafting_result_damage", BE_get_crafting_result_damage);
+static union grug_value BE_take_crafting_result(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.take_crafting_result: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a live block entity
+    if (!b->entity) return fail("BlockEntity.take_crafting_result: the block entity has no crafting result container.");  // SMOKETEST_EXCL_BRANCH: no committed test takes from a block entity that is not a grug one
+    if (!b->has_result) return num(0);
+    double want = a[1]._number;
+    if (!(want >= 1) || !is_whole(want)) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed test takes a fraction, NaN or less than one
+    double taken = want < b->res_count ? want : b->res_count;
+    b->res_count -= taken;
+    if (b->res_count <= 0) b->has_result = false;
+    notify_output_taken(b, taken);
+    return num(taken);
+}
+REGISTER("BlockEntity", "take_crafting_result", BE_take_crafting_result);
+// consume_crafting_ingredients (adapter_branches-Test): one item off each filled slot of the nine from the start.
+// The loaders then put an item's container (a bucket) back; no item the committed tests use has one.
+static union grug_value BE_consume_crafting_ingredients(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.consume_crafting_ingredients: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a live block entity
+    for (int c = 0; c < 9; c++) {
+        double slot = a[1]._number + c;
+        if (!(slot >= 0 && slot < (double)b->nslots)) { stubbed = true; continue; }  // SMOKETEST_EXCL_BRANCH: no committed test starts the grid past the inventory
+        struct slot* sl = &b->slots[(size_t)slot];
+        if (sl->has && sl->count > 0) {
+            sl->count -= 1;
+            if (sl->count <= 0) slot_clear(sl);
+        }
+    }
+    return none();
+}
+REGISTER("BlockEntity", "consume_crafting_ingredients", BE_consume_crafting_ingredients);
 static union grug_value BE_ask_extract_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -1438,6 +1555,7 @@ static union grug_value BE_ask_extract_item(ARGS) {
     struct obj r; bool errored;
     union grug_value args[2] = {num(a[1]._number), boolean(false)};
     uint64_t self = a[0]._id;
+    double offered = b->has_result ? b->res_count : 0;  // read before the export, which may craft the next result
     bool ran = ask_response(b, G.be_extract_item, K_EXTRACT_RESPONSE, args, 2, &r, &errored, "extract_item");
     if (!ran) return num(-1);  // SMOKETEST_EXCL: no committed test asks a block entity without the export
     if (errored) return none();
@@ -1450,12 +1568,69 @@ static union grug_value BE_ask_extract_item(ARGS) {
         return num(r.y < sl->count ? r.y : sl->count);
         // SMOKETEST_EXCL_STOP
     }
-    // The smoketest has no crafting result to give (update_recipe_output is missing), so a request for
-    // one answers nothing and marks the test stubbed.
-    if (r.z != ANS_REFUSE) stubbed = true;  // SMOKETEST_EXCL: reached once update_recipe_output exists
+    // A crafting result answer offers the cached result's count, or, for a consumed answer, the count the
+    // result had when the pipe asked, because the export may have crafted the next one into the holder.
+    if (r.z == ANS_CRAFT) return num(b->has_result ? b->res_count : 0);
+    if (r.z == ANS_CRAFT_CONSUMED) return num(offered);
     return num(0);
 }
 REGISTER("BlockEntity", "ask_extract_item", BE_ask_extract_item);
+// extract_item_into (response_extract-Test, response_extract_consumed-Test, the expect_extract_item_into_* tests):
+// the destination slot is checked first, then the source is asked with remove true and the host moves what
+// it named: a slot's items, the cached result, or, for a consumed answer, the result as it was when asked.
+static union grug_value BE_extract_item_into(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    struct be* d = be_of(a[1]._id);
+    if (!b || !d) return fail("BlockEntity.extract_item_into: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but live block entities
+    double dslot = a[2]._number;
+    char num_buf[400];
+    if (!is_whole(dslot)) {
+        number_text(dslot, num_buf, sizeof num_buf);
+        return fail("BlockEntity.extract_item_into: slot %s of the destination is not a whole slot number of its inventory of %zu slots.", num_buf, d->nslots);
+    }
+    if (dslot < 0 || dslot >= (double)d->nslots) return fail("BlockEntity.extract_item_into: slot %.0f of the destination is outside its inventory of %zu slots.", dslot, d->nslots);
+    if (d->slots[(size_t)dslot].has && d->slots[(size_t)dslot].count != 0) return fail("BlockEntity.extract_item_into: slot %.0f of the destination is not empty.", dslot);
+    struct obj r; bool errored;
+    union grug_value args[2] = {num(a[3]._number), boolean(true)};
+    uint64_t self = a[0]._id, dest = a[1]._id;
+    double offered = b->has_result ? b->res_count : 0;
+    const char* offered_name = b->res_name;
+    double offered_damage = b->res_damage;
+    bool ran = ask_response(b, G.be_extract_item, K_EXTRACT_RESPONSE, args, 2, &r, &errored, "extract_item");
+    if (!ran) return num(-1);  // SMOKETEST_EXCL_BRANCH: no committed test moves from a block entity without the export
+    if (errored) return none();
+    b = be_of(self); d = be_of(dest);
+    if (!b || !d) return num(0);  // SMOKETEST_EXCL_BRANCH: no committed test replaces a block entity from inside extract_item
+    uint64_t item = 0; double damage = 0, taken = 0;
+    if (r.z == ANS_SLOT) {
+        if (!slot_named_ok(b, r.x, "extract_item")) return none();
+        struct slot* sl = &b->slots[(size_t)r.x];
+        double count = r.y < sl->count ? r.y : sl->count;
+        if (count == 0) return num(0);
+        item = sl->item; damage = sl->damage;
+        if (b->item_extracted) stubbed = true;  // SMOKETEST_EXCL_BRANCH: item_extracted is not run, as in take_item_from_slot
+        taken = slot_take(sl, count);
+    } else if (r.z == ANS_CRAFT) {
+        if (!b->has_result) return num(0);  // SMOKETEST_EXCL_BRANCH: no committed test answers a result that is not there
+        item = item_named(b->res_name); damage = b->res_damage;
+        taken = b->res_count;  // the host asks for the whole count it was offered
+        b->has_result = false; b->res_count = 0;
+        notify_output_taken(b, taken);
+        d = be_of(dest);
+        if (!d) return num(0);  // SMOKETEST_EXCL_BRANCH: no committed test replaces the destination from inside output_taken
+    } else if (r.z == ANS_CRAFT_CONSUMED) {
+        if (offered == 0) return num(0);  // SMOKETEST_EXCL_BRANCH: no committed test answers a consumed result that is not there
+        item = item_named(offered_name); damage = offered_damage; taken = offered;
+    } else {
+        return num(0);
+    }
+    struct slot* ds = &d->slots[(size_t)dslot];
+    if (taken > 64) stubbed = true;  // SMOKETEST_EXCL_BRANCH: the destination's stack limit is not modelled
+    ds->has = true; ds->item = item; ds->count = taken; ds->damage = damage;
+    return num(ds->count);
+}
+REGISTER("BlockEntity", "extract_item_into", BE_extract_item_into);
 static union grug_value BE_add_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -1643,6 +1818,154 @@ static union grug_value BE_get_saved_list_item(ARGS) {
 }
 REGISTER("BlockEntity", "get_saved_list_item", BE_get_saved_list_item);
 
+// round_trip_nbt (nbt_round_trip-Test, saved_lists-Test, item_stack_save-Test, power_nbt_round_trip-Test, the
+// pipe reload tests): write the block entity out and read it back. Every committed test asserts that what
+// it saved survives, and the smoketest keeps that state in the model itself, so the round trip changes
+// nothing. What the real save drops (a record's item keeps its identity alone, a stack count is a byte on the
+// four older loaders) is a limit of the save, which the model's numbers do not reproduce.
+static union grug_value TTC_round_trip_nbt(ARGS) {
+    UNUSED;
+    if (!be_of(a[1]._id)) return fail("TestTickContext.round_trip_nbt: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a live block entity
+    stubbed = true;
+    return none();
+}
+REGISTER("TestTickContext", "round_trip_nbt", TTC_round_trip_nbt);
+
+// =============================================================================================
+// SECTION: Item entities
+// =============================================================================================
+// Item entities (item_entity-Test, count_item_entities-Test): one record per item_entity call, whose
+// ItemEntity and Entity handles both carry its index in x. It is in the world once Entity.spawn ran,
+// and a world query counts only those. The test runner does not tick entities, so none moves, ages or
+// is picked up. A query takes the entities within the radius of the point (a sphere); a loader may
+// query a box instead, and no committed test tells the two apart, because count_item_entities-Test
+// asserts the corner case in a form both pass.
+struct ent { double x, y, z; uint64_t item; double damage, count, delay, vx, vy, vz; bool spawned; };
+static struct ent* ents;
+static size_t nents, capents;
+static void clear_entities(void) { nents = 0; }
+static struct ent* ent_of(uint64_t id, enum kind kind) {
+    struct obj* o = get_obj(id, kind);
+    return o ? &ents[(size_t)o->x] : NULL;
+}
+static union grug_value hf_item_entity(ARGS) {
+    UNUSED;
+    struct obj* st = get_obj(a[4]._id, K_ITEM_STACK);
+    if (!st) return fail("item_entity: not an ItemStack");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemStack
+    if (nents == capents) {
+        capents = capents ? capents * 2 : 64;
+        ents = xrealloc(ents, capents * sizeof *ents);
+    }
+    struct ent* e = &ents[nents];
+    memset(e, 0, sizeof *e);
+    e->x = a[1]._number; e->y = a[2]._number; e->z = a[3]._number;
+    e->item = st->val._id; e->damage = st->x; e->count = st->y;
+    uint64_t o = new_obj(K_ITEM_ENTITY);
+    objs[o - 1].x = (double)nents++;
+    return id(o);
+}
+REGISTER(NULL, "item_entity", hf_item_entity);
+static union grug_value IE_count(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ITEM_ENTITY);
+    if (!e) return fail("ItemEntity.count: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    return num(e->count);
+}
+REGISTER("ItemEntity", "count", IE_count);
+static union grug_value IE_damage(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ITEM_ENTITY);
+    if (!e) return fail("ItemEntity.damage: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    return num(e->damage);
+}
+REGISTER("ItemEntity", "damage", IE_damage);
+static union grug_value IE_pickup_delay(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ITEM_ENTITY);
+    if (!e) return fail("ItemEntity.pickup_delay: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    return num(e->delay);
+}
+REGISTER("ItemEntity", "pickup_delay", IE_pickup_delay);
+static union grug_value IE_set_pickup_delay(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ITEM_ENTITY);
+    if (!e) return fail("ItemEntity.set_pickup_delay: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    e->delay = a[1]._number;
+    return none();
+}
+REGISTER("ItemEntity", "set_pickup_delay", IE_set_pickup_delay);
+static union grug_value IE_entity(ARGS) {
+    UNUSED;
+    struct obj* o = get_obj(a[0]._id, K_ITEM_ENTITY);
+    if (!o) return fail("ItemEntity.entity: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    double idx = o->x;  // before new_obj, which may move the table
+    uint64_t n = new_obj(K_ENTITY);
+    objs[n - 1].x = idx;
+    return id(n);
+}
+REGISTER("ItemEntity", "entity", IE_entity);
+static union grug_value Entity_set_delta_movement(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ENTITY);
+    struct obj* v = get_obj(a[1]._id, K_VEC3);
+    if (!e) return fail("Entity.set_delta_movement: not an Entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Entity
+    if (!v) return fail("Entity.set_delta_movement: not a Vec3");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Vec3
+    e->vx = v->x; e->vy = v->y; e->vz = v->z;
+    return none();
+}
+REGISTER("Entity", "set_delta_movement", Entity_set_delta_movement);
+static union grug_value Entity_get_delta_movement(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ENTITY);
+    if (!e) return fail("Entity.get_delta_movement: not an Entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Entity
+    double vx = e->vx, vy = e->vy, vz = e->vz;  // before new_obj, which may move the table
+    uint64_t v = new_obj(K_VEC3);
+    objs[v - 1].x = vx; objs[v - 1].y = vy; objs[v - 1].z = vz;
+    return id(v);
+}
+REGISTER("Entity", "get_delta_movement", Entity_get_delta_movement);
+static union grug_value Entity_spawn(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ENTITY);
+    if (!e) return fail("Entity.spawn: not an Entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Entity
+    if (e->spawned) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed test spawns an entity twice, so what the game does then is unknown
+    e->spawned = true;
+    return none();
+}
+REGISTER("Entity", "spawn", Entity_spawn);
+
+// The spawned item entities within the radius of a point, the first one's index in *first.
+static double items_near(const union grug_value a[], size_t* first) {
+    double n = 0;
+    for (size_t i = 0; i < nents; i++) {
+        double dx = ents[i].x - a[1]._number, dy = ents[i].y - a[2]._number, dz = ents[i].z - a[3]._number;
+        if (!ents[i].spawned || !(sqrt(dx * dx + dy * dy + dz * dz) <= a[4]._number)) continue;
+        if (n == 0) *first = i;
+        n++;
+    }
+    return n;
+}
+static union grug_value Level_count_item_entities(ARGS) {
+    UNUSED;
+    size_t first = 0;
+    return num(items_near(a, &first));
+}
+REGISTER("Level", "count_item_entities", Level_count_item_entities);
+static union grug_value Level_find_item_entity(ARGS) {
+    UNUSED;
+    size_t first = 0;
+    double n = items_near(a, &first);
+    uint64_t o = new_obj(K_OPTION);
+    if (n > 0) {
+        objs[o - 1].has = true;
+        uint64_t ie = new_obj(K_ITEM_ENTITY);
+        objs[ie - 1].x = (double)first;
+        objs[o - 1].val = id(ie);
+    }
+    return id(o);
+}
+REGISTER("Level", "find_item_entity", Level_find_item_entity);
+
 // =============================================================================================
 // SECTION: Runner settings and graphics stubs
 // =============================================================================================
@@ -1792,10 +2115,12 @@ static void report(const char* verdict, const char* label, const char* fmt, ...)
 // run_test's verdicts: a pass that called a stub is STUBBED, because it may have returned early or
 // compared a capture with itself and says nothing about the behaviour under test.
 enum { OUT_PASS = 0, OUT_FAIL = 1, OUT_STUBBED = 2 };
+static void clear_entities(void);
 static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn) {
     clear_bes();
     free_test_state();
     clear_world();
+    clear_entities();
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
@@ -1943,6 +2268,7 @@ int main(int argc, char** argv) {
     G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
     G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
     be_inserted_fn = grug_get_on_fn_id(g_state, "BlockEntity", "item_inserted");
+    be_output_taken_fn = grug_get_on_fn_id(g_state, "BlockEntity", "output_taken");
     be_neighbor_fn = grug_get_on_fn_id(g_state, "BlockEntity", "on_neighbor_change");
     G.be_extract_item = grug_get_on_fn_id(g_state, "BlockEntity", "extract_item");
     G.be_add_item = grug_get_on_fn_id(g_state, "BlockEntity", "add_item");
@@ -1964,6 +2290,7 @@ done:
     clear_bes();
     free_test_state();
     clear_world();
+    clear_entities();
     free(bes); free(blockdefs);
     free(world); free(objs); free(arena); free(expected_error);
     grug_deinit(g_state);
