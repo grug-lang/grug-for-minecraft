@@ -781,16 +781,23 @@ class GrugControlTest {
         GrugBlockRegion placed = new GrugBlockRegion();
         placed.note(3, 64, 3);
         placed.note(2, 64, 3);
-        String ask = placed.ask((x, y, z) -> 54);
+        String ask = placed.ask((x, y, z) -> 54, (cx, cz) -> true);
 
         // The first ask is a new revision and always unsettled; the next finds the blocks missing.
         assertFalse(loop.server.worldSettled(ask));
         assertFalse(loop.server.worldSettled(ask));
-        assertArrayEquals(new int[] {2, 64, 3, 3, 64, 3}, settled.asked.box);
+        assertArrayEquals(new int[] {2, 64, 3, 3, 64, 3}, settled.asked.boxes.get(0));
 
-        // The packets arrive, and the client holds them: the answer is settled.
+        // The packets arrive, but the client has not drawn its frames: holding the blocks is not
+        // settled.
         settled.holds = true;
+        settled.settled = false;
+        assertFalse(loop.server.worldSettled(ask));
+        // Both hold: settled.
+        settled.settled = true;
         assertTrue(loop.server.worldSettled(ask));
+        // An ask with no placements replaces the expectation.
+        loop.server.worldSettled("");
     }
 
     @Test

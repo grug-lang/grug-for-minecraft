@@ -337,7 +337,13 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         return GrugBlockRegion.holds(
                 expected,
                 (x, y, z) ->
-                        minecraft.theWorld == null ? 0 : minecraft.theWorld.getBlockId(x, y, z));
+                        minecraft.theWorld != null
+                                        && Grug125ChunkReceived.received(
+                                                minecraft.theWorld.getChunkProvider(),
+                                                x >> 4,
+                                                z >> 4)
+                                ? minecraft.theWorld.getBlockId(x, y, z)
+                                : GrugBlockRegion.ABSENT);
     }
 
     @Override

@@ -429,6 +429,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public void buildTestBox(int radius) {
+        // What an earlier test placed and never asked about is not owed to this one (#1664).
+        placedRegion.reset();
         EntityPlayerMP player = (EntityPlayerMP) testPlayer();
         double held = GrugServerRun.heldFeetY();
         if (player == null || held == 0) {
@@ -586,7 +588,11 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                 clientSettled =
                         GrugControlServer125.server()
                                 .worldSettled(
-                                        placedRegion.ask((x, y, z) -> level.getBlockId(x, y, z)));
+                                        placedRegion.ask(
+                                                (x, y, z) -> level.getBlockId(x, y, z),
+                                                (cx, cz) ->
+                                                        Grug125ChunkReceived.received(
+                                                                level.getChunkProvider(), cx, cz)));
                 if (clientSettled) {
                     placedRegion.answeredSettled();
                 }

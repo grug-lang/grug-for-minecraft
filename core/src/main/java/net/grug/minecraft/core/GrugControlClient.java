@@ -783,10 +783,9 @@ public final class GrugControlClient {
         long revision = (long) message.volume;
         // Each ask restates the checksum of the server's world now, so a block the game changed
         // after the test placed it does not leave the client waiting for the old one.
-        GrugBlockRegion.Expected sent = GrugBlockRegion.decode(message.text);
-        if (sent != null) {
-            owedRegion = sent;
-        }
+        // Every ask replaces it, an empty one included: the server restates the blocks until the
+        // client answers settled, so an expectation a later test did not repeat is not kept.
+        owedRegion = GrugBlockRegion.decode(message.text);
         if (revision != seenRevision) {
             seenRevision = revision;
             caller.forgetSettledFrames();

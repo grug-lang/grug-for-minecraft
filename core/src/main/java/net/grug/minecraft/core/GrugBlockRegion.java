@@ -1,43 +1,67 @@
 package net.grug.minecraft.core;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
- * The box of blocks a test placed since a joined client last answered a settle ask settled, and the
- * checksum of the block ids the server holds in it (#1664).
+ * The blocks a test placed since a joined client last answered a settle ask settled, one box per
+ * chunk, and the checksum of the block ids the server holds in them (#1664).
  *
  * <p>A joined client's world is its own copy: the server's {@code place_block} reaches it only in a
  * packet the client reads on a later tick, so two idle frames after a revision change do not show
  * that the client holds the blocks the test then asks it about (a selection box reads the
  * neighbours of a block, which are the client's). The settle ask therefore carries the box and the
  * checksum, and the client answers false until the same checksum of its own copy matches. A
- * checksum of the box rather than a list of the placements keeps the ask inside the wire's name
- * limit however many blocks a room placed.
+ * checksum rather than a list of the placements keeps the ask inside the wire's name limit however
+ * many blocks a room placed. The boxes are per chunk, so two distant placements do not make the
+ * server read, and perhaps generate, the chunks between them, and a chunk the server no longer
+ * holds is left out of the ask so both ends hash the same positions. A client that has not received
+ * a chunk of the ask answers {@link #ABSENT} for it, which no server id equals. The ask holds as
+ * many boxes as the wire's name limit allows, oldest first; a test building in more chunks than
+ * that has the rest unverified.
  *
  * <p>The decisions are pure functions so that {@code GrugBlockRegionTest} covers every combination.
  */
 public final class GrugBlockRegion {
-    /** Reads the block id a level holds at a position. */
+    /** The id a client answers for a position in a chunk it has not received. */
+    public static final int ABSENT = -1;
+
+    /** The most characters of boxes an ask carries, under the wire's {@code MAX_NAME}. */
+    static final int BUDGET = 200;
+
+    /** Reads the block id a level holds at a position, or {@link #ABSENT}. */
     @FunctionalInterface
     public interface Ids {
         int idAt(int x, int y, int z);
     }
 
-    /** An axis-aligned box, both corners included, with its server checksum. */
+    /** Whether the server still holds a chunk. */
+    @FunctionalInterface
+    public interface Loaded {
+        boolean loaded(int chunkX, int chunkZ);
+    }
+
+    /** The boxes an ask names, both corners included, with the server's checksum of them. */
     public static final class Expected {
-        public final int[] box;
+        public final List<int[]> boxes;
         public final long checksum;
 
-        Expected(int[] box, long checksum) {
-            this.box = box;
+        Expected(List<int[]> boxes, long checksum) {
+            this.boxes = boxes;
             this.checksum = checksum;
         }
     }
 
-    private int[] box;
+    private final Map<Long, int[]> boxes = new LinkedHashMap<>();
 
     /** Records a block the test placed. */
     public synchronized void note(int x, int y, int z) {
+        long chunk = ((long) (x >> 4) << 32) | ((z >> 4) & 0xFFFFFFFFL);
+        int[] box = boxes.get(chunk);
         if (box == null) {
-            box = new int[] {x, y, z, x, y, z};
+            boxes.put(chunk, new int[] {x, y, z, x, y, z});
             return;
         }
         box[0] = Math.min(box[0], x);
@@ -49,33 +73,47 @@ public final class GrugBlockRegion {
     }
 
     /**
-     * What a settle ask carries: the placed box and the server's checksum of it, as {@link
-     * #encode}, or the empty text when nothing was placed since the last settled answer.
+     * What a settle ask carries: the boxes of the chunks the server still holds and its checksum of
+     * them, as {@link #encode}, or the empty text when there are none.
      */
-    public synchronized String ask(Ids server) {
-        return box == null ? "" : encode(box, checksum(box, server));
+    public synchronized String ask(Ids server, Loaded loaded) {
+        List<int[]> sent = new ArrayList<>();
+        int length = 0;
+        for (Map.Entry<Long, int[]> entry : boxes.entrySet()) {
+            int[] box = entry.getValue();
+            if (!loaded.loaded(box[0] >> 4, box[2] >> 4)) {
+                continue;
+            }
+            length += boxText(box).length() + 1;
+            if (length > BUDGET) {
+                break;
+            }
+            sent.add(box.clone());
+        }
+        return sent.isEmpty() ? "" : encode(sent, checksum(sent, server));
     }
 
     /** The client answered settled, so what was placed is held and the next ask carries none. */
     public synchronized void answeredSettled() {
-        box = null;
+        boxes.clear();
     }
 
-    /** The ask's text: the box's six numbers and the checksum in hex, comma separated. */
-    public static String encode(int[] box, long checksum) {
-        return box[0]
-                + ","
-                + box[1]
-                + ","
-                + box[2]
-                + ","
-                + box[3]
-                + ","
-                + box[4]
-                + ","
-                + box[5]
-                + ","
-                + Long.toHexString(checksum);
+    /** A new test or run starts, so what an earlier one placed is not owed. */
+    public synchronized void reset() {
+        boxes.clear();
+    }
+
+    private static String boxText(int[] box) {
+        return box[0] + "," + box[1] + "," + box[2] + "," + box[3] + "," + box[4] + "," + box[5];
+    }
+
+    /** The ask's text: the boxes, each six comma separated numbers, then {@code |} and the hex. */
+    public static String encode(List<int[]> boxes, long checksum) {
+        StringBuilder text = new StringBuilder();
+        for (int[] box : boxes) {
+            text.append(boxText(box)).append(';');
+        }
+        return text.append('|').append(Long.toHexString(checksum)).toString();
     }
 
     /**
@@ -86,36 +124,42 @@ public final class GrugBlockRegion {
         if (text.isEmpty()) {
             return null;
         }
-        String[] parts = text.split(",", -1);
-        if (parts.length != 7) {
-            throw new IllegalArgumentException("a block region ask has 7 fields: " + text);
+        int bar = text.indexOf('|');
+        if (bar < 0) {
+            throw new IllegalArgumentException("a block region ask has a checksum: " + text);
         }
-        int[] box = new int[6];
-        for (int i = 0; i < 6; i++) {
-            box[i] = Integer.parseInt(parts[i]);
+        List<int[]> boxes = new ArrayList<>();
+        for (String one : text.substring(0, bar).split(";")) {
+            String[] parts = one.split(",", -1);
+            if (parts.length != 6) {
+                throw new IllegalArgumentException("a block region box has 6 numbers: " + one);
+            }
+            int[] box = new int[6];
+            for (int i = 0; i < 6; i++) {
+                box[i] = Integer.parseInt(parts[i]);
+            }
+            boxes.add(box);
         }
-        return new Expected(box, Long.parseUnsignedLong(parts[6], 16));
+        return new Expected(boxes, Long.parseUnsignedLong(text.substring(bar + 1), 16));
     }
 
-    /**
-     * The checksum of the ids a level holds in the box, in x, y, z order. A position the level
-     * cannot answer (an unloaded chunk) reads as id 0, so a client missing the chunk differs from a
-     * server holding a block there, and agrees only where the server holds air too.
-     */
-    public static long checksum(int[] box, Ids level) {
+    /** The checksum of the ids a level holds in the boxes, in order, each in x, y, z order. */
+    public static long checksum(List<int[]> boxes, Ids level) {
         long hash = 0xcbf29ce484222325L;
-        for (int x = box[0]; x <= box[3]; x++) {
-            for (int y = box[1]; y <= box[4]; y++) {
-                for (int z = box[2]; z <= box[5]; z++) {
-                    hash = (hash ^ level.idAt(x, y, z)) * 0x100000001b3L;
+        for (int[] box : boxes) {
+            for (int x = box[0]; x <= box[3]; x++) {
+                for (int y = box[1]; y <= box[4]; y++) {
+                    for (int z = box[2]; z <= box[5]; z++) {
+                        hash = (hash ^ level.idAt(x, y, z)) * 0x100000001b3L;
+                    }
                 }
             }
         }
         return hash;
     }
 
-    /** Whether the client's copy of the box has the checksum the server sent. */
+    /** Whether the client's copy of the boxes has the checksum the server sent. */
     public static boolean holds(Expected expected, Ids client) {
-        return expected == null || checksum(expected.box, client) == expected.checksum;
+        return expected == null || checksum(expected.boxes, client) == expected.checksum;
     }
 }
