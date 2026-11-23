@@ -142,6 +142,15 @@ public final class GrugLightSync {
     }
 
     /**
+     * Whether a dedicated server may ask its joined client about a section's light: the server's
+     * own copy has to exist ({@code simulated} is not the {@code -1} of a position with no section)
+     * and a client has to have started the run, or nobody holds a frame this answer protects.
+     */
+    public static boolean mayAsk(long simulated, boolean hasStarter) {
+        return simulated >= 0 && hasStarter;
+    }
+
+    /**
      * Whether a client's copy of a section holds the world's light, from the world's light sampled
      * either side of the client's answer, with a check that the light engine has no work left
      * before and after them.
