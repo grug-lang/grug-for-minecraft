@@ -5,10 +5,12 @@ export tick(ctx: TestTickContext) {
     ctx.assert(origin.x() == 0 and origin.y() == 0 and origin.z() == 0, "Vec3.zero should be the origin.")
     ctx.assert(String.length("") == 0, "The empty string should have length 0.")
     ctx.assert(String.length("grug") == 4, "String.length should count the characters.")
+    ctx.assert(String.length(String.from_character(128512)) == 1, "String.length should count a code point once.")
     ctx.assert(equals(2, 2), "equals should compare equal numbers.")
     ctx.assert(not equals(2, 3), "equals should tell different numbers apart.")
     ctx.assert(equals(true, true), "equals should compare equal booleans.")
     ctx.assert(not equals(true, false), "equals should tell different booleans apart.")
+    # Only values whose shortest text old JDKs (8 to 17) print the same as new ones.
     ctx.assert(String.from_number(0.00001) == "1.0E-5", "A small number should be written with an exponent.")
     ctx.assert(String.from_number(0.000015) == "1.5E-5", "A small number's digits should follow the point.")
     ctx.assert(String.from_number(12345678.9) == "1.23456789E7", "A large fraction should be written with an exponent.")

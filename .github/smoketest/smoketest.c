@@ -754,20 +754,21 @@ REGISTER("BlockPos", "center", BlockPos_center);
 // of items each wait for a committed test that needs them).
 static bool held_has;
 static uint64_t held_item_id;
+static double held_count;  // set_held_item gives one item; a stack arrives only by a give, which is not modelled
 static union grug_value TTC_get_player(ARGS) { UNUSED; return id(new_obj(K_PLAYER)); }
 REGISTER("TestTickContext", "get_player", TTC_get_player);
 static union grug_value TTC_set_held_item(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.set_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
     if (!get_obj(a[2]._id, K_ITEM)) return fail("TestTickContext.set_held_item: not an Item");  // SMOKETEST_EXCL: no committed test
-    held_has = true; held_item_id = a[2]._id;
+    held_has = true; held_item_id = a[2]._id; held_count = 1;
     return none();
 }
 REGISTER("TestTickContext", "set_held_item", TTC_set_held_item);
 static union grug_value TTC_clear_held_item(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.clear_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
-    held_has = false;
+    held_has = false; held_count = 0;
     return none();
 }
 REGISTER("TestTickContext", "clear_held_item", TTC_clear_held_item);
@@ -775,7 +776,7 @@ REGISTER("TestTickContext", "clear_held_item", TTC_clear_held_item);
 static union grug_value TTC_get_held_count(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.get_held_count: not a Player");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but the player
-    return num(held_has ? 1 : 0);
+    return num(held_has ? held_count : 0);
 }
 REGISTER("TestTickContext", "get_held_count", TTC_get_held_count);
 static union grug_value Player_get_held_item(ARGS) {
@@ -1798,7 +1799,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
-    held_has = false; held_item_id = 0;
+    held_has = false; held_item_id = 0; held_count = 0;
     time_offset = 0;
     bg_missing[0] = 0;
     stubbed = false;
