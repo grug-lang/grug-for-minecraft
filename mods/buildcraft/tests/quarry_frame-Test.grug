@@ -47,12 +47,13 @@ export tick(ctx: TestTickContext) {
     ctx.assert(quarry.get_energy_stored() == energy, "No energy should be spent before 20 ticks of the clock.")
 
     step: number = 1
-    while step < 93 {
+    while step < 200 and level.get_block(box_x + 10, y + 4, box_z + 10) != "grug:frame" {
         time = time + 20
         level.set_time(time)
         ctx.tick_block_entity(quarry, 1)
         step = step + 1
     }
+    ctx.assert(step == 93, "The far top corner, the last cell, should be done by step 93.")
 
     ctx.assert(level.get_block(box_x + 3, y, box_z + 3) == "minecraft:air", "The stone block inside the box should be cleared.")
     ctx.assert(level.get_block(box_x + 10, y, box_z + 5) == "grug:frame", "The stone block on a frame cell should be cleared and replaced by a frame.")
