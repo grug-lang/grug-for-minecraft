@@ -1251,6 +1251,30 @@ class BaseServerExecCarryOverTest(unittest.TestCase):
         self.assertEqual(stale, ["net/B"])
         self.assertEqual(combine.carried_unmatched([], base["a"][0]), [])
 
+    def test_an_ornithe_runner_with_a_layer_jar_takes_the_carried_data_as_its_server_exec(self):
+        base = self.base(**{"a1.1.2_01-ornithe": ["net/A"], "1.20.6-forge": ["net/B"]})
+        layer = Path("layer.jar")
+        runners = {
+            "a1.1.2_01-ornithe": {"classes": Path("c"), "layer_jar": layer},
+            "1.20.6-forge": {"classes": Path("c")},
+        }
+        taken, _ = combine.carry_over_server_exec(runners, base)
+        combine.apply_carried_server_exec(runners, taken)
+        ornithe = runners["a1.1.2_01-ornithe"]
+        self.assertEqual(ornithe["server_exec"], base["a1.1.2_01-ornithe"][0])
+        self.assertEqual(ornithe["exec"], base["a1.1.2_01-ornithe"][0])
+        forge = runners["1.20.6-forge"]
+        self.assertEqual(forge["exec"], base["1.20.6-forge"][0])
+        self.assertNotIn("server_exec", forge)
+
+    def test_an_ornithe_runner_without_a_layer_jar_keeps_the_plain_append(self):
+        base = self.base(**{"b1.7.3-ornithe": ["net/A"]})
+        runners = {"b1.7.3-ornithe": {"classes": Path("c")}}
+        taken, _ = combine.carry_over_server_exec(runners, base)
+        combine.apply_carried_server_exec(runners, taken)
+        self.assertNotIn("server_exec", runners["b1.7.3-ornithe"])
+        self.assertEqual(runners["b1.7.3-ornithe"]["exec"], base["b1.7.3-ornithe"][0])
+
 
 class ServerOnlyMeasurementTest(unittest.TestCase):
     """The twenty-one server-only classes are excluded from every report, so the coverage job
