@@ -212,6 +212,15 @@ static void test_argument_checks(void) {
     CHECK(color_problem(0, 256, 7, 1, m, sizeof m) && !strcmp(m, "Each value has to be a whole number from 0 to 255, and the values were 0, 256, 7 and 1."), "%s", m);
     CHECK(color_problem(0, 1.5, 7, 1, m, sizeof m) && strstr(m, "0, 1.5, 7 and 1."), "%s", m);
     CHECK(color_problem(NAN, 1, 7, 1, m, sizeof m), "NaN is refused");
+    CHECK(slot_hovered(38, 25, 30, 17) && slot_hovered(29, 16, 30, 17) && slot_hovered(46.9, 33.9, 30, 17), "the 16 pixel square and its one pixel margin before it");
+    CHECK(!slot_hovered(28.9, 25, 30, 17) && !slot_hovered(38, 16.9 - 1, 30, 17) && !slot_hovered(47, 25, 30, 17) && !slot_hovered(38, 34, 30, 17), "outside the margin");
+    CHECK(!click_problem(213, 120, 0, m, sizeof m) && !click_problem(0, 0, 2, m, sizeof m), "buttons 0 to 2 are accepted");
+    CHECK(click_problem(NAN, 1, 0, m, sizeof m) && !strcmp(m, "The position has to be finite."), "%s", m);
+    CHECK(click_problem(1, INFINITY, 0, m, sizeof m), "an infinite y is refused");
+    CHECK(click_problem(1, 1, NAN, m, sizeof m) && !strcmp(m, "The button has to be finite."), "%s", m);
+    CHECK(click_problem(1, 1, 3, m, sizeof m) && !strcmp(m, "The button has to be a whole number from 0 to 2, where 0 is the left button, 1 the right and 2 the middle, and was 3.0."), "%s", m);
+    CHECK(click_problem(1, 1, -1, m, sizeof m) && strstr(m, "and was -1.0."), "%s", m);
+    CHECK(click_problem(1, 1, 0.5, m, sizeof m) && strstr(m, "and was 0.5."), "%s", m);
     CHECK(!tick_count_problem(0, m, sizeof m) && !tick_count_problem(2147483647.0, m, sizeof m), "0 and Integer.MAX_VALUE are accepted");
     CHECK(tick_count_problem(2.5, m, sizeof m) && !strcmp(m, "The number of ticks has to be a whole number from 0 to 2147483647, and was 2.5."), "%s", m);
     CHECK(tick_count_problem(-1, m, sizeof m) && strstr(m, "was -1.0."), "%s", m);

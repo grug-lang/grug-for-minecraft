@@ -2219,15 +2219,21 @@ REGISTER("TestTickContext", "hot_reload_count", TTC_hot_reload_count);
 // Colors and GUIs (gui_*-Test, expect_gui_*-Test, use_block_same_tick-Test). A GUI is a layout builder: the
 // texture path, the crafting grids (each names nine inventory slots from its start), the crafting results,
 // the texts and the player inventory. GUI.open checks the grids against the block entity's inventory and
-// opens a screen, which is only a flag here: no menu, slot or capture exists behind it, so every test that
-// reads the opened screen's geometry or clicks into it still needs those calls, and what the flag answers
-// is all screen_open-Test and the waits of the GUI tests ask. A pass that opened a screen is STUBBED.
+// opens a screen: a panel with the grids' slots on the block entity, and a mouse cursor. No capture exists
+// behind it, so a test that screenshots the screen still fails, and a pass that opened a screen is STUBBED.
 #define GUI_MAX_ENTRIES 64  // GrugGuiLayoutCodec.MAX_ENTRIES
-struct gui { size_t ngrids; int32_t grid_start[GUI_MAX_ENTRIES]; size_t nresults, ntexts; };
+struct gui { size_t ngrids; int32_t grid_start[GUI_MAX_ENTRIES], grid_x[GUI_MAX_ENTRIES], grid_y[GUI_MAX_ENTRIES]; size_t nresults, ntexts; };
 static struct gui* guis;
 static size_t nguis, capguis;
+// The open screen: the GUI it was built from (an index into guis) and the block entity handle it opened on.
+// carried is the mouse cursor's stack, which only exists while a screen is open.
 static bool screen_is_open;
-static void clear_guis(void) { nguis = 0; screen_is_open = false; }
+static size_t screen_gui;
+static uint64_t screen_be;
+static bool carried_has;
+static uint64_t carried_item;
+static double carried_count;
+static void clear_guis(void) { nguis = 0; screen_is_open = false; carried_has = false; }
 // Why Color.rgba refuses these values (the Java colorProblem message), or false when each is a whole number from 0 to 255.
 // SMOKETEST_EXCL_START: no committed test that reaches Color.rgba passes the smoketest yet; selftest.c checks the helper
 static bool color_problem(double r, double g, double b, double a, char* out, size_t cap) {
@@ -2275,7 +2281,10 @@ static union grug_value GUI_add_crafting_grid(ARGS) {
     UNUSED;
     struct gui* gu = gui_of(a[0]._id, "GUI.add_crafting_grid");
     if (!gu || gui_full(gu->ngrids, "GUI.add_crafting_grid", "crafting grids")) return none();
-    gu->grid_start[gu->ngrids++] = java_int(a[1]._number);
+    gu->grid_start[gu->ngrids] = java_int(a[1]._number);
+    gu->grid_x[gu->ngrids] = java_int(a[2]._number);
+    gu->grid_y[gu->ngrids] = java_int(a[3]._number);
+    gu->ngrids++;
     return none();
 }
 REGISTER("GUI", "add_crafting_grid", GUI_add_crafting_grid);
@@ -2316,13 +2325,121 @@ static union grug_value GUI_open(ARGS) {
                 return fail("GUI.open: The GUI uses slot %ld, but the block entity only has %zu inventory slots.", slot, b->nslots);
         }
     screen_is_open = true;
-    stubbed = true;  // the screen is a flag: no menu or capture exists behind it
+    screen_gui = (size_t)(gu - guis);
+    screen_be = a[2]._id;
+    carried_has = false;
+    stubbed = true;  // no capture exists behind the screen, and its window is an assumed one (see the screen geometry)
     return none();
 }
 REGISTER("GUI", "open", GUI_open);
 // A screen is open after GUI.open until close_screen, and screen_open-Test asserts it closed after close_screen.
 static union grug_value TTC_screen_open(ARGS) { UNUSED; return boolean(screen_is_open); }
 REGISTER("TestTickContext", "screen_open", TTC_screen_open);
+
+// Screen geometry and clicks (gui_click-Test, gui_click_empty-Test, forwarded_gui_*-Test, forwarded_screen_*-Test,
+// forwarded_screen_geometry-Test). AbstractContainerScreen's panel is imageWidth by imageHeight, 176 by 166,
+// centered in the window with integer division, and a GrugScreen adds nothing to that. The CI runner's window is
+// 1280 by 720 at GUI scale 3 (gui_builder-Test's own measurement), so the window is 427 by 240 scaled pixels; no
+// test pins the window, only that the panel is centered in it, so the number is an assumption the pass inherits
+// (GUI.open already marks the run stubbed). With no screen open every read answers 0, as a client with no container
+// screen does (1.2.5 leaves an empty screen up there, which loader_name == "1.2.5-forge" tests branch on).
+#define PANEL_W 176
+#define PANEL_H 166
+#define WINDOW_W 427
+#define WINDOW_H 240
+static double gui_geometry(int which) {  // 0 left, 1 top, 2 width, 3 height, 4 window width
+    if (!screen_is_open) return 0;
+    switch (which) {
+    case 0: return (WINDOW_W - PANEL_W) / 2;
+    case 1: return (WINDOW_H - PANEL_H) / 2;
+    case 2: return PANEL_W;
+    case 3: return PANEL_H;
+    default: return WINDOW_W;
+    }
+}
+static union grug_value TTC_gui_left(ARGS) { UNUSED; return num(gui_geometry(0)); }
+REGISTER("TestTickContext", "gui_left", TTC_gui_left);
+static union grug_value TTC_gui_top(ARGS) { UNUSED; return num(gui_geometry(1)); }
+REGISTER("TestTickContext", "gui_top", TTC_gui_top);
+static union grug_value TTC_gui_width(ARGS) { UNUSED; return num(gui_geometry(2)); }
+REGISTER("TestTickContext", "gui_width", TTC_gui_width);
+static union grug_value TTC_gui_height(ARGS) { UNUSED; return num(gui_geometry(3)); }
+REGISTER("TestTickContext", "gui_height", TTC_gui_height);
+static union grug_value TTC_screen_width(ARGS) { UNUSED; return num(gui_geometry(4)); }
+REGISTER("TestTickContext", "screen_width", TTC_screen_width);
+
+// The mouse cursor's stack. set_carried_item puts one of the item on it and does nothing with no screen open,
+// clear_carried_item empties it, and get_carried_item answers it or an empty Option.
+static union grug_value TTC_set_carried_item(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_ITEM)) return fail("TestTickContext.set_carried_item: not an Item");  // SMOKETEST_EXCL: no committed test
+    if (!screen_is_open) return none();  // SMOKETEST_EXCL: every committed caller has a screen open
+    carried_has = true; carried_item = a[1]._id; carried_count = 1;
+    return none();
+}
+REGISTER("TestTickContext", "set_carried_item", TTC_set_carried_item);
+static union grug_value TTC_clear_carried_item(ARGS) { UNUSED; carried_has = false; return none(); }
+REGISTER("TestTickContext", "clear_carried_item", TTC_clear_carried_item);
+static union grug_value TTC_get_carried_item(ARGS) {
+    UNUSED;
+    uint64_t o = new_obj(K_OPTION);
+    if (carried_has) { objs[o - 1].has = true; objs[o - 1].val = id(carried_item); }
+    return id(o);
+}
+REGISTER("TestTickContext", "get_carried_item", TTC_get_carried_item);
+
+// Why TestTickContext.click_screen refuses a press, or false (HostFunctions.screenClickProblem and
+// GrugScreenCalls.buttonProblem, whose MAX_BUTTON is 2).
+// SMOKETEST_EXCL_START: no committed test presses with a bad button or position; selftest.c checks the helper
+static bool click_problem(double x, double y, double button, char* out, size_t cap) {
+    if (!isfinite(x) || !isfinite(y)) { snprintf(out, cap, "The position has to be finite."); return true; }
+    if (!isfinite(button)) { snprintf(out, cap, "The button has to be finite."); return true; }
+    if (button != floor(button) || button < 0 || button > 2) {
+        char t[400];
+        double_text(button, t, sizeof t);
+        snprintf(out, cap, "The button has to be a whole number from 0 to 2, where 0 is the left button, 1 the right and 2 the middle, and was %s.", t);
+        return true;
+    }
+    return false;
+}
+// SMOKETEST_EXCL_STOP
+// SMOKETEST_EXCL_START: the committed presses all land on the centre of a slot; selftest.c checks the square's edges
+static bool slot_hovered(double mx, double my, double sx, double sy) { return mx >= sx - 1 && mx < sx + 17 && my >= sy - 1 && my < sy + 17; }
+// SMOKETEST_EXCL_STOP
+// A press on the open container screen. No overlay exists here, so the press always answers false, as it does on a
+// mod's own GrugScreen with no overlay asked. The slot under the press takes a left click the way vanilla's
+// pickup does for the two cases the committed tests assert: an empty cursor picks the slot's stack up, and a
+// carried stack goes whole into an empty slot. Every other click (a right or middle button, a slot that already
+// holds something while the cursor carries, the result slot, a press outside every grid slot) is not modelled and
+// marks the run stubbed. A slot answers a press from one pixel left of and above its 16 by 16 square to one pixel
+// past it (AbstractContainerScreen.isHovering).
+static union grug_value TTC_click_screen(ARGS) {
+    UNUSED;
+    char msg[600];
+    if (click_problem(a[1]._number, a[2]._number, a[3]._number, msg, sizeof msg)) return fail("TestTickContext.click_screen: %s", msg);  // SMOKETEST_EXCL: see click_problem
+    if (!screen_is_open) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL: every committed click that passes has a screen open
+    struct be* b = be_of(screen_be);
+    if (!b) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL: the block entity of an open screen is live in every committed test
+    struct gui* gu = &guis[screen_gui];
+    double mx = a[1]._number - gui_geometry(0), my = a[2]._number - gui_geometry(1);
+    struct slot* hit = NULL;
+    for (size_t g = 0; g < gu->ngrids && !hit; g++)  // SMOKETEST_EXCL_BRANCH: every committed press hits a slot of the first grid, so no loop runs out of grids
+        for (int k = 0; k < 9 && !hit; k++) {  // SMOKETEST_EXCL_BRANCH: the committed presses hit slot 0 of the grid, so the nine slots never run out
+            double sx = gu->grid_x[g] + (k % 3) * 18, sy = gu->grid_y[g] + (k / 3) * 18;
+            if (slot_hovered(mx, my, sx, sy)) hit = slot_of(b, (double)(int32_t)((uint32_t)gu->grid_start[g] + (uint32_t)k));
+        }
+    if (a[3]._number != 0 || !hit) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL_BRANCH: the committed presses are all left clicks on a grid slot
+    if (!carried_has && hit->has) {
+        carried_has = true; carried_item = hit->item; carried_count = hit->count;
+        slot_clear(hit);
+    } else if (carried_has && !hit->has) {
+        hit->has = true; hit->item = carried_item; hit->count = carried_count; hit->damage = 0;
+        carried_has = false;
+    } else if (carried_has) stubbed = true;  // SMOKETEST_EXCL: a carried stack over a full slot swaps or merges, and no committed test presses one
+    if (b->item_inserted) stubbed = true;  // SMOKETEST_EXCL_BRANCH: whether a slot click runs item_inserted is the loader's, and no committed block with a screen declares it
+    return boolean(false);
+}
+REGISTER("TestTickContext", "click_screen", TTC_click_screen);
 
 // Ticking a level and sounds (tick_level-Test, expect_tick_level_*-Test, sound-Test, expect_*sound*-Test).
 // The smoketest runs no world tick, so tick_level answers 0, which the API defines as "a loader that cannot
@@ -2630,7 +2747,13 @@ static union grug_value TTC_stall(ARGS) {
     return none();
 }
 REGISTER("TestTickContext", "stall", TTC_stall);
-static union grug_value TTC_close_screen(ARGS) { UNUSED; stubbed = true; screen_is_open = false; return none(); }
+static union grug_value TTC_close_screen(ARGS) {
+    UNUSED;
+    stubbed = true;  // the game also hands a carried stack back to the player, which is not modelled
+    screen_is_open = false;
+    carried_has = false;
+    return none();
+}
 REGISTER("TestTickContext", "close_screen", TTC_close_screen);
 
 // =============================================================================================
