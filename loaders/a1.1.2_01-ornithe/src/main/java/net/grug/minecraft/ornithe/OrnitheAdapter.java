@@ -1769,6 +1769,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * with. The height is left to gravity: holding it at the snap's height changed the buildcraft
      * goldens.
      */
+    @GrugGenerated(
+            "the no-player arm: a tick that runs before the world has a player is not reached in"
+                    + " this loader's counted runs")
     public static void holdPlayerForTest(PlayerEntity player) {
         GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.poseFor(player != null);
         if (pose == null) {
