@@ -313,6 +313,22 @@ public class GrugClientHooks {
      */
     public boolean beginControlRun() {
         controlRunStarted = window.beginRun();
+        System.out.println(
+                "[GRUG CONTROL] window.beginRun() returned "
+                        + controlRunStarted
+                        + ", particles minimised "
+                        + isParticleMinimised());
+        if (controlRunStarted) {
+            // A client-only run shrinks the view and reloads the world renderer when it starts,
+            // which
+            // anchors the renderer's chunk lattice where the player stood then; the joined client
+            // does the same so both draw a chunk seam at the same place (#1629).
+            shrinkViewForRun();
+            System.out.println(
+                    "[GRUG CONTROL] the joined client shrank its view to "
+                            + minecraft.options.viewDistance
+                            + " and reloaded the world renderer");
+        }
         return controlRunStarted;
     }
 
@@ -326,6 +342,7 @@ public class GrugClientHooks {
         }
         controlRunStarted = false;
         window.endRun();
+        restoreViewAfterRun();
     }
 
     public void tick() {

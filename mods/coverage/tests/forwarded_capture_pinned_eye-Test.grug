@@ -148,7 +148,11 @@ export tick(ctx: TestTickContext) {
 local _wait_for_the_client(ctx: TestTickContext) {
     settled: bool = ctx.world_settled()
     asks: number = 1
-    while not settled and asks < 60 {
+    while not settled and asks < 100 {
+        # A frame needs wall time and an ask costs none: 60 back-to-back asks spanned 0.4 s on a
+        # loaded runner, too short for the joined client to draw the two frames a settle counts
+        # (#1658). The stall gives the client's render thread the time between asks.
+        ctx.stall(100)
         settled = ctx.world_settled()
         asks = asks + 1
     }
