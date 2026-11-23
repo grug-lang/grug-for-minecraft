@@ -12,9 +12,11 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.stationapi.GrugClientHooks;
 import net.grug.minecraft.stationapi.StationApiAdapter;
+import net.grug.minecraft.stationapi.client.GrugClientPlayer;
 import net.grug.minecraft.stationapi.gui.GrugScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.Connection;
 
 import java.awt.image.BufferedImage;
@@ -116,6 +118,42 @@ public final class GrugControlStationClient {
     }
 
     /**
+     * Holds the client's own player at the eye the capture named. The server cannot: it is frozen
+     * inside the call that asked for the frame, so nothing there ticks to hold its player, and the
+     * camera a joined client draws from is the player's position as the server's packets left it,
+     * which is the server player's single-precision eye height and not the room's eye. A frame's
+     * seam pixels fall where the exact camera puts them, so a capture drawn from a camera a few
+     * billionths off lands them elsewhere than the client-only golden does (#1550, #1178).
+     *
+     * <p>This version's {@code setPositionAndAngles} takes the eye, so the eye is passed as it is,
+     * and it writes the previous position too, so the frame is drawn from the eye at every partial
+     * tick. The velocity is zeroed so the tick's physics cannot carry the player off it; the same
+     * pin as b1.7.3-ornithe's {@code pinAtCaptureEye}, which takes the feet instead.
+     */
+    private static void pinAtCaptureEye(PlayerEntity player) {
+        player.setPositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
+        player.velocityX = 0.0;
+        player.velocityY = 0.0;
+        player.velocityZ = 0.0;
+    }
+
+    /**
+     * Runs at the end of the client tick, while a capture is pending. The pin zeroes the velocity
+     * at the head of the tick and the physics then applies gravity, so the pinned player is never
+     * on the ground and its camera tilt becomes {@code atan(-velocityY * 0.2) * 15}, which draws
+     * the world a little lower than the client-only golden, whose grounded player has no tilt. The
+     * tilt is written back to zero so the frame the next tick's capture reads is drawn level (see
+     * b1.7.3-ornithe's {@code afterClientTick}, #1213).
+     */
+    public static void afterClientTick(Minecraft mc) {
+        if (!pending || eye == null) return;
+        PlayerEntity player = GrugClientPlayer.of(mc);
+        if (player == null) return;
+        player.tilt = 0.0F;
+        player.prevTilt = 0.0F;
+    }
+
+    /**
      * The client starts its run only once the chunks around its player have stopped arriving: the
      * count of loaded chunks in a square of {@link #SETTLE_RADIUS} chunks has held for {@link
      * #SETTLE_QUIET_TICKS} ticks, with the 3x3 around the player at least. The server freezes at
@@ -205,6 +243,10 @@ public final class GrugControlStationClient {
                             + waited
                             + " on "
                             + Thread.currentThread().getName());
+        }
+        PlayerEntity player = GrugClientPlayer.of(mc);
+        if (eye != null && player != null) {
+            pinAtCaptureEye(player);
         }
         boolean settled = GrugCore.getAdapter().isWorldSettled();
         // The frame has to show the world the server has and be drawn from the place the test's
