@@ -130,6 +130,7 @@ enum kind {
     K_COLOR,
     K_GUI,
     K_DISPLAY_CTX,
+    K_SHAPE_CTX,
 };
 struct obj {
     enum kind kind;
@@ -319,6 +320,17 @@ REGISTER("Test", "loader_name", Test_loader_name);
 // against the mods' own recipe files.
 static union grug_value Test_registers_mod_recipes(ARGS) { UNUSED; return boolean(true); }
 REGISTER("Test", "registers_mod_recipes", Test_registers_mod_recipes);
+// The toy world is one client-side process with one world, so a test's dedicated-server legs (which wait on
+// a joined client's copy, or drive a server-held list) return early here: a pass that asked is STUBBED.
+static union grug_value Test_on_dedicated_server(ARGS) { UNUSED; stubbed = true; return boolean(false); }
+REGISTER("Test", "on_dedicated_server", Test_on_dedicated_server);
+// The operator status of the player the test runs as (operator-Test): the owner of a singleplayer world is
+// an operator until set_operator takes that away, and the status is put back to true when a test starts.
+static bool operator_status = true;
+static union grug_value hf_is_operator(ARGS) { UNUSED; return boolean(operator_status); }
+REGISTER(NULL, "is_operator", hf_is_operator);
+static union grug_value hf_set_operator(ARGS) { UNUSED; operator_status = a[0]._bool; return none(); }
+REGISTER(NULL, "set_operator", hf_set_operator);
 
 // =============================================================================================
 // SECTION: Level
@@ -957,12 +969,12 @@ static void clear_bes(void) {
 // Per-block registry: Block.init runs once per test on first placement, with set_block_entity and
 // set_inventory_size the only BlockInitContext entries implemented. Any other setter a block calls
 // fails the placement naming the entry.
-struct blockdef { const char* name; long be_file; long slots; };
+struct blockdef { const char* name; long be_file; long slots; bool shape; };
 static struct blockdef* blockdefs;
 static size_t nblockdefs;
 // Block.init's own results. Block.init can place another undefined block, whose init nests inside
 // this one, so find_blockdef saves and restores it and keeps no pointer into `blockdefs`.
-struct binit { long be_file; long slots; const char* mod; };
+struct binit { long be_file; long slots; const char* mod; bool shape; };
 static struct binit cur_binit;
 
 // An entity string without a mod prefix names an entity of the mod the script is in (the grug
@@ -998,7 +1010,9 @@ static union grug_value BIC_set_inventory_size(ARGS) {
 REGISTER("BlockInitContext", "set_inventory_size", BIC_set_inventory_size);
 REGISTER("BlockInitContext", "set_hardness", BIC_noop);
 REGISTER("BlockInitContext", "set_material", BIC_noop);
-REGISTER("BlockInitContext", "set_shape", BIC_noop);
+// set_shape declares that the game asks the block's shape() export for its boxes (block_collision reads it).
+static union grug_value BIC_set_shape(ARGS) { UNUSED; cur_binit.shape = true; return none(); }
+REGISTER("BlockInitContext", "set_shape", BIC_set_shape);
 REGISTER("BlockInitContext", "set_display_tick", BIC_noop);
 REGISTER("BlockInitContext", "set_flat_lighting", BIC_noop);
 REGISTER("BlockInitContext", "set_frame_render", BIC_noop);
@@ -1020,18 +1034,22 @@ static long resolve_block(const char* name) {
         size_t idx = nblockdefs++;
         blockdefs[idx].name = keep(xstrdup(name));
         blockdefs[idx].be_file = BLOCK_NO_ENTITY;
+        blockdefs[idx].shape = false;
         // Block.init has no entity to hold: create, run, drop.
         void* ent = grug_create_entity(g_state, fi->file_id);
         struct binit outer = cur_binit;
         cur_binit.be_file = BLOCK_NO_ENTITY;
         cur_binit.slots = 0;
+        cur_binit.shape = false;
         cur_binit.mod = fi->mod_name;
         union grug_value arg = id(new_obj(K_CTX));
         call_contained(ent, G.block_init, &arg, 1);
         long result = cur_binit.be_file, slots = cur_binit.slots;
+        bool shape = cur_binit.shape;
         cur_binit = outer;
         blockdefs[idx].be_file = result;
         blockdefs[idx].slots = slots;
+        blockdefs[idx].shape = shape;
         resolved_slots = slots;
         grug_deinit_entity(g_state, ent);
         return result;
@@ -1762,6 +1780,29 @@ static union grug_value BE_get_saved_number(ARGS) {
     return num(0);
 }
 REGISTER("BlockEntity", "get_saved_number", BE_get_saved_number);
+// redraw builds the block's geometry again, which nothing here draws, so a pass is STUBBED; only a grug block
+// entity has a render function (expect_redraw_on_a_chest-Test).
+static union grug_value BE_redraw(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.redraw: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("redraw: Only a grug block entity has a render function to draw again.");
+    stubbed = true;
+    return none();
+}
+REGISTER("BlockEntity", "redraw", BE_redraw);
+// The number the joined client's own copy of a block entity holds. The toy world has no second copy, so the
+// copy is taken to have every change at once, which a pass that waited for the send did not prove: STUBBED.
+// A block entity with no script saves no numbers, and a name never saved is 0, as the real call answers.
+static union grug_value TTC_client_saved_number(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[1]._id);
+    stubbed = true;
+    double v = 0;
+    for (size_t i = 0; b && i < b->nnums; i++) if (!strcmp(b->nums[i].k, a[2]._string)) v = b->nums[i].v;  // SMOKETEST_EXCL_BRANCH: no committed test asks about a block entity that is gone or a number never saved
+    return num(v);
+}
+REGISTER("TestTickContext", "client_saved_number", TTC_client_saved_number);
 static struct list* find_list(struct be* b, const char* name) {
     for (size_t i = 0; i < b->nlists; i++) if (!strcmp(b->lists[i].name, name)) return &b->lists[i];
     return NULL;
@@ -2042,6 +2083,70 @@ static union grug_value TTC_camera(ARGS) {
 }
 REGISTER("TestTickContext", "camera", TTC_camera);
 
+// Block shapes (expect_shape_box_unordered-Test, block_shape-Test's collision reads). A block that called
+// set_shape is asked for its boxes by running its shape() export on a fresh entity, as GrugShapes.call does; any
+// other grug block is the full cube. Only collision is modelled: a selection box is recorded and never read, and
+// block_selection and block_ray_trace have no implementation, so a test that asks them fails by name.
+#define SHAPE_BOXES_MAX 16
+static struct { double v[6]; bool collision; } shape_boxes[SHAPE_BOXES_MAX];
+static size_t nshape_boxes;
+static uint64_t block_shape_fn;
+// GrugRenderPass.isOrdered: no corner of a pair is past the other, and a NaN is not ordered.
+static bool box_ordered(const double v[6]) { return v[0] <= v[3] && v[1] <= v[4] && v[2] <= v[5]; }
+static union grug_value shape_add_box(const union grug_value a[], bool collision) {
+    double v[6] = {a[1]._number, a[2]._number, a[3]._number, a[4]._number, a[5]._number, a[6]._number};
+    if (!box_ordered(v))
+        return fail("%s: The box was not recorded. Its corners have to be the right way round: the first of each pair is the near corner and must be no greater than the second, so add it as (0, 0, 0, 1, 1, 1) and not as (1, 0, 0, 0, 1, 1).",
+            collision ? "ShapeContext.add_collision_box" : "ShapeContext.add_selection_box");
+    if (nshape_boxes < SHAPE_BOXES_MAX) {  // SMOKETEST_EXCL_BRANCH: no committed block adds 16 boxes in one call
+        memcpy(shape_boxes[nshape_boxes].v, v, sizeof v);
+        shape_boxes[nshape_boxes++].collision = collision;
+    }
+    return none();
+}
+static union grug_value SC_add_collision_box(ARGS) { UNUSED; return shape_add_box(a, true); }
+REGISTER("ShapeContext", "add_collision_box", SC_add_collision_box);
+static union grug_value SC_add_selection_box(ARGS) { UNUSED; return shape_add_box(a, false); }  // SMOKETEST_EXCL: the only committed test that reaches a selection box (block_shape-Test) fails first on block_selection, which has no implementation yet
+REGISTER("ShapeContext", "add_selection_box", SC_add_selection_box);
+// Whether the box overlaps the other with a positive volume, which is what AxisAlignedBB.intersectsWith and
+// Shapes.joinIsNotEmpty both ask of two boxes.
+static bool boxes_overlap(const double lo[6], const double area[6]) {
+    return lo[0] < area[3] && lo[3] > area[0] && lo[1] < area[4] && lo[4] > area[1] && lo[2] < area[5] && lo[5] > area[2];
+}
+static bool block_declares_shape(const char* name) {
+    resolve_block(name);
+    for (size_t i = 0; i < nblockdefs; i++) if (!strcmp(blockdefs[i].name, name)) return blockdefs[i].shape;
+    return false;  // SMOKETEST_EXCL: resolve_block just made the entry of every grug block that has a script
+}
+static union grug_value TTC_block_collision(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.block_collision: not a Level");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Level
+    long p[3];
+    if (!pos_arg(a + 1, p, "TestTickContext.block_collision")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test asks at a non-finite position
+    const double area[6] = {a[5]._number, a[6]._number, a[7]._number, a[8]._number, a[9]._number, a[10]._number};
+    static const double cube[6] = {0, 0, 0, 1, 1, 1};
+    struct block* b = find_block(p[0], p[1], p[2]);
+    if (!b) return boolean(false);  // SMOKETEST_EXCL_BRANCH: no committed test asks about air
+    struct grug_file_info* fi = block_file_of(b->name);
+    if (!fi) { stubbed = true; return boolean(boxes_overlap(cube, area)); }  // SMOKETEST_EXCL_BRANCH: no committed test asks about a vanilla block, whose real shape (a torch has none) is the game's
+    if (!block_declares_shape(b->name)) return boolean(boxes_overlap(cube, area));
+    void* ent = grug_create_entity(g_state, fi->file_id);
+    nshape_boxes = 0;
+    union grug_value args[5] = {id(new_obj(K_SHAPE_CTX)), a[1], num((double)p[0]), num((double)p[1]), num((double)p[2])};
+    char err[4096];
+    call_export(ent, block_shape_fn, args, 5, err);
+    grug_deinit_entity(g_state, ent);
+    if (err[0]) return fail("%s", err);
+    bool any = false, hit = false;
+    for (size_t i = 0; i < nshape_boxes; i++) {
+        any = true;
+        if (shape_boxes[i].collision && boxes_overlap(shape_boxes[i].v, area)) hit = true;
+    }
+    if (!any) { stubbed = true; return boolean(boxes_overlap(cube, area)); }  // SMOKETEST_EXCL_BRANCH: no committed shape() adds nothing; the game then keeps the full cube and reports the block
+    return boolean(hit);
+}
+REGISTER("TestTickContext", "block_collision", TTC_block_collision);
+
 // =============================================================================================
 // SECTION: Item entities
 // =============================================================================================
@@ -2059,20 +2164,25 @@ static struct ent* ent_of(uint64_t id, enum kind kind) {
     struct obj* o = get_obj(id, kind);
     return o ? &ents[(size_t)o->x] : NULL;
 }
-static union grug_value hf_item_entity(ARGS) {
-    UNUSED;
-    struct obj* st = get_obj(a[4]._id, K_ITEM_STACK);
-    if (!st) return fail("item_entity: not an ItemStack");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemStack
+// A new zeroed record at the end of the table, which may move the table.
+static struct ent* ent_new(void) {
     if (nents == capents) {
         capents = capents ? capents * 2 : 64;
         ents = xrealloc(ents, capents * sizeof *ents);
     }
-    struct ent* e = &ents[nents];
+    struct ent* e = &ents[nents++];
     memset(e, 0, sizeof *e);
+    return e;
+}
+static union grug_value hf_item_entity(ARGS) {
+    UNUSED;
+    struct obj* st = get_obj(a[4]._id, K_ITEM_STACK);
+    if (!st) return fail("item_entity: not an ItemStack");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemStack
+    struct ent* e = ent_new();
     e->x = a[1]._number; e->y = a[2]._number; e->z = a[3]._number;
     e->item = st->val._id; e->damage = st->x; e->count = st->y;
     uint64_t o = new_obj(K_ITEM_ENTITY);
-    objs[o - 1].x = (double)nents++;
+    objs[o - 1].x = (double)(nents - 1);
     return id(o);
 }
 REGISTER(NULL, "item_entity", hf_item_entity);
@@ -2176,6 +2286,29 @@ static union grug_value Level_find_item_entity(ARGS) {
     return id(o);
 }
 REGISTER("Level", "find_item_entity", Level_find_item_entity);
+// drop_inventory empties the block entity's slots into item entities (inventory-Test, adapter_branches-Test,
+// test_box_clears_dropped_item-Test). 1.2.5 and the Ornithe and StationAPI adapters spawn one entity per slot at the
+// given position, which is what this does; 1.20.6's Containers.dropContents splits a stack into random pieces and
+// scatters them over the block, so the count and place of the entities are the game's there and a pass is STUBBED.
+static union grug_value hf_drop_inventory(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_LEVEL)) return fail("drop_inventory: not a Level");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Level
+    long p[3];
+    if (!pos_arg(a, p, "drop_inventory")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test drops at a non-finite position
+    struct be* b = be_at(p[0], p[1], p[2]);
+    if (!b) return fail("drop_inventory: there is no block entity with an inventory at that position");  // SMOKETEST_EXCL_BRANCH: no committed test drops where there is none
+    stubbed = true;
+    for (size_t i = 0; i < b->nslots; i++) {
+        if (!b->slots[i].has) continue;
+        struct ent* e = ent_new();
+        e->x = a[1]._number; e->y = a[2]._number; e->z = a[3]._number;
+        e->item = b->slots[i].item; e->damage = b->slots[i].damage; e->count = b->slots[i].count;
+        e->spawned = true;
+        b->slots[i].has = false; b->slots[i].count = 0; b->slots[i].damage = 0;
+    }
+    return none();
+}
+REGISTER(NULL, "drop_inventory", hf_drop_inventory);
 
 // Mod file states (the hot_reload*-Test files, expect_set_mod_file_state_*-Test). The real call rewrites the
 // file on disk and the engine's watcher reports the change; the smoketest rewrites nothing (a test must
@@ -2738,6 +2871,22 @@ REGISTER("Test", "world_overlay_supported", Test_overlay_supported);
 REGISTER("Test", "overlay_supported", Test_overlay_supported);
 static union grug_value TTC_world_settled(ARGS) { UNUSED; stubbed = true; return boolean(true); }
 REGISTER("TestTickContext", "world_settled", TTC_world_settled);
+// The client's copy of the world's block light, which a toy world with one copy always matches (a loader whose
+// client and server share one world answers true the same way), so a pass is STUBBED. The position check is
+// HostFunctions.lightAppliedProblem's, with Double.toString's text (selftest.c checks double_text).
+static union grug_value TTC_light_applied(ARGS) {
+    UNUSED;
+    stubbed = true;
+    for (int i = 1; i <= 3; i++) {
+        if (isfinite(a[i]._number)) continue;
+        char x[40], y[40], z[40];
+        double_text(a[1]._number, x, sizeof x); double_text(a[2]._number, y, sizeof y); double_text(a[3]._number, z, sizeof z);
+        fail("TestTickContext.light_applied: The position has to be finite, and was (%s, %s, %s).", x, y, z);
+        return boolean(false);
+    }
+    return boolean(true);
+}
+REGISTER("TestTickContext", "light_applied", TTC_light_applied);
 // The 0 to 10000 ms limit is asserted by expect_stall_negative-Test and expect_stall_too_long-Test;
 // nothing blocks, so a pass is STUBBED.
 static union grug_value TTC_stall(ARGS) {
@@ -2860,6 +3009,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     rnd_reset();
     held_has = false; held_item_id = 0; held_count = 0;
     time_offset = 0;
+    operator_status = true;
     bg_missing[0] = 0;
     stubbed = false;
     cur_tick = 0;
@@ -3000,6 +3150,7 @@ int main(int argc, char** argv) {
     G.f = files;
     G.block_init = grug_get_on_fn_id(g_state, "Block", "init");
     block_use_fn = grug_get_on_fn_id(g_state, "Block", "use");
+    block_shape_fn = grug_get_on_fn_id(g_state, "Block", "shape");
     block_display_tick_fn = grug_get_on_fn_id(g_state, "Block", "display_tick");
     G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
     G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
