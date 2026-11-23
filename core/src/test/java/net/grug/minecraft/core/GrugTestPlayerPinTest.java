@@ -36,4 +36,22 @@ class GrugTestPlayerPinTest {
         GrugTestPlayerPin.hold(4, 6);
         assertEquals(4, GrugTestPlayerPin.target().x);
     }
+
+    @Test
+    void aRetargetMovesAHeldPoseAndHoldsNothingOtherwise() {
+        GrugTestPlayerPin.retarget(7, 8);
+        assertNull(GrugTestPlayerPin.target());
+        GrugTestPlayerPin.hold(1, 3);
+        GrugTestPlayerPin.retarget(7, 8);
+        assertEquals(7, GrugTestPlayerPin.target().x);
+        assertEquals(8, GrugTestPlayerPin.target().z);
+    }
+
+    @Test
+    void aTickHoldsOnlyWhenAPoseIsHeldAndThereIsAPlayer() {
+        assertNull(GrugTestPlayerPin.poseFor(true));
+        GrugTestPlayerPin.hold(1, 3);
+        assertNull(GrugTestPlayerPin.poseFor(false));
+        assertEquals(1, GrugTestPlayerPin.poseFor(true).x);
+    }
 }

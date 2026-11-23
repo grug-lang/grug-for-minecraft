@@ -765,9 +765,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
             return false;
         }
         player.setPos(x, y, z);
-        if (GrugTestPlayerPin.target() != null) {
-            GrugTestPlayerPin.hold(x, z);
-        }
+        GrugTestPlayerPin.retarget(x, z);
         return true;
     }
 
@@ -817,10 +815,9 @@ public class ClientForgeAdapter extends ForgeAdapter {
      * with. The height is left to gravity: holding it at the snap's height changed the buildcraft
      * goldens.
      */
-    @GrugGenerated("screenshot/GL integration: needs a running client with a player")
     public static void holdPlayerForTest(Player player) {
-        GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.target();
-        if (pose == null || player == null) {
+        GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.poseFor(player != null);
+        if (pose == null) {
             return;
         }
         player.moveTo(pose.x, player.getY(), pose.z, player.getYRot(), player.getXRot());

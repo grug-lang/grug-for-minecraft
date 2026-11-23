@@ -525,9 +525,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         }
         player.setPositionAndRotation(
                 x, y + GrugTestOrigin.EYE_HEIGHT, z, player.rotationYaw, player.rotationPitch);
-        if (GrugTestPlayerPin.target() != null) {
-            GrugTestPlayerPin.hold(x, z);
-        }
+        GrugTestPlayerPin.retarget(x, z);
         return true;
     }
 
@@ -551,6 +549,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         // snap never ran must not report an error for those.
         if (!testPlayerSnapped) return;
         testPlayerSnapped = false;
+        GrugTestPlayerPin.release();
         restorePlayerIfPresent(ModLoader.getMinecraftInstance().thePlayer);
     }
 

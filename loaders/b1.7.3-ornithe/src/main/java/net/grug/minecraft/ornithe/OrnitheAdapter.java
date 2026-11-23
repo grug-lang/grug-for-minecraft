@@ -1785,9 +1785,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             return false;
         }
         player.setPositionAndAngles(x, y, z, player.yaw, player.pitch);
-        if (GrugTestPlayerPin.target() != null) {
-            GrugTestPlayerPin.hold(x, z);
-        }
+        GrugTestPlayerPin.retarget(x, z);
         return true;
     }
 
@@ -1833,10 +1831,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * with. The height is left to gravity: holding it at the snap's height changed the buildcraft
      * goldens.
      */
-    @GrugGenerated("screenshot/GL integration: needs a running client with a player")
     public static void holdPlayerForTest(PlayerEntity player) {
-        GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.target();
-        if (pose == null || player == null) {
+        GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.poseFor(player != null);
+        if (pose == null) {
             return;
         }
         player.setPosition(pose.x, player.y, pose.z);

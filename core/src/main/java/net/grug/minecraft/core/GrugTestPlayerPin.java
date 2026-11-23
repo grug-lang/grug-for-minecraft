@@ -45,6 +45,24 @@ public final class GrugTestPlayerPin {
         target = new Pose(x, z);
     }
 
+    /**
+     * A test moved the player on purpose, so the held position moves with them; with nothing held
+     * (a joined client, whose server owns the snap) it holds nothing.
+     */
+    public static void retarget(double x, double z) {
+        if (target != null) {
+            target = new Pose(x, z);
+        }
+    }
+
+    /**
+     * What a client tick holds its player at: the held pose, or null when no test holds one or the
+     * client has no player yet (the title screen, a world still loading).
+     */
+    public static Pose poseFor(boolean hasPlayer) {
+        return hasPlayer ? target : null;
+    }
+
     /** The test ended, so the player is free to move and be restored. */
     public static void release() {
         target = null;

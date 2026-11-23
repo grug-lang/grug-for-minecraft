@@ -56,6 +56,10 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
+    # The controls that make the x and z checks mean something: the pigs are still there to push
+    # and the floor under the player is solid, so a camera that stayed put was held and not spared.
+    ctx.assert(level.count_mobs("passive") >= 10, "The ten pigs on the player should still be there.")
+    ctx.assert(not level.is_air(Math.floor(snap_x), Math.floor(snap_y - 1.62) - 1, Math.floor(snap_z)), "The floor under the player should be solid.")
     camera: Vec3 = ctx.camera()
     if state == 1 {
         x = camera.x()

@@ -2112,10 +2112,9 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
      * with. The height is left to gravity: holding it at the snap's height changed the buildcraft
      * goldens.
      */
-    @GrugGenerated("screenshot/GL integration: needs a running client with a player")
     public static void holdPlayerForTest(EntityPlayer player) {
-        GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.target();
-        if (pose == null || player == null) {
+        GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.poseFor(player != null);
+        if (pose == null) {
             return;
         }
         player.setPosition(pose.x, player.posY, pose.z);
@@ -2135,7 +2134,6 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
 
     /** Puts the saved position back on the player. */
     private void restorePlayer(EntityPlayer player) {
-        GrugTestPlayerPin.release();
         player.setPositionAndRotation(savedX, savedY, savedZ, savedYaw, savedPitch);
     }
 
