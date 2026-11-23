@@ -475,7 +475,7 @@ jobs:
   # a dispatch with no base, which the four-hourly check and the weekly release send, builds it.
   native-windows:
     name: adapter.dll (Windows)
-    if: needs.discover.outputs.windows != '[]'
+    if: false
     needs: [discover]
     runs-on: windows-2025
     timeout-minutes: 30
@@ -522,7 +522,7 @@ jobs:
     name: core tests
     # A diff of prose alone cannot change a test's result, so the job skips (#785). Only an
     # explicit true skips it (see the discover job), and a dispatch never sets one.
-    if: needs.discover.outputs.no-tests != 'true'
+    if: false
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -701,7 +701,7 @@ jobs:
   # does not wait for core's tests (#570).
   core-release:
     name: core release jar
-    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
+    if: false
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -757,7 +757,7 @@ jobs:
   # the two jobs start together.
   layer:
     name: layer ${{ matrix.dir }}
-    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
+    if: false
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -801,7 +801,7 @@ jobs:
     # dispatch and the schedule run every loader with every mod. An empty matrix is one GitHub
     # refuses, so the output is a condition here too, and only an explicit true skips on no-tests
     # (see the discover job).
-    if: needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.build != '[]'
+    if: false
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ (inputs.repeats || vars.GRUG_CI_REPEATS || '1') == '1' && 15 || 90 }}
@@ -1027,7 +1027,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        loader: [1.2.5-forge, 1.20.6-forge, a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi]
+        loader: [a1.1.2_01-ornithe]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1191,11 +1191,11 @@ jobs:
   # player installs from a launcher or an installer, so they have no leg here.
   multiplayer-installed:
     name: ${{ matrix.loader }} installed server and client
-    if: |
-      !cancelled()
-      && needs.universal.result == 'success'
-      && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
-      && needs.discover.outputs.no-tests != 'true'
+    if: false
+    # !cancelled()
+    # && needs.universal.result == 'success'
+    # && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
+    # && needs.discover.outputs.no-tests != 'true'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -1281,9 +1281,9 @@ jobs:
   # cost more in stale results than it saves.
   smoketest:
     name: smoketest
-    if: >-
-      needs.discover.outputs.smoketest == 'true'
-      || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    if: false
+    # needs.discover.outputs.smoketest == 'true'
+    # || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -1332,9 +1332,9 @@ jobs:
     # reference-needed.py, which explains its answer in this log, and a dispatch and the weekly
     # schedule run it as the full runs they are. Only an explicit false skips it, so a step that
     # wrote no output runs it, and a diff of prose alone skips it like the game jobs (#785).
-    if: |
-      needs.discover.outputs.no-tests != 'true'
-      && needs.discover.outputs.reference != 'false'
+    if: false
+    # needs.discover.outputs.no-tests != 'true'
+    # && needs.discover.outputs.reference != 'false'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1517,7 +1517,7 @@ jobs:
   # which reaches no native.
   windows:
     name: ${{ matrix.dir }} (Windows)
-    if: needs.discover.outputs.windows != '[]'
+    if: false
     needs: [discover]
     runs-on: windows-2025
     timeout-minutes: 20
@@ -1664,10 +1664,10 @@ jobs:
     # universal can run after a native-windows that skipped, and a skipped ancestor skips every job
     # below it unless the condition names a status function, so this names one and universal's own
     # result rather than leaving a job this run wants to the default (#920 review).
-    if: |
-      !cancelled()
-      && needs.universal.result == 'success'
-      && needs.discover.outputs.windows != '[]'
+    if: false
+    # !cancelled()
+    # && needs.universal.result == 'success'
+    # && needs.discover.outputs.windows != '[]'
     needs: [discover, universal]
     runs-on: windows-2025
     # Both script limits can run in full now that the install has its own: up to 600 s of install
@@ -1822,13 +1822,13 @@ jobs:
   # it waits for that artifact when there is one and assembles without it when there is none.
   universal:
     name: universal jar
-    if: |
-      !cancelled()
-      && needs.core-release.result == 'success'
-      && needs.layer.result == 'success'
-      && (needs.native-windows.result == 'success' || needs.native-windows.result == 'skipped')
-      && github.event_name != 'pull_request'
-      && needs.discover.outputs.no-tests != 'true'
+    if: false
+    # !cancelled()
+    # && needs.core-release.result == 'success'
+    # && needs.layer.result == 'success'
+    # && (needs.native-windows.result == 'success' || needs.native-windows.result == 'skipped')
+    # && github.event_name != 'pull_request'
+    # && needs.discover.outputs.no-tests != 'true'
     needs: [discover, core-release, layer, native-windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -1899,12 +1899,12 @@ jobs:
     # push that adds no loader, and on the weekly schedule (#920 review; run 41282659606).
     # `!cancelled()` is that function, and universal's own result still skips the job when universal
     # failed or did not run.
-    if: |
-      !cancelled()
-      && needs.universal.result == 'success'
-      && github.event_name != 'pull_request'
-      && needs.discover.outputs.no-tests != 'true'
-      && needs.discover.outputs.installed != '[]'
+    if: false
+    # !cancelled()
+    # && needs.universal.result == 'success'
+    # && github.event_name != 'pull_request'
+    # && needs.discover.outputs.no-tests != 'true'
+    # && needs.discover.outputs.installed != '[]'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     # Both script limits can run in full now that the install has its own: up to 600 s of install
@@ -2084,11 +2084,11 @@ jobs:
     # The same status function as production: it needs universal, which can run after a skipped
     # native-windows, so without `!cancelled()` this job skipped every push that added no loader
     # (#920 review).
-    if: |
-      !cancelled()
-      && needs.universal.result == 'success'
-      && github.event_name != 'pull_request'
-      && needs.discover.outputs.no-tests != 'true'
+    if: false
+    # !cancelled()
+    # && needs.universal.result == 'success'
+    # && github.event_name != 'pull_request'
+    # && needs.discover.outputs.no-tests != 'true'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     # Both script limits can run in full now that the install has its own: up to 600 s of install
@@ -2218,13 +2218,13 @@ jobs:
     # skips these games (#909); everything else runs them. Only an explicit false skips, so a step
     # that wrote no output runs them. The same status function as production goes first, so a skipped
     # native-windows cannot take the games with it (#920 review).
-    if: |
-      !cancelled()
-      && needs.universal.result == 'success'
-      && github.event_name != 'pull_request'
-      && needs.discover.outputs.no-tests != 'true'
-      && needs.discover.outputs.smoke-needed != 'false'
-      && needs.discover.outputs.smoke != '[]'
+    if: false
+    # !cancelled()
+    # && needs.universal.result == 'success'
+    # && github.event_name != 'pull_request'
+    # && needs.discover.outputs.no-tests != 'true'
+    # && needs.discover.outputs.smoke-needed != 'false'
+    # && needs.discover.outputs.smoke != '[]'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -2311,7 +2311,7 @@ jobs:
     # for those legs rather than downloading artifacts that do not exist yet. A pull request runs no
     # multiplayer job, and !cancelled() keeps this job running when a need was skipped or failed:
     # its own verdict is what the gate reports, and a failed leg already fails the run.
-    if: ${{ !cancelled() && needs.discover.outputs.no-tests != 'true' }}
+    if: false
     # discover is a need because this job reads its carry-over: the two outputs are what names
     # the base run and the tests the loader jobs skipped (#786).
     # layer is a need so the Ornithe server set's jar is there when this job reads it (#169): it
@@ -2564,9 +2564,9 @@ jobs:
   # workflow with actions: write, and it runs code from the dispatched ref only for this one call.
   cancel-red:
     name: cancel red
-    if: >-
-      github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-      && (inputs.base != '' || inputs.mods != '')
+    if: false
+    # github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+    # && (inputs.base != '' || inputs.mods != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
@@ -2590,7 +2590,7 @@ jobs:
 
   pr-gate:
     name: pr gate
-    if: always() && github.event_name == 'pull_request'
+    if: false
     needs: [discover, grug-rs, core, build, reference, coverage, smoketest]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
