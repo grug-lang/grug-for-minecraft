@@ -4316,6 +4316,14 @@ public class HostFunctions {
         return GrugDeclarations.initContext().block;
     }
 
+    /**
+     * The angle in radians of the direction (x, y) from the x axis, in -pi to pi, from {@code
+     * StrictMath} so every platform agrees.
+     */
+    public static double Math_atan2(double y, double x) {
+        return StrictMath.atan2(y, x);
+    }
+
     /** The cosine of an angle in radians, from {@code StrictMath} so every platform agrees. */
     public static double Math_cos(double angle) {
         return StrictMath.cos(angle);

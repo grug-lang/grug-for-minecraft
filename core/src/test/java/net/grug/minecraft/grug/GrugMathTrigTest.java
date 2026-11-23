@@ -41,4 +41,20 @@ class GrugMathTrigTest {
         assertTrue(Double.isNaN(HostFunctions.Math_sin(Double.POSITIVE_INFINITY)));
         assertTrue(Double.isNaN(HostFunctions.Math_cos(Double.NaN)));
     }
+
+    @Test
+    void arcTangentAtTheAxesAndTheDiagonal() {
+        assertEquals(0.0, HostFunctions.Math_atan2(0, 1));
+        assertEquals(Math.PI / 2, HostFunctions.Math_atan2(1, 0));
+        assertEquals(-Math.PI / 2, HostFunctions.Math_atan2(-1, 0));
+        assertEquals(Math.PI, HostFunctions.Math_atan2(0, -1));
+        assertEquals(Math.PI / 4, HostFunctions.Math_atan2(1, 1));
+        assertEquals(0.0, HostFunctions.Math_atan2(0, 0));
+    }
+
+    @Test
+    void arcTangentAgreesWithStrictMath() {
+        assertEquals(StrictMath.atan2(-3, -4), HostFunctions.Math_atan2(-3, -4));
+        assertEquals(StrictMath.atan2(1e6, 3), HostFunctions.Math_atan2(1e6, 3));
+    }
 }

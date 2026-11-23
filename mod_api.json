@@ -2078,6 +2078,26 @@
 		"Math": {
 			"description": "Mathematical functions that need no instance.",
 			"static_methods": {
+				"atan2": {
+					"description": "The angle in radians, from -pi to pi, of the direction that points x along the first axis and y along the second: Math.atan2(0, 1) is 0, Math.atan2(1, 0) is 1.5707963267948966 and Math.atan2(0, -1) is 3.141592653589793. It is Java's Math.atan2, with the arguments in the same order (y first), so a mod turns a vector into the angle Math.cos and Math.sin give the vector's direction back for: the direction from one point to another is (Math.cos(a), Math.sin(a)) for a = Math.atan2(dz, dx). The direction (0, 0) has the angle 0. It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"cos": {
 					"description": "The cosine of an angle in radians: Math.cos(0) is 1 and Math.cos(3.141592653589793) is -1. A mod walks a point around a circle with it and Math.sin: the point at angle a is (radius * Math.cos(a), radius * Math.sin(a)). It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
 					"return_type": {

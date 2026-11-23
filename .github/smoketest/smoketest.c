@@ -503,6 +503,8 @@ static union grug_value Math_remainder(ARGS) {
 REGISTER("Math", "remainder", Math_remainder);
 static union grug_value Math_floor(ARGS) { UNUSED; return num(floor(a[0]._number)); }
 REGISTER("Math", "floor", Math_floor);
+static union grug_value Math_atan2(ARGS) { UNUSED; return num(atan2(a[0]._number, a[1]._number)); }
+REGISTER("Math", "atan2", Math_atan2);
 static union grug_value Math_sin(ARGS) { UNUSED; return num(sin(a[0]._number)); }
 REGISTER("Math", "sin", Math_sin);
 static union grug_value Math_cos(ARGS) { UNUSED; return num(cos(a[0]._number)); }

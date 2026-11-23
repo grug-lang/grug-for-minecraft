@@ -167,6 +167,7 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .set_time(ticks: number)
 
 ## Math
+Math.atan2(y: number, x: number) number
 Math.cos(angle: number) number
 Math.floor(value: number) number
 Math.pi() number

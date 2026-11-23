@@ -1,4 +1,4 @@
-# Math.pi and Math.tau are half and a whole turn in radians. Math.sin and Math.cos take radians: the quarter turns, a negative angle and a large one. The
+# Math.pi and Math.tau are half and a whole turn in radians. Math.atan2 turns a direction into its angle. Math.sin and Math.cos take radians: the quarter turns, a negative angle and a large one. The
 # results at pi are checked within a small bound, since pi itself is a rounded number.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
@@ -16,5 +16,13 @@ export tick(ctx: TestTickContext) {
         ctx.assert(Math.cos(-pi) == -1, "Math.cos(-pi) should be -1.")
         ctx.assert(Math.sin(100 * pi + pi / 2) > 0.999999, "Math.sin of a large angle should wrap around.")
         ctx.assert(Math.cos(1000 * pi) > 0.999999, "Math.cos of a large angle should wrap around.")
+        ctx.assert(Math.atan2(0, 1) == 0, "Math.atan2(0, 1) should be 0.")
+        ctx.assert(Math.atan2(1, 0) == pi / 2, "Math.atan2(1, 0) should be a quarter turn.")
+        ctx.assert(Math.atan2(-1, 0) == -pi / 2, "Math.atan2(-1, 0) should be minus a quarter turn.")
+        ctx.assert(Math.atan2(0, -1) == pi, "Math.atan2(0, -1) should be half a turn.")
+        ctx.assert(Math.atan2(1, 1) == pi / 4, "Math.atan2(1, 1) should be an eighth of a turn.")
+        ctx.assert(Math.atan2(0, 0) == 0, "Math.atan2(0, 0) should be 0.")
+        ctx.assert(Math.atan2(-3, -4) < -2.498 and Math.atan2(-3, -4) > -2.4982, "Math.atan2(-3, -4) should be in the third quadrant.")
+        ctx.assert(Math.cos(Math.atan2(3, 4)) > 0.7999999 and Math.cos(Math.atan2(3, 4)) < 0.8000001, "The cosine of Math.atan2(3, 4) should be 4 over 5.")
     }
 }
