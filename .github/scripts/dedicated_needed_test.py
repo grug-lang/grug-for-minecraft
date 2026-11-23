@@ -149,9 +149,7 @@ class DedicatedNeededTest(unittest.TestCase):
                 "mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n",
                 "AGENTS.md": "agents2\n",
             },
-            "core": {"core/src/main/java/net/grug/minecraft/grug/HostFunctions.java": "c2\n"},
-            "api": {"mod_api.json": '{"a":1}'},
-            "coverage mod": {"mods/coverage/tests/x-Test.grug": "tick() { }\n"},
+            "core unit test": {"core/src/test/java/XTest.java": "class XTest {}\n"},
             "workflow and scripts": {
                 ".github/workflows/build.yml": "name: B2\n",
                 ".github/scripts/run-loader.sh": "# run2\n",
@@ -165,6 +163,26 @@ class DedicatedNeededTest(unittest.TestCase):
                     self.assertIn("skipping", self.reason)
                     self.setUp()
                     self.assertEqual(self.answer(changes, None, "--event", event), "false")
+
+    def test_core_the_api_the_coverage_mod_and_the_root_build_run_every_leg(self):
+        cases = {
+            "core main": "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+            "core build": "core/build.gradle.kts",
+            "api": "mod_api.json",
+            "coverage test": "mods/coverage/tests/x-Test.grug",
+            "coverage code": "mods/coverage/code/x-Block.grug",
+            "gradle dir": "gradle/grug-core.gradle",
+            "gradle properties": "gradle.properties",
+            "settings": "settings.gradle.kts",
+            "root build": "build.gradle.kts",
+            "setup action": ".github/actions/setup-loader-build/action.yml",
+        }
+        for name, path in cases.items():
+            for event in ("pull_request", "push"):
+                with self.subTest(name=name, event=event):
+                    self.setUp()
+                    self.assertEqual(self.loaders_of({path: "changed\n"}, event), ALL)
+                    self.assertIn(path, self.reason)
 
     def test_each_loaders_server_code_runs_exactly_its_own_leg(self):
         cases = {

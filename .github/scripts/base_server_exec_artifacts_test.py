@@ -67,6 +67,42 @@ class PickTest(unittest.TestCase):
         chosen = mod.choose_runs(runs, listings.__getitem__, {"server-exec-a"})
         self.assertEqual([r["id"] for r, _ in chosen], [2])
 
+    def test_a_loader_whose_leg_did_not_succeed_is_skipped_for_an_older_good_run(self):
+        runs = [{"id": 2}, {"id": 1}]
+        listings = {
+            2: {"artifacts": [art("server-exec-a"), art("server-exec-b")]},
+            1: {"artifacts": [art("server-exec-a"), art("server-exec-b")]},
+        }
+
+        def job(name, conclusion):
+            return {"name": f"{name} on a dedicated server", "conclusion": conclusion}
+
+        jobs = {
+            2: {"jobs": [job("a", "failure"), job("b", "success"), {"name": "other"}]},
+            1: {"jobs": [job("a", "success"), job("b", "success")]},
+        }
+        chosen = mod.choose_runs(runs, listings.__getitem__, None, jobs.__getitem__)
+        self.assertEqual(
+            [(r["id"], [n for n, _ in pairs]) for r, pairs in chosen],
+            [(2, ["server-exec-b"]), (1, ["server-exec-a"])],
+        )
+
+    def test_a_run_with_no_artifact_is_not_asked_for_its_jobs(self):
+        asked = []
+        mod.choose_runs([{"id": 1}], lambda i: {}, None, lambda i: asked.append(i) or {"jobs": []})
+        self.assertEqual(asked, [])
+
+    def test_succeeded_loaders_reads_only_dedicated_leg_successes(self):
+        jobs = {
+            "jobs": [
+                {"name": "1.20.6-forge on a dedicated server", "conclusion": "success"},
+                {"name": "1.20.6-forge", "conclusion": "success"},
+                {"name": "a1.1.2_01-ornithe on a dedicated server", "conclusion": "cancelled"},
+            ]
+        }
+        self.assertEqual(mod.succeeded_loaders(jobs), {"1.20.6-forge"})
+        self.assertEqual(mod.succeeded_loaders({}), set())
+
     def test_no_run_with_a_live_server_exec_returns_nothing(self):
         listings = {1: {"artifacts": [art("server-exec-a", True)]}, 2: {}}
         self.assertEqual(mod.choose_runs([{"id": 2}, {"id": 1}], listings.get), [])
@@ -90,10 +126,10 @@ class PickTest(unittest.TestCase):
         self.assertEqual([r["id"] for r in mod.candidate_runs(listing, now)], [1, 3, 2])
         many = {
             "workflow_runs": [
-                run(n, "schedule", f"2026-11-23T{n % 24:02d}:00:00Z") for n in range(30)
+                run(n, "schedule", f"2026-11-23T{n % 24:02d}:00:00Z") for n in range(80)
             ]
         }
-        self.assertEqual(len(mod.candidate_runs(many, now)), 20)
+        self.assertEqual(len(mod.candidate_runs(many, now)), 50)
 
     def test_main_never_fails_when_the_lookup_does(self):
         err = io.StringIO()
