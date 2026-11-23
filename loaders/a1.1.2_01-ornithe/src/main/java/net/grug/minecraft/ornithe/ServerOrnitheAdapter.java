@@ -659,11 +659,11 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         }
         GrugAlphaMenu menu = MENUS.get(player);
         if (menu != null) {
-            menu.cursor = itemObj == null ? null : new ItemStack((Item) itemObj);
+            menu.cursor = new ItemStack((Item) itemObj);
             sendToPlayer(player, GrugScreenContentPacket.of(menu));
             return;
         }
-        ItemStack stack = itemObj == null ? null : new ItemStack((Item) itemObj);
+        ItemStack stack = new ItemStack((Item) itemObj);
         CARRIED_ITEMS.put(player, stack);
         sendCursorToPlayer(player, stack);
     }
