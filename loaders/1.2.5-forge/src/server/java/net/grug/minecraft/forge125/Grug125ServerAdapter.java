@@ -211,9 +211,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public void openInventory(Object playerObj) {
-        if (playerObj instanceof EntityPlayerMP) {
-            closeOpenContainer((EntityPlayerMP) playerObj);
-        }
+        GrugLinkArms.applyTo(
+                playerObj, EntityPlayerMP.class, Grug125ServerAdapter::closeOpenContainer);
         screens.openInventory();
     }
 
@@ -267,8 +266,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         GrugForge125Arms.ifPresent(
                 serverPlayer(),
                 player -> {
-                    player.inventory.setItemStack(
-                            itemObj == null ? null : new ItemStack((Item) itemObj));
+                    // A grug call's Item argument is never null, so there is no null arm.
+                    player.inventory.setItemStack(new ItemStack((Item) itemObj));
                     // The cursor is not a slot this server's container sends, so the click's own
                     // slot update would leave the client's copy stale: window -1 slot -1 is the
                     // cursor, which is what the game's own updateHeldItem sends when a click
@@ -429,7 +428,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         EntityPlayerMP player = (EntityPlayerMP) testPlayer();
         double held = GrugServerRun.heldFeetY();
         boolean hasHold =
-                GrugLinkArms.deliverIf(held != 0, player, p -> buildOnHold(p, held, radius));
+                GrugLinkArms.deliverIf(
+                        GrugForge125Arms.holds(held), player, p -> buildOnHold(p, held, radius));
         GrugForge125Arms.unlessDone(hasHold, radius, this::buildWithoutHold);
     }
 
@@ -567,6 +567,10 @@ public class Grug125ServerAdapter extends Grug125Adapter {
 
     /** Played by the client of the player who started the run, which owns the sound engine. */
     @Override
+    @GrugGenerated(
+            "In a CI run 1.2.5 downloads no sound resources, so the client's pool is empty,"
+                    + " has_sound is never true and play_ui_sound refuses every name before it"
+                    + " reaches the adapter")
     public void playUiSound(String path, double volume, double pitch) {
         GrugForge125Arms.forwarded(
                 () -> {
@@ -596,9 +600,11 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public boolean isWorldSettled() {
-        if (!GrugControlServer125.server().hasStarter()) {
-            return true;
-        }
+        return GrugForge125Arms.noStarterOr(
+                GrugControlServer125.server().hasStarter(), this::settledForStarter);
+    }
+
+    private boolean settledForStarter() {
         boolean owed = lightResend.pending();
         if (owed) {
             resendLight();
@@ -712,10 +718,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public void closeOpenScreenForTest() {
-        EntityPlayerMP player = serverPlayer();
-        if (player != null) {
-            closeOpenContainer(player);
-        }
+        GrugLinkArms.deliver(serverPlayer(), Grug125ServerAdapter::closeOpenContainer);
         screens.closeScreen();
     }
 
@@ -751,7 +754,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                 world.getChunkProvider()
                         .chunkExists((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4);
         return GrugLinkArms.deliverIf(
-                GrugTestPlayerMove.canMove(player != null, true, loaded),
+                GrugTestPlayerMove.canMove(GrugLinkArms.known(player), true, loaded),
                 player,
                 mover -> {
                     GrugServerRun.moveToFeet(mover, x, y, z);
@@ -881,7 +884,9 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public boolean lightApplied(double x, double y, double z) {
         return GrugForge125Arms.answered(
-                !GrugControlServer125.server().hasStarter() || relitSections.covers(x, y, z),
+                GrugForge125Arms.noStarterOr(
+                        GrugControlServer125.server().hasStarter(),
+                        () -> relitSections.covers(x, y, z)),
                 () -> {
                     World world = (World) getLevel();
                     long simulated =

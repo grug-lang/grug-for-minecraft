@@ -247,4 +247,23 @@ class GrugForge125ArmsTest {
         assertEquals(0b10000000, GrugForge125Arms.sectionMask(120, 100));
         assertEquals(0, GrugForge125Arms.sectionMask(200, 4));
     }
+
+    @Test
+    void aHeldHeightIsOneThatIsNotZero() {
+        assertFalse(GrugForge125Arms.holds(0));
+        assertTrue(GrugForge125Arms.holds(64.5));
+        assertTrue(GrugForge125Arms.holds(-3));
+    }
+
+    @Test
+    void noStarterAnswersTrueWithoutAskingAndAStarterAsks() {
+        assertTrue(
+                GrugForge125Arms.noStarterOr(
+                        false,
+                        () -> {
+                            throw new AssertionError("asked");
+                        }));
+        assertTrue(GrugForge125Arms.noStarterOr(true, () -> true));
+        assertFalse(GrugForge125Arms.noStarterOr(true, () -> false));
+    }
 }

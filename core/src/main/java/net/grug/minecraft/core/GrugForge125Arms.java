@@ -176,6 +176,16 @@ public final class GrugForge125Arms {
         return first && second.getAsBoolean();
     }
 
+    /** Whether the run holds a player's height, which is 0 before it has started. */
+    public static boolean holds(double heldFeet) {
+        return heldFeet != 0;
+    }
+
+    /** True when there is no starter, else what {@code ask} answers, asked only for a starter. */
+    public static boolean noStarterOr(boolean hasStarter, BooleanSupplier ask) {
+        return !hasStarter || ask.getAsBoolean();
+    }
+
     /** Whether the answer is already known, else the asked answer. */
     public static boolean answered(boolean known, BooleanSupplier ask) {
         return known || ask.getAsBoolean();
