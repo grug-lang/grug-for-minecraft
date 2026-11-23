@@ -108,6 +108,16 @@
 					"what": "The redstone engine's particles are verified by count and position against 2.2.14's BlockEngine, which the test reads from what the display tick spawned, but no capture compares the drawn particles with the reference's.",
 					"why": "The screenshot runs drop particles (minimal setting, or the spawn skipped under GRUG_CI on Alpha and Beta), a particle's constructor draws random numbers a test cannot seed, and the reference run cannot record its spawns.",
 					"tracking_issue": 1006
+				},
+				{
+					"what": "A frame broken by hand drops its own item, and a frame is an item a player can hold, where 2.2.14's BlockFrame drops nothing.",
+					"why": "No host function says that a block drops nothing.",
+					"tracking_issue": 1625
+				},
+				{
+					"what": "The quarry clears a flowing liquid inside its box, and puts a frame over flowing lava, where 2.2.14's builder leaves flowing lava alone and does not clear flowing water.",
+					"why": "Level.get_block names a flowing liquid minecraft:unknown on 1.2.5, so flowing water, flowing lava and every other unnamed block are the same to the builder.",
+					"tracking_issue": 1626
 				}
 			]
 		}

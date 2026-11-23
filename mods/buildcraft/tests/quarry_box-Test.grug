@@ -5,7 +5,9 @@
 # the reference's switch does not know, leaves it at 0, 0. The energy part receives 100, which is held
 # up to 7000, and ticks the quarry: the reference's provider loses 1 every 100 ticks of the world's
 # clock, and tick_block_entity leaves that clock alone, so a world time past 100 gives exactly one loss
-# on the first tick and none on the second.
+# on the first tick and none on the second. A quarry holding at least 25 energy also does a step of its
+# work on that first tick, which costs 25 (see quarry_frame-Test.grug), and none on the second, since
+# the work waits 20 ticks of the world's clock.
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     if level.get_time() < 100 {
@@ -30,9 +32,9 @@ export tick(ctx: TestTickContext) {
     ctx.assert(quarry.receive_energy(8000) == 6900, "A quarry should hold at most 7000.")
     ctx.assert(quarry.get_energy_stored() == 7000, "A full quarry should hold 7000.")
     ctx.tick_block_entity(quarry, 1)
-    ctx.assert(quarry.get_energy_stored() == 6999, "A quarry should lose 1 energy on its first tick past 100 ticks of world time.")
+    ctx.assert(quarry.get_energy_stored() == 6974, "A quarry should spend 25 on its first step and lose 1 energy on its first tick past 100 ticks of world time.")
     ctx.tick_block_entity(quarry, 1)
-    ctx.assert(quarry.get_energy_stored() == 6999, "A quarry should lose no energy while the world's clock has not moved 100 ticks.")
+    ctx.assert(quarry.get_energy_stored() == 6974, "A quarry should lose no energy and do no step while the world's clock has not moved 100 ticks.")
 }
 
 local _place(ctx: TestTickContext, level: Level, x: number, y: number, z: number, meta: number) BlockEntity {
