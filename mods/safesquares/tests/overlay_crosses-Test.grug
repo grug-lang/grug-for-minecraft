@@ -36,17 +36,6 @@ export tick(ctx: TestTickContext) {
         if not me.world_overlay_supported() {
             return
         }
-        # b1.7.3-stationapi's dedicated leg draws this crop with its one isolated dark seam pixel at
-        # (152, 69) where the client-only golden has it at (127, 78), in two dispatches (45091898831,
-        # 45093688585) and 2 of 155400 pixels each. The pixel is a crack between two squares of the
-        # platform, which StationAPI's renderer leaves and the other loaders' do not, and where the
-        # crack falls follows the exact camera, which a joined client takes from the server's player
-        # (y 71.62000000476837) and a client-only run takes from its own. A golden per leg would
-        # accept the crack's place, so the dedicated leg stays unproven until the camera is pinned
-        # to the room's eye as the Ornithe capture clients do.
-        if me.on_dedicated_server() and me.loader_name() == "b1.7.3-stationapi" {
-            return
-        }
         level.set_time(6000)
         ctx.set_box_radius(6)
         origin: Vec3 = ctx.get_origin()
