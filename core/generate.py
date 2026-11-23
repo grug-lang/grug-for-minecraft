@@ -144,6 +144,7 @@ def gen_wrapper(
     lines = [
         f"static union grug_value {c_name}(void* gst, const union grug_value args[], const struct grug_type generics[]) {{",
         "    (void)gst;",
+        "    (void)args;",
         "    (void)generics;",
         "    JNIEnv* env; FILL_ENV(env);",
     ]
@@ -594,10 +595,10 @@ def generate(mod_api: Dict[str, Any]) -> str:
         c_name = f"host_{fn['java_name']}"
 
         if fn["kind"] == "host_fn":
-            out.append(f'    grug_register_host_fn(state, "{fn["grug_name"]}", (void*){c_name});')
+            out.append(f'    grug_register_host_fn(state, "{fn["grug_name"]}", {c_name});')
         else:
             out.append(
-                f'    grug_register_host_method(state, "{fn["grug_class"]}", "{fn["grug_method"]}", (void*){c_name});'
+                f'    grug_register_host_method(state, "{fn["grug_class"]}", "{fn["grug_method"]}", {c_name});'
             )
     out.append("}")
     out.append("")
