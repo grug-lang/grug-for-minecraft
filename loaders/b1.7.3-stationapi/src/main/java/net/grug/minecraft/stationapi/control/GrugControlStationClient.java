@@ -12,9 +12,13 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.stationapi.GrugClientHooks;
 import net.grug.minecraft.stationapi.StationApiAdapter;
+import net.grug.minecraft.stationapi.client.GrugClientPlayer;
 import net.grug.minecraft.stationapi.gui.GrugScreen;
+import net.grug.minecraft.stationapi.mixin.HeldItemRendererAccess;
+import net.grug.minecraft.stationapi.mixin.MinecraftTimerAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.Connection;
 
 import java.awt.image.BufferedImage;
@@ -116,6 +120,58 @@ public final class GrugControlStationClient {
     }
 
     /**
+     * Holds the client's own player at the eye the capture named. The server cannot: it is frozen
+     * inside the call that asked for the frame, so nothing there ticks to hold its player, and the
+     * camera a joined client draws from is the player's position as the server's packets left it,
+     * which is the server player's single-precision eye height and not the room's eye. A frame's
+     * seam pixels fall where the exact camera puts them, so a capture drawn from a camera a few
+     * billionths off lands them elsewhere than the client-only golden does (#1550, #1178).
+     *
+     * <p>This version's {@code setPositionAndAngles} takes the eye, so the eye is passed as it is,
+     * and it writes the previous position too, so the frame is drawn from the eye at every partial
+     * tick. The velocity is zeroed so the tick's physics cannot carry the player off it; the same
+     * pin as b1.7.3-ornithe's {@code pinAtCaptureEye}, which takes the feet instead.
+     */
+    private static void pinAtCaptureEye(PlayerEntity player) {
+        // A client-only player's y is the feet plus the game's single precision eye height widened
+        // to a double (71.62000000476837 on feet 70), and the server's eye is the same height as
+        // the double 1.62, 71.62, which draws a line's edge pixel differently (#1629). The feet are
+        // recovered from the eye to a millionth and the game's own height added back.
+        double feet = Math.rint((eye.y() - 1.62) * 1e6) / 1e6;
+        player.setPositionAndAngles(eye.x(), feet + (double) 1.62F, eye.z(), 0.0F, 0.0F);
+        player.velocityX = 0.0;
+        player.velocityY = 0.0;
+        player.velocityZ = 0.0;
+        player.stepBobbingAmount = 0.0F;
+        player.prevStepBobbingAmount = 0.0F;
+        player.horizontalSpeed = 0.0F;
+        player.prevHorizontalSpeed = 0.0F;
+    }
+
+    /**
+     * Runs at the end of the client tick, while a capture is pending. The pin zeroes the velocity
+     * at the head of the tick and the physics then applies gravity, so the pinned player is never
+     * on the ground and its camera tilt becomes {@code atan(-velocityY * 0.2) * 15}, which draws
+     * the world a little lower than the client-only golden, whose grounded player has no tilt. The
+     * tilt is written back to zero so the frame the next tick's capture reads is drawn level (see
+     * b1.7.3-ornithe's {@code afterClientTick}, #1213).
+     */
+    public static void afterClientTick(Minecraft mc) {
+        if (!pending || eye == null) return;
+        PlayerEntity player = GrugClientPlayer.of(mc);
+        if (player == null) return;
+        player.tilt = 0.0F;
+        player.prevTilt = 0.0F;
+        // The joined client walked while it joined, so its view bobbing decays from a small
+        // nonzero amount, which the frame's lerp draws a little differently at every partial tick,
+        // while a client-only run's player has never moved and bobs by exactly zero.
+        player.stepBobbingAmount = 0.0F;
+        player.prevStepBobbingAmount = 0.0F;
+        player.horizontalSpeed = 0.0F;
+        player.prevHorizontalSpeed = 0.0F;
+    }
+
+    /**
      * The client starts its run only once the chunks around its player have stopped arriving: the
      * count of loaded chunks in a square of {@link #SETTLE_RADIUS} chunks has held for {@link
      * #SETTLE_QUIET_TICKS} ticks, with the 3x3 around the player at least. The server freezes at
@@ -206,6 +262,10 @@ public final class GrugControlStationClient {
                             + " on "
                             + Thread.currentThread().getName());
         }
+        PlayerEntity player = GrugClientPlayer.of(mc);
+        if (eye != null && player != null) {
+            pinAtCaptureEye(player);
+        }
         boolean settled = GrugCore.getAdapter().isWorldSettled();
         // The frame has to show the world the server has and be drawn from the place the test's
         // room was built around, so a capture names the eye and the client waits for its own camera
@@ -231,6 +291,44 @@ public final class GrugControlStationClient {
         if (bad != null) {
             failed.accept(bad);
             return;
+        }
+        PlayerEntity cam = GrugClientPlayer.of(mc);
+        if (cam != null) {
+            System.out.println(
+                    "[GRUG CONTROL] camera bits: x "
+                            + cam.x
+                            + " z "
+                            + cam.z
+                            + " yBits "
+                            + Long.toHexString(Double.doubleToLongBits(cam.y))
+                            + " y "
+                            + cam.y
+                            + " lastTickY "
+                            + cam.lastTickY
+                            + " minY "
+                            + cam.boundingBox.minY
+                            + " onGround "
+                            + cam.onGround
+                            + " tilt "
+                            + cam.tilt
+                            + "/"
+                            + cam.prevTilt
+                            + " horizontalSpeed "
+                            + cam.horizontalSpeed
+                            + "/"
+                            + cam.prevHorizontalSpeed
+                            + " stepBobbing "
+                            + cam.stepBobbingAmount
+                            + "/"
+                            + cam.prevStepBobbingAmount
+                            + " partialTick "
+                            + ((MinecraftTimerAccess) mc).grug$timer().partialTick
+                            + " hand "
+                            + ((HeldItemRendererAccess) mc.gameRenderer.heldItemRenderer)
+                                    .grug$height()
+                            + "/"
+                            + ((HeldItemRendererAccess) mc.gameRenderer.heldItemRenderer)
+                                    .grug$prevHeight());
         }
         System.out.println(
                 "[GRUG CONTROL] capturing after "
