@@ -90,4 +90,80 @@ public final class GrugControlDiagnostic {
                         + ", non-air block ids within 6 of the player (id=count) "
                         + ids);
     }
+
+    /**
+     * The inputs of the frame a capture reads, logged by both the joined client and a client-only
+     * run so one dispatch shows which of them differs (#1629).
+     */
+    @GrugGenerated("a diagnostic of the capture's render inputs, only read from its artifact")
+    public static void renderInputs(String who, Minecraft mc) {
+        if (!"true".equals(System.getenv("GRUG_CI")) && System.getenv("GRUG_CI_CONNECT") == null) {
+            return;
+        }
+        net.minecraft.entity.player.PlayerEntity p = mc.player;
+        net.minecraft.world.World w = mc.world;
+        if (p == null || w == null) return;
+        int bx = (int) Math.floor(p.x);
+        int by = (int) Math.floor(p.y);
+        int bz = (int) Math.floor(p.z);
+        net.minecraft.util.math.Vec3d fog = w.getFogColor(0.5F);
+        net.minecraft.util.math.Vec3d sky = w.getSkyColor(p, 0.5F);
+        System.out.println(
+                "[GRUG RENDER INPUTS] "
+                        + who
+                        + ": time "
+                        + w.getTime()
+                        + " ambientDarkness "
+                        + w.ambientDarkness
+                        + " timeOfDay "
+                        + w.getTime(0.5F)
+                        + " fog "
+                        + fog.x
+                        + " "
+                        + fog.y
+                        + " "
+                        + fog.z
+                        + " sky "
+                        + sky.x
+                        + " "
+                        + sky.y
+                        + " "
+                        + sky.z
+                        + " eye block brightness "
+                        + w.getBrightness(bx, by, bz)
+                        + " sky "
+                        + w.getBrightness(net.minecraft.world.LightType.SKY, bx, by, bz)
+                        + " blocklight "
+                        + w.getBrightness(net.minecraft.world.LightType.BLOCK, bx, by, bz)
+                        + " pos "
+                        + p.x
+                        + " "
+                        + p.y
+                        + " "
+                        + p.z
+                        + " last "
+                        + p.lastTickX
+                        + " "
+                        + p.lastTickY
+                        + " "
+                        + p.lastTickZ
+                        + " yaw "
+                        + p.yaw
+                        + "/"
+                        + p.prevYaw
+                        + " pitch "
+                        + p.pitch
+                        + "/"
+                        + p.prevPitch
+                        + " viewDistance "
+                        + mc.options.viewDistance
+                        + " fancy "
+                        + mc.options.fancyGraphics
+                        + " advGL "
+                        + mc.options.advancedOpengl
+                        + " window "
+                        + mc.displayWidth
+                        + "x"
+                        + mc.displayHeight);
+    }
 }
