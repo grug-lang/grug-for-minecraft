@@ -171,12 +171,14 @@ static void test_match_recipe(void) {
     CHECK(match_recipe(rs, 3, empty) == NULL, "an empty grid matches nothing");
 }
 
+// Known answers from Gen.java's doubleTextVectors, printed by a real JDK.
 static void test_double_text(void) {
     char m[64];
     struct { double v; const char* want; } cases[] = {
         {0.0, "0.0"}, {-0.0, "-0.0"}, {128, "128.0"}, {100, "100.0"}, {-3, "-3.0"}, {1.5, "1.5"}, {0.001, "0.001"},
         {1e7, "1.0E7"}, {2147483648.0, "2.147483648E9"}, {1e-4, "1.0E-4"}, {1.5e300, "1.5E300"},
         {NAN, "NaN"}, {INFINITY, "Infinity"}, {-INFINITY, "-Infinity"},
+        {3.4028234663852886e38, "3.4028234663852886E38"}, {9223372036854775807.0, "9.223372036854776E18"},
     };
     for (size_t i = 0; i < sizeof cases / sizeof *cases; i++) {
         double_text(cases[i].v, m, sizeof m);
