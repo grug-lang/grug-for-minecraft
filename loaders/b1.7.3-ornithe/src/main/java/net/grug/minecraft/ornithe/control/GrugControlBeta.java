@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.control;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugHandlerLookup;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
@@ -13,9 +14,9 @@ import net.minecraft.network.Connection;
 import net.minecraft.network.PacketHandler;
 import net.minecraft.world.World;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -213,34 +214,11 @@ public final class GrugControlBeta {
      * ours to open.
      */
     static Connection findConnection(Object holder, int depth) {
-        if (holder == null) return null;
-        for (Class<?> type = holder.getClass(); !isJdk(type); type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
-                try {
-                    field.setAccessible(true);
-                    if (field.getType() == Connection.class) {
-                        return (Connection) field.get(holder);
-                    }
-                    if (depth > 0
-                            && field.getType()
-                                    .getName()
-                                    .equals(
-                                            "net.minecraft.client.network.handler"
-                                                    + ".ClientNetworkHandler")) {
-                        Connection nested = findConnection(field.get(holder), depth - 1);
-                        if (nested != null) return nested;
-                    }
-                } catch (IllegalAccessException e) {
-                    throw new IllegalStateException(
-                            "cannot read " + field + " to find the connection", e);
-                }
-            }
-        }
-        return null;
-    }
-
-    private static boolean isJdk(Class<?> type) {
-        return type == null || type.getName().startsWith("java.");
+        return GrugHandlerLookup.connectionOf(
+                holder,
+                Connection.class,
+                "net.minecraft.client.network.handler.ClientNetworkHandler",
+                depth);
     }
 
     /**
@@ -248,31 +226,9 @@ public final class GrugControlBeta {
      * the player in the world that holds this handler. Null before the player is in the world.
      */
     private static PlayerEntity playerOf(PacketHandler handler) {
-        try {
-            for (Class<?> type = handler.getClass(); !isJdk(type); type = type.getSuperclass()) {
-                for (Field field : type.getDeclaredFields()) {
-                    if (PlayerEntity.class.isAssignableFrom(field.getType())) {
-                        field.setAccessible(true);
-                        Object value = field.get(handler);
-                        if (value != null) return (PlayerEntity) value;
-                    }
-                }
-            }
-            World world = GrugServerRun.world();
-            if (world == null) return null;
-            for (Object candidate : new ArrayList<>(world.players)) {
-                for (Class<?> type = candidate.getClass();
-                        !isJdk(type);
-                        type = type.getSuperclass()) {
-                    for (Field field : type.getDeclaredFields()) {
-                        field.setAccessible(true);
-                        if (field.get(candidate) == handler) return (PlayerEntity) candidate;
-                    }
-                }
-            }
-            return null;
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException("cannot read the handler's player", e);
-        }
+        World world = GrugServerRun.world();
+        List<Object> candidates =
+                world == null ? Collections.emptyList() : new ArrayList<Object>(world.players);
+        return GrugHandlerLookup.playerOf(handler, PlayerEntity.class, candidates);
     }
 }
