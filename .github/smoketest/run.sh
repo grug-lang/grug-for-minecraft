@@ -60,7 +60,7 @@ make -C "$here" SELFTEST="$build/selftest" "$build/selftest" SAN="-fsanitize=add
 "$build/selftest" || status=1
 
 echo "== line and branch coverage of smoketest.c, from the mods/coverage/ tests =="
-make -C "$here" OUT="$build/cov" CFLAGS="-O0 -g -Wall -Wextra -std=gnu11" SAN="--coverage" >/dev/null || exit 1
+make -C "$here" OUT="$build/cov" CFLAGS="-O0 -g -Wall -Wextra -Wpedantic -Werror -std=gnu11" SAN="--coverage" >/dev/null || exit 1
 run "$build/cov" coverage
 (cd "$build" && gcov --branch-probabilities --json-format --stdout cov-smoketest.gcda >gcov.json 2>/dev/null)
 cov_args=()

@@ -2,7 +2,7 @@
 # grugRsRevision with `cargo build --release -p gruggers` run in it.
 GRUG_RS ?= $(HOME)/agent-workspaces/grug-rs-1585
 CC ?= gcc
-CFLAGS ?= -O2 -g -Wall -Wextra -std=gnu11
+CFLAGS ?= -O2 -g -Wall -Wextra -Wpedantic -Werror -std=gnu11
 SAN ?=
 OUT ?= smoketest
 SELFTEST ?= selftest
