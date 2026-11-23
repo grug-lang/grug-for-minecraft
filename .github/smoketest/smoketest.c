@@ -263,6 +263,13 @@ extern const struct impl __start_smoke_impls[], __stop_smoke_impls[];
 #define UNUSED (void)gst; (void)a; (void)g
 #include "api_table.inc"
 
+// Java's (int) cast of a double: NaN is 0 and a value out of range saturates.
+static int32_t java_int(double d) {
+    if (d != d) return 0;
+    if (d >= 2147483647.0) return 2147483647;
+    if (d <= -2147483648.0) return (int32_t)-2147483647 - 1;
+    return (int32_t)d;
+}
 static bool is_whole(double d) { return isfinite(d) && d == floor(d); }
 
 // =============================================================================================
@@ -1969,7 +1976,8 @@ REGISTER("TestTickContext", "use_block", TTC_use_block);
 static struct { double x, y, z; } particles[PARTICLE_MAX];
 static size_t nparticles;
 static uint64_t block_display_tick_fn;
-static union grug_value DTC_random(ARGS) { UNUSED; return num(rnd_double()); }
+// Every loader hands the generator to the script as random::nextFloat, so this is Random.nextFloat.
+static union grug_value DTC_random(ARGS) { UNUSED; return num(rnd_float()); }
 REGISTER("DisplayTickContext", "random", DTC_random);
 // GrugDisplayTicks.particleProblem: only reddust exists, and every number must be finite.
 static bool particle_problem(const char* name, const double v[6], char* out, size_t cap) {
@@ -2215,7 +2223,7 @@ REGISTER("TestTickContext", "hot_reload_count", TTC_hot_reload_count);
 // reads the opened screen's geometry or clicks into it still needs those calls, and what the flag answers
 // is all screen_open-Test and the waits of the GUI tests ask. A pass that opened a screen is STUBBED.
 #define GUI_MAX_ENTRIES 64  // GrugGuiLayoutCodec.MAX_ENTRIES
-struct gui { size_t ngrids; long grid_start[GUI_MAX_ENTRIES]; size_t nresults, ntexts; };
+struct gui { size_t ngrids; int32_t grid_start[GUI_MAX_ENTRIES]; size_t nresults, ntexts; };
 static struct gui* guis;
 static size_t nguis, capguis;
 static bool screen_is_open;
@@ -2267,7 +2275,7 @@ static union grug_value GUI_add_crafting_grid(ARGS) {
     UNUSED;
     struct gui* gu = gui_of(a[0]._id, "GUI.add_crafting_grid");
     if (!gu || gui_full(gu->ngrids, "GUI.add_crafting_grid", "crafting grids")) return none();
-    gu->grid_start[gu->ngrids++] = (long)a[1]._number;
+    gu->grid_start[gu->ngrids++] = java_int(a[1]._number);
     return none();
 }
 REGISTER("GUI", "add_crafting_grid", GUI_add_crafting_grid);
@@ -2288,6 +2296,7 @@ REGISTER("GUI", "add_player_inventory", GUI_add_player_inventory);
 static union grug_value GUI_add_text(ARGS) {
     UNUSED;
     struct gui* gu = gui_of(a[0]._id, "GUI.add_text");
+    if (gu && !get_obj(a[4]._id, K_COLOR)) return fail("GUI.add_text: not a color");  // SMOKETEST_EXCL: no committed test passes anything but a Color; Java checks the handle before the cap and the text
     if (!gu || gui_full(gu->ntexts, "GUI.add_text", "texts")) return none();
     if (strlen(a[1]._string) > (1u << 20)) return fail("GUI.add_text: A GUI's text is at most 1048576 bytes long, so this one of %zu bytes is not added.", strlen(a[1]._string));  // SMOKETEST_EXCL: no committed test adds a megabyte of text
     gu->ntexts++;
@@ -2302,7 +2311,7 @@ static union grug_value GUI_open(ARGS) {
     if (!b) return fail("GUI.open: not a live block entity");  // SMOKETEST_EXCL: no committed test
     for (size_t i = 0; i < gu->ngrids; i++)
         for (long k = 0; k < 9; k++) {
-            long slot = gu->grid_start[i] + k;
+            long slot = (int32_t)((uint32_t)gu->grid_start[i] + (uint32_t)k);  // int addition wraps in Java
             if (slot < 0 || slot >= (long)b->nslots)
                 return fail("GUI.open: The GUI uses slot %ld, but the block entity only has %zu inventory slots.", slot, b->nslots);
         }
@@ -2354,6 +2363,9 @@ static union grug_value hf_has_sound(ARGS) {
         sound_name_problem(a[0]._string, msg, sizeof msg);
         fail("has_sound: %s", msg);
     }
+    // sound-Test branches on loader_name == "1.20.6-forge", which the smoketest is not, so it takes the older
+    // versions' branch (no ui.button.click) because of its name, not because it modelled a pool: STUBBED.
+    else stubbed = true;
     return boolean(false);
 }
 REGISTER(NULL, "has_sound", hf_has_sound);

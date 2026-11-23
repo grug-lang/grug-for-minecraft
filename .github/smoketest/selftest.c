@@ -220,6 +220,15 @@ static void test_argument_checks(void) {
     CHECK(sound_name_ok("minecraft:ui.button.click") && sound_name_ok("a-b_c:d/e.f-g"), "well-formed names");
     const char* bad[] = {"ui.button.click", ":x", "x:", "Minecraft:ui", "minecraft:UI", "a b:c", "a/b:c", "a:b:c", ""};
     for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) CHECK(!sound_name_ok(bad[i]), "'%s' is not a sound name", bad[i]);
+    CHECK(java_int(NAN) == 0 && java_int(1e12) == 2147483647 && java_int(-1e12) == INT32_MIN && java_int(-2.9) == -2 && java_int(2.9) == 2, "Java (int) cast");
+    rnd_set_seed(7);
+    double want = rnd_float();
+    rnd_set_seed(7);
+    char r[64];
+    snprintf(r, sizeof r, "%a", DTC_random(NULL, NULL, NULL)._number);
+    char w[64];
+    snprintf(w, sizeof w, "%a", want);
+    CHECK(!strcmp(r, w), "DisplayTickContext.random draws nextFloat: %s vs %s", r, w);
     const double ok6[6] = {1, 2, 3, 0, 0, 0}, nan6[6] = {1, 2, 3, 0, NAN, 0};
     CHECK(!particle_problem("reddust", ok6, m, sizeof m), "reddust at finite numbers is accepted");
     CHECK(particle_problem("reddust", nan6, m, sizeof m) && !strcmp(m, "The position and the motion must be finite numbers."), "%s", m);
