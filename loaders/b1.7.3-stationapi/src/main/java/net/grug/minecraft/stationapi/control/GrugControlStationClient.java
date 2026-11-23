@@ -137,6 +137,10 @@ public final class GrugControlStationClient {
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
+        player.stepBobbingAmount = 0.0F;
+        player.prevStepBobbingAmount = 0.0F;
+        player.horizontalSpeed = 0.0F;
+        player.prevHorizontalSpeed = 0.0F;
     }
 
     /**
@@ -153,6 +157,13 @@ public final class GrugControlStationClient {
         if (player == null) return;
         player.tilt = 0.0F;
         player.prevTilt = 0.0F;
+        // The joined client walked while it joined, so its view bobbing decays from a small
+        // nonzero amount, which the frame's lerp draws a little differently at every partial tick,
+        // while a client-only run's player has never moved and bobs by exactly zero.
+        player.stepBobbingAmount = 0.0F;
+        player.prevStepBobbingAmount = 0.0F;
+        player.horizontalSpeed = 0.0F;
+        player.prevHorizontalSpeed = 0.0F;
     }
 
     /**
