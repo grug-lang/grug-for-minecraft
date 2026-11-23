@@ -78,6 +78,8 @@ public final class GrugServerRun {
 
     private static double holdZ = Double.NaN;
 
+    private static long xzHolds = 0;
+
     /** How far the feet may drift from that height before the hold corrects them. */
     private static final double HOLD_TOLERANCE = 0.25;
 
@@ -352,6 +354,21 @@ public final class GrugServerRun {
      */
     private static void holdPlayer(PlayerEntity player) {
         if (GrugTestPlayerPin.offHold(player.x, player.z, holdX, holdZ)) {
+            xzHolds++;
+            if (xzHolds == 1 || xzHolds % 200 == 0) {
+                System.out.println(
+                        "[GRUG CI] holding the test player on x and z, hold "
+                                + xzHolds
+                                + ": they were at ("
+                                + player.x
+                                + ","
+                                + player.z
+                                + "), back to ("
+                                + holdX
+                                + ","
+                                + holdZ
+                                + ")");
+            }
             player.velocityX = 0.0;
             player.velocityZ = 0.0;
             moveTo(player, player.y, holdX, holdZ, player.yaw, player.pitch);
