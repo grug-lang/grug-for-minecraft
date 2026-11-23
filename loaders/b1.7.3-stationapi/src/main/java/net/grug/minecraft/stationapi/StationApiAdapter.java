@@ -1502,6 +1502,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean isWorldSettled() {
+        GrugLightDiag.sample(
+                "client",
+                (World) getLevel(),
+                (PlayerEntity) testPlayer(),
+                "change at a settle poll");
         // What the client owes is the simulated world's current block, not the one the test placed.
         Object simulated = getLevel();
         // Asked now as well as per frame: the runner runs up to 10 ticks for a frame, so a change a

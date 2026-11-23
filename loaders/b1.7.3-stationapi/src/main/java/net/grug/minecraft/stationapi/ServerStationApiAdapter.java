@@ -737,6 +737,11 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     @Override
     public boolean isWorldSettled() {
+        GrugLightDiag.sample(
+                "server",
+                (World) getLevel(),
+                (PlayerEntity) testPlayer(),
+                "change at a settle poll");
         if (!GrugControlStation.server().hasStarter()) {
             return true;
         }
@@ -763,6 +768,13 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         super.placeBlock(levelObj, x, y, z, blockName);
+        if (!lightResend.pending()) {
+            GrugLightDiag.sample(
+                    "server",
+                    (World) levelObj,
+                    (PlayerEntity) testPlayer(),
+                    "event: first block placed since the last region packet");
+        }
         lightResend.noteBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
 
@@ -792,6 +804,17 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         int[] box = lightResend.lastBox();
         relightRoom(
                 world, box[0], Math.max(box[1], 0), box[2], box[3], Math.min(box[4], 127), box[5]);
+        GrugLightDiag.sample(
+                "server",
+                world,
+                (PlayerEntity) testPlayer(),
+                "event: after the relight, before the regions");
+        System.out.println(
+                "[LIGHTDIAG] "
+                        + System.currentTimeMillis() % 1000000
+                        + " server sends "
+                        + regions.size()
+                        + " region packet(s)");
         for (int[] region : regions) {
             // A chunk this server never loaded is an empty one with no block array, which a region
             // packet cannot be made of, and the client holds no light for it either.
