@@ -795,6 +795,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
         // looking. The snap stays inside the player's own block, and therefore inside the chunk
         // already loaded and lit around them, so unlike a far teleport it cannot drag the camera
         // into an unlit chunk. The runner restores this position when the test ends.
+        diag("snap-before", null);
         player.setYRot(0.0F);
         player.setXRot(0.0F);
         player.setPos(
@@ -1352,9 +1353,66 @@ public class ClientForgeAdapter extends ForgeAdapter {
                         true);
     }
 
+    private static String bits(double d) {
+        return d + "/" + Long.toHexString(Double.doubleToRawLongBits(d));
+    }
+
+    // DIAG #1575: temporary, never merged.
+    private static void diag(String what, NativeImage image) {
+        Minecraft mc = Minecraft.getInstance();
+        Player p = mc.player;
+        if (p == null) return;
+        net.minecraft.world.phys.Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
+        String px = "";
+        if (image != null) {
+            px = " px(302,319)=" + Integer.toHexString(image.getPixelRGBA(302, 319));
+        }
+        System.out.println(
+                "DIAG1575 "
+                        + what
+                        + " pos="
+                        + bits(p.getX())
+                        + ","
+                        + bits(p.getY())
+                        + ","
+                        + bits(p.getZ())
+                        + " old="
+                        + bits(p.xo)
+                        + ","
+                        + bits(p.yo)
+                        + ","
+                        + bits(p.zo)
+                        + " cam="
+                        + bits(cam.x)
+                        + ","
+                        + bits(cam.y)
+                        + ","
+                        + bits(cam.z)
+                        + " rot="
+                        + p.getYRot()
+                        + ","
+                        + p.getXRot()
+                        + " partial="
+                        + mc.getPartialTick()
+                        + " walk="
+                        + p.walkDist
+                        + ","
+                        + p.walkDistO
+                        + " vel="
+                        + p.getDeltaMovement()
+                        + " eye="
+                        + p.getEyeHeight()
+                        + " ground="
+                        + p.onGround()
+                        + " fov="
+                        + mc.options.fov().get()
+                        + px);
+    }
+
     private static BufferedImage capture(int x1, int y1, int x2, int y2) {
         RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
         NativeImage image = Screenshot.takeScreenshot(target);
+        diag("capture", image);
         try {
             int width = x2 - x1;
             int height = y2 - y1;
