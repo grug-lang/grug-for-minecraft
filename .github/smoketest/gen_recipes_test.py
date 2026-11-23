@@ -47,6 +47,12 @@ class GenRecipes(unittest.TestCase):
         with self.assertRaises(SystemExit):
             gr.row("x", dict(SHAPED, type="minecraft:smelting"))
 
+    def test_refuses_an_ingredient_that_is_no_item_or_tag(self):
+        recipe = dict(SHAPED, key={"a": {"fluid": "x"}, "b": {"item": "y"}})
+        with self.assertRaises(SystemExit) as caught:
+            gr.row("some/recipe.json", recipe)
+        self.assertIn("some/recipe.json", str(caught.exception))
+
     def test_refuses_a_pattern_past_the_grid(self):
         with self.assertRaises(SystemExit):
             gr.row("x", dict(SHAPED, pattern=["abab"]))

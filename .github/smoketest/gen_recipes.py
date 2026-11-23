@@ -15,10 +15,14 @@ import sys
 from pathlib import Path
 
 
-def cell(ingredient):
+def cell(path, ingredient):
     if "item" in ingredient:
         return ingredient["item"]
-    return "#" + ingredient["tag"]
+    if "tag" in ingredient:
+        return "#" + ingredient["tag"]
+    raise SystemExit(
+        "%s: the ingredient %s is neither an item nor a tag" % (path, json.dumps(ingredient))
+    )
 
 
 def row(path, recipe):
@@ -30,13 +34,13 @@ def row(path, recipe):
         pattern = recipe["pattern"]
         width, height = max(len(line) for line in pattern), len(pattern)
         cells = [
-            cell(recipe["key"][ch]) if ch != " " else ""
+            cell(path, recipe["key"][ch]) if ch != " " else ""
             for line in pattern
             for ch in line.ljust(width)
         ]
         shaped = 1
     elif kind == "minecraft:crafting_shapeless":
-        cells = [cell(i) for i in recipe["ingredients"]]
+        cells = [cell(path, i) for i in recipe["ingredients"]]
         width, height, shaped = len(cells), 1, 0
     else:
         raise SystemExit("%s: the recipe type %s is not modelled" % (path, kind))

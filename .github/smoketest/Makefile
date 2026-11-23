@@ -15,7 +15,7 @@ api_table.inc: gen_api_table.py $(ROOT)/mod_api.json
 	python3 gen_api_table.py $(ROOT)/mod_api.json $@
 
 # The mods' crafting recipes, which update_recipe_output matches a grid against.
-recipes.inc: gen_recipes.py $(wildcard $(ROOT)/mods/*/data/*/recipes/*/*.json)
+recipes.inc: gen_recipes.py $(shell find $(ROOT)/mods -path '*/data/*/recipes/*' -name '*.json')
 	python3 gen_recipes.py $(ROOT)/mods $@
 
 # C tests of the pure helpers (selftest.c), a separate binary that never feeds the coverage run.

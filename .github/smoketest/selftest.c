@@ -146,8 +146,12 @@ static void test_code_points(void) {
 static void test_match_recipe(void) {
     static const struct recipe rs[] = {
         {1, 2, 1, "pair", 1, {"a", "b"}},
+        {1, 2, 2, "stair", 1, {"s", "", "s", "s"}},
         {0, 2, 1, "loose", 1, {"x", "y"}},
     };
+    const char* stair[9] = {"s", NULL, NULL, "s", "s"};
+    const char* flipped[9] = {NULL, "s", NULL, "s", "s"};
+    const char* mirrored_pair[9] = {NULL, NULL, NULL, "b", "a"};
     const char* at_corner[9] = {"a", "b"};
     const char* slid[9] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, "a", "b"};
     const char* extra[9] = {"a", "b", NULL, NULL, "a"};
@@ -155,13 +159,16 @@ static void test_match_recipe(void) {
     const char* shy[9] = {"x", "x"};
     const char* many[9] = {"x", "y", "y"};
     const char* empty[9] = {NULL};
-    CHECK(match_recipe(rs, 2, at_corner) == &rs[0], "a shaped recipe matches in the grid's corner");
-    CHECK(match_recipe(rs, 2, slid) == &rs[0], "a shaped recipe slides to the last row");
-    CHECK(match_recipe(rs, 2, extra) == NULL, "a stray item beside a shaped recipe stops the match");
-    CHECK(match_recipe(rs, 2, swapped) == &rs[1], "a shapeless recipe ignores order and position");
-    CHECK(match_recipe(rs, 2, shy) == NULL, "a shapeless recipe needs each ingredient");
-    CHECK(match_recipe(rs, 2, many) == NULL, "a shapeless recipe takes no extra item");
-    CHECK(match_recipe(rs, 2, empty) == NULL, "an empty grid matches nothing");
+    CHECK(match_recipe(rs, 3, at_corner) == &rs[0], "a shaped recipe matches in the grid's corner");
+    CHECK(match_recipe(rs, 3, slid) == &rs[0], "a shaped recipe slides to the last row");
+    CHECK(match_recipe(rs, 3, extra) == NULL, "a stray item beside a shaped recipe stops the match");
+    CHECK(match_recipe(rs, 3, swapped) == &rs[2], "a shapeless recipe ignores order and position");
+    CHECK(match_recipe(rs, 3, shy) == NULL, "a shapeless recipe needs each ingredient");
+    CHECK(match_recipe(rs, 3, many) == NULL, "a shapeless recipe takes no extra item");
+    CHECK(match_recipe(rs, 3, stair) == &rs[1], "a shaped recipe matches as written");
+    CHECK(match_recipe(rs, 3, flipped) == &rs[1], "a shaped recipe matches mirrored");
+    CHECK(match_recipe(rs, 3, mirrored_pair) == &rs[0], "a mirrored pair matches");
+    CHECK(match_recipe(rs, 3, empty) == NULL, "an empty grid matches nothing");
 }
 
 int main(void) {
