@@ -211,7 +211,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
             return;
         }
         PlayerEntity player = (PlayerEntity) playerObj;
-        player.inventory.setCursorItem(itemObj == null ? null : new ItemStack((Item) itemObj));
+        player.inventory.setCursorItem(new ItemStack((Item) itemObj));
         GrugServerRun.sendCursor(player);
     }
 
