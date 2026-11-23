@@ -53,7 +53,7 @@ export tick(ctx: TestTickContext) {
         ctx.tick_block_entity(quarry, 1)
         step = step + 1
     }
-    ctx.assert(step == 93, "The far top corner, the last cell, should be done by step 93.")
+    ctx.assert(step == 93, String.concat("The far top corner, the last cell, should be done by step 93, not step ", String.from_number(step)))
 
     ctx.assert(level.get_block(box_x + 3, y, box_z + 3) == "minecraft:air", "The stone block inside the box should be cleared.")
     ctx.assert(level.get_block(box_x + 10, y, box_z + 5) == "grug:frame", "The stone block on a frame cell should be cleared and replaced by a frame.")
