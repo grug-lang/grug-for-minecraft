@@ -1,11 +1,53 @@
 import java.util.Random;
 
 public class Gen {
+    // String.from_number's text, as HostFunctions.numberText answers it: whole finite values
+    // through
+    // BigDecimal, everything else through Double.toString. Prints selftest.c's number_text vectors.
+    static String numberText(double v) {
+        if (Double.isFinite(v) && v == Math.rint(v)) {
+            return new java.math.BigDecimal(v).toBigInteger().toString();
+        }
+        return Double.toString(v);
+    }
+
+    static void numberTextVectors() {
+        double[] vs = {
+            2.5,
+            -0.25,
+            0.1 + 0.2,
+            123456.789,
+            0.001,
+            1.0E-4,
+            1.5E-5,
+            -3.75E-7,
+            1.0 / 3,
+            Double.NaN,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            -0.0,
+            1e20,
+            1.2345678901234567e25,
+            4.9e-324,
+            0.5,
+            9999999.5,
+            12345678.9,
+            1e7 + 0.5,
+            41,
+            -7,
+        };
+        for (double v : vs) {
+            System.out.println("NUMBER_TEXT " + Double.toHexString(v) + " " + numberText(v));
+        }
+        System.out.println("NUMBER_TEXT_MAX " + numberText(Double.MAX_VALUE));
+    }
+
     static String hex(double d) {
         return Double.toHexString(d);
     }
 
     public static void main(String[] a) {
+        numberTextVectors();
         long[] seeds = {42L, 0L, 123456789012345L};
         for (long seed : seeds) {
             Random r = new Random(seed);

@@ -106,7 +106,8 @@ static void test_index(void) {
 
 // number_text is String.from_number's text. The expected strings are what the adapter's numberText
 // answers on a real JDK (openjdk 21.0.13.1): the whole numbers through
-// new BigDecimal(v).toBigInteger().toString(), the others through Double.toString(v).
+// new BigDecimal(v).toBigInteger().toString(), the others through Double.toString(v). Gen.java
+// prints these exact vectors (the NUMBER_TEXT lines).
 static void test_number_text(void) {
     static const struct { double v; const char* want; } t[] = {
         {2.5, "2.5"}, {-0.25, "-0.25"}, {0.1 + 0.2, "0.30000000000000004"}, {123456.789, "123456.789"},
