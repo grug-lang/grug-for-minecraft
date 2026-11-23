@@ -115,6 +115,28 @@ public final class GrugPlayerFloor {
     }
 
     /**
+     * How far the player may be from the held pose on any axis before the hold puts them back. It
+     * absorbs only the arithmetic noise between the server's decimal pose and the client's single
+     * precision eye (5e-9 on y), not a drift: a quarter block of sag or a push of 0.4 on x and z
+     * moved the joined a1 client's camera, and a capture pins its eye to wherever the camera was
+     * (#1613).
+     */
+    public static final double HELD_POSE_EPSILON = 1.0e-6;
+
+    /**
+     * Whether the player is off the pose the test commanded on any of the three axes. A held axis
+     * that is NaN has no pose yet and is never off it.
+     */
+    public static boolean offHeldPose(
+            double heldX, double heldY, double heldZ, double x, double y, double z) {
+        return off(heldX, x) || off(heldY, y) || off(heldZ, z);
+    }
+
+    private static boolean off(double held, double actual) {
+        return !Double.isNaN(held) && Math.abs(actual - held) > HELD_POSE_EPSILON;
+    }
+
+    /**
      * Whether the feet are on the floor, within {@link #TOLERANCE}. A player below it is inside the
      * ground and one above it is still falling, and neither may start a run.
      */
