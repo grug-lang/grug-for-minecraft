@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * The decisions of a loader's {@link GrugControlServer.Link} that only a race or a missing handle
@@ -131,5 +132,10 @@ public final class GrugLinkArms {
     /** Runs {@code task} when the environment says this is a CI run ({@code GRUG_CI=true}). */
     public static void runIfCi(Function<String, String> env, Runnable task) {
         runIf("true".equals(env.apply("GRUG_CI")), task);
+    }
+
+    /** {@code menu} when it is known and holds window {@code windowId}, else null (a stale id). */
+    public static <M> M matching(M menu, int windowId, ToIntFunction<M> idOf) {
+        return menu != null && idOf.applyAsInt(menu) == windowId ? menu : null;
     }
 }

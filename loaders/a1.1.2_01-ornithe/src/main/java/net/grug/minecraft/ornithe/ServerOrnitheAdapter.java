@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugLightResend;
 import net.grug.minecraft.core.GrugLightSync;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugRelight;
@@ -148,15 +149,20 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         MENUS.put(player, menu);
 
         Connection connection = GrugControlAlpha.connectionOfPlayer(player);
-        if (connection == null) {
-            // No joined client to show it on, so a test that waits for the screen times out. There
-            // is nothing else to do here: only a client can draw a screen.
-            return;
-        }
-        connection.send(
-                new GrugScreenOpenPacket(
-                        menu.windowId, blockEntity.x, blockEntity.y, blockEntity.z, layout));
-        connection.send(GrugScreenContentPacket.of(menu));
+        // No joined client to show it on means a test that waits for the screen times out. There
+        // is nothing else to do: only a client can draw a screen.
+        GrugLinkArms.deliver(
+                connection,
+                joined -> {
+                    joined.send(
+                            new GrugScreenOpenPacket(
+                                    menu.windowId,
+                                    blockEntity.x,
+                                    blockEntity.y,
+                                    blockEntity.z,
+                                    layout));
+                    joined.send(GrugScreenContentPacket.of(menu));
+                });
     }
 
     /**
@@ -171,28 +177,26 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     public static void clickFromClient(PacketHandler handler, int windowId, int slot, int button) {
         PlayerEntity player = GrugControlAlpha.playerOf(handler);
         Connection connection = GrugControlAlpha.connectionOf(handler);
-        if (player == null || connection == null) {
-            return;
-        }
-        GrugAlphaMenu menu = MENUS.get(player);
-        if (menu == null || menu.windowId != windowId) {
-            return;
-        }
-        menu.click(player, slot, button);
-        connection.send(GrugScreenContentPacket.of(menu));
+        GrugLinkArms.deliver(
+                liveMenu(player, windowId),
+                menu ->
+                        GrugLinkArms.deliver(
+                                connection,
+                                joined -> {
+                                    menu.click(player, slot, button);
+                                    joined.send(GrugScreenContentPacket.of(menu));
+                                }));
+    }
+
+    /** The menu this server holds for {@code player} under {@code windowId}, or null when stale. */
+    private static GrugAlphaMenu liveMenu(PlayerEntity player, int windowId) {
+        return GrugLinkArms.matching(MENUS.get(player), windowId, menu -> menu.windowId);
     }
 
     /** Closes the menu a joined client closed, dropping the stack it carried where it stands. */
     public static void closeFromClient(PacketHandler handler, int windowId) {
         PlayerEntity player = GrugControlAlpha.playerOf(handler);
-        if (player == null) {
-            return;
-        }
-        GrugAlphaMenu menu = MENUS.get(player);
-        if (menu == null || menu.windowId != windowId) {
-            return;
-        }
-        closeMenu(player);
+        GrugLinkArms.deliver(liveMenu(player, windowId), menu -> closeMenu(player));
     }
 
     /**
@@ -425,10 +429,9 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         // The client's copy needs the block this click names, which a test may have placed in this
         // same tick, before the click that opens its screen arrives (#1494).
         GrugServerRun.flushBlockChanges();
-        Connection connection = GrugControlAlpha.connectionOfPlayer(player);
-        if (connection != null) {
-            connection.send(new GrugUseBlockPacket(blockX, blockY, blockZ));
-        }
+        GrugLinkArms.deliver(
+                GrugControlAlpha.connectionOfPlayer(player),
+                connection -> connection.send(new GrugUseBlockPacket(blockX, blockY, blockZ)));
     }
 
     /** Asked of the client of the player who started the run, with the world frozen (#1040). */
@@ -596,9 +599,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     @Override
     public void openInventory(Object playerObj) {
-        if (playerObj instanceof PlayerEntity) {
-            closeMenu((PlayerEntity) playerObj);
-        }
+        GrugLinkArms.applyTo(playerObj, PlayerEntity.class, ServerOrnitheAdapter::closeMenu);
         screens.openInventory();
     }
 
@@ -622,9 +623,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public void closeOpenScreenForTest() {
         Object playerObj = testPlayer();
-        if (playerObj instanceof PlayerEntity) {
-            closeMenu((PlayerEntity) playerObj);
-        }
+        GrugLinkArms.applyTo(playerObj, PlayerEntity.class, ServerOrnitheAdapter::closeMenu);
         screens.closeScreen();
     }
 
@@ -691,18 +690,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
 
     /** Sends the cursor of the player's own inventory to {@code player}'s joined client. */
     private static void sendCursorToPlayer(PlayerEntity player, ItemStack cursor) {
-        Connection connection = GrugControlAlpha.connectionOfPlayer(player);
-        if (connection != null) {
-            connection.send(GrugScreenContentPacket.forInventoryCursor(cursor));
-        }
+        GrugLinkArms.deliver(
+                GrugControlAlpha.connectionOfPlayer(player),
+                connection -> connection.send(GrugScreenContentPacket.forInventoryCursor(cursor)));
     }
 
     /** Sends a packet to {@code player}'s joined client when this server knows its connection. */
     private static void sendToPlayer(PlayerEntity player, Packet packet) {
-        Connection connection = GrugControlAlpha.connectionOfPlayer(player);
-        if (connection != null) {
-            connection.send(packet);
-        }
+        GrugLinkArms.deliver(
+                GrugControlAlpha.connectionOfPlayer(player), connection -> connection.send(packet));
     }
 
     /** Whether the joined client of the player who started the run has a screen open (#1094). */

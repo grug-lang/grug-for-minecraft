@@ -153,4 +153,11 @@ class GrugLinkArmsTest {
         GrugLinkArms.runIfCi(k -> "GRUG_CI".equals(k) ? "true" : null, () -> n.set(0));
         assertEquals(0, n.get());
     }
+
+    @Test
+    void matchingKeepsOnlyAKnownMenuWithTheSameWindowId() {
+        assertEquals(null, GrugLinkArms.matching((String) null, 3, String::length));
+        assertEquals(null, GrugLinkArms.matching("ab", 3, String::length));
+        assertEquals("abc", GrugLinkArms.matching("abc", 3, String::length));
+    }
 }
