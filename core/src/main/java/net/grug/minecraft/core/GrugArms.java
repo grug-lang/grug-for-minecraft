@@ -53,6 +53,16 @@ public final class GrugArms {
         }
     }
 
+    /** Whether both hold, without a branch of the caller's own for the side no run enters. */
+    public static boolean both(boolean first, boolean second) {
+        return first && second;
+    }
+
+    /** Whether {@code value} is at least {@code min} and below {@code limit}. */
+    public static boolean inRange(int value, int min, int limit) {
+        return value >= min && value < limit;
+    }
+
     /**
      * Whether a point is inside a box's footprint, widened by {@code edge} on every side. The
      * game's collision shapes meet at block edges, so the point's own coordinate is compared with a
