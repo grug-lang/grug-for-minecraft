@@ -2029,10 +2029,10 @@ static union grug_value TTC_set_mod_file_state(ARGS) {
     bool normal = !strcmp(state, "normal"), deleted = !strcmp(state, "deleted");
     if (!normal && !deleted && strcmp(state, "invalid") && strcmp(state, "no_trailing_newline") && strcmp(state, "swapped"))
         return fail("TestTickContext.set_mod_file_state: java.lang.IllegalArgumentException: Unknown mod file state '%s'. Expected \"normal\", \"invalid\", \"no_trailing_newline\", \"deleted\" or \"swapped\".", state);
-    stubbed = true;
     char full[4096];
     snprintf(full, sizeof full, "%s/%s", g_mods_dir, path);
     if (!normal && !deleted && access(full, R_OK) != 0) return fail("TestTickContext.set_mod_file_state: java.nio.file.NoSuchFileException: %s", full);
+    stubbed = true;
     struct modfile* m = modfile_of(path, true);
     if (normal && !m->disturbed) return none();  // nothing disturbed the file, so nothing is put back
     m->disturbed = !normal;
@@ -2060,12 +2060,12 @@ REGISTER("TestTickContext", "screen_open", TTC_screen_open);
 // sorted by name, as a list of Name and Value compounds) and GrugLists (the saved lists sorted by name, each
 // with Records holding Numbers sorted by name and an Item). A path into anything else is a key no grug
 // block entity reads, which the real load drops, and a path the model cannot place marks the run STUBBED.
-// SMOKETEST_EXCL_START: the validation helpers are reached by selftest.c, which proves every message against GrugBlockEntityNbt; no committed test stages a bad type, value or path
 static bool nbt_is_index(const char* p, size_t n) {
     if (!n) return false;
     for (size_t i = 0; i < n; i++) if (p[i] < '0' || p[i] > '9') return false;
     return true;
 }
+// SMOKETEST_EXCL_START: the validation helpers are reached by selftest.c, which proves every message against GrugBlockEntityNbt; no committed test stages a bad type, value or path
 // Why a dotted path is not a path (the Java parsePath messages), or false when it is one.
 static bool nbt_path_problem(const char* path, char* out, size_t cap) {
     bool prev_index = false, first = true;
@@ -2174,16 +2174,22 @@ static bool nbt_apply(struct be* b, const struct nbt_edit* e, char* out, size_t 
     snprintf(path, sizeof path, "%s", e->path);
     size_t n = nbt_split(path, p), i, j, k;
     if (n == 1 && !strcmp(p[0], "GrugInvSize")) {
+        for (size_t q = 0; q < b->nslots; q++) if (b->slots[q].has) stubbed = true;  // SMOKETEST_EXCL: no committed test resizes an inventory that holds items; the real load keeps the stacks that fit
         free(b->slots);
         give_slots(b, (long)e->value);
         return false;
     }
     if (n >= 3 && !strcmp(p[0], "GrugNumbers") && nbt_index(p[1], &i) && !strcmp(p[2], "Value")) {
-        if (n > 3) {
+        if (i > b->nnums) {
+            snprintf(out, cap, "The index %zu in the path \"%s\" is past the end of a list of %zu, and only its size appends.", i, e->path, b->nnums);  // SMOKETEST_EXCL: no committed test indexes past the end of the numbers
+            return true;  // SMOKETEST_EXCL: same
+        }
+        struct kv* hit = nth_number_by_name(b->nums, b->nnums, i);
+        if (n > 3 && hit) {
             snprintf(out, cap, "The key \"Value\" in the path \"%s\" does not hold a compound.", e->path);
             return true;
         }
-        struct kv* hit = nth_number_by_name(b->nums, b->nnums, i);
+        if (n > 3) stubbed = true;  // SMOKETEST_EXCL: no committed test walks into the Value of an appended compound
         if (hit) hit->v = e->value;
         return false;  // an index at the size appends a compound with a Value and no Name, which the load drops
     }

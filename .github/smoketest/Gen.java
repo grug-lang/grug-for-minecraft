@@ -11,6 +11,32 @@ public class Gen {
         return Double.toString(v);
     }
 
+    // Double.toString, which a Java string concatenation of a double writes (the smoketest's
+    // double_text).
+    static void doubleTextVectors() {
+        double[] vs = {
+            0.0,
+            -0.0,
+            128,
+            100,
+            -3,
+            1.5,
+            0.001,
+            1e7,
+            2147483648.0,
+            1e-4,
+            1.5e300,
+            Double.NaN,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            (double) Float.MAX_VALUE,
+            (double) Long.MAX_VALUE,
+        };
+        for (double v : vs) {
+            System.out.println("DOUBLE_TEXT " + Double.toHexString(v) + " " + Double.toString(v));
+        }
+    }
+
     static void numberTextVectors() {
         double[] vs = {
             2.5,
@@ -48,6 +74,7 @@ public class Gen {
 
     public static void main(String[] a) {
         numberTextVectors();
+        doubleTextVectors();
         long[] seeds = {42L, 0L, 123456789012345L};
         for (long seed : seeds) {
             Random r = new Random(seed);
