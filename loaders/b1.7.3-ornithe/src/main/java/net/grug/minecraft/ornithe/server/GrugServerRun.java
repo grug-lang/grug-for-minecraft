@@ -65,9 +65,7 @@ public final class GrugServerRun {
     private static int gameSpeed = 1;
 
     /** How many times the hold put the player back on the floor, and when it last said so. */
-    private static long holds = 0;
-
-    private static long lastHoldReportMillis = 0;
+    private static final GrugPlayerFloor.HoldLog HOLD_LOG = new GrugPlayerFloor.HoldLog();
 
     private GrugServerRun() {}
 
@@ -254,39 +252,15 @@ public final class GrugServerRun {
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
                 runner = new GrugTestRunner();
-            } else if (GrugServerJoin.timedOut(
-                    waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS)) {
-                System.out.println("[GRUG CI] FAIL world readiness");
-                System.out.println(
-                        "[GRUG CI] No player joined the dedicated server within "
-                                + (PLAYER_JOIN_TIMEOUT_MILLIS / 1000)
-                                + " seconds, so the tests were not started.");
-                stop(1);
-                return;
             } else {
-                long now = System.currentTimeMillis();
-                if (!players.isEmpty() && now - lastReportMillis >= 5000) {
-                    lastReportMillis = now;
-                    PlayerEntity player = (PlayerEntity) players.get(0);
-                    System.out.println(
-                            "[GRUG CI] waiting for the world: player at "
-                                    + player.x
-                                    + ", "
-                                    + player.shape.minY
-                                    + ", "
-                                    + player.z);
-                }
+                failJoinTimeoutIfDue();
+                reportWaiting(players);
                 return;
             }
         }
 
         if (players.isEmpty() || !players.contains(GrugControlBeta.starterPlayer())) {
-            GrugControlBeta.server().onDisconnect(GrugControlBeta.server().starter());
-            System.out.println("[GRUG CI] FAIL the test player left");
-            System.out.println(
-                    "[GRUG CI] Every player disconnected from the dedicated server during the"
-                            + " run.");
-            stop(1);
+            failPlayerLeft();
             return;
         }
 
@@ -420,31 +394,79 @@ public final class GrugServerRun {
         if (!GrugPlayerFloor.below(feet, floor)) {
             return;
         }
-        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        holdOnFloor((ServerPlayerEntity) player, feet, floor);
+    }
+
+    /**
+     * The arm of the floor hold that puts the player back. The decision to enter it is core's
+     * {@link GrugPlayerFloor#below}, and the count, the throttle and the text of its report are
+     * core's {@link GrugPlayerFloor.HoldLog}, which core's unit tests cover.
+     */
+    @GrugGenerated(
+            "it runs only when the joined client has fallen into the ground, which the client's own"
+                    + " collision prevents and a test cannot make it do; the teleport and the call"
+                    + " of core's tested log are all that is in it (#1136)")
+    private static void holdOnFloor(ServerPlayerEntity serverPlayer, double feet, double floor) {
         serverPlayer.networkHandler.teleport(
                 serverPlayer.x, floor, serverPlayer.z, serverPlayer.yaw, serverPlayer.pitch);
         serverPlayer.velocityY = 0.0;
-        holds++;
-        long now = System.currentTimeMillis();
-        if (holds == 1 || now - lastHoldReportMillis >= 5000) {
-            lastHoldReportMillis = now;
-            System.out.println(
-                    "[GRUG CI] holding the test player on the floor at "
-                            + floor
-                            + ", up from "
-                            + feet
-                            + " (inside the ground)");
+        HOLD_LOG.record(System.out, floor, feet, System.currentTimeMillis());
+    }
+
+    /**
+     * Fails the run when no player joined in time, which only a failing run reaches. Every waiting
+     * tick calls it and core's {@link GrugServerJoin#timeoutReportIfDue} answers whether it is due.
+     */
+    @GrugGenerated(
+            "its failing arm ends the server process through stop, with the run failed: a test that"
+                    + " reached it would end the very run it is part of; the decision and the text"
+                    + " are core's tested GrugServerJoin.timeoutReportIfDue")
+    private static void failJoinTimeoutIfDue() {
+        String[] report =
+                GrugServerJoin.timeoutReportIfDue(
+                        waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS);
+        if (report == null) {
+            return;
         }
+        GrugServerJoin.print(System.out, report);
+        stop(1);
+    }
+
+    /**
+     * Says now and then that the run still waits for the world around a joined player. Core's
+     * {@link GrugServerJoin#waitReportDue} decides and words it; the read of the player's position
+     * is the game's.
+     */
+    @GrugGenerated(
+            "the report is due only after a joined player has waited five seconds for the world,"
+                    + " which depends on how long the client takes to load; the decision and the"
+                    + " text are core's tested GrugServerJoin.waitReportDue and waitMessage")
+    private static void reportWaiting(List<?> players) {
+        long now = System.currentTimeMillis();
+        if (!GrugServerJoin.waitReportDue(!players.isEmpty(), now, lastReportMillis)) {
+            return;
+        }
+        lastReportMillis = now;
+        PlayerEntity player = (PlayerEntity) players.get(0);
+        System.out.println(GrugServerJoin.waitMessage(player.x, player.shape.minY, player.z));
+    }
+
+    /** Fails the run because the starter left it, which only a failing run reaches. */
+    @GrugGenerated(
+            "it disconnects the starter in core's server and ends the server process through stop,"
+                    + " with the run failed: a test that reached it would end the very run it is"
+                    + " part of; the text is core's tested GrugServerJoin.everyoneLeftReport")
+    private static void failPlayerLeft() {
+        GrugControlBeta.server().onDisconnect(GrugControlBeta.server().starter());
+        GrugServerJoin.print(System.out, GrugServerJoin.everyoneLeftReport());
+        stop(1);
     }
 
     /** Ends the server process; a non-zero status says the run did not pass. */
     private static void stop(int status) {
         done = true;
         GrugControlBeta.server().endRun();
-        if (holds > 0) {
-            System.out.println(
-                    "[GRUG CI] The test player was held on the floor " + holds + " times.");
-        }
+        HOLD_LOG.printSummary(System.out);
         System.out.flush();
         System.exit(status);
     }
