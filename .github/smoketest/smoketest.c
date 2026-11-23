@@ -125,6 +125,7 @@ enum kind {
     K_ITEM_STACK,
     K_ITEM_ENTITY,
     K_ENTITY,
+    K_USE_CTX,
 };
 struct obj {
     enum kind kind;
@@ -1079,15 +1080,16 @@ static void on_block_placed(long x, long y, long z, const char* name) {
     long file = resolve_block(name);
     long slots = resolved_slots;
     if (file >= 0) make_be(x, y, z, file, slots);
-    else if (!strcmp(name, "minecraft:chest")) {
-        // The one vanilla block entity the committed tests place (chest_inventory-Test and
-        // inventory_size-Test assert its 27 slots, power-Test and expect_receive_energy_not_a_receiver-Test
-        // that it is no receiver). It has no script, so it never ticks.
+    else if (!strcmp(name, "minecraft:chest") || (file == BLOCK_NO_ENTITY && !strncmp(name, "grug:", 5))) {
+        // The vanilla chest (chest_inventory-Test and inventory_size-Test assert its 27 slots,
+        // power-Test and expect_receive_energy_not_a_receiver-Test that it is no receiver), and a grug
+        // block with no BlockEntity script, which still gets a block entity whose init finds no script
+        // (block_entity_no_script-Test). Neither has a script, so neither ticks.
         if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }
         struct be* b = &bes[nbes++];
         memset(b, 0, sizeof *b);
         b->live = true; b->x = x; b->y = y; b->z = z;
-        give_slots(b, 27);
+        give_slots(b, !strcmp(name, "minecraft:chest") ? 27 : slots);
     }
 }
 static void tick_bes(void) {
@@ -1874,6 +1876,74 @@ static union grug_value TTC_round_trip_nbt(ARGS) {
 REGISTER("TestTickContext", "round_trip_nbt", TTC_round_trip_nbt);
 
 // =============================================================================================
+// SECTION: Block use
+// =============================================================================================
+// use_block (use_block_effects-Test, use_block_faces-Test, decline_use-Test, decline_use_places-Test): a
+// click on a block runs the block's use export; a block that declines (decline_use) or has no use export
+// leaves the click to the held item, which is placed against the clicked face. The face is the one the test
+// player's eye sees: the eye is three blocks below the origin, and the face is the one the line from the eye
+// to the block's centre enters, which is the axis of the largest distance. Nothing opens a screen, so a test
+// that then waits for one still fails on screen_open or a GUI call it needs; this models the no-screen click.
+static uint64_t block_use_fn;
+static struct grug_file_info* block_file_of(const char* name) {
+    if (strncmp(name, "grug:", 5)) return NULL;
+    for (size_t i = 0; i < G.f.len; i++) {
+        struct grug_file_info* fi = &G.f.ptr[i];
+        if (fi->file_id != UINT64_MAX && fi->entity_type && !strcmp(fi->entity_type, "Block") && !strcmp(fi->entity_name, name + 5)) return fi;
+    }
+    return NULL;  // SMOKETEST_EXCL: every committed click is on a grug block, so no test clicks a block with no script
+}
+static union grug_value BUC_decline_use(ARGS) {
+    UNUSED;
+    struct obj* c = get_obj(a[0]._id, K_USE_CTX);
+    if (!c) return fail("BlockUseContext.decline_use: not a BlockUseContext");  // SMOKETEST_EXCL: no committed test
+    c->has = true;
+    return none();
+}
+REGISTER("BlockUseContext", "decline_use", BUC_decline_use);
+// Where a click on the block at (x, y, z) places the held block: the neighbour across the face the eye sees.
+static void use_face(long x, long y, long z, long out[3]) {
+    double dx = x + 0.5 - origin_x, dy = y + 0.5 - (origin_y - 3), dz = z + 0.5 - origin_z;
+    double ax = fabs(dx), ay = fabs(dy), az = fabs(dz);
+    out[0] = x; out[1] = y; out[2] = z;
+    if (ay >= ax && ay >= az) out[1] += dy > 0 ? -1 : 1;
+    else if (ax >= az) out[0] += dx > 0 ? -1 : 1;
+    else out[2] += dz > 0 ? -1 : 1;  // SMOKETEST_EXCL: no committed test clicks a block whose largest distance from the eye is along z
+}
+static union grug_value TTC_use_block(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.use_block: not a Level");  // SMOKETEST_EXCL: no committed test
+    // pos_arg reads the coordinates from a[1..3], so shift by one.
+    union grug_value shifted[4] = {a[1], a[2], a[3], a[4]};
+    if (!pos_arg(shifted, p, "TestTickContext.use_block")) return none();  // SMOKETEST_EXCL: no committed test clicks a non-finite position
+    struct block* b = find_block(p[0], p[1], p[2]);
+    const char* name = b ? b->name : "minecraft:air";
+    bool handled = false;
+    struct grug_file_info* fi = block_file_of(name);
+    if (fi) {
+        void* ent = grug_create_entity(g_state, fi->file_id);
+        uint64_t c = new_obj(K_USE_CTX);
+        union grug_value args[6] = {id(c), a[1], num(a[2]._number), num(a[3]._number), num(a[4]._number), id(new_obj(K_PLAYER))};
+        bool ran = call_export(ent, block_use_fn, args, 6, NULL);
+        handled = ran && !objs[c - 1].has;
+        grug_deinit_entity(g_state, ent);
+    }
+    if (handled || !held_has) return none();
+    long at[3];
+    use_face(p[0], p[1], p[2], at);
+    if (!strcmp(objs[held_item_id - 1].str, "minecraft:cobblestone")) {
+        struct block* t = find_block(at[0], at[1], at[2]);
+        if (!t || !strcmp(t->name, "minecraft:air")) {
+            set_block(at[0], at[1], at[2], "minecraft:cobblestone");
+            on_block_placed(at[0], at[1], at[2], "minecraft:cobblestone");
+        }
+    } else stubbed = true;  // SMOKETEST_EXCL: no committed test holds another vanilla item for a declined click; whether it places is the game's
+    return none();
+}
+REGISTER("TestTickContext", "use_block", TTC_use_block);
+
+// =============================================================================================
 // SECTION: Item entities
 // =============================================================================================
 // Item entities (item_entity-Test, count_item_entities-Test): one record per item_entity call, whose
@@ -2546,6 +2616,7 @@ int main(int argc, char** argv) {
     if (!strcmp(argv[2], "--compile-only")) { grug_deinit(g_state); return bad ? 1 : 0; }
     G.f = files;
     G.block_init = grug_get_on_fn_id(g_state, "Block", "init");
+    block_use_fn = grug_get_on_fn_id(g_state, "Block", "use");
     G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
     G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
     be_inserted_fn = grug_get_on_fn_id(g_state, "BlockEntity", "item_inserted");
