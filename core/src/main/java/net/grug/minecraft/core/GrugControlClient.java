@@ -72,6 +72,15 @@ public final class GrugControlClient {
          */
         boolean isWorldSettled();
 
+        /**
+         * Whether this client's own copy of the world holds the block ids the server's checksum
+         * describes in the box (#1664). A loader whose client shares the server's world, or that
+         * has not wired the check yet, holds them by construction.
+         */
+        default boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+            return true;
+        }
+
         /** Forgets the frames the settle answer counts, so it waits for frames drawn from now. */
         void forgetSettledFrames();
 
@@ -237,6 +246,11 @@ public final class GrugControlClient {
             @Override
             public boolean isWorldSettled() {
                 return adapter.get().isWorldSettled();
+            }
+
+            @Override
+            public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+                return adapter.get().holdsBlockRegion(expected);
             }
 
             @Override
@@ -415,6 +429,9 @@ public final class GrugControlClient {
      */
     private long seenRevision = Long.MIN_VALUE;
 
+    /** The blocks the server's test placed that this client has not yet been seen to hold. */
+    private GrugBlockRegion.Expected owedRegion;
+
     /**
      * @param dropWidth fault injection for CI: a request whose rectangle is this wide is never
      *     answered, which is how a run makes the server time out. Negative disables it.
@@ -478,6 +495,7 @@ public final class GrugControlClient {
     public void beginRun() {
         runActive = true;
         seenRevision = Long.MIN_VALUE;
+        owedRegion = null;
         System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
         link.send(GrugControlWire.runStart());
     }
@@ -489,6 +507,7 @@ public final class GrugControlClient {
     public void endRun() {
         runActive = false;
         seenRevision = Long.MIN_VALUE;
+        owedRegion = null;
         held.set(null);
     }
 
@@ -762,13 +781,23 @@ public final class GrugControlClient {
         GrugFrameRequest.request();
         // The revision travels in the volume slot; see GrugControlWire.worldSettledRequest.
         long revision = (long) message.volume;
+        // Each ask restates the checksum of the server's world now, so a block the game changed
+        // after the test placed it does not leave the client waiting for the old one.
+        GrugBlockRegion.Expected sent = GrugBlockRegion.decode(message.text);
+        if (sent != null) {
+            owedRegion = sent;
+        }
         if (revision != seenRevision) {
             seenRevision = revision;
             caller.forgetSettledFrames();
             link.send(GrugControlWire.answerValue(message.id, (byte) 0));
             return;
         }
-        boolean settled = caller.isWorldSettled();
+        boolean holds = caller.holdsBlocks(owedRegion);
+        if (holds) {
+            owedRegion = null;
+        }
+        boolean settled = caller.isWorldSettled() && holds;
         link.send(GrugControlWire.answerValue(message.id, (byte) (settled ? 1 : 0)));
     }
 

@@ -1160,6 +1160,15 @@ public final class GrugControlServer {
      * an early send is what a later test's client saw (#1078).
      */
     public boolean worldSettled() throws ControlException {
+        return worldSettled("");
+    }
+
+    /**
+     * As {@link #worldSettled()}, asking the client to also hold the blocks {@code region}
+     * describes ({@link GrugBlockRegion#ask}): a joined client's world is its own copy, which the
+     * test's placements reach in packets (#1664).
+     */
+    public boolean worldSettled(String region) throws ControlException {
         Object to = starter.get();
         if (to == null) {
             throw new ControlException(
@@ -1177,8 +1186,13 @@ public final class GrugControlServer {
         byte result;
         try {
             result =
-                    forward(GrugControlWire.CALL_WORLD_SETTLED, "", revision, 0, 0, Answer.VALUE)[
-                            0];
+                    forward(
+                            GrugControlWire.CALL_WORLD_SETTLED,
+                            region,
+                            revision,
+                            0,
+                            0,
+                            Answer.VALUE)[0];
         } catch (ControlException e) {
             FAILED.set(true);
             throw e;
@@ -1536,7 +1550,7 @@ public final class GrugControlServer {
             // those changes.
             byte[] message =
                     call == GrugControlWire.CALL_WORLD_SETTLED
-                            ? GrugControlWire.worldSettledRequest(id, (long) volume)
+                            ? GrugControlWire.worldSettledRequest(id, (long) volume, name)
                             : GrugControlWire.callRequest(
                                     id, call, name, volume, pitch, third, fourth, fifth, sixth);
             System.out.println(

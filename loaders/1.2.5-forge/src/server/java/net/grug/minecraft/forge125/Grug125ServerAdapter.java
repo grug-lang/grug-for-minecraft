@@ -2,6 +2,7 @@ package net.grug.minecraft.forge125;
 
 import cpw.mods.fml.server.FMLServerHandler;
 
+import net.grug.minecraft.core.GrugBlockRegion;
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
@@ -581,7 +582,14 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         boolean clientSettled = false;
         if (!owed) {
             try {
-                clientSettled = GrugControlServer125.server().worldSettled();
+                World level = (World) getLevel();
+                clientSettled =
+                        GrugControlServer125.server()
+                                .worldSettled(
+                                        placedRegion.ask((x, y, z) -> level.getBlockId(x, y, z)));
+                if (clientSettled) {
+                    placedRegion.answeredSettled();
+                }
             } catch (GrugControlServer.ControlException e) {
                 Grug.hostFunctionErrorHappened(
                         Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
@@ -602,7 +610,14 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         super.placeBlock(levelObj, x, y, z, blockName);
         lightResend.noteBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        placedRegion.note((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
+
+    /**
+     * The box of blocks a test placed that the joined client has not been seen to hold, sent with
+     * the settle ask so the client's own copy is compared with this server's (#1664).
+     */
+    private final GrugBlockRegion placedRegion = new GrugBlockRegion();
 
     /**
      * Sends the joined client this server's light for the blocks a test changed, once the tick that

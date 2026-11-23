@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125;
 
+import net.grug.minecraft.core.GrugBlockRegion;
 import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
@@ -323,6 +324,20 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         return renderSettle.settledNow(
                 frameHadPendingWork(ModLoader.getMinecraftInstance()),
                 blockSync.settled((x, y, z) -> getBlock(simulated, x, y, z)));
+    }
+
+    /**
+     * The joined client's own world is a copy the server's placements reach in packets, so the
+     * settle ask carries a checksum of the block ids the test placed and this client answers false
+     * until its world has them (#1664). A level that is not there yet holds nothing.
+     */
+    @Override
+    public boolean holdsBlockRegion(GrugBlockRegion.Expected expected) {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        return GrugBlockRegion.holds(
+                expected,
+                (x, y, z) ->
+                        minecraft.theWorld == null ? 0 : minecraft.theWorld.getBlockId(x, y, z));
     }
 
     @Override

@@ -620,7 +620,16 @@ public final class GrugControlWire {
      * holds a whole number exactly, so the call's volume slot carries it without loss.
      */
     public static byte[] worldSettledRequest(long id, long revision) {
-        return callRequest(id, CALL_WORLD_SETTLED, "", (double) revision, 0, 0);
+        return worldSettledRequest(id, revision, "");
+    }
+
+    /**
+     * As {@link #worldSettledRequest(long, long)}, with the text of {@link GrugBlockRegion#encode}
+     * in the name slot: the box of blocks the test placed and the server's checksum of it, which
+     * the client's copy has to match before it answers settled (#1664). Empty for no placements.
+     */
+    public static byte[] worldSettledRequest(long id, long revision, String region) {
+        return callRequest(id, CALL_WORLD_SETTLED, region, (double) revision, 0, 0);
     }
 
     public static byte[] runStart() {

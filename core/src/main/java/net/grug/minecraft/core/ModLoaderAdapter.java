@@ -663,6 +663,16 @@ public interface ModLoaderAdapter {
     boolean isWorldSettled();
 
     /**
+     * Whether this client's own copy of the world holds the block ids {@code expected} describes,
+     * which the server's settle ask sends for the blocks its test placed (#1664). A null
+     * expectation is held. The default holds, for a loader whose client shares the server's world
+     * or has not wired the check yet.
+     */
+    default boolean holdsBlockRegion(GrugBlockRegion.Expected expected) {
+        return true;
+    }
+
+    /**
      * The block light of the section a position falls in, in the client's own copy of the world, as
      * {@link GrugLightSync#lightFingerprint}, {@link GrugClientLight#CANNOT_VERIFY} when this
      * adapter holds a section it cannot reproduce, or {@link GrugClientLight#NOT_RECEIVED} when the
