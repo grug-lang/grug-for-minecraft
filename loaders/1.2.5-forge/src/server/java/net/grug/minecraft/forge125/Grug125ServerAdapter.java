@@ -32,6 +32,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
+import net.minecraft.src.ChunkCoordIntPair;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
@@ -590,9 +591,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                                 .worldSettled(
                                         placedRegion.ask(
                                                 (x, y, z) -> level.getBlockId(x, y, z),
-                                                (cx, cz) ->
-                                                        level.getChunkProvider()
-                                                                .chunkExists(cx, cz)));
+                                                (cx, cz) -> clientHasOrWillGet(level, cx, cz)));
                 if (clientSettled) {
                     placedRegion.answeredSettled();
                 }
@@ -617,6 +616,19 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         super.placeBlock(levelObj, x, y, z, blockName);
         lightResend.noteBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
         placedRegion.note((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    /**
+     * Whether the joined client holds the chunk or will be sent it: the server has it loaded and
+     * the starter is listening to it, which is what {@code PlayerInstance.addPlayer} records when
+     * it sends the pre-chunk packet and {@code removePlayer} undoes. A chunk outside the player's
+     * view is never sent, so a placement there must not be waited for (#804, #1664).
+     */
+    private static boolean clientHasOrWillGet(World level, int cx, int cz) {
+        EntityPlayerMP starter = GrugControlServer125.starterPlayer();
+        return starter != null
+                && level.getChunkProvider().chunkExists(cx, cz)
+                && starter.listeningChunks.contains(new ChunkCoordIntPair(cx, cz));
     }
 
     /**
