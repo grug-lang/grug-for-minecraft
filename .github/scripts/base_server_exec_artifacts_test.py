@@ -47,23 +47,32 @@ class PickTest(unittest.TestCase):
     def test_an_empty_listing_carries_nothing(self):
         self.assertEqual(mod.pick({})[0], [])
 
-    def test_the_newest_run_with_a_live_server_exec_wins(self):
-        runs = [{"id": 3}, {"id": 2}, {"id": 1}]
+    def test_each_loaders_newest_artifact_wins_and_a_run_supplies_only_what_is_new(self):
+        runs = [{"id": 4}, {"id": 3}, {"id": 2}, {"id": 1}]
         listings = {
-            3: {"artifacts": [art("coverage-exec-core")]},
-            2: {"artifacts": [art("server-exec-a")]},
-            1: {"artifacts": [art("server-exec-b")]},
+            4: {"artifacts": [art("coverage-exec-core")]},
+            3: {"artifacts": [art("server-exec-a")]},
+            2: {"artifacts": [art("server-exec-a"), art("server-exec-b")]},
+            1: {"artifacts": [art("server-exec-b"), art("server-exec-c")]},
         }
-        run, pairs = mod.choose_run(runs, lambda run_id: listings[run_id])
-        self.assertEqual(run["id"], 2)
-        self.assertEqual([name for name, _ in pairs], ["server-exec-a"])
+        chosen = mod.choose_runs(runs, lambda run_id: listings[run_id])
+        self.assertEqual(
+            [(r["id"], [n for n, _ in pairs]) for r, pairs in chosen],
+            [(3, ["server-exec-a"]), (2, ["server-exec-b"]), (1, ["server-exec-c"])],
+        )
+
+    def test_the_walk_stops_once_every_wanted_artifact_is_found(self):
+        runs = [{"id": 2}, {"id": 1}]
+        listings = {2: {"artifacts": [art("server-exec-a")]}}
+        chosen = mod.choose_runs(runs, listings.__getitem__, {"server-exec-a"})
+        self.assertEqual([r["id"] for r, _ in chosen], [2])
 
     def test_no_run_with_a_live_server_exec_returns_nothing(self):
         listings = {1: {"artifacts": [art("server-exec-a", True)]}, 2: {}}
-        self.assertEqual(mod.choose_run([{"id": 2}, {"id": 1}], listings.get), (None, []))
-        self.assertEqual(mod.choose_run([], listings.get), (None, []))
+        self.assertEqual(mod.choose_runs([{"id": 2}, {"id": 1}], listings.get), [])
+        self.assertEqual(mod.choose_runs([], listings.get), [])
 
-    def test_candidates_are_recent_completed_dispatch_or_schedule_runs_newest_first(self):
+    def test_candidates_are_recent_completed_dispatch_schedule_or_push_runs_newest_first(self):
         now = mod.parse_time("2026-11-23T12:00:00Z")
 
         def run(id, event, created, status="completed"):
@@ -78,13 +87,13 @@ class PickTest(unittest.TestCase):
                 run(5, "workflow_dispatch", "2026-11-23T11:00:00Z", "in_progress"),
             ]
         }
-        self.assertEqual([r["id"] for r in mod.candidate_runs(listing, now)], [3, 2])
+        self.assertEqual([r["id"] for r in mod.candidate_runs(listing, now)], [1, 3, 2])
         many = {
             "workflow_runs": [
                 run(n, "schedule", f"2026-11-23T{n % 24:02d}:00:00Z") for n in range(30)
             ]
         }
-        self.assertEqual(len(mod.candidate_runs(many, now)), 10)
+        self.assertEqual(len(mod.candidate_runs(many, now)), 20)
 
     def test_main_never_fails_when_the_lookup_does(self):
         err = io.StringIO()
