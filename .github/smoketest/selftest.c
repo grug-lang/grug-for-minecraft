@@ -171,6 +171,40 @@ static void test_match_recipe(void) {
     CHECK(match_recipe(rs, 3, empty) == NULL, "an empty grid matches nothing");
 }
 
+static void test_double_text(void) {
+    char m[64];
+    struct { double v; const char* want; } cases[] = {
+        {0.0, "0.0"}, {-0.0, "-0.0"}, {128, "128.0"}, {100, "100.0"}, {-3, "-3.0"}, {1.5, "1.5"}, {0.001, "0.001"},
+        {1e7, "1.0E7"}, {2147483648.0, "2.147483648E9"}, {1e-4, "1.0E-4"}, {1.5e300, "1.5E300"},
+        {NAN, "NaN"}, {INFINITY, "Infinity"}, {-INFINITY, "-Infinity"},
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof *cases; i++) {
+        double_text(cases[i].v, m, sizeof m);
+        CHECK(!strcmp(m, cases[i].want), "Double.toString(%g) is %s, got %s", cases[i].v, cases[i].want, m);
+    }
+}
+
+static void test_nbt_helpers(void) {
+    char m[256];
+    // Messages and verdicts mirror GrugBlockEntityNbt.parsePath and checkValue.
+    CHECK(!nbt_path_problem("GrugNumbers.0.Value", m, sizeof m), "a path of keys and an index is fine");
+    CHECK(nbt_path_problem("a..b", m, sizeof m) && !strcmp(m, "The path \"a..b\" has an empty part."), "%s", m);
+    CHECK(nbt_path_problem("", m, sizeof m) && !strcmp(m, "The path \"\" has an empty part."), "%s", m);
+    CHECK(nbt_path_problem("0.a", m, sizeof m) && !strcmp(m, "The path \"0.a\" has an index that does not follow a key."), "%s", m);
+    CHECK(nbt_path_problem("a.1.2.b", m, sizeof m) && !strcmp(m, "The path \"a.1.2.b\" has an index that does not follow a key."), "%s", m);
+    CHECK(nbt_path_problem("a.1234567890.b", m, sizeof m) && !strcmp(m, "The index 1234567890 in the path \"a.1234567890.b\" is too large."), "%s", m);
+    CHECK(!nbt_path_problem("a.123456789.b", m, sizeof m), "nine digits is the largest index");
+    CHECK(nbt_path_problem("a.1", m, sizeof m) && !strcmp(m, "The path \"a.1\" has to end in a key, not an index."), "%s", m);
+    CHECK(!nbt_value_problem("float", 0.5, m, sizeof m) && !nbt_value_problem("double", -1e300, m, sizeof m), "a float or a double takes any number");
+    CHECK(!nbt_value_problem("byte", 127, m, sizeof m) && !nbt_value_problem("byte", -128, m, sizeof m), "byte bounds are in");
+    CHECK(nbt_value_problem("byte", 128, m, sizeof m) && !strcmp(m, "A byte has to be a whole number from -128 to 127, not 128.0."), "%s", m);
+    CHECK(nbt_value_problem("short", 1.5, m, sizeof m) && !strcmp(m, "A short has to be a whole number from -32768 to 32767, not 1.5."), "%s", m);
+    CHECK(nbt_value_problem("int", 2147483648.0, m, sizeof m) && !strcmp(m, "A int has to be a whole number from -2147483648 to 2147483647, not 2.147483648E9."), "%s", m);
+    CHECK(nbt_value_problem("long", 1.5, m, sizeof m) && !strcmp(m, "A long has to be a whole number from -9223372036854775808 to 9223372036854775807, not 1.5."), "%s", m);
+    CHECK(!nbt_value_problem("long", 9223372036854775807.0, m, sizeof m), "2^63 passes, as Java's double comparison does");
+    CHECK(nbt_value_problem("int", NAN, m, sizeof m), "NaN is not whole");
+}
+
 int main(void) {
     test_random();
     test_strict_log();
@@ -178,6 +212,8 @@ int main(void) {
     test_number_text();
     test_code_points();
     test_match_recipe();
+    test_double_text();
+    test_nbt_helpers();
     printf("selftest: %d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;
 }

@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 // The parts of grug.h this host uses. grug.h itself is not valid C, so the declarations are
 // repeated, as core/src/main/native/adapter.c repeats them. The layouts mirror the pinned revision.
@@ -344,6 +345,40 @@ static union grug_value Level_place_block(ARGS) {
     return none();
 }
 REGISTER("Level", "place_block", Level_place_block);
+// explode (explode-Test, expect_explode_*-Test): the argument checks are the host's, and the blast itself is the
+// game's, which is random. The smoketest destroys every block whose centre is within the power of the
+// blast centre, which is all explode-Test asserts (glass next to a power 3 blast goes, glass 12 away stays),
+// so a pass is STUBBED.
+static void double_text(double v, char* out, size_t cap);
+static union grug_value Level_explode(ARGS) {
+    UNUSED;
+    static const char* const names[4] = {"x", "y", "z", "power"};
+    char text[400];
+    for (int i = 0; i < 4; i++)
+        if (!isfinite(a[1 + i]._number)) {
+            double_text(a[1 + i]._number, text, sizeof text);
+            return fail("explode: %s must be finite, got %s", names[i], text);
+        }
+    double power = a[4]._number;
+    if (power < 0 || power > 3.4028234663852886e38) {
+        double_text(power, text, sizeof text);
+        return fail("explode: power must be from 0 to 3.4028235E38, got %s", text);
+    }
+    stubbed = true;
+    struct { long x, y, z; }* hit = xmalloc((nworld + 1) * sizeof *hit);  // set_block below must not disturb the walk
+    size_t n = 0;
+    for (size_t i = 0; i < nworld; i++) {
+        double dx = (double)world[i].x + 0.5 - a[1]._number, dy = (double)world[i].y + 0.5 - a[2]._number, dz = (double)world[i].z + 0.5 - a[3]._number;
+        if (strcmp(world[i].name, "minecraft:air") && sqrt(dx * dx + dy * dy + dz * dz) <= power) { hit[n].x = world[i].x; hit[n].y = world[i].y; hit[n].z = world[i].z; n++; }
+    }
+    for (size_t i = 0; i < n; i++) {
+        set_block(hit[i].x, hit[i].y, hit[i].z, "minecraft:air");
+        on_block_placed(hit[i].x, hit[i].y, hit[i].z, "minecraft:air");
+    }
+    free(hit);
+    return none();
+}
+REGISTER("Level", "explode", Level_explode);
 // has_neighbor_signal (redstone_signal-Test, redstone_engine-Test, wooden_pipe-Test): a redstone torch gives
 // off a signal to the block above it. A torch at any other side, or another redstone part, has no test
 // that settles what it does, so such a neighbour marks the test stubbed.
@@ -596,13 +631,12 @@ static union grug_value String_concat(ARGS) {
     return str(keep(s));
 }
 REGISTER("String", "concat", String_concat);
-// The text of a number as the adapter writes it: a whole number as a plain integer (BigDecimal's exact
-// expansion), anything else as Double.toString, the shortest digits that read back as the same double,
-// plain between 1e-3 and 1e7 and as d.dddE+x outside it.
-static void number_text(double v, char* out, size_t cap) {
+// Java's Double.toString: the shortest digits that read back as the same double, plain between 1e-3 and
+// 1e7 and as d.dddE+x outside it. This is what a Java string concatenation of a double writes.
+static void double_text(double v, char* out, size_t cap) {
     if (isnan(v)) { snprintf(out, cap, "NaN"); return; }
     if (isinf(v)) { snprintf(out, cap, v > 0 ? "Infinity" : "-Infinity"); return; }
-    if (v == rint(v)) { snprintf(out, cap, v == 0 ? "0" : "%.0f", v); return; }
+    if (v == 0) { snprintf(out, cap, signbit(v) ? "-0.0" : "0.0"); return; }
     char e[40];
     // Java picks the closest of the two-digit texts when one digit would do (4.9E-324, not 5.0E-324),
     // so the search starts at two digits and a trailing zero is dropped afterwards.
@@ -626,8 +660,8 @@ static void number_text(double v, char* out, size_t cap) {
         if (e10 >= 0) {
             for (int k = 0; k <= e10; k++) *w++ = (size_t)k < nd ? digits[k] : '0';
             *w++ = '.';
-            if ((size_t)e10 + 1 < nd) { memcpy(w, digits + e10 + 1, nd - (size_t)e10 - 1); w += nd - (size_t)e10 - 1; }  // SMOKETEST_EXCL_BRANCH: a non-whole number below 1e7 always has digits after its point
-            else *w++ = '0';  // SMOKETEST_EXCL: unreachable, for the reason on the line above
+            if ((size_t)e10 + 1 < nd) { memcpy(w, digits + e10 + 1, nd - (size_t)e10 - 1); w += nd - (size_t)e10 - 1; }
+            else *w++ = '0';
         } else {
             *w++ = '0'; *w++ = '.';
             for (int k = 0; k < -e10 - 1; k++) *w++ = '0';
@@ -639,6 +673,12 @@ static void number_text(double v, char* out, size_t cap) {
         if (nd > 1) { memcpy(w, digits + 1, nd - 1); w += nd - 1; } else *w++ = '0';
         snprintf(w, cap - (size_t)(w - out), "E%d", e10);
     }
+}
+// The text of a number as the adapter writes it: a whole number as a plain integer (BigDecimal's exact
+// expansion), anything else as Double.toString.
+static void number_text(double v, char* out, size_t cap) {
+    if (isfinite(v) && v == rint(v)) { snprintf(out, cap, v == 0 ? "0" : "%.0f", v); return; }
+    double_text(v, out, cap);
 }
 static union grug_value String_from_number(ARGS) {
     UNUSED;
@@ -1968,6 +2008,232 @@ static union grug_value Level_find_item_entity(ARGS) {
 }
 REGISTER("Level", "find_item_entity", Level_find_item_entity);
 
+// Mod file states (the hot_reload*-Test files, expect_set_mod_file_state_*-Test). The real call rewrites the
+// file on disk and the engine's watcher reports the change; the smoketest rewrites nothing (a test must
+// never disturb the repository's mods) and counts a change per call that would have disturbed a file, which is
+// all the tests' wait loops read. The reload itself is not run, so every test that calls it is STUBBED.
+struct modfile { const char* path; double changes; bool disturbed; };
+static struct modfile* modfiles;
+static size_t nmodfiles, capmodfiles;
+static void clear_mod_files(void) { nmodfiles = 0; }
+static struct modfile* modfile_of(const char* path, bool create) {
+    for (size_t i = 0; i < nmodfiles; i++) if (!strcmp(modfiles[i].path, path)) return &modfiles[i];
+    if (!create) return NULL;
+    if (nmodfiles == capmodfiles) { capmodfiles = capmodfiles ? capmodfiles * 2 : 8; modfiles = xrealloc(modfiles, capmodfiles * sizeof *modfiles); }
+    modfiles[nmodfiles] = (struct modfile){keep(xstrdup(path)), 0, false};
+    return &modfiles[nmodfiles++];
+}
+static union grug_value TTC_set_mod_file_state(ARGS) {
+    UNUSED;
+    const char* path = a[1]._string; const char* state = a[2]._string;
+    bool normal = !strcmp(state, "normal"), deleted = !strcmp(state, "deleted");
+    if (!normal && !deleted && strcmp(state, "invalid") && strcmp(state, "no_trailing_newline") && strcmp(state, "swapped"))
+        return fail("TestTickContext.set_mod_file_state: java.lang.IllegalArgumentException: Unknown mod file state '%s'. Expected \"normal\", \"invalid\", \"no_trailing_newline\", \"deleted\" or \"swapped\".", state);
+    stubbed = true;
+    char full[4096];
+    snprintf(full, sizeof full, "%s/%s", g_mods_dir, path);
+    if (!normal && !deleted && access(full, R_OK) != 0) return fail("TestTickContext.set_mod_file_state: java.nio.file.NoSuchFileException: %s", full);
+    struct modfile* m = modfile_of(path, true);
+    if (normal && !m->disturbed) return none();  // nothing disturbed the file, so nothing is put back
+    m->disturbed = !normal;
+    m->changes++;
+    return none();
+}
+REGISTER("TestTickContext", "set_mod_file_state", TTC_set_mod_file_state);
+static union grug_value TTC_hot_reload_count(ARGS) {
+    UNUSED;
+    struct modfile* m = modfile_of(a[1]._string, false);
+    return num(m ? m->changes : 0);
+}
+REGISTER("TestTickContext", "hot_reload_count", TTC_hot_reload_count);
+
+// No smoketest call opens a screen (use_block, which opens a block's GUI, is not modelled), so the
+// answer is always closed, which is what screen_open-Test asserts after close_screen. A test that waits
+// for a screen to open stops earlier, at the use_block it needs.
+static union grug_value TTC_screen_open(ARGS) { UNUSED; return boolean(false); }
+REGISTER("TestTickContext", "screen_open", TTC_screen_open);
+
+// Block entity NBT edits (block_entity_nbt-Test, expect_nbt_*-Test, expect_extract_item_into_no_slot-Test).
+// set_nbt_number stages an edit and load_nbt applies the staged edits to the NBT the block entity would
+// write. The smoketest holds no NBT tree, so it models only what a grug block entity's NBT is made of
+// that the committed tests edit: GrugInvSize (the inventory size), GrugNumbers (the saved numbers
+// sorted by name, as a list of Name and Value compounds) and GrugLists (the saved lists sorted by name, each
+// with Records holding Numbers sorted by name and an Item). A path into anything else is a key no grug
+// block entity reads, which the real load drops, and a path the model cannot place marks the run STUBBED.
+// SMOKETEST_EXCL_START: the validation helpers are reached by selftest.c, which proves every message against GrugBlockEntityNbt; no committed test stages a bad type, value or path
+static bool nbt_is_index(const char* p, size_t n) {
+    if (!n) return false;
+    for (size_t i = 0; i < n; i++) if (p[i] < '0' || p[i] > '9') return false;
+    return true;
+}
+// Why a dotted path is not a path (the Java parsePath messages), or false when it is one.
+static bool nbt_path_problem(const char* path, char* out, size_t cap) {
+    bool prev_index = false, first = true;
+    const char* p = path;
+    for (;;) {
+        const char* dot = strchr(p, '.');
+        size_t n = dot ? (size_t)(dot - p) : strlen(p);
+        if (!n) { snprintf(out, cap, "The path \"%s\" has an empty part.", path); return true; }
+        bool idx = nbt_is_index(p, n);
+        if (idx && (first || prev_index)) { snprintf(out, cap, "The path \"%s\" has an index that does not follow a key.", path); return true; }
+        if (idx && n > 9) { snprintf(out, cap, "The index %.*s in the path \"%s\" is too large.", (int)n, p, path); return true; }
+        prev_index = idx; first = false;
+        if (!dot) break;
+        p = dot + 1;
+    }
+    if (prev_index) { snprintf(out, cap, "The path \"%s\" has to end in a key, not an index.", path); return true; }
+    return false;
+}
+// Why a value does not fit its NBT type (the Java checkValue message), or false when it does.
+static bool nbt_value_problem(const char* type, double v, char* out, size_t cap) {
+    double lo, hi;
+    if (!strcmp(type, "byte")) { lo = -128; hi = 127; }
+    else if (!strcmp(type, "short")) { lo = -32768; hi = 32767; }
+    else if (!strcmp(type, "int")) { lo = -2147483648.0; hi = 2147483647.0; }
+    else if (!strcmp(type, "long")) { lo = -9223372036854775808.0; hi = 9223372036854775807.0; }
+    else return false;
+    if (v == rint(v) && v >= lo && v <= hi) return false;
+    char vt[64], lot[32], hit[32];
+    double_text(v, vt, sizeof vt);
+    snprintf(lot, sizeof lot, "%.0f", lo);
+    // Java casts the bounds to long, which saturates 2^63 to Long.MAX_VALUE
+    snprintf(hit, sizeof hit, "%s", !strcmp(type, "long") ? "9223372036854775807" : "");
+    if (!hit[0]) snprintf(hit, sizeof hit, "%.0f", hi);
+    snprintf(out, cap, "A %s has to be a whole number from %s to %s, not %s.", type, lot, hit, vt);
+    return true;
+}
+// SMOKETEST_EXCL_STOP
+struct nbt_edit { size_t be; char* path; double value; bool is_item; uint64_t item; };
+static struct nbt_edit* nbt_staged;
+static size_t nnbt_staged, capnbt_staged;
+static void clear_nbt(void) {
+    for (size_t i = 0; i < nnbt_staged; i++) free(nbt_staged[i].path);
+    nnbt_staged = 0;
+}
+static void nbt_stage(struct be* b, const char* path, double value, bool is_item, uint64_t item) {
+    if (nnbt_staged == capnbt_staged) { capnbt_staged = capnbt_staged ? capnbt_staged * 2 : 8; nbt_staged = xrealloc(nbt_staged, capnbt_staged * sizeof *nbt_staged); }
+    nbt_staged[nnbt_staged++] = (struct nbt_edit){(size_t)(b - bes), xstrdup(path), value, is_item, item};
+}
+static union grug_value TTC_set_nbt_number(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[1]._id);
+    if (!b) return fail("TestTickContext.set_nbt_number: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    const char* type = a[3]._string;
+    char msg[512];
+    if (strcmp(type, "byte") && strcmp(type, "short") && strcmp(type, "int") && strcmp(type, "long") && strcmp(type, "float") && strcmp(type, "double"))
+        return fail("TestTickContext.set_nbt_number: The type has to be one of [byte, short, int, long, float, double], not \"%s\".", type);  // SMOKETEST_EXCL: no committed test stages a bad type
+    if (nbt_value_problem(type, a[4]._number, msg, sizeof msg)) return fail("TestTickContext.set_nbt_number: %s", msg);  // SMOKETEST_EXCL: no committed test stages a bad value
+    if (nbt_path_problem(a[2]._string, msg, sizeof msg)) return fail("TestTickContext.set_nbt_number: %s", msg);  // SMOKETEST_EXCL: no committed test stages a bad path
+    nbt_stage(b, a[2]._string, a[4]._number, false, 0);
+    return none();
+}
+REGISTER("TestTickContext", "set_nbt_number", TTC_set_nbt_number);
+static union grug_value TTC_set_nbt_item(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[1]._id);
+    if (!b) return fail("TestTickContext.set_nbt_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    char msg[512];
+    if (nbt_path_problem(a[2]._string, msg, sizeof msg)) return fail("TestTickContext.set_nbt_item: %s", msg);  // SMOKETEST_EXCL: no committed test stages a bad path
+    nbt_stage(b, a[2]._string, 0, true, a[3]._id);
+    return none();
+}
+REGISTER("TestTickContext", "set_nbt_item", TTC_set_nbt_item);
+static int cmp_numbers_by_name(const void* l, const void* r) { return strcmp(((const struct kv*)l)->k, ((const struct kv*)r)->k); }
+static int cmp_lists_by_name(const void* l, const void* r) { return strcmp(((const struct list*)l)->name, ((const struct list*)r)->name); }  // SMOKETEST_EXCL: the only committed edit of a list's record has one list on the block entity, so no comparison runs
+// The saved number at an index of the numbers sorted by name, or NULL.
+static struct kv* nth_number_by_name(struct kv* nums, size_t n, size_t i) {
+    struct kv* tmp = xmalloc((n + 1) * sizeof *tmp);
+    memcpy(tmp, nums, n * sizeof *tmp);
+    qsort(tmp, n, sizeof *tmp, cmp_numbers_by_name);
+    struct kv* hit = NULL;
+    for (size_t j = 0; j < n && i < n; j++) if (nums[j].k == tmp[i].k) hit = &nums[j];
+    free(tmp);
+    return hit;
+}
+// Splits a dotted path into its pieces, in place; returns how many (up to 8).
+static size_t nbt_split(char* path, char** piece) {
+    size_t n = 0;
+    for (char* p = path; n < 8;) {
+        piece[n++] = p;
+        char* dot = strchr(p, '.');
+        if (!dot) break;
+        *dot = 0;
+        p = dot + 1;
+    }
+    return n;
+}
+static bool nbt_index(const char* p, size_t* out) {
+    char* end;
+    if (!nbt_is_index(p, strlen(p))) return false;
+    *out = strtoul(p, &end, 10);
+    return true;
+}
+// Applies one edit to the block entity, or returns the message of why it does not fit.
+static bool nbt_apply(struct be* b, const struct nbt_edit* e, char* out, size_t cap) {
+    char path[512], *p[8];
+    snprintf(path, sizeof path, "%s", e->path);
+    size_t n = nbt_split(path, p), i, j, k;
+    if (n == 1 && !strcmp(p[0], "GrugInvSize")) {
+        free(b->slots);
+        give_slots(b, (long)e->value);
+        return false;
+    }
+    if (n >= 3 && !strcmp(p[0], "GrugNumbers") && nbt_index(p[1], &i) && !strcmp(p[2], "Value")) {
+        if (n > 3) {
+            snprintf(out, cap, "The key \"Value\" in the path \"%s\" does not hold a compound.", e->path);
+            return true;
+        }
+        struct kv* hit = nth_number_by_name(b->nums, b->nnums, i);
+        if (hit) hit->v = e->value;
+        return false;  // an index at the size appends a compound with a Value and no Name, which the load drops
+    }
+    if (n >= 5 && !strcmp(p[0], "GrugLists") && nbt_index(p[1], &i) && !strcmp(p[2], "Records") && nbt_index(p[3], &j)) {
+        struct list* sorted = xmalloc((b->nlists + 1) * sizeof *sorted);
+        memcpy(sorted, b->lists, b->nlists * sizeof *sorted);
+        qsort(sorted, b->nlists, sizeof *sorted, cmp_lists_by_name);
+        struct list* l = i < b->nlists ? find_list(b, sorted[i].name) : NULL;
+        free(sorted);
+        if (l) {
+            if (j > l->nr) {
+                snprintf(out, cap, "The index %zu in the path \"%s\" is past the end of a list of %zu, and only its size appends.", j, e->path, l->nr);  // SMOKETEST_EXCL: no committed test indexes past the end of a record list
+                return true;  // SMOKETEST_EXCL: same
+            }
+            if (j == l->nr) {
+                l->r = xrealloc(l->r, (l->nr + 1) * sizeof *l->r);
+                memset(&l->r[l->nr++], 0, sizeof *l->r);
+            }
+            struct record* r = &l->r[j];
+            if (n == 5 && !strcmp(p[4], "Item") && e->is_item) { r->item = e->item; r->has_item = true; return false; }
+            if (n == 7 && !strcmp(p[4], "Numbers") && nbt_index(p[5], &k) && !strcmp(p[6], "Value")) {
+                struct kv* hit = nth_number_by_name(r->n, r->nn, k);
+                if (hit) hit->v = e->value;
+                return false;
+            }
+        }
+    }
+    stubbed = true;  // a key the model does not hold: the loader writes it into NBT that no grug block entity reads
+    return false;
+}
+static union grug_value TTC_load_nbt(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[1]._id);
+    if (!b) return fail("TestTickContext.load_nbt: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    size_t idx = (size_t)(b - bes), kept = 0, taken = 0;
+    char msg[512];
+    bool bad = false;
+    for (size_t i = 0; i < nnbt_staged; i++) {
+        if (nbt_staged[i].be != idx) { nbt_staged[kept++] = nbt_staged[i]; continue; }  // SMOKETEST_EXCL: no committed test stages edits for two block entities at once
+        taken++;
+        if (!bad && nbt_apply(b, &nbt_staged[i], msg, sizeof msg)) bad = true;
+        free(nbt_staged[i].path);
+    }
+    nnbt_staged = kept;
+    if (!taken) return fail("TestTickContext.load_nbt: Nothing was staged for this block entity.");
+    if (bad) return fail("TestTickContext.load_nbt: %s", msg);
+    return none();
+}
+REGISTER("TestTickContext", "load_nbt", TTC_load_nbt);
+
 // =============================================================================================
 // SECTION: Runner settings and graphics stubs
 // =============================================================================================
@@ -2121,11 +2387,15 @@ static void report(const char* verdict, const char* label, const char* fmt, ...)
 // compared a capture with itself and says nothing about the behaviour under test.
 enum { OUT_PASS = 0, OUT_FAIL = 1, OUT_STUBBED = 2 };
 static void clear_entities(void);
+static void clear_mod_files(void);
+static void clear_nbt(void);
 static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn) {
     clear_bes();
     free_test_state();
     clear_world();
     clear_entities();
+    clear_mod_files();
+    clear_nbt();
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
@@ -2296,6 +2566,8 @@ done:
     free_test_state();
     clear_world();
     clear_entities();
+    clear_mod_files();
+    clear_nbt();
     free(bes); free(blockdefs);
     free(world); free(objs); free(arena); free(expected_error);
     grug_deinit(g_state);
