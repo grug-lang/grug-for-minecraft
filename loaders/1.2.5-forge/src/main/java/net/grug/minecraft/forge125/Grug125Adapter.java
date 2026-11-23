@@ -2293,3 +2293,4 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         return Block.blocksList[blockId];
     }
 }
+// narrowing probe
