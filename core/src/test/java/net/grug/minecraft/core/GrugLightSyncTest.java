@@ -269,4 +269,13 @@ class GrugLightSyncTest {
     private static GrugLightSync.SectionLight lookup(Map<Long, byte[]> sections) {
         return (x, y, z) -> sections.get(key(x, y, z));
     }
+
+    @Test
+    void aServerAsksItsClientOnlyWithASectionAndAStarter() {
+        org.junit.jupiter.api.Assertions.assertTrue(GrugLightSync.mayAsk(0, true));
+        org.junit.jupiter.api.Assertions.assertTrue(GrugLightSync.mayAsk(5, true));
+        org.junit.jupiter.api.Assertions.assertFalse(GrugLightSync.mayAsk(-1, true), "no section");
+        org.junit.jupiter.api.Assertions.assertFalse(GrugLightSync.mayAsk(5, false), "no starter");
+        org.junit.jupiter.api.Assertions.assertFalse(GrugLightSync.mayAsk(-1, false));
+    }
 }

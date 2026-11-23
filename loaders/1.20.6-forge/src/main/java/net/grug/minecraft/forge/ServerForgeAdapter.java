@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge;
 
+import net.grug.minecraft.core.GrugArms;
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
@@ -35,7 +36,10 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.awt.image.BufferedImage;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * The adapter for a 1.20.6 dedicated server, which is the same loader as {@link ForgeAdapter} in a
@@ -85,12 +89,14 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * forwarded to the joined client, so reaching this is a defect in the caller.
      */
     @Override
+    @GrugGenerated("a defect in the caller: the runner reads the client level only on a client")
     public Object clientLevel() {
         throw Grug.fatal("A dedicated server has no client level: the read is forwarded instead.");
     }
 
     /** A server has no frame to sample: only a client's render thread reports one. */
     @Override
+    @GrugGenerated("no frame exists on a dedicated server, so no render thread calls this")
     public void onFrameRendered() {}
 
     /**
@@ -98,6 +104,7 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * is what {@code snapPlayerForTest} picks for this side, so the client half is never called.
      */
     @Override
+    @GrugGenerated("a defect in the caller: the runner snaps a server's player on the server")
     public void snapPlayerForTestOnClient() {
         throw Grug.fatal("A dedicated server snaps its player on the server, not on a client.");
     }
@@ -109,8 +116,7 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     private final GrugScreenCalls.Forwarded screens =
             new GrugScreenCalls.Forwarded(
-                    GrugControlForge::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlForge::server, ServerForgeAdapter::forwardedCallFailed);
 
     /**
      * The camera reads this server makes, which its joined client answers with its own camera: a
@@ -119,8 +125,7 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     private final GrugTestCamera.Forwarded camera =
             new GrugTestCamera.Forwarded(
-                    GrugControlForge::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlForge::server, ServerForgeAdapter::forwardedCallFailed);
 
     /**
      * The saved-number reads this server makes, which its joined client answers from its own copy
@@ -129,8 +134,7 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     private final GrugClientSavedNumbers.Forwarded savedNumbers =
             new GrugClientSavedNumbers.Forwarded(
-                    GrugControlForge::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlForge::server, ServerForgeAdapter::forwardedCallFailed);
 
     /**
      * The overlay reads this server makes, which its joined client answers about the frame it
@@ -139,8 +143,7 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     private final GrugOverlayCalls.Forwarded overlays =
             new GrugOverlayCalls.Forwarded(
-                    GrugControlForge::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlForge::server, ServerForgeAdapter::forwardedCallFailed);
 
     /**
      * The mining crack and the client resource files of a hot reload, which the joined client
@@ -149,8 +152,13 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     private final GrugClientTestCalls.Forwarded clientTestCalls =
             new GrugClientTestCalls.Forwarded(
-                    GrugControlForge::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlForge::server, ServerForgeAdapter::forwardedCallFailed);
+
+    /** A forwarded call the joined client could not answer is a host function error. */
+    @GrugGenerated("a forwarded call fails only when the joined client cannot answer it")
+    private static void forwardedCallFailed(String message) {
+        Grug.hostFunctionErrorHappened(Grug.statePtr, message);
+    }
 
     @Override
     public GrugClientTestCalls.Forwarded forwardedClientTestCalls() {
@@ -202,14 +210,22 @@ public class ServerForgeAdapter extends ForgeAdapter {
     public boolean setPlayerPositionForTest(double x, double y, double z) {
         ServerPlayer player = (ServerPlayer) testPlayer();
         ServerLevel level = (ServerLevel) getLevel();
-        boolean hasWorld = level != null;
+        boolean hasWorld = Objects.nonNull(level);
         boolean loaded =
-                hasWorld
-                        && level.hasChunkAt(
-                                new BlockPos((int) Math.floor(x), 64, (int) Math.floor(z)));
-        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, loaded)) {
-            return false;
-        }
+                GrugArms.askIf(
+                        hasWorld,
+                        false,
+                        () ->
+                                level.hasChunkAt(
+                                        new BlockPos(
+                                                (int) Math.floor(x), 64, (int) Math.floor(z))));
+        return GrugArms.askIf(
+                GrugTestPlayerMove.canMove(Objects.nonNull(player), hasWorld, loaded),
+                false,
+                () -> movePlayer(player, x, y, z));
+    }
+
+    private static boolean movePlayer(ServerPlayer player, double x, double y, double z) {
         GrugServerRun.moveToFeet(player, x, y, z);
         GrugTestState.playerMovedTo(x, y, z);
         return true;
@@ -253,13 +269,16 @@ public class ServerForgeAdapter extends ForgeAdapter {
     @Override
     public boolean isWorldReady(Object playerObj) {
         Player player = (Player) playerObj;
-        return super.isWorldReady(playerObj)
-                && GrugPlayerFloor.mayStart(
-                        solidBlocks(getLevel()),
-                        player.getX(),
-                        player.getY(),
-                        player.getZ(),
-                        player.onGround());
+        return GrugArms.askIf(
+                super.isWorldReady(playerObj),
+                false,
+                () ->
+                        GrugPlayerFloor.mayStart(
+                                solidBlocks(getLevel()),
+                                player.getX(),
+                                player.getY(),
+                                player.getZ(),
+                                player.onGround()));
     }
 
     /**
@@ -287,10 +306,8 @@ public class ServerForgeAdapter extends ForgeAdapter {
             double localZ = pointZ - z;
             double top = GrugPlayerFloor.BlockSource.NO_COLLISION;
             for (AABB box : shape.toAabbs()) {
-                if (localX >= box.minX - POINT_EDGE
-                        && localX <= box.maxX + POINT_EDGE
-                        && localZ >= box.minZ - POINT_EDGE
-                        && localZ <= box.maxZ + POINT_EDGE) {
+                if (GrugArms.pointInFootprint(
+                        localX, localZ, box.minX, box.maxX, box.minZ, box.maxZ, POINT_EDGE)) {
                     top = Math.max(top, box.maxY);
                 }
             }
@@ -316,15 +333,21 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        Object playerObj = testPlayer();
-        if (!(playerObj instanceof ServerPlayer)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "TestTickContext.use_block: There is no player to right-click with.");
-            return;
-        }
-        ServerPlayer player = (ServerPlayer) playerObj;
-        ServerLevel level = (ServerLevel) levelObj;
+        GrugArms.ifType(
+                testPlayer(),
+                ServerPlayer.class,
+                player -> useBlockAs(player, (ServerLevel) levelObj, x, y, z),
+                ServerForgeAdapter::noPlayerToClickWith);
+    }
+
+    @GrugGenerated("a run's clicks happen while the player who started it is joined")
+    private static void noPlayerToClickWith() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "TestTickContext.use_block: There is no player to right-click with.");
+    }
+
+    private void useBlockAs(ServerPlayer player, ServerLevel level, double x, double y, double z) {
         BlockPos pos = new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
         Direction face =
                 Direction.values()[
@@ -350,11 +373,18 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     @Override
     public void playUiSound(String path, double volume, double pitch) {
-        try {
-            GrugControlForge.server().playUiSound(path, volume, pitch);
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
-        }
+        GrugArms.tryAsk(
+                () -> {
+                    GrugControlForge.server().playUiSound(path, volume, pitch);
+                    return Boolean.TRUE;
+                },
+                ServerForgeAdapter::uiSoundFailed);
+    }
+
+    @GrugGenerated("a forwarded sound fails only when the joined client cannot answer it")
+    private static Boolean uiSoundFailed(GrugControlServer.ControlException e) {
+        Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
+        return Boolean.FALSE;
     }
 
     /**
@@ -481,12 +511,19 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     @Override
     public void closeOpenScreenForTest() {
-        Object playerObj = testPlayer();
-        if (playerObj instanceof ServerPlayer) {
-            ServerPlayer player = (ServerPlayer) playerObj;
-            if (player.containerMenu != player.inventoryMenu) player.closeContainer();
-        }
+        GrugArms.ifType(
+                testPlayer(),
+                ServerPlayer.class,
+                ServerForgeAdapter::closeServerMenu,
+                ServerForgeAdapter::noPlayerToClose);
         screens.closeScreen();
+    }
+
+    @GrugGenerated("a run starts only once its player has joined, so a player is always there")
+    private static void noPlayerToClose() {}
+
+    private static void closeServerMenu(ServerPlayer player) {
+        if (player.containerMenu != player.inventoryMenu) player.closeContainer();
     }
 
     /**
@@ -584,22 +621,34 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     @Override
     public Object carriedItem() {
-        AbstractContainerMenu menu = serverMenu();
-        if (menu == null) return null;
-        ItemStack carried = menu.getCarried();
-        return carried.isEmpty() ? null : carried.getItem();
+        return withMenu(
+                menu -> {
+                    ItemStack carried = menu.getCarried();
+                    return carried.isEmpty() ? null : (Object) carried.getItem();
+                },
+                ServerForgeAdapter::noMenuAnswer);
     }
 
     /** Sets the cursor of this server's own menu, which a click then applies (#1094). */
     @Override
     public void setCarriedItem(Object itemObj) {
-        AbstractContainerMenu menu = serverMenu();
-        if (menu == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "TestTickContext.set_carried_item: There is no player with a menu open.");
-            return;
-        }
+        withMenu(
+                menu -> {
+                    setCarriedOn(menu, itemObj);
+                    return Boolean.TRUE;
+                },
+                ServerForgeAdapter::noMenuToSetCarried);
+    }
+
+    @GrugGenerated("a run's cursor work happens while the player is joined")
+    private static Boolean noMenuToSetCarried() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "TestTickContext.set_carried_item: There is no player with a menu open.");
+        return Boolean.FALSE;
+    }
+
+    private static void setCarriedOn(AbstractContainerMenu menu, Object itemObj) {
         menu.setCarried(itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
         // The cursor is not a slot the container's own update carries, so the client's screen would
         // keep whatever it had while this server's menu carries the item the click applies. The
@@ -612,17 +661,22 @@ public class ServerForgeAdapter extends ForgeAdapter {
     /** Clears the cursor of this server's own menu, and the client's copy of it (#1094). */
     @Override
     public void deleteCarriedItem() {
-        AbstractContainerMenu menu = serverMenu();
-        if (menu == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "OverlayClickContext.delete_carried_item: There is no player with a menu"
-                            + " open.");
-            return;
-        }
-        menu.setCarried(ItemStack.EMPTY);
-        menu.broadcastChanges();
-        sendCarriedToClient(menu);
+        withMenu(
+                menu -> {
+                    menu.setCarried(ItemStack.EMPTY);
+                    menu.broadcastChanges();
+                    sendCarriedToClient(menu);
+                    return Boolean.TRUE;
+                },
+                ServerForgeAdapter::noMenuToDeleteCarried);
+    }
+
+    @GrugGenerated("a run's cursor work happens while the player is joined")
+    private static Boolean noMenuToDeleteCarried() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "OverlayClickContext.delete_carried_item: There is no player with a menu open.");
+        return Boolean.FALSE;
     }
 
     /**
@@ -640,11 +694,18 @@ public class ServerForgeAdapter extends ForgeAdapter {
         menu.sendAllDataToRemote();
     }
 
-    /** The menu of this server's test player, or null when no player has joined. */
-    @GrugGenerated("the no-player arm: a run's cursor work happens while the player is joined")
-    private AbstractContainerMenu serverMenu() {
-        Object playerObj = testPlayer();
-        return playerObj instanceof ServerPlayer ? ((ServerPlayer) playerObj).containerMenu : null;
+    /** What {@code present} makes of the menu of this server's test player, else {@code absent}. */
+    private <R> R withMenu(Function<AbstractContainerMenu, R> present, Supplier<R> absent) {
+        return GrugArms.mapType(
+                testPlayer(),
+                ServerPlayer.class,
+                player -> present.apply(player.containerMenu),
+                absent);
+    }
+
+    @GrugGenerated("a run's cursor work happens while the player is joined")
+    private static Object noMenuAnswer() {
+        return null;
     }
 
     /**
@@ -667,16 +728,20 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     @Override
     public boolean isWorldSettled() {
-        if (!GrugControlForge.server().hasStarter()) {
-            return true;
-        }
-        try {
-            return GrugControlForge.server().worldSettled();
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
-            return true;
-        }
+        return GrugArms.askIf(
+                GrugControlForge.server().hasStarter(),
+                true,
+                () ->
+                        GrugArms.tryAsk(
+                                () -> GrugControlForge.server().worldSettled(),
+                                ServerForgeAdapter::worldSettledFailed));
+    }
+
+    @GrugGenerated("a forwarded settled check fails only when the joined client cannot answer it")
+    private static Boolean worldSettledFailed(GrugControlServer.ControlException e) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
+        return Boolean.TRUE;
     }
 
     /**
@@ -703,22 +768,32 @@ public class ServerForgeAdapter extends ForgeAdapter {
     @Override
     public boolean lightApplied(double x, double y, double z) {
         long simulated = sectionLightFingerprint(getLevel(), x, y, z);
-        if (simulated < 0 || !GrugControlForge.server().hasStarter()) {
-            return true;
-        }
-        if (!lightEngineSettled(getLevel())) {
-            return false;
-        }
-        try {
-            long client = (long) GrugControlForge.server().clientLightFingerprint(x, y, z);
-            long settled = sectionLightFingerprint(getLevel(), x, y, z);
-            return GrugLightSync.lightApplied(
-                    lightEngineSettled(getLevel()), simulated, settled, client);
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "TestTickContext.light_applied: " + e.getMessage());
-            return true;
-        }
+        return GrugArms.askIf(
+                GrugLightSync.mayAsk(simulated, GrugControlForge.server().hasStarter()),
+                true,
+                () ->
+                        GrugArms.askIf(
+                                lightEngineSettled(getLevel()),
+                                false,
+                                () ->
+                                        GrugArms.tryAsk(
+                                                () -> askClientLight(simulated, x, y, z),
+                                                ServerForgeAdapter::lightAppliedFailed)));
+    }
+
+    private boolean askClientLight(long simulated, double x, double y, double z)
+            throws GrugControlServer.ControlException {
+        long client = (long) GrugControlForge.server().clientLightFingerprint(x, y, z);
+        long settled = sectionLightFingerprint(getLevel(), x, y, z);
+        return GrugLightSync.lightApplied(
+                lightEngineSettled(getLevel()), simulated, settled, client);
+    }
+
+    @GrugGenerated("a forwarded light check fails only when the joined client cannot answer it")
+    private static Boolean lightAppliedFailed(GrugControlServer.ControlException e) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "TestTickContext.light_applied: " + e.getMessage());
+        return Boolean.TRUE;
     }
 
     /**
