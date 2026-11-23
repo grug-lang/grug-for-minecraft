@@ -120,6 +120,7 @@ enum kind {
     K_EXTRACT_RESPONSE,
     K_ADD_RESPONSE,
     K_SHOT,
+    K_ITEM_STACK,
 };
 struct obj {
     enum kind kind;
@@ -534,8 +535,51 @@ REGISTER("Math", "tau", Math_tau);
 // SECTION: String
 // =============================================================================================
 // String
-static union grug_value String_length(ARGS) { UNUSED; return num((double)strlen(a[0]._string)); }
+// Text is counted in Unicode code points, as the adapter's codePointCount does (string_edit-Test counts
+// U+1F600 once), so a UTF-8 continuation byte is not a character.
+static size_t cp_count(const char* t) {
+    size_t n = 0;
+    for (; *t; t++) n += ((unsigned char)*t & 0xC0) != 0x80;
+    return n;
+}
+static const char* cp_offset(const char* t, size_t n) {  // the byte after the first n code points
+    while (n > 0 && *t) { t++; if (((unsigned char)*t & 0xC0) != 0x80) n--; }
+    while (((unsigned char)*t & 0xC0) == 0x80) t++;
+    return t;
+}
+static union grug_value String_length(ARGS) { UNUSED; return num((double)cp_count(a[0]._string)); }
 REGISTER("String", "length", String_length);
+// The refusal texts name the range the adapter accepts, as expect_string_from_character_* and
+// expect_string_substring_range-Test match them.
+static union grug_value String_from_character(ARGS) {
+    UNUSED;
+    double c = a[0]._number;
+    if (!(c >= 1 && c <= 1114111) || c != floor(c) || (c >= 55296 && c <= 57343))
+        return fail("String.from_character: The code has to be a whole number from 1 to 1114111 that is not a surrogate, and was %g.", c);
+    unsigned cp = (unsigned)c;
+    char b[5]; int n = 0;
+    if (cp < 0x80) b[n++] = (char)cp;
+    else if (cp < 0x800) { b[n++] = (char)(0xC0 | cp >> 6); b[n++] = (char)(0x80 | (cp & 0x3F)); }
+    else if (cp < 0x10000) { b[n++] = (char)(0xE0 | cp >> 12); b[n++] = (char)(0x80 | ((cp >> 6) & 0x3F)); b[n++] = (char)(0x80 | (cp & 0x3F)); }
+    else { b[n++] = (char)(0xF0 | cp >> 18); b[n++] = (char)(0x80 | ((cp >> 12) & 0x3F)); b[n++] = (char)(0x80 | ((cp >> 6) & 0x3F)); b[n++] = (char)(0x80 | (cp & 0x3F)); }
+    b[n] = 0;
+    return str(keep(xstrdup(b)));
+}
+REGISTER("String", "from_character", String_from_character);
+static union grug_value String_substring(ARGS) {
+    UNUSED;
+    const char* t = a[0]._string;
+    double st = a[1]._number, en = a[2]._number;
+    size_t len = cp_count(t);
+    if (!(st >= 0 && en >= st && en <= (double)len) || st != floor(st) || en != floor(en))
+        return fail("String.substring: The range has to be whole numbers with 0 <= start <= end <= %zu, the length of the text, and was %g to %g.", len, st, en);
+    const char* from = cp_offset(t, (size_t)st);
+    const char* to = cp_offset(from, (size_t)(en - st));
+    char* out = xmalloc((size_t)(to - from) + 1);
+    memcpy(out, from, (size_t)(to - from)); out[to - from] = 0;
+    return str(keep(out));
+}
+REGISTER("String", "substring", String_substring);
 static union grug_value String_concat(ARGS) {
     UNUSED;
     size_t n = strlen(a[0]._string), m = strlen(a[1]._string);
@@ -545,11 +589,54 @@ static union grug_value String_concat(ARGS) {
     return str(keep(s));
 }
 REGISTER("String", "concat", String_concat);
+// The text of a number as the adapter writes it: a whole number as a plain integer (BigDecimal's exact
+// expansion), anything else as Double.toString, the shortest digits that read back as the same double,
+// plain between 1e-3 and 1e7 and as d.dddE+x outside it.
+static void number_text(double v, char* out, size_t cap) {
+    if (isnan(v)) { snprintf(out, cap, "NaN"); return; }
+    if (isinf(v)) { snprintf(out, cap, v > 0 ? "Infinity" : "-Infinity"); return; }
+    if (v == rint(v)) { snprintf(out, cap, v == 0 ? "0" : "%.0f", v); return; }
+    char e[40];
+    // Java picks the closest of the two-digit texts when one digit would do (4.9E-324, not 5.0E-324),
+    // so the search starts at two digits and a trailing zero is dropped afterwards.
+    int p = 2;
+    for (; p < 17; p++) {
+        snprintf(e, sizeof e, "%.*e", p - 1, v);
+        if (strtod(e, NULL) == v) break;
+    }
+    snprintf(e, sizeof e, "%.*e", p - 1, v);
+    char digits[20]; size_t nd = 0;
+    const char* c = e;
+    bool neg = *c == '-';
+    if (neg) c++;
+    for (; *c && *c != 'e'; c++) if (*c != '.') digits[nd++] = *c;
+    while (nd > 1 && digits[nd - 1] == '0') nd--;
+    digits[nd] = 0;
+    int e10 = atoi(c + 1);
+    char* w = out;
+    if (neg) *w++ = '-';
+    if (fabs(v) >= 1e-3 && fabs(v) < 1e7) {
+        if (e10 >= 0) {
+            for (int k = 0; k <= e10; k++) *w++ = (size_t)k < nd ? digits[k] : '0';
+            *w++ = '.';
+            if ((size_t)e10 + 1 < nd) { memcpy(w, digits + e10 + 1, nd - (size_t)e10 - 1); w += nd - (size_t)e10 - 1; }  // SMOKETEST_EXCL_BRANCH: a non-whole number below 1e7 always has digits after its point
+            else *w++ = '0';  // SMOKETEST_EXCL: unreachable, for the reason on the line above
+        } else {
+            *w++ = '0'; *w++ = '.';
+            for (int k = 0; k < -e10 - 1; k++) *w++ = '0';
+            memcpy(w, digits, nd); w += nd;
+        }
+        *w = 0;
+    } else {
+        *w++ = digits[0]; *w++ = '.';
+        if (nd > 1) { memcpy(w, digits + 1, nd - 1); w += nd - 1; } else *w++ = '0';
+        snprintf(w, cap - (size_t)(w - out), "E%d", e10);
+    }
+}
 static union grug_value String_from_number(ARGS) {
     UNUSED;
-    char buf[64];
-    if (is_whole(a[0]._number) && fabs(a[0]._number) < 1e15) snprintf(buf, sizeof buf, "%.0f", a[0]._number);
-    else snprintf(buf, sizeof buf, "%g", a[0]._number);
+    char buf[400];
+    number_text(a[0]._number, buf, sizeof buf);
     return str(keep(xstrdup(buf)));
 }
 REGISTER("String", "from_number", String_from_number);
@@ -573,7 +660,7 @@ static void print_value(const union grug_value* v, const struct grug_type* t) {
     case TYPE_NUMBER: printf("%g", v->_number); break;
     case TYPE_BOOL: printf("%s", v->_bool ? "true" : "false"); break;
     case TYPE_STRING: printf("%s", v->_string); break;
-    default: printf("<object %llu>", (unsigned long long)v->_id);
+    default: printf("<object %llu>", (unsigned long long)v->_id);  // SMOKETEST_EXCL: no committed test prints a class value, and what the adapter's prettyFormat shows for one is not asserted
     }
 }
 static union grug_value print1(ARGS) { (void)gst; if (quiet) return none(); print_value(&a[0], &g[0]); putchar('\n'); return none(); }
@@ -625,6 +712,21 @@ static union grug_value hf_item(ARGS) {
 }
 REGISTER(NULL, "item", hf_item);
 
+// item_stack (expect_item_stack_count*-Test, item_stack_save-Test): a stack of 1 to 127, the largest count the
+// byte-saving loaders keep, which is the limit the smoketest takes because its loader name is not 1.20.6-forge.
+static union grug_value hf_item_stack(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_ITEM)) return fail("item_stack: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Item
+    double c = a[2]._number;
+    if (!(c >= 1 && c <= 127) || c != floor(c)) return fail("item_stack: The count has to be a whole number from 1 to 127, and was %g.", c);
+    uint64_t o = new_obj(K_ITEM_STACK);
+    objs[o - 1].val = a[0];
+    objs[o - 1].x = a[1]._number;
+    objs[o - 1].y = c;
+    return id(o);
+}
+REGISTER(NULL, "item_stack", hf_item_stack);
+
 // BlockPos: the two methods the committed block entity scripts and tests call.
 static union grug_value BlockPos_above_n(ARGS) {
     UNUSED;
@@ -669,6 +771,13 @@ static union grug_value TTC_clear_held_item(ARGS) {
     return none();
 }
 REGISTER("TestTickContext", "clear_held_item", TTC_clear_held_item);
+// hotbar_reset_a-Test and overlay-Test: one item in the hand after set_held_item, none after clear_held_item.
+static union grug_value TTC_get_held_count(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.get_held_count: not a Player");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but the player
+    return num(held_has ? 1 : 0);
+}
+REGISTER("TestTickContext", "get_held_count", TTC_get_held_count);
 static union grug_value Player_get_held_item(ARGS) {
     UNUSED;
     if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.get_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
@@ -735,7 +844,7 @@ static bool call_export(void* entity, uint64_t fn, const union grug_value* args,
     call_depth++;
     bool ok = grug_call_export_fn(g_state, entity, fn, args, n);
     if (!ok && strstr(last_error, "does not implement") && !bg_missing[0])
-        snprintf(bg_missing, sizeof bg_missing, "%s", last_error);
+        snprintf(bg_missing, sizeof bg_missing, "%s", last_error);  // SMOKETEST_EXCL: reached only when a block entity export calls an entry the smoketest lacks, which a passing test never does
     bool ran = ok || last_error[0];
     // The message is read only when the export raised an error: a missing export fails without one, and
     // last_msg then still holds an earlier error's text.
@@ -1778,8 +1887,8 @@ static int run_all(struct grug_files_slice files, uint64_t tick_fn, uint64_t ini
 int main(int argc, char** argv) {
     if (argc == 2 && !strcmp(argv[1], "--contract")) return contract();
     if (argc < 3) {
-        fprintf(stderr, "usage: smoketest --contract | smoketest <repo> --compile-only | smoketest <repo> <test.grug>...\n");
-        return 2;
+        fprintf(stderr, "usage: smoketest --contract | smoketest <repo> --compile-only | smoketest <repo> <test.grug>...\n");  // SMOKETEST_EXCL: the usage message is for a run with too few arguments, which run.sh never makes
+        return 2;  // SMOKETEST_EXCL: the usage exit, as on the line above
     }
     char api_path[4096], mods_path[4096];
     snprintf(api_path, sizeof api_path, "%s/mod_api.json", argv[1]);
@@ -1819,8 +1928,8 @@ int main(int argc, char** argv) {
     size_t bad = 0;
     for (size_t i = 0; i < files.len; i++) {
         if (files.ptr[i].file_id == UINT64_MAX) {
-            bad++;
-            if (bad <= 5) fprintf(stderr, "compile error in %s: %s\n", files.ptr[i].path, files.ptr[i].error.error_string);
+            bad++;  // SMOKETEST_EXCL: a mod file that fails to compile, which no committed mod does
+            if (bad <= 5) fprintf(stderr, "compile error in %s: %s\n", files.ptr[i].path, files.ptr[i].error.error_string);  // SMOKETEST_EXCL: the report of that compile error
         }
     }
     printf("registered %zu entries (%zu implemented), init+register %.2f ms; compiled %zu files (%zu with errors) in %.2f ms\n",
