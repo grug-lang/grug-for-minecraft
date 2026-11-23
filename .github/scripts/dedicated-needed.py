@@ -31,8 +31,10 @@ whose own code the diff touches: a path under ``loaders/<x>/``, or under a direc
 build compiles from outside its own (``shared/ornithe`` reaches both Ornithe loaders), which is
 where every server class (``*Server*Adapter*``, ``GrugServerRun``, ``GrugControl*``,
 ``ServerGrugModLoader`` and the rest) lives. A change to ``core/``, ``mods/``, the scripts or the
-workflow changes no server class's bytes, so it runs no leg and the carried-over data counts: the
-client legs and the unit tests cover core, and a dispatch runs every leg. A path under ``shared/``
+workflow changes no server class's bytes, so it runs no leg and the carried-over data counts. The
+exceptions run every loader's leg: any ``core/`` path but ``core/src/test/`` (some core lines only a
+server leg executes), ``mod_api.json``, ``mods/coverage/``, the root build files (``gradle/``,
+``gradle.properties``, ``build.gradle*``, ``settings.*``) and ``.github/actions/setup-loader-build/``. A path under ``shared/``
 that no build declares, and every doubt (no base commit, an empty diff, a diff that cannot be
 computed, any error) run every loader's leg, which only runs more. The schedule never runs the legs
 (the job's own condition excludes it), so it answers every loader and nothing reads it.
@@ -64,6 +66,19 @@ DISPATCH_LOADERS = (
 )
 LOADERS = "loaders"
 SHARED = "shared"
+# A diff under one of these runs every loader's leg on a pull request and a push (#1601): core's
+# classes are loaded by every server and some have lines only a server leg executes (GrugLinkArms,
+# GrugServerJoin, GrugLightSync and the rest), the coverage mod's tests are what a carried exec was
+# recorded from (a deleted or weakened test must not leave a stale carried exec), and the root build
+# can change a loader's class bytes. core's own unit tests change no server run.
+EVERY_LOADER_PREFIXES = (
+    "core/",
+    "mods/coverage/",
+    "gradle/",
+    ".github/actions/setup-loader-build/",
+)
+EVERY_LOADER_FILES = ("mod_api.json", "gradle.properties", "build.gradle", "build.gradle.kts")
+NOT_SERVER_CODE_PREFIXES = ("core/src/test/",)
 
 
 def sibling(name: str):
@@ -102,6 +117,18 @@ def needed(repo: Path, base: str, head: str) -> tuple[bool, str]:
     )
 
 
+def every_loader_reason(path: str) -> str | None:
+    """Why this path runs every loader's leg on a pull request and a push, or None."""
+    if path.startswith(NOT_SERVER_CODE_PREFIXES):
+        return None
+    if path.startswith(EVERY_LOADER_PREFIXES):
+        return f"{path} is core code, a coverage test or the build every server leg runs"
+    name = path.rsplit("/", 1)[-1]
+    if "/" not in path and (path in EVERY_LOADER_FILES or name.startswith("settings.")):
+        return f"{path} is the root build, which can change a loader's class bytes"
+    return None
+
+
 def loaders_for_diff(repo: Path, base: str, head: str) -> tuple[list[str], str]:
     """The loaders whose legs a pull request or a push needs, and the reason, for a readable diff."""
     paths = sibling("affected-mods").changed_paths(repo, base, head)
@@ -112,6 +139,8 @@ def loaders_for_diff(repo: Path, base: str, head: str) -> tuple[list[str], str]:
     chosen: dict[str, str] = {}
     for path in paths:
         parts = path.split("/")
+        if reason := every_loader_reason(path):
+            return everything, reason
         if parts[0] == LOADERS:
             if len(parts) < 3 or parts[1] not in DISPATCH_LOADERS:
                 return everything, f"{path} names no loader with a dedicated server"

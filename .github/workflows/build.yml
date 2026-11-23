@@ -2442,7 +2442,7 @@ jobs:
       # The latest dedicated-server exec data of each loader whose leg this run did not run (#1602,
       # #1601). A leg uploads server-exec on a dispatch, a schedule and, for the loaders a diff
       # touches, a push to main, so each loader's newest artifact comes from the newest such run of
-      # build.yml on main within the 7 day retention (among the 20 newest), not from the base run.
+      # build.yml on main within the 7 day retention (among the 50 newest, whose leg succeeded), not from the base run.
       # combine-coverage.py counts it for a runner only when this run's own leg uploaded none, and
       # JaCoCo ignores a class whose id no longer matches this run's bytes. The log names each run
       # and its age, or says nothing qualified. This changes no gate result until a class is
