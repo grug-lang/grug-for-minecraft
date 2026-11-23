@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe.server;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugServerJoin;
@@ -74,12 +75,11 @@ public final class GrugServerRun {
     /**
      * How many times the floor hold put the player back on the ground, and when it last said so.
      */
-    private static long floorHolds = 0;
-
-    private static long lastHoldReportMillis = 0;
+    private static final GrugPlayerFloor.HoldLog FLOOR_LOG = new GrugPlayerFloor.HoldLog();
 
     /** How many times the hold corrected the player, and when it last said so. */
-    private static long holds = 0;
+    private static final GrugPlayerFloor.StartHoldLog START_LOG =
+            new GrugPlayerFloor.StartHoldLog();
 
     /**
      * Whether the floor hold has already moved the player in this server tick. The start-height
@@ -128,17 +128,8 @@ public final class GrugServerRun {
         // A menu holds the player's inventory, which holds the player, so the menu's own value
         // keeps its key alive in the weak map; a player who left would leave the entry behind.
         ServerOrnitheAdapter.forgetMenusOfMissingPlayers(tickedWorld.players);
-        if (!done && "true".equals(System.getenv("GRUG_CI"))) {
-            try {
-                tick(tickedWorld);
-            } catch (Throwable thrown) {
-                // The server loop would end the process without a word, which reads as a hang to
-                // whoever watches the log, so say what stopped the run.
-                System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
-                thrown.printStackTrace(System.out);
-                stop(1);
-            }
-        }
+        ticking = tickedWorld;
+        GrugLinkArms.runIfCi(System::getenv, GrugServerRun::tickGuarded);
         // Every tick of a server world, in a CI run or not: the transport is installed whenever a
         // dedicated server is up and holds a change until it is flushed, so a server outside CI
         // would otherwise hold every change it ever made (#1191). A redraw this flush sends goes
@@ -183,6 +174,31 @@ public final class GrugServerRun {
 
     private static long lastReportMillis = 0;
 
+    /** The world {@link #tickGuarded} ticks, which {@link #onWorldTick} just handed over. */
+    private static World ticking = null;
+
+    /**
+     * Ticks the run, and fails it when the tick throws. The server loop would end the process
+     * without a word, which reads as a hang to whoever watches the log, so say what stopped the
+     * run.
+     */
+    @GrugGenerated(
+            "its done arm is reached only while the process is already exiting, and its catch arm"
+                    + " only when the run throws, which fails the very run a test is part of; the"
+                    + " tick it guards is measured on its own")
+    private static void tickGuarded() {
+        if (done) {
+            return;
+        }
+        try {
+            tick(ticking);
+        } catch (Throwable thrown) {
+            System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
+            thrown.printStackTrace(System.out);
+            stop(1);
+        }
+    }
+
     private static void tick(World tickedWorld) {
         world = tickedWorld;
         List<?> players = tickedWorld.players;
@@ -213,53 +229,82 @@ public final class GrugServerRun {
                     return;
                 }
             }
-            if (!players.isEmpty()
-                    && GrugControlAlpha.server().hasStarter()
-                    && GrugControlAlpha.starterPlayer() != null
-                    && GrugCore.getAdapter().isWorldReady(testPlayer)) {
+            if (GrugServerJoin.mayFire(
+                    players,
+                    GrugControlAlpha.server().hasStarter(),
+                    GrugControlAlpha.starterPlayer(),
+                    () -> GrugCore.getAdapter().isWorldReady(testPlayer))) {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
                 runner = new GrugTestRunner();
                 holdY = ((PlayerEntity) testPlayer).y;
-            } else if (GrugServerJoin.timedOut(
-                    waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS)) {
-                System.out.println("[GRUG CI] FAIL world readiness");
-                System.out.println(
-                        "[GRUG CI] No player joined the dedicated server within "
-                                + (PLAYER_JOIN_TIMEOUT_MILLIS / 1000)
-                                + " seconds, so the tests were not started.");
-                stop(1);
-                return;
             } else {
-                long now = System.currentTimeMillis();
-                if (!players.isEmpty() && now - lastReportMillis >= 5000) {
-                    lastReportMillis = now;
-                    net.minecraft.entity.mob.player.PlayerEntity player =
-                            (net.minecraft.entity.mob.player.PlayerEntity) players.get(0);
-                    System.out.println(
-                            "[GRUG CI] waiting for the world: player at "
-                                    + player.x
-                                    + ", "
-                                    + player.y
-                                    + ", "
-                                    + player.z);
-                }
+                failJoinTimeoutIfDue();
+                reportWaiting(players);
                 return;
             }
         }
 
-        if (players.isEmpty() || !players.contains(GrugControlAlpha.starterPlayer())) {
-            GrugControlAlpha.server().onDisconnect(GrugControlAlpha.server().starter());
-            System.out.println("[GRUG CI] FAIL the test player left");
-            System.out.println(
-                    "[GRUG CI] Every player disconnected from the dedicated server during the"
-                            + " run.");
-            stop(1);
+        GrugLinkArms.choose(
+                GrugServerJoin.starterGone(players, GrugControlAlpha.starterPlayer()),
+                GrugServerRun::failPlayerLeft,
+                GrugServerRun::runTests);
+    }
+
+    /** Fails the run because the starter left it, which only a failing run reaches. */
+    @GrugGenerated(
+            "it disconnects the starter in core's server and ends the server process through stop,"
+                    + " with the run failed: a test that reached it would end the very run it is"
+                    + " part of; the text is core's tested GrugServerJoin.everyoneLeftReport")
+    private static void failPlayerLeft() {
+        GrugControlAlpha.server().onDisconnect(GrugControlAlpha.server().starter());
+        GrugServerJoin.print(System.out, GrugServerJoin.everyoneLeftReport());
+        stop(1);
+    }
+
+    /**
+     * Fails the run when no player joined in time, which only a failing run reaches. Every waiting
+     * tick calls it and core's {@link GrugServerJoin#timeoutReportIfDue} answers whether it is due.
+     */
+    @GrugGenerated(
+            "its failing arm ends the server process through stop, with the run failed: a test that"
+                    + " reached it would end the very run it is part of; the decision and the text"
+                    + " are core's tested GrugServerJoin.timeoutReportIfDue")
+    private static void failJoinTimeoutIfDue() {
+        String[] report =
+                GrugServerJoin.timeoutReportIfDue(
+                        waitStartMillis, System.currentTimeMillis(), PLAYER_JOIN_TIMEOUT_MILLIS);
+        if (report == null) {
             return;
         }
+        GrugServerJoin.print(System.out, report);
+        stop(1);
+    }
 
+    /**
+     * Says now and then that the run still waits for the world around a joined player. Core's
+     * {@link GrugServerJoin#waitReportDue} decides and words it; the read of the player's position
+     * is the game's.
+     */
+    @GrugGenerated(
+            "the report is due only after a joined player has waited five seconds for the world,"
+                    + " which depends on how long the client takes to load; the decision and the"
+                    + " text are core's tested GrugServerJoin.waitReportDue and waitMessage")
+    private static void reportWaiting(List<?> players) {
+        long now = System.currentTimeMillis();
+        if (!GrugServerJoin.waitReportDue(!players.isEmpty(), now, lastReportMillis)) {
+            return;
+        }
+        lastReportMillis = now;
+        PlayerEntity player = (PlayerEntity) players.get(0);
+        System.out.println(GrugServerJoin.waitMessage(player.x, player.y, player.z));
+    }
+
+    /** The runner's tick, once the world is ready and the starter is still here. */
+    private static void runTests() {
+        World tickedWorld = world;
         if (gameSpeed > 1) {
             advance(tickedWorld, gameSpeed - 1);
         }
@@ -297,29 +342,30 @@ public final class GrugServerRun {
      * gives, and it also stops the start-height hold for the rest of this server tick.
      */
     private static void holdOnFloor(PlayerEntity player) {
-        World world = world();
-        if (world == null) {
-            return;
-        }
+        GrugLinkArms.deliver(world(), loaded -> holdOnFloorIn(loaded, player));
+    }
+
+    private static void holdOnFloorIn(World world, PlayerEntity player) {
         GrugPlayerFloor.BlockSource blocks = ServerOrnitheAdapter.solidBlocks(world);
         double feet = player.y;
         double floor = GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z);
-        if (!GrugPlayerFloor.below(feet, floor)) {
-            return;
-        }
+        GrugLinkArms.runIf(
+                GrugPlayerFloor.below(feet, floor), () -> putOnFloor(player, floor, feet));
+    }
+
+    /**
+     * The arm of the floor hold that puts the player back. The decision to enter it is core's
+     * {@link GrugPlayerFloor#below}, and the count, the throttle and the text of its report are
+     * core's {@link GrugPlayerFloor.HoldLog}.
+     */
+    @GrugGenerated(
+            "it runs only when the joined client has fallen into the ground, which the client's own"
+                    + " collision prevents and a test cannot make it do; the move and the call of"
+                    + " core's tested log are all that is in it (#1136)")
+    private static void putOnFloor(PlayerEntity player, double floor, double feet) {
         moveTo(player, floor);
         heldOnFloorThisTick = true;
-        floorHolds++;
-        long now = System.currentTimeMillis();
-        if (floorHolds == 1 || now - lastHoldReportMillis >= 5000) {
-            lastHoldReportMillis = now;
-            System.out.println(
-                    "[GRUG CI] holding the test player on the floor at "
-                            + floor
-                            + ", up from "
-                            + feet
-                            + " (inside the ground)");
-        }
+        FLOOR_LOG.record(System.out, floor, feet, System.currentTimeMillis());
     }
 
     /**
@@ -342,6 +388,20 @@ public final class GrugServerRun {
      */
     private static void holdPlayer(PlayerEntity player) {
         holdOnFloor(player);
+        holdAtStartHeight(player);
+    }
+
+    /**
+     * The start-height arm of the hold: skipped for the rest of a tick the floor hold moved the
+     * player in, and otherwise a correction only when the feet drifted past the tolerance. The
+     * count, the throttle and the text of its report are core's {@link
+     * GrugPlayerFloor.StartHoldLog}.
+     */
+    @GrugGenerated(
+            "the player drifts past the tolerance only when the world's own tick moves their feet,"
+                    + " and the floor hold's skip needs a client that fell into the ground; neither"
+                    + " is something a test can make happen deterministically (#1134)")
+    private static void holdAtStartHeight(PlayerEntity player) {
         if (heldOnFloorThisTick) {
             return;
         }
@@ -350,13 +410,7 @@ public final class GrugServerRun {
             return;
         }
         moveTo(player, holdY);
-        holds++;
-        long now = System.currentTimeMillis();
-        if (holds == 1 || now - lastHoldReportMillis >= 5000) {
-            lastHoldReportMillis = now;
-            System.out.println(
-                    "[GRUG CI] holding the test player at " + holdY + ", back from " + feet);
-        }
+        START_LOG.record(System.out, holdY, feet, System.currentTimeMillis());
     }
 
     /**
@@ -462,16 +516,8 @@ public final class GrugServerRun {
     private static void stop(int status) {
         done = true;
         GrugControlAlpha.server().endRun();
-        if (floorHolds > 0) {
-            System.out.println(
-                    "[GRUG CI] The test player was held on the floor " + floorHolds + " times.");
-        }
-        if (holds > 0) {
-            System.out.println(
-                    "[GRUG CI] The test player was held at their start height "
-                            + holds
-                            + " times.");
-        }
+        FLOOR_LOG.printSummary(System.out);
+        START_LOG.printSummary(System.out);
         System.out.flush();
         System.exit(status);
     }
