@@ -557,7 +557,11 @@ def class_id(data: bytes) -> int:
 
 
 def unmask_generated(data: bytes) -> bytes:
-    """The class bytes with every @GrugGenerated annotation renamed so JaCoCo no longer filters it."""
+    """The class bytes with every @GrugGenerated annotation renamed so JaCoCo no longer filters it.
+
+    Method-level annotations are lifted too, so a printed count is everything the class holds, which is
+    more than the gate would count if only the class-level exclusion came off.
+    """
     return data.replace(GENERATED_DESCRIPTOR, UNMASKED_DESCRIPTOR)
 
 
