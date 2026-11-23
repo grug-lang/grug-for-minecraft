@@ -133,7 +133,12 @@ public final class GrugControlStationClient {
      * pin as b1.7.3-ornithe's {@code pinAtCaptureEye}, which takes the feet instead.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
-        player.setPositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
+        // A client-only player's y is the feet plus the game's single precision eye height widened
+        // to a double (71.62000000476837 on feet 70), and the server's eye is the same height as
+        // the double 1.62, 71.62, which draws a line's edge pixel differently (#1629). The feet are
+        // recovered from the eye to a millionth and the game's own height added back.
+        double feet = Math.rint((eye.y() - 1.62) * 1e6) / 1e6;
+        player.setPositionAndAngles(eye.x(), feet + (double) 1.62F, eye.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
@@ -290,7 +295,13 @@ public final class GrugControlStationClient {
         PlayerEntity cam = GrugClientPlayer.of(mc);
         if (cam != null) {
             System.out.println(
-                    "[GRUG CONTROL] camera bits: y "
+                    "[GRUG CONTROL] camera bits: x "
+                            + cam.x
+                            + " z "
+                            + cam.z
+                            + " yBits "
+                            + Long.toHexString(Double.doubleToLongBits(cam.y))
+                            + " y "
                             + cam.y
                             + " lastTickY "
                             + cam.lastTickY
