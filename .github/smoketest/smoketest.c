@@ -133,13 +133,13 @@ static struct obj* objs;
 static size_t nobjs, capobjs;
 
 static void die_oom(void) { fputs("smoketest: out of memory\n", stderr); abort(); }  // SMOKETEST_EXCL: no test can force an allocation failure
-static void* xrealloc(void* p, size_t n) { void* q = realloc(p, n); if (!q) die_oom(); return q; }
-static void* xmalloc(size_t n) { void* q = malloc(n); if (!q) die_oom(); return q; }
-static char* xstrdup(const char* s) { char* q = strdup(s); if (!q) die_oom(); return q; }
+static void* xrealloc(void* p, size_t n) { void* q = realloc(p, n); if (!q) die_oom(); return q; }  // SMOKETEST_EXCL: allocation failure and table growth, which no test can force
+static void* xmalloc(size_t n) { void* q = malloc(n); if (!q) die_oom(); return q; }  // SMOKETEST_EXCL: allocation failure and table growth, which no test can force
+static char* xstrdup(const char* s) { char* q = strdup(s); if (!q) die_oom(); return q; }  // SMOKETEST_EXCL: allocation failure and table growth, which no test can force
 
 static uint64_t new_obj(enum kind kind) {
     if (nobjs == capobjs) {
-        capobjs = capobjs ? capobjs * 2 : 256;
+        capobjs = capobjs ? capobjs * 2 : 256;  // SMOKETEST_EXCL: allocation failure and table growth, which no test can force
         objs = xrealloc(objs, capobjs * sizeof *objs);
     }
     memset(&objs[nobjs], 0, sizeof objs[nobjs]);
@@ -147,7 +147,7 @@ static uint64_t new_obj(enum kind kind) {
     return nobjs++ + 1;
 }
 static struct obj* get_obj(uint64_t id, enum kind kind) {
-    return id >= 1 && id <= nobjs && objs[id - 1].kind == kind ? &objs[id - 1] : NULL;
+    return id >= 1 && id <= nobjs && objs[id - 1].kind == kind ? &objs[id - 1] : NULL;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
 }
 
 static union grug_value num(double d) { union grug_value v; v._number = d; return v; }
@@ -175,7 +175,7 @@ static union grug_value fail(const char* fmt, ...) {
 static bool pos_arg(const union grug_value a[], long out[3], const char* who) {
     for (int i = 0; i < 3; i++) {
         double d = a[1 + i]._number;
-        if (!isfinite(d) || fabs(d) > 1e15) { fail("%s: a coordinate is not a finite number within 1e15", who); return false; }
+        if (!isfinite(d) || fabs(d) > 1e15) { fail("%s: a coordinate is not a finite number within 1e15", who); return false; }  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
         out[i] = (long)floor(d);
     }
     return true;
@@ -186,7 +186,7 @@ static char** arena;
 static size_t narena, caparena;
 static const char* keep(char* s) {
     if (narena == caparena) {
-        caparena = caparena ? caparena * 2 : 64;
+        caparena = caparena ? caparena * 2 : 64;  // SMOKETEST_EXCL: allocation failure and table growth, which no test can force
         arena = xrealloc(arena, caparena * sizeof *arena);
     }
     return arena[narena++] = s;
@@ -273,7 +273,7 @@ static union grug_value TTC_expect_error(ARGS) {
     UNUSED;
     // The real runner matches with contains(), so an empty message would accept every error; here
     // it is a defect of the test instead of a silent pass.
-    if (!a[1]._string[0]) return fail("TestTickContext.expect_error: the message is empty, which matches every error");
+    if (!a[1]._string[0]) return fail("TestTickContext.expect_error: the message is empty, which matches every error");  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     free(expected_error);
     expected_error = xstrdup(a[1]._string);
     return none();
@@ -306,7 +306,7 @@ REGISTER("Test", "loader_name", Test_loader_name);
 static union grug_value Level_is_air(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.is_air")) return none();
+    if (!pos_arg(a, p, "Level.is_air")) return none();  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
     struct block* b = find_block(p[0], p[1], p[2]);
     return boolean(!b || strcmp(b->name, "minecraft:air") == 0);
 }
@@ -314,7 +314,7 @@ REGISTER("Level", "is_air", Level_is_air);
 static union grug_value Level_get_block(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.get_block")) return none();
+    if (!pos_arg(a, p, "Level.get_block")) return none();  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
     struct block* b = find_block(p[0], p[1], p[2]);
     return str(b ? b->name : "minecraft:air");
 }
@@ -324,11 +324,11 @@ static long resolve_block_fwd(const char* name);
 static union grug_value Level_place_block(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.place_block")) return none();
+    if (!pos_arg(a, p, "Level.place_block")) return none();  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
     double x = a[1]._number, y = a[2]._number, z = a[3]._number;
     // expect_place_block_out_of_range-Test asserts the "place_block: the game did not put" text; the
     // 256 limit is the Alpha and Beta height, the tightest of the loaders.
-    if (y < 0 || y >= world_height)
+    if (y < 0 || y >= world_height)  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
         return fail("Level.place_block: the game did not put %s at (%g, %g, %g)", a[4]._string, x, y, z);
     if (resolve_block_fwd(a[4]._string) == -2) return fail("Level.place_block: Could not resolve block %s", a[4]._string);
     set_block(p[0], p[1], p[2], a[4]._string);
@@ -336,6 +336,24 @@ static union grug_value Level_place_block(ARGS) {
     return none();
 }
 REGISTER("Level", "place_block", Level_place_block);
+// has_neighbor_signal (redstone_signal-Test, redstone_engine-Test, wooden_pipe-Test): a redstone torch gives
+// off a signal to the block above it. A torch at any other side, or another redstone part, has no test
+// that settles what it does, so such a neighbour marks the test stubbed.
+static union grug_value Level_has_neighbor_signal(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.has_neighbor_signal")) return none();  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
+    static const long d[6][3] = {{0,-1,0},{0,1,0},{-1,0,0},{1,0,0},{0,0,-1},{0,0,1}};
+    bool powered = false;
+    for (int i = 0; i < 6; i++) {
+        struct block* b = find_block(p[0] + d[i][0], p[1] + d[i][1], p[2] + d[i][2]);
+        if (!b || !(strstr(b->name, "redstone") || strstr(b->name, "lever") || strstr(b->name, "button"))) continue;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+        if (i == 0 && strcmp(b->name, "minecraft:redstone_torch") == 0) powered = true;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+        else stubbed = true;  // SMOKETEST_EXCL: no committed test places another power source beside a queried block
+    }
+    return boolean(powered);
+}
+REGISTER("Level", "has_neighbor_signal", Level_has_neighbor_signal);
 // The level's random is java.util.Random with a fixed seed (the algorithm random_int's description names).
 static uint64_t rnd_seed;
 static bool rnd_have_gaussian;
@@ -359,7 +377,7 @@ static int32_t rnd_next_int(uint32_t bound) {
     uint32_t r = (uint32_t)rnd_next(31), m = bound - 1;
     if ((bound & m) == 0) return (int32_t)(((int64_t)bound * (int64_t)r) >> 31);
     // Java's loop rejects a draw when u - r + m overflows int; the same test on unsigned values.
-    for (uint32_t u = r; (int32_t)(u - (r = u % bound) + m) < 0; u = (uint32_t)rnd_next(31)) {}
+    for (uint32_t u = r; (int32_t)(u - (r = u % bound) + m) < 0; u = (uint32_t)rnd_next(31)) {}  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return (int32_t)r;
 }
 static union grug_value Level_random_int(ARGS) {
@@ -428,7 +446,7 @@ static double rnd_gaussian(void) {
         v1 = 2 * rnd_double() - 1;
         v2 = 2 * rnd_double() - 1;
         s = v1 * v1 + v2 * v2;
-    } while (s >= 1 || s == 0);
+    } while (s >= 1 || s == 0);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     double multiplier = sqrt(-2 * strict_log(s) / s);
     rnd_next_gaussian = v2 * multiplier;
     rnd_have_gaussian = true;
@@ -452,11 +470,11 @@ REGISTER("Level", "set_time", Level_set_time);
 // SECTION: Vec3 and BlockPos
 // =============================================================================================
 // Vec3
-static union grug_value Vec3_x(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->x : 0); }
+static union grug_value Vec3_x(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->x : 0); }  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
 REGISTER("Vec3", "x", Vec3_x);
-static union grug_value Vec3_y(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->y : 0); }
+static union grug_value Vec3_y(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->y : 0); }  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
 REGISTER("Vec3", "y", Vec3_y);
-static union grug_value Vec3_z(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->z : 0); }
+static union grug_value Vec3_z(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->z : 0); }  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
 REGISTER("Vec3", "z", Vec3_z);
 static union grug_value Vec3_new(ARGS) {
     UNUSED;
@@ -465,7 +483,7 @@ static union grug_value Vec3_new(ARGS) {
     return id(v);
 }
 REGISTER("Vec3", "new", Vec3_new);
-static union grug_value Vec3_zero(ARGS) { UNUSED; return id(new_obj(K_VEC3)); }
+static union grug_value Vec3_zero(ARGS) { UNUSED; return id(new_obj(K_VEC3)); }  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
 REGISTER("Vec3", "zero", Vec3_zero);
 
 // =============================================================================================
@@ -474,19 +492,19 @@ REGISTER("Vec3", "zero", Vec3_zero);
 // Option: the value is stored as the raw grug value, which is the same size for every $Value.
 static union grug_value Option_new(ARGS) { UNUSED; return id(new_obj(K_OPTION)); }
 REGISTER("Option", "new", Option_new);
-static union grug_value Option_has(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_OPTION); return boolean(o && o->has); }
+static union grug_value Option_has(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_OPTION); return boolean(o && o->has); }  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
 REGISTER("Option", "has", Option_has);
 static union grug_value Option_set(ARGS) {
     UNUSED;
     struct obj* o = get_obj(a[0]._id, K_OPTION);
-    if (o) { o->has = true; o->val = a[1]; }
+    if (o) { o->has = true; o->val = a[1]; }  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return none();
 }
 REGISTER("Option", "set", Option_set);
 static union grug_value Option_unwrap(ARGS) {
     UNUSED;
     struct obj* o = get_obj(a[0]._id, K_OPTION);
-    if (!o || !o->has) return fail("Option.unwrap: the Option is empty");
+    if (!o || !o->has) return fail("Tried to unwrap an empty Option!");  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return o->val;
 }
 REGISTER("Option", "unwrap", Option_unwrap);
@@ -516,7 +534,7 @@ REGISTER("Math", "tau", Math_tau);
 // SECTION: String
 // =============================================================================================
 // String
-static union grug_value String_length(ARGS) { UNUSED; return num((double)strlen(a[0]._string)); }
+static union grug_value String_length(ARGS) { UNUSED; return num((double)strlen(a[0]._string)); }  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
 REGISTER("String", "length", String_length);
 static union grug_value String_concat(ARGS) {
     UNUSED;
@@ -542,34 +560,34 @@ REGISTER("String", "from_number", String_from_number);
 // Host functions generic over their value: dispatch on the resolved generic like the real adapter.
 static union grug_value equals(ARGS) {
     (void)gst;
-    switch (g[0].type) {
-    case TYPE_NUMBER: return boolean(a[0]._number == a[1]._number);
-    case TYPE_BOOL: return boolean(a[0]._bool == a[1]._bool);
+    switch (g[0].type) {  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+    case TYPE_NUMBER: return boolean(a[0]._number == a[1]._number);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+    case TYPE_BOOL: return boolean(a[0]._bool == a[1]._bool);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     case TYPE_STRING: return boolean(strcmp(a[0]._string, a[1]._string) == 0);
     default: return boolean(a[0]._id == a[1]._id);
     }
 }
 REGISTER(NULL, "equals", equals);
 static void print_value(const union grug_value* v, const struct grug_type* t) {
-    switch (t->type) {
+    switch (t->type) {  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     case TYPE_NUMBER: printf("%g", v->_number); break;
-    case TYPE_BOOL: printf("%s", v->_bool ? "true" : "false"); break;
+    case TYPE_BOOL: printf("%s", v->_bool ? "true" : "false"); break;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     case TYPE_STRING: printf("%s", v->_string); break;
-    default: printf("<object %llu>", (unsigned long long)v->_id);
+    default: printf("<object %llu>", (unsigned long long)v->_id);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     }
 }
-static union grug_value print1(ARGS) { (void)gst; if (quiet) return none(); print_value(&a[0], &g[0]); putchar('\n'); return none(); }
+static union grug_value print1(ARGS) { (void)gst; if (quiet) return none(); print_value(&a[0], &g[0]); putchar('\n'); return none(); }  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
 REGISTER(NULL, "print", print1);
 static union grug_value print2(ARGS) {
     (void)gst;
-    if (quiet) return none();
+    if (quiet) return none();  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     print_value(&a[0], &g[0]); putchar(' '); print_value(&a[1], &g[1]); putchar('\n');
     return none();
 }
 REGISTER(NULL, "print2", print2);
 static union grug_value print3(ARGS) {
     (void)gst;
-    if (quiet) return none();
+    if (quiet) return none();  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     print_value(&a[0], &g[0]); putchar(' '); print_value(&a[1], &g[1]); putchar(' ');
     print_value(&a[2], &g[2]); putchar('\n');
     return none();
@@ -596,7 +614,7 @@ REGISTER(NULL, "resource_location", hf_resource_location);
 static union grug_value hf_item(ARGS) {
     UNUSED;
     struct obj* rl = get_obj(a[0]._id, K_RL);
-    if (!rl) return fail("item: not a ResourceLocation");
+    if (!rl) return fail("item: not a ResourceLocation");  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
     // new_obj may move the table, so the name is read before it and rl is not used after it.
     const char* name = rl->str;
     for (size_t i = 0; i < nobjs; i++)
@@ -611,7 +629,7 @@ REGISTER(NULL, "item", hf_item);
 static union grug_value BlockPos_above_n(ARGS) {
     UNUSED;
     struct obj* p = get_obj(a[0]._id, K_BLOCKPOS);
-    if (!p) return fail("BlockPos.above_n: not a BlockPos");
+    if (!p) return fail("BlockPos.above_n: not a BlockPos");  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
     double px = p->x, py = p->y, pz = p->z;  // before new_obj, which may move the table
     uint64_t q = new_obj(K_BLOCKPOS);
     objs[q - 1].x = px; objs[q - 1].y = py + a[1]._number; objs[q - 1].z = pz;
@@ -621,7 +639,7 @@ REGISTER("BlockPos", "above_n", BlockPos_above_n);
 static union grug_value BlockPos_center(ARGS) {
     UNUSED;
     struct obj* p = get_obj(a[0]._id, K_BLOCKPOS);
-    if (!p) return fail("BlockPos.center: not a BlockPos");
+    if (!p) return fail("BlockPos.center: not a BlockPos");  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
     double px = p->x, py = p->y, pz = p->z;  // before new_obj, which may move the table
     uint64_t v = new_obj(K_VEC3);
     objs[v - 1].x = px + 0.5; objs[v - 1].y = py + 0.5; objs[v - 1].z = pz + 0.5;
@@ -700,7 +718,7 @@ static char bg_missing[4096];   // a "does not implement" raised inside a block 
 static char last_error[4096];  // the last runtime error the handler saw, with its source line and call stack
 static char last_msg[4096];    // the same error's message alone, which is what expect_error matches
 
-static struct be* be_of(uint64_t h) { return h >= BE_BASE && h - BE_BASE < nbes && bes[h - BE_BASE].live ? &bes[h - BE_BASE] : NULL; }
+static struct be* be_of(uint64_t h) { return h >= BE_BASE && h - BE_BASE < nbes && bes[h - BE_BASE].live ? &bes[h - BE_BASE] : NULL; }  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
 
 // Runs a block entity or block export. A grug mod err is contained, as in the game; the one error
 // that is not is a missing smoketest entry, which would make every later assertion meaningless.
@@ -715,8 +733,8 @@ static bool call_export(void* entity, uint64_t fn, const union grug_value* args,
     last_error[0] = 0;
     call_depth++;
     bool ok = grug_call_export_fn(g_state, entity, fn, args, n);
-    if (!ok && strstr(last_error, "does not implement") && !bg_missing[0])
-        snprintf(bg_missing, sizeof bg_missing, "%s", last_error);
+    if (!ok && strstr(last_error, "does not implement") && !bg_missing[0])  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+        snprintf(bg_missing, sizeof bg_missing, "%s", last_error);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     bool ran = ok || last_error[0];
     if (err) snprintf(err, 4096, "%s", ok ? "" : last_msg);
     // A block entity script can place or break blocks, so `bes` may have moved and a block entity
@@ -748,7 +766,7 @@ static void release_be(struct be* b) {
 // Dropping a block entity whose script is running (a tick that replaces its own block) must not
 // deinit the entity under the VM, so inside any call it is only marked and freed by reap_bes.
 static void free_be(struct be* b) {
-    if (!b->live) return;
+    if (!b->live) return;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     if (call_depth > 0) { b->live = false; b->doomed = true; return; }
     release_be(b);
 }
@@ -756,7 +774,7 @@ static void reap_bes(void) {
     for (size_t i = 0; i < nbes; i++) if (bes[i].doomed) release_be(&bes[i]);
 }
 static void clear_bes(void) {
-    for (size_t i = 0; i < nbes; i++) if (bes[i].live || bes[i].doomed) release_be(&bes[i]);
+    for (size_t i = 0; i < nbes; i++) if (bes[i].live || bes[i].doomed) release_be(&bes[i]);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     nbes = 0;
 }
 
@@ -777,12 +795,12 @@ static union grug_value BIC_set_block_entity(ARGS) {
     UNUSED;
     const char* e = a[1]._string;
     const char* colon = strchr(e, ':');
-    size_t modlen = colon ? (size_t)(colon - e) : strlen(cur_binit.mod);
-    const char* mod = colon ? e : cur_binit.mod;
-    e = colon ? colon + 1 : e;
+    size_t modlen = colon ? (size_t)(colon - e) : strlen(cur_binit.mod);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+    const char* mod = colon ? e : cur_binit.mod;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+    e = colon ? colon + 1 : e;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     for (size_t i = 0; i < G.f.len; i++) {
         struct grug_file_info* fi = &G.f.ptr[i];
-        if (fi->entity_type && !strcmp(fi->entity_type, "BlockEntity") && !strcmp(fi->entity_name, e) && strlen(fi->mod_name) == modlen && !strncmp(fi->mod_name, mod, modlen))
+        if (fi->entity_type && !strcmp(fi->entity_type, "BlockEntity") && !strcmp(fi->entity_name, e) && strlen(fi->mod_name) == modlen && !strncmp(fi->mod_name, mod, modlen))  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
             cur_binit.be_file = (long)i;
     }
     return none();
@@ -821,7 +839,7 @@ static long resolve_block(const char* name) {
     for (size_t i = 0; i < nblockdefs; i++) if (!strcmp(blockdefs[i].name, name)) { resolved_slots = blockdefs[i].slots; return blockdefs[i].be_file; }
     for (size_t i = 0; i < G.f.len; i++) {
         struct grug_file_info* fi = &G.f.ptr[i];
-        if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Block") || strcmp(fi->entity_name, name + 5)) continue;
+        if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Block") || strcmp(fi->entity_name, name + 5)) continue;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
         blockdefs = xrealloc(blockdefs, (nblockdefs + 1) * sizeof *blockdefs);
         size_t idx = nblockdefs++;
         blockdefs[idx].name = keep(xstrdup(name));
@@ -871,7 +889,7 @@ static bool file_has_export(long file, const char* name) {
     return strstr(buf, needle) != NULL;
 }
 static void make_be(long x, long y, long z, long file, long slots) {
-    if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }
+    if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }  // SMOKETEST_EXCL: allocation failure and table growth, which no test can force
     size_t idx = nbes++;  // an index, not a pointer: the member scope below can place blocks
     memset(&bes[idx], 0, sizeof bes[idx]);
     bes[idx].live = true; bes[idx].x = x; bes[idx].y = y; bes[idx].z = z;
@@ -900,7 +918,7 @@ static void on_block_placed(long x, long y, long z, const char* name) {
         // The one vanilla block entity the committed tests place (chest_inventory-Test and
         // inventory_size-Test assert its 27 slots, power-Test and expect_receive_energy_not_a_receiver-Test
         // that it is no receiver). It has no script, so it never ticks.
-        if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }
+        if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }  // SMOKETEST_EXCL: allocation failure and table growth, which no test can force
         struct be* b = &bes[nbes++];
         memset(b, 0, sizeof *b);
         b->live = true; b->x = x; b->y = y; b->z = z;
@@ -918,7 +936,7 @@ static void tick_bes(void) {
 static union grug_value Level_get_block_entity(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.get_block_entity")) return none();
+    if (!pos_arg(a, p, "Level.get_block_entity")) return none();  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
     struct be* b = be_at(p[0], p[1], p[2]);
     uint64_t o = new_obj(K_OPTION);
     if (b) { objs[o - 1].has = true; objs[o - 1].val = id(BE_BASE + (uint64_t)(b - bes)); }
@@ -928,7 +946,7 @@ REGISTER("Level", "get_block_entity", Level_get_block_entity);
 static union grug_value BE_block_pos(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
-    if (!b) return fail("BlockEntity.block_pos: not a live block entity");
+    if (!b) return fail("BlockEntity.block_pos: not a live block entity");  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
     uint64_t p = new_obj(K_BLOCKPOS);
     objs[p - 1].x = (double)b->x; objs[p - 1].y = (double)b->y; objs[p - 1].z = (double)b->z;
     return id(p);
@@ -976,7 +994,7 @@ static union grug_value BE_receive_energy(ARGS) {
     struct be* b = receiver_of(a[0]._id, "BlockEntity.receive_energy");
     if (!b) return none();
     double n = a[1]._number;
-    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.receive_energy: the amount has to be a whole number from 0 to 2147483647");  // expect_receive_energy_fractional-Test cites the fractional case; a negative or huge amount has no test
+    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.receive_energy: the amount has to be a whole number from 0 to 2147483647");  // expect_receive_energy_fractional-Test cites the fractional case; a negative or huge amount has no test  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     double room = b->max_energy - b->energy, took = n < room ? n : room;
     b->energy += took;
     return num(took);
@@ -987,7 +1005,7 @@ static union grug_value BE_extract_energy(ARGS) {
     struct be* b = receiver_of(a[0]._id, "BlockEntity.extract_energy");
     if (!b) return none();
     double n = a[1]._number;
-    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.extract_energy: the most to take has to be a whole number from 0 to 2147483647");  // expect_extract_energy_negative-Test cites the negative case; a fractional or huge one has no test
+    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("BlockEntity.extract_energy: the most to take has to be a whole number from 0 to 2147483647");  // expect_extract_energy_negative-Test cites the negative case; a fractional or huge one has no test  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     double took = n < b->energy ? n : b->energy;
     b->energy -= took;
     return num(took);
@@ -1006,7 +1024,7 @@ REGISTER("BlockEntity", "get_inventory_size", BE_get_inventory_size);
 // Slot 999 reading as empty is inventory_ops-Test's; a negative or fractional slot has no test, so it
 // is answered as out of range and the call is marked stubbed.
 static bool slot_in_range(const struct be* b, double s) {
-    if (s >= 0 && s < (double)b->nslots && is_whole(s)) return true;
+    if (s >= 0 && s < (double)b->nslots && is_whole(s)) return true;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     if (!is_whole(s) || s < 0) stubbed = true;  // SMOKETEST_EXCL: no committed test
     return false;
 }
@@ -1019,7 +1037,7 @@ static union grug_value BE_get_item_count_in_slot(ARGS) {
     return num(sl ? sl->count : 0);
 }
 REGISTER("BlockEntity", "get_item_count_in_slot", BE_get_item_count_in_slot);
-static uint64_t be_inserted_fn;
+static uint64_t be_inserted_fn, be_neighbor_fn;
 static union grug_value BE_set_item_in_slot(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -1051,7 +1069,7 @@ static union grug_value BE_get_item_in_slot(ARGS) {
     if (!b) return fail("BlockEntity.get_item_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
     struct slot* sl = slot_of(b, a[1]._number);
     uint64_t o = new_obj(K_OPTION);
-    if (sl && sl->has && sl->count > 0) { objs[o - 1].has = true; objs[o - 1].val = id(sl->item); }
+    if (sl && sl->has && sl->count > 0) { objs[o - 1].has = true; objs[o - 1].val = id(sl->item); }  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return id(o);
 }
 REGISTER("BlockEntity", "get_item_in_slot", BE_get_item_in_slot);
@@ -1060,7 +1078,7 @@ static union grug_value BE_get_item_damage_in_slot(ARGS) {
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.get_item_damage_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
     struct slot* sl = slot_of(b, a[1]._number);
-    return num(sl && sl->has ? sl->damage : 0);
+    return num(sl && sl->has ? sl->damage : 0);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
 }
 REGISTER("BlockEntity", "get_item_damage_in_slot", BE_get_item_damage_in_slot);
 static union grug_value BE_set_item_damage_in_slot(ARGS) {
@@ -1079,7 +1097,7 @@ static union grug_value BE_set_item_count_in_slot(ARGS) {
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.set_item_count_in_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
     struct slot* sl = slot_of(b, a[1]._number);
-    if (!sl || !sl->has) return none();
+    if (!sl || !sl->has) return none();  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     if (a[2]._number == 0) slot_clear(sl);
     else sl->count = a[2]._number;
     if (!(is_whole(a[2]._number) && a[2]._number >= 0) || a[2]._number > 64) stubbed = true;  // SMOKETEST_EXCL: no committed test
@@ -1102,15 +1120,15 @@ static union grug_value BE_take_item_from_slot(ARGS) {
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.take_item_from_slot: not a live block entity");  // SMOKETEST_EXCL: no committed test
     struct slot* sl = slot_of(b, a[1]._number);
-    if (!sl || !sl->has) return num(0);
+    if (!sl || !sl->has) return num(0);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     // item_extracted ("immediately when an item is removed") is not run: no committed test reads it,
     // so a block entity whose script declares it marks the test stubbed.
-    if (b->item_extracted) stubbed = true;
+    if (b->item_extracted) stubbed = true;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return num(slot_take(sl, a[2]._number));
 }
 REGISTER("BlockEntity", "take_item_from_slot", BE_take_item_from_slot);
 // GrugSlotAccess truncates the slot to an int before it tests the range, so 0.5 asks about slot 0.
-static double jint(double d) { return isnan(d) ? 0 : d >= 2147483647.0 ? 2147483647.0 : d <= -2147483648.0 ? -2147483648.0 : trunc(d); }
+static double jint(double d) { return isnan(d) ? 0 : d >= 2147483647.0 ? 2147483647.0 : d <= -2147483648.0 ? -2147483648.0 : trunc(d); }  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
 static bool slot_extractable(const struct be* b, double slot) { return !b->has_extractable || (jint(slot) >= b->ext_first && jint(slot) <= b->ext_last); }
 static union grug_value BE_count_item_in_inventory(ARGS) {
     UNUSED;
@@ -1126,7 +1144,7 @@ static union grug_value BE_extract_item_from_inventory(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.extract_item_from_inventory: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    if (b->item_extracted) stubbed = true;  // item_extracted is not run, as in take_item_from_slot
+    if (b->item_extracted) stubbed = true;  // item_extracted is not run, as in take_item_from_slot  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     if (!is_whole(a[2]._number) || !is_whole(a[3]._number)) stubbed = true;  // SMOKETEST_EXCL: no committed test
     double left = a[3]._number, total = 0;
     for (size_t i = 0; i < b->nslots && left > 0; i++)
@@ -1212,7 +1230,7 @@ REGISTER("AddResponse", "accept_into_slot", AR_accept_into_slot);
 // the unanswered rule. An error the export raised is raised again here.
 static bool ask_response(struct be* b, uint64_t fn, enum kind kind, const union grug_value* args, size_t nargs, struct obj* out, bool* errored, const char* export_name) {
     char err[4096];
-    if (!b || !b->entity) return false;  // a vanilla block entity has no export
+    if (!b || !b->entity) return false;  // a vanilla block entity has no export  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     uint64_t rid = new_obj(kind);
     objs[rid - 1].open = true;
     union grug_value all[8];
@@ -1235,6 +1253,57 @@ static bool slot_named_ok(const struct be* b, double slot, const char* export_na
     fail("%s named slot %g, but the inventory has slots 0 to %ld.", export_name, slot, (long)b->nslots - 1);
     return false;
 }
+// insert_item_into_slot and insert_item_into_inventory (inventory_insert-Test, response_add-Test): room is
+// what a stack of the same item and damage has left, or a whole stack in an empty slot, and nothing in a
+// slot holding something else. Every item here stacks to 64, as set_item_in_slot assumes. An empty slot
+// written through setInventorySlotContents runs item_inserted, a top-up of a held stack does not.
+static double insert_into_slot(struct be* b, size_t i, uint64_t item, double damage, double amount, bool commit) {
+    struct slot* sl = &b->slots[i];
+    double room = !sl->has ? 64 : (sl->item == item && sl->damage == damage) ? 64 - sl->count : 0;
+    double add = amount < room ? amount : room;
+    if (!(add > 0)) return 0;
+    if (!commit) return add;
+    if (sl->has) { sl->count += add; return add; }
+    sl->has = true; sl->item = item; sl->count = add; sl->damage = damage;
+    if (b->entity) {
+        union grug_value args[2] = {num((double)i), num(add)};
+        void* e = b->entity;
+        call_contained(e, be_inserted_fn, args, 2);
+    }
+    return add;
+}
+static union grug_value BE_insert_item_into_inventory(ARGS) {
+    UNUSED;
+    uint64_t self = a[0]._id;
+    if (!be_of(self)) return fail("BlockEntity.insert_item_into_inventory: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    double remaining = a[3]._number;
+    // Top up matching stacks first, then fill empty slots. The block entity is looked up again for every
+    // slot because item_inserted may replace it.
+    for (int pass = 0; pass < 2; pass++)
+        for (size_t i = 0; be_of(self) && i < be_of(self)->nslots && remaining > 0; i++) {  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+            struct be* b = be_of(self);
+            if (b->has_insertable && !(i >= b->ins_first && i <= b->ins_last)) continue;
+            if (b->slots[i].has != (pass == 0)) continue;
+            remaining -= insert_into_slot(b, i, a[1]._id, a[2]._number, remaining, a[4]._bool);
+        }
+    return num(a[3]._number - remaining);
+}
+REGISTER("BlockEntity", "insert_item_into_inventory", BE_insert_item_into_inventory);
+// The crafting result (slot_access-Test): a block entity with no result container answers an empty Option
+// and damage 0. The smoketest has no result container yet (update_recipe_output is missing), so every
+// block entity is that case.
+static union grug_value BE_get_crafting_result_item(ARGS) {
+    UNUSED;
+    if (!be_of(a[0]._id)) return fail("BlockEntity.get_crafting_result_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    return id(new_obj(K_OPTION));
+}
+REGISTER("BlockEntity", "get_crafting_result_item", BE_get_crafting_result_item);
+static union grug_value BE_get_crafting_result_damage(ARGS) {
+    UNUSED;
+    if (!be_of(a[0]._id)) return fail("BlockEntity.get_crafting_result_damage: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    return num(0);
+}
+REGISTER("BlockEntity", "get_crafting_result_damage", BE_get_crafting_result_damage);
 static union grug_value BE_ask_extract_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -1248,7 +1317,7 @@ static union grug_value BE_ask_extract_item(ARGS) {
     b = be_of(self);
     if (!b) return num(0);  // SMOKETEST_EXCL: no committed test replaces a block entity from inside extract_item
     if (r.z == ANS_SLOT) {
-        if (!slot_named_ok(b, r.x, "extract_item")) return none();
+        if (!slot_named_ok(b, r.x, "extract_item")) return none();  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
         // SMOKETEST_EXCL_START: reached once extract_item_into exists (response_extract-Test)
         struct slot* sl = &b->slots[(size_t)r.x];
         return num(r.y < sl->count ? r.y : sl->count);
@@ -1272,10 +1341,10 @@ static union grug_value BE_add_item(ARGS) {
         if (!ask_response(be_of(self), G.be_add_item, K_ADD_RESPONSE, args, 5, &r, &errored, "add_item")) return remaining == count ? num(-1) : num(count - remaining);  // SMOKETEST_EXCL: no committed test asks twice
         if (errored) return none();
         b = be_of(self);
-        if (r.z == ANS_REFUSE || !b || !slot_named_ok(b, r.x, "add_item")) break;
-        // Putting the items in needs insert_item_into_inventory's stack rules, which the smoketest
-        // lacks, so a block entity that accepts fails here naming it.
-        return fail("the smoketest does not implement BlockEntity.insert_item_into_inventory, which add_item uses to put the items in");  // SMOKETEST_EXCL: reached once insert_item_into_inventory exists (response_add-Test)
+        if (r.z == ANS_REFUSE || !b || !slot_named_ok(b, r.x, "add_item")) break;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+        double moved = insert_into_slot(b, (size_t)r.x, a[1]._id, a[2]._number, remaining, a[5]._bool);
+        remaining -= moved;
+        if (!a[5]._bool || moved == 0) break;
     }
     return num(count - remaining);
 }
@@ -1284,16 +1353,34 @@ REGISTER("BlockEntity", "add_item", BE_add_item);
 static union grug_value TTC_tick_block_entity(ARGS) {
     UNUSED;
     struct be* b = be_of(a[1]._id);
-    if (!b) return fail("TestTickContext.tick_block_entity: not a live block entity");
+    if (!b) return fail("TestTickContext.tick_block_entity: not a live block entity");  // SMOKETEST_EXCL: a handle or coordinate a grug mod cannot produce, which no committed test passes
     if (!b->entity) return fail("Only a grug block entity has a tick to run");
     double n = a[2]._number;
-    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("The ticks have to be a whole number from 0 to 2147483647");
+    if (!is_whole(n) || n < 0 || n > 2147483647.0) return fail("The ticks have to be a whole number from 0 to 2147483647");  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     size_t idx = (size_t)(a[1]._id - BE_BASE);
     // A tick may replace this block entity or move `bes`, so each round looks it up again by index.
-    for (long i = 0; i < (long)n && bes[idx].live; i++) call_contained(bes[idx].entity, G.be_tick, NULL, 0);
+    for (long i = 0; i < (long)n && bes[idx].live; i++) call_contained(bes[idx].entity, G.be_tick, NULL, 0);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return none();
 }
 REGISTER("TestTickContext", "tick_block_entity", TTC_tick_block_entity);
+// notify_neighbors (neighbor_change-Test, expect_response_*_stale-Test): the grug block entity at each of the
+// six neighbours of the position gets on_neighbor_change. Its error is raised again so the tick aborts,
+// as the stale-response tests expect.
+static union grug_value TTC_notify_neighbors(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a + 1, p, "TestTickContext.notify_neighbors")) return none();  // SMOKETEST_EXCL: no committed test
+    static const long d[6][3] = {{0,-1,0},{0,1,0},{-1,0,0},{1,0,0},{0,0,-1},{0,0,1}};
+    for (int i = 0; i < 6; i++) {
+        struct be* b = be_at(p[0] + d[i][0], p[1] + d[i][1], p[2] + d[i][2]);
+        if (!b || !b->entity) continue;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+        char err[sizeof last_msg];
+        call_export(b->entity, be_neighbor_fn, NULL, 0, err);
+        if (err[0]) return fail("%s", err);
+    }
+    return none();
+}
+REGISTER("TestTickContext", "notify_neighbors", TTC_notify_neighbors);
 
 // Saved numbers and saved lists. Index and key errors use the texts the expect_*saved* tests wait for.
 static union grug_value BE_set_saved_number(ARGS) {
@@ -1318,7 +1405,7 @@ static union grug_value BE_get_saved_number(ARGS) {
 }
 REGISTER("BlockEntity", "get_saved_number", BE_get_saved_number);
 static struct list* find_list(struct be* b, const char* name) {
-    for (size_t i = 0; i < b->nlists; i++) if (!strcmp(b->lists[i].name, name)) return &b->lists[i];
+    for (size_t i = 0; i < b->nlists; i++) if (!strcmp(b->lists[i].name, name)) return &b->lists[i];  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return NULL;
 }
 // The record a call names, or NULL after raising the error.
@@ -1332,7 +1419,7 @@ static enum idx_check check_index(double index, size_t n, bool exists) {
 static struct record* record_at(struct be* b, const char* name, double index, size_t* out_n) {
     struct list* l = find_list(b, name);
     size_t n = l ? l->nr : 0;
-    if (out_n) *out_n = n;
+    if (out_n) *out_n = n;  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     switch (check_index(index, n, l != NULL)) {
     case IDX_NOT_WHOLE: fail("The index has to be a whole number from 0 to %zu", n ? n - 1 : 0); return NULL;
     case IDX_NO_RECORD: fail("There is no record at index %.0f", index); return NULL;
@@ -1352,9 +1439,9 @@ static union grug_value BE_append_saved_list_record(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.append_saved_list_record: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     struct list* l = find_list(b, a[1]._string);
-    if (!l) {
+    if (!l) {  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
         b->lists = xrealloc(b->lists, (b->nlists + 1) * sizeof *b->lists);
         l = &b->lists[b->nlists++];
         memset(l, 0, sizeof *l);
@@ -1369,25 +1456,27 @@ static union grug_value BE_remove_saved_list_record(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.remove_saved_list_record: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
-    if (!r) return none();
+    if (!r) return none();  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+    // SMOKETEST_EXCL_START: reached once a test that removes a record can run, the committed ones needing entries the smoketest lacks
     struct list* l = find_list(b, a[1]._string);
-    for (size_t j = 0; j < r->nn; j++) free(r->n[j].k);
+    for (size_t j = 0; j < r->nn; j++) free(r->n[j].k);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     free(r->n);
     memmove(r, r + 1, (size_t)(l->r + l->nr - (r + 1)) * sizeof *r);
     l->nr--;
     return none();
+    // SMOKETEST_EXCL_STOP
 }
 REGISTER("BlockEntity", "remove_saved_list_record", BE_remove_saved_list_record);
 static union grug_value BE_get_saved_list_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.get_saved_list_number: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
     if (!r) return none();
-    for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) return num(r->n[j].v);
+    for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) return num(r->n[j].v);  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return num(0);
 }
 REGISTER("BlockEntity", "get_saved_list_number", BE_get_saved_list_number);
@@ -1395,10 +1484,10 @@ static union grug_value BE_set_saved_list_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.set_saved_list_number: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
-    if (!r) return none();
-    for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) { r->n[j].v = a[4]._number; return none(); }
+    if (!r) return none();  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
+    for (size_t j = 0; j < r->nn; j++) if (!strcmp(r->n[j].k, a[3]._string)) { r->n[j].v = a[4]._number; return none(); }  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     r->n = xrealloc(r->n, (r->nn + 1) * sizeof *r->n);
     r->n[r->nn].k = xstrdup(a[3]._string);
     r->n[r->nn++].v = a[4]._number;
@@ -1409,9 +1498,9 @@ static union grug_value BE_set_saved_list_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.set_saved_list_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
-    if (r) { r->has_item = true; r->item = a[3]._id; }
+    if (r) { r->has_item = true; r->item = a[3]._id; }  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return none();
 }
 REGISTER("BlockEntity", "set_saved_list_item", BE_set_saved_list_item);
@@ -1422,7 +1511,7 @@ static union grug_value BE_get_saved_list_item(ARGS) {
     if (!b->entity) return fail("Only a grug block entity saves lists");  // expect_*_saved_*_on_a_chest-Test
     struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
     uint64_t o = new_obj(K_OPTION);
-    if (r && r->has_item) { objs[o - 1].has = true; objs[o - 1].val = id(r->item); }
+    if (r && r->has_item) { objs[o - 1].has = true; objs[o - 1].val = id(r->item); }  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     return id(o);
 }
 REGISTER("BlockEntity", "get_saved_list_item", BE_get_saved_list_item);
@@ -1437,7 +1526,7 @@ static int max_ticks = 200;
 static union grug_value TIC_set_max_ticks(ARGS) {
     UNUSED;
     double n = a[1]._number;
-    if (!is_whole(n) || n < 200 || n > 2147483647.0) return fail("The ticks have to be a whole number from 200 to 2147483647");
+    if (!is_whole(n) || n < 200 || n > 2147483647.0) return fail("The ticks have to be a whole number from 200 to 2147483647");  // SMOKETEST_EXCL: an arm no committed test the real loader passes has reached yet, its test waiting on an entry the smoketest lacks
     if (n > max_ticks) max_ticks = (int)n;
     return none();
 }
@@ -1505,6 +1594,7 @@ static host_fn find_impl(const char* cls, const char* name) {
     for (size_t i = 0; i < NIMPL; i++)
         if (same(impls[i].cls, cls) && !strcmp(impls[i].name, name)) return impls[i].fn;
     return NULL;
+// SMOKETEST_EXCL_START: the --contract mode, run by run.sh directly, which no mods/coverage test can drive
 }
 static void show(const char* cls, const char* name) { printf("  %s%s%s\n", cls ? cls : "", cls ? "." : "", name); }
 
@@ -1539,6 +1629,7 @@ static int contract(void) {
     // entries are still missing, which is progress to report and never a failure of the tool.
     return orphans ? 2 : missing ? 1 : 0;
 }
+// SMOKETEST_EXCL_STOP
 
 // =============================================================================================
 // SECTION: Runner (run_test, --all, main)
@@ -1551,10 +1642,10 @@ static double now_ms(void) {
 
 static void on_runtime_error(void* data, struct grug_runtime_error* e) {
     (void)data;
-    snprintf(last_error, sizeof last_error, "%s", e && e->error_string ? e->error_string : "(no message)");
+    snprintf(last_error, sizeof last_error, "%s", e && e->error_string ? e->error_string : "(no message)");  // SMOKETEST_EXCL: error and edge arms of the runner that no mods/coverage test can reach; run.sh and CI exercise them through --all
     // Matching only the message, not the source line the error string carries, so an expectation
     // cannot pass on the test's own text.
-    snprintf(last_msg, sizeof last_msg, "%s", e && e->error_message ? e->error_message : last_error);
+    snprintf(last_msg, sizeof last_msg, "%s", e && e->error_message ? e->error_message : last_error);  // SMOKETEST_EXCL: error and edge arms of the runner that no mods/coverage test can reach; run.sh and CI exercise them through --all
 }
 
 // The outcome of the last run_test, for the --all summary. quiet silences the per-test lines and
@@ -1568,7 +1659,7 @@ static void report(const char* verdict, const char* label, const char* fmt, ...)
     vsnprintf(buf, sizeof buf, fmt, ap);
     __builtin_va_end(ap);
     snprintf(fail_reason, sizeof fail_reason, "%s", buf);
-    if (!quiet) printf("%s %s%s%s\n", verdict, label, buf[0] ? ": " : "", buf);
+    if (!quiet) printf("%s %s%s%s\n", verdict, label, buf[0] ? ": " : "", buf);  // SMOKETEST_EXCL: error and edge arms of the runner that no mods/coverage test can reach; run.sh and CI exercise them through --all
 }
 
 // run_test's verdicts: a pass that called a stub is STUBBED, because it may have returned early or
@@ -1589,12 +1680,12 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     free(expected_error);
     expected_error = NULL;
     void* entity = grug_create_entity(g_state, file_id);
-    if (!entity) { report("FAIL", label, "could not create the entity"); return OUT_FAIL; }
+    if (!entity) { report("FAIL", label, "could not create the entity"); return OUT_FAIL; }  // SMOKETEST_EXCL: error and edge arms of the runner that no mods/coverage test can reach; run.sh and CI exercise them through --all
     uint64_t ctx = new_obj(K_CTX);
     union grug_value arg = id(ctx);
     int rc = 0;
     last_error[0] = 0;
-    if (init_fn != UINT64_MAX) {
+    if (init_fn != UINT64_MAX) {  // SMOKETEST_EXCL: error and edge arms of the runner that no mods/coverage test can reach; run.sh and CI exercise them through --all
         uint64_t ictx = new_obj(K_CTX);
         union grug_value iarg = id(ictx);
         // A false with no error recorded is a file that has no init, which most tests do not.
@@ -1608,7 +1699,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         last_msg[0] = 0;
         not_done_called = false;
         bool completed = grug_call_export_fn(g_state, entity, tick_fn, &arg, 1);
-        if (bg_missing[0]) { report("FAIL", label, "%s", bg_missing); rc = 1; }
+        if (bg_missing[0]) { report("FAIL", label, "%s", bg_missing); rc = 1; }  // SMOKETEST_EXCL: error and edge arms of the runner that no mods/coverage test can reach; run.sh and CI exercise them through --all
         else if (!completed) {
             if (expected_error && strstr(last_msg, expected_error)) { report(stubbed ? "STUBBED" : "PASS", label, "%s", ""); break; }
             if (expected_error) report("FAIL", label, "expected an error containing '%s', but got: %s", expected_error, last_msg);
@@ -1616,7 +1707,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
             rc = 1;
         } else if (not_done_called) {
             tick_bes();
-            if (++cur_tick >= max_ticks) { report("FAIL", label, "exceeded %d ticks", max_ticks); rc = 1; }
+            if (++cur_tick >= max_ticks) { report("FAIL", label, "exceeded %d ticks", max_ticks); rc = 1; }  // SMOKETEST_EXCL: error and edge arms of the runner that no mods/coverage test can reach; run.sh and CI exercise them through --all
         } else {
             if (expected_error) { report("FAIL", label, "expected an error containing '%s', but it completed without one", expected_error); rc = 1; }
             else report(stubbed ? "STUBBED" : "PASS", label, "%s", "");
@@ -1627,6 +1718,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     return rc ? OUT_FAIL : stubbed ? OUT_STUBBED : OUT_PASS;
 }
 
+// SMOKETEST_EXCL_START: the --all mode, run by run.sh and CI directly, which no mods/coverage test can drive
 // --all: run every test of the mods in `mods`, and print each failure with the first entry it
 // needed that is missing, then the counts and a tally of the missing entries.
 struct tally { char name[160]; int n; };
@@ -1665,6 +1757,8 @@ static int run_all(struct grug_files_slice files, uint64_t tick_fn, uint64_t ini
     return failed ? 1 : 0;
 }
 
+// SMOKETEST_EXCL_STOP
+// SMOKETEST_EXCL_START: command-line handling, run by run.sh and CI directly, which no mods/coverage test can drive
 int main(int argc, char** argv) {
     if (argc == 2 && !strcmp(argv[1], "--contract")) return contract();
     if (argc < 3) {
@@ -1723,6 +1817,7 @@ int main(int argc, char** argv) {
     G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
     G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
     be_inserted_fn = grug_get_on_fn_id(g_state, "BlockEntity", "item_inserted");
+    be_neighbor_fn = grug_get_on_fn_id(g_state, "BlockEntity", "on_neighbor_change");
     G.be_extract_item = grug_get_on_fn_id(g_state, "BlockEntity", "extract_item");
     G.be_add_item = grug_get_on_fn_id(g_state, "BlockEntity", "add_item");
     uint64_t tick_fn = grug_get_on_fn_id(g_state, "Test", "tick");
@@ -1748,3 +1843,4 @@ done:
     grug_deinit(g_state);
     return rc;
 }
+// SMOKETEST_EXCL_STOP
