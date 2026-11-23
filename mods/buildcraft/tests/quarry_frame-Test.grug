@@ -3,12 +3,12 @@
 # starts 5 blocks to its west and 11 to its north, from its own height up. The world's clock is set by hand
 # so that each tick of the quarry is a work step: the work needs 25 energy and 20 ticks of the world's
 # clock since the last step, and costs 25.
-# Four cells are prepared. A stone block in the box's interior has to be cleared, which is a step of its
-# own; a stone block on a frame cell is cleared and then replaced by a frame, two steps; water on a frame
-# cell is soft, so a frame goes in at once; and bedrock on a frame cell is a block the quarry may not
+# Three cells are prepared (no water: place_block puts down a flowing water, which 1.2.5 and Beta
+# name minecraft:unknown, so the builder clears it first; that is #1626). A stone block in the box's interior has to be cleared, which is a step of its
+# own; a stone block on a frame cell is cleared and then replaced by a frame, two steps; and bedrock on a frame cell is a block the quarry may not
 # break, so that cell never gets a frame. The frame has 40 cells at the bottom, 40 at the top and 12 on
-# the three heights between the corner columns, 92 in all, one of which is bedrock, so 91 frames, 2 clears
-# and one more step that finds nothing left to do: the quarry takes 93 steps and the 94th costs no energy.
+# the three heights between the corner columns, 92 in all, one of which is bedrock, so 91 frames and 2 clears:
+# the quarry takes 93 steps, and a 94th finds nothing left to do and costs no energy.
 # The other tests' quarries run no steps, since they hold no energy.
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
@@ -27,7 +27,6 @@ export tick(ctx: TestTickContext) {
 
     level.place_block(box_x + 3, y, box_z + 3, "minecraft:stone")
     level.place_block(box_x + 10, y, box_z + 5, "minecraft:stone")
-    level.place_block(box_x + 4, y + 4, box_z + 10, "minecraft:water")
     level.place_block(box_x + 5, y + 4, box_z, "minecraft:bedrock")
 
     quarry.receive_energy(7000)
@@ -57,7 +56,6 @@ export tick(ctx: TestTickContext) {
 
     ctx.assert(level.get_block(box_x + 3, y, box_z + 3) == "minecraft:air", "The stone block inside the box should be cleared.")
     ctx.assert(level.get_block(box_x + 10, y, box_z + 5) == "grug:frame", "The stone block on a frame cell should be cleared and replaced by a frame.")
-    ctx.assert(level.get_block(box_x + 4, y + 4, box_z + 10) == "grug:frame", "The water on a frame cell should be replaced by a frame.")
     ctx.assert(level.get_block(box_x + 5, y + 4, box_z) == "minecraft:bedrock", "The bedrock on a frame cell should be left alone, and get no frame.")
 
     # The corners, one cell on each edge, and the middle of the box.
