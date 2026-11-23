@@ -1,8 +1,10 @@
 package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -53,5 +55,13 @@ class GrugTestPlayerPinTest {
         GrugTestPlayerPin.hold(1, 3);
         assertNull(GrugTestPlayerPin.poseFor(false));
         assertEquals(1, GrugTestPlayerPin.poseFor(true).x);
+    }
+
+    @Test
+    void aPlayerIsOffAHoldOnEitherAxisAndNeverOffNothing() {
+        assertFalse(GrugTestPlayerPin.offHold(1, 3, 1, 3));
+        assertTrue(GrugTestPlayerPin.offHold(1.5, 3, 1, 3));
+        assertTrue(GrugTestPlayerPin.offHold(1, 3.5, 1, 3));
+        assertFalse(GrugTestPlayerPin.offHold(1.5, 3.5, Double.NaN, Double.NaN));
     }
 }

@@ -72,4 +72,13 @@ public final class GrugTestPlayerPin {
     public static Pose target() {
         return target;
     }
+
+    /**
+     * Whether a player is off the horizontal position a hold names. A hold of NaN means nothing is
+     * held, which a dedicated server uses before its snap and after the restore, and then no
+     * position is off it.
+     */
+    public static boolean offHold(double x, double z, double holdX, double holdZ) {
+        return !Double.isNaN(holdX) && (x != holdX || z != holdZ);
+    }
 }

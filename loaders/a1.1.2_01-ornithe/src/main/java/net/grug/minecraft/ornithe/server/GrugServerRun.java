@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugServerJoin;
 import net.grug.minecraft.core.GrugStarterPlacement;
 import net.grug.minecraft.core.GrugTestOrigin;
+import net.grug.minecraft.core.GrugTestPlayerPin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -67,6 +68,15 @@ public final class GrugServerRun {
      * itself, because this server keeps the feet in the player's position (#1190).
      */
     private static double holdY = 0;
+
+    /**
+     * The block centre the snap put the player on, or NaN when nothing is held. The mobs a test
+     * fills the room with push and hit the server's copy of the player, and the joined client's
+     * camera follows it, so the player is put back here whenever they leave it (#1580).
+     */
+    private static double holdX = Double.NaN;
+
+    private static double holdZ = Double.NaN;
 
     /** How far the feet may drift from that height before the hold corrects them. */
     private static final double HOLD_TOLERANCE = 0.25;
@@ -341,6 +351,11 @@ public final class GrugServerRun {
      * their height, and correcting that on every tick would send a move packet per tick.
      */
     private static void holdPlayer(PlayerEntity player) {
+        if (GrugTestPlayerPin.offHold(player.x, player.z, holdX, holdZ)) {
+            player.velocityX = 0.0;
+            player.velocityZ = 0.0;
+            moveTo(player, player.y, holdX, holdZ, player.yaw, player.pitch);
+        }
         holdOnFloor(player);
         if (heldOnFloorThisTick) {
             return;
@@ -364,6 +379,10 @@ public final class GrugServerRun {
      * the move the floor hold uses so the joined client's camera follows (#1040).
      */
     public static void moveToFeet(PlayerEntity player, double x, double feetY, double z) {
+        if (!Double.isNaN(holdX)) {
+            holdX = x;
+            holdZ = z;
+        }
         moveTo(player, feetY, x, z);
     }
 
@@ -433,6 +452,8 @@ public final class GrugServerRun {
                 SNAP.snappedZ(),
                 SNAP.snappedYaw(),
                 SNAP.snappedPitch());
+        holdX = SNAP.snappedX();
+        holdZ = SNAP.snappedZ();
     }
 
     /**
@@ -445,6 +466,8 @@ public final class GrugServerRun {
      * A server whose snap did not run, because it had no player copy yet, restores nothing.
      */
     public static void restoreTestPlayer(PlayerEntity player) {
+        holdX = Double.NaN;
+        holdZ = Double.NaN;
         if (!SNAP.claimRestore(player)) {
             return;
         }
