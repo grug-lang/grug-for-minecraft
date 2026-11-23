@@ -125,6 +125,14 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                     GrugControlStation::server,
                     message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
 
+    /**
+     * The dedicated server has no client to clear a toast on, and the base adapter would ask for a
+     * Minecraft instance this process does not have, so the test runner's call is a no-op here: the
+     * joined client marks its own achievements before it captures anything (#1576).
+     */
+    @Override
+    public void markAchievementsEarnedForTest() {}
+
     @Override
     public GrugClientTestCalls.Forwarded forwardedClientTestCalls() {
         return clientTestCalls;
