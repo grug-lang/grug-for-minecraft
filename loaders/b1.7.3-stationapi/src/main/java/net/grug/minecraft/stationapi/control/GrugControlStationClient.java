@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -132,6 +133,15 @@ public final class GrugControlStationClient {
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         player.setPositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
+        // The box keeps the eye-derived feet, which the frame's lighting reads (a box at exactly
+        // the floor lit the buildcraft wooden_pipe_refused_arm capture where its golden is dark).
+        // The camera reads y, so it is written the way a grounded singleplayer player has it: the
+        // feet plus the player's own single precision eye height.
+        double y =
+                Math.rint((eye.y() - GrugTestOrigin.EYE_HEIGHT) * 1e6) / 1e6
+                        + player.standingEyeHeight;
+        player.y = y;
+        player.lastTickY = y;
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
@@ -273,6 +283,22 @@ public final class GrugControlStationClient {
         if (bad != null) {
             failed.accept(bad);
             return;
+        }
+        PlayerEntity cam = GrugClientPlayer.of(mc);
+        if (cam != null) {
+            System.out.println(
+                    "[GRUG CONTROL] camera bits: y "
+                            + cam.y
+                            + " lastTickY "
+                            + cam.lastTickY
+                            + " minY "
+                            + cam.boundingBox.minY
+                            + " onGround "
+                            + cam.onGround
+                            + " tilt "
+                            + cam.tilt
+                            + "/"
+                            + cam.prevTilt);
         }
         System.out.println(
                 "[GRUG CONTROL] capturing after "
