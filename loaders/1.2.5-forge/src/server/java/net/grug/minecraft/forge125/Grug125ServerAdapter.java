@@ -591,8 +591,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                                         placedRegion.ask(
                                                 (x, y, z) -> level.getBlockId(x, y, z),
                                                 (cx, cz) ->
-                                                        Grug125ChunkReceived.received(
-                                                                level.getChunkProvider(), cx, cz)));
+                                                        level.getChunkProvider()
+                                                                .chunkExists(cx, cz)));
                 if (clientSettled) {
                     placedRegion.answeredSettled();
                 }
