@@ -2,7 +2,6 @@ package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.grug.minecraft.core.GrugSavedDataSync;
-import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.entity.GrugSavedDataAlpha;
 
 /**
@@ -15,7 +14,6 @@ import net.grug.minecraft.ornithe.block.entity.GrugSavedDataAlpha;
  * world's tick by {@code ServerWorldMixin}, so there is nothing to register here beyond saying the
  * server is up.
  */
-@GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class ServerGrugModLoader implements DedicatedServerModInitializer {
     @Override
     public void onInitializeServer() {
