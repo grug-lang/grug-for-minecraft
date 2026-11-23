@@ -9,10 +9,12 @@ above 0. A marker excludes its line and that line's branches alike. A line may b
 test is never hidden by a bare marker:
 
     code();  // SMOKETEST_EXCL: why no committed test can reach this line
+    code();  // SMOKETEST_EXCL_BRANCH: why no committed test can take this line's other branch
     // SMOKETEST_EXCL_START: why no committed test can reach these lines
     ...
     // SMOKETEST_EXCL_STOP
 
+The _BRANCH form hides only the branches of its line, so the line itself must still run to count as covered.
 A marker with no reason, a START with no STOP, a STOP with no START and a nested START are errors.
 It prints both percentages and the uncovered ``line`` numbers and branch lines, and exits 0, unless ``--assert`` is given, which
 exits 1 below 100% of either or on a bad marker. The job turns the assertion on with SMOKETEST_ASSERT_COVERAGE.
@@ -28,8 +30,17 @@ from pathlib import Path
 
 # The marker has to start a // comment: the text outside a comment, such as a string, is no marker.
 MARKER = re.compile(
-    r"^(?:[^\"\n]|\"(?:[^\"\\\n]|\\.)*\")*?//\s*SMOKETEST_EXCL(_START|_STOP)?\b(?:\s*:\s*(\S.*))?"
+    r"^(?:[^\"\n]|\"(?:[^\"\\\n]|\\.)*\")*?//\s*SMOKETEST_EXCL(_START|_STOP|_BRANCH)?\b(?:\s*:\s*(\S.*))?"
 )
+
+
+def branch_excluded_lines(source: str) -> set[int]:
+    """The 1-based lines whose branches (and only those) a _BRANCH marker excludes."""
+    return {
+        number
+        for number, line in enumerate(source.splitlines(), 1)
+        if (m := MARKER.search(line)) is not None and m.group(1) == "_BRANCH"
+    }
 
 
 def excluded_lines(source: str) -> tuple[set[int], list[str]]:
@@ -46,6 +57,10 @@ def excluded_lines(source: str) -> tuple[set[int], list[str]]:
         kind, reason = match.group(1), match.group(2)
         if kind != "_STOP" and not reason:
             problems.append(f"line {number}: an exclusion needs a reason after a colon")
+        if kind == "_BRANCH":
+            if start is not None:
+                excluded.add(number)
+            continue  # excludes branches only, see branch_excluded_lines
         if kind == "_START":
             if start is not None:
                 problems.append(
@@ -82,7 +97,8 @@ def measure(gcov: dict, source: str, name: str = "smoketest.c") -> tuple:
                 branches[key] = branches.get(key, 0) + branch["count"]
     counted = {n: c for n, c in counts.items() if n not in excluded}
     missed = sorted(n for n, c in counted.items() if c == 0)
-    kept = {k: c for k, c in branches.items() if k[0] not in excluded}
+    branch_excluded = excluded | branch_excluded_lines(source)
+    kept = {k: c for k, c in branches.items() if k[0] not in branch_excluded}
     missed_branches = sorted(k for k, c in kept.items() if c == 0)
     return (
         len(counted),
