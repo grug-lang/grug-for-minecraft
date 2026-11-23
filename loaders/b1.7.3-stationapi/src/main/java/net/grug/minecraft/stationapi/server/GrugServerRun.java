@@ -38,6 +38,21 @@ public final class GrugServerRun {
 
     private static MinecraftServer server;
     private static GrugTestRunner runner;
+
+    /**
+     * The feet height the run holds the test player at, 0 before the run has started: where they
+     * stood when it began, rounded to a millionth to shed the float eye height's last bits. A room
+     * built while the feet were a hair under a whole number put its stand block a block too low and
+     * the hold then kept the player on it, so every later capture was drawn one block lower than a
+     * client-only run's (#1068, #1629).
+     */
+    private static double heldFeetY = 0;
+
+    /** The held feet height, 0 before the run has started. */
+    public static double heldFeetY() {
+        return heldFeetY;
+    }
+
     private static long waitStartMillis;
     private static long lastReportMillis;
     private static boolean done;
@@ -254,6 +269,9 @@ public final class GrugServerRun {
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
+                PlayerEntity starter = (PlayerEntity) GrugCore.getAdapter().testPlayer();
+                heldFeetY = Math.rint(starter.boundingBox.minY * 1e6) / 1e6;
+                System.out.println("[GRUG CI] the run holds the test player at feet " + heldFeetY);
                 runner = new GrugTestRunner();
             } else {
                 failJoinTimeoutIfDue();
@@ -365,6 +383,9 @@ public final class GrugServerRun {
         ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
         serverPlayer.networkHandler.teleport(x, feetY, z, serverPlayer.yaw, serverPlayer.pitch);
         serverPlayer.velocityY = 0.0;
+        if (heldFeetY != 0) {
+            heldFeetY = Math.rint(feetY * 1e6) / 1e6;
+        }
     }
 
     /**
@@ -393,11 +414,27 @@ public final class GrugServerRun {
         }
         GrugPlayerFloor.BlockSource blocks = ServerStationApiAdapter.solidBlocks(world);
         double feet = player.boundingBox.minY;
+        if (heldFeetY != 0 && feet < heldFeetY - HELD_TOLERANCE) {
+            holdAtHeight((ServerPlayerEntity) player, heldFeetY);
+            return;
+        }
         double floor = GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z);
         if (!GrugPlayerFloor.below(feet, floor)) {
             return;
         }
         holdOnFloor((ServerPlayerEntity) player, feet, floor);
+    }
+
+    private static final double HELD_TOLERANCE = 0.25;
+
+    @GrugGenerated(
+            "it runs only when a build or a fall left the player a quarter block under the height"
+                    + " the run holds them at, which a test cannot make happen (#1629)")
+    private static void holdAtHeight(ServerPlayerEntity serverPlayer, double feetY) {
+        serverPlayer.networkHandler.teleport(
+                serverPlayer.x, feetY, serverPlayer.z, serverPlayer.yaw, serverPlayer.pitch);
+        serverPlayer.velocityY = 0.0;
+        System.out.println("[GRUG CI] holding the test player at the run's height " + feetY);
     }
 
     /**
