@@ -5,6 +5,7 @@ import cpw.mods.fml.server.FMLServerHandler;
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
+import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugForge125Arms;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugLightResend;
@@ -573,13 +574,33 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                     + " reaches the adapter")
     public void playUiSound(String path, double volume, double pitch) {
         GrugForge125Arms.forwarded(
-                () -> {
-                    GrugControlServer125.server().playUiSound(path, volume, pitch);
-                    return null;
-                },
+                new PlayUiSound(path, volume, pitch),
                 "play_ui_sound",
                 Grug125ServerAdapter::forwardFailed,
                 null);
+    }
+
+    /** The forwarded sound as a class rather than a lambda, so the exclusion covers its body. */
+    @GrugGenerated(
+            "In a CI run 1.2.5 downloads no sound resources, so the client's pool is empty,"
+                    + " has_sound is never true and play_ui_sound refuses every name before it"
+                    + " reaches the adapter")
+    private static final class PlayUiSound implements GrugForge125Arms.Forward<Object> {
+        private final String path;
+        private final double volume;
+        private final double pitch;
+
+        PlayUiSound(String path, double volume, double pitch) {
+            this.path = path;
+            this.volume = volume;
+            this.pitch = pitch;
+        }
+
+        @Override
+        public Object get() throws GrugControlServer.ControlException {
+            GrugControlServer125.server().playUiSound(path, volume, pitch);
+            return null;
+        }
     }
 
     @Override
