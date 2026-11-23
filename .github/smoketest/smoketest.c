@@ -1438,23 +1438,25 @@ static const struct recipe vanilla_recipes[] = {
     {1, 3, 1, "minecraft:bread", 1, {"minecraft:wheat", "minecraft:wheat", "minecraft:wheat"}},  // slot_access-Test, response_extract_consumed-Test
 };
 // grid holds the item name of each of the 9 cells, NULL for an empty one. A shaped recipe fits anywhere
-// in the grid with every other cell empty; a shapeless one takes exactly its ingredients in any order.
+// in the grid, as written or mirrored, with every other cell empty; a shapeless one takes exactly its ingredients in any order.
 static const struct recipe* match_recipe(const struct recipe* rs, size_t n, const char* const grid[9]) {
     for (size_t r = 0; r < n; r++) {
         const struct recipe* rc = &rs[r];
         if (rc->shaped) {
-            for (int oy = 0; oy + rc->h <= 3; oy++)
-                for (int ox = 0; ox + rc->w <= 3; ox++) {
-                    bool ok = true;
-                    for (int y = 0; y < 3 && ok; y++)
-                        for (int x = 0; x < 3 && ok; x++) {
-                            bool inside = x >= ox && x < ox + rc->w && y >= oy && y < oy + rc->h;
-                            const char* want = inside ? rc->cells[(y - oy) * rc->w + (x - ox)] : "";
-                            const char* have = grid[y * 3 + x];
-                            ok = want[0] ? have && !strcmp(have, want) : !have;
-                        }
-                    if (ok) return rc;
-                }
+            for (int mirror = 0; mirror < 2; mirror++)
+                for (int oy = 0; oy + rc->h <= 3; oy++)
+                    for (int ox = 0; ox + rc->w <= 3; ox++) {
+                        bool ok = true;
+                        for (int y = 0; y < 3 && ok; y++)
+                            for (int x = 0; x < 3 && ok; x++) {
+                                bool inside = x >= ox && x < ox + rc->w && y >= oy && y < oy + rc->h;
+                                int col = mirror ? rc->w - 1 - (x - ox) : x - ox;
+                                const char* want = inside ? rc->cells[(y - oy) * rc->w + col] : "";
+                                const char* have = grid[y * 3 + x];
+                                ok = want[0] ? have && !strcmp(have, want) : !have;
+                            }
+                        if (ok) return rc;
+                    }
         } else {
             int n_in = rc->w, filled = 0;
             bool used[9] = {false};
@@ -1986,6 +1988,9 @@ REGISTER("TestInitContext", "set_max_ticks", TIC_set_max_ticks);
 static union grug_value TTC_set_box_radius(ARGS) {
     UNUSED;
     stubbed = true;
+    // The room build's sweep removes the item entities in the test area (test_box_sweep-Test); the room
+    // itself is not built, so every spawned item entity is taken out of the world.
+    for (size_t i = 0; i < nents; i++) ents[i].spawned = false;
     if (a[1]._number > 30) return fail("The radius has to be at most 30: a wider room would reach chunks the client never receives");
     return none();
 }
