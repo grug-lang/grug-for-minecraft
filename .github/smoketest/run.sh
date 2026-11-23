@@ -55,9 +55,15 @@ echo "== AddressSanitizer and UBSan =="
 make -C "$here" OUT="$build/asan" SAN="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" >/dev/null || exit 1
 run "$build/asan" sanitizers
 
-echo "== core/src/main/native/adapter.c: the JNI shim compiles with the smoketest's own warning flags =="
+echo "== core/src/main/native: adapter.c and the generated adapter compile with the smoketest's own warning flags =="
 jdk=$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")
-gcc -fsyntax-only -std=gnu11 -Wall -Wextra -Wpedantic -Werror -I"$jdk/include" -I"$jdk/include/linux" -I"$here/../../core/src/main/native" "$here/../../core/src/main/native/adapter.c" || status=1
+native="$here/../../core/src/main/native"
+generated=$(mktemp -d)
+python3 "$here/../../core/generate.py" "$here/../../mod_api.json" "$generated/adapter_generated.c" "$generated/ExportFns.java" "$generated/GenericHostFunctions.java" || status=1
+for c in "$native/adapter.c" "$generated/adapter_generated.c"; do
+    gcc -fsyntax-only -std=gnu11 -Wall -Wextra -Wpedantic -Werror -I"$jdk/include" -I"$jdk/include/linux" -I"$native" "$c" || status=1
+done
+rm -rf "$generated"
 
 echo "== selftest.c: C tests of the pure helpers, with known answers from a real JDK =="
 make -C "$here" SELFTEST="$build/selftest" "$build/selftest" SAN="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" >/dev/null || exit 1
