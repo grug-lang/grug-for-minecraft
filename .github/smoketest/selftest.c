@@ -204,6 +204,28 @@ static void test_double_text(void) {
     }
 }
 
+// The argument checks of slice 9: messages follow HostFunctions.colorProblem, GrugTestState.checkTickCount,
+// GrugSoundArgs and GrugDisplayTicks.particleProblem.
+static void test_argument_checks(void) {
+    char m[600];
+    CHECK(!color_problem(0, 255, 7, 255, m, sizeof m), "a whole 0 to 255 color is accepted");
+    CHECK(color_problem(0, 256, 7, 1, m, sizeof m) && !strcmp(m, "Each value has to be a whole number from 0 to 255, and the values were 0, 256, 7 and 1."), "%s", m);
+    CHECK(color_problem(0, 1.5, 7, 1, m, sizeof m) && strstr(m, "0, 1.5, 7 and 1."), "%s", m);
+    CHECK(color_problem(NAN, 1, 7, 1, m, sizeof m), "NaN is refused");
+    CHECK(!tick_count_problem(0, m, sizeof m) && !tick_count_problem(2147483647.0, m, sizeof m), "0 and Integer.MAX_VALUE are accepted");
+    CHECK(tick_count_problem(2.5, m, sizeof m) && !strcmp(m, "The number of ticks has to be a whole number from 0 to 2147483647, and was 2.5."), "%s", m);
+    CHECK(tick_count_problem(-1, m, sizeof m) && strstr(m, "was -1.0."), "%s", m);
+    CHECK(tick_count_problem(2147483648.0, m, sizeof m), "one past Integer.MAX_VALUE is refused");
+    CHECK(tick_count_problem(NAN, m, sizeof m) && strstr(m, "was NaN."), "%s", m);
+    CHECK(sound_name_ok("minecraft:ui.button.click") && sound_name_ok("a-b_c:d/e.f-g"), "well-formed names");
+    const char* bad[] = {"ui.button.click", ":x", "x:", "Minecraft:ui", "minecraft:UI", "a b:c", "a/b:c", "a:b:c", ""};
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) CHECK(!sound_name_ok(bad[i]), "'%s' is not a sound name", bad[i]);
+    const double ok6[6] = {1, 2, 3, 0, 0, 0}, nan6[6] = {1, 2, 3, 0, NAN, 0};
+    CHECK(!particle_problem("reddust", ok6, m, sizeof m), "reddust at finite numbers is accepted");
+    CHECK(particle_problem("reddust", nan6, m, sizeof m) && !strcmp(m, "The position and the motion must be finite numbers."), "%s", m);
+    CHECK(particle_problem("heart", ok6, m, sizeof m) && !strcmp(m, "There is no particle called \"heart\". The particles are reddust."), "%s", m);
+}
+
 static void test_nbt_helpers(void) {
     char m[256];
     // Messages and verdicts mirror GrugBlockEntityNbt.parsePath and checkValue.
@@ -235,6 +257,7 @@ int main(void) {
     test_use_face();
     test_double_text();
     test_nbt_helpers();
+    test_argument_checks();
     printf("selftest: %d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;
 }
