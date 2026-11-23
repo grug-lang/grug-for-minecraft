@@ -2659,6 +2659,39 @@ class GrugControlTest {
     }
 
     @Test
+    void aJoinedClientEarnsEveryAchievementBeforeItTakesACapture() {
+        List<String> order = new ArrayList<>();
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) -> {
+                                    if (method.getName().equals("markAchievementsEarnedForTest")) {
+                                        order.add("earned");
+                                    }
+                                    return null;
+                                });
+        Loopback loop = new Loopback();
+        loop.server = new GrugControlServer(loop, 1000);
+        loop.client =
+                new GrugControlClient(
+                        loop,
+                        (eye, x1, y1, x2, y2, done, failed) -> {
+                            order.add("captured");
+                            done.accept(
+                                    new java.awt.image.BufferedImage(
+                                            1, 1, java.awt.image.BufferedImage.TYPE_INT_RGB));
+                        },
+                        GrugControlClient.adapterCaller(() -> adapter),
+                        -1,
+                        -1);
+        loop.client.beginRun();
+        loop.client.onMessage(GrugControlWire.captureRequest(1, 0, 0, 1, 1, 0.5, 65.62, 0.5));
+        assertEquals(List.of("earned", "captured"), order);
+    }
+
+    @Test
     void theFourNormalizationQuestionsGoToTheJoinedClientOrTheLoaderItself() {
         ScreenCalls client = new ScreenCalls();
         Loopback loop = wireCalls(1000, client);
