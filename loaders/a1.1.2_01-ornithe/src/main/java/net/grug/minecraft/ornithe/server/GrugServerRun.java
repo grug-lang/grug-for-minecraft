@@ -96,6 +96,8 @@ public final class GrugServerRun {
      */
     private static boolean heldOnFloorThisTick = false;
 
+    private static int diagWouldCorrect = 0;
+
     /**
      * The ticks the world takes for each of the runner's, which is how the server runs a test at
      * the loader's maximum game speed (#677): the server's own loop gives one, and this runs the
@@ -127,6 +129,9 @@ public final class GrugServerRun {
 
     /** Called at the end of every tick of a server world. */
     public static void onWorldTick(World tickedWorld) {
+        Object diagPlayer = GrugCore.getAdapter().testPlayer();
+        GrugDriftDiagServer.tick(
+                tickedWorld, diagPlayer instanceof PlayerEntity ? (PlayerEntity) diagPlayer : null);
         // A test's own tick may run the world again through #advance, and the flush belongs after
         // the whole burst, not inside it (#1191).
         if (advancing) {
@@ -416,14 +421,23 @@ public final class GrugServerRun {
         if (!GrugPlayerFloor.offHeldPose(holdX, holdY, holdZ, player.x, feet, player.z)) {
             return;
         }
-        player.velocityX = 0.0;
-        player.velocityZ = 0.0;
-        moveTo(
-                player,
-                holdY,
-                Double.isNaN(holdX) ? player.x : holdX,
-                Double.isNaN(holdZ) ? player.z : holdZ);
-        START_LOG.record(System.out, holdY, feet, System.currentTimeMillis());
+        // DIAGNOSTIC: the correction is not applied, so the drift stays visible.
+        if (diagWouldCorrect++ > 300) {
+            return;
+        }
+        System.out.println(
+                "[GRUG CI] DIAG-DRIFT server hold WOULD correct from "
+                        + player.x
+                        + ", "
+                        + feet
+                        + ", "
+                        + player.z
+                        + " to "
+                        + holdX
+                        + ", "
+                        + holdY
+                        + ", "
+                        + holdZ);
     }
 
     /**
@@ -470,6 +484,7 @@ public final class GrugServerRun {
 
     private static void moveTo(
             PlayerEntity player, double feetY, double x, double z, float yaw, float pitch) {
+        GrugDriftDiagServer.commanded("moveTo", x, feetY, z);
         player.updatePositionAndAngles(x, feetY, z, yaw, pitch);
         player.velocityY = 0.0;
         Connection connection = GrugControlAlpha.connectionFor(player);

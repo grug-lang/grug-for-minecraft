@@ -11,7 +11,9 @@
     "BlockRendererMixin",
     "StaleBlockEntityMixin",
     "TesselatorMixin",
-    "ItemRendererMixin"
+    "ItemRendererMixin",
+    "DriftDiagClientNetworkHandlerMixin",
+    "DriftDiagLocalPlayerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
