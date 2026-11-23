@@ -140,12 +140,37 @@ static void test_code_points(void) {
     CHECK(cp_offset(t, 3) == t + 6, "offset at the end");
 }
 
+// match_recipe: where a shaped recipe may sit in the grid, and what a shapeless one ignores. The expected
+// answers are Minecraft's own rules (a shaped pattern slides, every other cell stays empty; a shapeless
+// recipe takes exactly its ingredients in any order), not JDK output.
+static void test_match_recipe(void) {
+    static const struct recipe rs[] = {
+        {1, 2, 1, "pair", 1, {"a", "b"}},
+        {0, 2, 1, "loose", 1, {"x", "y"}},
+    };
+    const char* at_corner[9] = {"a", "b"};
+    const char* slid[9] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, "a", "b"};
+    const char* extra[9] = {"a", "b", NULL, NULL, "a"};
+    const char* swapped[9] = {NULL, "y", NULL, NULL, NULL, "x"};
+    const char* shy[9] = {"x", "x"};
+    const char* many[9] = {"x", "y", "y"};
+    const char* empty[9] = {NULL};
+    CHECK(match_recipe(rs, 2, at_corner) == &rs[0], "a shaped recipe matches in the grid's corner");
+    CHECK(match_recipe(rs, 2, slid) == &rs[0], "a shaped recipe slides to the last row");
+    CHECK(match_recipe(rs, 2, extra) == NULL, "a stray item beside a shaped recipe stops the match");
+    CHECK(match_recipe(rs, 2, swapped) == &rs[1], "a shapeless recipe ignores order and position");
+    CHECK(match_recipe(rs, 2, shy) == NULL, "a shapeless recipe needs each ingredient");
+    CHECK(match_recipe(rs, 2, many) == NULL, "a shapeless recipe takes no extra item");
+    CHECK(match_recipe(rs, 2, empty) == NULL, "an empty grid matches nothing");
+}
+
 int main(void) {
     test_random();
     test_strict_log();
     test_index();
     test_number_text();
     test_code_points();
+    test_match_recipe();
     printf("selftest: %d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;
 }
