@@ -19,6 +19,8 @@ public final class GrugDriftDiagClient {
     private static int moves = 0;
     private static boolean haveSet = false;
     private static double setX, setMinY, setY, setZ;
+    private static boolean havePrev = false;
+    private static double prevX, prevY, prevZ, prevVx, prevVy, prevVz;
 
     private GrugDriftDiagClient() {}
 
@@ -102,6 +104,32 @@ public final class GrugDriftDiagClient {
         int index = WINDOW - left + 1;
         left--;
         PlayerEntity p = mc.player;
+        String solid = "n/a";
+        if (mc.world != null) {
+            solid = "" + mc.world.getCollisions(p, p.shape).size();
+        }
+        String prev =
+                havePrev
+                        ? " since previous tick dpos "
+                                + (p.x - prevX)
+                                + ", "
+                                + (p.y - prevY)
+                                + ", "
+                                + (p.z - prevZ)
+                                + " dvel "
+                                + (p.velocityX - prevVx)
+                                + ", "
+                                + (p.velocityY - prevVy)
+                                + ", "
+                                + (p.velocityZ - prevVz)
+                        : "";
+        havePrev = true;
+        prevX = p.x;
+        prevY = p.y;
+        prevZ = p.z;
+        prevVx = p.velocityX;
+        prevVy = p.velocityY;
+        prevVz = p.velocityZ;
         out(
                 "move#"
                         + moves
@@ -113,6 +141,9 @@ public final class GrugDriftDiagClient {
                         + frames
                         + " pos "
                         + pose(p)
+                        + " solidBoxesIntersectingPlayer "
+                        + solid
+                        + prev
                         + " delta from set "
                         + (haveSet
                                 ? (p.x - setX) + ", " + (p.y - setY) + ", " + (p.z - setZ)
