@@ -353,6 +353,9 @@ public final class GrugServerRun {
      * their height, and correcting that on every tick would send a move packet per tick.
      */
     private static void holdPlayer(PlayerEntity player) {
+        // The floor first: the x and z move below sends the server copy's height, and a copy a
+        // gravity step under the floor would put the client's camera there for a tick (#1580).
+        holdOnFloor(player);
         if (GrugTestPlayerPin.offHold(player.x, player.z, holdX, holdZ)) {
             xzHolds++;
             if (xzHolds == 1 || xzHolds % 200 == 0) {
@@ -373,7 +376,6 @@ public final class GrugServerRun {
             player.velocityZ = 0.0;
             moveTo(player, player.y, holdX, holdZ, player.yaw, player.pitch);
         }
-        holdOnFloor(player);
         if (heldOnFloorThisTick) {
             return;
         }
