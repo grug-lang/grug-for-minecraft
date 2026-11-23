@@ -1,5 +1,5 @@
-# BuildCraft 2.2.14's TileQuarry, as far as its facing, its box and its energy go: the frame, the arm
-# and the mining are later pieces of #1543.
+# BuildCraft 2.2.14's TileQuarry, as far as its facing, its box, its energy and the frame it builds
+# around its box go: the arm and the mining are later pieces of #1543.
 # The block's placed export saves the metadata as "meta", 2 to 5 as Orientations numbers the side the
 # front faces, and 0 for a quarry nothing placed, which BlockQuarry.a(side, meta) draws like a 3.
 
@@ -10,7 +10,23 @@ level: Level = me.level()
 pos: BlockPos = me.block_pos()
 center: Vec3 = pos.center()
 x: number = Math.floor(center.x())
+y: number = Math.floor(center.y())
 z: number = Math.floor(center.z())
+
+# The state the reference keeps in members and does not save, so that it starts again whenever the
+# quarry's chunk is loaded: TileQuarry.isDigging, BluePrintBuilder.done, whether the builder exists
+# yet, and PowerProvider.timeTracker's last mark.
+digging: bool = false
+done: bool = false
+builder_ready: bool = false
+work_mark: number = 0
+
+# The block BluePrintBuilder.findNextBlock found: its coordinates, and whether it is a frame to be
+# placed rather than a block to be cleared.
+found_x: number = 0
+found_y: number = 0
+found_z: number = 0
+found_frame: bool = false
 
 # The provider the constructor configures holds at most 7000, and the reference saves it with the
 # tile, which the energy host functions do too.
@@ -39,6 +55,23 @@ export tick() {
     # same box. A nearby laser marker's area, which the reference prefers, is a later piece.
     if me.get_saved_number("box_set") == 0 {
         _set_default_box()
+    }
+    if not builder_ready {
+        _create_utils()
+    }
+
+    # PowerProvider.update, which TileBuildCraft.n_ runs before the quarry's own tick: with at least
+    # the minimum activation energy of 25, and once every latency of 20 ticks of the world's clock,
+    # the receptor's doWork runs. SafeTimeTracker.markTimeIfDelay: a clock that went backwards moves
+    # the mark and does not fire.
+    if me.get_energy_stored() >= 25 {
+        now: number = level.get_time()
+        if now < work_mark {
+            work_mark = now
+        } else if work_mark + 20 <= now {
+            work_mark = now
+            _do_work()
+        }
     }
 
     # PowerProvider.update: the energy loss, which TileQuarry never configures away, so the default of
@@ -79,4 +112,121 @@ local _set_default_box() {
     me.set_saved_number("box_z", box_z)
     me.set_saved_number("box_set", 1)
     me.redraw()
+}
+
+# TileQuarry.createUtilsIfNeeded, the server's half, which TileEntity.initialize runs once: the
+# box is set by now, so the blueprint builder is made from it, and the quarry digs when the builder
+# has a block to place or clear. The reference then takes the arm and the mining branch for a builder
+# that has nothing to do, which is a later piece.
+local _create_utils() {
+    builder_ready = true
+    done = false
+    if _find_next_block() {
+        digging = true
+    } else {
+        done = true
+    }
+}
+
+# TileQuarry.doWork as far as the frame goes. Each step costs 25 energy and either clears the one
+# block the builder found, when the world holds a block that is not soft, or places the frame there.
+# A builder that has nothing left makes the reference configure the arm's power and look for a
+# target, which is a later piece, so the quarry then waits.
+local _do_work() {
+    if not digging {
+        return
+    }
+
+    # createUtilsIfNeeded runs again, which asks the builder for its next block and so sets done.
+    # A builder that was done and finds a block again (the player broke a frame) starts over.
+    next_found: bool = _find_next_block()
+    done = not next_found
+    if done {
+        return
+    }
+
+    # PowerProvider.configure(20, 25, 25, 25, 7000) and useEnergy(25, 25, true) == 25: a store of at
+    # least 25 gives 25. The quarry's min activation is the same 25, so this always succeeds here.
+    if me.get_energy_stored() >= 25 {
+        me.extract_energy(25)
+        if not _is_soft(level.get_block(found_x, found_y, found_z)) {
+            level.place_block(found_x, found_y, found_z, "minecraft:air")
+        } else if found_frame {
+            level.place_block(found_x, found_y, found_z, "grug:frame")
+        }
+    }
+}
+
+# BluePrintBuilder.findNextBlock in its simple mode, over the blueprint TileQuarry.initializeBluePrintBuilder
+# makes: the frame's edges and corners are frame blocks and every other cell of the box is air. The
+# cells are scanned by height, then x, then z, from the box's first cell, and the first cell the world
+# does not already match is the answer. A cell at height 0 or below is skipped. A frame cell is
+# matched by a frame already there or by a block the quarry may not break; an air cell by any block that
+# is soft or that it may not break.
+local _find_next_block() bool {
+    size_x: number = 11
+    size_y: number = 5
+    size_z: number = 11
+    box_x: number = me.get_saved_number("box_x")
+    box_z: number = me.get_saved_number("box_z")
+
+    j: number = 0
+    while j < size_y {
+        world_y: number = y + j
+        if world_y > 0 {
+            i: number = 0
+            while i < size_x {
+                k: number = 0
+                while k < size_z {
+                    world_x: number = box_x + i
+                    world_z: number = box_z + k
+                    block: string = level.get_block(world_x, world_y, world_z)
+                    frame: bool = _is_frame_cell(i, j, k, size_x, size_y, size_z)
+                    if frame {
+                        if block != "grug:frame" and not _is_unbreakable(block) {
+                            found_x = world_x
+                            found_y = world_y
+                            found_z = world_z
+                            found_frame = true
+                            return true
+                        }
+                    } else if not _is_soft(block) and not _is_unbreakable(block) {
+                        found_x = world_x
+                        found_y = world_y
+                        found_z = world_z
+                        found_frame = false
+                        return true
+                    }
+                    k = k + 1
+                }
+                i = i + 1
+            }
+        }
+        j = j + 1
+    }
+    return false
+}
+
+# The cells of the blueprint that hold the frame: the four corner columns, and the rectangle of the box
+# at its bottom and top heights.
+local _is_frame_cell(i: number, j: number, k: number, size_x: number, size_y: number, size_z: number) bool {
+    on_x: bool = i == 0 or i == size_x - 1
+    on_z: bool = k == 0 or k == size_z - 1
+    if on_x and on_z {
+        return true
+    }
+    return (on_x or on_z) and (j == 0 or j == size_y - 1)
+}
+
+# API.softBlock: air and water (and oil, which this mod does not have). A flowing liquid has no
+# canonical name, and get_block answers minecraft:unknown for it on 1.2.5, so a flowing water is not
+# told from a flowing lava or from any other block without a name, and none of them is soft here (a
+# recorded deviation).
+local _is_soft(block: string) bool {
+    return block == "minecraft:air" or block == "minecraft:water"
+}
+
+# API.unbreakableBlock: bedrock and the two lavas, of which only the still one has a name.
+local _is_unbreakable(block: string) bool {
+    return block == "minecraft:bedrock" or block == "minecraft:lava"
 }
