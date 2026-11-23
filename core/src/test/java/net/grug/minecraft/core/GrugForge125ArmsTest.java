@@ -146,4 +146,105 @@ class GrugForge125ArmsTest {
         assertEquals(500, GrugForge125Arms.startedAt(0, 500));
         assertEquals(500, GrugForge125Arms.startedAt(500, 900));
     }
+
+    @Test
+    void aForwardedRequestAnswersOrReportsItsReason() throws Exception {
+        java.util.List<String> failed = new java.util.ArrayList<>();
+        assertEquals("a", GrugForge125Arms.forwarded(() -> "a", "x", failed::add, "b"));
+        assertEquals(
+                "b",
+                GrugForge125Arms.forwarded(
+                        () -> {
+                            throw new GrugControlServer.ControlException("no");
+                        },
+                        "x",
+                        failed::add,
+                        "b"));
+        assertEquals(Arrays.asList("x: no"), failed);
+        assertNull(GrugForge125Arms.forwardedUnless(true, () -> "a", "x", failed::add));
+        assertEquals("a", GrugForge125Arms.forwardedUnless(false, () -> "a", "x", failed::add));
+        assertNull(
+                GrugForge125Arms.forwardedUnless(
+                        false,
+                        () -> {
+                            throw new GrugControlServer.ControlException("n");
+                        },
+                        "y",
+                        failed::add));
+        assertEquals(Arrays.asList("x: no", "y: n"), failed);
+    }
+
+    @Test
+    void aSettlePollIsSettledByTheClientAndTheOwedRegion() {
+        assertTrue(GrugForge125Arms.settled(false, null));
+        assertTrue(GrugForge125Arms.settled(false, true));
+        assertFalse(GrugForge125Arms.settled(false, false));
+        assertFalse(GrugForge125Arms.settled(true, null));
+        assertFalse(GrugForge125Arms.settled(true, true));
+    }
+
+    @Test
+    void aCaptureReportsABadRectangleOrAFailedAsk() {
+        java.util.List<String> failed = new java.util.ArrayList<>();
+        assertNull(GrugForge125Arms.captured("bad", () -> "a", failed::add));
+        assertEquals("a", GrugForge125Arms.captured(null, () -> "a", failed::add));
+        assertNull(
+                GrugForge125Arms.captured(
+                        null,
+                        () -> {
+                            throw new GrugControlServer.ControlException("n");
+                        },
+                        failed::add));
+        assertEquals(Arrays.asList("Screenshot.capture: bad", "Screenshot.capture: n"), failed);
+    }
+
+    @Test
+    void presentValuesAreUsedAndAbsentOnesReported() {
+        java.util.List<String> failed = new java.util.ArrayList<>();
+        java.util.List<String> used = new java.util.ArrayList<>();
+        assertNull(GrugForge125Arms.map(null, Object::toString));
+        assertEquals("1", GrugForge125Arms.map(1, Object::toString));
+        GrugForge125Arms.ifPresent("v", used::add, failed::add, "m");
+        GrugForge125Arms.ifPresent((String) null, used::add, failed::add, "m");
+        assertEquals(Arrays.asList("v"), used);
+        assertEquals(Arrays.asList("m"), failed);
+    }
+
+    @Test
+    void theSecondAnswerIsAskedOnlyWhenItCanChangeTheResult() {
+        assertTrue(GrugForge125Arms.allOf(true, () -> true));
+        assertFalse(GrugForge125Arms.allOf(true, () -> false));
+        assertFalse(
+                GrugForge125Arms.allOf(
+                        false,
+                        () -> {
+                            throw new AssertionError("asked");
+                        }));
+        assertTrue(
+                GrugForge125Arms.answered(
+                        true,
+                        () -> {
+                            throw new AssertionError("asked");
+                        }));
+        assertTrue(GrugForge125Arms.answered(false, () -> true));
+        assertFalse(GrugForge125Arms.answered(false, () -> false));
+    }
+
+    @Test
+    void aFallbackRunsOnlyWhenTheWorkWasNotDone() {
+        int[] ran = {0};
+        GrugForge125Arms.unlessDone(true, 5, n -> ran[0] += n);
+        assertEquals(0, ran[0]);
+        GrugForge125Arms.unlessDone(false, 5, n -> ran[0] += n);
+        assertEquals(5, ran[0]);
+    }
+
+    @Test
+    void theSectionMaskCoversTheSectionsABoxSpans() {
+        assertEquals(0b1, GrugForge125Arms.sectionMask(0, 16));
+        assertEquals(0b11, GrugForge125Arms.sectionMask(8, 16));
+        assertEquals(0b1, GrugForge125Arms.sectionMask(-5, 10));
+        assertEquals(0b10000000, GrugForge125Arms.sectionMask(120, 100));
+        assertEquals(0, GrugForge125Arms.sectionMask(200, 4));
+    }
 }

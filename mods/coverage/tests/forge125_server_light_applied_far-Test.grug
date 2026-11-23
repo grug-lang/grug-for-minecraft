@@ -1,0 +1,20 @@
+# On the 1.2.5 dedicated server, light_applied answers true without asking the client for a position
+# in a section the room's relight swept or when no client started the run, and otherwise compares
+# the server's section with the joined client's. A section two chunks east of the room is outside
+# what the relight swept and inside what the client was sent, so its light is the generated world's
+# on both sides and the comparison must come out true once the client has the chunk (#1645).
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not me.on_dedicated_server() or me.loader_name() != "1.2.5-forge" {
+        return
+    }
+
+    origin: Vec3 = ctx.get_origin()
+    if ctx.light_applied(origin.x() + 40, origin.y(), origin.z()) {
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 400, "The client never held the same light as the server in a section beside the room.")
+    ctx.not_done()
+}

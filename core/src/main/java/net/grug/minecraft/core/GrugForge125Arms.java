@@ -109,4 +109,94 @@ public final class GrugForge125Arms {
     public static long startedAt(long waitStartMillis, long nowMillis) {
         return waitStartMillis == 0 ? nowMillis : waitStartMillis;
     }
+
+    /** A request to the joined client, which may fail with a reason the test reads. */
+    public interface Forward<T> {
+        T get() throws GrugControlServer.ControlException;
+    }
+
+    /**
+     * The answer of a forwarded request, or {@code onError} after reporting {@code label: reason}
+     * when the client could not answer.
+     */
+    public static <T> T forwarded(Forward<T> call, String label, Consumer<String> fail, T onError) {
+        try {
+            return call.get();
+        } catch (GrugControlServer.ControlException e) {
+            fail.accept(label + ": " + e.getMessage());
+            return onError;
+        }
+    }
+
+    /** {@link #forwarded} unless {@code skip}, which asks no one and answers null. */
+    public static <T> T forwardedUnless(
+            boolean skip, Forward<T> call, String label, Consumer<String> fail) {
+        return skip ? null : forwarded(call, label, fail, null);
+    }
+
+    /**
+     * Whether the world is settled for a poll: {@code asked} is the client's answer, null when the
+     * client could not answer (which settles, after the report) and absent when the poll owed a
+     * region and asked no one.
+     */
+    public static boolean settled(boolean owed, Boolean asked) {
+        if (!owed && asked == null) {
+            return true;
+        }
+        return GrugRenderSettle.serverSettled(asked != null && asked, owed);
+    }
+
+    /** The capture's answer, or null after reporting a bad rectangle or a failed ask. */
+    public static <T> T captured(String bad, Forward<T> call, Consumer<String> fail) {
+        String label = "Screenshot.capture";
+        if (bad != null) {
+            fail.accept(label + ": " + bad);
+            return null;
+        }
+        return forwarded(call, label, fail, null);
+    }
+
+    /** What the function gives for a value, or null for none. */
+    public static <T, R> R map(T value, java.util.function.Function<T, R> function) {
+        return value == null ? null : function.apply(value);
+    }
+
+    /** Runs the action on a present value, or reports {@code message} when there is none. */
+    public static <T> void ifPresent(
+            T value, Consumer<T> action, Consumer<String> fail, String message) {
+        if (value == null) {
+            fail.accept(message);
+            return;
+        }
+        action.accept(value);
+    }
+
+    /** Whether the first holds and then the second does, which is asked only after the first. */
+    public static boolean allOf(boolean first, BooleanSupplier second) {
+        return first && second.getAsBoolean();
+    }
+
+    /** Whether the answer is already known, else the asked answer. */
+    public static boolean answered(boolean known, BooleanSupplier ask) {
+        return known || ask.getAsBoolean();
+    }
+
+    /** Runs the fallback for the argument unless the work was done. */
+    public static void unlessDone(
+            boolean done, int argument, java.util.function.IntConsumer fallback) {
+        if (!done) {
+            fallback.accept(argument);
+        }
+    }
+
+    /** The mask of the 16-high sections of a 128-high world that a box from y spans for height. */
+    public static int sectionMask(int minY, int height) {
+        int minSection = Math.max(0, minY >> 4);
+        int maxSection = Math.min(7, (minY + height - 1) >> 4);
+        int mask = 0;
+        for (int section = minSection; section <= maxSection; section++) {
+            mask |= 1 << section;
+        }
+        return mask;
+    }
 }
