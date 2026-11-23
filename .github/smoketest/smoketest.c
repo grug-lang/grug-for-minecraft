@@ -2098,10 +2098,9 @@ static union grug_value shape_add_box(const union grug_value a[], bool collision
     if (!box_ordered(v))
         return fail("%s: The box was not recorded. Its corners have to be the right way round: the first of each pair is the near corner and must be no greater than the second, so add it as (0, 0, 0, 1, 1, 1) and not as (1, 0, 0, 0, 1, 1).",
             collision ? "ShapeContext.add_collision_box" : "ShapeContext.add_selection_box");
-    if (nshape_boxes < SHAPE_BOXES_MAX) {  // SMOKETEST_EXCL_BRANCH: no committed block adds 16 boxes in one call
-        memcpy(shape_boxes[nshape_boxes].v, v, sizeof v);
-        shape_boxes[nshape_boxes++].collision = collision;
-    }
+    if (nshape_boxes >= SHAPE_BOXES_MAX) { stubbed = true; return none(); }  // SMOKETEST_EXCL: no committed block adds more than 16 boxes in one call; the box is dropped, so a pass is STUBBED
+    memcpy(shape_boxes[nshape_boxes].v, v, sizeof v);
+    shape_boxes[nshape_boxes++].collision = collision;
     return none();
 }
 static union grug_value SC_add_collision_box(ARGS) { UNUSED; return shape_add_box(a, true); }
@@ -2142,6 +2141,8 @@ static union grug_value TTC_block_collision(ARGS) {
         any = true;
         if (shape_boxes[i].collision && boxes_overlap(shape_boxes[i].v, area)) hit = true;
     }
+    for (size_t i = 0; i < nshape_boxes; i++)
+        if (!shape_boxes[i].collision) stubbed = true;  // SMOKETEST_EXCL_BRANCH: a selection box is recorded and never read here, so a selection-only shape answering no collision is the model's guess, which no committed test asserts
     if (!any) { stubbed = true; return boolean(boxes_overlap(cube, area)); }  // SMOKETEST_EXCL_BRANCH: no committed shape() adds nothing; the game then keeps the full cube and reports the block
     return boolean(hit);
 }
@@ -2876,7 +2877,6 @@ REGISTER("TestTickContext", "world_settled", TTC_world_settled);
 // HostFunctions.lightAppliedProblem's, with Double.toString's text (selftest.c checks double_text).
 static union grug_value TTC_light_applied(ARGS) {
     UNUSED;
-    stubbed = true;
     for (int i = 1; i <= 3; i++) {
         if (isfinite(a[i]._number)) continue;
         char x[40], y[40], z[40];
@@ -2884,6 +2884,7 @@ static union grug_value TTC_light_applied(ARGS) {
         fail("TestTickContext.light_applied: The position has to be finite, and was (%s, %s, %s).", x, y, z);
         return boolean(false);
     }
+    stubbed = true;
     return boolean(true);
 }
 REGISTER("TestTickContext", "light_applied", TTC_light_applied);
