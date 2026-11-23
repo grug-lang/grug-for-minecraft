@@ -76,6 +76,11 @@ EVERY_LOADER_PREFIXES = (
     "mods/coverage/",
     "gradle/",
     ".github/actions/setup-loader-build/",
+    # The world every server leg starts from and the leg's own harness change a server run
+    # without changing a class's bytes.
+    "test-saves/",
+    ".github/scripts/run-multiplayer",
+    ".github/scripts/run_multiplayer_test",
 )
 EVERY_LOADER_FILES = ("mod_api.json", "gradle.properties", "build.gradle", "build.gradle.kts")
 NOT_SERVER_CODE_PREFIXES = ("core/src/test/",)

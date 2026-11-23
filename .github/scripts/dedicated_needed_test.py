@@ -154,7 +154,6 @@ class DedicatedNeededTest(unittest.TestCase):
                 ".github/workflows/build.yml": "name: B2\n",
                 ".github/scripts/run-loader.sh": "# run2\n",
             },
-            "test save": {"test-saves/a.zip": "zip2"},
         }.items():
             for event in ("pull_request", "push"):
                 with self.subTest(name=name, event=event):
@@ -176,6 +175,9 @@ class DedicatedNeededTest(unittest.TestCase):
             "settings": "settings.gradle.kts",
             "root build": "build.gradle.kts",
             "setup action": ".github/actions/setup-loader-build/action.yml",
+            "test save": "test-saves/a.zip",
+            "multiplayer harness": ".github/scripts/run-multiplayer.sh",
+            "multiplayer test driver": ".github/scripts/run_multiplayer_test.py",
         }
         for name, path in cases.items():
             for event in ("pull_request", "push"):
