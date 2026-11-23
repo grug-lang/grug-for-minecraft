@@ -64,6 +64,22 @@ class LineCoverageTest(unittest.TestCase):
                 problems = lc.measure(gcov({1: 1}), src)[6]
                 self.assertTrue(problems)
 
+    def test_a_branch_marker_hides_only_the_branches_of_its_line(self):
+        src = "a\nb // SMOKETEST_EXCL_BRANCH: the failing arm needs an allocation failure\nc\n"
+        result = lc.measure(gcov({1: 1, 2: 0, 3: 1}, branches={2: [1, 0], 3: [1, 0]}), src)
+        total, covered, missed, btotal, bcovered, bmissed, problems = result
+        # The line still has to run, and only line 2's branches are hidden.
+        self.assertEqual((total, covered, missed), (3, 2, [2]))
+        self.assertEqual((btotal, bcovered, bmissed, problems), (2, 1, [(3, 1)], []))
+
+    def test_a_branch_marker_needs_a_reason(self):
+        problems = lc.measure(gcov({1: 1}), "a // SMOKETEST_EXCL_BRANCH\n")[6]
+        self.assertTrue(problems)
+
+    def test_a_branch_marker_inside_a_range_does_not_end_it(self):
+        src = "// SMOKETEST_EXCL_START: r\na // SMOKETEST_EXCL_BRANCH: x\nb\n// SMOKETEST_EXCL_STOP\nc\n"
+        self.assertEqual(lc.excluded_lines(src), ({1, 2, 3, 4, 5} - {5}, []))
+
     def test_a_marker_inside_a_string_is_no_marker(self):
         src = 'puts("// SMOKETEST_EXCL: not a comment");\n'
         total, covered, missed, problems = lines_of(lc.measure(gcov({1: 0}), src))
