@@ -7,7 +7,7 @@
 # lays under the feet, as overlay_crosses has it.
 # The camera must also be on the snap's x and z (#1580): the pose get_origin names, with no drift. The
 # height is left to gravity, which settles it on the floor the test lays, so it is only required to be
-# stable. A crowd of mobs spawned on the player pushes and hits them, and
+# stable, and not on a dedicated server, whose height holds correct a sunk player only. A crowd of mobs spawned on the player pushes and hits them, and
 # the a1 client's camera left the snap by 0.1 to 0.5 blocks and jumped in an arc within a second
 # (the mobcap golden's dark stone moved one to three pixels between runs), so the test crowds the
 # player and requires the pin to hold them. The bob terms are zero by construction: the camera is
@@ -77,7 +77,12 @@ export tick(ctx: TestTickContext) {
     ctx.assert(camera.x() > snap_x - 0.000001 and camera.x() < snap_x + 0.000001, "The camera's x left the snap.")
     ctx.assert(camera.z() > snap_z - 0.000001 and camera.z() < snap_z + 0.000001, "The camera's z left the snap.")
     ctx.assert(camera.x() == x, "The camera's x changed between ticks.")
-    ctx.assert(camera.y() == y, "The camera's y changed between ticks.")
+    # A dedicated server corrects the player's height only after the client has sunk below the floor
+    # (the floor hold, #1136), so the joined client's camera y cycles by one gravity step or more
+    # there by design (a1: 65.5416, then 65.3864 with the crowd on the player). Only x and z are held.
+    if not me.on_dedicated_server() {
+        ctx.assert(camera.y() == y, "The camera's y changed between ticks.")
+    }
     ctx.assert(camera.z() == z, "The camera's z changed between ticks.")
     ticks = ticks + 1
     if ticks < 120 {
