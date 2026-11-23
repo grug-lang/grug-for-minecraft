@@ -277,6 +277,31 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     }
 
     /**
+     * Builds the room around the height the run holds the player at, not wherever the player's box
+     * is this tick: a box a hair under a whole number put the stand block a block too low, and the
+     * hold kept the player on it, so every later capture was drawn one block lower than a
+     * client-only run's (#1068, #1629). Logs the feet the room is anchored at.
+     */
+    @Override
+    public void buildTestBox(int radius) {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        double held = GrugServerRun.heldFeetY();
+        if (player == null || held == 0) {
+            super.buildTestBox(radius);
+            return;
+        }
+        double anchor = GrugPlayerFloor.buildAnchor(player.boundingBox.minY, held);
+        System.out.println(
+                "[GRUG CI] buildTestBox on the server: feet "
+                        + player.boundingBox.minY
+                        + " held "
+                        + held
+                        + " anchor "
+                        + anchor);
+        super.buildTestBoxAt(radius, anchor);
+    }
+
+    /**
      * The eye of the test player. A server player keeps the feet in {@code y} and a client keeps
      * the eye, so the eye is rebuilt from the bottom of the bounding box, rounded to a millionth to
      * shed the arithmetic's last bits, which is what the client's {@code y} is.

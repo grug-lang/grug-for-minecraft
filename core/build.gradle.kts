@@ -34,7 +34,8 @@ repositories {
     // Central's filtered mirror (#1453): the groups Central has refused are resolved from a
     // different host first, so a 429 from Central itself cannot fail the build. The coverage
     // agent (org.jacoco, org.ow2.asm) and the test framework (org.junit, org.junit.jupiter,
-    // org.junit.platform, org.opentest4j, org.apiguardian) are included; org.ow2.asm is there
+    // org.junit.platform, org.opentest4j, org.apiguardian, and org.jspecify, which junit-jupiter-api 6
+    // requires: #1660 saw Central answer 429 for its pom) are included; org.ow2.asm is there
     // because org.jacoco.core depends on it. Every other group is asked only of Central, keeping
     // the mirror off the hot path for Ornithe, Glass, Fabric and the rest of Central.
     maven("https://maven-central.storage-download.googleapis.com/maven2/") {
@@ -46,6 +47,7 @@ repositories {
             includeGroup("org.junit.platform")
             includeGroup("org.opentest4j")
             includeGroup("org.apiguardian")
+            includeGroup("org.jspecify")
         }
     }
     mavenCentral()
