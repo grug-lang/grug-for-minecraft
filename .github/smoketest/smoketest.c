@@ -24,9 +24,11 @@
 //   Generic host functions and print
 //   Items and resource locations
 //   BlockEntity
+//   Item entities
 //   Runner settings and graphics stubs
 //   Registry and contract
 //   Runner (run_test, --all, main)
+#include <ctype.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -34,6 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 // The parts of grug.h this host uses. grug.h itself is not valid C, so the declarations are
 // repeated, as core/src/main/native/adapter.c repeats them. The layouts mirror the pinned revision.
@@ -120,6 +123,14 @@ enum kind {
     K_EXTRACT_RESPONSE,
     K_ADD_RESPONSE,
     K_SHOT,
+    K_ITEM_STACK,
+    K_ITEM_ENTITY,
+    K_ENTITY,
+    K_USE_CTX,
+    K_COLOR,
+    K_GUI,
+    K_DISPLAY_CTX,
+    K_SHAPE_CTX,
 };
 struct obj {
     enum kind kind;
@@ -253,6 +264,13 @@ extern const struct impl __start_smoke_impls[], __stop_smoke_impls[];
 #define UNUSED (void)gst; (void)a; (void)g
 #include "api_table.inc"
 
+// Java's (int) cast of a double: NaN is 0 and a value out of range saturates.
+static int32_t java_int(double d) {
+    if (d != d) return 0;
+    if (d >= 2147483647.0) return 2147483647;
+    if (d <= -2147483648.0) return (int32_t)-2147483647 - 1;
+    return (int32_t)d;
+}
 static bool is_whole(double d) { return isfinite(d) && d == floor(d); }
 
 // =============================================================================================
@@ -298,6 +316,21 @@ static union grug_value Test_is_reference(ARGS) { UNUSED; return boolean(false);
 REGISTER("Test", "is_reference", Test_is_reference);
 static union grug_value Test_loader_name(ARGS) { UNUSED; return str("smoketest"); }
 REGISTER("Test", "loader_name", Test_loader_name);
+// Every loader registers a mod's recipes (shapeless_recipe-Test says so), and the smoketest matches a grid
+// against the mods' own recipe files.
+static union grug_value Test_registers_mod_recipes(ARGS) { UNUSED; return boolean(true); }
+REGISTER("Test", "registers_mod_recipes", Test_registers_mod_recipes);
+// The toy world is one client-side process with one world, so a test's dedicated-server legs (which wait on
+// a joined client's copy, or drive a server-held list) return early here: a pass that asked is STUBBED.
+static union grug_value Test_on_dedicated_server(ARGS) { UNUSED; stubbed = true; return boolean(false); }
+REGISTER("Test", "on_dedicated_server", Test_on_dedicated_server);
+// The operator status of the player the test runs as (operator-Test): the owner of a singleplayer world is
+// an operator until set_operator takes that away, and the status is put back to true when a test starts.
+static bool operator_status = true;
+static union grug_value hf_is_operator(ARGS) { UNUSED; return boolean(operator_status); }
+REGISTER(NULL, "is_operator", hf_is_operator);
+static union grug_value hf_set_operator(ARGS) { UNUSED; operator_status = a[0]._bool; return none(); }
+REGISTER(NULL, "set_operator", hf_set_operator);
 
 // =============================================================================================
 // SECTION: Level
@@ -336,6 +369,41 @@ static union grug_value Level_place_block(ARGS) {
     return none();
 }
 REGISTER("Level", "place_block", Level_place_block);
+// explode (explode-Test, expect_explode_*-Test): the argument checks are the host's, and the blast itself is the
+// game's, which is random. The smoketest destroys every block whose centre is within the power of the
+// blast centre, which is all explode-Test asserts (glass next to a power 3 blast goes, glass 12 away stays),
+// so a pass is STUBBED.
+static void double_text(double v, char* out, size_t cap);
+static void number_text(double v, char* out, size_t cap);
+static union grug_value Level_explode(ARGS) {
+    UNUSED;
+    static const char* const names[4] = {"x", "y", "z", "power"};
+    char text[400];
+    for (int i = 0; i < 4; i++)
+        if (!isfinite(a[1 + i]._number)) {
+            double_text(a[1 + i]._number, text, sizeof text);
+            return fail("explode: %s must be finite, got %s", names[i], text);
+        }
+    double power = a[4]._number;
+    if (power < 0 || power > 3.4028234663852886e38) {
+        double_text(power, text, sizeof text);
+        return fail("explode: power must be from 0 to 3.4028235E38, got %s", text);
+    }
+    stubbed = true;
+    struct { long x, y, z; }* hit = xmalloc((nworld + 1) * sizeof *hit);  // set_block below must not disturb the walk
+    size_t n = 0;
+    for (size_t i = 0; i < nworld; i++) {
+        double dx = (double)world[i].x + 0.5 - a[1]._number, dy = (double)world[i].y + 0.5 - a[2]._number, dz = (double)world[i].z + 0.5 - a[3]._number;
+        if (strcmp(world[i].name, "minecraft:air") && sqrt(dx * dx + dy * dy + dz * dz) <= power) { hit[n].x = world[i].x; hit[n].y = world[i].y; hit[n].z = world[i].z; n++; }
+    }
+    for (size_t i = 0; i < n; i++) {
+        set_block(hit[i].x, hit[i].y, hit[i].z, "minecraft:air");
+        on_block_placed(hit[i].x, hit[i].y, hit[i].z, "minecraft:air");
+    }
+    free(hit);
+    return none();
+}
+REGISTER("Level", "explode", Level_explode);
 // has_neighbor_signal (redstone_signal-Test, redstone_engine-Test, wooden_pipe-Test): a redstone torch gives
 // off a signal to the block above it. A torch at any other side, or another redstone part, has no test
 // that settles what it does, so such a neighbour marks the test stubbed.
@@ -534,8 +602,51 @@ REGISTER("Math", "tau", Math_tau);
 // SECTION: String
 // =============================================================================================
 // String
-static union grug_value String_length(ARGS) { UNUSED; return num((double)strlen(a[0]._string)); }
+// Text is counted in Unicode code points, as the adapter's codePointCount does (string_edit-Test counts
+// U+1F600 once), so a UTF-8 continuation byte is not a character.
+static size_t cp_count(const char* t) {
+    size_t n = 0;
+    for (; *t; t++) n += ((unsigned char)*t & 0xC0) != 0x80;
+    return n;
+}
+static const char* cp_offset(const char* t, size_t n) {  // the byte after the first n code points
+    while (n > 0 && *t) { t++; if (((unsigned char)*t & 0xC0) != 0x80) n--; }
+    while (((unsigned char)*t & 0xC0) == 0x80) t++;
+    return t;
+}
+static union grug_value String_length(ARGS) { UNUSED; return num((double)cp_count(a[0]._string)); }
 REGISTER("String", "length", String_length);
+// The refusal texts name the range the adapter accepts, as expect_string_from_character_* and
+// expect_string_substring_range-Test match them.
+static union grug_value String_from_character(ARGS) {
+    UNUSED;
+    double c = a[0]._number;
+    if (!(c >= 1 && c <= 1114111) || c != floor(c) || (c >= 55296 && c <= 57343))
+        return fail("String.from_character: The code has to be a whole number from 1 to 1114111 that is not a surrogate, and was %g.", c);
+    unsigned cp = (unsigned)c;
+    char b[5]; int n = 0;
+    if (cp < 0x80) b[n++] = (char)cp;
+    else if (cp < 0x800) { b[n++] = (char)(0xC0 | cp >> 6); b[n++] = (char)(0x80 | (cp & 0x3F)); }
+    else if (cp < 0x10000) { b[n++] = (char)(0xE0 | cp >> 12); b[n++] = (char)(0x80 | ((cp >> 6) & 0x3F)); b[n++] = (char)(0x80 | (cp & 0x3F)); }
+    else { b[n++] = (char)(0xF0 | cp >> 18); b[n++] = (char)(0x80 | ((cp >> 12) & 0x3F)); b[n++] = (char)(0x80 | ((cp >> 6) & 0x3F)); b[n++] = (char)(0x80 | (cp & 0x3F)); }
+    b[n] = 0;
+    return str(keep(xstrdup(b)));
+}
+REGISTER("String", "from_character", String_from_character);
+static union grug_value String_substring(ARGS) {
+    UNUSED;
+    const char* t = a[0]._string;
+    double st = a[1]._number, en = a[2]._number;
+    size_t len = cp_count(t);
+    if (!(st >= 0 && en >= st && en <= (double)len) || st != floor(st) || en != floor(en))
+        return fail("String.substring: The range has to be whole numbers with 0 <= start <= end <= %zu, the length of the text, and was %g to %g.", len, st, en);
+    const char* from = cp_offset(t, (size_t)st);
+    const char* to = cp_offset(from, (size_t)(en - st));
+    char* out = xmalloc((size_t)(to - from) + 1);
+    memcpy(out, from, (size_t)(to - from)); out[to - from] = 0;
+    return str(keep(out));
+}
+REGISTER("String", "substring", String_substring);
 static union grug_value String_concat(ARGS) {
     UNUSED;
     size_t n = strlen(a[0]._string), m = strlen(a[1]._string);
@@ -545,11 +656,59 @@ static union grug_value String_concat(ARGS) {
     return str(keep(s));
 }
 REGISTER("String", "concat", String_concat);
+// Java's Double.toString: the shortest digits that read back as the same double, plain between 1e-3 and
+// 1e7 and as d.dddE+x outside it. This is what a Java string concatenation of a double writes.
+static void double_text(double v, char* out, size_t cap) {
+    if (isnan(v)) { snprintf(out, cap, "NaN"); return; }
+    if (isinf(v)) { snprintf(out, cap, v > 0 ? "Infinity" : "-Infinity"); return; }
+    if (v == 0) { snprintf(out, cap, signbit(v) ? "-0.0" : "0.0"); return; }
+    char e[40];
+    // Java picks the closest of the two-digit texts when one digit would do (4.9E-324, not 5.0E-324),
+    // so the search starts at two digits and a trailing zero is dropped afterwards.
+    int p = 2;
+    for (; p < 17; p++) {
+        snprintf(e, sizeof e, "%.*e", p - 1, v);
+        if (strtod(e, NULL) == v) break;
+    }
+    snprintf(e, sizeof e, "%.*e", p - 1, v);
+    char digits[20]; size_t nd = 0;
+    const char* c = e;
+    bool neg = *c == '-';
+    if (neg) c++;
+    for (; *c && *c != 'e'; c++) if (*c != '.') digits[nd++] = *c;
+    while (nd > 1 && digits[nd - 1] == '0') nd--;
+    digits[nd] = 0;
+    int e10 = atoi(c + 1);
+    char* w = out;
+    if (neg) *w++ = '-';
+    if (fabs(v) >= 1e-3 && fabs(v) < 1e7) {
+        if (e10 >= 0) {
+            for (int k = 0; k <= e10; k++) *w++ = (size_t)k < nd ? digits[k] : '0';
+            *w++ = '.';
+            if ((size_t)e10 + 1 < nd) { memcpy(w, digits + e10 + 1, nd - (size_t)e10 - 1); w += nd - (size_t)e10 - 1; }
+            else *w++ = '0';
+        } else {
+            *w++ = '0'; *w++ = '.';
+            for (int k = 0; k < -e10 - 1; k++) *w++ = '0';
+            memcpy(w, digits, nd); w += nd;
+        }
+        *w = 0;
+    } else {
+        *w++ = digits[0]; *w++ = '.';
+        if (nd > 1) { memcpy(w, digits + 1, nd - 1); w += nd - 1; } else *w++ = '0';
+        snprintf(w, cap - (size_t)(w - out), "E%d", e10);
+    }
+}
+// The text of a number as the adapter writes it: a whole number as a plain integer (BigDecimal's exact
+// expansion), anything else as Double.toString.
+static void number_text(double v, char* out, size_t cap) {
+    if (isfinite(v) && v == rint(v)) { snprintf(out, cap, v == 0 ? "0" : "%.0f", v); return; }
+    double_text(v, out, cap);
+}
 static union grug_value String_from_number(ARGS) {
     UNUSED;
-    char buf[64];
-    if (is_whole(a[0]._number) && fabs(a[0]._number) < 1e15) snprintf(buf, sizeof buf, "%.0f", a[0]._number);
-    else snprintf(buf, sizeof buf, "%g", a[0]._number);
+    char buf[400];
+    number_text(a[0]._number, buf, sizeof buf);
     return str(keep(xstrdup(buf)));
 }
 REGISTER("String", "from_number", String_from_number);
@@ -573,7 +732,7 @@ static void print_value(const union grug_value* v, const struct grug_type* t) {
     case TYPE_NUMBER: printf("%g", v->_number); break;
     case TYPE_BOOL: printf("%s", v->_bool ? "true" : "false"); break;
     case TYPE_STRING: printf("%s", v->_string); break;
-    default: printf("<object %llu>", (unsigned long long)v->_id);
+    default: printf("<object %llu>", (unsigned long long)v->_id);  // SMOKETEST_EXCL: no committed test prints a class value, and what the adapter's prettyFormat shows for one is not asserted
     }
 }
 static union grug_value print1(ARGS) { (void)gst; if (quiet) return none(); print_value(&a[0], &g[0]); putchar('\n'); return none(); }
@@ -611,19 +770,35 @@ static union grug_value hf_resource_location(ARGS) {
     return id(r);
 }
 REGISTER(NULL, "resource_location", hf_resource_location);
+static uint64_t item_named(const char* name) {
+    for (size_t i = 0; i < nobjs; i++)
+        if (objs[i].kind == K_ITEM && !strcmp(objs[i].str, name)) return i + 1;
+    uint64_t it = new_obj(K_ITEM);
+    objs[it - 1].str = name;
+    return it;
+}
 static union grug_value hf_item(ARGS) {
     UNUSED;
     struct obj* rl = get_obj(a[0]._id, K_RL);
     if (!rl) return fail("item: not a ResourceLocation");
-    // new_obj may move the table, so the name is read before it and rl is not used after it.
-    const char* name = rl->str;
-    for (size_t i = 0; i < nobjs; i++)
-        if (objs[i].kind == K_ITEM && !strcmp(objs[i].str, name)) return id(i + 1);
-    uint64_t it = new_obj(K_ITEM);
-    objs[it - 1].str = name;
-    return id(it);
+    return id(item_named(rl->str));
 }
 REGISTER(NULL, "item", hf_item);
+
+// item_stack (expect_item_stack_count*-Test, item_stack_save-Test): a stack of 1 to 127, the largest count the
+// byte-saving loaders keep, which is the limit the smoketest takes because its loader name is not 1.20.6-forge.
+static union grug_value hf_item_stack(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_ITEM)) return fail("item_stack: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Item
+    double c = a[2]._number;
+    if (!(c >= 1 && c <= 127) || c != floor(c)) return fail("item_stack: The count has to be a whole number from 1 to 127, and was %g.", c);
+    uint64_t o = new_obj(K_ITEM_STACK);
+    objs[o - 1].val = a[0];
+    objs[o - 1].x = a[1]._number;
+    objs[o - 1].y = c;
+    return id(o);
+}
+REGISTER(NULL, "item_stack", hf_item_stack);
 
 // BlockPos: the two methods the committed block entity scripts and tests call.
 static union grug_value BlockPos_above_n(ARGS) {
@@ -652,23 +827,31 @@ REGISTER("BlockPos", "center", BlockPos_center);
 // of items each wait for a committed test that needs them).
 static bool held_has;
 static uint64_t held_item_id;
+static double held_count;  // set_held_item gives one item; a stack arrives only by a give, which is not modelled
 static union grug_value TTC_get_player(ARGS) { UNUSED; return id(new_obj(K_PLAYER)); }
 REGISTER("TestTickContext", "get_player", TTC_get_player);
 static union grug_value TTC_set_held_item(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.set_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
     if (!get_obj(a[2]._id, K_ITEM)) return fail("TestTickContext.set_held_item: not an Item");  // SMOKETEST_EXCL: no committed test
-    held_has = true; held_item_id = a[2]._id;
+    held_has = true; held_item_id = a[2]._id; held_count = 1;
     return none();
 }
 REGISTER("TestTickContext", "set_held_item", TTC_set_held_item);
 static union grug_value TTC_clear_held_item(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.clear_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
-    held_has = false;
+    held_has = false; held_count = 0;
     return none();
 }
 REGISTER("TestTickContext", "clear_held_item", TTC_clear_held_item);
+// hotbar_reset_a-Test and overlay-Test: one item in the hand after set_held_item, none after clear_held_item.
+static union grug_value TTC_get_held_count(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.get_held_count: not a Player");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but the player
+    return num(held_has ? held_count : 0);
+}
+REGISTER("TestTickContext", "get_held_count", TTC_get_held_count);
 static union grug_value Player_get_held_item(ARGS) {
     UNUSED;
     if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.get_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
@@ -702,6 +885,8 @@ struct be {
     bool power; double energy, max_energy;  // set_power_receiver
     bool item_inserted;   // the script declares an item_inserted export
     bool item_extracted;  // the script declares an item_extracted export, which no host call here runs yet
+    bool output_taken;    // the script declares an output_taken export, which a take of the cached result runs
+    bool has_result; const char* res_name; double res_count, res_damage;  // the cached crafting result
     bool has_insertable, has_extractable; double ins_first, ins_last, ext_first, ext_last;  // declared slot ranges
 };
 static struct be* bes;
@@ -735,7 +920,7 @@ static bool call_export(void* entity, uint64_t fn, const union grug_value* args,
     call_depth++;
     bool ok = grug_call_export_fn(g_state, entity, fn, args, n);
     if (!ok && strstr(last_error, "does not implement") && !bg_missing[0])
-        snprintf(bg_missing, sizeof bg_missing, "%s", last_error);
+        snprintf(bg_missing, sizeof bg_missing, "%s", last_error);  // SMOKETEST_EXCL: reached only when a block entity export calls an entry the smoketest lacks, which a passing test never does
     bool ran = ok || last_error[0];
     // The message is read only when the export raised an error: a missing export fails without one, and
     // last_msg then still holds an earlier error's text.
@@ -784,12 +969,12 @@ static void clear_bes(void) {
 // Per-block registry: Block.init runs once per test on first placement, with set_block_entity and
 // set_inventory_size the only BlockInitContext entries implemented. Any other setter a block calls
 // fails the placement naming the entry.
-struct blockdef { const char* name; long be_file; long slots; };
+struct blockdef { const char* name; long be_file; long slots; bool shape; };
 static struct blockdef* blockdefs;
 static size_t nblockdefs;
 // Block.init's own results. Block.init can place another undefined block, whose init nests inside
 // this one, so find_blockdef saves and restores it and keeps no pointer into `blockdefs`.
-struct binit { long be_file; long slots; const char* mod; };
+struct binit { long be_file; long slots; const char* mod; bool shape; };
 static struct binit cur_binit;
 
 // An entity string without a mod prefix names an entity of the mod the script is in (the grug
@@ -825,7 +1010,9 @@ static union grug_value BIC_set_inventory_size(ARGS) {
 REGISTER("BlockInitContext", "set_inventory_size", BIC_set_inventory_size);
 REGISTER("BlockInitContext", "set_hardness", BIC_noop);
 REGISTER("BlockInitContext", "set_material", BIC_noop);
-REGISTER("BlockInitContext", "set_shape", BIC_noop);
+// set_shape declares that the game asks the block's shape() export for its boxes (block_collision reads it).
+static union grug_value BIC_set_shape(ARGS) { UNUSED; cur_binit.shape = true; return none(); }
+REGISTER("BlockInitContext", "set_shape", BIC_set_shape);
 REGISTER("BlockInitContext", "set_display_tick", BIC_noop);
 REGISTER("BlockInitContext", "set_flat_lighting", BIC_noop);
 REGISTER("BlockInitContext", "set_frame_render", BIC_noop);
@@ -847,18 +1034,22 @@ static long resolve_block(const char* name) {
         size_t idx = nblockdefs++;
         blockdefs[idx].name = keep(xstrdup(name));
         blockdefs[idx].be_file = BLOCK_NO_ENTITY;
+        blockdefs[idx].shape = false;
         // Block.init has no entity to hold: create, run, drop.
         void* ent = grug_create_entity(g_state, fi->file_id);
         struct binit outer = cur_binit;
         cur_binit.be_file = BLOCK_NO_ENTITY;
         cur_binit.slots = 0;
+        cur_binit.shape = false;
         cur_binit.mod = fi->mod_name;
         union grug_value arg = id(new_obj(K_CTX));
         call_contained(ent, G.block_init, &arg, 1);
         long result = cur_binit.be_file, slots = cur_binit.slots;
+        bool shape = cur_binit.shape;
         cur_binit = outer;
         blockdefs[idx].be_file = result;
         blockdefs[idx].slots = slots;
+        blockdefs[idx].shape = shape;
         resolved_slots = slots;
         grug_deinit_entity(g_state, ent);
         return result;
@@ -899,6 +1090,7 @@ static void make_be(long x, long y, long z, long file, long slots) {
     give_slots(&bes[idx], slots);
     bes[idx].item_extracted = file_has_export(file, "item_extracted");
     bes[idx].item_inserted = file_has_export(file, "item_inserted");
+    bes[idx].output_taken = file_has_export(file, "output_taken");
     grug_set_next_entity_id(g_state, BE_BASE + idx);
     call_depth++;
     void* entity = grug_create_entity(g_state, G.f.ptr[file].file_id);
@@ -918,15 +1110,16 @@ static void on_block_placed(long x, long y, long z, const char* name) {
     long file = resolve_block(name);
     long slots = resolved_slots;
     if (file >= 0) make_be(x, y, z, file, slots);
-    else if (!strcmp(name, "minecraft:chest")) {
-        // The one vanilla block entity the committed tests place (chest_inventory-Test and
-        // inventory_size-Test assert its 27 slots, power-Test and expect_receive_energy_not_a_receiver-Test
-        // that it is no receiver). It has no script, so it never ticks.
+    else if (!strcmp(name, "minecraft:chest") || (file == BLOCK_NO_ENTITY && !strncmp(name, "grug:", 5))) {
+        // The vanilla chest (chest_inventory-Test and inventory_size-Test assert its 27 slots,
+        // power-Test and expect_receive_energy_not_a_receiver-Test that it is no receiver), and a grug
+        // block with no BlockEntity script, which still gets a block entity whose init finds no script
+        // (block_entity_no_script-Test). Neither has a script, so neither ticks.
         if (nbes == capbes) { capbes = capbes ? capbes * 2 : 32; bes = xrealloc(bes, capbes * sizeof *bes); }
         struct be* b = &bes[nbes++];
         memset(b, 0, sizeof *b);
         b->live = true; b->x = x; b->y = y; b->z = z;
-        give_slots(b, 27);
+        give_slots(b, !strcmp(name, "minecraft:chest") ? 27 : slots);
     }
 }
 static void tick_bes(void) {
@@ -1041,7 +1234,7 @@ static union grug_value BE_get_item_count_in_slot(ARGS) {
     return num(sl ? sl->count : 0);
 }
 REGISTER("BlockEntity", "get_item_count_in_slot", BE_get_item_count_in_slot);
-static uint64_t be_inserted_fn, be_neighbor_fn;
+static uint64_t be_inserted_fn, be_neighbor_fn, be_output_taken_fn;
 static union grug_value BE_set_item_in_slot(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -1306,21 +1499,129 @@ static union grug_value BE_insert_item_into_inventory(ARGS) {
     return num(a[3]._number - remaining);
 }
 REGISTER("BlockEntity", "insert_item_into_inventory", BE_insert_item_into_inventory);
-// The crafting result (slot_access-Test): a block entity with no result container answers an empty Option
-// and damage 0. The smoketest has no result container yet (update_recipe_output is missing), so every
-// block entity is that case.
+// The crafting result. A grug block entity holds one cached result, which update_recipe_output sets from the
+// nine slots at a start slot and take_crafting_result removes from, as the loaders' GrugBlockEntity does
+// (a take pays nothing: the ingredients stay until the script consumes them). A recipe is a mod's
+// (recipes.inc, generated from mods/*/data/*/recipes) or one of the few vanilla recipes a committed test
+// asserts: the game's own table is not modelled, so a grid that matches nothing marks the test stubbed.
+struct recipe { int shaped, w, h; const char* result; int count; const char* cells[9]; };
+#include "recipes.inc"
+static const struct recipe vanilla_recipes[] = {
+    {1, 3, 1, "minecraft:bread", 1, {"minecraft:wheat", "minecraft:wheat", "minecraft:wheat"}},  // slot_access-Test, response_extract_consumed-Test
+};
+// grid holds the item name of each of the 9 cells, NULL for an empty one. A shaped recipe fits anywhere
+// in the grid, as written or mirrored, with every other cell empty; a shapeless one takes exactly its ingredients in any order.
+static const struct recipe* match_recipe(const struct recipe* rs, size_t n, const char* const grid[9]) {
+    for (size_t r = 0; r < n; r++) {
+        const struct recipe* rc = &rs[r];
+        if (rc->shaped) {
+            for (int mirror = 0; mirror < 2; mirror++)
+                for (int oy = 0; oy + rc->h <= 3; oy++)
+                    for (int ox = 0; ox + rc->w <= 3; ox++) {
+                        bool ok = true;
+                        for (int y = 0; y < 3 && ok; y++)
+                            for (int x = 0; x < 3 && ok; x++) {
+                                bool inside = x >= ox && x < ox + rc->w && y >= oy && y < oy + rc->h;
+                                int col = mirror ? rc->w - 1 - (x - ox) : x - ox;
+                                const char* want = inside ? rc->cells[(y - oy) * rc->w + col] : "";
+                                const char* have = grid[y * 3 + x];
+                                ok = want[0] ? have && !strcmp(have, want) : !have;
+                            }
+                        if (ok) return rc;
+                    }
+        } else {
+            int n_in = rc->w, filled = 0;
+            bool used[9] = {false};
+            bool ok = true;
+            for (int c = 0; c < 9; c++) if (grid[c]) filled++;
+            for (int i = 0; i < n_in && ok; i++) {
+                ok = false;
+                for (int c = 0; c < 9 && !ok; c++)
+                    if (grid[c] && !used[c] && !strcmp(grid[c], rc->cells[i])) { used[c] = true; ok = true; }
+            }
+            if (ok && filled == n_in) return rc;
+        }
+    }
+    return NULL;
+}
+// A take of the cached result tells the block entity, as the loaders' notifyOutputTaken does.
+static void notify_output_taken(struct be* b, double amount) {
+    if (!b->output_taken) return;
+    union grug_value arg = num(amount);
+    call_contained(b->entity, be_output_taken_fn, &arg, 1);
+}
+static union grug_value BE_update_recipe_output(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.update_recipe_output: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a live block entity
+    if (!b->entity) return fail("update_recipe_output: the block entity has no crafting result container.");
+    if (!is_whole(a[1]._number) || a[1]._number < 0) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed test starts the grid at a fraction or below slot 0
+    const char* grid[9];
+    bool any = false;
+    for (int c = 0; c < 9; c++) {
+        double slot = a[1]._number + c;
+        struct slot* sl = slot >= 0 && slot < (double)b->nslots ? &b->slots[(size_t)slot] : NULL;
+        grid[c] = sl && sl->has && sl->count > 0 ? objs[sl->item - 1].str : NULL;
+        any = any || grid[c];
+    }
+    const struct recipe* rc = match_recipe(mod_recipes, sizeof mod_recipes / sizeof *mod_recipes, grid);
+    if (!rc) rc = match_recipe(vanilla_recipes, sizeof vanilla_recipes / sizeof *vanilla_recipes, grid);
+    b->has_result = rc != NULL;
+    if (rc) { b->res_name = rc->result; b->res_count = rc->count; b->res_damage = 0; }
+    else if (any) stubbed = true;  // the game's own recipes are not modelled, so a filled grid with no match proves less
+    return none();
+}
+REGISTER("BlockEntity", "update_recipe_output", BE_update_recipe_output);
+// slot_access-Test: a block entity with no result answers an empty Option and damage 0.
 static union grug_value BE_get_crafting_result_item(ARGS) {
     UNUSED;
-    if (!be_of(a[0]._id)) return fail("BlockEntity.get_crafting_result_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    return id(new_obj(K_OPTION));
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_crafting_result_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    uint64_t o = new_obj(K_OPTION);
+    if (b->has_result) { objs[o - 1].has = true; objs[o - 1].val = id(item_named(b->res_name)); }
+    return id(o);
 }
 REGISTER("BlockEntity", "get_crafting_result_item", BE_get_crafting_result_item);
 static union grug_value BE_get_crafting_result_damage(ARGS) {
     UNUSED;
-    if (!be_of(a[0]._id)) return fail("BlockEntity.get_crafting_result_damage: not a live block entity");  // SMOKETEST_EXCL: no committed test
-    return num(0);
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_crafting_result_damage: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    return num(b->has_result ? b->res_damage : 0);
 }
 REGISTER("BlockEntity", "get_crafting_result_damage", BE_get_crafting_result_damage);
+static union grug_value BE_take_crafting_result(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.take_crafting_result: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a live block entity
+    if (!b->entity) return fail("BlockEntity.take_crafting_result: the block entity has no crafting result container.");  // SMOKETEST_EXCL_BRANCH: no committed test takes from a block entity that is not a grug one
+    if (!b->has_result) return num(0);
+    double want = a[1]._number;
+    if (!(want >= 1) || !is_whole(want)) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed test takes a fraction, NaN or less than one
+    double taken = want < b->res_count ? want : b->res_count;
+    b->res_count -= taken;
+    if (b->res_count <= 0) b->has_result = false;
+    notify_output_taken(b, taken);
+    return num(taken);
+}
+REGISTER("BlockEntity", "take_crafting_result", BE_take_crafting_result);
+// consume_crafting_ingredients (adapter_branches-Test): one item off each filled slot of the nine from the start.
+// The loaders then put an item's container (a bucket) back; no item the committed tests use has one.
+static union grug_value BE_consume_crafting_ingredients(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.consume_crafting_ingredients: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a live block entity
+    for (int c = 0; c < 9; c++) {
+        double slot = a[1]._number + c;
+        if (!(slot >= 0 && slot < (double)b->nslots)) { stubbed = true; continue; }  // SMOKETEST_EXCL_BRANCH: no committed test starts the grid past the inventory
+        struct slot* sl = &b->slots[(size_t)slot];
+        if (sl->has && sl->count > 0) {
+            sl->count -= 1;
+            if (sl->count <= 0) slot_clear(sl);
+        }
+    }
+    return none();
+}
+REGISTER("BlockEntity", "consume_crafting_ingredients", BE_consume_crafting_ingredients);
 static union grug_value BE_ask_extract_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -1328,6 +1629,7 @@ static union grug_value BE_ask_extract_item(ARGS) {
     struct obj r; bool errored;
     union grug_value args[2] = {num(a[1]._number), boolean(false)};
     uint64_t self = a[0]._id;
+    double offered = b->has_result ? b->res_count : 0;  // read before the export, which may craft the next result
     bool ran = ask_response(b, G.be_extract_item, K_EXTRACT_RESPONSE, args, 2, &r, &errored, "extract_item");
     if (!ran) return num(-1);  // SMOKETEST_EXCL: no committed test asks a block entity without the export
     if (errored) return none();
@@ -1340,12 +1642,69 @@ static union grug_value BE_ask_extract_item(ARGS) {
         return num(r.y < sl->count ? r.y : sl->count);
         // SMOKETEST_EXCL_STOP
     }
-    // The smoketest has no crafting result to give (update_recipe_output is missing), so a request for
-    // one answers nothing and marks the test stubbed.
-    if (r.z != ANS_REFUSE) stubbed = true;  // SMOKETEST_EXCL: reached once update_recipe_output exists
+    // A crafting result answer offers the cached result's count, or, for a consumed answer, the count the
+    // result had when the pipe asked, because the export may have crafted the next one into the holder.
+    if (r.z == ANS_CRAFT) return num(b->has_result ? b->res_count : 0);
+    if (r.z == ANS_CRAFT_CONSUMED) return num(offered);
     return num(0);
 }
 REGISTER("BlockEntity", "ask_extract_item", BE_ask_extract_item);
+// extract_item_into (response_extract-Test, response_extract_consumed-Test, the expect_extract_item_into_* tests):
+// the destination slot is checked first, then the source is asked with remove true and the host moves what
+// it named: a slot's items, the cached result, or, for a consumed answer, the result as it was when asked.
+static union grug_value BE_extract_item_into(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    struct be* d = be_of(a[1]._id);
+    if (!b || !d) return fail("BlockEntity.extract_item_into: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but live block entities
+    double dslot = a[2]._number;
+    char num_buf[400];
+    if (!is_whole(dslot)) {
+        number_text(dslot, num_buf, sizeof num_buf);
+        return fail("BlockEntity.extract_item_into: slot %s of the destination is not a whole slot number of its inventory of %zu slots.", num_buf, d->nslots);
+    }
+    if (dslot < 0 || dslot >= (double)d->nslots) return fail("BlockEntity.extract_item_into: slot %.0f of the destination is outside its inventory of %zu slots.", dslot, d->nslots);
+    if (d->slots[(size_t)dslot].has && d->slots[(size_t)dslot].count != 0) return fail("BlockEntity.extract_item_into: slot %.0f of the destination is not empty.", dslot);
+    struct obj r; bool errored;
+    union grug_value args[2] = {num(a[3]._number), boolean(true)};
+    uint64_t self = a[0]._id, dest = a[1]._id;
+    double offered = b->has_result ? b->res_count : 0;
+    const char* offered_name = b->res_name;
+    double offered_damage = b->res_damage;
+    bool ran = ask_response(b, G.be_extract_item, K_EXTRACT_RESPONSE, args, 2, &r, &errored, "extract_item");
+    if (!ran) return num(-1);  // SMOKETEST_EXCL_BRANCH: no committed test moves from a block entity without the export
+    if (errored) return none();
+    b = be_of(self); d = be_of(dest);
+    if (!b || !d) return num(0);  // SMOKETEST_EXCL_BRANCH: no committed test replaces a block entity from inside extract_item
+    uint64_t item = 0; double damage = 0, taken = 0;
+    if (r.z == ANS_SLOT) {
+        if (!slot_named_ok(b, r.x, "extract_item")) return none();
+        struct slot* sl = &b->slots[(size_t)r.x];
+        double count = r.y < sl->count ? r.y : sl->count;
+        if (count == 0) return num(0);
+        item = sl->item; damage = sl->damage;
+        if (b->item_extracted) stubbed = true;  // SMOKETEST_EXCL_BRANCH: item_extracted is not run, as in take_item_from_slot
+        taken = slot_take(sl, count);
+    } else if (r.z == ANS_CRAFT) {
+        if (!b->has_result) return num(0);  // SMOKETEST_EXCL_BRANCH: no committed test answers a result that is not there
+        item = item_named(b->res_name); damage = b->res_damage;
+        taken = b->res_count;  // the host asks for the whole count it was offered
+        b->has_result = false; b->res_count = 0;
+        notify_output_taken(b, taken);
+        d = be_of(dest);
+        if (!d) return num(0);  // SMOKETEST_EXCL_BRANCH: no committed test replaces the destination from inside output_taken
+    } else if (r.z == ANS_CRAFT_CONSUMED) {
+        if (offered == 0) return num(0);  // SMOKETEST_EXCL_BRANCH: no committed test answers a consumed result that is not there
+        item = item_named(offered_name); damage = offered_damage; taken = offered;
+    } else {
+        return num(0);
+    }
+    struct slot* ds = &d->slots[(size_t)dslot];
+    if (taken > 64) stubbed = true;  // SMOKETEST_EXCL_BRANCH: the destination's stack limit is not modelled
+    ds->has = true; ds->item = item; ds->count = taken; ds->damage = damage;
+    return num(ds->count);
+}
+REGISTER("BlockEntity", "extract_item_into", BE_extract_item_into);
 static union grug_value BE_add_item(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -1421,6 +1780,29 @@ static union grug_value BE_get_saved_number(ARGS) {
     return num(0);
 }
 REGISTER("BlockEntity", "get_saved_number", BE_get_saved_number);
+// redraw builds the block's geometry again, which nothing here draws, so a pass is STUBBED; only a grug block
+// entity has a render function (expect_redraw_on_a_chest-Test).
+static union grug_value BE_redraw(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.redraw: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("redraw: Only a grug block entity has a render function to draw again.");
+    stubbed = true;
+    return none();
+}
+REGISTER("BlockEntity", "redraw", BE_redraw);
+// The number the joined client's own copy of a block entity holds. The toy world has no second copy, so the
+// copy is taken to have every change at once, which a pass that waited for the send did not prove: STUBBED.
+// A block entity with no script saves no numbers, and a name never saved is 0, as the real call answers.
+static union grug_value TTC_client_saved_number(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[1]._id);
+    stubbed = true;
+    double v = 0;
+    for (size_t i = 0; b && i < b->nnums; i++) if (!strcmp(b->nums[i].k, a[2]._string)) v = b->nums[i].v;  // SMOKETEST_EXCL_BRANCH: no committed test asks about a block entity that is gone or a number never saved
+    return num(v);
+}
+REGISTER("TestTickContext", "client_saved_number", TTC_client_saved_number);
 static struct list* find_list(struct be* b, const char* name) {
     for (size_t i = 0; i < b->nlists; i++) if (!strcmp(b->lists[i].name, name)) return &b->lists[i];
     return NULL;
@@ -1533,6 +1915,910 @@ static union grug_value BE_get_saved_list_item(ARGS) {
 }
 REGISTER("BlockEntity", "get_saved_list_item", BE_get_saved_list_item);
 
+// round_trip_nbt (nbt_round_trip-Test, saved_lists-Test, item_stack_save-Test, power_nbt_round_trip-Test, the
+// pipe reload tests): write the block entity out and read it back. Every committed test asserts that what
+// it saved survives, and the smoketest keeps that state in the model itself, so the round trip changes
+// nothing. What the real save drops (a record's item keeps its identity alone, a stack count is a byte on the
+// four older loaders) is a limit of the save, which the model's numbers do not reproduce.
+static union grug_value TTC_round_trip_nbt(ARGS) {
+    UNUSED;
+    if (!be_of(a[1]._id)) return fail("TestTickContext.round_trip_nbt: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a live block entity
+    stubbed = true;
+    return none();
+}
+REGISTER("TestTickContext", "round_trip_nbt", TTC_round_trip_nbt);
+
+// =============================================================================================
+// SECTION: Block use
+// =============================================================================================
+// use_block (use_block_effects-Test, use_block_faces-Test, decline_use-Test, decline_use_places-Test): a
+// click on a block runs the block's use export; a block that declines (decline_use) or has no use export
+// leaves the click to the held item, which is placed against the clicked face. The face is the one the test
+// player's eye sees: the eye is three blocks below the origin, and the face is the one the line from the eye
+// to the block's centre enters, which is the axis of the largest distance. Nothing opens a screen, so a test
+// that then waits for one still fails on screen_open or a GUI call it needs; this models the no-screen click.
+static uint64_t block_use_fn;
+static struct grug_file_info* block_file_of(const char* name) {
+    if (strncmp(name, "grug:", 5)) return NULL;
+    for (size_t i = 0; i < G.f.len; i++) {
+        struct grug_file_info* fi = &G.f.ptr[i];
+        if (fi->file_id != UINT64_MAX && fi->entity_type && !strcmp(fi->entity_type, "Block") && !strcmp(fi->entity_name, name + 5)) return fi;
+    }
+    return NULL;  // SMOKETEST_EXCL: every committed click is on a grug block, so no test clicks a block with no script
+}
+static union grug_value BUC_decline_use(ARGS) {
+    UNUSED;
+    struct obj* c = get_obj(a[0]._id, K_USE_CTX);
+    if (!c) return fail("BlockUseContext.decline_use: not a BlockUseContext");  // SMOKETEST_EXCL: no committed test
+    c->has = true;
+    return none();
+}
+REGISTER("BlockUseContext", "decline_use", BUC_decline_use);
+// The face a ray from the eye to the block's centre enters, as GrugUseBlockFace.face numbers it: 0 down, 1 up,
+// 2 north (-z), 3 south (+z), 4 west (-x), 5 east (+x). The axis of the largest distance decides, and a tie
+// goes to y, then x, then z. selftest.c compares it with the six faces and the ties of the core's rule.
+static int use_face_of(double ex, double ey, double ez, long x, long y, long z) {
+    double dx = x + 0.5 - ex, dy = y + 0.5 - ey, dz = z + 0.5 - ez;
+    double ax = fabs(dx), ay = fabs(dy), az = fabs(dz);
+    if (ay >= ax && ay >= az) return dy > 0 ? 0 : 1;
+    if (ax >= az) return dx > 0 ? 4 : 5;
+    return dz > 0 ? 2 : 3;  // SMOKETEST_EXCL: no committed test clicks along z, so only selftest.c reaches it, against GrugUseBlockFace
+}
+// Where a click on the block at (x, y, z) places the held block: the neighbour across the clicked face. The eye
+// is the test origin three blocks down, and ignores set_player_position, which no committed use test calls.
+static void use_face(long x, long y, long z, long out[3]) {
+    static const int step[6][3] = {{0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}};
+    int f = use_face_of(origin_x, origin_y - 3, origin_z, x, y, z);
+    out[0] = x + step[f][0]; out[1] = y + step[f][1]; out[2] = z + step[f][2];
+}
+static union grug_value TTC_use_block(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.use_block: not a Level");  // SMOKETEST_EXCL: no committed test
+    // pos_arg reads the coordinates from a[1..3], so shift by one.
+    union grug_value shifted[4] = {a[1], a[2], a[3], a[4]};
+    if (!pos_arg(shifted, p, "TestTickContext.use_block")) return none();  // SMOKETEST_EXCL: no committed test clicks a non-finite position
+    struct block* b = find_block(p[0], p[1], p[2]);
+    const char* name = b ? b->name : "minecraft:air";
+    bool handled = false;
+    struct grug_file_info* fi = block_file_of(name);
+    if (fi) {
+        // A fresh entity per click loses member state, so a future block whose use export keeps members is not trusted here.
+        void* ent = grug_create_entity(g_state, fi->file_id);
+        uint64_t c = new_obj(K_USE_CTX);
+        union grug_value args[6] = {id(c), a[1], num(a[2]._number), num(a[3]._number), num(a[4]._number), id(new_obj(K_PLAYER))};
+        bool ran = call_export(ent, block_use_fn, args, 6, NULL);
+        handled = ran && !objs[c - 1].has;
+        grug_deinit_entity(g_state, ent);
+    }
+    if (handled || !held_has) return none();
+    long at[3];
+    use_face(p[0], p[1], p[2], at);
+    if (!strcmp(objs[held_item_id - 1].str, "minecraft:cobblestone")) {
+        struct block* t = find_block(at[0], at[1], at[2]);
+        if (!t || !strcmp(t->name, "minecraft:air")) {
+            set_block(at[0], at[1], at[2], "minecraft:cobblestone");
+            on_block_placed(at[0], at[1], at[2], "minecraft:cobblestone");
+            held_count--;  // the block item takes one from the stack
+            if (held_count <= 0) held_has = false;
+        } else stubbed = true;  // SMOKETEST_EXCL: no committed test clicks toward an occupied position; whether the game replaces it depends on the block
+    } else stubbed = true;  // SMOKETEST_EXCL: no committed test holds another vanilla item for a declined click; whether it places is the game's
+    return none();
+}
+REGISTER("TestTickContext", "use_block", TTC_use_block);
+
+// Display ticks (display_tick-Test, expect_display_tick_*-Test, redstone_engine_particles-Test). The game's
+// random display tick is the block's display_tick export with a generator seeded by the test, so the
+// smoketest seeds the level's java.util.Random (what the loaders' generators are) for the call and puts the
+// level's own seed state back. Every particle is recorded and none is drawn. The export is looked up on
+// the block's file, so a block that never exports display_tick spawns nothing, where the game also needs
+// set_display_tick (BIC_noop makes such a pass STUBBED, so a block that exports without declaring is not caught).
+#define PARTICLE_MAX 64
+static struct { double x, y, z; } particles[PARTICLE_MAX];
+static size_t nparticles;
+static uint64_t block_display_tick_fn;
+// Every loader hands the generator to the script as random::nextFloat, so this is Random.nextFloat.
+static union grug_value DTC_random(ARGS) { UNUSED; return num(rnd_float()); }
+REGISTER("DisplayTickContext", "random", DTC_random);
+// GrugDisplayTicks.particleProblem: only reddust exists, and every number must be finite.
+static bool particle_problem(const char* name, const double v[6], char* out, size_t cap) {
+    if (strcmp(name, "reddust")) { snprintf(out, cap, "There is no particle called \"%s\". The particles are reddust.", name); return true; }
+    for (int i = 0; i < 6; i++)
+        if (!isfinite(v[i])) { snprintf(out, cap, "The position and the motion must be finite numbers."); return true; }  // SMOKETEST_EXCL: no committed test passes a non-finite particle; selftest.c checks it
+    return false;
+}
+static union grug_value DTC_add_particle(ARGS) {
+    UNUSED;
+    double v[6] = {a[2]._number, a[3]._number, a[4]._number, a[5]._number, a[6]._number, a[7]._number};
+    char msg[512];
+    if (particle_problem(a[1]._string, v, msg, sizeof msg)) return fail("DisplayTickContext.add_particle: %s", msg);
+    if (nparticles < PARTICLE_MAX) {  // SMOKETEST_EXCL_BRANCH: no committed block spawns 64 particles in one tick
+        particles[nparticles].x = v[0]; particles[nparticles].y = v[1]; particles[nparticles].z = v[2];
+        nparticles++;
+    }
+    return none();
+}
+REGISTER("DisplayTickContext", "add_particle", DTC_add_particle);
+static union grug_value TTC_display_tick(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.display_tick: not a Level");  // SMOKETEST_EXCL: no committed test
+    nparticles = 0;
+    long p[3] = {(long)floor(a[2]._number), (long)floor(a[3]._number), (long)floor(a[4]._number)};
+    struct block* b = find_block(p[0], p[1], p[2]);
+    struct grug_file_info* fi = block_file_of(b ? b->name : "minecraft:air");
+    if (!fi) return num(0);
+    uint64_t saved_seed = rnd_seed;
+    bool saved_have = rnd_have_gaussian;
+    rnd_set_seed((int64_t)a[5]._number);
+    void* ent = grug_create_entity(g_state, fi->file_id);
+    union grug_value args[5] = {id(new_obj(K_DISPLAY_CTX)), a[1], num((double)p[0]), num((double)p[1]), num((double)p[2])};
+    char err[4096];
+    call_export(ent, block_display_tick_fn, args, 5, err);
+    grug_deinit_entity(g_state, ent);
+    rnd_seed = saved_seed;
+    rnd_have_gaussian = saved_have;
+    stubbed = true;  // no particle is drawn, and the block's set_display_tick declaration is not checked
+    if (err[0]) return fail("%s", err);
+    return num((double)nparticles);
+}
+REGISTER("TestTickContext", "display_tick", TTC_display_tick);
+static union grug_value TTC_particle_position(ARGS) {
+    UNUSED;
+    double i = a[1]._number;
+    uint64_t v = new_obj(K_VEC3);
+    if (!(i >= 0 && i < (double)nparticles)) return fail("TestTickContext.particle_position: There is no particle number %ld in the last TestTickContext.display_tick().", (long)i);
+    objs[v - 1].x = particles[(size_t)i].x; objs[v - 1].y = particles[(size_t)i].y; objs[v - 1].z = particles[(size_t)i].z;
+    return id(v);
+}
+REGISTER("TestTickContext", "particle_position", TTC_particle_position);
+
+// The render camera (camera-Test, camera_pose-Test): the eye of the room, which is the origin less the
+// runner's 3 block lift. No player moves, so the pose never changes, and no committed camera test needs more.
+static union grug_value TTC_camera(ARGS) {
+    UNUSED;
+    uint64_t v = new_obj(K_VEC3);
+    objs[v - 1].x = origin_x; objs[v - 1].y = origin_y - 3; objs[v - 1].z = origin_z;
+    stubbed = true;
+    return id(v);
+}
+REGISTER("TestTickContext", "camera", TTC_camera);
+
+// Block shapes (expect_shape_box_unordered-Test, block_shape-Test's collision reads). A block that called
+// set_shape is asked for its boxes by running its shape() export on a fresh entity, as GrugShapes.call does; any
+// other grug block is the full cube. Only collision is modelled: a selection box is recorded and never read, and
+// block_selection and block_ray_trace have no implementation, so a test that asks them fails by name.
+#define SHAPE_BOXES_MAX 16
+static struct { double v[6]; bool collision; } shape_boxes[SHAPE_BOXES_MAX];
+static size_t nshape_boxes;
+static uint64_t block_shape_fn;
+// GrugRenderPass.isOrdered: no corner of a pair is past the other, and a NaN is not ordered.
+static bool box_ordered(const double v[6]) { return v[0] <= v[3] && v[1] <= v[4] && v[2] <= v[5]; }
+static union grug_value shape_add_box(const union grug_value a[], bool collision) {
+    double v[6] = {a[1]._number, a[2]._number, a[3]._number, a[4]._number, a[5]._number, a[6]._number};
+    if (!box_ordered(v))
+        return fail("%s: The box was not recorded. Its corners have to be the right way round: the first of each pair is the near corner and must be no greater than the second, so add it as (0, 0, 0, 1, 1, 1) and not as (1, 0, 0, 0, 1, 1).",
+            collision ? "ShapeContext.add_collision_box" : "ShapeContext.add_selection_box");
+    if (nshape_boxes >= SHAPE_BOXES_MAX) { stubbed = true; return none(); }  // SMOKETEST_EXCL: no committed block adds more than 16 boxes in one call; the box is dropped, so a pass is STUBBED
+    memcpy(shape_boxes[nshape_boxes].v, v, sizeof v);
+    shape_boxes[nshape_boxes++].collision = collision;
+    return none();
+}
+static union grug_value SC_add_collision_box(ARGS) { UNUSED; return shape_add_box(a, true); }
+REGISTER("ShapeContext", "add_collision_box", SC_add_collision_box);
+static union grug_value SC_add_selection_box(ARGS) { UNUSED; return shape_add_box(a, false); }  // SMOKETEST_EXCL: the only committed test that reaches a selection box (block_shape-Test) fails first on block_selection, which has no implementation yet
+REGISTER("ShapeContext", "add_selection_box", SC_add_selection_box);
+// Whether the box overlaps the other with a positive volume, which is what AxisAlignedBB.intersectsWith and
+// Shapes.joinIsNotEmpty both ask of two boxes.
+static bool boxes_overlap(const double lo[6], const double area[6]) {
+    return lo[0] < area[3] && lo[3] > area[0] && lo[1] < area[4] && lo[4] > area[1] && lo[2] < area[5] && lo[5] > area[2];
+}
+static bool block_declares_shape(const char* name) {
+    resolve_block(name);
+    for (size_t i = 0; i < nblockdefs; i++) if (!strcmp(blockdefs[i].name, name)) return blockdefs[i].shape;
+    return false;  // SMOKETEST_EXCL: resolve_block just made the entry of every grug block that has a script
+}
+static union grug_value TTC_block_collision(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.block_collision: not a Level");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Level
+    long p[3];
+    if (!pos_arg(a + 1, p, "TestTickContext.block_collision")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test asks at a non-finite position
+    const double area[6] = {a[5]._number, a[6]._number, a[7]._number, a[8]._number, a[9]._number, a[10]._number};
+    static const double cube[6] = {0, 0, 0, 1, 1, 1};
+    struct block* b = find_block(p[0], p[1], p[2]);
+    if (!b) return boolean(false);  // SMOKETEST_EXCL_BRANCH: no committed test asks about air
+    struct grug_file_info* fi = block_file_of(b->name);
+    if (!fi) { stubbed = true; return boolean(boxes_overlap(cube, area)); }  // SMOKETEST_EXCL_BRANCH: no committed test asks about a vanilla block, whose real shape (a torch has none) is the game's
+    if (!block_declares_shape(b->name)) return boolean(boxes_overlap(cube, area));
+    void* ent = grug_create_entity(g_state, fi->file_id);
+    nshape_boxes = 0;
+    union grug_value args[5] = {id(new_obj(K_SHAPE_CTX)), a[1], num((double)p[0]), num((double)p[1]), num((double)p[2])};
+    char err[4096];
+    call_export(ent, block_shape_fn, args, 5, err);
+    grug_deinit_entity(g_state, ent);
+    if (err[0]) return fail("%s", err);
+    bool any = false, hit = false;
+    for (size_t i = 0; i < nshape_boxes; i++) {
+        any = true;
+        if (shape_boxes[i].collision && boxes_overlap(shape_boxes[i].v, area)) hit = true;
+    }
+    for (size_t i = 0; i < nshape_boxes; i++)
+        if (!shape_boxes[i].collision) stubbed = true;  // SMOKETEST_EXCL_BRANCH: a selection box is recorded and never read here, so a selection-only shape answering no collision is the model's guess, which no committed test asserts
+    if (!any) { stubbed = true; return boolean(boxes_overlap(cube, area)); }  // SMOKETEST_EXCL_BRANCH: no committed shape() adds nothing; the game then keeps the full cube and reports the block
+    return boolean(hit);
+}
+REGISTER("TestTickContext", "block_collision", TTC_block_collision);
+
+// =============================================================================================
+// SECTION: Item entities
+// =============================================================================================
+// Item entities (item_entity-Test, count_item_entities-Test): one record per item_entity call, whose
+// ItemEntity and Entity handles both carry its index in x. It is in the world once Entity.spawn ran,
+// and a world query counts only those. The test runner does not tick entities, so none moves, ages or
+// is picked up. A query takes the entities within the radius of the point (a sphere); a loader may
+// query a box instead, and no committed test tells the two apart, because count_item_entities-Test
+// asserts the corner case in a form both pass.
+struct ent { double x, y, z; uint64_t item; double damage, count, delay, vx, vy, vz; bool spawned; };
+static struct ent* ents;
+static size_t nents, capents;
+static void clear_entities(void) { nents = 0; }
+static struct ent* ent_of(uint64_t id, enum kind kind) {
+    struct obj* o = get_obj(id, kind);
+    return o ? &ents[(size_t)o->x] : NULL;
+}
+// A new zeroed record at the end of the table, which may move the table.
+static struct ent* ent_new(void) {
+    if (nents == capents) {
+        capents = capents ? capents * 2 : 64;
+        ents = xrealloc(ents, capents * sizeof *ents);
+    }
+    struct ent* e = &ents[nents++];
+    memset(e, 0, sizeof *e);
+    return e;
+}
+static union grug_value hf_item_entity(ARGS) {
+    UNUSED;
+    struct obj* st = get_obj(a[4]._id, K_ITEM_STACK);
+    if (!st) return fail("item_entity: not an ItemStack");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemStack
+    struct ent* e = ent_new();
+    e->x = a[1]._number; e->y = a[2]._number; e->z = a[3]._number;
+    e->item = st->val._id; e->damage = st->x; e->count = st->y;
+    uint64_t o = new_obj(K_ITEM_ENTITY);
+    objs[o - 1].x = (double)(nents - 1);
+    return id(o);
+}
+REGISTER(NULL, "item_entity", hf_item_entity);
+static union grug_value IE_count(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ITEM_ENTITY);
+    if (!e) return fail("ItemEntity.count: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    return num(e->count);
+}
+REGISTER("ItemEntity", "count", IE_count);
+static union grug_value IE_damage(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ITEM_ENTITY);
+    if (!e) return fail("ItemEntity.damage: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    return num(e->damage);
+}
+REGISTER("ItemEntity", "damage", IE_damage);
+static union grug_value IE_pickup_delay(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ITEM_ENTITY);
+    if (!e) return fail("ItemEntity.pickup_delay: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    return num(e->delay);
+}
+REGISTER("ItemEntity", "pickup_delay", IE_pickup_delay);
+static union grug_value IE_set_pickup_delay(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ITEM_ENTITY);
+    if (!e) return fail("ItemEntity.set_pickup_delay: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    e->delay = a[1]._number;
+    return none();
+}
+REGISTER("ItemEntity", "set_pickup_delay", IE_set_pickup_delay);
+static union grug_value IE_entity(ARGS) {
+    UNUSED;
+    struct obj* o = get_obj(a[0]._id, K_ITEM_ENTITY);
+    if (!o) return fail("ItemEntity.entity: not an ItemEntity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an ItemEntity
+    double idx = o->x;  // before new_obj, which may move the table
+    uint64_t n = new_obj(K_ENTITY);
+    objs[n - 1].x = idx;
+    return id(n);
+}
+REGISTER("ItemEntity", "entity", IE_entity);
+static union grug_value Entity_set_delta_movement(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ENTITY);
+    struct obj* v = get_obj(a[1]._id, K_VEC3);
+    if (!e) return fail("Entity.set_delta_movement: not an Entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Entity
+    if (!v) return fail("Entity.set_delta_movement: not a Vec3");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Vec3
+    e->vx = v->x; e->vy = v->y; e->vz = v->z;
+    return none();
+}
+REGISTER("Entity", "set_delta_movement", Entity_set_delta_movement);
+static union grug_value Entity_get_delta_movement(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ENTITY);
+    if (!e) return fail("Entity.get_delta_movement: not an Entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Entity
+    double vx = e->vx, vy = e->vy, vz = e->vz;  // before new_obj, which may move the table
+    uint64_t v = new_obj(K_VEC3);
+    objs[v - 1].x = vx; objs[v - 1].y = vy; objs[v - 1].z = vz;
+    return id(v);
+}
+REGISTER("Entity", "get_delta_movement", Entity_get_delta_movement);
+static union grug_value Entity_spawn(ARGS) {
+    UNUSED;
+    struct ent* e = ent_of(a[0]._id, K_ENTITY);
+    if (!e) return fail("Entity.spawn: not an Entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Entity
+    if (e->spawned) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed test spawns an entity twice, so what the game does then is unknown
+    e->spawned = true;
+    return none();
+}
+REGISTER("Entity", "spawn", Entity_spawn);
+
+// The spawned item entities within the radius of a point, the first one's index in *first.
+static double items_near(const union grug_value a[], size_t* first) {
+    double n = 0;
+    for (size_t i = 0; i < nents; i++) {
+        double dx = ents[i].x - a[1]._number, dy = ents[i].y - a[2]._number, dz = ents[i].z - a[3]._number;
+        if (!ents[i].spawned || !(sqrt(dx * dx + dy * dy + dz * dz) <= a[4]._number)) continue;
+        if (n == 0) *first = i;
+        n++;
+    }
+    return n;
+}
+static union grug_value Level_count_item_entities(ARGS) {
+    UNUSED;
+    size_t first = 0;
+    return num(items_near(a, &first));
+}
+REGISTER("Level", "count_item_entities", Level_count_item_entities);
+static union grug_value Level_find_item_entity(ARGS) {
+    UNUSED;
+    size_t first = 0;
+    double n = items_near(a, &first);
+    uint64_t o = new_obj(K_OPTION);
+    if (n > 0) {
+        objs[o - 1].has = true;
+        uint64_t ie = new_obj(K_ITEM_ENTITY);
+        objs[ie - 1].x = (double)first;
+        objs[o - 1].val = id(ie);
+    }
+    return id(o);
+}
+REGISTER("Level", "find_item_entity", Level_find_item_entity);
+// drop_inventory empties the block entity's slots into item entities (inventory-Test, adapter_branches-Test,
+// test_box_clears_dropped_item-Test). 1.2.5 and the Ornithe and StationAPI adapters spawn one entity per slot at the
+// given position, which is what this does; 1.20.6's Containers.dropContents splits a stack into random pieces and
+// scatters them over the block, so the count and place of the entities are the game's there and a pass is STUBBED.
+static union grug_value hf_drop_inventory(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_LEVEL)) return fail("drop_inventory: not a Level");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Level
+    long p[3];
+    if (!pos_arg(a, p, "drop_inventory")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test drops at a non-finite position
+    struct be* b = be_at(p[0], p[1], p[2]);
+    if (!b) return fail("drop_inventory: there is no block entity with an inventory at that position");  // SMOKETEST_EXCL_BRANCH: no committed test drops where there is none
+    stubbed = true;
+    for (size_t i = 0; i < b->nslots; i++) {
+        if (!b->slots[i].has) continue;
+        struct ent* e = ent_new();
+        e->x = a[1]._number; e->y = a[2]._number; e->z = a[3]._number;
+        e->item = b->slots[i].item; e->damage = b->slots[i].damage; e->count = b->slots[i].count;
+        e->spawned = true;
+        b->slots[i].has = false; b->slots[i].count = 0; b->slots[i].damage = 0;
+    }
+    return none();
+}
+REGISTER(NULL, "drop_inventory", hf_drop_inventory);
+
+// Mod file states (the hot_reload*-Test files, expect_set_mod_file_state_*-Test). The real call rewrites the
+// file on disk and the engine's watcher reports the change; the smoketest rewrites nothing (a test must
+// never disturb the repository's mods) and counts a change per call that would have disturbed a file, which is
+// all the tests' wait loops read. The reload itself is not run, so every test that calls it is STUBBED.
+struct modfile { const char* path; double changes; bool disturbed; };
+static struct modfile* modfiles;
+static size_t nmodfiles, capmodfiles;
+static void clear_mod_files(void) { nmodfiles = 0; }
+static struct modfile* modfile_of(const char* path, bool create) {
+    for (size_t i = 0; i < nmodfiles; i++) if (!strcmp(modfiles[i].path, path)) return &modfiles[i];
+    if (!create) return NULL;
+    if (nmodfiles == capmodfiles) { capmodfiles = capmodfiles ? capmodfiles * 2 : 8; modfiles = xrealloc(modfiles, capmodfiles * sizeof *modfiles); }
+    modfiles[nmodfiles] = (struct modfile){keep(xstrdup(path)), 0, false};
+    return &modfiles[nmodfiles++];
+}
+static union grug_value TTC_set_mod_file_state(ARGS) {
+    UNUSED;
+    const char* path = a[1]._string; const char* state = a[2]._string;
+    bool normal = !strcmp(state, "normal"), deleted = !strcmp(state, "deleted");
+    if (!normal && !deleted && strcmp(state, "invalid") && strcmp(state, "no_trailing_newline") && strcmp(state, "swapped"))
+        return fail("TestTickContext.set_mod_file_state: java.lang.IllegalArgumentException: Unknown mod file state '%s'. Expected \"normal\", \"invalid\", \"no_trailing_newline\", \"deleted\" or \"swapped\".", state);
+    char full[4096];
+    snprintf(full, sizeof full, "%s/%s", g_mods_dir, path);
+    if (!normal && !deleted && access(full, R_OK) != 0) return fail("TestTickContext.set_mod_file_state: java.nio.file.NoSuchFileException: %s", full);
+    stubbed = true;
+    struct modfile* m = modfile_of(path, true);
+    if (normal && !m->disturbed) return none();  // nothing disturbed the file, so nothing is put back
+    m->disturbed = !normal;
+    m->changes++;
+    return none();
+}
+REGISTER("TestTickContext", "set_mod_file_state", TTC_set_mod_file_state);
+static union grug_value TTC_hot_reload_count(ARGS) {
+    UNUSED;
+    struct modfile* m = modfile_of(a[1]._string, false);
+    return num(m ? m->changes : 0);
+}
+REGISTER("TestTickContext", "hot_reload_count", TTC_hot_reload_count);
+
+// Colors and GUIs (gui_*-Test, expect_gui_*-Test, use_block_same_tick-Test). A GUI is a layout builder: the
+// texture path, the crafting grids (each names nine inventory slots from its start), the crafting results,
+// the texts and the player inventory. GUI.open checks the grids against the block entity's inventory and
+// opens a screen: a panel with the grids' slots on the block entity, and a mouse cursor. No capture exists
+// behind it, so a test that screenshots the screen still fails, and a pass that opened a screen is STUBBED.
+#define GUI_MAX_ENTRIES 64  // GrugGuiLayoutCodec.MAX_ENTRIES
+struct gui { size_t ngrids; int32_t grid_start[GUI_MAX_ENTRIES], grid_x[GUI_MAX_ENTRIES], grid_y[GUI_MAX_ENTRIES]; size_t nresults, ntexts; };
+static struct gui* guis;
+static size_t nguis, capguis;
+// The open screen: the GUI it was built from (an index into guis) and the block entity handle it opened on.
+// carried is the mouse cursor's stack, which only exists while a screen is open.
+static bool screen_is_open;
+static size_t screen_gui;
+static uint64_t screen_be;
+static bool carried_has;
+static uint64_t carried_item;
+static double carried_count, carried_damage;
+static void clear_guis(void) { nguis = 0; screen_is_open = false; carried_has = false; }
+// Why Color.rgba refuses these values (the Java colorProblem message), or false when each is a whole number from 0 to 255.
+// SMOKETEST_EXCL_START: no committed test that reaches Color.rgba passes the smoketest yet; selftest.c checks the helper
+static bool color_problem(double r, double g, double b, double a, char* out, size_t cap) {
+    double v[4] = {r, g, b, a};
+    bool ok = true;
+    for (int i = 0; i < 4; i++) if (!(v[i] >= 0 && v[i] <= 255) || v[i] != floor(v[i])) ok = false;
+    if (ok) return false;
+    char t[4][400];
+    for (int i = 0; i < 4; i++) number_text(v[i], t[i], sizeof t[i]);
+    snprintf(out, cap, "Each value has to be a whole number from 0 to 255, and the values were %s, %s, %s and %s.", t[0], t[1], t[2], t[3]);
+    return true;
+}
+// SMOKETEST_EXCL_STOP
+static union grug_value Color_rgb(ARGS) { UNUSED; return id(new_obj(K_COLOR)); }
+REGISTER("Color", "rgb", Color_rgb);
+// SMOKETEST_EXCL_START: the only committed caller, overlay_triangles-Test, stops earlier at an overlay call the smoketest lacks
+static union grug_value Color_rgba(ARGS) {
+    UNUSED;
+    char msg[2048];
+    if (color_problem(a[0]._number, a[1]._number, a[2]._number, a[3]._number, msg, sizeof msg)) return fail("Color.rgba: %s", msg);
+    return id(new_obj(K_COLOR));
+}
+// SMOKETEST_EXCL_STOP
+REGISTER("Color", "rgba", Color_rgba);
+static union grug_value hf_gui(ARGS) {
+    UNUSED;
+    if (nguis == capguis) { capguis = capguis ? capguis * 2 : 8; guis = xrealloc(guis, capguis * sizeof *guis); }
+    memset(&guis[nguis], 0, sizeof guis[nguis]);
+    uint64_t o = new_obj(K_GUI);
+    objs[o - 1].x = (double)nguis++;
+    return id(o);
+}
+REGISTER(NULL, "gui", hf_gui);
+static struct gui* gui_of(uint64_t h, const char* who) {
+    struct obj* o = get_obj(h, K_GUI);
+    if (!o) { fail("%s: not a GUI", who); return NULL; }  // SMOKETEST_EXCL: no committed test passes anything but a GUI
+    return &guis[(size_t)o->x];
+}
+static bool gui_full(size_t n, const char* who, const char* what) {
+    if (n < GUI_MAX_ENTRIES) return false;
+    fail("%s: A GUI holds at most %d %s, so this one is not added.", who, GUI_MAX_ENTRIES, what);
+    return true;
+}
+static union grug_value GUI_add_crafting_grid(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.add_crafting_grid");
+    if (!gu || gui_full(gu->ngrids, "GUI.add_crafting_grid", "crafting grids")) return none();
+    gu->grid_start[gu->ngrids] = java_int(a[1]._number);
+    gu->grid_x[gu->ngrids] = java_int(a[2]._number);
+    gu->grid_y[gu->ngrids] = java_int(a[3]._number);
+    gu->ngrids++;
+    return none();
+}
+REGISTER("GUI", "add_crafting_grid", GUI_add_crafting_grid);
+static union grug_value GUI_add_crafting_result(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.add_crafting_result");
+    if (!gu || gui_full(gu->nresults, "GUI.add_crafting_result", "crafting results")) return none();
+    gu->nresults++;
+    return none();
+}
+REGISTER("GUI", "add_crafting_result", GUI_add_crafting_result);
+static union grug_value GUI_add_player_inventory(ARGS) {
+    UNUSED;
+    gui_of(a[0]._id, "GUI.add_player_inventory");
+    return none();
+}
+REGISTER("GUI", "add_player_inventory", GUI_add_player_inventory);
+static union grug_value GUI_add_text(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.add_text");
+    if (gu && !get_obj(a[4]._id, K_COLOR)) return fail("GUI.add_text: not a color");  // SMOKETEST_EXCL: no committed test passes anything but a Color; Java checks the handle before the cap and the text
+    if (!gu || gui_full(gu->ntexts, "GUI.add_text", "texts")) return none();
+    if (strlen(a[1]._string) > (1u << 20)) return fail("GUI.add_text: A GUI's text is at most 1048576 bytes long, so this one of %zu bytes is not added.", strlen(a[1]._string));  // SMOKETEST_EXCL: no committed test adds a megabyte of text
+    gu->ntexts++;
+    return none();
+}
+REGISTER("GUI", "add_text", GUI_add_text);
+static union grug_value GUI_open(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.open");
+    if (!gu) return none();  // SMOKETEST_EXCL: gui_of raised already
+    struct be* b = be_of(a[2]._id);
+    if (!b) return fail("GUI.open: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    for (size_t i = 0; i < gu->ngrids; i++)
+        for (long k = 0; k < 9; k++) {
+            long slot = (int32_t)((uint32_t)gu->grid_start[i] + (uint32_t)k);  // int addition wraps in Java
+            if (slot < 0 || slot >= (long)b->nslots)
+                return fail("GUI.open: The GUI uses slot %ld, but the block entity only has %zu inventory slots.", slot, b->nslots);
+        }
+    screen_is_open = true;
+    screen_gui = (size_t)(gu - guis);
+    screen_be = a[2]._id;
+    carried_has = false;
+    stubbed = true;  // no capture exists behind the screen, and its window is an assumed one (see the screen geometry)
+    return none();
+}
+REGISTER("GUI", "open", GUI_open);
+// A screen is open after GUI.open until close_screen, and screen_open-Test asserts it closed after close_screen.
+static union grug_value TTC_screen_open(ARGS) { UNUSED; return boolean(screen_is_open); }
+REGISTER("TestTickContext", "screen_open", TTC_screen_open);
+
+// Screen geometry and clicks (gui_click-Test, gui_click_empty-Test, forwarded_gui_*-Test, forwarded_screen_*-Test,
+// forwarded_screen_geometry-Test). AbstractContainerScreen's panel is imageWidth by imageHeight, 176 by 166,
+// centered in the window with integer division, and a GrugScreen adds nothing to that. The CI runner's window is
+// 1280 by 720 at GUI scale 3 (gui_builder-Test's own measurement), so the window is 427 by 240 scaled pixels; no
+// test pins the window, only that the panel is centered in it, so the number is an assumption the pass inherits
+// (GUI.open already marks the run stubbed). With no screen open every read answers 0, as a client with no container
+// screen does (1.2.5 leaves an empty screen up there, which loader_name == "1.2.5-forge" tests branch on).
+#define PANEL_W 176
+#define PANEL_H 166
+#define WINDOW_W 427
+#define WINDOW_H 240
+static double gui_geometry(int which) {  // 0 left, 1 top, 2 width, 3 height, 4 window width
+    if (!screen_is_open) return 0;
+    switch (which) {
+    case 0: return (WINDOW_W - PANEL_W) / 2;
+    case 1: return (WINDOW_H - PANEL_H) / 2;
+    case 2: return PANEL_W;
+    case 3: return PANEL_H;
+    default: return WINDOW_W;
+    }
+}
+static union grug_value TTC_gui_left(ARGS) { UNUSED; return num(gui_geometry(0)); }
+REGISTER("TestTickContext", "gui_left", TTC_gui_left);
+static union grug_value TTC_gui_top(ARGS) { UNUSED; return num(gui_geometry(1)); }
+REGISTER("TestTickContext", "gui_top", TTC_gui_top);
+static union grug_value TTC_gui_width(ARGS) { UNUSED; return num(gui_geometry(2)); }
+REGISTER("TestTickContext", "gui_width", TTC_gui_width);
+static union grug_value TTC_gui_height(ARGS) { UNUSED; return num(gui_geometry(3)); }
+REGISTER("TestTickContext", "gui_height", TTC_gui_height);
+static union grug_value TTC_screen_width(ARGS) { UNUSED; return num(gui_geometry(4)); }
+REGISTER("TestTickContext", "screen_width", TTC_screen_width);
+
+// The mouse cursor's stack. set_carried_item puts one of the item on it and does nothing with no screen open,
+// clear_carried_item empties it, and get_carried_item answers it or an empty Option.
+static union grug_value TTC_set_carried_item(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_ITEM)) return fail("TestTickContext.set_carried_item: not an Item");  // SMOKETEST_EXCL: no committed test
+    if (!screen_is_open) return none();  // SMOKETEST_EXCL: every committed caller has a screen open
+    carried_has = true; carried_item = a[1]._id; carried_count = 1; carried_damage = 0;
+    return none();
+}
+REGISTER("TestTickContext", "set_carried_item", TTC_set_carried_item);
+static union grug_value TTC_clear_carried_item(ARGS) { UNUSED; carried_has = false; return none(); }
+REGISTER("TestTickContext", "clear_carried_item", TTC_clear_carried_item);
+static union grug_value TTC_get_carried_item(ARGS) {
+    UNUSED;
+    uint64_t o = new_obj(K_OPTION);
+    if (carried_has) { objs[o - 1].has = true; objs[o - 1].val = id(carried_item); }
+    return id(o);
+}
+REGISTER("TestTickContext", "get_carried_item", TTC_get_carried_item);
+
+// Why TestTickContext.click_screen refuses a press, or false (HostFunctions.screenClickProblem and
+// GrugScreenCalls.buttonProblem, whose MAX_BUTTON is 2).
+// SMOKETEST_EXCL_START: no committed test presses with a bad button or position; selftest.c checks the helper
+static bool click_problem(double x, double y, double button, char* out, size_t cap) {
+    if (!isfinite(x) || !isfinite(y)) { snprintf(out, cap, "The position has to be finite."); return true; }
+    if (!isfinite(button)) { snprintf(out, cap, "The button has to be finite."); return true; }
+    if (button != floor(button) || button < 0 || button > 2) {
+        char t[400];
+        double_text(button, t, sizeof t);
+        snprintf(out, cap, "The button has to be a whole number from 0 to 2, where 0 is the left button, 1 the right and 2 the middle, and was %s.", t);
+        return true;
+    }
+    return false;
+}
+// SMOKETEST_EXCL_STOP
+// SMOKETEST_EXCL_START: the committed presses all land on the centre of a slot; selftest.c checks the square's edges
+static bool slot_hovered(double mx, double my, double sx, double sy) { return mx >= sx - 1 && mx < sx + 17 && my >= sy - 1 && my < sy + 17; }
+// SMOKETEST_EXCL_STOP
+// A press on the open container screen. No overlay exists here, so the press always answers false, as it does on a
+// mod's own GrugScreen with no overlay asked. The slot under the press takes a left click the way vanilla's
+// pickup does for the two cases the committed tests assert: an empty cursor picks the slot's stack up, and a
+// carried stack goes whole into an empty slot. Every other click (a right or middle button, a slot that already
+// holds something while the cursor carries, the result slot, a press outside every grid slot) is not modelled and
+// marks the run stubbed. A slot answers a press from one pixel left of and above its 16 by 16 square to one pixel
+// past it (AbstractContainerScreen.isHovering).
+static union grug_value TTC_click_screen(ARGS) {
+    UNUSED;
+    char msg[600];
+    if (click_problem(a[1]._number, a[2]._number, a[3]._number, msg, sizeof msg)) return fail("TestTickContext.click_screen: %s", msg);  // SMOKETEST_EXCL: see click_problem
+    if (!screen_is_open) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL: every committed click that passes has a screen open
+    struct be* b = be_of(screen_be);
+    if (!b) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL: the block entity of an open screen is live in every committed test
+    struct gui* gu = &guis[screen_gui];
+    double mx = a[1]._number - gui_geometry(0), my = a[2]._number - gui_geometry(1);
+    struct slot* hit = NULL;
+    for (size_t g = 0; g < gu->ngrids && !hit; g++)  // SMOKETEST_EXCL_BRANCH: every committed press hits a slot of the first grid, so no loop runs out of grids
+        for (int k = 0; k < 9 && !hit; k++) {  // SMOKETEST_EXCL_BRANCH: the committed presses hit slot 0 of the grid, so the nine slots never run out
+            double sx = gu->grid_x[g] + (k % 3) * 18, sy = gu->grid_y[g] + (k / 3) * 18;
+            if (slot_hovered(mx, my, sx, sy)) hit = slot_of(b, (double)(int32_t)((uint32_t)gu->grid_start[g] + (uint32_t)k));
+        }
+    if (a[3]._number != 0 || !hit) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL_BRANCH: the committed presses are all left clicks on a grid slot
+    if (!carried_has && hit->has) {
+        carried_has = true; carried_item = hit->item; carried_count = hit->count; carried_damage = hit->damage;
+        slot_clear(hit);
+    } else if (carried_has && !hit->has) {
+        hit->has = true; hit->item = carried_item; hit->count = carried_count; hit->damage = carried_damage;
+        carried_has = false;
+    } else if (carried_has) stubbed = true;  // SMOKETEST_EXCL: a carried stack over a full slot swaps or merges, and no committed test presses one
+    if (b->item_inserted) stubbed = true;  // SMOKETEST_EXCL_BRANCH: whether a slot click runs item_inserted is the loader's, and no committed block with a screen declares it
+    return boolean(false);
+}
+REGISTER("TestTickContext", "click_screen", TTC_click_screen);
+
+// Ticking a level and sounds (tick_level-Test, expect_tick_level_*-Test, sound-Test, expect_*sound*-Test).
+// The smoketest runs no world tick, so tick_level answers 0, which the API defines as "a loader that cannot
+// advance its level", and leaves the clock alone; a test that needs the ticks to have run still fails.
+// The game has no sound table either, so has_sound is false for every well-formed name, like a 1.2.5 run
+// with an empty pool, and play_ui_sound reports the unknown sound after the argument checks.
+// Why a tick count is not a whole number from 0 to Integer.MAX_VALUE (GrugTestState.checkTickCount), or false.
+static bool tick_count_problem(double ticks, char* out, size_t cap) {
+    if (ticks >= 0 && ticks <= 2147483647.0 && ticks == floor(ticks)) return false;
+    char t[400];
+    double_text(ticks, t, sizeof t);
+    snprintf(out, cap, "The number of ticks has to be a whole number from 0 to 2147483647, and was %s.", t);
+    return true;
+}
+static union grug_value TTC_tick_level(ARGS) {
+    UNUSED;
+    char msg[512];
+    if (tick_count_problem(a[2]._number, msg, sizeof msg)) { fail("TestTickContext.tick_level: %s", msg); return num(0); }
+    stubbed = true;
+    return num(0);
+}
+REGISTER("TestTickContext", "tick_level", TTC_tick_level);
+// GrugSoundArgs.nameProblem: [a-z0-9_.-]+:[a-z0-9_./-]+, the whole string.
+static bool sound_name_ok(const char* n) {
+    const char* c = strchr(n, ':');
+    if (!c || c == n || !c[1]) return false;
+    for (const char* p = n; p < c; p++) if (!(islower((unsigned char)*p) || isdigit((unsigned char)*p) || strchr("_.-", *p))) return false;
+    for (const char* p = c + 1; *p; p++) if (!(islower((unsigned char)*p) || isdigit((unsigned char)*p) || strchr("_./-", *p))) return false;
+    return true;
+}
+static void sound_name_problem(const char* n, char* out, size_t cap) {
+    snprintf(out, cap, "A sound name is a namespace, a colon and a path, such as \"minecraft:ui.button.click\", and \"%s\" is not one.", n);
+}
+static union grug_value hf_has_sound(ARGS) {
+    UNUSED;
+    if (!sound_name_ok(a[0]._string)) {
+        char msg[1024];
+        sound_name_problem(a[0]._string, msg, sizeof msg);
+        fail("has_sound: %s", msg);
+    }
+    // sound-Test branches on loader_name == "1.20.6-forge", which the smoketest is not, so it takes the older
+    // versions' branch (no ui.button.click) because of its name, not because it modelled a pool: STUBBED.
+    else stubbed = true;
+    return boolean(false);
+}
+REGISTER(NULL, "has_sound", hf_has_sound);
+static union grug_value hf_play_ui_sound(ARGS) {
+    UNUSED;
+    const char* name = a[0]._string;
+    double vol = a[1]._number, pitch = a[2]._number;
+    char t[400];
+    if (!sound_name_ok(name)) { char msg[1024]; sound_name_problem(name, msg, sizeof msg); return fail("play_ui_sound: %s", msg); }
+    if (!(vol >= 0 && vol <= 1)) { double_text(vol, t, sizeof t); return fail("play_ui_sound: The volume has to be from 0 to 1, and was %s.", t); }
+    if (!(pitch >= 0.5 && pitch <= 2)) { double_text(pitch, t, sizeof t); return fail("play_ui_sound: The pitch has to be from 0.5 to 2, and was %s.", t); }
+    return fail("play_ui_sound: The game has no sound named \"%s\". Ask has_sound first for a sound the versions the mod runs on do not all have.", name);
+}
+REGISTER(NULL, "play_ui_sound", hf_play_ui_sound);
+
+// Block entity NBT edits (block_entity_nbt-Test, expect_nbt_*-Test, expect_extract_item_into_no_slot-Test).
+// set_nbt_number stages an edit and load_nbt applies the staged edits to the NBT the block entity would
+// write. The smoketest holds no NBT tree, so it models only what a grug block entity's NBT is made of
+// that the committed tests edit: GrugInvSize (the inventory size), GrugNumbers (the saved numbers
+// sorted by name, as a list of Name and Value compounds) and GrugLists (the saved lists sorted by name, each
+// with Records holding Numbers sorted by name and an Item). A path into anything else is a key no grug
+// block entity reads, which the real load drops, and a path the model cannot place marks the run STUBBED.
+static bool nbt_is_index(const char* p, size_t n) {
+    if (!n) return false;
+    for (size_t i = 0; i < n; i++) if (p[i] < '0' || p[i] > '9') return false;
+    return true;
+}
+// SMOKETEST_EXCL_START: the validation helpers are reached by selftest.c, which proves every message against GrugBlockEntityNbt; no committed test stages a bad type, value or path
+// Why a dotted path is not a path (the Java parsePath messages), or false when it is one.
+static bool nbt_path_problem(const char* path, char* out, size_t cap) {
+    bool prev_index = false, first = true;
+    const char* p = path;
+    for (;;) {
+        const char* dot = strchr(p, '.');
+        size_t n = dot ? (size_t)(dot - p) : strlen(p);
+        if (!n) { snprintf(out, cap, "The path \"%s\" has an empty part.", path); return true; }
+        bool idx = nbt_is_index(p, n);
+        if (idx && (first || prev_index)) { snprintf(out, cap, "The path \"%s\" has an index that does not follow a key.", path); return true; }
+        if (idx && n > 9) { snprintf(out, cap, "The index %.*s in the path \"%s\" is too large.", (int)n, p, path); return true; }
+        prev_index = idx; first = false;
+        if (!dot) break;
+        p = dot + 1;
+    }
+    if (prev_index) { snprintf(out, cap, "The path \"%s\" has to end in a key, not an index.", path); return true; }
+    return false;
+}
+// Why a value does not fit its NBT type (the Java checkValue message), or false when it does.
+static bool nbt_value_problem(const char* type, double v, char* out, size_t cap) {
+    double lo, hi;
+    if (!strcmp(type, "byte")) { lo = -128; hi = 127; }
+    else if (!strcmp(type, "short")) { lo = -32768; hi = 32767; }
+    else if (!strcmp(type, "int")) { lo = -2147483648.0; hi = 2147483647.0; }
+    else if (!strcmp(type, "long")) { lo = -9223372036854775808.0; hi = 9223372036854775807.0; }
+    else return false;
+    if (v == rint(v) && v >= lo && v <= hi) return false;
+    char vt[64], lot[32], hit[32];
+    double_text(v, vt, sizeof vt);
+    snprintf(lot, sizeof lot, "%.0f", lo);
+    // Java casts the bounds to long, which saturates 2^63 to Long.MAX_VALUE
+    snprintf(hit, sizeof hit, "%s", !strcmp(type, "long") ? "9223372036854775807" : "");
+    if (!hit[0]) snprintf(hit, sizeof hit, "%.0f", hi);
+    snprintf(out, cap, "A %s has to be a whole number from %s to %s, not %s.", type, lot, hit, vt);
+    return true;
+}
+// SMOKETEST_EXCL_STOP
+struct nbt_edit { size_t be; char* path; double value; bool is_item; uint64_t item; };
+static struct nbt_edit* nbt_staged;
+static size_t nnbt_staged, capnbt_staged;
+static void clear_nbt(void) {
+    for (size_t i = 0; i < nnbt_staged; i++) free(nbt_staged[i].path);
+    nnbt_staged = 0;
+}
+static void nbt_stage(struct be* b, const char* path, double value, bool is_item, uint64_t item) {
+    if (nnbt_staged == capnbt_staged) { capnbt_staged = capnbt_staged ? capnbt_staged * 2 : 8; nbt_staged = xrealloc(nbt_staged, capnbt_staged * sizeof *nbt_staged); }
+    nbt_staged[nnbt_staged++] = (struct nbt_edit){(size_t)(b - bes), xstrdup(path), value, is_item, item};
+}
+static union grug_value TTC_set_nbt_number(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[1]._id);
+    if (!b) return fail("TestTickContext.set_nbt_number: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    const char* type = a[3]._string;
+    char msg[512];
+    if (strcmp(type, "byte") && strcmp(type, "short") && strcmp(type, "int") && strcmp(type, "long") && strcmp(type, "float") && strcmp(type, "double"))
+        return fail("TestTickContext.set_nbt_number: The type has to be one of [byte, short, int, long, float, double], not \"%s\".", type);  // SMOKETEST_EXCL: no committed test stages a bad type
+    if (nbt_value_problem(type, a[4]._number, msg, sizeof msg)) return fail("TestTickContext.set_nbt_number: %s", msg);  // SMOKETEST_EXCL: no committed test stages a bad value
+    if (nbt_path_problem(a[2]._string, msg, sizeof msg)) return fail("TestTickContext.set_nbt_number: %s", msg);  // SMOKETEST_EXCL: no committed test stages a bad path
+    nbt_stage(b, a[2]._string, a[4]._number, false, 0);
+    return none();
+}
+REGISTER("TestTickContext", "set_nbt_number", TTC_set_nbt_number);
+static union grug_value TTC_set_nbt_item(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[1]._id);
+    if (!b) return fail("TestTickContext.set_nbt_item: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    char msg[512];
+    if (nbt_path_problem(a[2]._string, msg, sizeof msg)) return fail("TestTickContext.set_nbt_item: %s", msg);  // SMOKETEST_EXCL: no committed test stages a bad path
+    nbt_stage(b, a[2]._string, 0, true, a[3]._id);
+    return none();
+}
+REGISTER("TestTickContext", "set_nbt_item", TTC_set_nbt_item);
+static int cmp_numbers_by_name(const void* l, const void* r) { return strcmp(((const struct kv*)l)->k, ((const struct kv*)r)->k); }
+static int cmp_lists_by_name(const void* l, const void* r) { return strcmp(((const struct list*)l)->name, ((const struct list*)r)->name); }  // SMOKETEST_EXCL: the only committed edit of a list's record has one list on the block entity, so no comparison runs
+// The saved number at an index of the numbers sorted by name, or NULL.
+static struct kv* nth_number_by_name(struct kv* nums, size_t n, size_t i) {
+    struct kv* tmp = xmalloc((n + 1) * sizeof *tmp);
+    memcpy(tmp, nums, n * sizeof *tmp);
+    qsort(tmp, n, sizeof *tmp, cmp_numbers_by_name);
+    struct kv* hit = NULL;
+    for (size_t j = 0; j < n && i < n; j++) if (nums[j].k == tmp[i].k) hit = &nums[j];
+    free(tmp);
+    return hit;
+}
+// Splits a dotted path into its pieces, in place; returns how many (up to 8).
+static size_t nbt_split(char* path, char** piece) {
+    size_t n = 0;
+    for (char* p = path; n < 8;) {
+        piece[n++] = p;
+        char* dot = strchr(p, '.');
+        if (!dot) break;
+        *dot = 0;
+        p = dot + 1;
+    }
+    return n;
+}
+static bool nbt_index(const char* p, size_t* out) {
+    char* end;
+    if (!nbt_is_index(p, strlen(p))) return false;
+    *out = strtoul(p, &end, 10);
+    return true;
+}
+// Applies one edit to the block entity, or returns the message of why it does not fit.
+static bool nbt_apply(struct be* b, const struct nbt_edit* e, char* out, size_t cap) {
+    char path[512], *p[8];
+    snprintf(path, sizeof path, "%s", e->path);
+    size_t n = nbt_split(path, p), i, j, k;
+    if (n == 1 && !strcmp(p[0], "GrugInvSize")) {
+        for (size_t q = 0; q < b->nslots; q++) if (b->slots[q].has) stubbed = true;  // SMOKETEST_EXCL: no committed test resizes an inventory that holds items; the real load keeps the stacks that fit
+        free(b->slots);
+        give_slots(b, (long)e->value);
+        return false;
+    }
+    if (n >= 3 && !strcmp(p[0], "GrugNumbers") && nbt_index(p[1], &i) && !strcmp(p[2], "Value")) {
+        if (i > b->nnums) {
+            snprintf(out, cap, "The index %zu in the path \"%s\" is past the end of a list of %zu, and only its size appends.", i, e->path, b->nnums);  // SMOKETEST_EXCL: no committed test indexes past the end of the numbers
+            return true;  // SMOKETEST_EXCL: same
+        }
+        struct kv* hit = nth_number_by_name(b->nums, b->nnums, i);
+        if (n > 3 && hit) {
+            snprintf(out, cap, "The key \"Value\" in the path \"%s\" does not hold a compound.", e->path);
+            return true;
+        }
+        if (n > 3) stubbed = true;  // SMOKETEST_EXCL: no committed test walks into the Value of an appended compound
+        if (hit) hit->v = e->value;
+        return false;  // an index at the size appends a compound with a Value and no Name, which the load drops
+    }
+    if (n >= 5 && !strcmp(p[0], "GrugLists") && nbt_index(p[1], &i) && !strcmp(p[2], "Records") && nbt_index(p[3], &j)) {
+        struct list* sorted = xmalloc((b->nlists + 1) * sizeof *sorted);
+        memcpy(sorted, b->lists, b->nlists * sizeof *sorted);
+        qsort(sorted, b->nlists, sizeof *sorted, cmp_lists_by_name);
+        struct list* l = i < b->nlists ? find_list(b, sorted[i].name) : NULL;
+        free(sorted);
+        if (l) {
+            if (j > l->nr) {
+                snprintf(out, cap, "The index %zu in the path \"%s\" is past the end of a list of %zu, and only its size appends.", j, e->path, l->nr);  // SMOKETEST_EXCL: no committed test indexes past the end of a record list
+                return true;  // SMOKETEST_EXCL: same
+            }
+            if (j == l->nr) {
+                l->r = xrealloc(l->r, (l->nr + 1) * sizeof *l->r);
+                memset(&l->r[l->nr++], 0, sizeof *l->r);
+            }
+            struct record* r = &l->r[j];
+            if (n == 5 && !strcmp(p[4], "Item") && e->is_item) { r->item = e->item; r->has_item = true; return false; }
+            if (n == 7 && !strcmp(p[4], "Numbers") && nbt_index(p[5], &k) && !strcmp(p[6], "Value")) {
+                struct kv* hit = nth_number_by_name(r->n, r->nn, k);
+                if (hit) hit->v = e->value;
+                return false;
+            }
+        }
+    }
+    stubbed = true;  // a key the model does not hold: the loader writes it into NBT that no grug block entity reads
+    return false;
+}
+static union grug_value TTC_load_nbt(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[1]._id);
+    if (!b) return fail("TestTickContext.load_nbt: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    size_t idx = (size_t)(b - bes), kept = 0, taken = 0;
+    char msg[512];
+    bool bad = false;
+    for (size_t i = 0; i < nnbt_staged; i++) {
+        if (nbt_staged[i].be != idx) { nbt_staged[kept++] = nbt_staged[i]; continue; }  // SMOKETEST_EXCL: no committed test stages edits for two block entities at once
+        taken++;
+        if (!bad && nbt_apply(b, &nbt_staged[i], msg, sizeof msg)) bad = true;
+        free(nbt_staged[i].path);
+    }
+    nnbt_staged = kept;
+    if (!taken) return fail("TestTickContext.load_nbt: Nothing was staged for this block entity.");
+    if (bad) return fail("TestTickContext.load_nbt: %s", msg);
+    return none();
+}
+REGISTER("TestTickContext", "load_nbt", TTC_load_nbt);
+
 // =============================================================================================
 // SECTION: Runner settings and graphics stubs
 // =============================================================================================
@@ -1553,6 +2839,9 @@ REGISTER("TestInitContext", "set_max_ticks", TIC_set_max_ticks);
 static union grug_value TTC_set_box_radius(ARGS) {
     UNUSED;
     stubbed = true;
+    // The room build's sweep removes the item entities in the test area (test_box_sweep-Test); the room
+    // itself is not built, so every spawned item entity is taken out of the world.
+    for (size_t i = 0; i < nents; i++) ents[i].spawned = false;
     if (a[1]._number > 30) return fail("The radius has to be at most 30: a wider room would reach chunks the client never receives");
     return none();
 }
@@ -1583,6 +2872,22 @@ REGISTER("Test", "world_overlay_supported", Test_overlay_supported);
 REGISTER("Test", "overlay_supported", Test_overlay_supported);
 static union grug_value TTC_world_settled(ARGS) { UNUSED; stubbed = true; return boolean(true); }
 REGISTER("TestTickContext", "world_settled", TTC_world_settled);
+// The client's copy of the world's block light, which a toy world with one copy always matches (a loader whose
+// client and server share one world answers true the same way), so a pass is STUBBED. The position check is
+// HostFunctions.lightAppliedProblem's, with Double.toString's text (selftest.c checks double_text).
+static union grug_value TTC_light_applied(ARGS) {
+    UNUSED;
+    for (int i = 1; i <= 3; i++) {
+        if (isfinite(a[i]._number)) continue;
+        char x[40], y[40], z[40];
+        double_text(a[1]._number, x, sizeof x); double_text(a[2]._number, y, sizeof y); double_text(a[3]._number, z, sizeof z);
+        fail("TestTickContext.light_applied: The position has to be finite, and was (%s, %s, %s).", x, y, z);
+        return boolean(false);
+    }
+    stubbed = true;
+    return boolean(true);
+}
+REGISTER("TestTickContext", "light_applied", TTC_light_applied);
 // The 0 to 10000 ms limit is asserted by expect_stall_negative-Test and expect_stall_too_long-Test;
 // nothing blocks, so a pass is STUBBED.
 static union grug_value TTC_stall(ARGS) {
@@ -1592,7 +2897,13 @@ static union grug_value TTC_stall(ARGS) {
     return none();
 }
 REGISTER("TestTickContext", "stall", TTC_stall);
-static union grug_value TTC_close_screen(ARGS) { UNUSED; stubbed = true; return none(); }
+static union grug_value TTC_close_screen(ARGS) {
+    UNUSED;
+    stubbed = true;  // the game also hands a carried stack back to the player, which is not modelled
+    screen_is_open = false;
+    carried_has = false;
+    return none();
+}
 REGISTER("TestTickContext", "close_screen", TTC_close_screen);
 
 // =============================================================================================
@@ -1682,15 +2993,24 @@ static void report(const char* verdict, const char* label, const char* fmt, ...)
 // run_test's verdicts: a pass that called a stub is STUBBED, because it may have returned early or
 // compared a capture with itself and says nothing about the behaviour under test.
 enum { OUT_PASS = 0, OUT_FAIL = 1, OUT_STUBBED = 2 };
+static void clear_entities(void);
+static void clear_mod_files(void);
+static void clear_nbt(void);
+static void clear_guis(void);
 static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn) {
     clear_bes();
     free_test_state();
     clear_world();
+    clear_entities();
+    clear_mod_files();
+    clear_nbt();
+    clear_guis();
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
-    held_has = false; held_item_id = 0;
+    held_has = false; held_item_id = 0; held_count = 0;
     time_offset = 0;
+    operator_status = true;
     bg_missing[0] = 0;
     stubbed = false;
     cur_tick = 0;
@@ -1778,8 +3098,8 @@ static int run_all(struct grug_files_slice files, uint64_t tick_fn, uint64_t ini
 int main(int argc, char** argv) {
     if (argc == 2 && !strcmp(argv[1], "--contract")) return contract();
     if (argc < 3) {
-        fprintf(stderr, "usage: smoketest --contract | smoketest <repo> --compile-only | smoketest <repo> <test.grug>...\n");
-        return 2;
+        fprintf(stderr, "usage: smoketest --contract | smoketest <repo> --compile-only | smoketest <repo> <test.grug>...\n");  // SMOKETEST_EXCL: the usage message is for a run with too few arguments, which run.sh never makes
+        return 2;  // SMOKETEST_EXCL: the usage exit, as on the line above
     }
     char api_path[4096], mods_path[4096];
     snprintf(api_path, sizeof api_path, "%s/mod_api.json", argv[1]);
@@ -1819,8 +3139,8 @@ int main(int argc, char** argv) {
     size_t bad = 0;
     for (size_t i = 0; i < files.len; i++) {
         if (files.ptr[i].file_id == UINT64_MAX) {
-            bad++;
-            if (bad <= 5) fprintf(stderr, "compile error in %s: %s\n", files.ptr[i].path, files.ptr[i].error.error_string);
+            bad++;  // SMOKETEST_EXCL: a mod file that fails to compile, which no committed mod does
+            if (bad <= 5) fprintf(stderr, "compile error in %s: %s\n", files.ptr[i].path, files.ptr[i].error.error_string);  // SMOKETEST_EXCL: the report of that compile error
         }
     }
     printf("registered %zu entries (%zu implemented), init+register %.2f ms; compiled %zu files (%zu with errors) in %.2f ms\n",
@@ -1830,9 +3150,13 @@ int main(int argc, char** argv) {
     if (!strcmp(argv[2], "--compile-only")) { grug_deinit(g_state); return bad ? 1 : 0; }
     G.f = files;
     G.block_init = grug_get_on_fn_id(g_state, "Block", "init");
+    block_use_fn = grug_get_on_fn_id(g_state, "Block", "use");
+    block_shape_fn = grug_get_on_fn_id(g_state, "Block", "shape");
+    block_display_tick_fn = grug_get_on_fn_id(g_state, "Block", "display_tick");
     G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
     G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
     be_inserted_fn = grug_get_on_fn_id(g_state, "BlockEntity", "item_inserted");
+    be_output_taken_fn = grug_get_on_fn_id(g_state, "BlockEntity", "output_taken");
     be_neighbor_fn = grug_get_on_fn_id(g_state, "BlockEntity", "on_neighbor_change");
     G.be_extract_item = grug_get_on_fn_id(g_state, "BlockEntity", "extract_item");
     G.be_add_item = grug_get_on_fn_id(g_state, "BlockEntity", "add_item");
@@ -1854,6 +3178,10 @@ done:
     clear_bes();
     free_test_state();
     clear_world();
+    clear_entities();
+    clear_mod_files();
+    clear_nbt();
+    clear_guis();
     free(bes); free(blockdefs);
     free(world); free(objs); free(arena); free(expected_error);
     grug_deinit(g_state);

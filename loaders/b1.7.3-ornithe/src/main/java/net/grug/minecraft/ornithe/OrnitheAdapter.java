@@ -46,6 +46,7 @@ import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.ToastGui;
 import net.minecraft.client.render.world.RenderChunk;
 import net.minecraft.client.render.world.WorldRenderer;
 import net.minecraft.crafting.CraftingManager;
@@ -59,6 +60,8 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.stat.achievement.AchievementStat;
+import net.minecraft.stat.achievement.Achievements;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -1120,6 +1123,54 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public Object testPlayer() {
         return MinecraftInstance.get().player;
+    }
+
+    /**
+     * Clears an achievement toast's achievement. It lives in a holder class so the client-only
+     * {@code ToastGui} is loaded only when a client calls it: the dedicated server's adapter
+     * extends this class, and a static field naming a client class fails its boot (#1246).
+     */
+    private static final class ToastAchievement {
+        /**
+         * The toast's achievement, the only {@code AchievementStat} field of {@code ToastGui}. The
+         * field is private, so it is found by type, which holds whatever names the running game
+         * carries. See #1576.
+         */
+        private static final Field FIELD = field();
+
+        @GrugGenerated("ToastGui has exactly one AchievementStat field, so the fatal cannot fire")
+        private static Field field() {
+            for (Field field : ToastGui.class.getDeclaredFields()) {
+                if (field.getType() == AchievementStat.class) {
+                    field.setAccessible(true);
+                    return field;
+                }
+            }
+            throw Grug.fatal("ToastGui has no AchievementStat field");
+        }
+
+        @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
+        static void drop(ToastGui toast) {
+            try {
+                FIELD.set(toast, null);
+            } catch (IllegalAccessException e) {
+                throw Grug.fatal("ToastGui's toast cannot be cleared", e);
+            }
+        }
+    }
+
+    /**
+     * Earns every achievement for the player and drops the toast on screen. {@code mobTick} shows
+     * the hint for "Taking Inventory" on every tick while it is missing from the stats, and an
+     * award shows a toast, so with every achievement in the stats neither is drawn. See #1576.
+     */
+    @Override
+    public void markAchievementsEarnedForTest() {
+        Minecraft minecraft = MinecraftInstance.get();
+        for (AchievementStat achievement : Achievements.ALL) {
+            minecraft.stats.increment(achievement, 1);
+        }
+        ToastAchievement.drop(minecraft.toast);
     }
 
     /**

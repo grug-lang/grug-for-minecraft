@@ -77,6 +77,41 @@ ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 # against (the client run's staged classes are the dev build's, with other names).
 LAYER = "layer-"
 
+# The loader classes only a dedicated server runs (#169's twenty-one), by runner. Each carries a
+# class-level @GrugGenerated or sits in EXCLUDED_CLASSES, so no report shows it; measure_server_only
+# reads what the gate would count for it if that exclusion came off, and prints it (#1600).
+SERVER_ONLY = {
+    "1.20.6-forge": ["ServerForgeAdapter", "GrugServerRun", "GrugControlForge"],
+    "1.2.5-forge": ["Grug125ServerAdapter", "GrugServerRun", "GrugControlServer125"],
+    "a1.1.2_01-ornithe": [
+        "ServerOrnitheAdapter",
+        "GrugServerRun",
+        "GrugControlAlpha",
+        "ServerGrugModLoader",
+        "GrugPlayerManagerAccess",
+    ],
+    "b1.7.3-ornithe": [
+        "ServerOrnitheAdapter",
+        "GrugServerRun",
+        "GrugControlBeta",
+        "ServerGrugModLoader",
+    ],
+    "b1.7.3-stationapi": [
+        "ServerStationApiAdapter",
+        "GrugServerRun",
+        "GrugControlStation",
+        "ServerAdapterChoice",
+        "ServerInitListener",
+        "ServerChatReports",
+    ],
+}
+
+# JaCoCo drops a class whose annotation's name contains "Generated". The descriptor of
+# net.grug.minecraft.grug.GrugGenerated is patched to a name of the same length without it, which
+# keeps every constant pool offset and so needs no class file writer.
+GENERATED_DESCRIPTOR = b"GrugGenerated;"
+UNMASKED_DESCRIPTOR = b"GrugGeneratxd;"
+
 # Classes deliberately left out of the combined report, kept in one place so the exclusions stay
 # reviewable:
 # - GenericHostFunctions is mechanically derived from one template and parameterized only by the
@@ -498,6 +533,171 @@ def jacoco_report(
     print(result.stdout, end="")
     result.check_returncode()
     return sorted(set(DOES_NOT_MATCH.findall(result.stdout)))
+
+
+def _crc64_table() -> list[int]:
+    table = []
+    for index in range(256):
+        value = index
+        for _ in range(8):
+            value = (value >> 1) ^ 0xD800000000000000 if value & 1 else value >> 1
+        table.append(value)
+    return table
+
+
+CRC64_TABLE = _crc64_table()
+
+
+def class_id(data: bytes) -> int:
+    """JaCoCo's class id: the CRC64 (reflected, polynomial 0xd800000000000000) of the class bytes."""
+    total = 0
+    for byte in data:
+        total = (total >> 8) ^ CRC64_TABLE[(total ^ byte) & 0xFF]
+    return total
+
+
+def unmask_generated(data: bytes) -> bytes:
+    """The class bytes with every @GrugGenerated annotation renamed so JaCoCo no longer filters it.
+
+    Method-level annotations are lifted too, so a printed count is everything the class holds, which is
+    more than the gate would count if only the class-level exclusion came off.
+    """
+    return data.replace(GENERATED_DESCRIPTOR, UNMASKED_DESCRIPTOR)
+
+
+def exec_with_ids(paths: list[Path], ids: dict[str, int], out_dir: Path) -> list[Path]:
+    """Copies of the exec files that hold only the named classes' data, under their new ids."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for index, path in enumerate(paths):
+        kept = b""
+        for kind, name, raw in exec_blocks(path.read_bytes()):
+            if name is None:
+                kept += raw
+            elif name in ids:
+                kept += raw[:1] + ids[name].to_bytes(8, "big") + raw[9:]
+        target = out_dir / f"{index:05d}-{path.name}"
+        target.write_bytes(kept)
+        written.append(target)
+    return written
+
+
+def measure_server_only(
+    runner: str,
+    class_dir: Path,
+    execs: list[Path],
+    jacoco_cli: Path,
+    work: Path,
+) -> tuple[list[tuple[str, int, int, int, int]], set[str]]:
+    """What the gate would count for the runner's server-only classes with their exclusion off.
+
+    The classes of SERVER_ONLY[runner] found in class_dir are copied with their @GrugGenerated
+    renamed, the exec data is cut to them and rewritten to the renamed bytes' ids, and a JaCoCo
+    report over them gives (class, instructions missed, covered, branches missed, covered) for each
+    class and nested class, and the names of the classes the exec data holds anything for (a class
+    outside that set was never loaded, or was loaded with other bytes than class_dir's). A class
+    the report does not name is not in class_dir. The measurement is not a gate input (#1600).
+    """
+    wanted = set(SERVER_ONLY.get(runner, []))
+    shutil.rmtree(work, ignore_errors=True)
+    classes = work / "classes"
+    ids: dict[str, int] = {}
+    for path in sorted(class_dir.rglob("*.class")):
+        if path.stem.split("$", 1)[0] not in wanted:
+            continue
+        patched = unmask_generated(path.read_bytes())
+        target = classes / path.relative_to(class_dir)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(patched)
+        ids[path.relative_to(class_dir).with_suffix("").as_posix()] = class_id(patched)
+    if not ids:
+        return [], set()
+    cut = exec_with_ids(execs, ids, work / "exec")
+    seen = exec_class_names(cut)
+    csv_path = work / "measure.csv"
+    jacoco_report(
+        jacoco_cli,
+        cut,
+        classes,
+        [],
+        csv_path,
+        work / "measure.xml",
+    )
+    rows = []
+    with csv_path.open(newline="") as handle:
+        for row in csv.DictReader(handle):
+            rows.append(
+                (
+                    row["PACKAGE"].replace(".", "/") + "/" + row["CLASS"].replace(".", "$"),
+                    int(row["INSTRUCTION_MISSED"]),
+                    int(row["INSTRUCTION_COVERED"]),
+                    int(row["BRANCH_MISSED"]),
+                    int(row["BRANCH_COVERED"]),
+                )
+            )
+    return sorted(rows), seen
+
+
+def report_server_only(
+    runner: str, info: dict, execs: list[Path], jacoco_cli: Path, work: Path
+) -> None:
+    """Print what the runner's server-only classes would count with their exclusion off (#1600).
+
+    A class the client run also ran, or that sits in the staged tree beside the server's (1.20.6,
+    StationAPI and 1.2.5 stage the very bytes their servers run), is measured from the staged
+    classes against every exec file. An Ornithe server runs the layer jar, so its classes are
+    measured from the jar's bytes against the server's exec data alone.
+    """
+    measure_dir = work / "server-only" / runner
+    try:
+        raw_classes = info["classes"]
+        where = "staged"
+        if runner in ORNITHE_LOADERS:
+            if not info.get("server_exec") or info.get("layer_jar") is None:
+                print(f"server-only {runner}: no dedicated-server exec data, not measured")
+                return
+            raw_classes = measure_dir / "layer"
+            shutil.rmtree(raw_classes, ignore_errors=True)
+            wanted = set(SERVER_ONLY[runner])
+            with zipfile.ZipFile(info["layer_jar"]) as jar:
+                for entry in jar.namelist():
+                    stem = entry.rsplit("/", 1)[-1]
+                    if entry.endswith(".class") and stem[:-6].split("$", 1)[0] in wanted:
+                        target = raw_classes / entry
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes(jar.read(entry))
+            where = "layer jar"
+            execs = info["server_exec"]
+        rows, seen = measure_server_only(
+            runner, raw_classes, execs, jacoco_cli, measure_dir / "report"
+        )
+        print_measurements(runner, rows, seen, where)
+    except Exception as error:
+        # The measurement is a report, never a gate input: whatever breaks it must not stop the
+        # coverage job before its verdict.
+        print(f"server-only {runner}: not measured: {type(error).__name__}: {error}")
+    finally:
+        shutil.rmtree(measure_dir, ignore_errors=True)
+
+
+def print_measurements(
+    runner: str, rows: list[tuple[str, int, int, int, int]], seen: set[str], where: str
+) -> None:
+    """One line per measured class, so the coverage job's log names a missed count for each.
+
+    A row's name is the class file's (package/Outer$Inner), built from the CSV's package and class
+    columns, which is also the exec data's name for it, so the two match exactly.
+    """
+    for name, missed, covered, branch_missed, branch_covered in rows:
+        note = "" if name in seen else " (no exec data: not run)"
+        print(
+            f"server-only {runner} {name}: {missed} instructions and {branch_missed} branches "
+            f"missed ({covered} and {branch_covered} covered) {where}{note}"
+        )
+    found = {name.rsplit("/", 1)[-1].split("$", 1)[0] for name, *_ in rows}
+    for name in SERVER_ONLY.get(runner, []):
+        if name not in found:
+            print(f"server-only {runner} {name}: not in the {where} class bytes, not measured")
 
 
 # JaCoCo's warning for exec data recorded against a class whose bytes differ from the analysed ones.
@@ -1154,6 +1354,8 @@ def main() -> int:
                 csv_path, args.output / f"{runner}.xml", everything_xml, classes
             )
         csv_paths.append(csv_path)
+        if runner in SERVER_ONLY:
+            report_server_only(runner, info, execs, args.jacoco_cli, args.output.parent)
         if server_classes is not None:
             server_csv = args.output / f"{runner}-server.csv"
             unmatched = jacoco_report(

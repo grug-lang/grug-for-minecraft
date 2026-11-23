@@ -58,6 +58,15 @@ public final class GrugControlClient {
         void playUiSound(String path, double volume, double pitch);
 
         /**
+         * Earns every achievement for this client's player and drops the toast on screen, before a
+         * capture is taken. A joined client draws its own "Taking Inventory" hint and toast, and
+         * the runner's per-test marking runs on the dedicated server, which has no such client
+         * state, so without this every capture a dedicated run takes can show a toast in its
+         * top-right corner (#1576).
+         */
+        default void markAchievementsEarned() {}
+
+        /**
          * Whether this client has drawn the world it has, as {@code TestTickContext.world_settled}
          * asks.
          */
@@ -218,6 +227,11 @@ public final class GrugControlClient {
             @Override
             public void playUiSound(String path, double volume, double pitch) {
                 adapter.get().playUiSound(path, volume, pitch);
+            }
+
+            @Override
+            public void markAchievementsEarned() {
+                adapter.get().markAchievementsEarnedForTest();
             }
 
             @Override
@@ -568,6 +582,7 @@ public final class GrugControlClient {
         // A capture request names the eye the test's room was built above, and the loader's wait
         // holds the capture until this client's own camera is there (#1161).
         Vec3 eye = new Vec3(message.volume, message.pitch, message.third);
+        caller.markAchievementsEarned();
         capturer.capture(
                 eye,
                 message.x1,

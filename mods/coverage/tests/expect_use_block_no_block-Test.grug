@@ -1,0 +1,21 @@
+# A right-click names a block, so a position with none is a mistake in the test rather than a click
+# on nothing: the loaders whose use_block starts from the block id at the position report it as an
+# error. This is the dedicated server adapters' own arm of that check, which the joined client's
+# adapter does not reach because a server-run test's click is made in the server's world (#1606).
+# 1.20.6 hands the click to the game's own use of an air block, which declines without a report, so
+# it is the one loader that has no error to expect and runs nothing. A client-run adapter does not
+# all report it (Ornithe's looks the block up in a table that holds air), so only a dedicated server
+# runs this.
+export tick(ctx: TestTickContext) {
+    if not me.on_dedicated_server() or me.loader_name() == "1.20.6-forge" {
+        return
+    }
+
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+
+    # The position is placed as air so that nothing a neighbouring test left there can be clicked.
+    level.place_block(origin.x(), origin.y() + 20, origin.z(), "minecraft:air")
+    ctx.expect_error("There is no block at")
+    ctx.use_block(level, origin.x(), origin.y() + 20, origin.z())
+}

@@ -1056,6 +1056,21 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Marks every achievement the player could earn as already earned and drops the achievement
+     * toast the game is showing, before every test starts, so no capture on any loader has the
+     * "Taking Inventory" toast in its top-right corner (#1576).
+     *
+     * <p>The game awards an achievement once per player and draws a toast when it does, and while
+     * "Taking Inventory" is unearned it also draws that achievement's hint on every tick. So the
+     * first pass of a suite showed a toast that every later pass did not, and a test that opens the
+     * inventory could change what the next capture shows. Earned for good, no toast is ever queued
+     * and nothing differs between passes. A side with no achievements, or no client, keeps this
+     * no-op: Alpha 1.1.2_01 has none, the dedicated servers draw nothing, and 1.20.6 clears its
+     * toasts on every client tick of a run.
+     */
+    default void markAchievementsEarnedForTest() {}
+
+    /**
      * Removes every item the player holds, armour included, and selects the first hotbar slot. The
      * loader's half of {@link #resetPlayerInventoryForTest}, which needs a game's own player.
      */

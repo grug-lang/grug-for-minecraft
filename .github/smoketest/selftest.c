@@ -104,10 +104,178 @@ static void test_index(void) {
     CHECK(check_index(-INFINITY, 3, true) == IDX_NOT_WHOLE, "negative infinity");
 }
 
+// number_text is String.from_number's text. The expected strings are what the adapter's numberText
+// answers on a real JDK (openjdk 21.0.13.1): the whole numbers through
+// new BigDecimal(v).toBigInteger().toString(), the others through Double.toString(v). Gen.java
+// prints these exact vectors (the NUMBER_TEXT lines).
+static void test_number_text(void) {
+    static const struct { double v; const char* want; } t[] = {
+        {2.5, "2.5"}, {-0.25, "-0.25"}, {0.1 + 0.2, "0.30000000000000004"}, {123456.789, "123456.789"},
+        {0.001, "0.001"}, {1.0E-4, "1.0E-4"}, {1.5E-5, "1.5E-5"}, {-3.75E-7, "-3.75E-7"},
+        {1.0 / 3, "0.3333333333333333"}, {NAN, "NaN"}, {INFINITY, "Infinity"}, {-INFINITY, "-Infinity"},
+        {-0.0, "0"}, {1e20, "100000000000000000000"}, {1.2345678901234567e25, "12345678901234566097272832"},
+        {4.9e-324, "4.9E-324"}, {0.5, "0.5"}, {9999999.5, "9999999.5"}, {12345678.9, "1.23456789E7"},
+        {1e7 + 0.5, "1.00000005E7"}, {41, "41"}, {-7, "-7"},
+    };
+    for (size_t i = 0; i < sizeof t / sizeof *t; i++) {
+        char buf[400];
+        number_text(t[i].v, buf, sizeof buf);
+        CHECK(!strcmp(buf, t[i].want), "number_text(%g) is %s, want %s", t[i].v, buf, t[i].want);
+    }
+    char big[400];
+    number_text(1.7976931348623157e308, big, sizeof big);
+    CHECK(strlen(big) == 309 && !strncmp(big, "17976931348623157081452742373170435679807056752584", 50), "the largest double is 309 digits");
+}
+// Text counts code points: U+1F600 is four bytes and one character, as in codePointCount.
+static void test_code_points(void) {
+    CHECK(cp_count("") == 0, "empty");
+    CHECK(cp_count("abc") == 3, "ascii");
+    CHECK(cp_count("\xC3\xA9") == 1, "two byte");
+    CHECK(cp_count("\xE2\x82\xAC") == 1, "three byte");
+    CHECK(cp_count("a\xF0\x9F\x98\x80z") == 3, "four byte");
+    const char* t = "a\xF0\x9F\x98\x80z";
+    CHECK(cp_offset(t, 0) == t, "offset 0");
+    CHECK(cp_offset(t, 1) == t + 1, "offset 1");
+    CHECK(cp_offset(t, 2) == t + 5, "offset past the four byte character");
+    CHECK(cp_offset(t, 3) == t + 6, "offset at the end");
+}
+
+// match_recipe: where a shaped recipe may sit in the grid, and what a shapeless one ignores. The expected
+// answers are Minecraft's own rules (a shaped pattern slides, every other cell stays empty; a shapeless
+// recipe takes exactly its ingredients in any order), not JDK output.
+static void test_match_recipe(void) {
+    static const struct recipe rs[] = {
+        {1, 2, 1, "pair", 1, {"a", "b"}},
+        {1, 2, 2, "stair", 1, {"s", "", "s", "s"}},
+        {0, 2, 1, "loose", 1, {"x", "y"}},
+    };
+    const char* stair[9] = {"s", NULL, NULL, "s", "s"};
+    const char* flipped[9] = {NULL, "s", NULL, "s", "s"};
+    const char* mirrored_pair[9] = {NULL, NULL, NULL, "b", "a"};
+    const char* at_corner[9] = {"a", "b"};
+    const char* slid[9] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, "a", "b"};
+    const char* extra[9] = {"a", "b", NULL, NULL, "a"};
+    const char* swapped[9] = {NULL, "y", NULL, NULL, NULL, "x"};
+    const char* shy[9] = {"x", "x"};
+    const char* many[9] = {"x", "y", "y"};
+    const char* empty[9] = {NULL};
+    CHECK(match_recipe(rs, 3, at_corner) == &rs[0], "a shaped recipe matches in the grid's corner");
+    CHECK(match_recipe(rs, 3, slid) == &rs[0], "a shaped recipe slides to the last row");
+    CHECK(match_recipe(rs, 3, extra) == NULL, "a stray item beside a shaped recipe stops the match");
+    CHECK(match_recipe(rs, 3, swapped) == &rs[2], "a shapeless recipe ignores order and position");
+    CHECK(match_recipe(rs, 3, shy) == NULL, "a shapeless recipe needs each ingredient");
+    CHECK(match_recipe(rs, 3, many) == NULL, "a shapeless recipe takes no extra item");
+    CHECK(match_recipe(rs, 3, stair) == &rs[1], "a shaped recipe matches as written");
+    CHECK(match_recipe(rs, 3, flipped) == &rs[1], "a shaped recipe matches mirrored");
+    CHECK(match_recipe(rs, 3, mirrored_pair) == &rs[0], "a mirrored pair matches");
+    CHECK(match_recipe(rs, 3, empty) == NULL, "an empty grid matches nothing");
+}
+
+// Known answers from Gen.java's doubleTextVectors, printed by a real JDK.
+// The six faces and the tie order of core's GrugUseBlockFace.face (y, then x, then z), for an eye at (0.5, 0.5, 0.5)
+// and a block one cell from it on each axis, then blocks whose largest distances tie.
+static void test_use_face(void) {
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, 3, 0) == 0, "a block above the eye is clicked on its bottom");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, -3, 0) == 1, "a block below the eye is clicked on its top");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, 0, -3) == 3, "a block north of the eye is clicked on its south face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, 0, 3) == 2, "a block south of the eye is clicked on its north face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 3, 0, 0) == 4, "a block east of the eye is clicked on its west face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, -3, 0, 0) == 5, "a block west of the eye is clicked on its east face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 2, 2, 2) == 0, "a three-way tie goes to y");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 2, -2, 2) == 1, "a y tie below goes to the top");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 2, 0, 2) == 4, "an x and z tie goes to x");
+    CHECK(use_face_of(0.5, 0.5, 0.5, -2, 0, -2) == 5, "an x and z tie on the negative side goes to x");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 1, 0, 3) == 2, "z alone largest and positive is the north face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 1, 0, -3) == 3, "z alone largest and negative is the south face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, 0, 0) == 1, "a block at the eye ties on every axis at zero and goes to y, up");
+}
+
+static void test_double_text(void) {
+    char m[64];
+    struct { double v; const char* want; } cases[] = {
+        {0.0, "0.0"}, {-0.0, "-0.0"}, {128, "128.0"}, {100, "100.0"}, {-3, "-3.0"}, {1.5, "1.5"}, {0.001, "0.001"},
+        {1e7, "1.0E7"}, {2147483648.0, "2.147483648E9"}, {1e-4, "1.0E-4"}, {1.5e300, "1.5E300"},
+        {NAN, "NaN"}, {INFINITY, "Infinity"}, {-INFINITY, "-Infinity"},
+        {3.4028234663852886e38, "3.4028234663852886E38"}, {9223372036854775807.0, "9.223372036854776E18"},
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof *cases; i++) {
+        double_text(cases[i].v, m, sizeof m);
+        CHECK(!strcmp(m, cases[i].want), "Double.toString(%g) is %s, got %s", cases[i].v, cases[i].want, m);
+    }
+}
+
+// The argument checks of slice 9: messages follow HostFunctions.colorProblem, GrugTestState.checkTickCount,
+// GrugSoundArgs and GrugDisplayTicks.particleProblem.
+static void test_argument_checks(void) {
+    char m[600];
+    CHECK(!color_problem(0, 255, 7, 255, m, sizeof m), "a whole 0 to 255 color is accepted");
+    CHECK(color_problem(0, 256, 7, 1, m, sizeof m) && !strcmp(m, "Each value has to be a whole number from 0 to 255, and the values were 0, 256, 7 and 1."), "%s", m);
+    CHECK(color_problem(0, 1.5, 7, 1, m, sizeof m) && strstr(m, "0, 1.5, 7 and 1."), "%s", m);
+    CHECK(color_problem(NAN, 1, 7, 1, m, sizeof m), "NaN is refused");
+    CHECK(slot_hovered(38, 25, 30, 17) && slot_hovered(29, 16, 30, 17) && slot_hovered(46.9, 33.9, 30, 17), "the 16 pixel square and its one pixel margin before it");
+    CHECK(!slot_hovered(28.9, 25, 30, 17) && !slot_hovered(38, 16.9 - 1, 30, 17) && !slot_hovered(47, 25, 30, 17) && !slot_hovered(38, 34, 30, 17), "outside the margin");
+    CHECK(!click_problem(213, 120, 0, m, sizeof m) && !click_problem(0, 0, 2, m, sizeof m), "buttons 0 to 2 are accepted");
+    CHECK(click_problem(NAN, 1, 0, m, sizeof m) && !strcmp(m, "The position has to be finite."), "%s", m);
+    CHECK(click_problem(1, INFINITY, 0, m, sizeof m), "an infinite y is refused");
+    CHECK(click_problem(1, 1, NAN, m, sizeof m) && !strcmp(m, "The button has to be finite."), "%s", m);
+    CHECK(click_problem(1, 1, 3, m, sizeof m) && !strcmp(m, "The button has to be a whole number from 0 to 2, where 0 is the left button, 1 the right and 2 the middle, and was 3.0."), "%s", m);
+    CHECK(click_problem(1, 1, -1, m, sizeof m) && strstr(m, "and was -1.0."), "%s", m);
+    CHECK(click_problem(1, 1, 0.5, m, sizeof m) && strstr(m, "and was 0.5."), "%s", m);
+    CHECK(!tick_count_problem(0, m, sizeof m) && !tick_count_problem(2147483647.0, m, sizeof m), "0 and Integer.MAX_VALUE are accepted");
+    CHECK(tick_count_problem(2.5, m, sizeof m) && !strcmp(m, "The number of ticks has to be a whole number from 0 to 2147483647, and was 2.5."), "%s", m);
+    CHECK(tick_count_problem(-1, m, sizeof m) && strstr(m, "was -1.0."), "%s", m);
+    CHECK(tick_count_problem(2147483648.0, m, sizeof m), "one past Integer.MAX_VALUE is refused");
+    CHECK(tick_count_problem(NAN, m, sizeof m) && strstr(m, "was NaN."), "%s", m);
+    CHECK(sound_name_ok("minecraft:ui.button.click") && sound_name_ok("a-b_c:d/e.f-g"), "well-formed names");
+    const char* bad[] = {"ui.button.click", ":x", "x:", "Minecraft:ui", "minecraft:UI", "a b:c", "a/b:c", "a:b:c", ""};
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) CHECK(!sound_name_ok(bad[i]), "'%s' is not a sound name", bad[i]);
+    CHECK(java_int(NAN) == 0 && java_int(1e12) == 2147483647 && java_int(-1e12) == INT32_MIN && java_int(-2.9) == -2 && java_int(2.9) == 2, "Java (int) cast");
+    rnd_set_seed(7);
+    double want = rnd_float();
+    rnd_set_seed(7);
+    char r[64];
+    snprintf(r, sizeof r, "%a", DTC_random(NULL, NULL, NULL)._number);
+    char w[64];
+    snprintf(w, sizeof w, "%a", want);
+    CHECK(!strcmp(r, w), "DisplayTickContext.random draws nextFloat: %s vs %s", r, w);
+    const double ok6[6] = {1, 2, 3, 0, 0, 0}, nan6[6] = {1, 2, 3, 0, NAN, 0};
+    CHECK(!particle_problem("reddust", ok6, m, sizeof m), "reddust at finite numbers is accepted");
+    CHECK(particle_problem("reddust", nan6, m, sizeof m) && !strcmp(m, "The position and the motion must be finite numbers."), "%s", m);
+    CHECK(particle_problem("heart", ok6, m, sizeof m) && !strcmp(m, "There is no particle called \"heart\". The particles are reddust."), "%s", m);
+}
+
+static void test_nbt_helpers(void) {
+    char m[256];
+    // Messages and verdicts mirror GrugBlockEntityNbt.parsePath and checkValue.
+    CHECK(!nbt_path_problem("GrugNumbers.0.Value", m, sizeof m), "a path of keys and an index is fine");
+    CHECK(nbt_path_problem("a..b", m, sizeof m) && !strcmp(m, "The path \"a..b\" has an empty part."), "%s", m);
+    CHECK(nbt_path_problem("", m, sizeof m) && !strcmp(m, "The path \"\" has an empty part."), "%s", m);
+    CHECK(nbt_path_problem("0.a", m, sizeof m) && !strcmp(m, "The path \"0.a\" has an index that does not follow a key."), "%s", m);
+    CHECK(nbt_path_problem("a.1.2.b", m, sizeof m) && !strcmp(m, "The path \"a.1.2.b\" has an index that does not follow a key."), "%s", m);
+    CHECK(nbt_path_problem("a.1234567890.b", m, sizeof m) && !strcmp(m, "The index 1234567890 in the path \"a.1234567890.b\" is too large."), "%s", m);
+    CHECK(!nbt_path_problem("a.123456789.b", m, sizeof m), "nine digits is the largest index");
+    CHECK(nbt_path_problem("a.1", m, sizeof m) && !strcmp(m, "The path \"a.1\" has to end in a key, not an index."), "%s", m);
+    CHECK(!nbt_value_problem("float", 0.5, m, sizeof m) && !nbt_value_problem("double", -1e300, m, sizeof m), "a float or a double takes any number");
+    CHECK(!nbt_value_problem("byte", 127, m, sizeof m) && !nbt_value_problem("byte", -128, m, sizeof m), "byte bounds are in");
+    CHECK(nbt_value_problem("byte", 128, m, sizeof m) && !strcmp(m, "A byte has to be a whole number from -128 to 127, not 128.0."), "%s", m);
+    CHECK(nbt_value_problem("short", 1.5, m, sizeof m) && !strcmp(m, "A short has to be a whole number from -32768 to 32767, not 1.5."), "%s", m);
+    CHECK(nbt_value_problem("int", 2147483648.0, m, sizeof m) && !strcmp(m, "A int has to be a whole number from -2147483648 to 2147483647, not 2.147483648E9."), "%s", m);
+    CHECK(nbt_value_problem("long", 1.5, m, sizeof m) && !strcmp(m, "A long has to be a whole number from -9223372036854775808 to 9223372036854775807, not 1.5."), "%s", m);
+    CHECK(!nbt_value_problem("long", 9223372036854775807.0, m, sizeof m), "2^63 passes, as Java's double comparison does");
+    CHECK(nbt_value_problem("int", NAN, m, sizeof m), "NaN is not whole");
+}
+
 int main(void) {
     test_random();
     test_strict_log();
     test_index();
+    test_number_text();
+    test_code_points();
+    test_match_recipe();
+    test_use_face();
+    test_double_text();
+    test_nbt_helpers();
+    test_argument_checks();
     printf("selftest: %d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;
 }
