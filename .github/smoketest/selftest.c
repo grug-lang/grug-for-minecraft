@@ -104,10 +104,47 @@ static void test_index(void) {
     CHECK(check_index(-INFINITY, 3, true) == IDX_NOT_WHOLE, "negative infinity");
 }
 
+// number_text is String.from_number's text. The expected strings are what the adapter's numberText
+// answers on a real JDK (openjdk 21.0.13.1): the whole numbers through
+// new BigDecimal(v).toBigInteger().toString(), the others through Double.toString(v).
+static void test_number_text(void) {
+    static const struct { double v; const char* want; } t[] = {
+        {2.5, "2.5"}, {-0.25, "-0.25"}, {0.1 + 0.2, "0.30000000000000004"}, {123456.789, "123456.789"},
+        {0.001, "0.001"}, {1.0E-4, "1.0E-4"}, {1.5E-5, "1.5E-5"}, {-3.75E-7, "-3.75E-7"},
+        {1.0 / 3, "0.3333333333333333"}, {NAN, "NaN"}, {INFINITY, "Infinity"}, {-INFINITY, "-Infinity"},
+        {-0.0, "0"}, {1e20, "100000000000000000000"}, {1.2345678901234567e25, "12345678901234566097272832"},
+        {4.9e-324, "4.9E-324"}, {0.5, "0.5"}, {9999999.5, "9999999.5"}, {12345678.9, "1.23456789E7"},
+        {1e7 + 0.5, "1.00000005E7"}, {41, "41"}, {-7, "-7"},
+    };
+    for (size_t i = 0; i < sizeof t / sizeof *t; i++) {
+        char buf[400];
+        number_text(t[i].v, buf, sizeof buf);
+        CHECK(!strcmp(buf, t[i].want), "number_text(%g) is %s, want %s", t[i].v, buf, t[i].want);
+    }
+    char big[400];
+    number_text(1.7976931348623157e308, big, sizeof big);
+    CHECK(strlen(big) == 309 && !strncmp(big, "17976931348623157081452742373170435679807056752584", 50), "the largest double is 309 digits");
+}
+// Text counts code points: U+1F600 is four bytes and one character, as in codePointCount.
+static void test_code_points(void) {
+    CHECK(cp_count("") == 0, "empty");
+    CHECK(cp_count("abc") == 3, "ascii");
+    CHECK(cp_count("\xC3\xA9") == 1, "two byte");
+    CHECK(cp_count("\xE2\x82\xAC") == 1, "three byte");
+    CHECK(cp_count("a\xF0\x9F\x98\x80z") == 3, "four byte");
+    const char* t = "a\xF0\x9F\x98\x80z";
+    CHECK(cp_offset(t, 0) == t, "offset 0");
+    CHECK(cp_offset(t, 1) == t + 1, "offset 1");
+    CHECK(cp_offset(t, 2) == t + 5, "offset past the four byte character");
+    CHECK(cp_offset(t, 3) == t + 6, "offset at the end");
+}
+
 int main(void) {
     test_random();
     test_strict_log();
     test_index();
+    test_number_text();
+    test_code_points();
     printf("selftest: %d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;
 }
