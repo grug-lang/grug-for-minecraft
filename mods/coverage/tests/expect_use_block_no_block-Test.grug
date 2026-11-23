@@ -3,9 +3,11 @@
 # error. This is the dedicated server adapters' own arm of that check, which the joined client's
 # adapter does not reach because a server-run test's click is made in the server's world (#1606).
 # 1.20.6 hands the click to the game's own use of an air block, which declines without a report, so
-# it is the one loader that has no error to expect and runs nothing.
+# it is the one loader that has no error to expect and runs nothing. A client-run adapter does not
+# all report it (Ornithe's looks the block up in a table that holds air), so only a dedicated server
+# runs this.
 export tick(ctx: TestTickContext) {
-    if me.loader_name() == "1.20.6-forge" {
+    if not me.on_dedicated_server() or me.loader_name() == "1.20.6-forge" {
         return
     }
 
