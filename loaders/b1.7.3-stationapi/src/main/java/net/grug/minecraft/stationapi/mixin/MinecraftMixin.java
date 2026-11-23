@@ -59,6 +59,11 @@ public abstract class MinecraftMixin implements GrugClientAccess {
         }
     }
 
+    @Inject(method = "tick", at = @At("RETURN"))
+    private void grug$afterClientTick(CallbackInfo ci) {
+        GrugControlStationClient.afterClientTick((Minecraft) (Object) this);
+    }
+
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
         net.grug.minecraft.stationapi.StationApiAdapter.holdPlayerForTest(this.player);

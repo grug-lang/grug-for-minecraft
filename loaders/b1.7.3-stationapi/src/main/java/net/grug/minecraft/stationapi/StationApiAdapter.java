@@ -549,8 +549,15 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // is anchored to the feet: built around the eye, the block the player stands on lands
         // inside
         // their legs, they fall through it, and every test drops them a little further.
-        GrugTestBox.build(
-                this, getLevel(), player.x, player.boundingBox.minY, player.z, radius, false);
+        buildTestBoxAt(radius, player.boundingBox.minY);
+    }
+
+    /** Builds the room around the player's column with the feet at {@code feetY}. */
+    @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
+    protected void buildTestBoxAt(int radius, double feetY) {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        System.out.println("[GRUG CI] buildTestBox anchored at feet " + feetY);
+        GrugTestBox.build(this, getLevel(), player.x, feetY, player.z, radius, false);
     }
 
     @Override
