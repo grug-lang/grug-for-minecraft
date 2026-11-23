@@ -172,6 +172,24 @@ static void test_match_recipe(void) {
 }
 
 // Known answers from Gen.java's doubleTextVectors, printed by a real JDK.
+// The six faces and the tie order of core's GrugUseBlockFace.face (y, then x, then z), for an eye at (0.5, 0.5, 0.5)
+// and a block one cell from it on each axis, then blocks whose largest distances tie.
+static void test_use_face(void) {
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, 3, 0) == 0, "a block above the eye is clicked on its bottom");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, -3, 0) == 1, "a block below the eye is clicked on its top");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, 0, -3) == 3, "a block north of the eye is clicked on its south face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, 0, 3) == 2, "a block south of the eye is clicked on its north face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 3, 0, 0) == 4, "a block east of the eye is clicked on its west face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, -3, 0, 0) == 5, "a block west of the eye is clicked on its east face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 2, 2, 2) == 0, "a three-way tie goes to y");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 2, -2, 2) == 1, "a y tie below goes to the top");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 2, 0, 2) == 4, "an x and z tie goes to x");
+    CHECK(use_face_of(0.5, 0.5, 0.5, -2, 0, -2) == 5, "an x and z tie on the negative side goes to x");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 1, 0, 3) == 2, "z alone largest and positive is the north face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 1, 0, -3) == 3, "z alone largest and negative is the south face");
+    CHECK(use_face_of(0.5, 0.5, 0.5, 0, 0, 0) == 1, "a block at the eye ties on every axis at zero and goes to y, up");
+}
+
 static void test_double_text(void) {
     char m[64];
     struct { double v; const char* want; } cases[] = {
@@ -214,6 +232,7 @@ int main(void) {
     test_number_text();
     test_code_points();
     test_match_recipe();
+    test_use_face();
     test_double_text();
     test_nbt_helpers();
     printf("selftest: %d checks, %d failed\n", checks, failures);
