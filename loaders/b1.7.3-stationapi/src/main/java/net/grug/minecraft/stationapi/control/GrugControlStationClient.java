@@ -5,7 +5,6 @@ import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugQuietCount;
 import net.grug.minecraft.core.GrugTestCamera;
-import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -15,6 +14,8 @@ import net.grug.minecraft.stationapi.GrugClientHooks;
 import net.grug.minecraft.stationapi.StationApiAdapter;
 import net.grug.minecraft.stationapi.client.GrugClientPlayer;
 import net.grug.minecraft.stationapi.gui.GrugScreen;
+import net.grug.minecraft.stationapi.mixin.HeldItemRendererAccess;
+import net.grug.minecraft.stationapi.mixin.MinecraftTimerAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.entity.player.PlayerEntity;
@@ -133,15 +134,6 @@ public final class GrugControlStationClient {
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         player.setPositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
-        // The box keeps the eye-derived feet, which the frame's lighting reads (a box at exactly
-        // the floor lit the buildcraft wooden_pipe_refused_arm capture where its golden is dark).
-        // The camera reads y, so it is written the way a grounded singleplayer player has it: the
-        // feet plus the player's own single precision eye height.
-        double y =
-                Math.rint((eye.y() - GrugTestOrigin.EYE_HEIGHT) * 1e6) / 1e6
-                        + player.standingEyeHeight;
-        player.y = y;
-        player.lastTickY = y;
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
@@ -298,7 +290,23 @@ public final class GrugControlStationClient {
                             + " tilt "
                             + cam.tilt
                             + "/"
-                            + cam.prevTilt);
+                            + cam.prevTilt
+                            + " horizontalSpeed "
+                            + cam.horizontalSpeed
+                            + "/"
+                            + cam.prevHorizontalSpeed
+                            + " stepBobbing "
+                            + cam.stepBobbingAmount
+                            + "/"
+                            + cam.prevStepBobbingAmount
+                            + " partialTick "
+                            + ((MinecraftTimerAccess) mc).grug$timer().partialTick
+                            + " hand "
+                            + ((HeldItemRendererAccess) mc.gameRenderer.heldItemRenderer)
+                                    .grug$height()
+                            + "/"
+                            + ((HeldItemRendererAccess) mc.gameRenderer.heldItemRenderer)
+                                    .grug$prevHeight());
         }
         System.out.println(
                 "[GRUG CONTROL] capturing after "
