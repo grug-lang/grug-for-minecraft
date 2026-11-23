@@ -164,6 +164,46 @@ public final class GrugControlDiagnostic {
                         + " window "
                         + mc.displayWidth
                         + "x"
-                        + mc.displayHeight);
+                        + mc.displayHeight
+                        + " particles"
+                        + particles(mc));
+    }
+
+    /**
+     * Logs every live client particle with its class and position, because a lone dark pixel on a
+     * smooth floor in a capture is the size of a torch's smoke (#1629).
+     */
+    @GrugGenerated("a diagnostic of the capture's particles, only read from its artifact")
+    private static String particles(Minecraft mc) {
+        StringBuilder out = new StringBuilder();
+        try {
+            for (java.lang.reflect.Field f : mc.particleManager.getClass().getDeclaredFields()) {
+                if (f.getType() != java.util.List[].class) continue;
+                f.setAccessible(true);
+                java.util.List<?>[] lists = (java.util.List<?>[]) f.get(mc.particleManager);
+                int layer = 0;
+                for (java.util.List<?> list : lists) {
+                    out.append(" layer")
+                            .append(layer++)
+                            .append("=")
+                            .append(list.size())
+                            .append(":");
+                    for (Object o : list) {
+                        net.minecraft.entity.Entity e = (net.minecraft.entity.Entity) o;
+                        out.append(" ")
+                                .append(o.getClass().getSimpleName())
+                                .append("@")
+                                .append(e.x)
+                                .append(",")
+                                .append(e.y)
+                                .append(",")
+                                .append(e.z);
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException e) {
+            out.append(" unreadable ").append(e);
+        }
+        return out.toString();
     }
 }
