@@ -66,12 +66,4 @@ export tick(ctx: TestTickContext) {
     ctx.assert(level.get_block(box_x + 6, y + 4, box_z + 10) == "grug:frame", "The top's far edge should be frames.")
     ctx.assert(level.get_block(box_x + 6, y + 2, box_z + 10) == "minecraft:air", "Between the corner columns, a side should be open at the middle heights.")
     ctx.assert(level.get_block(box_x + 5, y + 2, box_z + 5) == "minecraft:air", "The inside of the box should stay empty.")
-
-    # Nothing is left to do, so another step costs nothing; only the energy's slow loss can show.
-    energy = quarry.get_energy_stored()
-    time = time + 20
-    level.set_time(time)
-    ctx.tick_block_entity(quarry, 1)
-    after: number = quarry.get_energy_stored()
-    ctx.assert(after == energy or after == energy - 1, "A quarry with a finished frame should spend no energy on a step.")
 }

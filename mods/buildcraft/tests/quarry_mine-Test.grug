@@ -1,0 +1,69 @@
+# Covers the quarry's arm once its frame is done (#1543), as TileQuarry.doWork, findTarget and
+# EntityMechanicalArm do in BuildCraft 2.2.14. The quarry faces south (metadata 3), so its box is the 11 by 5
+# by 11 area that starts 5 blocks to its west and 11 to its north. The frame is put up by hand, so the first
+# step finds nothing left to build: the arm is made, aimed at the first block it can mine, and moves there on
+# the energy the quarry holds, 2 plus 1 for every 1000 stored a tick. Two stone blocks sit inside the box in
+# the layer one above the quarry. A bedrock block sits in the layer above the second one: a column with a
+# block the quarry cannot break is blocked from there down, so the arm goes to the first stone, mines it,
+# and never mines the second.
+# The loop gives the arm up to 600 ticks, which is far more than the 70 or so it needs to cross the box.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x())
+    y: number = Math.floor(origin.y()) + 10
+    z: number = Math.floor(origin.z()) + 80
+    box_x: number = x - 5
+    box_z: number = z - 11
+
+    _frame(level, box_x, y, box_z)
+
+    level.place_block(x, y, z, "grug:quarry")
+    placed: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(placed.has(), "The quarry should have a block entity.")
+    quarry: BlockEntity = placed.unwrap()
+    quarry.set_saved_number("meta", 3)
+
+    level.place_block(box_x + 4, y + 1, box_z + 3, "minecraft:stone")
+    level.place_block(box_x + 8, y + 1, box_z + 8, "minecraft:stone")
+    level.place_block(box_x + 8, y + 2, box_z + 8, "minecraft:bedrock")
+
+    quarry.receive_energy(7000)
+    time: number = 100000
+    level.set_time(time)
+
+    # The first tick builds the box and makes the arm, and sends it on its way.
+    ctx.tick_block_entity(quarry, 1)
+    ctx.assert(level.get_block(box_x + 4, y + 1, box_z + 3) == "minecraft:stone", "The arm should not have mined anything on its first tick.")
+    ctx.assert(quarry.get_energy_stored() < 7000 - 7, "The arm should spend 8 energy a tick while it moves.")
+
+    ticks: number = 1
+    while ticks < 600 and level.get_block(box_x + 4, y + 1, box_z + 3) != "minecraft:air" {
+        ctx.tick_block_entity(quarry, 1)
+        ticks = ticks + 1
+    }
+    ctx.assert(ticks < 600, "The arm should reach the stone block and mine it.")
+    ctx.assert(ticks > 10, "The arm should take its time crossing the box.")
+    ctx.assert(level.get_block(box_x + 8, y + 1, box_z + 8) == "minecraft:stone", "A block under bedrock should not be mined.")
+}
+
+# The frame of the box: every corner column, and the rectangle of its bottom and top heights.
+local _frame(level: Level, box_x: number, y: number, box_z: number) {
+    j: number = 0
+    while j < 5 {
+        i: number = 0
+        while i < 11 {
+            k: number = 0
+            while k < 11 {
+                on_x: bool = i == 0 or i == 10
+                on_z: bool = k == 0 or k == 10
+                if (on_x and on_z) or ((on_x or on_z) and (j == 0 or j == 4)) {
+                    level.place_block(box_x + i, y + j, box_z + k, "grug:frame")
+                }
+                k = k + 1
+            }
+            i = i + 1
+        }
+        j = j + 1
+    }
+}

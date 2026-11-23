@@ -1,5 +1,6 @@
 # BuildCraft 2.2.14's TileQuarry, as far as its facing, its box, its energy and the frame it builds
-# around its box go: the arm and the mining are later pieces of #1543.
+# around its box and the mining its arm does inside it go: the arm's saving, its drawing, the laser
+# stripes and what a broken block drops are later pieces of #1543.
 # The block's placed export saves the metadata as "meta", 2 to 5 as Orientations numbers the side the
 # front faces, and 0 for a quarry nothing placed, which BlockQuarry.a(side, meta) draws like a 3.
 
@@ -20,6 +21,38 @@ digging: bool = false
 done: bool = false
 builder_ready: bool = false
 work_mark: number = 0
+
+# PowerProvider.configure's minimum activation energy: TileQuarry.doWork sets 25 while it builds the
+# frame and 30 once it mines, and the receptor's doWork runs only with at least that much stored.
+min_activation: number = 25
+
+# TileQuarry.createUtilsIfNeeded makes the arm once the frame is done, and loadArm joins it to the
+# world on the same call. inProcess is the arm moving towards its target, in which case doWork waits.
+# nextBlockForBluePrint is whether the builder found a block this time.
+arm_made: bool = false
+load_arm: bool = false
+in_process: bool = false
+next_found: bool = false
+
+# EntityMechanicalArm: the head's position, its target, the angle towards it and whether it is still
+# moving across (xz) or up and down (y). sizeX is half of what the target in the middle of the box
+# is measured from. None of it is saved yet, so a reloaded quarry starts its arm again.
+head_x: number = 0
+head_y: number = 0
+head_z: number = 0
+arm_target_x: number = 0
+arm_target_y: number = 0
+arm_target_z: number = 0
+arm_angle: number = 0
+arm_size: number = 0
+arm_xz: bool = false
+arm_y: bool = false
+
+# TileQuarry.targetX, targetY and targetZ, which findTarget sets and positionReached mines: whole
+# numbers, and 0 until a target was set.
+tile_target_x: number = 0
+tile_target_y: number = 0
+tile_target_z: number = 0
 
 # The block BluePrintBuilder.findNextBlock found: its coordinates, and whether it is a frame to be
 # placed rather than a block to be cleared.
@@ -57,20 +90,31 @@ export tick() {
         _set_default_box()
     }
     if not builder_ready {
-        _create_utils()
+        _create_utils_if_needed()
     }
 
     # PowerProvider.update, which TileBuildCraft.n_ runs before the quarry's own tick: with at least
-    # the minimum activation energy of 25, and once every latency of 20 ticks of the world's clock,
-    # the receptor's doWork runs. SafeTimeTracker.markTimeIfDelay: a clock that went backwards moves
-    # the mark and does not fire.
-    if me.get_energy_stored() >= 25 {
+    # the minimum activation energy, and once every latency of 20 ticks of the world's clock, the
+    # receptor's doWork runs. SafeTimeTracker.markTimeIfDelay: a clock that went backwards moves the
+    # mark and does not fire.
+    if me.get_energy_stored() >= min_activation {
         now: number = level.get_time()
         if now < work_mark {
             work_mark = now
         } else if work_mark + 20 <= now {
             work_mark = now
             _do_work()
+        }
+    }
+
+    # TileQuarry.n_ after that: a moving arm takes 2 energy plus 1 for every 1000 stored, and moves its
+    # head by 0.015 plus the energy over 200 for it. PowerProvider.useEnergy(e, e, true) gives e only
+    # when e is stored.
+    if in_process and arm_made {
+        energy_to_use: number = 2 + Math.floor(me.get_energy_stored() / 1000)
+        if me.get_energy_stored() >= energy_to_use {
+            me.extract_energy(energy_to_use)
+            _do_move(0.015 + energy_to_use / 200)
         }
     }
 
@@ -114,47 +158,210 @@ local _set_default_box() {
     me.redraw()
 }
 
-# TileQuarry.createUtilsIfNeeded, the server's half, which TileEntity.initialize runs once: the
-# box is set by now, so the blueprint builder is made from it, and the quarry digs when the builder
-# has a block to place or clear. The reference then takes the arm and the mining branch for a builder
-# that has nothing to do, which is a later piece.
-local _create_utils() {
+# TileQuarry.createUtilsIfNeeded, the server's half, which TileEntity.initialize runs once and doWork
+# runs again: the blueprint builder is made from the box, and asks for its next block. A builder
+# that has nothing left stays done, makes the arm and joins it to the world, and the quarry digs when
+# the arm has a block to mine; a builder with work left makes the quarry dig.
+local _create_utils_if_needed() {
     builder_ready = true
-    done = false
-    if _find_next_block() {
-        digging = true
-    } else {
+    next_found = _find_next_block()
+    if not next_found {
         done = true
+    }
+
+    if done {
+        if not arm_made {
+            _create_arm()
+        }
+        if load_arm {
+            load_arm = false
+            if _find_target(false) {
+                digging = true
+            }
+        }
+    } else {
+        digging = true
     }
 }
 
-# TileQuarry.doWork as far as the frame goes. Each step costs 25 energy and either clears the one
-# block the builder found, when the world holds a block that is not soft, or places the frame there.
-# A builder that has nothing left makes the reference configure the arm's power and look for a
-# target, which is a later piece, so the quarry then waits.
+# TileQuarry.createArm: the arm hangs from the top of the box at the box's first corner, 0.75 in
+# from both sides, with its head two blocks below, and it is already at its target.
+local _create_arm() {
+    arm_made = true
+    load_arm = true
+    arm_size = 11 - 2 + 0.5
+    head_x = me.get_saved_number("box_x") + 0.75
+    head_y = y + 5 - 1 + 0.25 - 2
+    head_z = me.get_saved_number("box_z") + 0.75
+    _set_arm_target(head_x, head_y, head_z)
+}
+
+# EntityMechanicalArm.setTarget: the angle is that of the direction across the ground to the target.
+local _set_arm_target(target_x: number, target_y: number, target_z: number) {
+    arm_target_x = target_x
+    arm_target_y = target_y
+    arm_target_z = target_z
+    arm_angle = Math.atan2(target_z - head_z, target_x - head_x)
+    arm_xz = true
+    arm_y = true
+}
+
+# TileQuarry.doWork. While the arm moves nothing happens. Otherwise the builder is asked again, and
+# one that was done but has a block again (a frame was broken) starts over. A builder with work left
+# costs 25 energy a step to clear the block it found or to place the frame there. A done builder
+# raises the minimum activation to 30 and sends the arm to the first block it can mine, or to the
+# middle of the box, two above the quarry, when there is none, and the quarry stops digging.
 local _do_work() {
-    if not digging {
+    if in_process or not digging {
         return
     }
 
-    # createUtilsIfNeeded runs again, which asks the builder for its next block and so sets done.
-    # A builder that was done and finds a block again (the player broke a frame) starts over.
-    next_found: bool = _find_next_block()
-    done = not next_found
-    if done {
-        return
+    _create_utils_if_needed()
+    if done and next_found {
+        done = false
     }
 
-    # PowerProvider.configure(20, 25, 25, 25, 7000) and useEnergy(25, 25, true) == 25: a store of at
-    # least 25 gives 25. The quarry's min activation is the same 25, so this always succeeds here.
-    if me.get_energy_stored() >= 25 {
-        me.extract_energy(25)
-        if not _is_soft(level.get_block(found_x, found_y, found_z)) {
-            level.place_block(found_x, found_y, found_z, "minecraft:air")
-        } else if found_frame {
-            level.place_block(found_x, found_y, found_z, "grug:frame")
+    if not done {
+        min_activation = 25
+        # PowerProvider.configure(20, 25, 25, 25, 7000) and useEnergy(25, 25, true) == 25: a store of
+        # at least 25 gives 25.
+        if me.get_energy_stored() >= 25 {
+            me.extract_energy(25)
+            if not _is_soft(level.get_block(found_x, found_y, found_z)) {
+                level.place_block(found_x, found_y, found_z, "minecraft:air")
+            } else if found_frame {
+                level.place_block(found_x, found_y, found_z, "grug:frame")
+            }
+        }
+    } else {
+        min_activation = 30
+        if not _find_target(true) {
+            half: number = arm_size / 2
+            _set_arm_target(me.get_saved_number("box_x") + half, y + 2, me.get_saved_number("box_z") + half)
+            digging = false
+        }
+        in_process = true
+    }
+}
+
+# TileQuarry.findTarget: the blocks inside the frame, from three above the quarry down to the bottom of
+# the world, one layer at a time, in columns that snake back and forth. A column holding a block the
+# quarry cannot break is blocked from there down, which is why the reference remembers it: here a
+# column is blocked when some cell above the one looked at cannot be broken. The first block that can
+# be mined in a column that is not blocked is the target, which the arm goes to one above it.
+local _find_target(do_set: bool) bool {
+    size_x: number = 11 - 2
+    size_z: number = 11 - 2
+    box_x: number = me.get_saved_number("box_x")
+    box_z: number = me.get_saved_number("box_z")
+
+    search_y: number = y + 3
+    while search_y >= 0 {
+        start_x: number = 0
+        end_x: number = size_x
+        step_x: number = 1
+        if Math.remainder(search_y, 2) != 0 {
+            start_x = size_x - 1
+            end_x = -1
+            step_x = -1
+        }
+
+        search_x: number = start_x
+        while search_x != end_x {
+            start_z: number = 0
+            end_z: number = size_z
+            step_z: number = 1
+            if Math.remainder(search_x, 2) != Math.remainder(search_y, 2) {
+                start_z = size_z - 1
+                end_z = -1
+                step_z = -1
+            }
+
+            search_z: number = start_z
+            while search_z != end_z {
+                bx: number = box_x + search_x + 1
+                bz: number = box_z + search_z + 1
+                block: string = level.get_block(bx, search_y, bz)
+                if _can_dig(block) and not _column_blocked(bx, bz, search_y) {
+                    if do_set {
+                        _set_arm_target(bx, search_y + 1, bz)
+                        tile_target_x = bx
+                        tile_target_y = search_y + 1
+                        tile_target_z = bz
+                    }
+                    return true
+                }
+                search_z = search_z + step_z
+            }
+            search_x = search_x + step_x
+        }
+        search_y = search_y - 1
+    }
+    return false
+}
+
+# Whether a block the quarry cannot break sits above the cell, in the column's layers the search has
+# gone through: from one above it up to three above the quarry.
+local _column_blocked(bx: number, bz: number, from_y: number) bool {
+    scan_y: number = from_y + 1
+    top: number = y + 3
+    while scan_y <= top {
+        if _is_unbreakable(level.get_block(bx, scan_y, bz)) {
+            return true
+        }
+        scan_y = scan_y + 1
+    }
+    return false
+}
+
+# EntityMechanicalArm.doMove: the head moves across along the angle, and up or down at half the speed,
+# and snaps to the target once it is within two steps of it. Arriving on both axes tells the quarry.
+local _do_move(instant_speed: number) {
+    if arm_xz {
+        if _abs(arm_target_x - head_x) < instant_speed * 2 and _abs(arm_target_z - head_z) < instant_speed * 2 {
+            head_x = arm_target_x
+            head_z = arm_target_z
+            arm_xz = false
+            if not arm_y {
+                _position_reached()
+            }
+        } else {
+            head_x = head_x + Math.cos(arm_angle) * instant_speed
+            head_z = head_z + Math.sin(arm_angle) * instant_speed
         }
     }
+
+    if arm_y {
+        if _abs(arm_target_y - head_y) < instant_speed * 2 {
+            head_y = arm_target_y
+            arm_y = false
+            if not arm_xz {
+                _position_reached()
+            }
+        } else if arm_target_y > head_y {
+            head_y = head_y + instant_speed / 2
+        } else {
+            head_y = head_y - instant_speed / 2
+        }
+    }
+}
+
+# TileQuarry.positionReached: the quarry is free to work again, and a block it can mine at the target
+# is mined. The reference hands the block's drops to an inventory, a pipe or the world, which waits for
+# a host function that breaks a block and lets the mod see the drops (#1561).
+local _position_reached() {
+    in_process = false
+    block: string = level.get_block(tile_target_x, tile_target_y - 1, tile_target_z)
+    if _can_dig(block) {
+        work_mark = level.get_time()
+        level.place_block(tile_target_x, tile_target_y - 1, tile_target_z, "minecraft:air")
+    }
+}
+
+# TileQuarry.canDig: not a block it may not break, not a soft block and not snow, which a pipe also
+# treats as nothing.
+local _can_dig(block: string) bool {
+    return not _is_unbreakable(block) and not _is_soft(block) and block != "minecraft:snow"
 }
 
 # BluePrintBuilder.findNextBlock in its simple mode, over the blueprint TileQuarry.initializeBluePrintBuilder
@@ -229,4 +436,12 @@ local _is_soft(block: string) bool {
 # API.unbreakableBlock: bedrock and the two lavas, of which only the still one has a name.
 local _is_unbreakable(block: string) bool {
     return block == "minecraft:bedrock" or block == "minecraft:lava"
+}
+
+# The size of a number without its sign.
+local _abs(value: number) number {
+    if value < 0 {
+        return -value
+    }
+    return value
 }
