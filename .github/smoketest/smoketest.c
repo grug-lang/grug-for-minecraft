@@ -1901,14 +1901,22 @@ static union grug_value BUC_decline_use(ARGS) {
     return none();
 }
 REGISTER("BlockUseContext", "decline_use", BUC_decline_use);
-// Where a click on the block at (x, y, z) places the held block: the neighbour across the face the eye sees.
-static void use_face(long x, long y, long z, long out[3]) {
-    double dx = x + 0.5 - origin_x, dy = y + 0.5 - (origin_y - 3), dz = z + 0.5 - origin_z;
+// The face a ray from the eye to the block's centre enters, as GrugUseBlockFace.face numbers it: 0 down, 1 up,
+// 2 north (-z), 3 south (+z), 4 west (-x), 5 east (+x). The axis of the largest distance decides, and a tie
+// goes to y, then x, then z. selftest.c compares it with the six faces and the ties of the core's rule.
+static int use_face_of(double ex, double ey, double ez, long x, long y, long z) {
+    double dx = x + 0.5 - ex, dy = y + 0.5 - ey, dz = z + 0.5 - ez;
     double ax = fabs(dx), ay = fabs(dy), az = fabs(dz);
-    out[0] = x; out[1] = y; out[2] = z;
-    if (ay >= ax && ay >= az) out[1] += dy > 0 ? -1 : 1;
-    else if (ax >= az) out[0] += dx > 0 ? -1 : 1;
-    else out[2] += dz > 0 ? -1 : 1;  // SMOKETEST_EXCL: no committed test clicks a block whose largest distance from the eye is along z
+    if (ay >= ax && ay >= az) return dy > 0 ? 0 : 1;
+    if (ax >= az) return dx > 0 ? 4 : 5;
+    return dz > 0 ? 2 : 3;  // SMOKETEST_EXCL: no committed test clicks along z, so only selftest.c reaches it, against GrugUseBlockFace
+}
+// Where a click on the block at (x, y, z) places the held block: the neighbour across the clicked face. The eye
+// is the test origin three blocks down, and ignores set_player_position, which no committed use test calls.
+static void use_face(long x, long y, long z, long out[3]) {
+    static const int step[6][3] = {{0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}};
+    int f = use_face_of(origin_x, origin_y - 3, origin_z, x, y, z);
+    out[0] = x + step[f][0]; out[1] = y + step[f][1]; out[2] = z + step[f][2];
 }
 static union grug_value TTC_use_block(ARGS) {
     UNUSED;
@@ -1922,6 +1930,7 @@ static union grug_value TTC_use_block(ARGS) {
     bool handled = false;
     struct grug_file_info* fi = block_file_of(name);
     if (fi) {
+        // A fresh entity per click loses member state, so a future block whose use export keeps members is not trusted here.
         void* ent = grug_create_entity(g_state, fi->file_id);
         uint64_t c = new_obj(K_USE_CTX);
         union grug_value args[6] = {id(c), a[1], num(a[2]._number), num(a[3]._number), num(a[4]._number), id(new_obj(K_PLAYER))};
@@ -1937,7 +1946,9 @@ static union grug_value TTC_use_block(ARGS) {
         if (!t || !strcmp(t->name, "minecraft:air")) {
             set_block(at[0], at[1], at[2], "minecraft:cobblestone");
             on_block_placed(at[0], at[1], at[2], "minecraft:cobblestone");
-        }
+            held_count--;  // the block item takes one from the stack
+            if (held_count <= 0) held_has = false;
+        } else stubbed = true;  // SMOKETEST_EXCL: no committed test clicks toward an occupied position; whether the game replaces it depends on the block
     } else stubbed = true;  // SMOKETEST_EXCL: no committed test holds another vanilla item for a declined click; whether it places is the game's
     return none();
 }
