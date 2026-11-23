@@ -2326,6 +2326,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
             return null;
         }
 
+        net.grug.minecraft.stationapi.control.GrugControlDiagnostic.renderInputs("local", mc);
         return captureRectangle(
                 operation, (int) x1, (int) y1, (int) x2, (int) y2, mc.displayHeight);
     }
@@ -2339,6 +2340,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         BufferedImage image =
                 captureRectangle("Screenshot.capture", x1, y1, x2, y2, mc.displayHeight);
         net.grug.minecraft.stationapi.control.GrugControlDiagnostic.describe(image, mc);
+        net.grug.minecraft.stationapi.control.GrugControlDiagnostic.renderInputs("joined", mc);
         return image;
     }
 
