@@ -28,6 +28,7 @@
 //   Runner settings and graphics stubs
 //   Registry and contract
 //   Runner (run_test, --all, main)
+#include <ctype.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -126,6 +127,9 @@ enum kind {
     K_ITEM_ENTITY,
     K_ENTITY,
     K_USE_CTX,
+    K_COLOR,
+    K_GUI,
+    K_DISPLAY_CTX,
 };
 struct obj {
     enum kind kind;
@@ -351,6 +355,7 @@ REGISTER("Level", "place_block", Level_place_block);
 // blast centre, which is all explode-Test asserts (glass next to a power 3 blast goes, glass 12 away stays),
 // so a pass is STUBBED.
 static void double_text(double v, char* out, size_t cap);
+static void number_text(double v, char* out, size_t cap);
 static union grug_value Level_explode(ARGS) {
     UNUSED;
     static const char* const names[4] = {"x", "y", "z", "power"};
@@ -1954,6 +1959,81 @@ static union grug_value TTC_use_block(ARGS) {
 }
 REGISTER("TestTickContext", "use_block", TTC_use_block);
 
+// Display ticks (display_tick-Test, expect_display_tick_*-Test, redstone_engine_particles-Test). The game's
+// random display tick is the block's display_tick export with a generator seeded by the test, so the
+// smoketest seeds the level's java.util.Random (what the loaders' generators are) for the call and puts the
+// level's own seed state back. Every particle is recorded and none is drawn. The export is looked up on
+// the block's file, so a block that never exports display_tick spawns nothing, where the game also needs
+// set_display_tick (BIC_noop makes such a pass STUBBED, so a block that exports without declaring is not caught).
+#define PARTICLE_MAX 64
+static struct { double x, y, z; } particles[PARTICLE_MAX];
+static size_t nparticles;
+static uint64_t block_display_tick_fn;
+static union grug_value DTC_random(ARGS) { UNUSED; return num(rnd_double()); }
+REGISTER("DisplayTickContext", "random", DTC_random);
+// GrugDisplayTicks.particleProblem: only reddust exists, and every number must be finite.
+static bool particle_problem(const char* name, const double v[6], char* out, size_t cap) {
+    if (strcmp(name, "reddust")) { snprintf(out, cap, "There is no particle called \"%s\". The particles are reddust.", name); return true; }
+    for (int i = 0; i < 6; i++)
+        if (!isfinite(v[i])) { snprintf(out, cap, "The position and the motion must be finite numbers."); return true; }  // SMOKETEST_EXCL: no committed test passes a non-finite particle; selftest.c checks it
+    return false;
+}
+static union grug_value DTC_add_particle(ARGS) {
+    UNUSED;
+    double v[6] = {a[2]._number, a[3]._number, a[4]._number, a[5]._number, a[6]._number, a[7]._number};
+    char msg[512];
+    if (particle_problem(a[1]._string, v, msg, sizeof msg)) return fail("DisplayTickContext.add_particle: %s", msg);
+    if (nparticles < PARTICLE_MAX) {  // SMOKETEST_EXCL_BRANCH: no committed block spawns 64 particles in one tick
+        particles[nparticles].x = v[0]; particles[nparticles].y = v[1]; particles[nparticles].z = v[2];
+        nparticles++;
+    }
+    return none();
+}
+REGISTER("DisplayTickContext", "add_particle", DTC_add_particle);
+static union grug_value TTC_display_tick(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.display_tick: not a Level");  // SMOKETEST_EXCL: no committed test
+    nparticles = 0;
+    long p[3] = {(long)floor(a[2]._number), (long)floor(a[3]._number), (long)floor(a[4]._number)};
+    struct block* b = find_block(p[0], p[1], p[2]);
+    struct grug_file_info* fi = block_file_of(b ? b->name : "minecraft:air");
+    if (!fi) return num(0);
+    uint64_t saved_seed = rnd_seed;
+    bool saved_have = rnd_have_gaussian;
+    rnd_set_seed((int64_t)a[5]._number);
+    void* ent = grug_create_entity(g_state, fi->file_id);
+    union grug_value args[5] = {id(new_obj(K_DISPLAY_CTX)), a[1], num((double)p[0]), num((double)p[1]), num((double)p[2])};
+    char err[4096];
+    call_export(ent, block_display_tick_fn, args, 5, err);
+    grug_deinit_entity(g_state, ent);
+    rnd_seed = saved_seed;
+    rnd_have_gaussian = saved_have;
+    stubbed = true;  // no particle is drawn, and the block's set_display_tick declaration is not checked
+    if (err[0]) return fail("%s", err);
+    return num((double)nparticles);
+}
+REGISTER("TestTickContext", "display_tick", TTC_display_tick);
+static union grug_value TTC_particle_position(ARGS) {
+    UNUSED;
+    double i = a[1]._number;
+    uint64_t v = new_obj(K_VEC3);
+    if (!(i >= 0 && i < (double)nparticles)) return fail("TestTickContext.particle_position: There is no particle number %ld in the last TestTickContext.display_tick().", (long)i);
+    objs[v - 1].x = particles[(size_t)i].x; objs[v - 1].y = particles[(size_t)i].y; objs[v - 1].z = particles[(size_t)i].z;
+    return id(v);
+}
+REGISTER("TestTickContext", "particle_position", TTC_particle_position);
+
+// The render camera (camera-Test, camera_pose-Test): the eye of the room, which is the origin less the
+// runner's 3 block lift. No player moves, so the pose never changes, and no committed camera test needs more.
+static union grug_value TTC_camera(ARGS) {
+    UNUSED;
+    uint64_t v = new_obj(K_VEC3);
+    objs[v - 1].x = origin_x; objs[v - 1].y = origin_y - 3; objs[v - 1].z = origin_z;
+    stubbed = true;
+    return id(v);
+}
+REGISTER("TestTickContext", "camera", TTC_camera);
+
 // =============================================================================================
 // SECTION: Item entities
 // =============================================================================================
@@ -2128,11 +2208,166 @@ static union grug_value TTC_hot_reload_count(ARGS) {
 }
 REGISTER("TestTickContext", "hot_reload_count", TTC_hot_reload_count);
 
-// No smoketest call opens a screen (use_block, which opens a block's GUI, is not modelled), so the
-// answer is always closed, which is what screen_open-Test asserts after close_screen. A test that waits
-// for a screen to open stops earlier, at the use_block it needs.
-static union grug_value TTC_screen_open(ARGS) { UNUSED; return boolean(false); }
+// Colors and GUIs (gui_*-Test, expect_gui_*-Test, use_block_same_tick-Test). A GUI is a layout builder: the
+// texture path, the crafting grids (each names nine inventory slots from its start), the crafting results,
+// the texts and the player inventory. GUI.open checks the grids against the block entity's inventory and
+// opens a screen, which is only a flag here: no menu, slot or capture exists behind it, so every test that
+// reads the opened screen's geometry or clicks into it still needs those calls, and what the flag answers
+// is all screen_open-Test and the waits of the GUI tests ask. A pass that opened a screen is STUBBED.
+#define GUI_MAX_ENTRIES 64  // GrugGuiLayoutCodec.MAX_ENTRIES
+struct gui { size_t ngrids; long grid_start[GUI_MAX_ENTRIES]; size_t nresults, ntexts; };
+static struct gui* guis;
+static size_t nguis, capguis;
+static bool screen_is_open;
+static void clear_guis(void) { nguis = 0; screen_is_open = false; }
+// Why Color.rgba refuses these values (the Java colorProblem message), or false when each is a whole number from 0 to 255.
+// SMOKETEST_EXCL_START: no committed test that reaches Color.rgba passes the smoketest yet; selftest.c checks the helper
+static bool color_problem(double r, double g, double b, double a, char* out, size_t cap) {
+    double v[4] = {r, g, b, a};
+    bool ok = true;
+    for (int i = 0; i < 4; i++) if (!(v[i] >= 0 && v[i] <= 255) || v[i] != floor(v[i])) ok = false;
+    if (ok) return false;
+    char t[4][400];
+    for (int i = 0; i < 4; i++) number_text(v[i], t[i], sizeof t[i]);
+    snprintf(out, cap, "Each value has to be a whole number from 0 to 255, and the values were %s, %s, %s and %s.", t[0], t[1], t[2], t[3]);
+    return true;
+}
+// SMOKETEST_EXCL_STOP
+static union grug_value Color_rgb(ARGS) { UNUSED; return id(new_obj(K_COLOR)); }
+REGISTER("Color", "rgb", Color_rgb);
+// SMOKETEST_EXCL_START: the only committed caller, overlay_triangles-Test, stops earlier at an overlay call the smoketest lacks
+static union grug_value Color_rgba(ARGS) {
+    UNUSED;
+    char msg[2048];
+    if (color_problem(a[0]._number, a[1]._number, a[2]._number, a[3]._number, msg, sizeof msg)) return fail("Color.rgba: %s", msg);
+    return id(new_obj(K_COLOR));
+}
+// SMOKETEST_EXCL_STOP
+REGISTER("Color", "rgba", Color_rgba);
+static union grug_value hf_gui(ARGS) {
+    UNUSED;
+    if (nguis == capguis) { capguis = capguis ? capguis * 2 : 8; guis = xrealloc(guis, capguis * sizeof *guis); }
+    memset(&guis[nguis], 0, sizeof guis[nguis]);
+    uint64_t o = new_obj(K_GUI);
+    objs[o - 1].x = (double)nguis++;
+    return id(o);
+}
+REGISTER(NULL, "gui", hf_gui);
+static struct gui* gui_of(uint64_t h, const char* who) {
+    struct obj* o = get_obj(h, K_GUI);
+    if (!o) { fail("%s: not a GUI", who); return NULL; }  // SMOKETEST_EXCL: no committed test passes anything but a GUI
+    return &guis[(size_t)o->x];
+}
+static bool gui_full(size_t n, const char* who, const char* what) {
+    if (n < GUI_MAX_ENTRIES) return false;
+    fail("%s: A GUI holds at most %d %s, so this one is not added.", who, GUI_MAX_ENTRIES, what);
+    return true;
+}
+static union grug_value GUI_add_crafting_grid(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.add_crafting_grid");
+    if (!gu || gui_full(gu->ngrids, "GUI.add_crafting_grid", "crafting grids")) return none();
+    gu->grid_start[gu->ngrids++] = (long)a[1]._number;
+    return none();
+}
+REGISTER("GUI", "add_crafting_grid", GUI_add_crafting_grid);
+static union grug_value GUI_add_crafting_result(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.add_crafting_result");
+    if (!gu || gui_full(gu->nresults, "GUI.add_crafting_result", "crafting results")) return none();
+    gu->nresults++;
+    return none();
+}
+REGISTER("GUI", "add_crafting_result", GUI_add_crafting_result);
+static union grug_value GUI_add_player_inventory(ARGS) {
+    UNUSED;
+    gui_of(a[0]._id, "GUI.add_player_inventory");
+    return none();
+}
+REGISTER("GUI", "add_player_inventory", GUI_add_player_inventory);
+static union grug_value GUI_add_text(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.add_text");
+    if (!gu || gui_full(gu->ntexts, "GUI.add_text", "texts")) return none();
+    if (strlen(a[1]._string) > (1u << 20)) return fail("GUI.add_text: A GUI's text is at most 1048576 bytes long, so this one of %zu bytes is not added.", strlen(a[1]._string));  // SMOKETEST_EXCL: no committed test adds a megabyte of text
+    gu->ntexts++;
+    return none();
+}
+REGISTER("GUI", "add_text", GUI_add_text);
+static union grug_value GUI_open(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.open");
+    if (!gu) return none();  // SMOKETEST_EXCL: gui_of raised already
+    struct be* b = be_of(a[2]._id);
+    if (!b) return fail("GUI.open: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    for (size_t i = 0; i < gu->ngrids; i++)
+        for (long k = 0; k < 9; k++) {
+            long slot = gu->grid_start[i] + k;
+            if (slot < 0 || slot >= (long)b->nslots)
+                return fail("GUI.open: The GUI uses slot %ld, but the block entity only has %zu inventory slots.", slot, b->nslots);
+        }
+    screen_is_open = true;
+    stubbed = true;  // the screen is a flag: no menu or capture exists behind it
+    return none();
+}
+REGISTER("GUI", "open", GUI_open);
+// A screen is open after GUI.open until close_screen, and screen_open-Test asserts it closed after close_screen.
+static union grug_value TTC_screen_open(ARGS) { UNUSED; return boolean(screen_is_open); }
 REGISTER("TestTickContext", "screen_open", TTC_screen_open);
+
+// Ticking a level and sounds (tick_level-Test, expect_tick_level_*-Test, sound-Test, expect_*sound*-Test).
+// The smoketest runs no world tick, so tick_level answers 0, which the API defines as "a loader that cannot
+// advance its level", and leaves the clock alone; a test that needs the ticks to have run still fails.
+// The game has no sound table either, so has_sound is false for every well-formed name, like a 1.2.5 run
+// with an empty pool, and play_ui_sound reports the unknown sound after the argument checks.
+// Why a tick count is not a whole number from 0 to Integer.MAX_VALUE (GrugTestState.checkTickCount), or false.
+static bool tick_count_problem(double ticks, char* out, size_t cap) {
+    if (ticks >= 0 && ticks <= 2147483647.0 && ticks == floor(ticks)) return false;
+    char t[400];
+    double_text(ticks, t, sizeof t);
+    snprintf(out, cap, "The number of ticks has to be a whole number from 0 to 2147483647, and was %s.", t);
+    return true;
+}
+static union grug_value TTC_tick_level(ARGS) {
+    UNUSED;
+    char msg[512];
+    if (tick_count_problem(a[2]._number, msg, sizeof msg)) { fail("TestTickContext.tick_level: %s", msg); return num(0); }
+    stubbed = true;
+    return num(0);
+}
+REGISTER("TestTickContext", "tick_level", TTC_tick_level);
+// GrugSoundArgs.nameProblem: [a-z0-9_.-]+:[a-z0-9_./-]+, the whole string.
+static bool sound_name_ok(const char* n) {
+    const char* c = strchr(n, ':');
+    if (!c || c == n || !c[1]) return false;
+    for (const char* p = n; p < c; p++) if (!(islower((unsigned char)*p) || isdigit((unsigned char)*p) || strchr("_.-", *p))) return false;
+    for (const char* p = c + 1; *p; p++) if (!(islower((unsigned char)*p) || isdigit((unsigned char)*p) || strchr("_./-", *p))) return false;
+    return true;
+}
+static void sound_name_problem(const char* n, char* out, size_t cap) {
+    snprintf(out, cap, "A sound name is a namespace, a colon and a path, such as \"minecraft:ui.button.click\", and \"%s\" is not one.", n);
+}
+static union grug_value hf_has_sound(ARGS) {
+    UNUSED;
+    if (!sound_name_ok(a[0]._string)) {
+        char msg[1024];
+        sound_name_problem(a[0]._string, msg, sizeof msg);
+        fail("has_sound: %s", msg);
+    }
+    return boolean(false);
+}
+REGISTER(NULL, "has_sound", hf_has_sound);
+static union grug_value hf_play_ui_sound(ARGS) {
+    UNUSED;
+    const char* name = a[0]._string;
+    double vol = a[1]._number, pitch = a[2]._number;
+    char t[400];
+    if (!sound_name_ok(name)) { char msg[1024]; sound_name_problem(name, msg, sizeof msg); return fail("play_ui_sound: %s", msg); }
+    if (!(vol >= 0 && vol <= 1)) { double_text(vol, t, sizeof t); return fail("play_ui_sound: The volume has to be from 0 to 1, and was %s.", t); }
+    if (!(pitch >= 0.5 && pitch <= 2)) { double_text(pitch, t, sizeof t); return fail("play_ui_sound: The pitch has to be from 0.5 to 2, and was %s.", t); }
+    return fail("play_ui_sound: The game has no sound named \"%s\". Ask has_sound first for a sound the versions the mod runs on do not all have.", name);
+}
+REGISTER(NULL, "play_ui_sound", hf_play_ui_sound);
 
 // Block entity NBT edits (block_entity_nbt-Test, expect_nbt_*-Test, expect_extract_item_into_no_slot-Test).
 // set_nbt_number stages an edit and load_nbt applies the staged edits to the NBT the block entity would
@@ -2383,7 +2618,7 @@ static union grug_value TTC_stall(ARGS) {
     return none();
 }
 REGISTER("TestTickContext", "stall", TTC_stall);
-static union grug_value TTC_close_screen(ARGS) { UNUSED; stubbed = true; return none(); }
+static union grug_value TTC_close_screen(ARGS) { UNUSED; stubbed = true; screen_is_open = false; return none(); }
 REGISTER("TestTickContext", "close_screen", TTC_close_screen);
 
 // =============================================================================================
@@ -2476,6 +2711,7 @@ enum { OUT_PASS = 0, OUT_FAIL = 1, OUT_STUBBED = 2 };
 static void clear_entities(void);
 static void clear_mod_files(void);
 static void clear_nbt(void);
+static void clear_guis(void);
 static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn) {
     clear_bes();
     free_test_state();
@@ -2483,6 +2719,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     clear_entities();
     clear_mod_files();
     clear_nbt();
+    clear_guis();
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
@@ -2628,6 +2865,7 @@ int main(int argc, char** argv) {
     G.f = files;
     G.block_init = grug_get_on_fn_id(g_state, "Block", "init");
     block_use_fn = grug_get_on_fn_id(g_state, "Block", "use");
+    block_display_tick_fn = grug_get_on_fn_id(g_state, "Block", "display_tick");
     G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
     G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
     be_inserted_fn = grug_get_on_fn_id(g_state, "BlockEntity", "item_inserted");
@@ -2656,6 +2894,7 @@ done:
     clear_entities();
     clear_mod_files();
     clear_nbt();
+    clear_guis();
     free(bes); free(blockdefs);
     free(world); free(objs); free(arena); free(expected_error);
     grug_deinit(g_state);
