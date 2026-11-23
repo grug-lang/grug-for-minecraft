@@ -1302,6 +1302,9 @@ jobs:
       - name: Test the line coverage script
         run: python3 .github/smoketest/line_coverage_test.py
 
+      - name: Test the recipe generator
+        run: python3 .github/smoketest/gen_recipes_test.py
+
       # Set a repository variable to exactly `true` (`false`, `0` and empty leave it off) to make
       # that check a failure: SMOKETEST_ASSERT_CONTRACT (an entry of mod_api.json with no
       # implementation), SMOKETEST_ASSERT_COVERAGE (below 100% line coverage of smoketest.c from
