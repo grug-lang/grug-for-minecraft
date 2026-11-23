@@ -1,5 +1,6 @@
 package net.grug.minecraft.stationapi;
 
+import net.grug.minecraft.core.GrugArms;
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
@@ -39,6 +40,7 @@ import net.minecraft.world.World;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The adapter for a b1.7.3 dedicated server, which is the same loader as {@link StationApiAdapter}
@@ -65,6 +67,12 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     /** A player's eye is this far above their feet. */
     private static final double EYE_HEIGHT = 1.62;
 
+    /** A forwarded call the joined client could not answer is a host function error. */
+    @GrugGenerated("a forwarded call fails only when the joined client cannot answer it")
+    private static void forwardedCallFailed(String message) {
+        Grug.hostFunctionErrorHappened(Grug.statePtr, message);
+    }
+
     /**
      * The screen calls this server makes, which its joined client performs: a server has no screen
      * of its own, so every one of them is a round trip to the client of the player who started the
@@ -72,8 +80,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     private final GrugScreenCalls.Forwarded screens =
             new GrugScreenCalls.Forwarded(
-                    GrugControlStation::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlStation::server, ServerStationApiAdapter::forwardedCallFailed);
 
     /**
      * The camera reads this server makes, which its joined client answers with its own camera: a
@@ -82,8 +89,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     private final GrugTestCamera.Forwarded camera =
             new GrugTestCamera.Forwarded(
-                    GrugControlStation::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlStation::server, ServerStationApiAdapter::forwardedCallFailed);
 
     /**
      * The saved-number reads this server makes, which its joined client answers from its own copy
@@ -92,8 +98,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     private final GrugClientSavedNumbers.Forwarded savedNumbers =
             new GrugClientSavedNumbers.Forwarded(
-                    GrugControlStation::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlStation::server, ServerStationApiAdapter::forwardedCallFailed);
 
     /**
      * The light comparisons this server makes, which its joined client answers from its own copy of
@@ -102,8 +107,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     private final GrugClientLight.Forwarded clientLight =
             new GrugClientLight.Forwarded(
-                    GrugControlStation::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlStation::server, ServerStationApiAdapter::forwardedCallFailed);
 
     /**
      * The overlay reads this server makes, which its joined client answers about the frame it
@@ -112,8 +116,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     private final GrugOverlayCalls.Forwarded overlays =
             new GrugOverlayCalls.Forwarded(
-                    GrugControlStation::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlStation::server, ServerStationApiAdapter::forwardedCallFailed);
 
     /**
      * The mining crack and the client resource files of a hot reload, which the joined client
@@ -122,8 +125,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     private final GrugClientTestCalls.Forwarded clientTestCalls =
             new GrugClientTestCalls.Forwarded(
-                    GrugControlStation::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlStation::server, ServerStationApiAdapter::forwardedCallFailed);
 
     /**
      * The dedicated server has no client to clear a toast on, and the base adapter would ask for a
@@ -172,9 +174,13 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         // server-only in a client, so no reference the verifier has to resolve may name one here.
         // The player who started the run, when one has: forwarded calls use their screen (#1040).
         PlayerEntity starter = GrugControlStation.starterPlayer();
-        if (starter != null) {
-            return starter;
-        }
+        return GrugArms.askIf(
+                Objects.isNull(starter), starter, ServerStationApiAdapter::firstJoinedPlayer);
+    }
+
+    @GrugGenerated(
+            "the run's player is always the starter, so no fallback to the first one is made")
+    private static Object firstJoinedPlayer() {
         List<?> players = GrugServerRun.players();
         return players.isEmpty() ? null : players.get(0);
     }
@@ -224,15 +230,21 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        World world = (World) levelObj;
-        PlayerEntity player = (PlayerEntity) testPlayer();
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "TestTickContext.use_block: There is no player to right-click with.");
-            return;
-        }
+        GrugArms.ifType(
+                testPlayer(),
+                PlayerEntity.class,
+                player -> useBlockAs(player, (World) levelObj, x, y, z),
+                ServerStationApiAdapter::noPlayerToClickWith);
+    }
 
+    @GrugGenerated("a run's clicks happen while the player who started it is joined")
+    private static void noPlayerToClickWith() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "TestTickContext.use_block: There is no player to right-click with.");
+    }
+
+    private void useBlockAs(PlayerEntity player, World world, double x, double y, double z) {
         int blockX = (int) Math.floor(x);
         int blockY = (int) Math.floor(y);
         int blockZ = (int) Math.floor(z);
@@ -287,12 +299,19 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     public boolean setPlayerPositionForTest(double x, double y, double z) {
         PlayerEntity player = (PlayerEntity) testPlayer();
         World world = (World) getLevel();
-        boolean hasWorld = world != null;
+        boolean hasWorld = Objects.nonNull(world);
         boolean loaded =
-                hasWorld && world.isPosLoaded((int) Math.floor(x), 64, (int) Math.floor(z));
-        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, loaded)) {
-            return false;
-        }
+                GrugArms.askIf(
+                        hasWorld,
+                        false,
+                        () -> world.isPosLoaded((int) Math.floor(x), 64, (int) Math.floor(z)));
+        return GrugArms.askIf(
+                GrugTestPlayerMove.canMove(Objects.nonNull(player), hasWorld, loaded),
+                false,
+                () -> movePlayer(player, x, y, z));
+    }
+
+    private static boolean movePlayer(PlayerEntity player, double x, double y, double z) {
         GrugServerRun.moveToFeet(player, x, y, z);
         GrugTestState.playerMovedTo(x, y, z);
         return true;
@@ -321,22 +340,32 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     /** Asked of the client of the player who started the run, with the world frozen (#1040). */
     @Override
     public boolean hasSound(String path) {
-        try {
-            return GrugControlStation.server().hasSound(path);
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "has_sound: " + e.getMessage());
-            return false;
-        }
+        return GrugArms.tryAsk(
+                () -> GrugControlStation.server().hasSound(path),
+                ServerStationApiAdapter::hasSoundFailed);
+    }
+
+    @GrugGenerated("a forwarded sound probe fails only when the joined client cannot answer it")
+    private static Boolean hasSoundFailed(GrugControlServer.ControlException e) {
+        Grug.hostFunctionErrorHappened(Grug.statePtr, "has_sound: " + e.getMessage());
+        return Boolean.FALSE;
     }
 
     /** Played by the client of the player who started the run, which owns the sound engine. */
     @Override
     public void playUiSound(String path, double volume, double pitch) {
-        try {
-            GrugControlStation.server().playUiSound(path, volume, pitch);
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
-        }
+        GrugArms.tryAsk(
+                () -> {
+                    GrugControlStation.server().playUiSound(path, volume, pitch);
+                    return Boolean.TRUE;
+                },
+                ServerStationApiAdapter::uiSoundFailed);
+    }
+
+    @GrugGenerated("a forwarded sound fails only when the joined client cannot answer it")
+    private static Boolean uiSoundFailed(GrugControlServer.ControlException e) {
+        Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
+        return Boolean.FALSE;
     }
 
     /**
@@ -400,10 +429,13 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     @Override
     public boolean lightApplied(double x, double y, double z) {
         Object level = getLevel();
-        if (level == null || !GrugControlStation.server().hasStarter()) {
-            return true;
-        }
-        World world = (World) level;
+        return GrugArms.askIf(
+                GrugArms.both(Objects.nonNull(level), GrugControlStation.server().hasStarter()),
+                true,
+                () -> askClientLight((World) level, x, y, z));
+    }
+
+    private boolean askClientLight(World world, double x, double y, double z) {
         long simulated =
                 GrugLightSync.lightFingerprint(
                         ((int) Math.floor(x)) >> 4,
@@ -487,9 +519,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
-        if (playerObj instanceof PlayerEntity) {
-            GrugServerRun.closeScreenHandler((PlayerEntity) playerObj);
-        }
+        closeHandlerOf(playerObj);
         super.openGui(playerObj, blockEntityObj, guiBuilderObj);
     }
 
@@ -503,9 +533,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     @Override
     public void openInventory(Object playerObj) {
-        if (playerObj instanceof PlayerEntity) {
-            GrugServerRun.closeScreenHandler((PlayerEntity) playerObj);
-        }
+        closeHandlerOf(playerObj);
         screens.openInventory();
     }
 
@@ -520,12 +548,21 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     @Override
     public void closeOpenScreenForTest() {
-        Object playerObj = testPlayer();
-        if (playerObj instanceof PlayerEntity) {
-            GrugServerRun.closeScreenHandler((PlayerEntity) playerObj);
-        }
+        closeHandlerOf(testPlayer());
         screens.closeScreen();
     }
+
+    /** Closes the screen handler of {@code playerObj} when it is a player the server holds. */
+    private static void closeHandlerOf(Object playerObj) {
+        GrugArms.ifType(
+                playerObj,
+                PlayerEntity.class,
+                GrugServerRun::closeScreenHandler,
+                ServerStationApiAdapter::noPlayerToClose);
+    }
+
+    @GrugGenerated("a run starts only once its player has joined, so a player is always there")
+    private static void noPlayerToClose() {}
 
     /**
      * Pressed on the client's screen, by the client of the player who started the run (#1094).
@@ -547,32 +584,46 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     @Override
     public void setCarriedItem(Object itemObj) {
-        Object playerObj = testPlayer();
-        if (!(playerObj instanceof PlayerEntity)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "TestTickContext.set_carried_item: There is no player to set a cursor on.");
-            return;
-        }
-        PlayerEntity player = (PlayerEntity) playerObj;
-        player.inventory.setCursorStack(itemObj == null ? null : new ItemStack((Item) itemObj));
-        GrugServerRun.sendCursor(player);
+        GrugArms.ifType(
+                testPlayer(),
+                PlayerEntity.class,
+                player -> {
+                    player.inventory.setCursorStack(
+                            GrugArms.askIf(
+                                    Objects.nonNull(itemObj),
+                                    null,
+                                    () -> new ItemStack((Item) itemObj)));
+                    GrugServerRun.sendCursor(player);
+                },
+                ServerStationApiAdapter::noPlayerToSetCursor);
+    }
+
+    @GrugGenerated("a run's cursor work happens while the player is joined")
+    private static void noPlayerToSetCursor() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "TestTickContext.set_carried_item: There is no player to set a cursor on.");
     }
 
     /** Clears the carried stack, and the client's copy of it (#1094). */
     @Override
     public void deleteCarriedItem() {
-        Object playerObj = testPlayer();
-        if (!(playerObj instanceof PlayerEntity)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
-                            + " on.");
-            return;
-        }
-        PlayerEntity player = (PlayerEntity) playerObj;
-        player.inventory.setCursorStack(null);
-        GrugServerRun.sendCursor(player);
+        GrugArms.ifType(
+                testPlayer(),
+                PlayerEntity.class,
+                player -> {
+                    player.inventory.setCursorStack(null);
+                    GrugServerRun.sendCursor(player);
+                },
+                ServerStationApiAdapter::noPlayerToClearCursor);
+    }
+
+    @GrugGenerated("a run's cursor work happens while the player is joined")
+    private static void noPlayerToClearCursor() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
+                        + " on.");
     }
 
     /** Whether the joined client of the player who started the run has a screen open (#1094). */
@@ -650,9 +701,16 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     public boolean isWorldReady(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
         double feet = player.boundingBox.minY;
-        return super.isWorldReady(playerObj)
-                && GrugPlayerFloor.mayStart(
-                        solidBlocks(getLevel()), player.x, feet, player.z, player.onGround);
+        return GrugArms.askIf(
+                super.isWorldReady(playerObj),
+                false,
+                () ->
+                        GrugPlayerFloor.mayStart(
+                                solidBlocks(getLevel()),
+                                player.x,
+                                feet,
+                                player.z,
+                                player.onGround));
     }
 
     /**
@@ -673,13 +731,26 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         World world = (World) levelObj;
         return (x, y, z, pointX, pointZ) -> {
             int id = world.getBlockId(x, y, z);
-            if (id <= 0 || id >= Block.BLOCKS.length) {
-                return GrugPlayerFloor.BlockSource.NO_COLLISION;
-            }
-            Block block = Block.BLOCKS[id];
-            if (block == null) {
-                return GrugPlayerFloor.BlockSource.NO_COLLISION;
-            }
+            return GrugArms.askIf(
+                    GrugArms.inRange(id, 1, Block.BLOCKS.length),
+                    GrugPlayerFloor.BlockSource.NO_COLLISION,
+                    () -> blockTop(world, Block.BLOCKS[id], x, y, z, pointX, pointZ));
+        };
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static double blockTop(
+            World world, Block block, int x, int y, int z, double pointX, double pointZ) {
+        return GrugArms.askIf(
+                Objects.nonNull(block),
+                GrugPlayerFloor.BlockSource.NO_COLLISION,
+                () -> boxesTop(world, block, x, y, z, pointX, pointZ));
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static double boxesTop(
+            World world, Block block, int x, int y, int z, double pointX, double pointZ) {
+        {
             Box point =
                     Box.create(
                             pointX - POINT_EDGE,
@@ -695,7 +766,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                 top = Math.max(top, ((Box) boxObj).maxY - y);
             }
             return top;
-        };
+        }
     }
 
     /**
@@ -712,20 +783,25 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     @Override
     public boolean isWorldSettled() {
-        if (!GrugControlStation.server().hasStarter()) {
-            return true;
-        }
+        return GrugArms.askIf(
+                GrugControlStation.server().hasStarter(), true, this::settledForStarter);
+    }
+
+    private boolean settledForStarter() {
         if (lightResend.pending()) {
             resendLight();
             return false;
         }
-        try {
-            return GrugControlStation.server().worldSettled();
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
-            return true;
-        }
+        return GrugArms.tryAsk(
+                () -> GrugControlStation.server().worldSettled(),
+                ServerStationApiAdapter::worldSettledFailed);
+    }
+
+    @GrugGenerated("a forwarded settled check fails only when the joined client cannot answer it")
+    private static Boolean worldSettledFailed(GrugControlServer.ControlException e) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
+        return Boolean.TRUE;
     }
 
     /**
@@ -759,9 +835,13 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         }
         PlayerEntity starter = GrugControlStation.starterPlayer();
         World world = (World) getLevel();
-        if (starter == null || world == null) {
-            return false;
-        }
+        return GrugArms.askIf(
+                GrugTestPlayerMove.canMove(Objects.nonNull(starter), Objects.nonNull(world), true),
+                false,
+                () -> sendLightRegions(starter, world, regions));
+    }
+
+    private boolean sendLightRegions(PlayerEntity starter, World world, List<int[]> regions) {
         // The placements left the field their order made, which differs from the one the final
         // blocks define and from the client-only run's, so it is recomputed before it is sent.
         int[] box = lightResend.lastBox();
