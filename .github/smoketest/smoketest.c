@@ -2232,7 +2232,7 @@ static size_t screen_gui;
 static uint64_t screen_be;
 static bool carried_has;
 static uint64_t carried_item;
-static double carried_count;
+static double carried_count, carried_damage;
 static void clear_guis(void) { nguis = 0; screen_is_open = false; carried_has = false; }
 // Why Color.rgba refuses these values (the Java colorProblem message), or false when each is a whole number from 0 to 255.
 // SMOKETEST_EXCL_START: no committed test that reaches Color.rgba passes the smoketest yet; selftest.c checks the helper
@@ -2374,7 +2374,7 @@ static union grug_value TTC_set_carried_item(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_ITEM)) return fail("TestTickContext.set_carried_item: not an Item");  // SMOKETEST_EXCL: no committed test
     if (!screen_is_open) return none();  // SMOKETEST_EXCL: every committed caller has a screen open
-    carried_has = true; carried_item = a[1]._id; carried_count = 1;
+    carried_has = true; carried_item = a[1]._id; carried_count = 1; carried_damage = 0;
     return none();
 }
 REGISTER("TestTickContext", "set_carried_item", TTC_set_carried_item);
@@ -2430,10 +2430,10 @@ static union grug_value TTC_click_screen(ARGS) {
         }
     if (a[3]._number != 0 || !hit) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL_BRANCH: the committed presses are all left clicks on a grid slot
     if (!carried_has && hit->has) {
-        carried_has = true; carried_item = hit->item; carried_count = hit->count;
+        carried_has = true; carried_item = hit->item; carried_count = hit->count; carried_damage = hit->damage;
         slot_clear(hit);
     } else if (carried_has && !hit->has) {
-        hit->has = true; hit->item = carried_item; hit->count = carried_count; hit->damage = 0;
+        hit->has = true; hit->item = carried_item; hit->count = carried_count; hit->damage = carried_damage;
         carried_has = false;
     } else if (carried_has) stubbed = true;  // SMOKETEST_EXCL: a carried stack over a full slot swaps or merges, and no committed test presses one
     if (b->item_inserted) stubbed = true;  // SMOKETEST_EXCL_BRANCH: whether a slot click runs item_inserted is the loader's, and no committed block with a screen declares it
