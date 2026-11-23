@@ -149,6 +149,7 @@ static void runtime_error_callback(void* data, struct grug_runtime_error* error)
 // --- JNI Implementation ---
 JNIEXPORT void JNICALL
 Java_net_grug_minecraft_grug_GrugNative_initGrugAdapter(JNIEnv *env, jclass clazz) {
+    (void)clazz;
     jni_version = (*env)->GetVersion(env);
     (*env)->GetJavaVM(env, &jvm);
 
@@ -167,6 +168,7 @@ Java_net_grug_minecraft_grug_GrugNative_initGrugAdapter(JNIEnv *env, jclass claz
 
 JNIEXPORT jlong JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeInit(JNIEnv *env, jclass clazz, jstring modApiPath, jstring modsDirPath) {
+    (void)clazz;
     const char *c_modApiPath = (*env)->GetStringUTFChars(env, modApiPath, NULL);
     const char *c_modsDirPath = (*env)->GetStringUTFChars(env, modsDirPath, NULL);
 
@@ -211,6 +213,7 @@ Java_net_grug_minecraft_grug_GrugNative_nativeInit(JNIEnv *env, jclass clazz, js
 
 JNIEXPORT jobjectArray JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeCompileAllFiles(JNIEnv *env, jclass clazz, jlong statePtr) {
+    (void)clazz;
     struct grug_files_slice files = grug_compile_all_files((void*)(intptr_t)statePtr, GRUG_COMPILE_SAFE);
     jclass fileInfoClass = (*env)->FindClass(env, "net/grug/minecraft/grug/FileInfo");
     jmethodID constructor = (*env)->GetMethodID(env, fileInfoClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)V");
@@ -248,17 +251,22 @@ extern void grug_deinit_entity(void* state, void* entity_handle);
 
 JNIEXPORT jlong JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeCreateEntity(JNIEnv *env, jclass clazz, jlong statePtr, jlong fileId) {
+    (void)env;
+    (void)clazz;
     return (jlong)(intptr_t)grug_create_entity((void*)(intptr_t)statePtr, (uint64_t)fileId);
 }
 
 JNIEXPORT jlong JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeGetEntityId(JNIEnv *env, jclass clazz, jlong statePtr, jlong entityHandle) {
+    (void)env;
+    (void)clazz;
     struct grug_entity* entity = grug_entity_get_data((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle);
     return entity ? (jlong)entity->id : -1;
 }
 
 JNIEXPORT jlong JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeGetExportFnId(JNIEnv *env, jclass clazz, jlong statePtr, jstring entityType, jstring fnName) {
+    (void)clazz;
     const char *c_entityType = (*env)->GetStringUTFChars(env, entityType, NULL);
     const char *c_fnName = (*env)->GetStringUTFChars(env, fnName, NULL);
 
@@ -271,11 +279,15 @@ Java_net_grug_minecraft_grug_GrugNative_nativeGetExportFnId(JNIEnv *env, jclass 
 
 JNIEXPORT jboolean JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeCallExportFn(JNIEnv *env, jclass clazz, jlong statePtr, jlong entityHandle, jlong exportFnId) {
+    (void)env;
+    (void)clazz;
     return grug_call_export_fn((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle, (uint64_t)exportFnId, NULL, 0) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeCallExportFnWithId(JNIEnv *env, jclass clazz, jlong statePtr, jlong entityHandle, jlong exportFnId, jlong firstArgId) {
+    (void)env;
+    (void)clazz;
     union grug_value args[1];
     args[0]._id = (uint64_t)firstArgId;
     return grug_call_export_fn((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle, (uint64_t)exportFnId, args, 1) ? JNI_TRUE : JNI_FALSE;
@@ -283,6 +295,8 @@ Java_net_grug_minecraft_grug_GrugNative_nativeCallExportFnWithId(JNIEnv *env, jc
 
 JNIEXPORT void JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeDestroyEntity(JNIEnv *env, jclass clazz, jlong statePtr, jlong entityHandle) {
+    (void)env;
+    (void)clazz;
     grug_deinit_entity((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle);
 }
 
@@ -290,6 +304,7 @@ extern struct grug_files_slice grug_update(void* state, struct grug_compile_sett
 
 JNIEXPORT jobjectArray JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeUpdate(JNIEnv *env, jclass clazz, jlong statePtr) {
+    (void)clazz;
     struct grug_files_slice files = grug_update((void*)(intptr_t)statePtr, GRUG_COMPILE_SAFE);
     jclass fileInfoClass = (*env)->FindClass(env, "net/grug/minecraft/grug/FileInfo");
     jmethodID constructor = (*env)->GetMethodID(env, fileInfoClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)V");
@@ -325,6 +340,7 @@ extern struct grug_str_slice grug_get_updated_resources(void* state);
 
 JNIEXPORT jobjectArray JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeGetUpdatedResources(JNIEnv *env, jclass clazz, jlong statePtr) {
+    (void)clazz;
     struct grug_str_slice resources = grug_get_updated_resources((void*)(intptr_t)statePtr);
     jclass stringClass = (*env)->FindClass(env, "java/lang/String");
     jobjectArray array = (*env)->NewObjectArray(env, resources.len, stringClass, NULL);
@@ -341,6 +357,7 @@ extern void grug_set_runtime_error(void* state, const char* message);
 
 JNIEXPORT void JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeHostFunctionErrorHappened(JNIEnv *env, jclass clazz, jlong statePtr, jstring message) {
+    (void)clazz;
     const char *c_message = (*env)->GetStringUTFChars(env, message, NULL);
     
     grug_set_runtime_error((void*)(intptr_t)statePtr, c_message);
