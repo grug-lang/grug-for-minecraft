@@ -192,7 +192,10 @@ CI. Light jobs stay local: Gradle builds,
   for each Ornithe loader whose dedicated leg runs (`layer-selection.py`), since coverage analyses
   that server from the jar (#169). The jar, installed and smoke jobs and two steps of the core tests
   run only on push to `main`, the weekly schedule and `workflow_dispatch`, and the
-  request says nothing about them. A push to `main` runs only the mods its merge touched, on the
+  request says nothing about them. The core tests job runs every `*_test.py` under
+  `.github/scripts`, subdirectories included, so a new test needs no list entry; one that reads an
+  artifact an earlier step of the job builds declares `RUNS_ALONE` with a reason, and that step runs
+  it by name. A push to `main` runs only the mods its merge touched, on the
   loaders those reach, and leaves every other loader's job on `mods/coverage` alone, which is all
   the coverage gate counts (#909), except that a golden or an asset merge runs that mod's tests on
   every loader, `installed` included, which costs a push 21 jobs against the plan's 20; the Monday

@@ -32,6 +32,10 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS.parent.parent
 
+# The core tests job runs this in its own step, which a pull request skips: it drives a real Gradle
+# build, so it belongs to the push that must prove the jar is fine rather than to every review.
+RUNS_ALONE = "push only: it drives a real Gradle build of a miniature repository"
+
 # The paths gradle/grug-core.gradle scopes its dirty status to, parsed out of it so the miniature's
 # idea of a dirty tree is the real build's rather than a copy that can drift away from it. A parse
 # that finds nothing makes every miniature tree dirty, which fails the tests loudly rather than
