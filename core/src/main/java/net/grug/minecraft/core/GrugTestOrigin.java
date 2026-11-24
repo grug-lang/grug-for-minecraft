@@ -34,6 +34,31 @@ public final class GrugTestOrigin {
     public static final double EYE_HEIGHT = 1.62;
 
     /**
+     * The eye height a client's player stands at: the game's own {@code float} 1.62, which is
+     * 1.6200000047683716 as a double. A client keeps its box at {@code eye - this}, so an eye of
+     * exactly 1.62 above the feet puts the box 5e-9 under them.
+     */
+    private static final double CLIENT_EYE_HEIGHT = (double) 1.62F;
+
+    /**
+     * The eye a teleport packet must carry for a client whose feet are to land at {@code feetY}:
+     * the smallest double whose box bottom, {@code eye - 1.62F}, is not below {@code feetY}.
+     *
+     * <p>{@link #EYE_HEIGHT} is the decimal 1.62, and a box bottom 5e-9 under a floor's top is
+     * inside the block for the game's collision, which clips a fall only for a box at or above the
+     * top. A client teleported with the decimal eye therefore fell through the stone it stood on
+     * for the ticks until the server's hold corrected it, and the camera read 0.2336 low between
+     * two teleports (#1688).
+     */
+    public static double clientEye(double feetY) {
+        double eye = feetY + CLIENT_EYE_HEIGHT;
+        while (eye - CLIENT_EYE_HEIGHT < feetY) {
+            eye = Math.nextUp(eye);
+        }
+        return eye;
+    }
+
+    /**
      * The origin from the test player's eye. There is no null case here, because the one caller
      * decides it: {@link ModLoaderAdapter#getTestOrigin()} answers null for a side with no player
      * without asking a loader for an eye it cannot have.

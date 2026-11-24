@@ -454,7 +454,10 @@ public final class GrugServerRun {
      * its feet), so {@code updatePositionAndAngles} is given the feet. The joined client's position
      * is its eye, so the packet carries the eye in {@code minY}, which is the field its handler
      * writes into the client's position, and the feet in {@code y}. That is exactly what this
-     * server's own {@code ServerPlayNetworkHandler.teleport} sends (#1190).
+     * server's own {@code ServerPlayNetworkHandler.teleport} sends (#1190), except that the eye is
+     * {@link GrugTestOrigin#clientEye}: with the decimal 1.62 the client's box lands 5e-9 under the
+     * feet, inside the floor it stands on, and it falls through it until the next correction
+     * (#1688).
      *
      * <p>The packet goes through the client's player-move handler rather than the entity teleport
      * packet, because that is the handler the game itself uses for a server correction: it sets the
@@ -478,7 +481,7 @@ public final class GrugServerRun {
                         connection.send(
                                 new PlayerMovePacket.PositionAndAngles(
                                         x,
-                                        feetY + GrugTestOrigin.EYE_HEIGHT,
+                                        GrugTestOrigin.clientEye(feetY),
                                         feetY,
                                         z,
                                         yaw,
