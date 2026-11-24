@@ -1,0 +1,7 @@
+# GUI.add_fill's pad is a whole number of pixels of the texture, because it is drawn from whole rows:
+# half a row would draw a blurred part of the texture, so it is refused.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the pad has to be a whole number from 0 to the bar's height")
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 176, 0, 14, 14, "up", 2.5)
+}

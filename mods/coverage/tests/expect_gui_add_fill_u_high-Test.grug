@@ -1,0 +1,7 @@
+# GUI.add_fill reads its bar from the GUI's own texture at (u, v), so u is a whole texture pixel: 4096
+# is the last one a 4096 wide texture could have, and one past it is refused.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the u texture coordinate has to be a whole number from 0 to 4096")
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 4097, 0, 14, 14, "up", 2)
+}

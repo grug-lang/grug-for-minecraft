@@ -1,0 +1,7 @@
+# A right bar's pad belongs to its width, not its height, so a pad wider than a 14 pixel region is
+# refused even though the region is 14 rows tall too: the pad is a number of columns for this direction.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the pad has to be a whole number from 0 to the bar's width")
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 176, 0, 14, 14, "right", 15)
+}

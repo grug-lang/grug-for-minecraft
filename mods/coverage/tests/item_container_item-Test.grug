@@ -1,0 +1,13 @@
+# Covers Item.container_item, which a machine that burns an item puts back in the slot it took the item
+# from: a lava bucket leaves an empty bucket, and so do a water bucket and a milk bucket, which are the
+# three the version this port targets gives a container. Every other item leaves nothing, including an
+# empty bucket itself, a tool and an item from a mod namespace.
+export tick(ctx: TestTickContext) {
+    ctx.assert(equals(item(resource_location("minecraft:lava_bucket")).container_item().unwrap(), item(resource_location("minecraft:bucket"))), "A lava bucket should leave an empty bucket.")
+    ctx.assert(equals(item(resource_location("minecraft:water_bucket")).container_item().unwrap(), item(resource_location("minecraft:bucket"))), "A water bucket should leave an empty bucket.")
+    ctx.assert(equals(item(resource_location("minecraft:milk_bucket")).container_item().unwrap(), item(resource_location("minecraft:bucket"))), "A milk bucket should leave an empty bucket.")
+    ctx.assert(not item(resource_location("minecraft:bucket")).container_item().has(), "An empty bucket should leave nothing.")
+    ctx.assert(not item(resource_location("minecraft:diamond_pickaxe")).container_item().has(), "A pickaxe should leave nothing.")
+    ctx.assert(not item(resource_location("minecraft:coal")).container_item().has(), "Coal should leave nothing.")
+    ctx.assert(not item(resource_location("grug:coverage_item")).container_item().has(), "An item from a mod namespace should leave nothing.")
+}

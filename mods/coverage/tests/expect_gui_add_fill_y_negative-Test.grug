@@ -1,0 +1,7 @@
+# GUI.add_fill's y is a pixel of the panel from its top left corner, so a negative y draws above the
+# panel: the range starts at 0, and -1 is refused.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the y position has to be a whole number from 0 to 4096")
+    layout.add_fill("burn_time", "total_burn_time", 80, -1, 176, 0, 14, 14, "up", 2)
+}

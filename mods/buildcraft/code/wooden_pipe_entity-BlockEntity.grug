@@ -37,16 +37,16 @@ z: number = center.z()
 # and 6 for none, and it is saved with the block entity as "source" plus one here, so that a pipe whose
 # number was never saved reads as the reference's fresh metadata of 0. See _meta.
 
-# PipeItemsWood's provider is configured with a maximum of 64 stored and a power loss of 64 on
-# every tick (configure(50, 1, 64, 1, 64) and configurePowerPerdition(64, 1)), so the pipe holds at
-# most 64 and ends every tick empty.
+# PipeItemsWood's provider is configured with a maximum of 64 stored, a delivery of 1 to 64 and a
+# power loss of 64 on every tick (configure(50, 1, 64, 1, 64) and configurePowerPerdition(64, 1)), so
+# the pipe holds at most 64 and ends every tick empty.
 
 # Nothing in BuildCraft 2.2.14 calls PowerFramework.savePowerProvider, so the energy a pipe holds is
 # lost when its chunk unloads. The energy host functions save what a receiver holds, so the pipe
 # reproduces that bug itself by emptying its store whenever its grug entity is created, which is
 # every time its chunk is loaded.
 export init(ctx: BlockEntityInitContext) {
-    ctx.set_power_receiver(64)
+    ctx.set_power_receiver(64, 1, 64)
     me.extract_energy(64)
 }
 

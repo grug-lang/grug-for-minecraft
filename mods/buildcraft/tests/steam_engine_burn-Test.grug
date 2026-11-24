@@ -1,0 +1,113 @@
+# Covers EngineStone.burn after BuildCraft 2.2.14: a burning engine burns one tick off and adds one
+# energy, a burn starts only while a redstone signal reaches the engine and its burn time is 0, and
+# the burn's total is taken from the slot's item every time a burn starts, so a non-fuel item replaces
+# a stale total with 0. A burned item's container item replaces the whole slot, which is the
+# reference's bug: a stack of two lava buckets leaves one empty bucket and destroys the other lava
+# bucket. When a burn's last tick is burned, the next one starts in that same call, because the
+# reference checks the burn time again after taking the tick off. All of it is run by hand with
+# ctx.tick_block_entity, so the game's own tick cannot burn an engine in between.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 10
+    z: number = origin.z()
+
+    coal: Item = item(resource_location("minecraft:coal"))
+    lava: Item = item(resource_location("minecraft:lava_bucket"))
+    bucket: Item = item(resource_location("minecraft:bucket"))
+    stick: Item = item(resource_location("minecraft:stick"))
+    diamond: Item = item(resource_location("minecraft:diamond"))
+
+    # A coal stack of two: the start tick sets both burn times and takes one item without adding
+    # energy, and every tick after it adds one energy.
+    engine: BlockEntity = _place(ctx, level, x, y, z, true)
+    engine.set_item_in_slot(0, coal, 2)
+    ctx.tick_block_entity(engine, 1)
+    ctx.assert(engine.get_saved_number("burn_time") == 1600, "The start tick should set the burn time to coal's 1600.")
+    ctx.assert(engine.get_saved_number("total_burn_time") == 1600, "The start tick should set the total to 1600.")
+    ctx.assert(engine.get_saved_number("energy") == 0, "The start tick should add no energy.")
+    ctx.assert(engine.get_item_count_in_slot(0) == 1, "The start tick should take one item off the stack.")
+
+    ctx.tick_block_entity(engine, 1)
+    ctx.assert(engine.get_saved_number("burn_time") == 1599, "A burning tick should burn one tick off.")
+    ctx.assert(engine.get_saved_number("energy") == 1, "A burning tick should add one energy.")
+    ctx.tick_block_entity(engine, 1)
+    ctx.assert(engine.get_saved_number("burn_time") == 1598, "The second burning tick should burn another tick off.")
+    ctx.assert(engine.get_saved_number("energy") == 2, "The second burning tick should add one more energy.")
+    ctx.assert(engine.get_item_count_in_slot(0) == 1, "A burning tick should take nothing more from the stack.")
+
+    # The burn times and the energy are written to the tile's NBT in 2.2.14, so they survive a save.
+    ctx.round_trip_nbt(engine)
+    ctx.assert(engine.get_saved_number("burn_time") == 1598, "The burn time should survive an NBT round trip.")
+    ctx.assert(engine.get_saved_number("total_burn_time") == 1600, "The total burn time should survive an NBT round trip.")
+    ctx.assert(engine.get_saved_number("energy") == 2, "The energy should survive an NBT round trip.")
+
+    # A stack of two lava buckets leaves the container item, one empty bucket, and the rest of the
+    # stack is destroyed.
+    buckets: BlockEntity = _place(ctx, level, x + 6, y, z, true)
+    buckets.set_item_in_slot(0, lava, 2)
+    ctx.tick_block_entity(buckets, 1)
+    ctx.assert(buckets.get_saved_number("burn_time") == 20000, "A lava bucket should burn for 20000 ticks.")
+    ctx.assert(buckets.get_saved_number("total_burn_time") == 20000, "The total should be the lava bucket's 20000.")
+    ctx.assert(buckets.get_item_count_in_slot(0) == 1, "The slot should be left with the one container item.")
+    left: Option[Item] = buckets.get_item_in_slot(0)
+    ctx.assert(left.has(), "The slot should hold the empty bucket.")
+    if left.has() {
+        ctx.assert(equals(left.unwrap(), bucket), "The lava bucket's container item is an empty bucket, not another lava bucket.")
+    }
+
+    # An item the furnace never burns starts no burn, and its 0 replaces the stale total.
+    non_fuel: BlockEntity = _place(ctx, level, x + 12, y, z, true)
+    non_fuel.set_saved_number("total_burn_time", 1600)
+    non_fuel.set_item_in_slot(0, diamond, 3)
+    ctx.tick_block_entity(non_fuel, 1)
+    ctx.assert(non_fuel.get_saved_number("burn_time") == 0, "A diamond should start no burn.")
+    ctx.assert(non_fuel.get_saved_number("total_burn_time") == 0, "A non-fuel item should replace the stale total with 0.")
+    ctx.assert(non_fuel.get_item_count_in_slot(0) == 3, "A non-fuel item should not be taken from the slot.")
+    ctx.assert(non_fuel.get_saved_number("energy") == 0, "A non-fuel item should add no energy.")
+
+    # The tick that burns the last tick of a burn starts the next burn in the same call.
+    restart: BlockEntity = _place(ctx, level, x + 18, y, z, true)
+    restart.set_saved_number("burn_time", 1)
+    restart.set_saved_number("total_burn_time", 1600)
+    restart.set_item_in_slot(0, stick, 1)
+    ctx.tick_block_entity(restart, 1)
+    ctx.assert(restart.get_saved_number("energy") == 1, "The last burning tick should still add one energy.")
+    ctx.assert(restart.get_saved_number("burn_time") == 100, "The next burn should start in the same call, from the stick's 100.")
+    ctx.assert(restart.get_saved_number("total_burn_time") == 100, "The next burn's total should be the stick's 100.")
+    ctx.assert(restart.get_item_count_in_slot(0) == 0, "Starting a burn should take one stick from the slot.")
+
+    # Without a redstone signal no burn starts, however long the engine is ticked.
+    cold: BlockEntity = _place(ctx, level, x + 24, y, z, false)
+    cold.set_item_in_slot(0, coal, 1)
+    ctx.tick_block_entity(cold, 20)
+    ctx.assert(cold.get_saved_number("burn_time") == 0, "An unpowered engine should not burn.")
+    ctx.assert(cold.get_saved_number("total_burn_time") == 0, "An unpowered engine should not take a total.")
+    ctx.assert(cold.get_item_count_in_slot(0) == 1, "An unpowered engine should keep its fuel.")
+    ctx.assert(cold.get_saved_number("energy") == 0, "An unpowered engine should gain no energy.")
+
+    # EngineStone.delete drops the fuel slot when the engine is broken.
+    broken: BlockEntity = _place(ctx, level, x + 30, y, z, false)
+    broken.set_item_in_slot(0, coal, 3)
+    level.place_block(x + 30, y, z, "minecraft:air")
+    ctx.assert(level.is_air(x + 30, y, z), "The steam engine should be gone when broken.")
+    ctx.assert(level.count_item_entities(x + 30, y, z, 2) == 1, "A broken engine should drop its fuel as one item entity.")
+    found: Option[ItemEntity] = level.find_item_entity(x + 30, y, z, 2)
+    ctx.assert(found.has(), "The dropped fuel should be on the ground.")
+    if found.has() {
+        ctx.assert(found.unwrap().count() == 3, "The dropped fuel should be the whole stack.")
+    }
+}
+
+# Places a stone, a redstone torch on it and a steam engine above it when powered, or the engine alone
+# when not, and answers the engine's block entity after checking the signal.
+local _place(ctx: TestTickContext, level: Level, x: number, y: number, z: number, powered: bool) BlockEntity {
+    if powered {
+        level.place_block(x, y - 2, z, "minecraft:stone")
+        level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+    }
+    level.place_block(x, y, z, "grug:steam_engine")
+    ctx.assert(level.has_neighbor_signal(x, y, z) == powered, "The engine's redstone signal should match what the test set up.")
+    return level.get_block_entity(x, y, z).unwrap()
+}

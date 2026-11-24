@@ -1,0 +1,423 @@
+# BuildCraft 2.2.14's EngineStone, the steam engine's engine: it burns a fuel from the tile's only
+# slot and gives one energy for every tick of the burn, holds up to 10000 energy, and explodes at
+# range 4 when pushed above it. Its texture is base_stone.png, so its base and plate are stone where
+# the redstone engine's are wood. TileEngine.n_ runs its provider's intake first, then Engine.update
+# (which for EngineStone is only the loss of one energy a tick while the engine is unpowered), then
+# the piston stroke, then EngineStone.burn. The energy is a saved number, as the wooden engine's is,
+# and so are the burn times, because the reference writes them to the tile's NBT.
+
+level: Level = me.level()
+pos: BlockPos = me.block_pos()
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+# TileEngine.progressPart: 0 while the piston rests, 1 while it moves out and 2 once it has handed
+# its energy over, until progress passes 1. The reference does not write it to the tile's NBT, so it
+# is a member variable that starts over at 0 whenever the engine's chunk is loaded again, while the
+# saved number "progress" keeps its value, and the next stroke carries on from that.
+progress_part: number = 0
+
+# TileEngine.initialize configures the engine's power provider: it holds at most the engine's
+# maxEnergy, 10000, and takes a delivery of 1 to 200, the steam engine's maxEnergyReceived. Nothing
+# in 2.2.14 calls PowerFramework.savePowerProvider for an engine, so what the provider holds is lost
+# when its chunk unloads, which the energy host functions reproduce by emptying it here.
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_power_receiver(10000, 1, 200)
+    me.extract_energy(10000)
+}
+
+# The engine as RenderEngine draws it, with the stone base texture and the trunk in its stage's
+# colour. The geometry, the slide along the facing and the chamber boxes are the redstone engine's,
+# because RenderEngine draws every engine kind with the same boxes; only the base texture differs,
+# and the trunk's colour follows the engine's own stage thresholds. See redstone_engine_entity for
+# why every part is drawn per frame rather than into the chunk's mesh (#953).
+export render_frame(ctx: RenderFrameContext) {
+    stage: number = _stage(me.get_saved_number("energy"))
+    facing: number = _facing()
+    x_degrees: number = _x_degrees(facing)
+    z_degrees: number = _z_degrees(facing)
+    ctx.draw_model(r"assets/grug/models/block/steam_engine_base.json", x_degrees, 0, z_degrees, 0, 0, 0)
+
+    step: number = _step(me.get_saved_number("progress"))
+    unit: number = step / 16
+    dir_x: number = _dir_x(facing)
+    dir_y: number = _dir_y(facing)
+    dir_z: number = _dir_z(facing)
+
+    ctx.draw_model(r"assets/grug/models/block/steam_engine_plate.json", x_degrees, 0, z_degrees, dir_x * unit, dir_y * unit, dir_z * unit)
+
+    pixels: number = 0
+    while pixels <= step + 2 {
+        offset: number = pixels / 16
+        ctx.draw_model(r"assets/grug/models/block/steam_engine_chamber.json", x_degrees, 0, z_degrees, dir_x * offset, dir_y * offset, dir_z * offset)
+        pixels = pixels + 2
+    }
+
+    if stage == 0 {
+        ctx.draw_model(r"assets/grug/models/block/steam_engine_blue.json", x_degrees, 0, z_degrees, 0, 0, 0)
+    } else if stage == 1 {
+        ctx.draw_model(r"assets/grug/models/block/steam_engine_green.json", x_degrees, 0, z_degrees, 0, 0, 0)
+    } else if stage == 2 {
+        ctx.draw_model(r"assets/grug/models/block/steam_engine_yellow.json", x_degrees, 0, z_degrees, 0, 0, 0)
+    } else {
+        ctx.draw_model(r"assets/grug/models/block/steam_engine_red.json", x_degrees, 0, z_degrees, 0, 0, 0)
+    }
+}
+
+export tick() {
+    # BlockEngine.c picks the facing when the engine is placed. The port does it on the first tick
+    # instead, because the moment a block entity is created differs by loader (#187), so this is the
+    # one hook that is the same everywhere. The block sets "rotate" when a player right-clicks it with
+    # the wrench, which BlockEngine.b answers with the same search.
+    if me.get_saved_number("oriented") == 0 {
+        me.set_saved_number("orientation", 1)
+        me.set_saved_number("oriented", 1)
+        _switch_orientation()
+    }
+    if me.get_saved_number("rotate") == 1 {
+        me.set_saved_number("rotate", 0)
+        _switch_orientation()
+    }
+
+    # TileBuildCraft.n_ updates the power provider before Engine.update, which hands the engine what
+    # the provider holds, cut to 95% as a float and truncated: one unit of energy adds 0, and two that
+    # arrive before this tick add 1.
+    if me.get_energy_stored() >= 1 {
+        _add_energy(Math.floor(me.extract_energy(200) * 0.95))
+
+        # The explosion can have destroyed this engine, and then there is nothing left to tick.
+        if not _exists() {
+            return
+        }
+    }
+
+    stored: number = me.get_saved_number("energy")
+    energy: number = stored
+
+    # Engine.update, which EngineStone does not override: a stone engine gains nothing from a
+    # redstone signal, so it only loses one energy a tick while none reaches it, down to 1.
+    if not level.has_neighbor_signal(x, y, z) and energy > 1 {
+        energy = energy - 1
+    }
+
+    if energy != stored {
+        me.set_saved_number("energy", energy)
+    }
+
+    _stroke()
+    _burn()
+}
+
+# RenderEngine's step for a progress: the plate goes out and back in once per stroke, by up to 7.99
+# pixels, so it is at its farthest at a progress of 0.5.
+local _step(progress: number) number {
+    if progress > 0.5 {
+        return 7.99 - (progress - 0.5) * 2 * 7.99
+    }
+    return progress * 2 * 7.99
+}
+
+# Engine.addEnergy. The reference adds the energy, explodes with explosionRange(), 4 for the steam
+# engine, when that leaves it above maxEnergy, and then cuts it to maxEnergy. The explosion is at the
+# block's corner, where the reference passes the tile's integer coordinates, and not at its centre.
+local _add_energy(addition: number) {
+    energy: number = me.get_saved_number("energy") + addition
+    if energy > 10000 {
+        level.explode(x - 0.5, y - 0.5, z - 0.5, 4)
+        energy = 10000
+
+        # An engine the explosion destroyed has no energy left to cut.
+        if not _exists() {
+            return
+        }
+    }
+    me.set_saved_number("energy", energy)
+}
+
+# Whether this engine's block is still in the world.
+local _exists() bool {
+    return level.get_block(x, y, z) == "grug:steam_engine"
+}
+
+# The rest of TileEngine.n_ on the server, after Engine.update: the piston moves by the speed of
+# the current stage, hands one stroke's energy to the receptor it faces once it is past halfway, and
+# comes to rest again at 1. A resting piston starts a stroke when the engine has a redstone signal
+# and the receptor would take energy.
+local _stroke() {
+    energy: number = me.get_saved_number("energy")
+
+    if progress_part != 0 {
+        progress: number = me.get_saved_number("progress") + _piston_speed(energy)
+        me.set_saved_number("progress", progress)
+
+        if progress > 0.5 and progress_part == 1 {
+            progress_part = 2
+            receptor: Option[BlockEntity] = _receptor()
+            if receptor.has() {
+                extracted: number = _extract_energy(receptor.unwrap(), true)
+                if extracted > 0 {
+                    _hand_energy(receptor.unwrap(), extracted)
+                }
+            }
+        } else if progress >= 1 {
+            me.set_saved_number("progress", 0)
+            progress_part = 0
+        }
+    } else if level.has_neighbor_signal(x, y, z) {
+        receptor: Option[BlockEntity] = _receptor()
+        if receptor.has() and _extract_energy(receptor.unwrap(), false) > 0 {
+            progress_part = 1
+        }
+    }
+}
+
+# EngineStone.burn, in TileEngine.n_'s order after the stroke. A burning engine burns one tick off
+# and adds one energy; once its burn time reaches 0 and a redstone signal reaches it, it starts a new
+# burn from whatever the slot holds and takes one item of it. The reference sets both burn times from
+# the slot's item even when that item is no fuel, so a stale total is replaced by 0, and it starts no
+# burn from an empty slot. A burned item's container item replaces the whole slot, which is the
+# reference's bug: the rest of the stack is destroyed rather than kept.
+local _burn() {
+    burn_time: number = me.get_saved_number("burn_time")
+
+    if burn_time > 0 {
+        burn_time = burn_time - 1
+        me.set_saved_number("burn_time", burn_time)
+
+        _add_energy(1)
+        if not _exists() {
+            return
+        }
+    }
+
+    if burn_time == 0 and level.has_neighbor_signal(x, y, z) {
+        fuel_burn: number = 0
+        fuel: Option[Item] = me.get_item_in_slot(0)
+        if fuel.has() {
+            fuel_burn = fuel.unwrap().burn_time()
+        }
+
+        if fuel_burn != me.get_saved_number("total_burn_time") {
+            me.set_saved_number("total_burn_time", fuel_burn)
+        }
+
+        if fuel_burn > 0 {
+            me.set_saved_number("burn_time", fuel_burn)
+            me.take_item_from_slot(0, 1)
+
+            container: Option[Item] = fuel.unwrap().container_item()
+            if container.has() {
+                me.set_item_in_slot(0, container.unwrap(), 1)
+            }
+        }
+    }
+}
+
+# Engine.extractEnergy with the receptor's own minimum and maximum received, clamped to the steam
+# engine's maxEnergyExtracted of 100: nothing leaves the engine while it holds less than the minimum
+# its neighbour wants, and one stroke takes at most 100 whatever the neighbour would accept. Only a
+# real extraction takes the energy off the engine.
+local _extract_energy(receptor: BlockEntity, do_extract: bool) number {
+    energy: number = me.get_saved_number("energy")
+    if energy < receptor.get_min_received_energy() {
+        return 0
+    }
+    extracted: number = receptor.get_max_received_energy()
+    if extracted > 100 {
+        extracted = 100
+    }
+    if energy < extracted {
+        extracted = energy
+    }
+    if do_extract and extracted > 0 {
+        me.set_saved_number("energy", energy - extracted)
+    }
+    return extracted
+}
+
+# Engine.getPistonSpeed per stage: 0.02, 0.04, 0.08 and 0.16, and 0 for the Explosion stage, which is
+# everything above maxEnergy. Engine.addEnergy cuts the energy back to maxEnergy after exploding, so
+# only an energy the explosion itself left behind can be there. The reference's progress is a Java
+# float and grug numbers are doubles; the maintainer allowed adding in doubles, which only moves a
+# stroke's delivery and reset by a tick (#406).
+local _piston_speed(energy: number) number {
+    if energy > 10000 {
+        return 0
+    }
+    stage: number = _stage(energy)
+    if stage == 0 {
+        return 0.02
+    }
+    if stage == 1 {
+        return 0.04
+    }
+    if stage == 2 {
+        return 0.08
+    }
+    return 0.16
+}
+
+# The block in front of the engine, when it is a power receiver. TileEngine.isPoweredTile.
+local _receptor() Option[BlockEntity] {
+    side: number = _facing()
+    receptor_opt: Option[BlockEntity] = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))
+    if not receptor_opt.has() {
+        return receptor_opt
+    }
+    if not receptor_opt.unwrap().is_power_receiver() {
+        return Option.new()
+    }
+    return receptor_opt
+}
+
+# PowerProvider.receiveEnergy on the receptor in front of the engine, which _receptor found.
+local _hand_energy(receptor: BlockEntity, amount: number) {
+    receptor.receive_energy(amount)
+}
+
+# Engine.computeEnergyStage for EngineStone's maxEnergy of 10000: 0 is blue up to 25% of it, 1 green
+# up to 50%, 2 yellow up to 75% and 3 red above that. The reference calls anything above 100%
+# Explosion, and RenderEngine draws that with the red trunk too.
+local _stage(energy: number) number {
+    if energy <= 2500 {
+        return 0
+    }
+    if energy <= 5000 {
+        return 1
+    }
+    if energy <= 7500 {
+        return 2
+    }
+    return 3
+}
+
+# TileEngine.switchOrientation. The search starts after the current orientation, wraps round and
+# stops at the first side with a power receptor next to it, so the current side is the last one tried.
+# With no receptor the orientation stays as it was.
+local _switch_orientation() {
+    start: number = me.get_saved_number("orientation")
+    i: number = start + 1
+    while i <= start + 6 {
+        side: number = Math.remainder(i, 6)
+        if _is_powered_tile(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) {
+            me.set_saved_number("orientation", side)
+
+            # It was drawn along the old orientation until now, so only another one needs drawing again.
+            return
+        }
+        i = i + 1
+    }
+}
+
+# TileEngine.isPoweredTile: an IPowerReceptor with a pneumatic provider, which every ported receptor
+# is, so the question is the receiver declaration itself rather than a list of the blocks ported so
+# far. A block with no grug block entity, a vanilla chest included, never declared itself one.
+local _is_powered_tile(nx: number, ny: number, nz: number) bool {
+    receptor: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not receptor.has() {
+        return false
+    }
+    return receptor.unwrap().is_power_receiver()
+}
+
+local _neighbor_x(side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
+}
+
+# Until the engine has picked its facing on its first tick it faces up, as the reference's
+# orientation starts out.
+local _facing() number {
+    if me.get_saved_number("oriented") == 0 {
+        return 1
+    }
+    return me.get_saved_number("orientation")
+}
+
+# RenderEngine's angle about x for each orientation, as the clockwise degrees draw_model takes. The
+# reference turns counter-clockwise, so its PI/2 for ZPos is 270 here and its -PI/2 for ZNeg is 90.
+local _x_degrees(facing: number) number {
+    if facing == 2 {
+        return 90
+    }
+    if facing == 3 {
+        return 270
+    }
+    return 0
+}
+
+# RenderEngine's angle about z for each orientation: PI for YNeg, -PI/2 for XPos and PI/2 for XNeg,
+# in clockwise degrees. It turns about z rather than y for the sides, which keeps the engine's north
+# face facing north.
+local _z_degrees(facing: number) number {
+    if facing == 0 {
+        return 180
+    }
+    if facing == 4 {
+        return 270
+    }
+    if facing == 5 {
+        return 90
+    }
+    return 0
+}
+
+# The direction each orientation slides the plate in, as RenderEngine's translate array: -1 along y
+# for YNeg, +1 for YPos, -1 and +1 along z for ZNeg and ZPos, and -1 and +1 along x for XNeg and
+# XPos. The reference translates in the world's axes, after the turn.
+local _dir_x(facing: number) number {
+    if facing == 4 {
+        return -1
+    }
+    if facing == 5 {
+        return 1
+    }
+    return 0
+}
+
+local _dir_y(facing: number) number {
+    if facing == 0 {
+        return -1
+    }
+    if facing == 1 {
+        return 1
+    }
+    return 0
+}
+
+local _dir_z(facing: number) number {
+    if facing == 2 {
+        return -1
+    }
+    if facing == 3 {
+        return 1
+    }
+    return 0
+}

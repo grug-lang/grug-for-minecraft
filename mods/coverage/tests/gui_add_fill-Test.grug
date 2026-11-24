@@ -1,0 +1,12 @@
+# Covers GUI.add_fill, the one record of a layout that can move while the screen is open: it reads two
+# saved numbers of the block entity on every frame, so a machine's gauge follows the machine. Nothing
+# here draws the bar, so the test covers the values it accepts: an up bar and a right one, both ends of
+# the position and texture coordinate ranges, a width and height of 1 and of 4096, and a pad of 0 and of
+# the whole region. What the bar reads is covered by buildcraft's steam_engine_burn-Test, whose gauge
+# follows burn_time and total_burn_time.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 176, 0, 14, 14, "up", 2)
+    layout.add_fill("burn_time", "total_burn_time", 0, 4096, 4096, 0, 1, 1, "right", 1)
+    layout.add_fill("burn_time", "total_burn_time", 4096, 0, 0, 4096, 4096, 4096, "up", 0)
+}

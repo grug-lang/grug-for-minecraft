@@ -1,0 +1,6 @@
+{
+	"parent": "grug:block/steam_engine_trunk",
+	"textures": {
+		"trunk": "grug:block/steam_engine_trunk_blue"
+	}
+}

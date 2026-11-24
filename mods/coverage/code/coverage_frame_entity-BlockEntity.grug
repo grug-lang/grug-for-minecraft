@@ -29,7 +29,7 @@ has_list_item: bool = false
 # The list and energy tests save through the packet and the frame pass reads them, so this block
 # has to be a receiver. The number test does not need it, and the golden has an empty store.
 export init(ctx: BlockEntityInitContext) {
-    ctx.set_power_receiver(100)
+    ctx.set_power_receiver(100, 1, 100)
 }
 
 export render_frame(ctx: RenderFrameContext) {

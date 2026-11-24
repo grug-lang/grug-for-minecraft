@@ -1,0 +1,131 @@
+# Covers the steam engine's piston stroke, as TileEngine.n_ runs it in BuildCraft 2.2.14. A powered
+# engine with energy starts a stroke on one tick (which adds nothing to progress), adds the stage's
+# piston speed to progress on every tick after it, hands its receptor energy once progress passes 0.5,
+# and rests again when progress passes 1, after which the next stroke starts on the very next tick. The
+# speeds are 0.02 for Blue, 0.04 for Green, 0.08 for Yellow and 0.16 for Red, so a stroke delivers on
+# the 26th, 14th, 8th and 5th tick and rests on the 51st, 26th, 14th and 8th, counting the start tick as
+# the first. Progress is added in doubles here, where the reference adds floats (#406).
+
+# What a stroke hands over is Engine.extractEnergy with the receptor's own minEnergyReceived and
+# maxEnergyReceived, clamped to the steam engine's maxEnergyExtracted of 100: a wooden pipe takes its
+# 64, a second steam engine takes the engine's 100, and a quarry that wants 25 at a time gets nothing
+# while the engine holds less than that. Only the engines are ticked, with ctx.tick_block_entity, so
+# the game's own tick cannot run the receptor and take what it received.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 10
+    z: number = origin.z()
+
+    _stroke(ctx, level, x, y, z, 1000, 26, 51)
+    _stroke(ctx, level, x + 6, y, z, 3500, 14, 26)
+    _stroke(ctx, level, x + 12, y, z, 6000, 8, 14)
+    _stroke(ctx, level, x + 18, y, z, 9000, 5, 8)
+
+    # An engine holding less than its receptor's minimum starts no stroke at all.
+    empty: BlockEntity = _place(ctx, level, x + 24, y, z)
+    pipe: BlockEntity = level.get_block_entity(x + 24, y + 1, z).unwrap()
+    empty.set_saved_number("energy", 0)
+    ctx.tick_block_entity(empty, 40)
+    ctx.assert(empty.get_saved_number("progress") == 0, "An engine with no energy should not move its piston.")
+    ctx.assert(pipe.get_energy_stored() == 0, "An engine with no energy should hand the pipe nothing.")
+
+    # A second steam engine wants a delivery of 1 to 200, so the stroke takes the source's own maximum
+    # extracted of 100.
+    _power(ctx, level, x + 30, y, z)
+    level.place_block(x + 30, y, z - 1, "grug:steam_engine")
+    level.place_block(x + 30, y, z, "grug:steam_engine")
+    source: BlockEntity = level.get_block_entity(x + 30, y, z).unwrap()
+    receptor: BlockEntity = level.get_block_entity(x + 30, y, z - 1).unwrap()
+    source.set_saved_number("energy", 1000)
+    ctx.tick_block_entity(source, 26)
+    ctx.assert(receptor.get_energy_stored() == 100, "A stroke should take the steam engine's maximum of 100.")
+    ctx.assert(source.get_saved_number("energy") == 900, "The source should have lost the 100 it handed over.")
+
+    # A quarry wants 25 at a time and holds 7000, so one stroke takes 25, and an engine holding 10
+    # starts no stroke even though the quarry is a receptor.
+    _power(ctx, level, x + 36, y, z)
+    level.place_block(x + 36, y, z - 1, "grug:quarry")
+    level.place_block(x + 36, y, z, "grug:steam_engine")
+    small: BlockEntity = level.get_block_entity(x + 36, y, z).unwrap()
+    quarry: BlockEntity = level.get_block_entity(x + 36, y, z - 1).unwrap()
+    small.set_saved_number("energy", 10)
+    ctx.tick_block_entity(small, 60)
+    ctx.assert(small.get_saved_number("progress") == 0, "An engine holding less than the quarry's minimum should not move.")
+    ctx.assert(quarry.get_energy_stored() == 0, "The quarry should not receive a stroke the engine did not start.")
+
+    small.set_saved_number("energy", 40)
+    ctx.tick_block_entity(small, 1)
+    ctx.tick_block_entity(small, 24)
+    ctx.assert(quarry.get_energy_stored() == 0, "The stroke should not deliver before progress passes 0.5.")
+    ctx.tick_block_entity(small, 1)
+    ctx.assert(quarry.get_energy_stored() == 25, "The quarry should receive the 25 it asks for.")
+    ctx.assert(small.get_saved_number("energy") == 15, "The engine should have lost the 25 it handed over.")
+}
+
+# Runs two strokes of an engine holding the given energy, with delivery_tick and rest_tick as the tick
+# numbers described above. The engine faces the wooden pipe above it, which takes 64 energy a stroke.
+local _stroke(ctx: TestTickContext, level: Level, x: number, y: number, z: number, energy: number, delivery_tick: number, rest_tick: number) {
+    engine: BlockEntity = _place(ctx, level, x, y, z)
+    pipe: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
+    engine.set_saved_number("energy", energy)
+
+    # The start tick.
+    expected: number = energy
+    _tick(ctx, engine, 1)
+    ctx.assert(engine.get_saved_number("progress") == 0, "The start tick should add nothing to progress.")
+    ctx.assert(engine.get_saved_number("energy") == expected, "Starting a stroke should not take energy.")
+
+    _tick(ctx, engine, delivery_tick - 2)
+    ctx.assert(pipe.get_energy_stored() == 0, "The pipe should have nothing the tick before the delivery.")
+    ctx.assert(engine.get_saved_number("energy") == expected, "The engine should still hold all its energy the tick before the delivery.")
+    ctx.assert(engine.get_saved_number("progress") > 0, "The piston should be moving.")
+
+    _tick(ctx, engine, 1)
+    expected = expected - 64
+    ctx.assert(pipe.get_energy_stored() == 64, "The pipe should hold 64 energy after the delivery tick.")
+    ctx.assert(engine.get_saved_number("energy") == expected, "The engine should have lost exactly 64 energy at the delivery.")
+
+    _tick(ctx, engine, rest_tick - delivery_tick - 1)
+    ctx.assert(engine.get_saved_number("progress") > 0.9, "Progress should be nearly 1 the tick before the piston rests.")
+
+    _tick(ctx, engine, 1)
+    ctx.assert(engine.get_saved_number("progress") == 0, "Progress should be 0 on the tick the piston rests.")
+    ctx.assert(pipe.get_energy_stored() == 64, "The pipe should still hold 64 energy, as only one stroke has delivered.")
+
+    # The second stroke starts on the tick after the rest tick: it adds nothing there, and adds the
+    # speed on the tick after that.
+    _tick(ctx, engine, 1)
+    ctx.assert(engine.get_saved_number("progress") == 0, "The second stroke's start tick should add nothing to progress.")
+    _tick(ctx, engine, 1)
+    ctx.assert(engine.get_saved_number("progress") > 0, "The second stroke should be moving the tick after it started.")
+
+    _tick(ctx, engine, delivery_tick - 2)
+    # The pipe's store holds at most 64, and the game's own tick, which would empty it, is not run
+    # here, so the second stroke's 64 do not fit and are lost, as PowerProvider.receiveEnergy stores
+    # only what fits.
+    ctx.assert(pipe.get_energy_stored() == 64, "The full pipe should lose the second stroke's energy.")
+    ctx.assert(engine.get_saved_number("energy") == expected - 64, "The engine should have lost 64 more energy.")
+}
+
+local _tick(ctx: TestTickContext, engine: BlockEntity, ticks: number) {
+    ctx.tick_block_entity(engine, ticks)
+}
+
+# Puts the stone and torch under a block, which is what powers an engine on every loader.
+local _power(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    level.place_block(x, y - 2, z, "minecraft:stone")
+    level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+    ctx.assert(level.has_neighbor_signal(x, y, z), "The torch under the engine should power it.")
+}
+
+# Places a powered engine with a wooden pipe above it, which is the receptor it faces.
+local _place(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    _power(ctx, level, x, y, z)
+    level.place_block(x, y + 1, z, "grug:wooden_pipe")
+    level.place_block(x, y, z, "grug:steam_engine")
+    pipe: Option[BlockEntity] = level.get_block_entity(x, y + 1, z)
+    ctx.assert(pipe.has(), "The wooden pipe should have a block entity.")
+    return level.get_block_entity(x, y, z).unwrap()
+}

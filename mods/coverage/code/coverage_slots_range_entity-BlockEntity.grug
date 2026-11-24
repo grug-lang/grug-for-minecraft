@@ -11,17 +11,17 @@ export init(ctx: BlockEntityInitContext) {
     ctx.set_insertable_slots(3, 4)
     ctx.set_extractable_slots(3, 4)
 
-    ctx.set_power_receiver(10)
+    ctx.set_power_receiver(10, 1, 10)
     me.receive_energy(8)
 
-    ctx.set_power_receiver(10)
+    ctx.set_power_receiver(10, 1, 10)
     me.set_saved_number("same_limit", me.get_energy_stored())
 
-    ctx.set_power_receiver(5)
+    ctx.set_power_receiver(5, 1, 5)
     me.set_saved_number("lower_limit", me.get_energy_stored())
     me.set_saved_number("received_when_full", me.receive_energy(100))
 
-    ctx.set_power_receiver(20)
+    ctx.set_power_receiver(20, 1, 20)
     me.set_saved_number("received_after_raise", me.receive_energy(100))
     me.set_saved_number("stored_after_raise", me.get_energy_stored())
 }

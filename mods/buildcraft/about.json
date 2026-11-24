@@ -123,6 +123,11 @@
 					"what": "The quarry clears a flowing liquid inside its box, and puts a frame over flowing lava, where 2.2.14's builder leaves flowing lava alone and does not clear flowing water.",
 					"why": "Level.get_block names a flowing liquid minecraft:unknown on 1.2.5, so flowing water, flowing lava and every other unnamed block are the same to the builder.",
 					"tracking_issue": 1626
+				},
+				{
+					"what": "Pipes connect to every side of an engine, where 2.2.14's BlockEngine.isPipeConnected refuses every side of a redstone engine and the faced, output side of a steam engine, so the arm is drawn where the reference draws none and a wooden pipe whose extraction side faces an engine can pull the engine's fuel out.",
+					"why": "The connection question is a per-side answer a block entity would have to give, and the host API has no such veto: the pipes ask Level.is_inventory instead, and adding the veto touches every pipe's connection test, arm model and renderer.",
+					"tracking_issue": 1745
 				}
 			]
 		}

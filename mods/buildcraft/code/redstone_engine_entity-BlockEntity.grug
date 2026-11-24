@@ -19,12 +19,13 @@ z: number = center.z()
 progress_part: number = 0
 
 # TileEngine.initialize configures the engine's power provider: it holds at most the engine's
-# maxEnergy, 1000. Nothing in 2.2.14 calls PowerFramework.savePowerProvider for an engine, so what
-# the provider holds is lost when its chunk unloads. The energy host functions save what a receiver
-# holds, so the engine reproduces that by emptying its store whenever its grug entity is created,
-# which is every time its chunk is loaded, as the wooden pipe does.
+# maxEnergy, 1000, and takes a delivery of 1 to 50, the wood engine's maxEnergyReceived. Nothing in
+# 2.2.14 calls PowerFramework.savePowerProvider for an engine, so what the provider holds is lost
+# when its chunk unloads. The energy host functions save what a receiver holds, so the engine
+# reproduces that by emptying its store whenever its grug entity is created, which is every time its
+# chunk is loaded, as the wooden pipe does.
 export init(ctx: BlockEntityInitContext) {
-    ctx.set_power_receiver(1000)
+    ctx.set_power_receiver(1000, 1, 50)
     me.extract_energy(1000)
 }
 
@@ -182,10 +183,11 @@ local _stroke() {
 
         if progress > 0.5 and progress_part == 1 {
             progress_part = 2
-            if _faces_receptor() {
-                extracted: number = _extract_energy(true)
+            receptor: Option[BlockEntity] = _receptor()
+            if receptor.has() {
+                extracted: number = _extract_energy(receptor.unwrap(), true)
                 if extracted > 0 {
-                    _hand_energy(extracted)
+                    _hand_energy(receptor.unwrap(), extracted)
                 }
             }
         } else if progress >= 1 {
@@ -193,24 +195,33 @@ local _stroke() {
             progress_part = 0
         }
     } else if level.has_neighbor_signal(x, y, z) {
-        if _faces_receptor() and _extract_energy(false) > 0 {
+        receptor: Option[BlockEntity] = _receptor()
+        if receptor.has() and _extract_energy(receptor.unwrap(), false) > 0 {
             progress_part = 1
         }
     }
 }
 
-# Engine.extractEnergy with a receptor minimum of 1 and a maximum of 1, the wood engine's
-# maxEnergyExtracted. The receptor's own minimum and maximum are not exposed to grug, because no
-# ported receptor has a minimum above 1. Only a real extraction takes the energy off the engine.
-local _extract_energy(do_extract: bool) number {
+# Engine.extractEnergy with the receptor's own minimum and maximum received, clamped to the wood
+# engine's maxEnergyExtracted of 1: nothing leaves the engine while it holds less than the minimum
+# its neighbour wants, and one stroke takes one whatever the neighbour would accept. Only a real
+# extraction takes the energy off the engine.
+local _extract_energy(receptor: BlockEntity, do_extract: bool) number {
     energy: number = me.get_saved_number("energy")
-    if energy < 1 {
+    if energy < receptor.get_min_received_energy() {
         return 0
     }
-    if do_extract {
-        me.set_saved_number("energy", energy - 1)
+    extracted: number = receptor.get_max_received_energy()
+    if extracted > 1 {
+        extracted = 1
     }
-    return 1
+    if energy < extracted {
+        extracted = energy
+    }
+    if do_extract and extracted > 0 {
+        me.set_saved_number("energy", energy - extracted)
+    }
+    return extracted
 }
 
 # Engine.getPistonSpeed per stage: 0.01, 0.02, 0.04 and 0.08, and 0 for the Explosion stage, which is
@@ -235,20 +246,20 @@ local _piston_speed(energy: number) number {
 }
 
 # The block in front of the engine, when it is a power receiver. TileEngine.isPoweredTile.
-local _faces_receptor() bool {
+local _receptor() Option[BlockEntity] {
     side: number = _facing()
-    receptor: Option[BlockEntity] = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))
-    if not receptor.has() {
-        return false
+    receptor_opt: Option[BlockEntity] = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))
+    if not receptor_opt.has() {
+        return receptor_opt
     }
-    return receptor.unwrap().is_power_receiver()
+    if not receptor_opt.unwrap().is_power_receiver() {
+        return Option.new()
+    }
+    return receptor_opt
 }
 
-# PowerProvider.receiveEnergy on the receptor in front of the engine. Only called after
-# _faces_receptor.
-local _hand_energy(amount: number) {
-    side: number = _facing()
-    receptor: BlockEntity = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)).unwrap()
+# PowerProvider.receiveEnergy on the receptor in front of the engine, which _receptor found.
+local _hand_energy(receptor: BlockEntity, amount: number) {
     receptor.receive_energy(amount)
 }
 
@@ -286,10 +297,15 @@ local _switch_orientation() {
     }
 }
 
-# TileEngine.isPoweredTile: an IPowerReceptor, which here is a wooden pipe or another engine.
+# TileEngine.isPoweredTile: an IPowerReceptor with a pneumatic provider, which every ported receptor
+# is, so the question is the receiver declaration itself rather than a list of the blocks ported so
+# far. A block with no grug block entity, a vanilla chest included, never declared itself one.
 local _is_powered_tile(nx: number, ny: number, nz: number) bool {
-    block: string = level.get_block(nx, ny, nz)
-    return block == "grug:wooden_pipe" or block == "grug:redstone_engine"
+    receptor: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not receptor.has() {
+        return false
+    }
+    return receptor.unwrap().is_power_receiver()
 }
 
 local _neighbor_x(side: number) number {

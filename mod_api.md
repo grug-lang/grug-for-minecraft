@@ -37,6 +37,8 @@ export tick()
 .get_item_count_in_slot(slot: number) number
 .get_item_damage_in_slot(slot: number) number
 .get_item_in_slot(slot: number) Option[Item]
+.get_max_received_energy() number
+.get_min_received_energy() number
 .get_saved_list_item(name: string, index: number) Option[Item]
 .get_saved_list_number(name: string, index: number, key: string) number
 .get_saved_list_size(name: string) number
@@ -61,6 +63,8 @@ export tick()
 
 ## Item
 export init()
+.burn_time() number
+.container_item() Option[Item]
 .max_damage() number
 
 ## Overlay
@@ -92,7 +96,7 @@ export tick(ctx: TestTickContext)
 ## BlockEntityInitContext
 .set_extractable_slots(first: number, last: number)
 .set_insertable_slots(first: number, last: number)
-.set_power_receiver(max_stored: number)
+.set_power_receiver(max_stored: number, min_received: number, max_received: number)
 
 ## BlockInitContext
 .set_block_entity(entity_string: entity)
@@ -135,6 +139,7 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 ## GUI
 .add_crafting_grid(start_slot: number, x: number, y: number)
 .add_crafting_result(x: number, y: number)
+.add_fill(value: string, max: string, x: number, y: number, u: number, v: number, width: number, height: number, direction: string, pad: number)
 .add_player_inventory(main_x: number, main_y: number, hotbar_x: number, hotbar_y: number)
 .add_slot(slot: number, x: number, y: number)
 .add_text(text: string, x: number, y: number, color: Color)

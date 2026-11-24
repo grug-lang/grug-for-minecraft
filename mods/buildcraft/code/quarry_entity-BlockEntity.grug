@@ -28,10 +28,11 @@ found_y: number = 0
 found_z: number = 0
 found_frame: bool = false
 
-# The provider the constructor configures holds at most 7000, and the reference saves it with the
-# tile, which the energy host functions do too.
+# The provider the constructor configures holds at most 7000 and takes a delivery of 25, and the
+# reference saves it with the tile, which the energy host functions do too. A digging quarry
+# reconfigures itself to take 30 to 200 at a time, which comes with the mining of #1543.
 export init(ctx: BlockEntityInitContext) {
-    ctx.set_power_receiver(7000)
+    ctx.set_power_receiver(7000, 25, 25)
 }
 
 # BlockQuarry.a(side, meta): the front on the side the metadata names, the top texture on the top and

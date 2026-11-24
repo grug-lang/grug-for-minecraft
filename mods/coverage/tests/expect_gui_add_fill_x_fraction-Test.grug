@@ -1,0 +1,7 @@
+# GUI.add_fill places the bar at a whole GUI pixel, because it is drawn at a whole texture coordinate:
+# a fractional x addresses no pixel of the panel.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the x position has to be a whole number from 0 to 4096")
+    layout.add_fill("burn_time", "total_burn_time", 80.5, 24, 176, 0, 14, 14, "up", 2)
+}

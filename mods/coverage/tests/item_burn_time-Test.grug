@@ -1,0 +1,17 @@
+# Covers Item.burn_time, which the steam engine asks to tell a fuel from an item that would only sit in
+# its slot and to know how long the burn it starts lasts. A wooden block answers 300, a stick and a
+# sapling 100, coal 1600, a lava bucket 20000 and a blaze rod 2400, which are the same on every loader
+# this test runs on. Everything else answers 0: a stone block, an item the furnace never burns, and an
+# item from a mod namespace, which only BuildCraft's own fuel table could give a value to.
+export tick(ctx: TestTickContext) {
+    ctx.assert(item(resource_location("minecraft:oak_planks")).burn_time() == 300, "Planks should burn for 300 ticks.")
+    ctx.assert(item(resource_location("minecraft:oak_log")).burn_time() == 300, "A log should burn for 300 ticks.")
+    ctx.assert(item(resource_location("minecraft:stick")).burn_time() == 100, "A stick should burn for 100 ticks.")
+    ctx.assert(item(resource_location("minecraft:oak_sapling")).burn_time() == 100, "A sapling should burn for 100 ticks.")
+    ctx.assert(item(resource_location("minecraft:coal")).burn_time() == 1600, "Coal should burn for 1600 ticks.")
+    ctx.assert(item(resource_location("minecraft:blaze_rod")).burn_time() == 2400, "A blaze rod should burn for 2400 ticks.")
+    ctx.assert(item(resource_location("minecraft:lava_bucket")).burn_time() == 20000, "A lava bucket should burn for 20000 ticks.")
+    ctx.assert(item(resource_location("minecraft:cobblestone")).burn_time() == 0, "A stone block should not burn.")
+    ctx.assert(item(resource_location("minecraft:diamond")).burn_time() == 0, "A diamond should not burn.")
+    ctx.assert(item(resource_location("grug:coverage_item")).burn_time() == 0, "An item from a mod namespace should not burn.")
+}

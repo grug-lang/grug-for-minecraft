@@ -1,0 +1,97 @@
+# Covers the steam engine's energy after BuildCraft 2.2.14's EngineStone: it holds at most 10000, and
+# its trunk is blue up to 25% of that, green up to 50%, yellow up to 75% and red above 75%.
+# Engine.update loses one energy a tick while no redstone signal reaches it, down to 1, and
+# EngineStone overrides neither update nor EngineWood's gain, so a signal keeps the energy but never
+# adds to it. The thresholds are checked by setting the energy just below and at each boundary, so
+# they need no ticks, and the drain is run by hand with ctx.tick_block_entity.
+engine: Option[BlockEntity] = Option.new()
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 10
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:steam_engine")
+    engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(engine_opt.has(), "The steam engine should have a block entity.")
+    engine.set(engine_opt.unwrap())
+
+    # The first tick sets the orientation and leaves the energy alone.
+    ctx.tick_block_entity(engine.unwrap(), 1)
+    ctx.assert(_energy() == 0, "A new engine should have no energy.")
+
+    _check_thresholds(ctx)
+
+    # The energy is saved data, so it has to survive the block entity being saved and loaded again.
+    _set_energy(7501)
+    ctx.round_trip_nbt(engine.unwrap())
+    ctx.assert(_energy() == 7501, "The engine's energy should survive an NBT round trip.")
+
+    # Engine.update, with no signal: one energy lost a tick, and the last one stays.
+    _set_energy(5)
+    ctx.tick_block_entity(engine.unwrap(), 1)
+    ctx.assert(_energy() == 4, "An unpowered engine should lose one energy a tick.")
+    ctx.tick_block_entity(engine.unwrap(), 10)
+    ctx.assert(_energy() == 1, "An unpowered engine should stop draining at 1 energy.")
+    ctx.tick_block_entity(engine.unwrap(), 1)
+    ctx.assert(_energy() == 1, "An engine at 1 energy should keep it while no signal reaches it.")
+
+    # A steam engine gains nothing from a redstone signal, unlike the wood engine: the signal only
+    # keeps Engine.update from draining what is there.
+    level.place_block(x, y - 2, z, "minecraft:stone")
+    level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+    ctx.assert(level.has_neighbor_signal(x, y, z), "The torch under the engine should power it.")
+    _set_energy(5)
+    ctx.tick_block_entity(engine.unwrap(), 40)
+    ctx.assert(_energy() == 5, "A powered steam engine should neither gain nor lose energy.")
+}
+
+# Each stage boundary, the energy just below and at it. Nothing ticks the engine between a set and a
+# read, so the stage is read from exactly that energy.
+local _check_thresholds(ctx: TestTickContext) {
+    _set_energy(2500)
+    ctx.assert(_stage(_energy()) == 0, "2500 energy should still be blue.")
+    _set_energy(2501)
+    ctx.assert(_stage(_energy()) == 1, "2501 energy should be green.")
+
+    _set_energy(5000)
+    ctx.assert(_stage(_energy()) == 1, "5000 energy should still be green.")
+    _set_energy(5001)
+    ctx.assert(_stage(_energy()) == 2, "5001 energy should be yellow.")
+
+    _set_energy(7500)
+    ctx.assert(_stage(_energy()) == 2, "7500 energy should still be yellow.")
+    _set_energy(7501)
+    ctx.assert(_stage(_energy()) == 3, "7501 energy should be red.")
+
+    _set_energy(10000)
+    ctx.assert(_stage(_energy()) == 3, "10000 energy, the maximum, should still be red.")
+    _set_energy(0)
+}
+
+local _energy() number {
+    block_entity: BlockEntity = engine.unwrap()
+    return block_entity.get_saved_number("energy")
+}
+
+local _set_energy(energy: number) {
+    block_entity: BlockEntity = engine.unwrap()
+    block_entity.set_saved_number("energy", energy)
+}
+
+# Engine.computeEnergyStage for EngineStone's maxEnergy of 10000, which is what the trunk's colour
+# and the piston's speed are read from.
+local _stage(energy: number) number {
+    if energy <= 2500 {
+        return 0
+    }
+    if energy <= 5000 {
+        return 1
+    }
+    if energy <= 7500 {
+        return 2
+    }
+    return 3
+}

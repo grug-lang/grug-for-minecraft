@@ -1,0 +1,7 @@
+# GUI.add_fill grows its bar either up from the bottom of the region or right from its left, which are
+# the two shapes a BuildCraft gauge has: any other direction would have to be guessed, so it is refused.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the direction has to be \"up\" or \"right\"")
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 176, 0, 14, 14, "left", 2)
+}

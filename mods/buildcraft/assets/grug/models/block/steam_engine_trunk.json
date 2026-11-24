@@ -1,0 +1,25 @@
+{
+	"format_version": "1.9.0",
+	"parent": "minecraft:block/block",
+	"textures": {
+		"base": "grug:block/steam_engine_base",
+		"trunk": "grug:block/steam_engine_trunk_blue",
+		"particle": "grug:block/steam_engine_base"
+	},
+	"elements": [
+		{
+			"name": "shaft",
+			"from": [4, 4, 4],
+			"to": [12, 16, 12],
+			"rotation": {"angle": 0, "axis": "y", "origin": [10, 4, 4]},
+			"faces": {
+				"north": {"uv": [4, 10, 2, 4], "texture": "#trunk"},
+				"east": {"uv": [6, 10, 4, 4], "texture": "#trunk"},
+				"south": {"uv": [8, 10, 6, 4], "texture": "#trunk"},
+				"west": {"uv": [2, 10, 0, 4], "texture": "#trunk"},
+				"up": {"uv": [4, 4, 6, 0], "texture": "#trunk"},
+				"down": {"uv": [2, 0, 4, 4], "texture": "#trunk"}
+			}
+		}
+	]
+}

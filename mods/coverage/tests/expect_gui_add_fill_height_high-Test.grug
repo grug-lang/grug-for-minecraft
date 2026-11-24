@@ -1,0 +1,7 @@
+# GUI.add_fill's height is a run of rows of the texture, so at least one and at most the last whole row:
+# 4096 is the last one, and one past it is refused like every other layout value past the range.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the height has to be a whole number from 1 to 4096")
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 176, 0, 14, 4097, "up", 2)
+}

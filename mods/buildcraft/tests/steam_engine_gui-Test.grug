@@ -1,0 +1,50 @@
+# Covers the steam engine's GUI, which BlockEngine.b opens for an EngineStone on a right click that is
+# not the wrench: GuiSteamEngine's vanilla 176 by 166 panel rather than a custom one, the fuel slot at
+# panel (80, 41), the player inventory below it, and the burn gauge, whose two numbers are the tile's
+# burn_time and total_burn_time. The click on the fuel slot is gui_slot's: the carried coal goes whole
+# into the block entity's only slot, which says the layout's slot is a working container slot.
+started: bool = false
+clicked: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        ctx.close_screen()
+        ctx.clear_held_item(ctx.get_player())
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        level.place_block(origin.x(), origin.y(), origin.z(), "grug:steam_engine")
+        ctx.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.not_done()
+        return
+    }
+    if not clicked {
+        # The server opens the container and sends it, so the client's screen arrives a frame later.
+        if not ctx.screen_open() {
+            ctx.not_done()
+            return
+        }
+        clicked = true
+        ctx.assert(ctx.gui_width() == 176, "The steam engine's panel should be the vanilla 176 pixels wide.")
+        ctx.assert(ctx.gui_height() == 166, "The steam engine's panel should be the vanilla 166 pixels tall.")
+        ctx.set_carried_item(item(resource_location("minecraft:coal")))
+        left: number = ctx.gui_left()
+        top: number = ctx.gui_top()
+        # The fuel slot's box starts at panel (80, 41) and a slot is 16 pixels, so this presses its
+        # centre. No overlay is asked on a mod's own screen, so the press is the screen's.
+        ctx.assert(not ctx.click_screen(left + 88, top + 49, 0), "A press no overlay took should answer false.")
+        ctx.not_done()
+        return
+    }
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    engine: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+    ctx.assert(engine.get_item_count_in_slot(0) == 1, "The click should have put the coal in the fuel slot.")
+    in_slot: Option[Item] = engine.get_item_in_slot(0)
+    ctx.assert(in_slot.has(), "The fuel slot should hold the coal.")
+    if in_slot.has() {
+        ctx.assert(equals(in_slot.unwrap(), item(resource_location("minecraft:coal"))), "The click should have moved the coal, not another item.")
+    }
+    ctx.assert(not ctx.get_carried_item().has(), "The click should have taken the item off the cursor.")
+    ctx.close_screen()
+}

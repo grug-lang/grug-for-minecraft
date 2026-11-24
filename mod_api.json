@@ -611,6 +611,20 @@
 						}
 					]
 				},
+				"get_max_received_energy": {
+					"description": "The most energy this receiver takes in one delivery, which is the reference's PowerProvider.maxEnergyReceived: a sender reads it to know how much to take out of its own store for this receiver, as an engine's extractEnergy clamps its own maximum extracted with it. The number is the one the block entity declared with set_power_receiver, and it is not saved, because init() declares it again whenever the grug entity is created. Reported when the block entity is not an energy receiver.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": []
+				},
+				"get_min_received_energy": {
+					"description": "The least energy this receiver takes in one delivery, which is the reference's PowerProvider.minEnergyReceived: a sender that holds less than it hands over nothing at all, so an engine that has not built up the minimum its neighbour wants keeps waiting. The number is the one the block entity declared with set_power_receiver, and it is not saved, because init() declares it again whenever the grug entity is created. Reported when the block entity is not an energy receiver.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": []
+				},
 				"get_saved_list_item": {
 					"description": "The Item a record of a saved list holds, if it holds one. A record read back whose item no longer exists holds none, the way an inventory slot does, so the script drops the record rather than the host reporting it. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
 					"return_type": {
@@ -979,6 +993,25 @@
 				}
 			],
 			"methods": {
+				"burn_time": {
+					"description": "The number of ticks this item burns for in a furnace, which is how long a fuel lasts and how much energy it gives: coal answers 1600, a lava bucket 20000 and a wooden plank 300. An item the version's furnace has no fuel value for answers 0, which is most items, and so does a block that is no fuel. A machine that burns fuel asks this to tell a fuel from an item that would only sit in its slot, and how long the burn it starts with it lasts. The burn time is the item's own, not the stack's, which is what 1.2.5's TileEntityFurnace.getItemBurnTime is: an item whose damage picks a variant burns for the same time at any damage.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": []
+				},
+				"container_item": {
+					"description": "The item this one leaves behind when it is used up, which is the empty bucket a lava bucket answers, or none for an item that leaves nothing. The game's crafting grid puts the container back in place of the ingredient, so a machine that consumes an item puts this back in the slot it took the item from. The answer is the item's own container, not the stack's, as 1.2.5's Item.getContainerItem is: an item whose leftover changes with its damage is not modelled, and the fuels the reference's engines burn leave the same item at any damage.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
+					},
+					"parameters": []
+				},
 				"max_damage": {
 					"description": "The most damage a stack of this item can take before the game treats it as broken, which is how long a tool lasts: a diamond pickaxe answers 1561 and each use adds one. An item whose damage is not durability answers 0, which is every block and every item of a single kind, and an item whose damage picks a variant answers 0 too, because its damage is a choice rather than wear. A filter that wants a tool to match at any damage asks this and compares the answer with 0.",
 					"return_type": {
@@ -1218,10 +1251,22 @@
 					]
 				},
 				"set_power_receiver": {
-					"description": "Declares that this block entity can receive energy and holds at most max_stored of it, which is where energy sent to it stops adding up. The declaration is not saved, so init() makes it again whenever the block entity is created. Declaring again replaces the limit and keeps the energy already stored, cut down to the new limit if that is lower. The stored energy is saved with the block entity, separately from its saved numbers, so it survives the block entity's chunk being unloaded and loaded again. Max_stored must be a whole number from 0 to 2147483647. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Declares the block entity an energy receiver that holds at most max_stored, takes in a delivery of at least min_received and at most max_received, and is what is_power_receiver then answers. The two received numbers are the reference's PowerProvider.minEnergyReceived and maxEnergyReceived: a sender that holds less than min_received hands over nothing, and it takes at most max_received out of its own store for this receiver, so a quarry that wants 25 energy at a time is not dribbled into one unit at a time. The reference's configure(latency, min, max, activation, maxStored) has two more numbers, a latency and a minimum activation energy, but only the receiver's own tick uses them and the script keeps them itself, so the host stores neither. Declaring again replaces all three numbers, and a lower max_stored cuts the store down to it while the energy that still fits stays. All three have to be whole numbers from 0 to 2147483647, and a max_received below min_received is allowed, because the reference allows it: such a receiver is handed all its energy in one delivery, as Engine.extractEnergy takes its whole store when that is at most the clamped maximum.",
 					"parameters": [
 						{
 							"name": "max_stored",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "min_received",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "max_received",
 							"type": {
 								"name": "number"
 							}
@@ -1554,6 +1599,71 @@
 						},
 						{
 							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_fill": {
+					"description": "Adds a fill bar: a part of the GUI's own texture, drawn over the panel in proportion to two saved numbers of the block entity the GUI is opened on, so the bar moves while the screen is open. value is the saved number the bar shows and max the saved number it is full at, both read on the client on every frame, so a machine that saves them moves its bar without the GUI being opened again. Nothing is drawn when value or max is 0 or below, or when the value scales to less than one pixel, and the whole region is drawn when value reaches max. The region is width by height pixels of the texture from (u, v), placed with its top left corner at panel (x, y). direction is \"up\" for a bar that grows from the bottom of that region, as a flame burning down does, or \"right\" for one that grows from its left, as a progress arrow does. pad pixels at the growing edge's start are drawn once the bar shows at all, so a texture whose cap belongs to the frame stays whole: a flame keeps its base and an arrow its first pixel. An \"up\" bar draws pad + floor((height - pad) * value / max) pixels from the bottom of the region, and a \"right\" one pad + floor((width - pad) * value / max) pixels from its left. The position and the texture coordinates have to be whole numbers from 0 to 4096, the width and height whole numbers from 1 to 4096, pad a whole number from 0 to the region's height or width, and direction either \"up\" or \"right\".",
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "max",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "u",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "v",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "width",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "height",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "direction",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "pad",
 							"type": {
 								"name": "number"
 							}

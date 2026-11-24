@@ -1,0 +1,7 @@
+# GUI.add_fill's v is a whole row of the GUI's own texture, because the bar is a part of that texture:
+# half a row is not a row, so it is refused.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the v texture coordinate has to be a whole number from 0 to 4096")
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 176, 0.5, 14, 14, "up", 2)
+}

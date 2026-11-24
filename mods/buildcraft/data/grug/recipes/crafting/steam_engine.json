@@ -1,0 +1,25 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "www",
+        " g ",
+        "GpG"
+    ],
+    "key": {
+        "w": {
+            "item": "minecraft:cobblestone"
+        },
+        "g": {
+            "item": "minecraft:glass"
+        },
+        "G": {
+            "item": "grug:stone_gear"
+        },
+        "p": {
+            "item": "minecraft:piston"
+        }
+    },
+    "result": {
+        "id": "grug:steam_engine"
+    }
+}

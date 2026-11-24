@@ -1,0 +1,63 @@
+# Covers the wrench and a plain click on the steam engine, as BlockEngine.b answers them: a right
+# click with the wrench makes TileEngine.switchOrientation search from the side after the current one
+# and stop at the first with a power receptor, and any other click opens the steam engine's GUI, where
+# the redstone engine's plain click does nothing. The engine starts facing 2 for the pipe at z - 1;
+# the pipe at x + 1 makes the wrench turn it to 5 and the next click round to 2 again, since the
+# search wraps and ends on the side it started from. The block entity's tick is run by hand after each
+# click, because the wrench only sets the request and the tick acts on it. On 1.20.6 the click reaches
+# the block by a packet, so each wait is for the orientation to change, run until it does.
+step: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    player: Player = ctx.get_player()
+
+    if step == 0 {
+        ctx.close_screen()
+        level.place_block(x, y, z - 1, "grug:wooden_pipe")
+        level.place_block(x + 1, y, z, "grug:wooden_pipe")
+        level.place_block(x, y, z, "grug:steam_engine")
+        ctx.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        ctx.assert(_facing(ctx, level, x, y, z) == 2, "The engine should start facing the pipe at z - 1.")
+        ctx.set_held_item(player, item(resource_location("grug:wrench")))
+        ctx.use_block(level, x, y, z)
+        step = 1
+        ctx.not_done()
+    } else if step == 1 {
+        ctx.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        if _facing(ctx, level, x, y, z) == 5 {
+            ctx.use_block(level, x, y, z)
+            step = 2
+        }
+        ctx.not_done()
+    } else if step == 2 {
+        ctx.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        if _facing(ctx, level, x, y, z) == 2 {
+            ctx.clear_held_item(player)
+            ctx.use_block(level, x, y, z)
+            step = 3
+        }
+        ctx.not_done()
+    } else {
+        if ctx.screen_open() {
+            ctx.assert(_facing(ctx, level, x, y, z) == 2, "Opening the GUI should not turn the engine.")
+            ctx.close_screen()
+            return
+        }
+        ctx.not_done()
+    }
+}
+
+local _engine(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(engine_opt.has(), "The steam engine should have a block entity.")
+    return engine_opt.unwrap()
+}
+
+local _facing(ctx: TestTickContext, level: Level, x: number, y: number, z: number) number {
+    return _engine(ctx, level, x, y, z).get_saved_number("orientation")
+}

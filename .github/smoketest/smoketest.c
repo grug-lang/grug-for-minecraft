@@ -893,6 +893,49 @@ static union grug_value Item_max_damage(ARGS) {
 }
 REGISTER("Item", "max_damage", Item_max_damage);
 
+// Item.burn_time: the furnace burn times a test names, which are the same on every loader the test runs
+// on. The smoketest keeps no item table, so an item it does not know answers 0, as a block that is no
+// fuel and every item the furnace has no value for do.
+static const struct { const char* name; int32_t ticks; } item_burn_times[] = {
+    {"minecraft:blaze_rod", 2400},
+    {"minecraft:coal", 1600},
+    {"minecraft:lava_bucket", 20000},
+    {"minecraft:oak_log", 300},
+    {"minecraft:oak_planks", 300},
+    {"minecraft:oak_sapling", 100},
+    {"minecraft:stick", 100},
+};
+static union grug_value Item_burn_time(ARGS) {
+    UNUSED;
+    struct obj* it = get_obj(a[0]._id, K_ITEM);
+    if (!it) return fail("Item.burn_time: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Item
+    for (size_t i = 0; i < sizeof item_burn_times / sizeof *item_burn_times; i++)
+        if (!strcmp(it->str, item_burn_times[i].name)) return num(item_burn_times[i].ticks);
+    return num(0);
+}
+REGISTER("Item", "burn_time", Item_burn_time);
+
+// Item.container_item: the items whose use leaves something behind, which the three buckets all answer
+// as an empty bucket. Every other item answers none.
+static union grug_value Item_container_item(ARGS) {
+    UNUSED;
+    struct obj* it = get_obj(a[0]._id, K_ITEM);
+    if (!it) return fail("Item.container_item: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Item
+    static const struct { const char* name; const char* container; } item_containers[] = {
+        {"minecraft:lava_bucket", "minecraft:bucket"},
+        {"minecraft:milk_bucket", "minecraft:bucket"},
+        {"minecraft:water_bucket", "minecraft:bucket"},
+    };
+    uint64_t o = new_obj(K_OPTION);
+    for (size_t i = 0; i < sizeof item_containers / sizeof *item_containers; i++)
+        if (!strcmp(it->str, item_containers[i].name)) {
+            objs[o - 1].has = true;
+            objs[o - 1].val = id(item_named(item_containers[i].container));
+        }
+    return id(o);
+}
+REGISTER("Item", "container_item", Item_container_item);
+
 // item_stack (expect_item_stack_count*-Test, item_stack_save-Test): a stack of 1 to 127, the largest count the
 // byte-saving loaders keep, which is the limit the smoketest takes because its loader name is not 1.20.6-forge.
 static union grug_value hf_item_stack(ARGS) {
@@ -1017,7 +1060,7 @@ struct be {
     struct kv* nums; size_t nnums;
     struct list* lists; size_t nlists;
     struct slot* slots; size_t nslots;  // the inventory, sized by Block.init's set_inventory_size (a chest has 27)
-    bool power; double energy, max_energy;  // set_power_receiver
+    bool power; double energy, max_energy, min_received, max_received;  // set_power_receiver
     bool item_inserted;   // the script declares an item_inserted export
     bool item_extracted;  // the script declares an item_extracted export, which no host call here runs yet
     bool output_taken;    // the script declares an output_taken export, which a take of the cached result runs
@@ -1356,12 +1399,17 @@ REGISTER("BlockEntity", "level", BE_level);
 // number from 0 to".
 static union grug_value BIC_set_power_receiver(ARGS) {
     UNUSED;
-    double m = a[1]._number;
+    double m = a[1]._number, lo = a[2]._number, hi = a[3]._number;
     if (!cur_init_be) return fail("BlockEntityInitContext.set_power_receiver: only legal while init() is running");  // SMOKETEST_EXCL: no committed test
-    if (!is_whole(m) || m < 0 || m > 2147483647.0) return fail("max_stored has to be a whole number from 0 to 2147483647");  // SMOKETEST_EXCL: no committed test
+    static const char* const what[] = {"max_stored", "min_received", "max_received"};
+    double v[3] = {m, lo, hi};
+    for (int i = 0; i < 3; i++)
+        if (!is_whole(v[i]) || v[i] < 0 || v[i] > 2147483647.0) return fail("%s has to be a whole number from 0 to 2147483647", what[i]);  // SMOKETEST_EXCL: no committed test
     struct be* b = &bes[cur_init_be - 1];
     b->power = true;
     b->max_energy = m;
+    b->min_received = lo;
+    b->max_received = hi;
     if (b->energy > m) b->energy = m;  // power_declare_again-Test: cut down, never raised
     return none();
 }
@@ -1379,6 +1427,18 @@ static struct be* receiver_of(uint64_t h, const char* who) {
     else if (!b->power) { fail("%s: this block entity is not an energy receiver", who); b = NULL; }
     return b;
 }
+static union grug_value BE_get_min_received_energy(ARGS) {
+    UNUSED;
+    struct be* b = receiver_of(a[0]._id, "BlockEntity.get_min_received_energy");
+    return b ? num(b->min_received) : none();
+}
+REGISTER("BlockEntity", "get_min_received_energy", BE_get_min_received_energy);
+static union grug_value BE_get_max_received_energy(ARGS) {
+    UNUSED;
+    struct be* b = receiver_of(a[0]._id, "BlockEntity.get_max_received_energy");
+    return b ? num(b->max_received) : none();
+}
+REGISTER("BlockEntity", "get_max_received_energy", BE_get_max_received_energy);
 static union grug_value BE_get_energy_stored(ARGS) {
     UNUSED;
     struct be* b = receiver_of(a[0]._id, "BlockEntity.get_energy_stored");
@@ -2721,12 +2781,13 @@ REGISTER("TestTickContext", "hot_reload_count", TTC_hot_reload_count);
 
 // Colors and GUIs (gui_*-Test, expect_gui_*-Test, use_block_same_tick-Test). A GUI is a layout builder: the
 // texture path, the crafting grids (each names nine inventory slots from its start), the crafting results,
-// the texts and the player inventory. GUI.open checks the grids against the block entity's inventory and
-// opens a screen: a panel with the grids' slots on the block entity, and a mouse cursor. No capture exists
-// behind it, so a test that screenshots the screen still fails, and a pass that opened a screen is STUBBED.
+// the fill bars, the texts and the player inventory. GUI.open checks the grids against the block entity's
+// inventory and opens a screen: a panel with the grids' slots on the block entity, and a mouse cursor. No
+// capture exists behind it, so a test that screenshots the screen still fails, and a pass that opened a
+// screen is STUBBED.
 #define GUI_MAX_ENTRIES 64  // GrugGuiLayoutCodec.MAX_ENTRIES
 struct gui { size_t ngrids; int32_t grid_start[GUI_MAX_ENTRIES], grid_x[GUI_MAX_ENTRIES], grid_y[GUI_MAX_ENTRIES];
-    size_t nslots, nresults, ntexts; int32_t slot_index[GUI_MAX_ENTRIES], slot_x[GUI_MAX_ENTRIES], slot_y[GUI_MAX_ENTRIES];
+    size_t nslots, nresults, ntexts, nfills; int32_t slot_index[GUI_MAX_ENTRIES], slot_x[GUI_MAX_ENTRIES], slot_y[GUI_MAX_ENTRIES];
     int32_t width, height; };
 static struct gui* guis;
 static size_t nguis, capguis;
@@ -2803,6 +2864,33 @@ static union grug_value GUI_add_crafting_result(ARGS) {
     return none();
 }
 REGISTER("GUI", "add_crafting_result", GUI_add_crafting_result);
+// A fill bar is the one record that can move while the screen is open, because it reads two saved numbers
+// of the block entity each frame instead of values baked into the layout. The smoketest draws nothing, so
+// a test of it checks the values it refuses and that a valid one is accepted.
+static union grug_value GUI_add_fill(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.add_fill");
+    if (!gu) return none();  // SMOKETEST_EXCL: gui_of raised already
+    static const char* const what[] = {"the x position", "the y position", "the u texture coordinate", "the v texture coordinate"};
+    double v[6] = {a[3]._number, a[4]._number, a[5]._number, a[6]._number, a[7]._number, a[8]._number};
+    for (int i = 0; i < 6; i++) {
+        double lo = i < 4 ? 0 : 1;
+        if (is_whole(v[i]) && v[i] >= lo && v[i] <= 4096) continue;
+        const char* name = i < 4 ? what[i] : (i == 4 ? "the width" : "the height");
+        return fail("GUI.add_fill: %s has to be a whole number from %g to 4096, not %g", name, lo, v[i]);
+    }
+    bool up = !strcmp(a[9]._string, "up");
+    if (!up && strcmp(a[9]._string, "right"))
+        return fail("GUI.add_fill: the direction has to be \"up\" or \"right\", not \"%s\"", a[9]._string);
+    double extent = up ? v[5] : v[4];
+    double pad = a[10]._number;
+    if (!is_whole(pad) || pad < 0 || pad > extent)
+        return fail("GUI.add_fill: the pad has to be a whole number from 0 to the bar's %s, not %g", up ? "height" : "width", pad);
+    if (gui_full(gu->nfills, "GUI.add_fill", "fill bars")) return none();
+    gu->nfills++;
+    return none();
+}
+REGISTER("GUI", "add_fill", GUI_add_fill);
 static union grug_value GUI_add_player_inventory(ARGS) {
     UNUSED;
     gui_of(a[0]._id, "GUI.add_player_inventory");

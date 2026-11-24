@@ -1,0 +1,65 @@
+# BuildCraft 2.2.14's steam engine, which is BlockEngine with metadata 1 and EngineStone behind it:
+# the redstone engine's block with a stone body, a fuel slot, and a GUI on a plain right click. It
+# burns a fuel from its slot and gives one energy on every tick of the burn, up to 10000 energy, and
+# it explodes at range 4 when pushed past that. Its piston's speed rises with its energy stage. The
+# engine entity in steam_engine_entity-BlockEntity.grug has the reference's tick and its bugs.
+
+# BlockEngine.b's display tick spawns four reddust particles while the engine is burning, but an
+# engine's burn time never reaches the client: EngineStone.burnTime is not a @TileNetworkData field,
+# so the reference's client reads 0 and spawns nothing, and the GUI's own bar is the only thing that
+# reads the real number, from the container's sync while the screen is open. The port's saved numbers
+# do reach the client, so drawing the particles here would show them where the reference shows none,
+# and the engine therefore declares no display tick.
+
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(0.5)
+    ctx.set_material("metal")
+    ctx.set_block_entity(e"steam_engine_entity")
+    # TileEngine's single inventory slot, the fuel slot EngineStone.burn reads and the GUI shows.
+    ctx.set_inventory_size(1)
+    ctx.set_frame_render()
+    ctx.set_flat_lighting()
+}
+
+# BlockEngine.b_: breaking the engine drops its items, which for this engine is EngineStone.delete's
+# one stack in the fuel slot.
+export on_break(world: Level, x: number, y: number, z: number) {
+    drop_inventory(world, x, y, z)
+}
+
+# BlockEngine.b: a right click with the wrench turns the engine to the next side with a power
+# receptor, and any other click opens the steam engine's GUI. The block entity does the turning on its
+# next tick, because only it knows its own orientation.
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
+    held: Option[Item] = player.get_held_item()
+    if held.has() {
+        if equals(held.unwrap(), item(resource_location("grug:wrench"))) {
+            engine: Option[BlockEntity] = world.get_block_entity(x, y, z)
+            if engine.has() {
+                engine.unwrap().set_saved_number("rotate", 1)
+            }
+            return
+        }
+    }
+    _open_gui(world, x, y, z, player)
+}
+
+# GuiSteamEngine and ContainerEngineRoot: the vanilla container's 176 by 166 panel from
+# steam_engine_gui.png, the fuel slot at panel (80, 41) because this is an EngineStone, the player
+# inventory below it, and the reference's two labels. The gauge is Panel (80, 24), 14 by 14 of the
+# texture at (176, 0): GuiSteamEngine draws the bottom l + 2 rows of it for a burn time scaled to 12,
+# which is an up bar whose bottom two rows are the cap it always draws, hence the pad of 2.
+local _open_gui(world: Level, x: number, y: number, z: number, player: Player) {
+    layout: GUI = gui(r"assets/grug/textures/gui/steam_engine_gui.png")
+
+    text_color: Color = Color.rgb(64, 64, 64)
+    layout.add_text("Steam Engine", 60, 6, text_color)
+    layout.add_text("Inventory", 8, 72, text_color)
+
+    layout.add_slot(0, 80, 41)
+    layout.add_player_inventory(8, 84, 8, 142)
+
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 176, 0, 14, 14, "up", 2)
+
+    layout.open(player, world.get_block_entity(x, y, z).unwrap())
+}

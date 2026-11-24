@@ -1,0 +1,7 @@
+# GUI.add_fill's width is a run of pixels of the texture, so at least one: a width of 0 would add a bar
+# that can never draw even at its maximum.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the width has to be a whole number from 1 to 4096")
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 176, 0, 0, 14, "up", 2)
+}

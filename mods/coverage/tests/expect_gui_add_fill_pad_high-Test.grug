@@ -1,0 +1,7 @@
+# GUI.add_fill's pad belongs to the bar's region, so it can be as tall as an up bar and no taller: 15
+# rows of a 14 row region would draw a pad that is not part of the texture region at all.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.add_fill: the pad has to be a whole number from 0 to the bar's height")
+    layout.add_fill("burn_time", "total_burn_time", 80, 24, 176, 0, 14, 14, "up", 15)
+}

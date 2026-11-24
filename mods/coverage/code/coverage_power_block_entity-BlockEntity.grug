@@ -1,5 +1,6 @@
-# An energy receiver holding at most 10, for the tests of the energy host functions.
+# An energy receiver holding at most 10, and one that takes a delivery of 2 to 4 energy, for the
+# tests of the energy host functions.
 
 export init(ctx: BlockEntityInitContext) {
-    ctx.set_power_receiver(10)
+    ctx.set_power_receiver(10, 2, 4)
 }
