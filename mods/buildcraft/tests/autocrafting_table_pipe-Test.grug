@@ -125,6 +125,14 @@ local _setup_pipe(ctx: TestTickContext) {
 
     pipe_table_chest.set(chest_opt.unwrap())
     pipe_table_pipe.set(pipe_opt.unwrap())
+
+    # An item entity of something the pipe never carries, resting on the chest. The dropped-item check
+    # counts every item entity in reach, so this fixture shows what that check does with an item the
+    # pipe did not drop (#1692).
+    stray_stack: ItemStack = item_stack(item(resource_location("minecraft:diamond")), 0, 1)
+    stray: ItemEntity = item_entity(level, x + 1.5, y + 1, z + 0.5, stray_stack)
+    stray.entity().set_delta_movement(Vec3.zero())
+    stray.entity().spawn(level)
 }
 
 local _check(ctx: TestTickContext) {
