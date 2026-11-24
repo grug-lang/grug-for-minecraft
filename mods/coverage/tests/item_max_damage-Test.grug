@@ -1,0 +1,17 @@
+# Covers Item.max_damage, which a filter asks to let a worn tool match at any damage: a damageable
+# item answers its durability, and anything whose damage is not wear answers 0. The odd inputs are the
+# ones a filter has to get right: a block's item, an item whose damage picks a variant rather than
+# wearing (coal's two kinds share one name), a name from a mod namespace, and a bare name, which
+# resolves to the minecraft namespace.
+export tick(ctx: TestTickContext) {
+    ctx.assert(item(resource_location("minecraft:diamond_pickaxe")).max_damage() == 1561, "A diamond pickaxe should answer 1561.")
+    ctx.assert(item(resource_location("minecraft:diamond_sword")).max_damage() == 1561, "A diamond sword should answer 1561.")
+    ctx.assert(item(resource_location("minecraft:stone_sword")).max_damage() == 132, "A stone sword should answer 132.")
+    ctx.assert(item(resource_location("diamond_pickaxe")).max_damage() == 1561, "A bare name should resolve to the minecraft namespace.")
+    ctx.assert(item(resource_location("minecraft:chainmail_helmet")).max_damage() == 165, "A chainmail helmet should answer 165.")
+    ctx.assert(item(resource_location("minecraft:shears")).max_damage() == 238, "Shears should answer 238.")
+    ctx.assert(item(resource_location("minecraft:diamond")).max_damage() == 0, "A diamond should answer 0.")
+    ctx.assert(item(resource_location("minecraft:cobblestone")).max_damage() == 0, "A block's item should answer 0.")
+    ctx.assert(item(resource_location("minecraft:coal")).max_damage() == 0, "An item whose damage picks a variant should answer 0.")
+    ctx.assert(item(resource_location("grug:coverage_item")).max_damage() == 0, "An item from a mod namespace should answer 0.")
+}

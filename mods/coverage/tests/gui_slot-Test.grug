@@ -1,0 +1,48 @@
+# The container click a server applies to a slot GUI.add_slot placed (#1094): coverage_gui's panel puts
+# the block entity's own slot 0 in the plain part of the panel at panel (8, 20), and the client presses
+# it. The click packet is applied between two runner ticks, so the assertion on the next tick sees the
+# item in the block entity's own slot, which is what says the placed slot is a working container slot
+# and not only a record in the layout. The click's shape is gui_click-Test's: a carried stack goes
+# whole into an empty slot.
+started: bool = false
+clicked: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        ctx.close_screen()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_gui")
+        ctx.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.not_done()
+        return
+    }
+    if not clicked {
+        # The server opens the container and sends it, so the client's screen arrives a frame later.
+        if not ctx.screen_open() {
+            ctx.not_done()
+            return
+        }
+        clicked = true
+        ctx.set_carried_item(item(resource_location("minecraft:diamond")))
+        left: number = ctx.gui_left()
+        top: number = ctx.gui_top()
+        # The slot's box starts at panel (8, 20) and a slot is 16 pixels, so this presses its centre.
+        # No overlay is asked on a mod's own GrugScreen, so the press is the screen's.
+        ctx.assert(not ctx.click_screen(left + 16, top + 28, 0), "A press no overlay took should answer false.")
+        ctx.not_done()
+        return
+    }
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+    ctx.assert(block_entity.get_item_count_in_slot(0) == 1, "The click should have put the diamond in the placed slot.")
+    in_slot: Option[Item] = block_entity.get_item_in_slot(0)
+    ctx.assert(in_slot.has(), "The placed slot should hold the diamond.")
+    if in_slot.has() {
+        ctx.assert(equals(in_slot.unwrap(), item(resource_location("minecraft:diamond"))), "The click should have moved the diamond, not another item.")
+    }
+    ctx.assert(not ctx.get_carried_item().has(), "The click should have taken the item off the cursor.")
+    ctx.close_screen()
+}

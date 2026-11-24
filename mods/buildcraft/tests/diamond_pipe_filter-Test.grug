@@ -1,0 +1,148 @@
+# Covers the diamond pipe's filter, which is PipeItemsDiamond.filterPossibleMovements: an item that
+# reaches the centre leaves through a side whose filters name it, a side whose filters all miss is no
+# candidate at all, a side with no filter set is a default candidate, and the filtered candidates win
+# whenever there are any. This is the block entity's own copy of the routing, which is also what
+# catches a block pointed at the wrong block entity, as golden_pipe_transport does for the golden pipe.
+# Every case stands in its own band with stone pipes on all four horizontal sides, and the record heads
+# east, so the west side is the one it came from and is never an exit. The pick among several candidates
+# is the game's random draw, so a case with two candidates asserts only that the item left through one
+# of them.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    z: number = origin.z()
+    coal: Item = item(resource_location("minecraft:coal"))
+    dirt: Item = item(resource_location("minecraft:dirt"))
+
+    # A filter that names the item on the east side sends the item east.
+    y: number = origin.y() + 29
+    pipe: BlockEntity = _case(ctx, level, x, y, z)
+    _filter(pipe, 5, 0, coal, 0)
+    _record(pipe, coal, 0)
+    ctx.tick_block_entity(pipe, 60)
+    _assert_exit(ctx, level, x, y, z, 5, "A filter naming the item should send it through that side.")
+
+    # A filter that names another item leaves the east side out, and the sides with no filter are the
+    # defaults the pipe falls back to, so the item leaves north or south, never east and never west.
+    y = origin.y() + 31
+    pipe = _case(ctx, level, x, y, z)
+    _filter(pipe, 5, 0, dirt, 0)
+    _record(pipe, coal, 0)
+    ctx.tick_block_entity(pipe, 60)
+    ctx.assert(_travelling(ctx, level, x, y, z) == 0, "A pipe should hand a filtered item on, not keep it.")
+    ctx.assert(_travelling(ctx, level, x + 1, y, z) == 0, "A side whose filter names another item should not take this one.")
+    ctx.assert(_travelling(ctx, level, x - 1, y, z) == 0, "The side the item came from should never be an exit.")
+    ctx.assert(_travelling(ctx, level, x, y, z - 1) + _travelling(ctx, level, x, y, z + 1) == 1, "With one side filtered out, a default side should take the item.")
+
+    # With filters on two sides and only one naming the item, the named side is the only candidate.
+    y = origin.y() + 33
+    pipe = _case(ctx, level, x, y, z)
+    _filter(pipe, 2, 4, coal, 0)
+    _filter(pipe, 5, 0, dirt, 0)
+    _record(pipe, coal, 0)
+    ctx.tick_block_entity(pipe, 60)
+    _assert_exit(ctx, level, x, y, z, 2, "A filtered candidate should win over a side whose filters all miss.")
+
+    # Every exit filtered, none naming the item: the pipe has no candidate at all and drops it.
+    y = origin.y() + 35
+    pipe = _case(ctx, level, x, y, z)
+    _filter(pipe, 2, 0, dirt, 0)
+    _filter(pipe, 3, 8, dirt, 0)
+    _filter(pipe, 5, 0, dirt, 0)
+    _record(pipe, coal, 0)
+    ctx.tick_block_entity(pipe, 60)
+    _assert_exit(ctx, level, x, y, z, -1, "A pipe whose every exit is filtered out should drop the item.")
+
+    # Damage: coal with damage 1 is charcoal, and a filter of undamaged coal does not name it, while a
+    # filter of charcoal does.
+    y = origin.y() + 37
+    pipe = _case(ctx, level, x, y, z)
+    _filter(pipe, 5, 0, coal, 0)
+    _filter(pipe, 2, 0, coal, 1)
+    _record(pipe, coal, 1)
+    ctx.tick_block_entity(pipe, 60)
+    _assert_exit(ctx, level, x, y, z, 2, "A filter's damage should have to match an item that is not damageable.")
+
+    # A damageable item matches a filter at any damage, because the travelling item's own maximum damage
+    # is above zero.
+    y = origin.y() + 39
+    pipe = _case(ctx, level, x, y, z)
+    _filter(pipe, 5, 0, item(resource_location("minecraft:diamond_sword")), 0)
+    _filter(pipe, 2, 0, dirt, 0)
+    _record(pipe, item(resource_location("minecraft:diamond_sword")), 100)
+    ctx.tick_block_entity(pipe, 60)
+    _assert_exit(ctx, level, x, y, z, 5, "A damageable item should match a filter at any damage.")
+
+    # A filter on the side the item came from names it, and the item still does not go back: the
+    # reference leaves that side out before the filter runs.
+    y = origin.y() + 41
+    pipe = _case(ctx, level, x, y, z)
+    _filter(pipe, 4, 0, coal, 0)
+    _record(pipe, coal, 0)
+    ctx.tick_block_entity(pipe, 60)
+    ctx.assert(_travelling(ctx, level, x - 1, y, z) == 0, "A filter on the side the item came from should not send it back.")
+    ctx.assert(_travelling(ctx, level, x, y, z) == 0, "A pipe should hand a filtered item on, not keep it.")
+    ctx.assert(_travelling(ctx, level, x + 1, y, z) + _travelling(ctx, level, x, y, z - 1) + _travelling(ctx, level, x, y, z + 1) == 1, "The item should leave through a side with no filter.")
+}
+
+# A diamond pipe with stone pipes on all four horizontal sides, read back as its block entity.
+local _case(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    level.place_block(x, y, z, "grug:diamond_pipe")
+    level.place_block(x - 1, y, z, "grug:stone_pipe")
+    level.place_block(x + 1, y, z, "grug:stone_pipe")
+    level.place_block(x, y, z - 1, "grug:stone_pipe")
+    level.place_block(x, y, z + 1, "grug:stone_pipe")
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(found.has(), "The diamond pipe should have a block entity after being placed.")
+    return found.unwrap()
+}
+
+# One filter slot of one side: side * 9 + slot, as PipeLogicDiamond's 54 slots are laid out.
+local _filter(pipe: BlockEntity, side: number, slot: number, filter: Item, damage: number) {
+    index: number = side * 9 + slot
+    pipe.set_item_in_slot(index, filter, 1)
+    pipe.set_item_damage_in_slot(index, damage)
+}
+
+# A record at the pipe's floor at its centre heading east, so the first tick's move reaches the centre
+# and runs the pipe's own pick of an exit, as golden_pipe_transport's record does.
+local _record(pipe: BlockEntity, cargo: Item, damage: number) {
+    center: Vec3 = pipe.block_pos().center()
+    index: number = pipe.append_saved_list_record("traveling")
+    pipe.set_saved_list_number("traveling", index, "x", center.x())
+    pipe.set_saved_list_number("traveling", index, "y", center.y() - 0.25)
+    pipe.set_saved_list_number("traveling", index, "z", center.z())
+    pipe.set_saved_list_number("traveling", index, "speed", 0.01)
+    pipe.set_saved_list_number("traveling", index, "direction", 5)
+    pipe.set_saved_list_number("traveling", index, "steps", 0)
+    pipe.set_saved_list_number("traveling", index, "to_center", 1)
+    pipe.set_saved_list_number("traveling", index, "count", 1)
+    pipe.set_saved_list_number("traveling", index, "damage", damage)
+    pipe.set_saved_list_item("traveling", index, cargo)
+}
+
+# How many items the block entity at a position carries: a neighbour the item left through holds one,
+# and one it did not holds none.
+local _travelling(ctx: TestTickContext, level: Level, x: number, y: number, z: number) number {
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(found.has(), "The fixture should have a block entity.")
+    return found.unwrap().get_saved_list_size("traveling")
+}
+
+# The pipe kept nothing and the one side named took the item; a side no case expects answers -1, which
+# asserts that nothing took it, the case the pipe drops the item in.
+local _assert_exit(ctx: TestTickContext, level: Level, x: number, y: number, z: number, side: number, message: string) {
+    ctx.assert(_travelling(ctx, level, x, y, z) == 0, message)
+    ctx.assert(_travelling(ctx, level, x - 1, y, z) == _hits(side, 4), message)
+    ctx.assert(_travelling(ctx, level, x + 1, y, z) == _hits(side, 5), message)
+    ctx.assert(_travelling(ctx, level, x, y, z - 1) == _hits(side, 2), message)
+    ctx.assert(_travelling(ctx, level, x, y, z + 1) == _hits(side, 3), message)
+}
+
+local _hits(side: number, wanted: number) number {
+    if side == wanted {
+        return 1
+    }
+    return 0
+}

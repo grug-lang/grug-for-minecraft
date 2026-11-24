@@ -1,7 +1,11 @@
-# A block whose GUI is built with the player's inventory and a line of text, which the builder calls
-# GUI.add_player_inventory and GUI.add_text need and no other coverage block uses. It reuses
-# coverage_block's crafting.png, whose texture already draws the slots of a player's inventory at the
-# positions below, so the slots the builder adds sit on the drawn ones. gui_builder-Test.grug checks the result.
+# A block whose GUI is built with the player's inventory, a line of text and one of its own inventory
+# slots, which the builder calls GUI.add_player_inventory, GUI.add_text and GUI.add_slot need and no
+# other coverage block uses. It reuses coverage_block's crafting.png, whose texture already draws the
+# slots of a player's inventory at the positions below, so the player's slots the builder adds sit on
+# the drawn ones. The block's own slot 0 sits in the plain part of the panel at panel (8, 20), above
+# the player's inventory, where nothing else is drawn: gui_builder-Test.grug checks the player's slots
+# and the text, and gui_slot-Test.grug presses that slot and finds the item in the block entity's own
+# inventory.
 export init(ctx: BlockInitContext) {
     ctx.set_hardness(1)
     ctx.set_material("stone")
@@ -13,6 +17,7 @@ export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, 
     gui_layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
     gui_layout.add_player_inventory(8, 84, 8, 142)
     gui_layout.add_text("Grug", 8, 6, Color.rgb(200, 0, 0))
+    gui_layout.add_slot(0, 8, 20)
 
     block_entity: BlockEntity = world.get_block_entity(x, y, z).unwrap()
 

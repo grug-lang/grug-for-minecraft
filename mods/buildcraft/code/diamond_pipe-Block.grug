@@ -1,0 +1,244 @@
+# The diamond pipe, which is BlockGenericPipe with PipeItemsDiamond: the same block as the wooden pipe,
+# with the plain item transport, the reference's default speed readjust and no connection rule of its
+# own. Its block entity is its 54-slot filter inventory, and a right click opens the filter GUI. See
+# wooden_pipe-Block.grug for the reasoning behind each line, which a copy here would only repeat.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(0.5)
+    ctx.set_material("wood")
+    ctx.set_block_entity(e"diamond_pipe_entity")
+    ctx.set_custom_render()
+    ctx.set_shape()
+    # The reference's pipes are one block and answer a neighbour's pipe test, so this one declares
+    # itself a pipe rather than leaving neighbours to compare block names.
+    ctx.set_pipe()
+    # PipeLogicDiamond is the reference's io with 54 filter slots, nine for each side in the order
+    # Orientations numbers them, so a side's filters are slots side * 9 to side * 9 + 8.
+    ctx.set_inventory_size(54)
+}
+
+# Pipe.dropContents, which BlockGenericPipe calls when the pipe breaks: every travelling item is
+# dropped where the pipe stands, at a random point inside the block, as Utils.dropItems does.
+export on_break(world: Level, x: number, y: number, z: number) {
+    pipe_opt: Option[BlockEntity] = world.get_block_entity(x, y, z)
+    if pipe_opt.has() {
+        _drop_travelling(world, x, y, z, pipe_opt.unwrap())
+    }
+}
+
+# The centre's box, reaching this block's face on every side the pipe connects to, as the wooden
+# pipe's shape does.
+export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
+    min_x: number = 0.25
+    min_y: number = 0.25
+    min_z: number = 0.25
+    max_x: number = 0.75
+    max_y: number = 0.75
+    max_z: number = 0.75
+
+    if _is_connected(world, x, y, z, 4) {
+        min_x = 0.0
+    }
+    if _is_connected(world, x, y, z, 5) {
+        max_x = 1.0
+    }
+    if _is_connected(world, x, y, z, 0) {
+        min_y = 0.0
+    }
+    if _is_connected(world, x, y, z, 1) {
+        max_y = 1.0
+    }
+    if _is_connected(world, x, y, z, 2) {
+        min_z = 0.0
+    }
+    if _is_connected(world, x, y, z, 3) {
+        max_z = 1.0
+    }
+
+    ctx.add_collision_box(min_x, min_y, min_z, max_x, max_y, max_z)
+}
+
+# PipeLogicDiamond.blockActivated: a right click holding anything but a pipe opens the filter GUI, and
+# a click holding a pipe is declined, as the reference returns false for it, so the held pipe is placed
+# as usual. The reference's test is that the held item's block is a BlockGenericPipe, and every
+# BuildCraft pipe is that one block, so this mod's pipe items are exactly what it accepts.
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
+    held: Option[Item] = player.get_held_item()
+    if held.has() {
+        if _is_pipe_item(held.unwrap()) {
+            ctx.decline_use()
+            return
+        }
+    }
+    _open_filters(world, x, y, z, player)
+}
+
+# Whether an item places one of this mod's pipes: the names _pipe_kind lists, which are the reference's
+# BlockGenericPipe pipes. The obsidian pipe joins them when it is ported.
+local _is_pipe_item(held: Item) bool {
+    if equals(held, item(resource_location("grug:wooden_pipe"))) {
+        return true
+    }
+    if equals(held, item(resource_location("grug:cobblestone_pipe"))) {
+        return true
+    }
+    if equals(held, item(resource_location("grug:stone_pipe"))) {
+        return true
+    }
+    if equals(held, item(resource_location("grug:iron_pipe"))) {
+        return true
+    }
+    if equals(held, item(resource_location("grug:golden_pipe"))) {
+        return true
+    }
+    if equals(held, item(resource_location("grug:diamond_pipe"))) {
+        return true
+    }
+    return false
+}
+
+# GuiDiamondPipe and CraftingDiamondPipe: the reference's filter.png panel, 175 by 225 rather than the
+# vanilla container's 176 by 166, with the six rows of nine filter slots from panel (8, 18), the player
+# inventory below them and the reference's own two labels.
+local _open_filters(world: Level, x: number, y: number, z: number, player: Player) {
+    layout: GUI = gui(r"assets/grug/textures/gui/filter.png")
+    layout.set_size(175, 225)
+
+    text_color: Color = Color.rgb(64, 64, 64)
+    layout.add_text("Filters", 8, 6, text_color)
+    layout.add_text("Inventory", 8, 128, text_color)
+
+    slot: number = 0
+    while slot < 54 {
+        row: number = Math.floor(slot / 9)
+        column: number = slot - row * 9
+        layout.add_slot(slot, 8 + column * 18, 18 + row * 18)
+        slot = slot + 1
+    }
+
+    layout.add_player_inventory(8, 140, 8, 198)
+
+    layout.open(player, world.get_block_entity(x, y, z).unwrap())
+}
+
+local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: BlockEntity) {
+    index: number = 0
+    # Nothing is removed from the list here, so its size cannot change under the loop.
+    records: number = pipe.get_saved_list_size("traveling")
+    while index < records {
+        item_opt: Option[Item] = pipe.get_saved_list_item("traveling", index)
+        count: number = pipe.get_saved_list_number("traveling", index, "count")
+        if item_opt.has() and count > 0 {
+            damage: number = pipe.get_saved_list_number("traveling", index, "damage")
+            # Utils.dropItems: each axis a random 0.15 to 0.85 into the block, and the EntityItem
+            # constructor's hop of -0.1 to 0.1 on x and z and 0.2 up, which Utils.dropItems leaves
+            # alone. The reference hands the whole stack to one EntityItem, so a record carrying
+            # five items is one entity holding five.
+            dx: number = world.random_float() * 0.7 + 0.15
+            dy: number = world.random_float() * 0.7 + 0.15
+            dz: number = world.random_float() * 0.7 + 0.15
+            stack: ItemStack = item_stack(item_opt.unwrap(), damage, count)
+            dropped: ItemEntity = item_entity(world, x + dx, y + dy, z + dz, stack)
+            # Utils.dropItems sets the EntityItem's delayBeforeCanPickup to 10 before it spawns it.
+            dropped.set_pickup_delay(10)
+            dropped.entity().spawn(world)
+        }
+        index = index + 1
+    }
+}
+
+# The same connection test as the block entity's _is_connected: a pipe the reference's symmetric
+# rule connects, or an inventory. A block and its block entity are separate grug entities and cannot
+# share a helper, so this copy has to stay in step with that one.
+local _is_connected(world: Level, x: number, y: number, z: number, side: number) bool {
+    kind: number = _pipe_kind(world, _neighbor_x(x, side), _neighbor_y(y, side), _neighbor_z(z, side))
+    if kind != 0 {
+        return _pipes_connect(6, kind)
+    }
+    return _is_inventory(world, x, y, z, side)
+}
+
+# The same inventory test as the block entity's _is_inventory.
+local _is_inventory(world: Level, x: number, y: number, z: number, side: number) bool {
+    return world.is_inventory(_neighbor_x(x, side), _neighbor_y(y, side), _neighbor_z(z, side))
+}
+
+# Which kind of pipe stands at a position: 0 for none, the number of each of this mod's pipes, and 8
+# for a pipe of another mod, as the block entity's copy of this says.
+local _pipe_kind(world: Level, nx: number, ny: number, nz: number) number {
+    if not world.is_pipe(nx, ny, nz) {
+        return 0
+    }
+    name: string = world.get_block(nx, ny, nz)
+    if name == "grug:wooden_pipe" {
+        return 1
+    }
+    if name == "grug:cobblestone_pipe" {
+        return 2
+    }
+    if name == "grug:stone_pipe" {
+        return 3
+    }
+    if name == "grug:iron_pipe" {
+        return 4
+    }
+    if name == "grug:golden_pipe" {
+        return 5
+    }
+    if name == "grug:diamond_pipe" {
+        return 6
+    }
+    if name == "grug:obsidian_pipe" {
+        return 7
+    }
+    return 8
+}
+
+# Utils.checkPipesConnections asks both pipes, so these rules are symmetric: two wooden pipes never
+# connect, two golden pipes never connect, and a cobblestone pipe and a stone pipe never connect
+# because each refuses the other. PipeLogicDiamond has no rule of its own, so a diamond pipe refuses
+# nothing. Every other pair connects, a pipe of another mod included.
+local _pipes_connect(own: number, other: number) bool {
+    if own == 1 and other == 1 {
+        return false
+    }
+    if own == 5 and other == 5 {
+        return false
+    }
+    if own == 2 and other == 3 {
+        return false
+    }
+    if own == 3 and other == 2 {
+        return false
+    }
+    return true
+}
+
+local _neighbor_x(x: number, side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(y: number, side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(z: number, side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
+}

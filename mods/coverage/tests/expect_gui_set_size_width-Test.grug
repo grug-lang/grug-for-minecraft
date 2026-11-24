@@ -1,0 +1,8 @@
+# GUI.set_size takes a whole number of GUI pixels from 1 to 4096 for each side, because the panel is
+# drawn from the texture's top left corner: a width of 0 is no panel at all. The error aborts the tick,
+# so a test that asserts one refusal is a test of one refusal.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.set_size: the width has to be a whole number from 1 to 4096")
+    layout.set_size(0, 166)
+}

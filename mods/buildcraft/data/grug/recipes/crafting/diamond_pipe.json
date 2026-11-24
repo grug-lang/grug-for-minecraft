@@ -1,0 +1,20 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "   ",
+        "dgd",
+        "   "
+    ],
+    "key": {
+        "d": {
+            "item": "minecraft:diamond"
+        },
+        "g": {
+            "item": "minecraft:glass"
+        }
+    },
+    "result": {
+        "id": "grug:diamond_pipe",
+        "count": 8
+    }
+}

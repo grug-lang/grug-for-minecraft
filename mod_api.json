@@ -977,7 +977,16 @@
 					"description": "Called once at registration time to declare the item's assets.",
 					"engine_called": true
 				}
-			]
+			],
+			"methods": {
+				"max_damage": {
+					"description": "The most damage a stack of this item can take before the game treats it as broken, which is how long a tool lasts: a diamond pickaxe answers 1561 and each use adds one. An item whose damage is not durability answers 0, which is every block and every item of a single kind, and an item whose damage picks a variant answers 0 too, because its damage is a choice rather than wear. A filter that wants a tool to match at any damage asks this and compares the answer with 0.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": []
+				}
+			}
 		},
 		"Overlay": {
 			"description": "An overlay drawn over the player's inventory screen and over container screens, such as a chest's or a crafting table's. The game asks its exports while such a screen is open: render once per frame, click once per mouse press, key once per letter or digit key press and scroll once per mouse wheel movement, so a mod can draw on the screen and take a click, a key or a wheel movement away from the screen under it. A screen the overlay may draw on is the player's own inventory screen and every screen the game opens for a container, and a loader that does not draw overlays on them simply never asks the exports, which a test can tell from Test.overlay_supported. Three more exports run while no screen is open, which is how an overlay that is not a list in a container screen works: world_key once per letter or digit key press, render_hud once per frame to draw text on the frame, and render_world once per frame to draw lines in the world. A loader that does not ask them is told apart by Test.world_overlay_supported.",
@@ -1580,6 +1589,29 @@
 						}
 					]
 				},
+				"add_slot": {
+					"description": "Adds one of the block entity's inventory slots to this GUI at x and y, in GUI pixels from the panel's top left corner, the slot's own top left corner. The slot is the block entity's, so a click moves items between it and the player the way any container slot does, and the texture draws its box, so this only places the slot on it. A slot outside the block entity's inventory is refused when the GUI opens, as a crafting grid's slot is.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"add_text": {
 					"description": "Adds text to the GUI.",
 					"parameters": [
@@ -1622,6 +1654,23 @@
 							"name": "block_entity",
 							"type": {
 								"name": "BlockEntity"
+							}
+						}
+					]
+				},
+				"set_size": {
+					"description": "Sets the size of this GUI's panel, in GUI pixels: the part of the texture, from its top left corner, that the panel is drawn from. The panel is centred in the window. A GUI that never sets one is the vanilla container size, 176 by 166, which is what every screen the game opens for a container uses. Width and height have to be whole numbers from 1 to 4096, so a layout cannot ask for a panel no window could hold.",
+					"parameters": [
+						{
+							"name": "width",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "height",
+							"type": {
+								"name": "number"
 							}
 						}
 					]

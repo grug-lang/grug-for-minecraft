@@ -1,0 +1,9 @@
+# GUI.set_size takes a size inside its range, and both ends of the range are sizes a GUI may ask for.
+# The panel a size sets is checked where it is drawn, through TestTickContext.gui_width and
+# gui_height, by buildcraft's diamond_pipe_gui-Test, whose filter panel is 175 by 225 rather than the
+# vanilla container's 176 by 166.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    layout.set_size(1, 1)
+    layout.set_size(4096, 4096)
+}

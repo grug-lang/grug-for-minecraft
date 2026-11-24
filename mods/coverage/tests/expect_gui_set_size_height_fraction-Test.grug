@@ -1,0 +1,6 @@
+# GUI.set_size refuses a fractional height, which addresses no pixel of the texture.
+export tick(ctx: TestTickContext) {
+    layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    ctx.expect_error("GUI.set_size: the height has to be a whole number from 1 to 4096")
+    layout.set_size(176, 1.5)
+}

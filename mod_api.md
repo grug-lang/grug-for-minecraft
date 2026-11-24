@@ -61,6 +61,7 @@ export tick()
 
 ## Item
 export init()
+.max_damage() number
 
 ## Overlay
 export click(ctx: OverlayClickContext)
@@ -135,8 +136,10 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .add_crafting_grid(start_slot: number, x: number, y: number)
 .add_crafting_result(x: number, y: number)
 .add_player_inventory(main_x: number, main_y: number, hotbar_x: number, hotbar_y: number)
+.add_slot(slot: number, x: number, y: number)
 .add_text(text: string, x: number, y: number, color: Color)
 .open(player: Player, block_entity: BlockEntity)
+.set_size(width: number, height: number)
 
 ## ItemEntity
 .count() number

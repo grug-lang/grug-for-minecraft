@@ -1,0 +1,20 @@
+# GUI.open must reject a GUI.add_slot slot before the start of the block entity's inventory too; a
+# negative slot would index outside the menu's slot list rather than into it.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        x: number = origin.x()
+        y: number = origin.y()
+        z: number = origin.z()
+
+        level.place_block(x, y, z, "grug:coverage_block")
+        block_entity: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+        layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+        layout.add_slot(-1, 0, 0)
+
+        ctx.expect_error("GUI.open: The GUI uses slot -1")
+        layout.open(ctx.get_player(), block_entity)
+    }
+}

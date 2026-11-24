@@ -1,0 +1,43 @@
+# Covers which neighbours the diamond pipe grows an arm toward. PipeItemsDiamond has no isPipeConnected
+# of its own, so a diamond pipe connects to every pipe this mod has, another diamond pipe included, and
+# to an inventory; the other pipe's rule is asked too, and golden and wooden refuse only their own kind,
+# while a stone pipe refuses only a cobblestone one. The fixture asks the rules through the pipes'
+# collision boxes, as golden_pipe_connections does.
+phase: number = 0
+
+export tick(ctx: TestTickContext) {
+    if phase == 0 {
+        phase = 1
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        x: number = origin.x()
+        y: number = origin.y() + 30
+        z: number = origin.z()
+        level.place_block(x - 1, y, z, "grug:stone_pipe")
+        level.place_block(x, y, z - 1, "grug:wooden_pipe")
+        level.place_block(x, y, z + 1, "grug:golden_pipe")
+        level.place_block(x + 1, y, z, "grug:diamond_pipe")
+        level.place_block(x, y + 1, z, "minecraft:chest")
+        level.place_block(x, y, z, "grug:diamond_pipe")
+        ctx.not_done()
+    } else if phase == 1 and not ctx.world_settled() {
+        ctx.not_done()
+    } else {
+        _check(ctx)
+    }
+}
+
+local _check(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 30
+    z: number = origin.z()
+
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "The diamond pipe's centre should collide.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A diamond pipe beside a stone pipe should have an arm toward it.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.02, 0.65, 0.65, 0.2), "A diamond pipe beside a wooden pipe should have an arm toward it.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.8, 0.65, 0.65, 0.98), "A diamond pipe beside a golden pipe should have an arm toward it.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "Two diamond pipes should have an arm toward each other, because a diamond pipe refuses nothing.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.8, 0.35, 0.65, 0.98, 0.65), "A diamond pipe beside an inventory should have an arm toward it.")
+}

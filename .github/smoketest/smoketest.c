@@ -847,6 +847,52 @@ static union grug_value hf_item(ARGS) {
 }
 REGISTER(NULL, "item", hf_item);
 
+// Item.max_damage: the durability of the damageable vanilla items a test names. The smoketest keeps no
+// item table, so an item it does not know answers 0, the same answer a block and a single-kind item
+// give; a test that needs another damageable item adds it here with the value every loader it runs on
+// answers, since the same test may also run on a real loader.
+static const struct { const char* name; int32_t damage; } item_durability[] = {
+    {"minecraft:bow", 384},
+    {"minecraft:chainmail_boots", 195},
+    {"minecraft:chainmail_chestplate", 240},
+    {"minecraft:chainmail_helmet", 165},
+    {"minecraft:chainmail_leggings", 225},
+    {"minecraft:diamond_boots", 429},
+    {"minecraft:diamond_chestplate", 528},
+    {"minecraft:diamond_helmet", 363},
+    {"minecraft:diamond_leggings", 495},
+    {"minecraft:diamond_pickaxe", 1561},
+    {"minecraft:diamond_sword", 1561},
+    {"minecraft:fishing_rod", 64},
+    {"minecraft:flint_and_steel", 64},
+    {"minecraft:golden_boots", 91},
+    {"minecraft:golden_chestplate", 112},
+    {"minecraft:golden_helmet", 77},
+    {"minecraft:golden_leggings", 105},
+    {"minecraft:iron_boots", 195},
+    {"minecraft:iron_chestplate", 240},
+    {"minecraft:iron_helmet", 165},
+    {"minecraft:iron_leggings", 225},
+    {"minecraft:leather_boots", 65},
+    {"minecraft:leather_chestplate", 80},
+    {"minecraft:leather_helmet", 55},
+    {"minecraft:leather_leggings", 75},
+    {"minecraft:shears", 238},
+    {"minecraft:stone_pickaxe", 132},
+    {"minecraft:stone_sword", 132},
+    {"minecraft:wooden_pickaxe", 59},
+    {"minecraft:wooden_sword", 59},
+};
+static union grug_value Item_max_damage(ARGS) {
+    UNUSED;
+    struct obj* it = get_obj(a[0]._id, K_ITEM);
+    if (!it) return fail("Item.max_damage: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Item
+    for (size_t i = 0; i < sizeof item_durability / sizeof *item_durability; i++)
+        if (!strcmp(it->str, item_durability[i].name)) return num(item_durability[i].damage);
+    return num(0);
+}
+REGISTER("Item", "max_damage", Item_max_damage);
+
 // item_stack (expect_item_stack_count*-Test, item_stack_save-Test): a stack of 1 to 127, the largest count the
 // byte-saving loaders keep, which is the limit the smoketest takes because its loader name is not 1.20.6-forge.
 static union grug_value hf_item_stack(ARGS) {
@@ -2679,7 +2725,9 @@ REGISTER("TestTickContext", "hot_reload_count", TTC_hot_reload_count);
 // opens a screen: a panel with the grids' slots on the block entity, and a mouse cursor. No capture exists
 // behind it, so a test that screenshots the screen still fails, and a pass that opened a screen is STUBBED.
 #define GUI_MAX_ENTRIES 64  // GrugGuiLayoutCodec.MAX_ENTRIES
-struct gui { size_t ngrids; int32_t grid_start[GUI_MAX_ENTRIES], grid_x[GUI_MAX_ENTRIES], grid_y[GUI_MAX_ENTRIES]; size_t nresults, ntexts; };
+struct gui { size_t ngrids; int32_t grid_start[GUI_MAX_ENTRIES], grid_x[GUI_MAX_ENTRIES], grid_y[GUI_MAX_ENTRIES];
+    size_t nslots, nresults, ntexts; int32_t slot_index[GUI_MAX_ENTRIES], slot_x[GUI_MAX_ENTRIES], slot_y[GUI_MAX_ENTRIES];
+    int32_t width, height; };
 static struct gui* guis;
 static size_t nguis, capguis;
 // The open screen: the GUI it was built from (an index into guis) and the block entity handle it opened on.
@@ -2720,6 +2768,8 @@ static union grug_value hf_gui(ARGS) {
     if (nguis == capguis) { capguis = capguis ? capguis * 2 : 8; guis = xrealloc(guis, capguis * sizeof *guis); }
     memset(&guis[nguis], 0, sizeof guis[nguis]);
     uint64_t o = new_obj(K_GUI);
+    guis[nguis].width = 176;
+    guis[nguis].height = 166;
     objs[o - 1].x = (double)nguis++;
     return id(o);
 }
@@ -2759,6 +2809,30 @@ static union grug_value GUI_add_player_inventory(ARGS) {
     return none();
 }
 REGISTER("GUI", "add_player_inventory", GUI_add_player_inventory);
+static union grug_value GUI_add_slot(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.add_slot");
+    if (!gu || gui_full(gu->nslots, "GUI.add_slot", "slots")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a GUI
+    gu->slot_index[gu->nslots] = java_int(a[1]._number);
+    gu->slot_x[gu->nslots] = java_int(a[2]._number);
+    gu->slot_y[gu->nslots] = java_int(a[3]._number);
+    gu->nslots++;
+    return none();
+}
+REGISTER("GUI", "add_slot", GUI_add_slot);
+static union grug_value GUI_set_size(ARGS) {
+    UNUSED;
+    struct gui* gu = gui_of(a[0]._id, "GUI.set_size");
+    if (!gu) return none();  // SMOKETEST_EXCL: gui_of raised already
+    if (!is_whole(a[1]._number) || a[1]._number < 1 || a[1]._number > 4096)
+        return fail("GUI.set_size: the width has to be a whole number from 1 to 4096, not %g", a[1]._number);
+    if (!is_whole(a[2]._number) || a[2]._number < 1 || a[2]._number > 4096)
+        return fail("GUI.set_size: the height has to be a whole number from 1 to 4096, not %g", a[2]._number);
+    gu->width = (int32_t)a[1]._number;
+    gu->height = (int32_t)a[2]._number;
+    return none();
+}
+REGISTER("GUI", "set_size", GUI_set_size);
 static union grug_value GUI_add_text(ARGS) {
     UNUSED;
     struct gui* gu = gui_of(a[0]._id, "GUI.add_text");
@@ -2781,6 +2855,11 @@ static union grug_value GUI_open(ARGS) {
             if (slot < 0 || slot >= (long)b->nslots)
                 return fail("GUI.open: The GUI uses slot %ld, but the block entity only has %zu inventory slots.", slot, b->nslots);
         }
+    for (size_t i = 0; i < gu->nslots; i++) {
+        long slot = gu->slot_index[i];
+        if (slot < 0 || slot >= (long)b->nslots)
+            return fail("GUI.open: The GUI uses slot %ld, but the block entity only has %zu inventory slots.", slot, b->nslots);
+    }
     screen_is_open = true;
     screen_gui = (size_t)(gu - guis);
     screen_be = a[2]._id;
@@ -2793,23 +2872,23 @@ static union grug_value TTC_screen_open(ARGS) { UNUSED; return boolean(screen_is
 REGISTER("TestTickContext", "screen_open", TTC_screen_open);
 
 // Screen geometry and clicks (gui_click-Test, gui_click_empty-Test, forwarded_gui_*-Test, forwarded_screen_*-Test,
-// forwarded_screen_geometry-Test). AbstractContainerScreen's panel is imageWidth by imageHeight, 176 by 166,
-// centered in the window with integer division, and a GrugScreen adds nothing to that. The CI runner's window is
+// forwarded_screen_geometry-Test). AbstractContainerScreen's panel is imageWidth by imageHeight, which a GUI sets
+// with GUI.set_size and 176 by 166 when it does not, centered in the window with integer division, and a GrugScreen
+// adds nothing to that. The CI runner's window is
 // 1280 by 720 at GUI scale 3 (gui_builder-Test's own measurement), so the window is 427 by 240 scaled pixels; no
 // test pins the window, only that the panel is centered in it, so the number is an assumption the pass inherits
 // (GUI.open already marks the run stubbed). With no screen open every read answers 0, as a client with no container
 // screen does (1.2.5 leaves an empty screen up there, which loader_name == "1.2.5-forge" tests branch on).
-#define PANEL_W 176
-#define PANEL_H 166
 #define WINDOW_W 427
 #define WINDOW_H 240
 static double gui_geometry(int which) {  // 0 left, 1 top, 2 width, 3 height, 4 window width
     if (!screen_is_open) return 0;
+    double w = guis[screen_gui].width, h = guis[screen_gui].height;
     switch (which) {
-    case 0: return (WINDOW_W - PANEL_W) / 2;
-    case 1: return (WINDOW_H - PANEL_H) / 2;
-    case 2: return PANEL_W;
-    case 3: return PANEL_H;
+    case 0: return (WINDOW_W - w) / 2;
+    case 1: return (WINDOW_H - h) / 2;
+    case 2: return w;
+    case 3: return h;
     default: return WINDOW_W;
     }
 }
@@ -2863,12 +2942,12 @@ static bool click_problem(double x, double y, double button, char* out, size_t c
 static bool slot_hovered(double mx, double my, double sx, double sy) { return mx >= sx - 1 && mx < sx + 17 && my >= sy - 1 && my < sy + 17; }
 // SMOKETEST_EXCL_STOP
 // A press on the open container screen. No overlay exists here, so the press always answers false, as it does on a
-// mod's own GrugScreen with no overlay asked. The slot under the press takes a left click the way vanilla's
-// pickup does for the two cases the committed tests assert: an empty cursor picks the slot's stack up, and a
-// carried stack goes whole into an empty slot. Every other click (a right or middle button, a slot that already
-// holds something while the cursor carries, the result slot, a press outside every grid slot) is not modelled and
-// marks the run stubbed. A slot answers a press from one pixel left of and above its 16 by 16 square to one pixel
-// past it (AbstractContainerScreen.isHovering).
+// mod's own GrugScreen with no overlay asked. The slot under the press, a crafting grid's or one GUI.add_slot
+// placed, takes a left click the way vanilla's pickup does for the two cases the committed tests assert: an empty
+// cursor picks the slot's stack up, and a carried stack goes whole into an empty slot. Every other click (a right
+// or middle button, a slot that already holds something while the cursor carries, the result slot, a press
+// outside every slot) is not modelled and marks the run stubbed. A slot answers a press from one pixel left of
+// and above its 16 by 16 square to one pixel past it (AbstractContainerScreen.isHovering).
 static union grug_value TTC_click_screen(ARGS) {
     UNUSED;
     char msg[600];
@@ -2879,12 +2958,15 @@ static union grug_value TTC_click_screen(ARGS) {
     struct gui* gu = &guis[screen_gui];
     double mx = a[1]._number - gui_geometry(0), my = a[2]._number - gui_geometry(1);
     struct slot* hit = NULL;
-    for (size_t g = 0; g < gu->ngrids && !hit; g++)  // SMOKETEST_EXCL_BRANCH: every committed press hits a slot of the first grid, so no loop runs out of grids
-        for (int k = 0; k < 9 && !hit; k++) {  // SMOKETEST_EXCL_BRANCH: the committed presses hit slot 0 of the grid, so the nine slots never run out
+    for (size_t g = 0; g < gu->ngrids && !hit; g++)
+        for (int k = 0; k < 9 && !hit; k++) {  // SMOKETEST_EXCL_BRANCH: the committed grid presses hit slot 0, so the nine slots never run out
             double sx = gu->grid_x[g] + (k % 3) * 18, sy = gu->grid_y[g] + (k / 3) * 18;
             if (slot_hovered(mx, my, sx, sy)) hit = slot_of(b, (double)(int32_t)((uint32_t)gu->grid_start[g] + (uint32_t)k));
         }
-    if (a[3]._number != 0 || !hit) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL_BRANCH: the committed presses are all left clicks on a grid slot
+    // The GUI.add_slot slots (gui_slot-Test).
+    for (size_t i = 0; i < gu->nslots && !hit; i++)  // SMOKETEST_EXCL_BRANCH: gui_slot-Test's GUI places one slot, so its hit always ends the loop by running out of slots
+        if (slot_hovered(mx, my, gu->slot_x[i], gu->slot_y[i])) hit = slot_of(b, (double)gu->slot_index[i]);  // SMOKETEST_EXCL_BRANCH: gui_slot-Test presses the one slot it placed, so no committed press misses it
+    if (a[3]._number != 0 || !hit) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL_BRANCH: the committed presses are all left clicks on a slot
     if (!carried_has && hit->has) {
         carried_has = true; carried_item = hit->item; carried_count = hit->count; carried_damage = hit->damage;
         slot_clear(hit);

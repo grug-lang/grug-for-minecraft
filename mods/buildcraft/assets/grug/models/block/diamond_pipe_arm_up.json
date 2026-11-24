@@ -1,0 +1,23 @@
+{
+    "parent": "minecraft:block/block",
+    "render_type": "minecraft:cutout",
+    "textures": {
+        "all": "grug:block/diamond_pipe_pos_y",
+        "particle": "grug:block/diamond_pipe_pos_y"
+    },
+    "elements": [
+        {
+            "name": "diamond_arm",
+            "from": [4, 12, 4],
+            "to": [12, 16, 12],
+            "faces": {
+                "west": {"uv": [4, 0, 12, 4], "texture": "#all"},
+                "east": {"uv": [4, 0, 12, 4], "texture": "#all"},
+                "down": {"uv": [4, 12, 12, 4], "texture": "#all"},
+                "up": {"uv": [4, 4, 12, 12], "texture": "#all", "cullface": "up"},
+                "north": {"uv": [4, 0, 12, 4], "texture": "#all"},
+                "south": {"uv": [4, 0, 12, 4], "texture": "#all"}
+            }
+        }
+    ]
+}

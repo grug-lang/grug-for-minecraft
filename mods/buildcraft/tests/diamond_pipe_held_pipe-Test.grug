@@ -1,0 +1,50 @@
+# Covers PipeLogicDiamond.blockActivated's one refusal: a right click holding a pipe places that pipe
+# instead of opening the filter GUI, because the reference answers false when the held item's block is a
+# BlockGenericPipe, and every BuildCraft pipe is that one block. The declined click leaves the pipe in
+# hand to the game, which places it against the face the player sees, as decline_use_places covers for a
+# fixture block; here the diamond pipe stands above the test player's eye, so the golden pipe lands below
+# it. A held block that is no pipe is the other half, and it opens the filters.
+phase: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    if phase == 0 {
+        phase = 1
+        ctx.close_screen()
+        level.place_block(x, y, z, "grug:diamond_pipe")
+        ctx.set_held_item(ctx.get_player(), item(resource_location("grug:golden_pipe")))
+        ctx.use_block(level, x, y, z)
+        ctx.not_done()
+        return
+    }
+
+    if phase == 1 {
+        # The server opens a container and the client's screen arrives a frame later, so the answer is
+        # read over several ticks rather than in the one that clicked. The placement is a packet's too,
+        # so it is waited for rather than counted in ticks.
+        ctx.assert(not ctx.screen_open(), "A right click holding a pipe should not open the filter GUI.")
+        if level.get_block(x, y - 1, z) != "grug:golden_pipe" {
+            ctx.assert(ctx.current_tick() < 120, "The declined click should have placed the held pipe below the diamond pipe.")
+            ctx.not_done()
+            return
+        }
+        phase = 2
+        ctx.set_held_item(ctx.get_player(), item(resource_location("minecraft:stone")))
+        ctx.use_block(level, x, y, z)
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(ctx.screen_open() or ctx.current_tick() < 60, "A right click holding a block that is no pipe should open the filter GUI.")
+    if not ctx.screen_open() {
+        ctx.not_done()
+        return
+    }
+    ctx.close_screen()
+    ctx.clear_held_item(ctx.get_player())
+}
