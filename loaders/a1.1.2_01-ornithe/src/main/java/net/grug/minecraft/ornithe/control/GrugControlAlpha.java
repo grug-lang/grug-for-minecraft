@@ -111,9 +111,6 @@ public final class GrugControlAlpha {
         return GrugHandlerLookup.connectionOf(holder, Connection.class, "", 0);
     }
 
-    @GrugGenerated(
-            "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since"
-                    + " only the multiplayer job runs it")
     private static final class AlphaLink implements GrugControlServer.Link {
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
