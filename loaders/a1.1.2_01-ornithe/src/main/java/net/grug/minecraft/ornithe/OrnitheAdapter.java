@@ -1052,7 +1052,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * keeps the feet there instead, which {@link ServerOrnitheAdapter} answers (#1190).
      */
     protected double feetY(PlayerEntity player) {
-        return player.y - GrugTestOrigin.EYE_HEIGHT;
+        return GrugTestOrigin.feetOfEye(player.y);
     }
 
     @Override
@@ -1757,7 +1757,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // ends.
         player.setPositionAndAngles(
                 GrugTestPlayerSnap.blockCentre(savedX),
-                savedY - 1.62,
+                GrugTestOrigin.feetOfEye(savedY),
                 GrugTestPlayerSnap.blockCentre(savedZ),
                 0.0F,
                 0.0F);
@@ -1800,7 +1800,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (player != null) {
             // The saved y is the eye; the feet are what setPositionAndAngles wants, so the restore
             // puts the player back rather than raising them again.
-            player.setPositionAndAngles(savedX, savedY - 1.62, savedZ, savedYaw, savedPitch);
+            player.setPositionAndAngles(
+                    savedX, GrugTestOrigin.feetOfEye(savedY), savedZ, savedYaw, savedPitch);
         }
     }
 

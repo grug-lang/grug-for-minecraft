@@ -63,9 +63,6 @@ import java.util.Objects;
  */
 public class ServerStationApiAdapter extends StationApiAdapter {
 
-    /** A player's eye is this far above their feet. */
-    private static final double EYE_HEIGHT = 1.62;
-
     /** A forwarded call the joined client could not answer is a host function error. */
     @GrugGenerated("a forwarded call fails only when the joined client cannot answer it")
     private static void forwardedCallFailed(String message) {
@@ -301,13 +298,17 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     /**
      * The eye of the test player. A server player keeps the feet in {@code y} and a client keeps
      * the eye, so the eye is rebuilt from the bottom of the bounding box, rounded to a millionth to
-     * shed the arithmetic's last bits, which is what the client's {@code y} is.
+     * shed the arithmetic's last bits, which is what the client's {@code y} is. The height added is
+     * {@link GrugTestOrigin#EYE_HEIGHT}, the game's own float, the same one the client's eye and
+     * the capture pin use (#1662).
      */
     @Override
     public Vec3 testPlayerEye(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
         return new Vec3(
-                player.x, Math.rint(player.boundingBox.minY * 1e6) / 1e6 + EYE_HEIGHT, player.z);
+                player.x,
+                Math.rint(player.boundingBox.minY * 1e6) / 1e6 + GrugTestOrigin.EYE_HEIGHT,
+                player.z);
     }
 
     /**

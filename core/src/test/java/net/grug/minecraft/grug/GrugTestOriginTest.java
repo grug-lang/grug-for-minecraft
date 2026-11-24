@@ -2,6 +2,8 @@ package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import net.grug.minecraft.core.GrugTestOrigin;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -35,7 +37,7 @@ class GrugTestOriginTest {
 
         Vec3 moved = GrugTestState.captureEye(() -> origin);
         assertEquals(11.5, moved.x());
-        assertEquals(60.0 + 1.62, moved.y(), 1e-9);
+        assertEquals(60.0 + GrugTestOrigin.EYE_HEIGHT, moved.y(), 0.0);
         assertEquals(20.0, moved.z());
     }
 

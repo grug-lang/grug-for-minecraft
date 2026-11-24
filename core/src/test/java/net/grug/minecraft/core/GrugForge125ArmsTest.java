@@ -115,7 +115,10 @@ class GrugForge125ArmsTest {
                         () -> {
                             throw new AssertionError("no player yet");
                         }));
-        assertEquals(68.5, GrugForge125Arms.heldFeet(70.12, () -> 1.62), 1e-9);
+        assertEquals(
+                70.12 - GrugTestOrigin.EYE_HEIGHT,
+                GrugForge125Arms.heldFeet(70.12, () -> GrugTestOrigin.EYE_HEIGHT),
+                0.0);
     }
 
     @Test

@@ -127,18 +127,25 @@ public final class GrugControlStationClient {
      * seam pixels fall where the exact camera puts them, so a capture drawn from a camera a few
      * billionths off lands them elsewhere than the client-only golden does (#1550, #1178).
      *
+     * <p>The server's own eye used to be the decimal 1.62 while the client's position is the feet
+     * plus the game's single precision height, so a capture a few billionths off landed a frame's
+     * seam pixels elsewhere than the client-only golden did (#1550, #1178, #1629). Both sides use
+     * {@code GrugTestOrigin.EYE_HEIGHT} now, one value, so the pin names exactly the eye the room
+     * was built around.
+     *
      * <p>This version's {@code setPositionAndAngles} takes the eye, so the eye is passed as it is,
      * and it writes the previous position too, so the frame is drawn from the eye at every partial
      * tick. The velocity is zeroed so the tick's physics cannot carry the player off it; the same
      * pin as b1.7.3-ornithe's {@code pinAtCaptureEye}, which takes the feet instead.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
-        // A client-only player's y is the feet plus the game's single precision eye height widened
-        // to a double (71.62000000476837 on feet 70), and the server's eye is the same height as
-        // the double 1.62, 71.62, which draws a line's edge pixel differently (#1629). The feet are
-        // recovered from the eye to a millionth and the game's own height added back.
-        double feet = Math.rint((eye.y() - 1.62) * 1e6) / 1e6;
-        player.setPositionAndAngles(eye.x(), feet + (double) 1.62F, eye.z(), 0.0F, 0.0F);
+        // The capture's eye is the feet plus the game's own single precision eye height widened to
+        // a double, the one value GrugTestOrigin.EYE_HEIGHT holds since #1662, and this version's
+        // setPositionAndAngles takes the eye as it is. A decimal server eye used to differ from it
+        // by 5e-9 and draw a line's edge pixel differently (#1629), so the feet were recovered to
+        // a millionth and the height added back; both sides use the one value now, so the pin
+        // passes the eye through.
+        player.setPositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;

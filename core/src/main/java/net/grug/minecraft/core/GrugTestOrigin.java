@@ -27,33 +27,38 @@ public final class GrugTestOrigin {
     public static final double LIFT = 3.0;
 
     /**
-     * How far the eye sits above the feet on every loader. The room a test builds is anchored at
-     * the feet, so a server whose player keeps the feet in its position has to add this to report
-     * the eye the room was built around (#1178).
-     */
-    public static final double EYE_HEIGHT = 1.62;
-
-    /**
-     * The eye height a client's player stands at: the game's own {@code float} 1.62, which is
-     * 1.6200000047683716 as a double. A client keeps its box at {@code eye - this}, so an eye of
-     * exactly 1.62 above the feet puts the box 5e-9 under them.
-     */
-    private static final double CLIENT_EYE_HEIGHT = (double) 1.62F;
-
-    /**
-     * The eye a teleport packet must carry for a client whose feet are to land at {@code feetY}:
-     * the feet plus the client's own float eye height, whose box bottom {@code eye - 1.62F} rounds
-     * back to {@code feetY} (the unit test checks it over many heights, because a box bottom one
-     * ulp under the feet would sink the client again).
+     * How far the eye sits above the feet on every loader.
      *
-     * <p>{@link #EYE_HEIGHT} is the decimal 1.62, and a box bottom 5e-9 under a floor's top is
-     * inside the block for the game's collision, which clips a fall only for a box at or above the
-     * top. A client teleported with the decimal eye therefore fell through the stone it stood on
-     * for the ticks until the server's hold corrected it, and the camera read 0.2336 low between
-     * two teleports (#1688).
+     * <p>It is the game's own {@code float} 1.62 widened to a double, 1.6200000047683716, and not
+     * the decimal 1.62. Every version stores the eye as {@code feet + (double) 1.62F}: 1.2.5 adds
+     * its {@code yOffset}, 1.20.6 adds its {@code eyeHeight} in {@code getEyeY}, and the old
+     * versions' {@code setPositionAndAngles} does the same. A decimal 1.62 therefore reports an eye
+     * 5e-9 under the client's, which changes a joined client's camera bits and draws a line's edge
+     * pixel differently (#1629).
+     *
+     * <p>This is the only copy. The origin, a server's rebuilt eye and a joined capture pin all
+     * read it, so the three cannot drift apart again (#1662).
+     */
+    public static final double EYE_HEIGHT = (double) 1.62F;
+
+    /**
+     * The eye a client whose feet are at {@code feetY} stands at: the feet plus {@link
+     * #EYE_HEIGHT}. A teleport packet carries it for such a client, whose box bottom {@code eye -
+     * EYE_HEIGHT} is the feet exactly (the unit test checks it over many heights, because a box
+     * bottom under the feet sinks the client through the floor it stands on, #1688).
      */
     public static double clientEye(double feetY) {
-        return feetY + CLIENT_EYE_HEIGHT;
+        return feetY + EYE_HEIGHT;
+    }
+
+    /**
+     * The feet under an eye at {@code eyeY}: {@link #clientEye(double)}'s inverse, exact for a
+     * position the game built as the feet plus its own {@code float} height. A loader whose {@code
+     * setPositionAndAngles} takes the feet subtracts this before passing them, and the game adds
+     * the same height back, so the pinned camera is the eye the capture named (#1662).
+     */
+    public static double feetOfEye(double eyeY) {
+        return eyeY - EYE_HEIGHT;
     }
 
     /**
@@ -71,7 +76,7 @@ public final class GrugTestOrigin {
      * this instead of the position itself (#1178).
      */
     public static Vec3 eyeOfFeet(double x, double feetY, double z) {
-        return new Vec3(x, feetY + EYE_HEIGHT, z);
+        return new Vec3(x, clientEye(feetY), z);
     }
 
     /**

@@ -11,6 +11,7 @@ import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
+import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerMove;
 import net.grug.minecraft.core.GrugTestPlayerPin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
@@ -1185,7 +1186,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * ServerOrnitheAdapter} answers instead (#163).
      */
     protected double feetY(PlayerEntity player) {
-        return player.y - 1.62;
+        return GrugTestOrigin.feetOfEye(player.y);
     }
 
     @Override
@@ -1820,7 +1821,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // ends.
         player.setPositionAndAngles(
                 GrugTestPlayerSnap.blockCentre(savedX),
-                savedY - 1.62,
+                GrugTestOrigin.feetOfEye(savedY),
                 GrugTestPlayerSnap.blockCentre(savedZ),
                 0.0F,
                 0.0F);
@@ -1867,7 +1868,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (player != null) {
             // The saved y is the eye; the feet are what setPositionAndAngles wants, so the restore
             // puts the player back rather than raising them again.
-            player.setPositionAndAngles(savedX, savedY - 1.62, savedZ, savedYaw, savedPitch);
+            player.setPositionAndAngles(
+                    savedX, GrugTestOrigin.feetOfEye(savedY), savedZ, savedYaw, savedPitch);
         }
     }
 
