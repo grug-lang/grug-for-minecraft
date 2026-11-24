@@ -30,4 +30,12 @@ class GrugTestPlayerMoveTest {
         assertFalse(GrugTestPlayerMove.chunkReceived(false, false));
         assertFalse(GrugTestPlayerMove.chunkReceived(false, true));
     }
+
+    @Test
+    void canMoveToNeedsAPlayerAWorldAndTheChunkOfThatWorld() {
+        assertTrue(GrugTestPlayerMove.canMoveTo("p", "w", w -> true));
+        assertFalse(GrugTestPlayerMove.canMoveTo("p", "w", w -> false));
+        assertFalse(GrugTestPlayerMove.canMoveTo("p", null, w -> true));
+        assertFalse(GrugTestPlayerMove.canMoveTo(null, "w", w -> true));
+    }
 }

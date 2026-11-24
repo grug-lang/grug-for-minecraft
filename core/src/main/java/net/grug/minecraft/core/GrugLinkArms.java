@@ -129,6 +129,126 @@ public final class GrugLinkArms {
         }
     }
 
+    /**
+     * Runs {@code onServer} on {@code argument} when {@code server}, else {@code otherwise}. The
+     * argument is passed through so that neither arm needs a lambda that captures it.
+     */
+    public static <T> void chooseWith(
+            boolean server, T argument, Consumer<T> onServer, Consumer<T> otherwise) {
+        if (server) {
+            onServer.accept(argument);
+        } else {
+            otherwise.accept(argument);
+        }
+    }
+
+    /**
+     * A copy of the members {@code membersOf} reads from {@code world}, or an empty list before the
+     * world exists.
+     */
+    public static <W> java.util.List<Object> membersOrNone(
+            W world, Function<W, Collection<?>> membersOf) {
+        return world == null
+                ? new java.util.ArrayList<>()
+                : new java.util.ArrayList<Object>(membersOf.apply(world));
+    }
+
+    /** A task of three values, for {@link #runIfWith} so a caller needs no capturing lambda. */
+    public interface Task3<A, B, C> {
+        void run(A a, B b, C c);
+    }
+
+    /** Runs {@code task} on the three values when {@code here}. */
+    public static <A, B, C> void runIfWith(boolean here, A a, B b, C c, Task3<A, B, C> task) {
+        if (here) {
+            task.run(a, b, c);
+        }
+    }
+
+    /** What {@code map} makes of {@code value}, or null when there is none. */
+    public static <T, R> R mapOrNull(T value, Function<T, R> map) {
+        return value == null ? null : map.apply(value);
+    }
+
+    /** Whether both are true. */
+    public static boolean bothHere(boolean first, boolean second) {
+        return first && second;
+    }
+
+    /** {@code answer} when {@code here}, else {@code otherwise} without asking it. */
+    public static boolean ifHereElse(boolean here, boolean otherwise, BooleanSupplier answer) {
+        return here ? answer.getAsBoolean() : otherwise;
+    }
+
+    /**
+     * The entry of {@code table} at {@code index}, or null when the index is outside it or empty.
+     */
+    public static <T> T tableEntry(T[] table, int index) {
+        return index > 0 && index < table.length ? table[index] : null;
+    }
+
+    /**
+     * Runs {@code send} on {@code value} when there is one, and else gives {@code report} the
+     * {@code message} and runs nothing.
+     */
+    public static <T> void deliverOrReport(
+            T value, String message, Consumer<String> report, Consumer<T> send) {
+        if (value == null) {
+            report.accept(message);
+            return;
+        }
+        send.accept(value);
+    }
+
+    /** A call to the joined client that can be refused. */
+    public interface ControlCall<T> {
+        T call() throws GrugControlServer.ControlException;
+    }
+
+    /** A call to the joined client that answers nothing and can be refused. */
+    public interface ControlRun {
+        void run() throws GrugControlServer.ControlException;
+    }
+
+    /**
+     * What {@code call} answers, or, when the client refuses it, {@code prefix} and the refusal
+     * given to {@code report} and {@code otherwise} answered.
+     */
+    public static <T> T callOrReport(
+            ControlCall<T> call, String prefix, T otherwise, Consumer<String> report) {
+        try {
+            return call.call();
+        } catch (GrugControlServer.ControlException e) {
+            report.accept(prefix + e.getMessage());
+            return otherwise;
+        }
+    }
+
+    /**
+     * Runs {@code run}, giving {@code report} {@code prefix} and the refusal when the client
+     * refuses.
+     */
+    public static void runOrReport(ControlRun run, String prefix, Consumer<String> report) {
+        callOrReport(
+                () -> {
+                    run.run();
+                    return Boolean.TRUE;
+                },
+                prefix,
+                Boolean.FALSE,
+                report);
+    }
+
+    /** Hands each of {@code keys} that {@code present} does not hold to {@code onMissing}. */
+    public static <K> void forEachMissing(
+            Collection<K> keys, Collection<?> present, Consumer<K> onMissing) {
+        for (K key : keys) {
+            if (!present.contains(key)) {
+                onMissing.accept(key);
+            }
+        }
+    }
+
     /** Runs {@code task} when the environment says this is a CI run ({@code GRUG_CI=true}). */
     public static void runIfCi(Function<String, String> env, Runnable task) {
         runIf("true".equals(env.apply("GRUG_CI")), task);

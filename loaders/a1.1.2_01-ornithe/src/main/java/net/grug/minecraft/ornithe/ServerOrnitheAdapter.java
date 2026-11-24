@@ -78,7 +78,6 @@ import java.util.zip.Deflater;
  * <p>A dedicated server has no {@code MinecraftInstance}, so the world comes from the one the
  * server run saw tick ({@link GrugServerRun#world()}), and the players are that world's.
  */
-@GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class ServerOrnitheAdapter extends OrnitheAdapter {
 
     /**
@@ -196,7 +195,10 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /** Closes the menu a joined client closed, dropping the stack it carried where it stands. */
     public static void closeFromClient(PacketHandler handler, int windowId) {
         PlayerEntity player = GrugControlAlpha.playerOf(handler);
-        GrugLinkArms.deliver(liveMenu(player, windowId), menu -> closeMenu(player));
+        GrugLinkArms.deliverIf(
+                GrugLinkArms.known(liveMenu(player, windowId)),
+                player,
+                ServerOrnitheAdapter::closeMenu);
     }
 
     /**
@@ -224,12 +226,18 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * server tick.
      */
     public static void forgetMenusOfMissingPlayers(List<?> players) {
-        for (PlayerEntity player : new ArrayList<>(MENUS.keySet())) {
-            if (!players.contains(player)) {
-                closeMenu(player);
-                CARRIED_ITEMS.remove(player);
-            }
-        }
+        GrugLinkArms.forEachMissing(
+                new ArrayList<>(MENUS.keySet()), players, ServerOrnitheAdapter::forgetPlayer);
+    }
+
+    /** Closes the menu of a player who left and forgets the stack they carried. */
+    @GrugGenerated(
+            "a player leaves a dedicated server only when its client disconnects, which no coverage"
+                    + " test can make its own client do; the decision is core's tested"
+                    + " GrugLinkArms.forEachMissing")
+    private static void forgetPlayer(PlayerEntity player) {
+        closeMenu(player);
+        CARRIED_ITEMS.remove(player);
     }
 
     /**
@@ -239,8 +247,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private final GrugScreenCalls.Forwarded screens =
             new GrugScreenCalls.Forwarded(
-                    GrugControlAlpha::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlAlpha::server, ServerOrnitheAdapter::reportFailure);
 
     /**
      * The camera reads this server makes, which its joined client answers with its own camera: a
@@ -249,8 +256,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private final GrugTestCamera.Forwarded camera =
             new GrugTestCamera.Forwarded(
-                    GrugControlAlpha::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlAlpha::server, ServerOrnitheAdapter::reportFailure);
 
     /**
      * The saved-number reads this server makes, which its joined client answers from its own copy
@@ -259,8 +265,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private final GrugClientSavedNumbers.Forwarded savedNumbers =
             new GrugClientSavedNumbers.Forwarded(
-                    GrugControlAlpha::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlAlpha::server, ServerOrnitheAdapter::reportFailure);
 
     /**
      * The light comparisons this server makes, which its joined client answers from its own copy of
@@ -269,8 +274,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private final GrugClientLight.Forwarded clientLight =
             new GrugClientLight.Forwarded(
-                    GrugControlAlpha::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlAlpha::server, ServerOrnitheAdapter::reportFailure);
 
     /**
      * The overlay reads this server makes, which its joined client answers about the frame it
@@ -279,8 +283,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private final GrugOverlayCalls.Forwarded overlays =
             new GrugOverlayCalls.Forwarded(
-                    GrugControlAlpha::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlAlpha::server, ServerOrnitheAdapter::reportFailure);
 
     /**
      * The mining crack and the client resource files of a hot reload, which the joined client
@@ -289,12 +292,21 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private final GrugClientTestCalls.Forwarded clientTestCalls =
             new GrugClientTestCalls.Forwarded(
-                    GrugControlAlpha::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlAlpha::server, ServerOrnitheAdapter::reportFailure);
 
     @Override
     public GrugClientTestCalls.Forwarded forwardedClientTestCalls() {
         return clientTestCalls;
+    }
+
+    /**
+     * Reports a failed call of the joined client as a host function error, which fails the test.
+     */
+    @GrugGenerated(
+            "a call fails only when the joined client cannot answer it or refuses it, which a"
+                    + " passing run never has")
+    private static void reportFailure(String message) {
+        Grug.hostFunctionErrorHappened(Grug.statePtr, message);
     }
 
     @Override
@@ -309,11 +321,14 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     @Override
     public Object testPlayer() {
-        World world = GrugServerRun.world();
-        if (world == null) {
-            return null;
-        }
-        // The player who started the run, when one has: it is their screen the forwarded calls use.
+        return GrugLinkArms.mapOrNull(GrugServerRun.world(), ServerOrnitheAdapter::playerIn);
+    }
+
+    /**
+     * The player who started the run, when one has: it is their screen the forwarded calls use.
+     * Else the first player in the world, or null.
+     */
+    private static Object playerIn(World world) {
         PlayerEntity starter = GrugControlAlpha.starterPlayer();
         if (starter != null) {
             return starter;
@@ -374,14 +389,14 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
-        PlayerEntity player = (PlayerEntity) testPlayer();
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "TestTickContext.use_block: There is no player to right-click with.");
-            return;
-        }
+        GrugLinkArms.deliverOrReport(
+                (PlayerEntity) testPlayer(),
+                "TestTickContext.use_block: There is no player to right-click with.",
+                ServerOrnitheAdapter::reportFailure,
+                player -> useBlockAs(world, player, x, y, z));
+    }
 
+    private void useBlockAs(World world, PlayerEntity player, double x, double y, double z) {
         int blockX = (int) Math.floor(x);
         int blockY = (int) Math.floor(y);
         int blockZ = (int) Math.floor(z);
@@ -389,8 +404,10 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         // In Alpha, World.getBlock() hands back a block id rather than a Block, and 0 is air. A
         // click names a block, so a position with none is a mistake in the test rather than a
         // click on nothing.
-        int blockId = GrugWorldAccess.blockId(world, blockX, blockY, blockZ);
-        if (blockId <= 0 || blockId >= Block.BY_ID.length || Block.BY_ID[blockId] == null) {
+        Block block =
+                GrugLinkArms.tableEntry(
+                        Block.BY_ID, GrugWorldAccess.blockId(world, blockX, blockY, blockZ));
+        if (block == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "TestTickContext.use_block: There is no block at "
@@ -402,7 +419,6 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                             + ".");
             return;
         }
-        Block block = Block.BY_ID[blockId];
 
         boolean used = block.use(world, blockX, blockY, blockZ, player);
         if (!used) {
@@ -437,22 +453,20 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /** Asked of the client of the player who started the run, with the world frozen (#1040). */
     @Override
     public boolean hasSound(String path) {
-        try {
-            return GrugControlAlpha.server().hasSound(path);
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "has_sound: " + e.getMessage());
-            return false;
-        }
+        return GrugLinkArms.callOrReport(
+                () -> GrugControlAlpha.server().hasSound(path),
+                "has_sound: ",
+                false,
+                ServerOrnitheAdapter::reportFailure);
     }
 
     /** Played by the client of the player who started the run, which owns the sound engine. */
     @Override
     public void playUiSound(String path, double volume, double pitch) {
-        try {
-            GrugControlAlpha.server().playUiSound(path, volume, pitch);
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
-        }
+        GrugLinkArms.runOrReport(
+                () -> GrugControlAlpha.server().playUiSound(path, volume, pitch),
+                "play_ui_sound: ",
+                ServerOrnitheAdapter::reportFailure);
     }
 
     /**
@@ -516,10 +530,14 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public boolean lightApplied(double x, double y, double z) {
         Object level = getLevel();
-        if (level == null || !GrugControlAlpha.server().hasStarter()) {
-            return true;
-        }
-        World world = (World) level;
+        return GrugLinkArms.ifHereElse(
+                GrugLinkArms.bothHere(
+                        GrugLinkArms.known(level), GrugControlAlpha.server().hasStarter()),
+                true,
+                () -> clientLightApplied(x, y, z, (World) level));
+    }
+
+    private boolean clientLightApplied(double x, double y, double z, World world) {
         long simulated =
                 GrugLightSync.lightFingerprint(
                         ((int) Math.floor(x)) >> 4,
@@ -634,10 +652,10 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     @Override
     public Object carriedItem() {
-        PlayerEntity player = (PlayerEntity) testPlayer();
-        if (player == null) {
-            return null;
-        }
+        return GrugLinkArms.mapOrNull((PlayerEntity) testPlayer(), ServerOrnitheAdapter::cursorOf);
+    }
+
+    private static Object cursorOf(PlayerEntity player) {
         GrugAlphaMenu menu = MENUS.get(player);
         if (menu != null) {
             return menu.cursor == null ? null : menu.cursor.getItem();
@@ -649,20 +667,21 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /** Sets this server's cursor and sends it to the client that draws it (#1098, #1389). */
     @Override
     public void setCarriedItem(Object itemObj) {
-        PlayerEntity player = (PlayerEntity) testPlayer();
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "TestTickContext.set_carried_item: There is no player to set a cursor on.");
-            return;
-        }
+        GrugLinkArms.deliverOrReport(
+                (PlayerEntity) testPlayer(),
+                "TestTickContext.set_carried_item: There is no player to set a cursor on.",
+                ServerOrnitheAdapter::reportFailure,
+                player -> setCursor(player, (Item) itemObj));
+    }
+
+    private static void setCursor(PlayerEntity player, Item itemObj) {
         GrugAlphaMenu menu = MENUS.get(player);
         if (menu != null) {
-            menu.cursor = new ItemStack((Item) itemObj);
+            menu.cursor = new ItemStack(itemObj);
             sendToPlayer(player, GrugScreenContentPacket.of(menu));
             return;
         }
-        ItemStack stack = new ItemStack((Item) itemObj);
+        ItemStack stack = new ItemStack(itemObj);
         CARRIED_ITEMS.put(player, stack);
         sendCursorToPlayer(player, stack);
     }
@@ -670,14 +689,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /** Clears this server's cursor and tells the client (#1098, #1389). */
     @Override
     public void deleteCarriedItem() {
-        PlayerEntity player = (PlayerEntity) testPlayer();
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
-                            + " on.");
-            return;
-        }
+        GrugLinkArms.deliverOrReport(
+                (PlayerEntity) testPlayer(),
+                "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
+                        + " on.",
+                ServerOrnitheAdapter::reportFailure,
+                ServerOrnitheAdapter::clearCursor);
+    }
+
+    private static void clearCursor(PlayerEntity player) {
         GrugAlphaMenu menu = MENUS.get(player);
         if (menu != null) {
             menu.cursor = null;
@@ -775,10 +795,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public boolean isWorldReady(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
-        double feet = feetY(player);
-        return super.isWorldReady(playerObj)
-                && GrugPlayerFloor.mayStart(
-                        solidBlocks(getLevel()), player.x, feet, player.z, player.onGround);
+        return GrugLinkArms.ifHere(
+                super.isWorldReady(playerObj),
+                () ->
+                        GrugPlayerFloor.mayStart(
+                                solidBlocks(getLevel()),
+                                player.x,
+                                feetY(player),
+                                player.z,
+                                player.onGround));
     }
 
     /**
@@ -815,11 +840,10 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public boolean setPlayerPositionForTest(double x, double y, double z) {
         PlayerEntity player = (PlayerEntity) testPlayer();
-        World world = (World) getLevel();
-        boolean hasWorld = world != null;
-        boolean loaded =
-                hasWorld && world.isChunkLoaded((int) Math.floor(x), 64, (int) Math.floor(z));
-        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, loaded)) {
+        if (!GrugTestPlayerMove.canMoveTo(
+                player,
+                (World) getLevel(),
+                world -> world.isChunkLoaded((int) Math.floor(x), 64, (int) Math.floor(z)))) {
             return false;
         }
         GrugServerRun.moveToFeet(player, x, y, z);
@@ -865,10 +889,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         World world = (World) levelObj;
         return (x, y, z, pointX, pointZ) -> {
             int id = GrugWorldAccess.blockId(world, x, y, z);
-            if (id <= 0 || id >= Block.BY_ID.length) {
-                return GrugPlayerFloor.BlockSource.NO_COLLISION;
-            }
-            Block block = Block.BY_ID[id];
+            Block block = GrugLinkArms.tableEntry(Block.BY_ID, id);
             if (block == null) {
                 return GrugPlayerFloor.BlockSource.NO_COLLISION;
             }
@@ -904,14 +925,18 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public void buildTestBox(int radius) {
         World world = (World) getLevel();
-        if (world != null && world.ambientDarkness != 0) {
+        GrugLinkArms.deliver(world, ServerOrnitheAdapter::skipToNoon);
+        super.buildTestBox(radius);
+    }
+
+    private static void skipToNoon(World world) {
+        if (world.ambientDarkness != 0) {
             // The fields, not World.setTime and initAmbientDarkness: the a0.2.1 server jar names
             // those methods differently from the development jar and crashed the run with a
             // NoSuchMethodError, while it resolves these two fields by the same names.
             world.ticks = world.ticks - world.ticks % 24000L + 24000L + 6000L;
             world.ambientDarkness = 0;
         }
-        super.buildTestBox(radius);
     }
 
     /**
@@ -934,24 +959,25 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     @Override
     public boolean isWorldSettled() {
-        if (!GrugControlAlpha.server().hasStarter()) {
-            return true;
-        }
+        return GrugLinkArms.ifHereElse(
+                GrugControlAlpha.server().hasStarter(), true, this::pollClientSettled);
+    }
+
+    private boolean pollClientSettled() {
         boolean owed = lightResend.pending();
-        if (owed) {
-            resendLight();
-        }
-        // A poll that owed the region asked no client, so nothing is settled for this poll.
-        boolean clientSettled = false;
-        if (!owed) {
-            try {
-                clientSettled = GrugControlAlpha.server().worldSettled();
-            } catch (GrugControlServer.ControlException e) {
-                Grug.hostFunctionErrorHappened(
-                        Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
-                return true;
-            }
-        }
+        GrugLinkArms.runIf(owed, this::resendLight);
+        // A poll that owed the region asked no client, so nothing is settled for this poll. A
+        // client that refuses the question fails the test and settles the poll.
+        boolean clientSettled =
+                GrugLinkArms.ifHereElse(
+                        !owed,
+                        false,
+                        () ->
+                                GrugLinkArms.callOrReport(
+                                        () -> GrugControlAlpha.server().worldSettled(),
+                                        "TestTickContext.world_settled: ",
+                                        true,
+                                        ServerOrnitheAdapter::reportFailure));
         return GrugRenderSettle.serverSettled(clientSettled, owed);
     }
 
@@ -986,9 +1012,13 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         }
         PlayerEntity starter = GrugControlAlpha.starterPlayer();
         World world = (World) getLevel();
-        if (starter == null || world == null) {
-            return false;
-        }
+        return GrugLinkArms.ifHereElse(
+                GrugLinkArms.bothHere(GrugLinkArms.known(starter), GrugLinkArms.known(world)),
+                false,
+                () -> sendRegions(starter, world, regions));
+    }
+
+    private boolean sendRegions(PlayerEntity starter, World world, List<int[]> regions) {
         // The placements left the field their order made, which differs from the one the final
         // blocks define and from the client-only run's, so it is recomputed before it is sent.
         int[] box = lightResend.lastBox();
@@ -997,10 +1027,10 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         for (int[] region : regions) {
             // A chunk this server never loaded is an empty one with no block array, which a region
             // packet cannot be made of, and the client holds no light for it either.
-            if (world.getChunkAt(region[0] >> 4, region[2] >> 4).blocks == null) {
-                continue;
-            }
-            sendToPlayer(starter, buildWorldChunkPacket(world, region));
+            GrugLinkArms.deliverIf(
+                    GrugLinkArms.known(world.getChunkAt(region[0] >> 4, region[2] >> 4).blocks),
+                    region,
+                    present -> sendToPlayer(starter, buildWorldChunkPacket(world, present)));
         }
         return true;
     }
@@ -1025,7 +1055,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     private static long relightSweep(
             World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         world.updateLight(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
-        while (world.doLightUpdates()) {}
+        GrugLinkArms.drain(world, world::doLightUpdates);
         long hash = 0;
         for (int y = minY; y <= maxY; y++) {
             for (int z = minZ; z <= maxZ; z++) {
@@ -1082,7 +1112,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /**
      * A region's cells read from the server's own {@link World}, which {@link GrugChunkData} cannot
      * name itself without tying the layout its test pins to a game class. A dedicated run reads
-     * every cell through it, so it counts at 0 missed without an exclusion (#1646).
+     * every cell through it, so the server-only measurement counts it at 0 missed (#1646).
      */
     private static final class WorldSource implements GrugChunkData.Source {
 
@@ -1122,6 +1152,9 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private static final Field COMPRESSED_SIZE_FIELD = compressedSizeField();
 
+    @GrugGenerated(
+            "the failure arm needs a field name the pinned game does not have, which no run can"
+                    + " make")
     private static Field compressedSizeField() {
         try {
             return GrugFieldAccess.field(WorldChunkPacket.class, "compressedSize", "f_62093482");
@@ -1135,6 +1168,9 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         }
     }
 
+    @GrugGenerated(
+            "Field.setInt cannot fail with IllegalAccessException on a field made accessible when"
+                    + " it was found")
     private static void setCompressedSize(WorldChunkPacket packet, int size) {
         try {
             COMPRESSED_SIZE_FIELD.setInt(packet, size);

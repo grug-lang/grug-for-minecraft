@@ -23,6 +23,15 @@ public final class GrugTestPlayerMove {
     }
 
     /**
+     * Whether a test may move the player, from the game's own objects: there is a {@code player}
+     * and a {@code world}, and {@code chunkLoaded} says the world has the target's chunk.
+     */
+    public static <W> boolean canMoveTo(
+            Object player, W world, java.util.function.Predicate<W> chunkLoaded) {
+        return canMove(player != null, world != null, world != null && chunkLoaded.test(world));
+    }
+
+    /**
      * Whether the client has received a chunk. Beta 1.7.3's {@code MultiplayerChunkCache.hasChunk}
      * begins with {@code if (this != null) return true}, so {@code isChunkLoaded} answers true for
      * every chunk on a multiplayer client, and the chunk cache answers the shared empty chunk for
