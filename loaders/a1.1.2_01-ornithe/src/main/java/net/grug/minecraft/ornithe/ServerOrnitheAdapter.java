@@ -1081,14 +1081,9 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
 
     /**
      * A region's cells read from the server's own {@link World}, which {@link GrugChunkData} cannot
-     * name itself without tying the layout its test pins to a game class. It carries {@code
-     * GrugGenerated} for the reason this adapter does: an Alpha world exists only inside a running
-     * game, so no unit test can stand in for it, and only the dispatch-only multiplayer job
-     * launches that game.
+     * name itself without tying the layout its test pins to a game class. A dedicated run reads
+     * every cell through it, so it counts at 0 missed without an exclusion (#1646).
      */
-    @GrugGenerated(
-            "reads Alpha's dedicated server World, which only the dispatch-only multiplayer job"
-                    + " launches")
     private static final class WorldSource implements GrugChunkData.Source {
 
         private final World world;
