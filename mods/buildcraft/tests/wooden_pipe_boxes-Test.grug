@@ -14,10 +14,28 @@
 # every block of a scene before its pipe is asked. A scene's placements are queued until the test's
 # tick ends and the client draws them on a frame after, so each scene is checked on a later tick,
 # once the settle ask answers true.
+# The straight run's west arm is asked 31 times rather than once, because #1664 was seen once in four
+# runs of this leg: a single ask per run needs many runs to meet a race that rare, while 30 fresh
+# rebuilds of the same scene and the first scene's own ask give 1 - 0.75^31, about 99.99%, of meeting
+# it in one run. Each rebuild waits for the settle answer before the arm is asked, as the first scene
+# does, so every ask reads a scene the world had settled. On a failed arm the test prints the
+# client's own selection around the pipe, which a capture cannot show, and prints nothing when the
+# arm is there.
 origin_x: number = 0
 origin_y: number = 0
 origin_z: number = 0
 scene: number = -1
+rebuilds: number = 0
+
+# The rebuilds after the first scene. Each costs one settle round trip, two to four ticks, so the 31
+# asks fit the default 200-tick budget a test that does not raise it has; the 600 below leaves room
+# for a scene whose settle takes longer on a loaded runner, where a 200-tick budget would fail the
+# test for the loop rather than for the arm.
+rebuild_count: number = 30
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(600)
+}
 
 export tick(ctx: TestTickContext) {
     if scene < 0 {
@@ -27,9 +45,7 @@ export tick(ctx: TestTickContext) {
         origin_y = origin.y() - 1.88
         origin_z = origin.z()
         # A straight run: an inventory on each side, so the pipe has two opposite arms.
-        _place_pipe(ctx, level, origin_x, origin_y, origin_z)
-        level.place_block(origin_x - 1, origin_y, origin_z, "minecraft:chest")
-        level.place_block(origin_x + 1, origin_y, origin_z, "minecraft:chest")
+        _build_straight(ctx, level, origin_x, origin_y, origin_z)
         scene = 0
         ctx.not_done()
         return
@@ -45,26 +61,54 @@ export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     if scene == 0 {
         _check_straight(ctx, level, origin_x, origin_y, origin_z)
-        # A corner: the west arm goes and a north one arrives, so two arms meet at right angles.
-        level.place_block(origin_x - 1, origin_y, origin_z, "minecraft:air")
-        level.place_block(origin_x, origin_y, origin_z - 1, "minecraft:chest")
+        # Rebuild the straight run for the first repeat, which this scene's end queues.
+        _build_straight(ctx, level, origin_x, origin_y, origin_z)
+        rebuilds = 1
         scene = 1
         ctx.not_done()
         return
     }
     if scene == 1 {
-        _check_corner(ctx, level, origin_x, origin_y, origin_z)
-        # Alone: no neighbour takes an item, so only the centre is left.
-        level.place_block(origin_x + 1, origin_y, origin_z, "minecraft:air")
-        level.place_block(origin_x, origin_y, origin_z - 1, "minecraft:air")
+        _check_west_arm(ctx, level, origin_x, origin_y, origin_z)
+        if rebuilds < rebuild_count {
+            _build_straight(ctx, level, origin_x, origin_y, origin_z)
+            rebuilds = rebuilds + 1
+            ctx.not_done()
+            return
+        }
+        # A corner: the west arm goes and a north one arrives, so two arms meet at right angles.
+        level.place_block(origin_x - 1, origin_y, origin_z, "minecraft:air")
+        level.place_block(origin_x, origin_y, origin_z - 1, "minecraft:chest")
         scene = 2
         ctx.not_done()
         return
     }
     if scene == 2 {
-        _check_alone(ctx, level, origin_x, origin_y, origin_z)
+        _check_corner(ctx, level, origin_x, origin_y, origin_z)
+        # Alone: no neighbour takes an item, so only the centre is left.
+        level.place_block(origin_x + 1, origin_y, origin_z, "minecraft:air")
+        level.place_block(origin_x, origin_y, origin_z - 1, "minecraft:air")
         scene = 3
+        ctx.not_done()
+        return
     }
+    if scene == 3 {
+        _check_alone(ctx, level, origin_x, origin_y, origin_z)
+        scene = 4
+    }
+}
+
+# The straight run's fixture, rebuilt identically for every ask. Clearing first makes a rebuild the
+# same edit the first build makes, so the client is sent air and then the block, and a chest's block
+# entity is the one the block change that places it creates (#1664). The clear and the place are in
+# one tick, so the settle wait after them covers the final blocks.
+local _build_straight(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    level.place_block(x, y, z, "minecraft:air")
+    level.place_block(x - 1, y, z, "minecraft:air")
+    level.place_block(x + 1, y, z, "minecraft:air")
+    _place_pipe(ctx, level, x, y, z)
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    level.place_block(x + 1, y, z, "minecraft:chest")
 }
 
 # The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
@@ -97,7 +141,7 @@ local _check_straight(ctx: TestTickContext, level: Level, x: number, y: number, 
     ctx.assert(not ctx.block_collision(level, x, y, z, 0.3, 0.0, 0.3, 0.7, 0.2, 0.7), "The space under a straight run should be empty.")
     ctx.assert(not ctx.block_collision(level, x, y, z, 0.3, 0.8, 0.3, 0.7, 1.0, 0.7), "The space above a straight run should be empty.")
 
-    ctx.assert(ctx.block_selection(level, x, y, z, 0.05, 0.5, 0.5), "A straight run's selection should reach the west arm.")
+    _check_west_arm(ctx, level, x, y, z)
     ctx.assert(ctx.block_selection(level, x, y, z, 0.95, 0.5, 0.5), "A straight run's selection should reach the east arm.")
     ctx.assert(not ctx.block_selection(level, x, y, z, 0.5, 0.1, 0.5), "A straight run's selection should not reach under the pipe.")
     ctx.assert(not ctx.block_selection(level, x, y, z, 0.5, 0.9, 0.5), "A straight run's selection should not reach above the pipe.")
@@ -105,6 +149,48 @@ local _check_straight(ctx: TestTickContext, level: Level, x: number, y: number, 
 
     ctx.assert(ctx.block_ray_trace(level, x, y, z, 0.5, 0.01, 0.5, 0.5, 0.99, 0.5), "A ray through a straight run's centre should hit the pipe.")
     ctx.assert(not ctx.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a straight run's empty corner should go past the pipe.")
+}
+
+# The west arm is the assertion #1664 failed intermittently, so the rebuild loop asks it on its own,
+# with the report on the failing path only.
+local _check_west_arm(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    selected: bool = ctx.block_selection(level, x, y, z, 0.05, 0.5, 0.5)
+    if not selected {
+        _report_missing_arm(ctx, level, x, y, z, selected)
+    }
+    ctx.assert(selected, "A straight run's selection should reach the west arm.")
+}
+
+# #1664: a selection box is the joined client's outline, so a lost arm is the client's copy being
+# incomplete. Print, only when the arm is about to fail, the block and block entity this side's level
+# holds at the pipe and its four sides, then whether the client's game selects each of them. A
+# chest's selection box is its whole cube whether or not its block entity arrived, so a west chest
+# the client selects while the arm is still false names the chest's block entity as the missing
+# piece, a west chest it does not select names the chest's block, and a pipe the client does not
+# select at its centre names the pipe's block. A dedicated server cannot read its joined client's
+# level, because get_client_level answers the server's own world, and no wire answer carries a block
+# name, so these per-position selections are what separates the two states on that leg.
+local _report_missing_arm(ctx: TestTickContext, level: Level, x: number, y: number, z: number, selected: bool) {
+    print("A straight run's west arm selection was lost; this side's level follows, then the client's own selection at each position:")
+    print2("scene", scene)
+    print3("rebuild, tick", rebuilds, ctx.current_tick())
+    print2("this side is a dedicated server", me.on_dedicated_server())
+    print2("west arm selection in the client's game", selected)
+    pipe_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    west_entity: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    east_entity: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+    north_entity: Option[BlockEntity] = level.get_block_entity(x, y, z - 1)
+    south_entity: Option[BlockEntity] = level.get_block_entity(x, y, z + 1)
+    print3("this side's pipe: block, block entity", level.get_block(x, y, z), pipe_entity.has())
+    print2("client selection at the pipe's centre", ctx.block_selection(level, x, y, z, 0.5, 0.5, 0.5))
+    print3("this side's west chest: block, block entity", level.get_block(x - 1, y, z), west_entity.has())
+    print2("client selection at the west chest's centre", ctx.block_selection(level, x - 1, y, z, 0.5, 0.5, 0.5))
+    print3("this side's east neighbour: block, block entity", level.get_block(x + 1, y, z), east_entity.has())
+    print2("client selection at the east neighbour's centre", ctx.block_selection(level, x + 1, y, z, 0.5, 0.5, 0.5))
+    print3("this side's north neighbour: block, block entity", level.get_block(x, y, z - 1), north_entity.has())
+    print2("client selection at the north neighbour's centre", ctx.block_selection(level, x, y, z - 1, 0.5, 0.5, 0.5))
+    print3("this side's south neighbour: block, block entity", level.get_block(x, y, z + 1), south_entity.has())
+    print2("client selection at the south neighbour's centre", ctx.block_selection(level, x, y, z + 1, 0.5, 0.5, 0.5))
 }
 
 # A corner with an east arm and a north arm: the union starts at the centre's near corner and
