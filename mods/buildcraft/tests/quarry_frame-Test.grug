@@ -9,13 +9,16 @@
 # break, so that cell never gets a frame. The frame has 40 cells at the bottom, 40 at the top and 12 on
 # the three heights between the corner columns, 92 in all, one of which is bedrock, so 91 frames and 2 clears:
 # the quarry takes 93 steps, and a 94th finds nothing left to do and costs no energy.
+# The quarry stands 12 blocks south of the player, so that its whole box and frame lie inside the area the
+# runner clears before every test (16 blocks around the player): a frame left outside it stayed in the world
+# and the 1.2.5 client never settled again (#1628).
 # The other tests' quarries run no steps, since they hold no energy.
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     x: number = Math.floor(origin.x())
     y: number = Math.floor(origin.y()) + 10
-    z: number = Math.floor(origin.z()) + 40
+    z: number = Math.floor(origin.z()) + 12
     box_x: number = x - 5
     box_z: number = z - 11
 
