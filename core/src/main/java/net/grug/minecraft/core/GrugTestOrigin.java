@@ -42,7 +42,9 @@ public final class GrugTestOrigin {
 
     /**
      * The eye a teleport packet must carry for a client whose feet are to land at {@code feetY}:
-     * the smallest double whose box bottom, {@code eye - 1.62F}, is not below {@code feetY}.
+     * the feet plus the client's own float eye height, whose box bottom {@code eye - 1.62F} rounds
+     * back to {@code feetY} (the unit test checks it over many heights, because a box bottom one
+     * ulp under the feet would sink the client again).
      *
      * <p>{@link #EYE_HEIGHT} is the decimal 1.62, and a box bottom 5e-9 under a floor's top is
      * inside the block for the game's collision, which clips a fall only for a box at or above the
@@ -51,11 +53,7 @@ public final class GrugTestOrigin {
      * two teleports (#1688).
      */
     public static double clientEye(double feetY) {
-        double eye = feetY + CLIENT_EYE_HEIGHT;
-        while (eye - CLIENT_EYE_HEIGHT < feetY) {
-            eye = Math.nextUp(eye);
-        }
-        return eye;
+        return feetY + CLIENT_EYE_HEIGHT;
     }
 
     /**

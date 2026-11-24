@@ -56,6 +56,11 @@ class GrugTestOriginTest {
             assertTrue(eye - clientEyeHeight >= feet, "box bottom under the feet at " + feet);
             assertEquals(feet + clientEyeHeight, eye, 1e-12);
         }
+        java.util.Random random = new java.util.Random(1688);
+        for (int i = 0; i < 1_000_000; i++) {
+            double feet = random.nextDouble() * 600.0 - 300.0;
+            assertTrue(GrugTestOrigin.clientEye(feet) - clientEyeHeight >= feet, "at " + feet);
+        }
         // The decimal eye the packet used to carry is the one that put the box under the floor.
         assertTrue(64.0 + GrugTestOrigin.EYE_HEIGHT - clientEyeHeight < 64.0);
     }
