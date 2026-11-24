@@ -536,6 +536,7 @@ class SecondPlayerTest(unittest.TestCase):
         "coverage/tests/gui_builder",
         "coverage/tests/gui_click",
         "coverage/tests/gui_click_empty",
+        "coverage/tests/gui_click_twice",
         "buildcraft/tests/autocrafting_table",
         "buildcraft/tests/redstone_engine_item",
         "coverage/tests/forwarded_press_screen_key",
@@ -900,6 +901,7 @@ class ServerUnlistedTest(unittest.TestCase):
         coverage/tests/gui_builder
         coverage/tests/gui_click
         coverage/tests/gui_click_empty
+        coverage/tests/gui_click_twice
         buildcraft/tests/autocrafting_table
         buildcraft/tests/redstone_engine_item
     """.split()
