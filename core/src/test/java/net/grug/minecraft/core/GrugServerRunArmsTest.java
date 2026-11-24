@@ -46,18 +46,24 @@ class GrugServerRunArmsTest {
 
         // Well under the held height: the height wins even though the floor is also above them.
         GrugServerRunArms.hold(
-                "p", 70.0, 60.0, 0.25, 65.0, p -> held.add("height"), p -> held.add("floor"));
-        // Within the tolerance of the held height, but under the floor.
+                "p", 70.0, 60.0, 0.25, 65.0, p -> held.add("height"), (p, f) -> held.add("floor"));
+        // Within the tolerance of the held height, but under the floor, which the arm is handed.
         GrugServerRunArms.hold(
-                "p", 70.0, 69.9, 0.25, 70.5, p -> held.add("height"), p -> held.add("floor"));
+                "p",
+                70.0,
+                69.9,
+                0.25,
+                70.5,
+                p -> held.add("height"),
+                (p, f) -> held.add("floor " + f));
         // No held height yet, under the floor.
         GrugServerRunArms.hold(
-                "p", 0.0, 60.0, 0.25, 65.0, p -> held.add("height"), p -> held.add("floor"));
+                "p", 0.0, 60.0, 0.25, 65.0, p -> held.add("height"), (p, f) -> held.add("floor"));
         // On the floor, at the held height.
         GrugServerRunArms.hold(
-                "p", 70.0, 70.0, 0.25, 70.0, p -> held.add("height"), p -> held.add("floor"));
+                "p", 70.0, 70.0, 0.25, 70.0, p -> held.add("height"), (p, f) -> held.add("floor"));
 
-        assertEquals(List.of("height", "floor", "floor"), held);
+        assertEquals(List.of("height", "floor 70.5", "floor"), held);
     }
 
     @Test
