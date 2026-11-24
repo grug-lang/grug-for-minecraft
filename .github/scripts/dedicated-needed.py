@@ -7,8 +7,11 @@ The ``multiplayer`` job runs the suite on a dedicated server with a client joine
 31% of a full dispatch's runner minutes (#1342). A proof or measurement dispatch names a ``base``,
 and when its diff against that base is confined to the mods the answer is ``false``: a mod port's
 grug code and tests are exercised by the client legs of every loader, and none of the server's
-code, the runner, the adapters or the API changes. The answer is ``true`` for any other changed
-path, in particular:
+code, the runner, the adapters or the API changes. The exception is a changed test under
+``mods/<mod>/tests/`` that calls a host function the joined client answers or performs
+(``JOINED_CLIENT_CALLS``), such as a capture, a screen, the camera or the client's own copy of the
+world: that test can fail on a dedicated leg a client leg passes, and the legs run (#1696). The
+answer is ``true`` for any other changed path, in particular:
 
 - ``core/``, ``mod_api.json``, ``loaders/``, ``test-saves/`` and ``.github/`` (the runner, the
   scripts, the workflows), which are the code and the harness the server legs run;
@@ -34,7 +37,9 @@ where every server class (``*Server*Adapter*``, ``GrugServerRun``, ``GrugControl
 workflow changes no server class's bytes, so it runs no leg and the carried-over data counts. The
 exceptions run every loader's leg: any ``core/`` path but ``core/src/test/`` (some core lines only a
 server leg executes), ``mod_api.json``, ``mods/coverage/``, the root build files (``gradle/``,
-``gradle.properties``, ``build.gradle*``, ``settings.*``) and ``.github/actions/setup-loader-build/``. A path under ``shared/``
+``gradle.properties``, ``build.gradle*``, ``settings.*``) and ``.github/actions/setup-loader-build/``.
+A mod test that calls a joined-client host function runs every loader's leg too, for the reason the
+dispatch answer above gives. A path under ``shared/``
 that no build declares, and every doubt (no base commit, an empty diff, a diff that cannot be
 computed, any error) run every loader's leg, which only runs more. The schedule never runs the legs
 (the job's own condition excludes it), so it answers every loader and nothing reads it.
@@ -49,6 +54,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -56,6 +62,51 @@ from pathlib import Path
 CLIENT_ONLY_PREFIXES = ("mods/",)
 # The mod whose tests are the server legs' own subject, so a change to it runs them.
 CLIENT_ONLY_EXCEPTIONS = ("mods/coverage/",)
+# A path under a mod's tests/, which is the only place a mod's own content can reach a leg.
+TESTS_DIR = re.compile(r"mods/[^/]+/tests/")
+# A test file, whose calls decide whether the legs run.
+TEST_FILE = re.compile(r"mods/[^/]+/tests/.+\.grug")
+# The test-side calls whose answer or effect is the joined client's rather than the server's, so a
+# test that makes one can fail on a dedicated leg a client leg passes (#1696): a capture is drawn
+# and compared by the joined client, and so are its screens, its overlays, its camera and its own
+# copy of the world (a saved number, the light it holds, a hot-reloaded file). A call's receiver is
+# not checked, because a test hands `ctx` to a helper under another name and a comment that names
+# one is only a runner minute. `get_origin` and `get_player` are deliberately absent: on a
+# dedicated leg they answer from the server's own copy of the test player, so a test that only
+# builds from them cannot fail on that leg, which keeps the saving for the ports that read them.
+JOINED_CLIENT_CALLS = (
+    "block_selection",
+    "camera",
+    "clear_carried_item",
+    "click_screen",
+    "client_saved_number",
+    "close_screen",
+    "get_carried_item",
+    "gui_height",
+    "gui_left",
+    "gui_top",
+    "gui_width",
+    "hot_reload_count",
+    "light_applied",
+    "mining_crack",
+    "normalization_forced",
+    "open_inventory",
+    "overlay_drawn",
+    "overlay_first_frame_cleared",
+    "press_screen_key",
+    "press_world_key",
+    "reload_count",
+    "screen_open",
+    "screen_width",
+    "screenshot",
+    "scroll_screen",
+    "set_carried_item",
+    "set_mod_file_state",
+    "set_player_position",
+    "use_block",
+    "world_overlay_drawn",
+    "world_settled",
+)
 # Every loader with a dedicated server, which a dispatch runs and a doubt falls back to.
 DISPATCH_LOADERS = (
     "1.2.5-forge",
@@ -96,12 +147,40 @@ def sibling(name: str):
     return module
 
 
-def reason_to_run(path: str) -> str | None:
+def mod_test_reason(repo: Path, head: str, path: str) -> str | None:
+    """Why a changed path under a mod can change a dedicated-server run, or None when it cannot.
+
+    Only a test file is read, because only its own content decides whether it reaches the joined
+    client: a mod's code, goldens, metadata and prose are exercised by the client legs of every
+    loader. A path under ``tests/`` that is not a readable ``.grug``, such as a deleted or renamed
+    test or a file that is not a test at all, answers with a reason, because a wrong ``true`` costs
+    runner minutes and a wrong ``false`` costs the evidence the run exists for.
+    """
+    if not TESTS_DIR.match(path):
+        return None
+    if not TEST_FILE.fullmatch(path):
+        return f"{path} is not a .grug test file this script can read, so the legs run"
+    try:
+        text = sibling("affected-mods").git(repo, "show", f"{head}:{path}")
+    except Exception as e:  # noqa: BLE001 - a test this cannot read runs the legs
+        return f"{path} cannot be read at {head} ({type(e).__name__}: {e}), so the legs run"
+    source = text.decode(errors="replace")
+    calls = [call for call in JOINED_CLIENT_CALLS if re.search(r"\.\s*" + call + r"\s*\(", source)]
+    if calls:
+        names = ", ".join(f"{call}()" for call in calls)
+        return (
+            f"{path} calls {names}, which a dedicated leg answers or performs on its joined client"
+            " rather than on the server"
+        )
+    return None
+
+
+def reason_to_run(repo: Path, head: str, path: str) -> str | None:
     """Why this changed path can change a dedicated-server run, or None when it cannot."""
     if path.startswith(CLIENT_ONLY_EXCEPTIONS):
         return f"{path} is a test the dedicated servers run"
     if path.startswith(CLIENT_ONLY_PREFIXES):
-        return None
+        return mod_test_reason(repo, head, path)
     if "/" not in path and path.endswith(".md"):
         return None
     return f"{path} is not provably client-only"
@@ -113,7 +192,7 @@ def needed(repo: Path, base: str, head: str) -> tuple[bool, str]:
     if not paths:
         return True, "the diff is empty, which is more likely a mistake than a no-op"
     for path in paths:
-        reason = reason_to_run(path)
+        reason = reason_to_run(repo, head, path)
         if reason is not None:
             return True, reason
     return False, (
@@ -145,6 +224,8 @@ def loaders_for_diff(repo: Path, base: str, head: str) -> tuple[list[str], str]:
     for path in paths:
         parts = path.split("/")
         if reason := every_loader_reason(path):
+            return everything, reason
+        if reason := mod_test_reason(repo, head, path):
             return everything, reason
         if parts[0] == LOADERS:
             if len(parts) < 3 or parts[1] not in DISPATCH_LOADERS:

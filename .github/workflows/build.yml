@@ -382,8 +382,10 @@ jobs:
       # Whether the dedicated-server legs run (#1342). They are 31% of a full dispatch's runner
       # minutes, and a proof or measurement dispatch that names a base whose diff is confined to mod
       # ports and prose cannot reach server code, so dedicated-needed.py skips them and says why in
-      # this log. A dispatch with no base or on main (the four-hourly check and the release), and any
-      # doubt, keep them. The step above resolved the base, so both read the same commit.
+      # this log. A mod test that calls a host function the joined client answers or performs is the
+      # exception, because such a test can fail on a dedicated leg a client leg passes (#1696). A
+      # dispatch with no base or on main (the four-hourly check and the release), and any doubt, keep
+      # them. The step above resolved the base, so both read the same commit.
       - name: Decide whether the dedicated-server legs run
         id: dedicated
         env:
