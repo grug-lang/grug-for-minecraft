@@ -179,6 +179,16 @@ public final class GrugPlayerFloor {
         return top != BlockSource.NO_COLLISION && feetY < blockY + top - TOLERANCE;
     }
 
+    /**
+     * Whether the block the feet are in has a collision shape under the point {@code x}, {@code z}:
+     * a slab or a full cube does, and a plant, a torch, water or air does not.
+     */
+    public static boolean hasCollisionAt(BlockSource blocks, double x, double feetY, double z) {
+        return blocks.collisionTop(
+                        (int) Math.floor(x), (int) Math.floor(feetY), (int) Math.floor(z), x, z)
+                != BlockSource.NO_COLLISION;
+    }
+
     /** The minimum gap between two reports of the floor hold, in milliseconds. */
     static final long HOLD_REPORT_INTERVAL_MILLIS = 5000;
 

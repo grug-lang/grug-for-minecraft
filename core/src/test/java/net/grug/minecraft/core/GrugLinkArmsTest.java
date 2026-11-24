@@ -246,4 +246,47 @@ class GrugLinkArmsTest {
         assertEquals(null, GrugLinkArms.matching("ab", 3, String::length));
         assertEquals("abc", GrugLinkArms.matching("abc", 3, String::length));
     }
+
+    @Test
+    void aRunStartsOnlyWhenAPlayerHasJoinedStartedItAndHasAReadyWorld() {
+        AtomicInteger asked = new AtomicInteger();
+        assertFalse(
+                GrugLinkArms.startReady(
+                        true,
+                        () -> {
+                            asked.incrementAndGet();
+                            return true;
+                        },
+                        "p",
+                        p -> true));
+        assertEquals(0, asked.get());
+        assertFalse(GrugLinkArms.startReady(false, () -> false, "p", p -> true));
+        assertFalse(GrugLinkArms.startReady(false, () -> true, (String) null, p -> true));
+        assertFalse(GrugLinkArms.startReady(false, () -> true, "p", p -> false));
+        assertTrue(GrugLinkArms.startReady(false, () -> true, "p", p -> true));
+    }
+
+    @Test
+    void theStarterLeftWhenNoOneIsHereOrTheyAreNotAmongThePlayers() {
+        assertTrue(GrugLinkArms.starterLeft(new ArrayList<String>(), "a"));
+        assertTrue(GrugLinkArms.starterLeft(Arrays.asList("b"), "a"));
+        assertFalse(GrugLinkArms.starterLeft(Arrays.asList("b", "a"), "a"));
+    }
+
+    @Test
+    void aMenuIsOpenWhenItIsKnownAndNotThePlayersOwn() {
+        Object own = new Object();
+        assertFalse(GrugLinkArms.otherMenuOpen(null, own));
+        assertFalse(GrugLinkArms.otherMenuOpen(own, own));
+        assertTrue(GrugLinkArms.otherMenuOpen(new Object(), own));
+    }
+
+    @Test
+    void runUnlessRunsTheTaskOnlyWhenNotSkipped() {
+        AtomicInteger ran = new AtomicInteger();
+        GrugLinkArms.runUnless(true, ran::incrementAndGet);
+        assertEquals(0, ran.get());
+        GrugLinkArms.runUnless(false, ran::incrementAndGet);
+        assertEquals(1, ran.get());
+    }
 }

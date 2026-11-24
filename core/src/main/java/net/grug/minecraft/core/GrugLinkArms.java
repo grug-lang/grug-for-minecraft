@@ -120,6 +120,13 @@ public final class GrugLinkArms {
         }
     }
 
+    /** Runs {@code task} unless {@code skip}. */
+    public static void runUnless(boolean skip, Runnable task) {
+        if (!skip) {
+            task.run();
+        }
+    }
+
     /** Runs {@code onServer} when {@code server}, else {@code otherwise}. */
     public static void choose(boolean server, Runnable onServer, Runnable otherwise) {
         if (server) {
@@ -257,5 +264,29 @@ public final class GrugLinkArms {
     /** {@code menu} when it is known and holds window {@code windowId}, else null (a stale id). */
     public static <M> M matching(M menu, int windowId, ToIntFunction<M> idOf) {
         return menu != null && idOf.applyAsInt(menu) == windowId ? menu : null;
+    }
+
+    /**
+     * Whether a dedicated server may start its run: at least one player has joined, one of them has
+     * started it ({@code hasStarter}), and the world around the player the run follows is ready.
+     * {@code hasStarter} is asked only when someone has joined, and {@code worldReady} only of a
+     * {@code waiting} player that exists.
+     */
+    public static <T> boolean startReady(
+            boolean noPlayers, BooleanSupplier hasStarter, T waiting, Predicate<T> worldReady) {
+        return !noPlayers
+                && hasStarter.getAsBoolean()
+                && waiting != null
+                && worldReady.test(waiting);
+    }
+
+    /** Whether the run's starter is no longer among the joined {@code players}. */
+    public static boolean starterLeft(Collection<?> players, Object starter) {
+        return players.isEmpty() || !players.contains(starter);
+    }
+
+    /** Whether {@code open} is a menu other than the player's {@code own} inventory menu. */
+    public static boolean otherMenuOpen(Object open, Object own) {
+        return open != null && open != own;
     }
 }
