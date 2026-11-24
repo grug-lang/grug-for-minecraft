@@ -29,4 +29,14 @@ public final class GrugRunPlayers {
     public static boolean starterLeft(List<?> connected, Object starter) {
         return starter == null || !connected.contains(starter);
     }
+
+    /**
+     * Whether the second player belongs in the starter's view now: the current test is the one that
+     * captures that player's model, it asked to run another tick, and the runner has not finished.
+     * {@code path} is null between tests.
+     */
+    public static boolean modelTestWanted(
+            String path, String modelTest, boolean testNotDone, boolean runnerFinished) {
+        return path != null && path.endsWith(modelTest) && testNotDone && !runnerFinished;
+    }
 }

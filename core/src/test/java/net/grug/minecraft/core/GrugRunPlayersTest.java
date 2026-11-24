@@ -61,4 +61,13 @@ class GrugRunPlayersTest {
         assertTrue(GrugRunPlayers.starterLeft(Collections.singletonList(other), starter));
         assertFalse(GrugRunPlayers.starterLeft(Arrays.asList(other, starter), starter));
     }
+
+    @Test
+    void theModelTestWantsAPlayerInViewOnlyWhileItRunsAndTheRunnerIsNotFinished() {
+        assertTrue(GrugRunPlayers.modelTestWanted("a/m-Test.grug", "m-Test.grug", true, false));
+        assertFalse(GrugRunPlayers.modelTestWanted(null, "m-Test.grug", true, false));
+        assertFalse(GrugRunPlayers.modelTestWanted("a/o-Test.grug", "m-Test.grug", true, false));
+        assertFalse(GrugRunPlayers.modelTestWanted("a/m-Test.grug", "m-Test.grug", false, false));
+        assertFalse(GrugRunPlayers.modelTestWanted("a/m-Test.grug", "m-Test.grug", true, true));
+    }
 }

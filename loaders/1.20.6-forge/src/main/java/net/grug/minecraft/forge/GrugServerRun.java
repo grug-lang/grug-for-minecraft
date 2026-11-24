@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugRunPlayers;
 import net.grug.minecraft.core.GrugServerJoin;
@@ -15,14 +16,14 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
  * Drives the test runner on a dedicated server, from the server's own tick. The client drives it
  * from its tick in {@code GrugModLoader.ClientForgeEvents}, and a dedicated server has no client,
- * so without this nothing there starts a suite. See #167.
+ * so without this nothing there starts a suite.
  *
  * <p>It is registered only on a dedicated server with {@code GRUG_CI} set, and it names no client
  * class, because a dedicated server refuses to load one.
@@ -34,7 +35,6 @@ import java.util.UUID;
  * second player never stands in for it (#1027). When the run ends, passed or failed, the server
  * stops itself, which is what ends the process {@code run-loader.sh} is watching.
  */
-@GrugGenerated("a dedicated server, whose coverage no CI run merges until #167 stage 4")
 public final class GrugServerRun {
     /**
      * How long to wait for a client to join before failing the run. A client takes its time to
@@ -86,8 +86,20 @@ public final class GrugServerRun {
 
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || done) return;
-        MinecraftServer server = event.getServer();
+        if (event.phase != TickEvent.Phase.END) return;
+        tickUnlessDone(event.getServer());
+    }
+
+    /** Ticks the run, unless it has ended and the server is only finishing its own shutdown. */
+    @GrugGenerated(
+            "its done arm is reached only while the process is already exiting, after the last"
+                    + " coverage segment is written; the tick it guards is measured on its own")
+    private void tickUnlessDone(MinecraftServer server) {
+        if (done) return;
+        tick(server);
+    }
+
+    private void tick(MinecraftServer server) {
         List<ServerPlayer> players = server.getPlayerList().getPlayers();
 
         if (runner == null) {
@@ -103,9 +115,11 @@ public final class GrugServerRun {
             if (testPlayer instanceof ServerPlayer) {
                 holdPlayer((ServerPlayer) testPlayer);
             }
-            if (GrugControlForge.server().hasStarter()
-                    && testPlayer != null
-                    && GrugCore.getAdapter().isWorldReady(testPlayer)) {
+            if (GrugServerJoin.mayFire(
+                    players,
+                    GrugControlForge.server().hasStarter(),
+                    testPlayer,
+                    () -> GrugCore.getAdapter().isWorldReady(testPlayer))) {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
@@ -122,12 +136,14 @@ public final class GrugServerRun {
         // still here, not whether anyone is (#1027). A second player who stays connected must not
         // hide the starter leaving, and must not become the test player the room is built for.
         // Asking for the starter also covers every player leaving, since a cleared starter is not
-        // in the connected list, so the older players.isEmpty() question has no case of its own.
+        // connected, so the older players.isEmpty() question has no case of its own.
+        GrugLinkArms.chooseWith(
+                starterPlayer(server) == null, server, this::failStarterLeft, this::runTests);
+    }
+
+    /** The runner's tick, once the world is ready and the starter is still here. */
+    private void runTests(MinecraftServer server) {
         ServerPlayer testPlayer = starterPlayer(server);
-        if (testPlayer == null) {
-            failStarterLeft(server, players.size());
-            return;
-        }
         holdPlayer(testPlayer);
         // Applies what the joined client sent during the previous tick's calls, which here is a
         // forwarded click's packet (#1094). The server's own tick would run it too, but only after
@@ -135,6 +151,14 @@ public final class GrugServerRun {
         GrugControlForge.server().applyClientWork();
         runner.tick(testPlayer);
         followTheTestsView(server, testPlayer);
+        finishIfDone(server);
+    }
+
+    /** Ends the process once the runner has finished. */
+    @GrugGenerated(
+            "it ends the server process after the last coverage segment is written, so nothing in"
+                    + " it can be counted")
+    private void finishIfDone(MinecraftServer server) {
         if (runner.isFinished()) {
             stop(server);
         }
@@ -147,16 +171,7 @@ public final class GrugServerRun {
      * about that UUID rather than about the list being non-empty (#1027).
      */
     private static ServerPlayer starterPlayer(MinecraftServer server) {
-        Object starter = GrugControlForge.server().starter();
-        List<ServerPlayer> players = server.getPlayerList().getPlayers();
-        List<UUID> connected = new ArrayList<>(players.size());
-        for (ServerPlayer player : players) {
-            connected.add(player.getUUID());
-        }
-        if (GrugRunPlayers.starterLeft(connected, starter)) {
-            return null;
-        }
-        return server.getPlayerList().getPlayer((UUID) starter);
+        return server.getPlayerList().getPlayer((UUID) GrugControlForge.server().starter());
     }
 
     /**
@@ -174,17 +189,16 @@ public final class GrugServerRun {
      * its own keeps them where they are.
      */
     private static void moveStrangersAway(MinecraftServer server) {
-        if (System.getenv("GRUG_CI_SECOND_PLAYER") == null) {
-            return;
-        }
-        Object starter = GrugControlForge.server().starter();
-        if (!(starter instanceof UUID)) {
-            return;
-        }
-        ServerPlayer starterPlayer = server.getPlayerList().getPlayer((UUID) starter);
-        if (starterPlayer == null) {
-            return;
-        }
+        GrugLinkArms.runOn(
+                System.getenv("GRUG_CI_SECOND_PLAYER") != null,
+                server,
+                GrugServerRun::moveStrangers);
+    }
+
+    private static void moveStrangers(MinecraftServer server) {
+        // Every caller has just found the starter's player in the same tick, so it is here.
+        ServerPlayer starterPlayer = Objects.requireNonNull(starterPlayer(server));
+        UUID starter = starterPlayer.getUUID();
         int x = starterPlayer.getBlockX() + STRANGER_DISTANCE;
         int z = starterPlayer.getBlockZ();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -214,15 +228,21 @@ public final class GrugServerRun {
      * and it asked to run another tick.
      */
     private void followTheTestsView(MinecraftServer server, ServerPlayer starter) {
-        if (System.getenv("GRUG_CI_SECOND_PLAYER") == null) {
-            return;
-        }
-        String path = GrugTestState.currentTestPath;
+        GrugLinkArms.runIfWith(
+                System.getenv("GRUG_CI_SECOND_PLAYER") != null,
+                this,
+                server,
+                starter,
+                GrugServerRun::followView);
+    }
+
+    private void followView(MinecraftServer server, ServerPlayer starter) {
         boolean wanted =
-                path != null
-                        && path.endsWith(PLAYER_MODEL_TEST)
-                        && GrugTestState.testNotDone
-                        && !runner.isFinished();
+                GrugRunPlayers.modelTestWanted(
+                        GrugTestState.currentTestPath,
+                        PLAYER_MODEL_TEST,
+                        GrugTestState.testNotDone,
+                        runner.isFinished());
         if (wanted == strangerInView) {
             return;
         }
@@ -260,9 +280,10 @@ public final class GrugServerRun {
      * they were is saved first, so {@link #restoreTestPlayer} can put them back.
      */
     public static void snapToBlockCentre(ServerPlayer player) {
-        if (player == null) {
-            return;
-        }
+        GrugLinkArms.deliver(player, GrugServerRun::saveAndSnap);
+    }
+
+    private static void saveAndSnap(ServerPlayer player) {
         SNAP.save(
                 player,
                 player.getX(),
@@ -289,9 +310,10 @@ public final class GrugServerRun {
      * it had no player copy yet, restores nothing.
      */
     public static void restoreTestPlayer(ServerPlayer player) {
-        if (!SNAP.claimRestore(player)) {
-            return;
-        }
+        GrugLinkArms.runOn(SNAP.claimRestore(player), player, GrugServerRun::putBack);
+    }
+
+    private static void putBack(ServerPlayer player) {
         player.connection.teleport(
                 SNAP.savedX(), SNAP.savedY(), SNAP.savedZ(), SNAP.savedYaw(), SNAP.savedPitch());
         SNAP.clear();
@@ -302,9 +324,6 @@ public final class GrugServerRun {
      * the move the floor hold uses so the joined client's camera follows (#1040).
      */
     public static void moveToFeet(ServerPlayer player, double x, double feetY, double z) {
-        if (player == null) {
-            return;
-        }
         player.connection.teleport(x, feetY, z, player.getYRot(), player.getXRot());
     }
 
@@ -328,16 +347,11 @@ public final class GrugServerRun {
      * hide a test's own movement.
      */
     private void holdPlayer(ServerPlayer player) {
-        if (player == null) {
-            return;
-        }
         GrugPlayerFloor.BlockSource blocks = ServerForgeAdapter.solidBlocks(player.level());
         double feet = player.getY();
         double floor = GrugPlayerFloor.floorTop(blocks, player.getX(), feet, player.getZ());
-        if (!GrugPlayerFloor.below(feet, floor)) {
-            return;
-        }
-        holdOnFloor(player, feet, floor);
+        GrugLinkArms.runIfWith(
+                GrugPlayerFloor.below(feet, floor), player, feet, floor, this::holdOnFloor);
     }
 
     /**
@@ -379,11 +393,15 @@ public final class GrugServerRun {
             "it ends the server process through stop, with the run failed: a test that reached it"
                     + " would end the very run it is part of; the text is core's tested"
                     + " GrugServerJoin.starterLeftReport")
-    private void failStarterLeft(MinecraftServer server, int playersLeft) {
+    private void failStarterLeft(MinecraftServer server) {
+        int playersLeft = server.getPlayerList().getPlayers().size();
         GrugServerJoin.print(System.out, GrugServerJoin.starterLeftReport(playersLeft));
         stop(server);
     }
 
+    @GrugGenerated(
+            "it ends the server process after the last coverage segment is written, so nothing in"
+                    + " it can be counted")
     private void stop(MinecraftServer server) {
         done = true;
         GrugControlForge.server().endRun();
