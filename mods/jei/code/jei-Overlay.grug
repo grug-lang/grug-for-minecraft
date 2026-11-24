@@ -15,8 +15,12 @@
 # all, which is also what the reference does.
 
 # The search field is the 20 pixel bar at the bottom of that area, as wide as the grid. A left press
-# on it focuses it, a press anywhere else on the list or the screen unfocuses it, and the reference
-# also unfocuses it when the screen changes. While it is focused the letters, the digits and the
+# on it focuses it and every other press unfocuses it, the page buttons and the items included,
+# which is what the reference does: CombinedInputHandler.handleClickInternal calls
+# TextFieldInputHandler.handleMouseClickedOut on the field's handler for every press its
+# handleUserInput did not take, and that unfocuses (TextFieldInputHandler.java:75-77). The
+# reference's other unfocus paths, Enter and Escape (:24-26), are keys the host does not deliver. It
+# unfocuses on a screen change too. While it is focused the letters, the digits and the
 # space are typed into it and backspace deletes the last character, and the list shows only the
 # items the text matches, the reference's own search syntax (see search_item_count): words are
 # matched against the item name, an @ word against the mod, a minus removes, a bar separates
@@ -140,6 +144,9 @@ export click(ctx: OverlayClickContext) {
         ctx.take()
         return
     }
+    # Every press the field does not take unfocuses it, the page buttons and the items included, and
+    # a press on the field itself focuses it again below.
+    focused = false
     if button == 0 {
         if _on_search(ctx.mouse_x(), ctx.mouse_y(), screen_width, ctx.gui_left(), ctx.gui_width(), columns, ctx.screen_height()) {
             focused = true
@@ -156,19 +163,27 @@ export click(ctx: OverlayClickContext) {
         }
     }
 
-    focused = false
     index: number = _clicked_index(ctx.mouse_x(), ctx.mouse_y(), screen_width, ctx.gui_left(), ctx.gui_width(), columns, rows)
     if index < 0 {
         return
     }
-    if button == 0 and ctx.carried_item().has() {
-        # JEI deletes the item on the cursor when the left button is pressed over the list, rather
-        # than giving another one, which is what DeleteItemInputHandler does.
-        ctx.delete_carried_item()
-        ctx.take()
-        return
-    }
     index = page * per_page + index
+    if button == 0 and ctx.carried_item().has() {
+        # DeleteItemInputHandler.shouldDeleteItemOnClick (:94-101) deletes the item on the cursor only
+        # when the clicked ingredient cannot stack with it, so a left click on the item the cursor
+        # already carries gives one instead of deleting the stack. Its canStack compares one-item
+        # copies (ServerCommandUtil.canStack, :160-164), which equals reproduces for undamaged items
+        # by comparing their ids.
+        carries_clicked: bool = false
+        if index < count {
+            carries_clicked = equals(ctx.carried_item().unwrap(), search_item_at(query, index))
+        }
+        if not carries_clicked {
+            ctx.delete_carried_item()
+            ctx.take()
+            return
+        }
+    }
     if index >= count {
         return
     }
