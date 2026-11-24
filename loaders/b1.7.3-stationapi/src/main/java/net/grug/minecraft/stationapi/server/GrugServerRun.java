@@ -281,8 +281,8 @@ public final class GrugServerRun {
      * says whether it did, so the tick leaves the run for the next one while the client settles.
      */
     private static boolean placeStarter(PlayerEntity waiting) {
-        return GrugArms.mapType(
-                waiting, ServerPlayerEntity.class, GrugServerRun::placeIfNew, () -> Boolean.FALSE);
+        return GrugArms.mapTypeOr(
+                waiting, ServerPlayerEntity.class, GrugServerRun::placeIfNew, Boolean.FALSE);
     }
 
     private static Boolean placeIfNew(ServerPlayerEntity placed) {
