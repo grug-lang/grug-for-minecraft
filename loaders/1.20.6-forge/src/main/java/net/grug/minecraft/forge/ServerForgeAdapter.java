@@ -65,12 +65,7 @@ import java.util.function.Supplier;
  * server forwards the play to the player who started the run (#1032). The screen calls are
  * forwarded the same way (#1094), and so are the cursor calls, which this server answers from its
  * own menu because that is the menu a click is applied to.
- *
- * <p>Whole class is excluded from coverage until CI launches a server: see #167.
  */
-@GrugGenerated(
-        "a dedicated server, which only the dispatch-only multiplayer job of #167 launches, and the"
-                + " coverage gate does not count that job")
 public class ServerForgeAdapter extends ForgeAdapter {
 
     /**
@@ -306,10 +301,17 @@ public class ServerForgeAdapter extends ForgeAdapter {
             double localZ = pointZ - z;
             double top = GrugPlayerFloor.BlockSource.NO_COLLISION;
             for (AABB box : shape.toAabbs()) {
-                if (GrugArms.pointInFootprint(
-                        localX, localZ, box.minX, box.maxX, box.minZ, box.maxZ, POINT_EDGE)) {
-                    top = Math.max(top, box.maxY);
-                }
+                top =
+                        GrugArms.raisedTop(
+                                top,
+                                localX,
+                                localZ,
+                                box.minX,
+                                box.maxX,
+                                box.minZ,
+                                box.maxZ,
+                                box.maxY,
+                                POINT_EDGE);
             }
             return top;
         };
@@ -649,7 +651,10 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     private static void setCarriedOn(AbstractContainerMenu menu, Object itemObj) {
-        menu.setCarried(itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
+        // A grug Item is never null, so there is no empty arm: deleteCarriedItem clears the cursor.
+        menu.setCarried(
+                new ItemStack(
+                        (Item) Objects.requireNonNull(itemObj, "set_carried_item: no item"), 1));
         // The cursor is not a slot the container's own update carries, so the client's screen would
         // keep whatever it had while this server's menu carries the item the click applies. The
         // game syncs it as window -1 slot -1, which is what broadcastChanges sends once the carried
