@@ -674,7 +674,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private static boolean clientHasOrWillGet(World level, int cx, int cz) {
         return GrugForge125Arms.chunkReaches(
-                GrugForge125Arms.map(
+                GrugForge125Arms.<EntityPlayerMP, java.util.Collection<?>>map(
                         GrugControlServer125.starterPlayer(), player -> player.listeningChunks),
                 level.getChunkProvider().chunkExists(cx, cz),
                 new ChunkCoordIntPair(cx, cz));
