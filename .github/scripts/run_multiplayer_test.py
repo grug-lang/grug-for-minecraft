@@ -631,7 +631,9 @@ class TwoClientLegFixture(unittest.TestCase):
     # was drawn on the joined client writes.
     OVERLAY_PASSES = OVERLAY_DRAWN_TESTS
 
-    def passing_server_lines(self, ignored_start=True, moved_stranger=True, omit=()):
+    def passing_server_lines(
+        self, ignored_start=True, moved_stranger=True, kept_players=True, omit=()
+    ):
         lines = ["[GRUG CONTROL] Dev started the run"]
         if ignored_start:
             lines.append("[GRUG CONTROL] SecondPlayer sent a start, which was ignored")
@@ -639,6 +641,16 @@ class TwoClientLegFixture(unittest.TestCase):
             lines.append(
                 "[GRUG CI] Moved a second player 8 blocks from the starter, so a run that"
                 " picked it would read another player's eye."
+            )
+        if kept_players:
+            # #1738: the leg owns its players, so the world may not slay one out of a capture.
+            lines.append(
+                "[GRUG CI] Kept SecondPlayer out of the world's damage: the run owns this leg's"
+                " players, so the world cannot take one out of a test."
+            )
+            lines.append(
+                "[GRUG CI] Kept Dev out of the world's damage: the run owns this leg's players,"
+                " so the world cannot take one out of a test."
             )
         for path in self.REQUIRED_PASSES:
             if path in omit:
@@ -837,6 +849,25 @@ class SecondPlayerTest(TwoClientLegFixture):
         self.assertNotEqual(0, result.returncode)
         self.assertIn(
             "The server did not move the second player away",
+            result.stderr,
+        )
+
+    def test_a_run_that_kept_no_player_out_of_the_worlds_damage_fails_closed(self):
+        # #1738: the leg joins its players in survival, and a zombie slew the second player about a
+        # minute into a run, so its body lay below the crop the player model test captures and the
+        # test waited out its bound. A leg whose server never logged the marking is one where the
+        # world can do that again, so it must fail rather than pass on the suite alone.
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines(kept_players=False))
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "The server never kept a player out of the world's damage",
             result.stderr,
         )
 
