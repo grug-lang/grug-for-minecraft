@@ -174,6 +174,12 @@ export click(ctx: OverlayClickContext) {
         # already carries gives one instead of deleting the stack. Its canStack compares one-item
         # copies (ServerCommandUtil.canStack, :160-164), which equals reproduces for undamaged items
         # by comparing their ids.
+
+        # A cell past the last item on the page still deletes, which is why this comes before the
+        # empty-cell return below: the reference asks only whether the mouse is over the grid's area
+        # (IngredientGrid.isMouseOver, :163-165) and reads an empty lookup as delete
+        # (getIngredientUnderMouse().orElse(true)), then reports the press handled (:64-70), so the
+        # screen never sees it.
         carries_clicked: bool = false
         if index < count {
             carries_clicked = equals(ctx.carried_item().unwrap(), search_item_at(query, index))
