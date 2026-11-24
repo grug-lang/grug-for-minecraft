@@ -129,40 +129,10 @@ if [ "$PHASE" = production ]; then
   UNIVERSAL_JAR="$(cd "$(dirname "$GRUG_UNIVERSAL_JAR")" && pwd)/$(basename "$GRUG_UNIVERSAL_JAR")"
 fi
 
-# An external host answering badly is worth one more Gradle invocation, and nothing else is: Loom's
-# own three attempts all land inside a single transient hiccup on resources.download.minecraft.net
-# (#700), ForgeGradle's downloadAssets says to run the task again, and Maven Central or
-# libraries.minecraft.net answering 404 for an artifact they serve a moment later fails the
-# dependency resolution (#728). A compile error, a test failure or an unrecognised Gradle failure
-# would only be delayed by a retry, and a missing artifact is retried exactly once, which is cheap
-# next to a job that failed on a hiccup.
-#
-# The decision is a pure function of the log, so it is unit-tested case by case in
-# run_loader_test.py, and it prints the line it matched so the job says why it retried.
-#
-# "Could not find" is matched only with a full coordinate, `group:artifact:version.`, because a build
-# script that names a method that does not exist says "Could not find method foo()" and that is the
-# code failing, not a host.
-#
-# "Could not resolve dependency" is ForgeGradle's own message when MinecraftUserRepo's manual
-# download of the userdev artifact came back empty, which is one failed fetch from the Forge maven
-# rather than a build the code broke, so it gets the same retry (#1173). The coordinate after it
-# keeps a build script's own message from matching, as the "Could not find" pattern does.
-#
-# portablemc, which installs the game in a production launch, prints its own batch failure as
-# "[ ERRO ] Failed to download 1 out of 3934 entries" and then the URL and reason on the following
-# lines. It retries a timeout or a decode error but not a connection reset, so one reset anywhere in
-# the batch ends the install. The line is the retryable part; the exited case prints the URL beside
-# it (#1149).
-RETRYABLE_FAILURE_RE='\[ ERRO \] Failed to download|net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate|Could not find [^ :]+:[^ :]+:[^ :]+\.|Could not resolve all (files|artifacts) for configuration|Could not resolve dependency: [^ :]+:[^ :]+:[^ :]+|Could not (GET|HEAD) .https?://'
-retryable_failure() {
-  grep -m1 -E "$RETRYABLE_FAILURE_RE" "$1" 2>/dev/null
-}
-
-# The first attempt and one retry. Never a third: an outage longer than this is not a flake for a
-# single job to ride out, and each attempt repeats the job's whole build or, in a production launch,
-# its whole install.
-MAX_GRADLE_ATTEMPTS=2
+# What counts as a failure worth another try, and how many attempts a leg may make. It is shared with
+# run-multiplayer.sh, whose joined client is a Gradle build of its own (#1702).
+# shellcheck source=retryable-failure.sh
+. "$(dirname "${BASH_SOURCE[0]}")/retryable-failure.sh"
 
 # Runs a Gradle invocation whose output nothing else reads, and once more when it failed fetching
 # what the build needs rather than on the code. The log of the attempt that failed is kept beside the
