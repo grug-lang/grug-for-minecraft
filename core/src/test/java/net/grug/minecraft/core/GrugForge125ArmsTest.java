@@ -195,6 +195,15 @@ class GrugForge125ArmsTest {
     }
 
     @Test
+    void aChunkReachesTheClientOnlyWhenLoadedAndListenedTo() {
+        java.util.List<String> listening = Arrays.asList("c");
+        assertFalse(GrugForge125Arms.chunkReaches(null, true, "c"));
+        assertFalse(GrugForge125Arms.chunkReaches(listening, false, "c"));
+        assertFalse(GrugForge125Arms.chunkReaches(listening, true, "d"));
+        assertTrue(GrugForge125Arms.chunkReaches(listening, true, "c"));
+    }
+
+    @Test
     void aCaptureReportsABadRectangleOrAFailedAsk() {
         java.util.List<String> failed = new java.util.ArrayList<>();
         assertNull(GrugForge125Arms.captured("bad", () -> "a", failed::add));

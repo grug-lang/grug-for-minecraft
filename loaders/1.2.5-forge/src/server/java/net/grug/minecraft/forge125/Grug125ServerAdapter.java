@@ -673,10 +673,11 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      * view is never sent, so a placement there must not be waited for (#804, #1664).
      */
     private static boolean clientHasOrWillGet(World level, int cx, int cz) {
-        EntityPlayerMP starter = GrugControlServer125.starterPlayer();
-        return starter != null
-                && level.getChunkProvider().chunkExists(cx, cz)
-                && starter.listeningChunks.contains(new ChunkCoordIntPair(cx, cz));
+        return GrugForge125Arms.chunkReaches(
+                GrugForge125Arms.map(
+                        GrugControlServer125.starterPlayer(), player -> player.listeningChunks),
+                level.getChunkProvider().chunkExists(cx, cz),
+                new ChunkCoordIntPair(cx, cz));
     }
 
     /**
