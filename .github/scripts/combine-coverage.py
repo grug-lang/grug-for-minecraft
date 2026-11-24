@@ -162,6 +162,10 @@ EXCLUDED_CLASSES = {
     "SectionBufferBuilderPoolMixin",
     "GameRendererMixin",
     "FogRendererMixin",
+    # Clears a container screen's double-click history before a test's press, so two presses in
+    # one tick cannot send a PICKUP_ALL the test never asked for (#1666). A mixin, so unmeasurable
+    # for the reason above.
+    "AbstractContainerScreenMixin",
     # The two client-side mixins that order a single-player click against the runner (#1094): a
     # mixin's methods are copied into its target and never run in place, so JaCoCo cannot measure
     # them. The counts they keep are in GrugClientClicks, which a coverage run exercises.

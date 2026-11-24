@@ -915,6 +915,14 @@ public class ClientForgeAdapter extends ForgeAdapter {
             outcome[0] = true;
             return;
         }
+        // A test's press is independent of the one before it, so it must not be read as the second
+        // half of a double click: the release of such a press sends PICKUP_ALL instead of the click
+        // the press scheduled, and that gathers other slots' matching stacks onto the cursor, which
+        // the test never asked for (#1666). Two presses in one tick are microseconds apart, so the
+        // 250 millisecond window is open by construction rather than by timing.
+        if (screen instanceof GrugScreenClickHistory history) {
+            history.grug$forgetPreviousPress();
+        }
         // The answer is the overlay's own decision, not the screen's: a container screen handles a
         // press on a vanilla slot too, so asking the screen would answer true with no overlay in
         // the way. The record is cleared before the press and read after the overlay had its say.
