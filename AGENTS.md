@@ -245,10 +245,11 @@ CI. Light jobs stay local: Gradle builds,
   misses the exact cache keys; editing `build.yml` does not. The Gradle dependencies fall back to
   the loader's previous entry (`restore-keys`), but the Minecraft toolchain has no fallback, so a
   miss there fetches it again, about 60 s on `1.20.6-forge`. The plan allows 20 concurrent jobs,
-  shared by all runs: do not dispatch a full `build.yml` while another run is going. A key miss
-  writes a new entry beside the old one, which nothing deletes, so editing the action stores every
-  entry it rekeys again: #699 measured one generation at 1.97 GB, into a store capped at 10 GB
-  where the least recently used entry goes first.
+  shared by all runs: an agent waits for the queue before a proof, a measurement or a release it
+  chooses to dispatch, while the four-hourly check above dispatches when due and lets its jobs
+  queue. A key miss writes a new entry beside the old one, which nothing deletes, so editing the
+  action stores every entry it rekeys again: #699 measured one generation at 1.97 GB, into a store
+  capped at 10 GB where the least recently used entry goes first.
 - A loader job restores the project's `build/` and `.gradle/`, so Gradle's up-to-date check decides
   what runs; the cache key says only where that state lives, never what is safe to reuse. A task
   reading an undeclared input is therefore a CI correctness bug, not only a local one, and moving

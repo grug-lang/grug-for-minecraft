@@ -5,10 +5,10 @@
                      [--repo-slug <owner/repo>]
 
 Only a dispatch of ``build.yml`` runs every job, and which jobs a push to ``main`` skips can change
-with the workflow, so AGENTS.md asks for a full dispatch of ``main`` at least every four hours. The
-orchestrator's supervisor can only ask a live session to do it, and a day without one let the newest
-dispatch reach 25 hours (#1089). This runs from ``.github/workflows/main-dispatch.yml`` on a
-schedule instead, so the check does not depend on a session being open.
+with the workflow, so AGENTS.md asks for a full dispatch of ``main`` at least every four hours. A
+day without a live session to dispatch it by hand let the newest one reach 25 hours (#1089), so
+this runs from ``.github/workflows/main-dispatch.yml`` on a schedule, and the orchestrator only
+dispatches by hand at a task boundary when a due one has not appeared.
 
 The rule, in ``should_dispatch``: a dispatch is due when ``main``'s newest ``workflow_dispatch`` run
 of ``build.yml`` is at least the interval old, whatever else is running. A due tick dispatches even
@@ -38,8 +38,8 @@ import urllib.request
 
 # The interval AGENTS.md asks for between full dispatches of main.
 INTERVAL = datetime.timedelta(hours=4)
-# The most runs one listing page holds. Only the newest dispatch is read, and a page holds every run
-# in flight long before a busy repository reaches it.
+# The most runs one listing page holds. The newest dispatch is always on the first page, which is
+# the only one read, whatever the repository's run history.
 PER_PAGE = 100
 
 

@@ -90,6 +90,15 @@ class ApiHandler(http.server.BaseHTTPRequestHandler):
 
 
 class MainDispatchTest(unittest.TestCase):
+    """Pins the check's decisions.
+
+    Two cases are the causal pins for the removed busy read, failing if a run in flight holds a due
+    check off or the script asks GitHub for a live status listing again:
+    test_due_with_a_run_live_on_another_branch_dispatches and test_the_check_reads_no_live_run_list.
+    The other cases pin the age rule and the reason it prints, which a reinstated busy rule would
+    change, but they dispatch or hold off the same way under either rule.
+    """
+
     ENV = ("GITHUB_API_URL", "GITHUB_REPOSITORY", "GITHUB_TOKEN")
 
     def setUp(self):
@@ -150,8 +159,9 @@ class MainDispatchTest(unittest.TestCase):
         self.assertIn("dispatched build.yml on main", out)
 
     def test_a_full_build_past_twice_the_interval_dispatches(self):
-        # The old rule waited until twice the interval before dispatching over a live run; the new
-        # rule dispatches a due check at any age, so a full build this old is simply due too.
+        # This pins the reason and the top of the age range, not the busy rule: a build this old
+        # dispatches under either rule, so only the "at least the interval" text below tells them
+        # apart, and the causal pins are the two cases the class docstring names.
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=9))]
         self.server.routes["live"] = [run(11, datetime.timedelta(minutes=20))]
         code, out, err = self.run_script()
@@ -173,6 +183,9 @@ class MainDispatchTest(unittest.TestCase):
         self.assertIn("appeared while this check read the run lists", out)
 
     def test_a_not_due_check_with_a_run_live_dispatches_nothing(self):
+        # This pins the not-due reason, not the busy rule: neither rule dispatches here, so only the
+        # "younger than the interval" text tells them apart, and the causal pins are the two cases
+        # the class docstring names.
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=1))]
         self.server.routes["live"] = [run(11, datetime.timedelta(minutes=1))]
         code, out, err = self.run_script()

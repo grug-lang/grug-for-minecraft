@@ -4,9 +4,9 @@ name: Main dispatch
 #
 # Only a workflow_dispatch of build.yml runs every job, and which jobs a push to main skips can
 # change with the workflow, so AGENTS.md asks for a full dispatch of main at least every four hours.
-# Until now the orchestrator's supervisor asked a live session to run it, and a day without one let
-# main's newest dispatch reach 25 h 2 min on 2026-11-04. This workflow makes the check independent of
-# a session being open; the supervisor is unchanged and still never dispatches.
+# A day without a live session to dispatch it by hand let main's newest dispatch reach 25 h 2 min on
+# 2026-11-04. This workflow makes the check independent of a session being open, and the
+# orchestrator dispatches by hand at a task boundary only when a due one has not appeared.
 #
 # The decision is .github/scripts/main-dispatch.py's should_dispatch: a dispatch is due when main's
 # newest workflow_dispatch of build.yml is at least four hours old, and a due tick dispatches
