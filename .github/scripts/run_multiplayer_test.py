@@ -1150,7 +1150,7 @@ Execution failed for task ':compileJava'.
         lines.append("[GRUG CI] ALL 50 TESTS PASSED")
         return "\n".join(lines) + "\n"
 
-    def run_script(self, run_timeout=60, client_sleep=0):
+    def run_script(self, run_timeout=60, client_sleep=0, from_scripts_dir=False):
         self.lines_file.write_text(self.server_lines())
         env = dict(os.environ)
         env.update(
@@ -1166,9 +1166,18 @@ Execution failed for task ':compileJava'.
         )
         env.pop("JAVA_HOME", None)
         env.pop("GRUG_ORNITHE_SERVER_HASH", None)
+        if from_scripts_dir:
+            # The invocation a contributor makes from inside the scripts directory: a bare file name
+            # in BASH_SOURCE, which a source path resolved after the cd to the repository root
+            # misses.
+            command = ["./run-multiplayer.sh", self.LOADER]
+            cwd = self.tmp / ".github" / "scripts"
+        else:
+            command = [str(self.tmp / ".github" / "scripts" / "run-multiplayer.sh"), self.LOADER]
+            cwd = self.tmp
         return subprocess.run(
-            [str(self.tmp / ".github" / "scripts" / "run-multiplayer.sh"), self.LOADER],
-            cwd=self.tmp,
+            command,
+            cwd=cwd,
             env=env,
             capture_output=True,
             text=True,
@@ -1197,6 +1206,20 @@ Execution failed for task ':compileJava'.
         # The failed attempt's log is kept beside the one that decided the leg, so the hiccup is
         # still readable after a retry that passed.
         self.assertIn("DownloadException", self.kept_log(1).read_text())
+
+    def test_a_client_retry_from_inside_the_scripts_directory_finds_the_classifier(self):
+        # `cd .github/scripts && ./run-multiplayer.sh ...` leaves a bare file name in BASH_SOURCE, so
+        # a source path built after the cd to the repository root points at a file that is not there.
+        # The retry decision then aborts on the unbound MAX_GRADLE_ATTEMPTS, so the client's download
+        # hiccup fails the leg instead of earning its retry (#1726).
+        self.client_failure(1, self.DOWNLOAD_FAILURE)
+        result = self.run_script(from_scripts_dir=True)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Retrying the client, attempt 2 of 2", result.stderr)
+        self.assertEqual(2, self.client_attempts())
+        # The llvmpipe pin is sourced beside the classifier and prints its line.
+        self.assertIn("llvmpipe pinned: GALLIUM_OVERRIDE_CPU_CAPS=sse4.1", result.stdout)
 
     def test_a_client_compile_error_is_not_retried(self):
         self.client_failure(1, self.COMPILE_ERROR)

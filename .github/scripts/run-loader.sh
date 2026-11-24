@@ -33,7 +33,11 @@ fi
 LOADER="$1"
 PHASE="$2"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# The script's own directory, resolved before any cd: invoked as ./run-loader.sh from this
+# directory, BASH_SOURCE is a bare name and a path built from it after the cd below names the
+# repository root instead, so the files sourced later would not be found (#1726).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "$REPO_ROOT"
 
 # Beta/Alpha's chunk renderer sorts chunks with a comparator that is not transitive whenever two
@@ -68,7 +72,7 @@ fi
 # Print the CPU and pin llvmpipe to one rasterizer on every CPU class (#1550).
 if [ "$PHASE" != build ] && [ "$WINDOWS" = false ]; then
   # shellcheck source=pin-llvmpipe.sh
-  . "$(dirname "${BASH_SOURCE[0]}")/pin-llvmpipe.sh"
+  . "${SCRIPT_DIR}/pin-llvmpipe.sh"
 fi
 
 mkdir -p "${LOADER_DIR}/run"
@@ -132,7 +136,7 @@ fi
 # What counts as a failure worth another try, and how many attempts a leg may make. It is shared with
 # run-multiplayer.sh, whose joined client is a Gradle build of its own (#1702).
 # shellcheck source=retryable-failure.sh
-. "$(dirname "${BASH_SOURCE[0]}")/retryable-failure.sh"
+. "${SCRIPT_DIR}/retryable-failure.sh"
 
 # Runs a Gradle invocation whose output nothing else reads, and once more when it failed fetching
 # what the build needs rather than on the code. The log of the attempt that failed is kept beside the
