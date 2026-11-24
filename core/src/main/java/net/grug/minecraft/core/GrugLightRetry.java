@@ -103,7 +103,12 @@ public final class GrugLightRetry {
         public String describe() {
             String levels =
                     client < 0
-                            ? "the client's level there could not be read"
+                            ? "sky "
+                                    + serverSky
+                                    + " and block "
+                                    + serverBlock
+                                    + " on this server, and the client's level there could not"
+                                    + " be read"
                             : "sky "
                                     + serverSky
                                     + " on this server and "
@@ -256,7 +261,8 @@ public final class GrugLightRetry {
 
     /**
      * Every level byte, the server's own first and then the ones that differ in one field, so a
-     * client that got a single field wrong is found in at most sixteen asks.
+     * client that got a single field wrong is found in at most thirty-two asks: the same block
+     * level with each sky level, then the same sky level with each block level.
      */
     static int[] candidates(int serverLevel) {
         int[] order = new int[256];
