@@ -30,8 +30,11 @@ import java.util.UUID;
  * opaque byte array of core's {@code GrugControlWire}. Mod authors never see it: it is the plumbing
  * behind client-only host functions.
  *
- * <p>The protocol version is 8 since the wire carries the forced-normalization call (#1040), so a
- * pair built before and after must refuse each other. Version 7 was a client's clear of the
+ * <p>The protocol version is 12 since the settle ask carries the light of the box the server last
+ * sent a joined client, with a third answer for a client whose own copy holds a different field
+ * (#1695), so a pair built before and after must refuse each other. Version 11 was the world
+ * overlay calls taking call code 23, version 10 the call code 22 and version 9 the call code 21.
+ * Version 8 was the forced-normalization call (#1040). Version 7 was a client's clear of the
  * server's cursor (#1389). Version 6 was a player's own give being accepted from any client and
  * checked for operator status (#882). It was 5 since the screen-open call answers a screen's
  * identity as a number and the screen batch holds five numbers (#1289). Version 4 was the overlay
@@ -77,15 +80,13 @@ public final class GrugControlForge {
                         // again: #1425 took 7 for the cursor clear, #1430 took 8 for the forwarded
                         // forced normalization, #1449 took 9 with the call code 21, #1441 took 10
                         // with the call code 22 and the world overlay calls took 11 with the call
-                        // code 23, so this sits at 11. A pair built either side of this refuses
-                        // each other: the older build does not know call 23. #1705 took 12 for its
-                        // SETTLE_LIGHT_DIVERGED answer to the world-settled call, and #1393 took
-                        // 13 for the click barrier the client sends behind the game's own click
-                        // packet: past every open pull request's number, because two builds that
-                        // call themselves 12 while carrying different message sets silently
-                        // disagree, and a client that never sends the barrier would instead trip
-                        // the server's wait.
-                        .networkProtocolVersion(13)
+                        // code 23. #1705 took 12 for its SETTLE_LIGHT_DIVERGED answer to the
+                        // world-settled call, and #1393 took 13 for the click barrier the client
+                        // sends behind the game's own click packet, so this sits at 14: past every
+                        // open pull request's number, because two builds that call themselves 13
+                        // while carrying different message sets silently disagree, and a client
+                        // that never sends the barrier would instead trip the server's wait.
+                        .networkProtocolVersion(14)
                         .optional()
                         .simpleChannel()
                         .messageBuilder(Packet.class, NetworkProtocol.PLAY)
