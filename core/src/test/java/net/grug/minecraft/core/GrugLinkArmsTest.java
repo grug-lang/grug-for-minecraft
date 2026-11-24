@@ -231,6 +231,24 @@ class GrugLinkArmsTest {
     }
 
     @Test
+    void chooseWith2PassesBothArgumentsToTheArmItPicks() {
+        List<String> seen = new ArrayList<>();
+        GrugLinkArms.chooseWith2(
+                true, "a", 1, (a, b) -> seen.add("server " + a + b), (a, b) -> seen.add("other"));
+        GrugLinkArms.chooseWith2(
+                false, "b", 2, (a, b) -> seen.add("server"), (a, b) -> seen.add("other " + a + b));
+        assertEquals(Arrays.asList("server a1", "other b2"), seen);
+    }
+
+    @Test
+    void runOnRunsTheTaskOnItsArgumentOnlyWhenHere() {
+        List<String> seen = new ArrayList<>();
+        GrugLinkArms.runOn(false, "a", seen::add);
+        GrugLinkArms.runOn(true, "b", seen::add);
+        assertEquals(Arrays.asList("b"), seen);
+    }
+
+    @Test
     void membersOrNoneIsEmptyWithoutAWorldAndACopyWithOne() {
         assertEquals(
                 new ArrayList<Object>(), GrugLinkArms.membersOrNone((List<String>) null, w -> w));

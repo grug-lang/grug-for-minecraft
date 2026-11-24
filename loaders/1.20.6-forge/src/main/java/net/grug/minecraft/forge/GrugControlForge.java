@@ -52,9 +52,6 @@ import java.util.UUID;
  * <p>This class names no client class: a dedicated server refuses to load one. The client half is
  * {@link GrugControlClientForge}, reached only from the client branch of {@link #handle}.
  */
-@GrugGenerated(
-        "the Forge channel glue of #1040: the multiplayer job runs it, and the coverage gate does"
-                + " not count that job; every decision in it lives in core's GrugControlServer")
 public final class GrugControlForge {
     /**
      * How long the server's freeze waits for the client's answer. Under the 30 s a connection may
@@ -95,19 +92,38 @@ public final class GrugControlForge {
                                 })
                         .add()
                         .build();
-        MinecraftForge.EVENT_BUS.addListener(
-                (PlayerEvent.PlayerLoggedOutEvent event) ->
-                        server().onDisconnect(event.getEntity().getUUID()));
+        MinecraftForge.EVENT_BUS.addListener(GrugControlForge::onLoggedOut);
+    }
+
+    /** Tells core's server that a player left, so what waits on that player's answer fails. */
+    @GrugGenerated(
+            "a player logs out of the dedicated server only when a client leaves, which no test can"
+                    + " make happen without ending the run it is part of; the decision is core's"
+                    + " GrugControlServer.onDisconnect")
+    private static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        server().onDisconnect(event.getEntity().getUUID());
     }
 
     private static void handle(byte[] bytes, CustomPayloadEvent.Context ctx) {
-        if (ctx.isServerSide()) {
-            // A message whose sender is unknown still goes in: the server fails what waits on it.
-            ServerPlayer sender = ctx.getSender();
-            server().onMessage(sender == null ? null : sender.getUUID(), bytes);
-        } else {
-            GrugControlClientForge.onServerMessage(bytes, ctx);
-        }
+        GrugLinkArms.chooseWith2(
+                ctx.isServerSide(),
+                bytes,
+                ctx,
+                GrugControlForge::handleOnServer,
+                GrugControlForge::handleOnClient);
+    }
+
+    private static void handleOnServer(byte[] bytes, CustomPayloadEvent.Context ctx) {
+        // A message whose sender is unknown still goes in: the server fails what waits on it.
+        server().onMessage(GrugLinkArms.mapOrNull(ctx.getSender(), ServerPlayer::getUUID), bytes);
+    }
+
+    /** A joined client receiving the server's message. */
+    @GrugGenerated(
+            "only a joined client runs it, and its JVM is a separate process whose coverage no job"
+                    + " records: the dedicated leg records the server's alone")
+    private static void handleOnClient(byte[] bytes, CustomPayloadEvent.Context ctx) {
+        GrugControlClientForge.onServerMessage(bytes, ctx);
     }
 
     /** The server end, created on first use on a dedicated server. */
@@ -124,6 +140,9 @@ public final class GrugControlForge {
     }
 
     /** Sends from a client to the server it is joined to. */
+    @GrugGenerated(
+            "only a joined client calls it, and its JVM is a separate process whose coverage no job"
+                    + " records: the dedicated leg records the server's alone")
     static void sendToServer(byte[] bytes) {
         channel.send(new Packet(bytes), PacketDistributor.SERVER.noArg());
     }
@@ -132,15 +151,15 @@ public final class GrugControlForge {
      * Sends a player's own give to the server of {@code connection}, and answers whether it could:
      * a server without the channel (a player without grug on it) is not asked (#882).
      */
+    @GrugGenerated(
+            "only a joined client's own give calls it, and its JVM is a separate process whose"
+                    + " coverage no job records: the dedicated leg records the server's alone")
     static boolean sendGiveToServer(net.minecraft.network.Connection connection, byte[] bytes) {
         if (!channel.isRemotePresent(connection)) return false;
         channel.send(new Packet(bytes), connection);
         return true;
     }
 
-    @GrugGenerated(
-            "the Forge channel glue of #1040: no test the coverage gate counts can reach it, since"
-                    + " only the multiplayer job runs it")
     private static final class ServerLink implements GrugControlServer.Link {
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
@@ -167,9 +186,11 @@ public final class GrugControlForge {
         @Override
         public void tell(Object sender, String message) {
             ServerPlayer player = (ServerPlayer) playerOfSender(sender);
-            if (player != null) {
-                player.sendSystemMessage(Component.literal(message).withStyle(ChatFormatting.RED));
-            }
+            GrugLinkArms.deliver(
+                    player,
+                    found ->
+                            found.sendSystemMessage(
+                                    Component.literal(message).withStyle(ChatFormatting.RED)));
         }
 
         @Override
@@ -183,9 +204,12 @@ public final class GrugControlForge {
          */
         @Override
         public void onRunStarted(Object starter) {
-            if (!"true".equals(System.getenv("GRUG_CI"))) return;
-            Object player = playerOfSender(starter);
-            if (player != null) GrugCore.getAdapter().makeOperator(player);
+            GrugLinkArms.runIfCi(
+                    System::getenv,
+                    () ->
+                            GrugLinkArms.deliver(
+                                    playerOfSender(starter),
+                                    player -> GrugCore.getAdapter().makeOperator(player)));
         }
 
         /**

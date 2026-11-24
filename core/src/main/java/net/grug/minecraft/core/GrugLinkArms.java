@@ -150,6 +150,30 @@ public final class GrugLinkArms {
     }
 
     /**
+     * Runs {@code onServer} on the two arguments when {@code server}, else {@code otherwise}, so
+     * neither arm needs a lambda that captures them.
+     */
+    public static <A, B> void chooseWith2(
+            boolean server,
+            A first,
+            B second,
+            java.util.function.BiConsumer<A, B> onServer,
+            java.util.function.BiConsumer<A, B> otherwise) {
+        if (server) {
+            onServer.accept(first, second);
+        } else {
+            otherwise.accept(first, second);
+        }
+    }
+
+    /** Runs {@code task} on {@code argument} when {@code here}. */
+    public static <T> void runOn(boolean here, T argument, Consumer<T> task) {
+        if (here) {
+            task.accept(argument);
+        }
+    }
+
+    /**
      * A copy of the members {@code membersOf} reads from {@code world}, or an empty list before the
      * world exists.
      */
