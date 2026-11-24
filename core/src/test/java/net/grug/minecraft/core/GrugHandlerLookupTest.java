@@ -175,4 +175,51 @@ class GrugHandlerLookupTest {
         assertNull(GrugHandlerLookup.nestedConnectionOf(new Own(null, null), Handler.class, id));
         assertNull(GrugHandlerLookup.nestedConnectionOf(new Unrelated(), Handler.class, id));
     }
+
+    private static class Net {}
+
+    private static class Link {
+        private final Net net;
+
+        Link(Net net) {
+            this.net = net;
+        }
+    }
+
+    private static class Player2 {
+        private final Link link;
+
+        Player2(Link link) {
+            this.link = link;
+        }
+    }
+
+    private static class Player3 {
+        private final Net net;
+
+        Player3(Net net) {
+            this.net = net;
+        }
+    }
+
+    @Test
+    void aPlayersConnectionIsTheKnownOneThenItsOwnThenItsHandlers() {
+        Net known = new Net();
+        Net held = new Net();
+        assertSame(
+                known,
+                GrugHandlerLookup.connectionOfPlayer(
+                        new Player3(held), known, Net.class, Link.class));
+        assertSame(
+                held,
+                GrugHandlerLookup.connectionOfPlayer(
+                        new Player3(held), null, Net.class, Link.class));
+        assertSame(
+                held,
+                GrugHandlerLookup.connectionOfPlayer(
+                        new Player2(new Link(held)), null, Net.class, Link.class));
+        assertNull(
+                GrugHandlerLookup.connectionOfPlayer(
+                        new Player2(new Link(null)), null, Net.class, Link.class));
+    }
 }

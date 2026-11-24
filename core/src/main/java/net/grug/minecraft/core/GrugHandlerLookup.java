@@ -74,6 +74,23 @@ public final class GrugHandlerLookup {
         return null;
     }
 
+    /**
+     * The connection a player holds: {@code known} when the control channel has met them, else the
+     * one a field of the player holds, else the first one a field of the player's own network
+     * handler (a field of type {@code handlerType} or a subtype) holds, else null (#1098).
+     */
+    public static <C> C connectionOfPlayer(
+            Object player, C known, Class<C> type, Class<?> handlerType) {
+        if (known != null) {
+            return known;
+        }
+        C own = connectionOf(player, type, "", 0);
+        if (own != null) {
+            return own;
+        }
+        return nestedConnectionOf(player, handlerType, holder -> connectionOf(holder, type, "", 0));
+    }
+
     private static boolean isJdk(Class<?> type) {
         return type.getName().startsWith("java.");
     }

@@ -6,7 +6,6 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugHandlerLookup;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugSavedDataSync;
-import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
@@ -16,7 +15,6 @@ import net.minecraft.world.World;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -41,10 +39,6 @@ import java.util.WeakHashMap;
  * client's frame with that block in it (#1123). Sound and screen calls do not flush, because they
  * depend on no world state.
  */
-@GrugGenerated(
-        "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since only"
-                + " the multiplayer job runs it; every decision in it lives in core's"
-                + " GrugControlServer and GrugControlClient")
 public final class GrugControlAlpha {
     static final long DEFAULT_TIMEOUT_MILLIS = 20_000;
 
@@ -94,21 +88,8 @@ public final class GrugControlAlpha {
      * client, which has no server classes; its fields are found by what they hold.
      */
     public static Connection connectionOfPlayer(PlayerEntity player) {
-        return GrugLinkArms.orElse(
-                connectionFor(player),
-                () ->
-                        GrugLinkArms.orElse(
-                                connectionIn(player),
-                                () ->
-                                        GrugHandlerLookup.nestedConnectionOf(
-                                                player,
-                                                PacketHandler.class,
-                                                GrugControlAlpha::connectionIn)));
-    }
-
-    /** The connection an object's own field holds, by type. */
-    private static Connection connectionIn(Object holder) {
-        return GrugHandlerLookup.connectionOf(holder, Connection.class, "", 0);
+        return GrugHandlerLookup.connectionOfPlayer(
+                player, connectionFor(player), Connection.class, PacketHandler.class);
     }
 
     private static final class AlphaLink implements GrugControlServer.Link {
@@ -220,10 +201,11 @@ public final class GrugControlAlpha {
 
     /** Called on the game thread for every other message, from {@code Connection.tick}. */
     static void onHandle(PacketHandler handler, byte[] bytes) {
-        GrugLinkArms.choose(
+        GrugLinkArms.chooseWith(
                 onServer(),
-                () -> handleOnServer(handler, bytes),
-                () -> GrugControlAlphaClient.onMessage(bytes));
+                bytes,
+                message -> handleOnServer(handler, message),
+                GrugControlAlphaClient::onMessage);
     }
 
     private static void handleOnServer(PacketHandler handler, byte[] bytes) {
@@ -256,9 +238,8 @@ public final class GrugControlAlpha {
      */
     public static PlayerEntity playerOf(PacketHandler handler) {
         World world = GrugServerRun.world();
-        List<Object> candidates =
-                world == null ? Collections.emptyList() : new ArrayList<Object>(world.players);
-        return GrugHandlerLookup.playerOf(handler, PlayerEntity.class, candidates);
+        return GrugHandlerLookup.playerOf(
+                handler, PlayerEntity.class, GrugLinkArms.membersOrNone(world, w -> w.players));
     }
 
     /**

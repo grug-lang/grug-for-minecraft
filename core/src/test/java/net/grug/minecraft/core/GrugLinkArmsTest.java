@@ -155,6 +155,92 @@ class GrugLinkArmsTest {
     }
 
     @Test
+    void runIfWithRunsTheTaskOnItsThreeValuesOnlyWhenHere() {
+        List<String> seen = new ArrayList<>();
+        GrugLinkArms.runIfWith(false, "a", 1, 2.0, (a, b, c) -> seen.add(a + b + c));
+        GrugLinkArms.runIfWith(true, "a", 1, 2.0, (a, b, c) -> seen.add(a + b + c));
+        assertEquals(Arrays.asList("a12.0"), seen);
+    }
+
+    @Test
+    void mapOrNullAndIfHereElseAndTableEntryAnswerWithoutTheMissingPart() {
+        assertEquals(null, GrugLinkArms.mapOrNull((String) null, String::length));
+        assertEquals(Integer.valueOf(2), GrugLinkArms.mapOrNull("ab", String::length));
+        assertTrue(GrugLinkArms.bothHere(true, true));
+        assertFalse(GrugLinkArms.bothHere(true, false));
+        assertFalse(GrugLinkArms.bothHere(false, true));
+        assertTrue(GrugLinkArms.ifHereElse(false, true, () -> false));
+        assertFalse(GrugLinkArms.ifHereElse(false, false, () -> true));
+        assertTrue(GrugLinkArms.ifHereElse(true, false, () -> true));
+        assertFalse(GrugLinkArms.ifHereElse(true, true, () -> false));
+        String[] table = {"air", "stone", null};
+        assertEquals(null, GrugLinkArms.tableEntry(table, 0));
+        assertEquals(null, GrugLinkArms.tableEntry(table, -1));
+        assertEquals("stone", GrugLinkArms.tableEntry(table, 1));
+        assertEquals(null, GrugLinkArms.tableEntry(table, 2));
+        assertEquals(null, GrugLinkArms.tableEntry(table, 3));
+    }
+
+    @Test
+    void deliverOrReportReportsAMissingValueAndSendsAPresentOne() {
+        List<String> log = new ArrayList<>();
+        GrugLinkArms.deliverOrReport(null, "none", log::add, v -> log.add("sent " + v));
+        GrugLinkArms.deliverOrReport("p", "none", log::add, v -> log.add("sent " + v));
+        assertEquals(Arrays.asList("none", "sent p"), log);
+    }
+
+    @Test
+    void aRefusedCallIsReportedWithItsPrefixAndAnswersTheFallback() {
+        List<String> log = new ArrayList<>();
+        assertEquals(Integer.valueOf(7), GrugLinkArms.callOrReport(() -> 7, "x: ", 1, log::add));
+        assertEquals(
+                Integer.valueOf(1),
+                GrugLinkArms.callOrReport(
+                        () -> {
+                            throw new GrugControlServer.ControlException("no");
+                        },
+                        "x: ",
+                        1,
+                        log::add));
+        assertEquals(Arrays.asList("x: no"), log);
+        GrugLinkArms.runOrReport(() -> log.add("ran"), "y: ", log::add);
+        GrugLinkArms.runOrReport(
+                () -> {
+                    throw new GrugControlServer.ControlException("nope");
+                },
+                "y: ",
+                log::add);
+        assertEquals(Arrays.asList("x: no", "ran", "y: nope"), log);
+    }
+
+    @Test
+    void forEachMissingHandsOnlyTheKeysThatAreNotPresent() {
+        List<String> missing = new ArrayList<>();
+        GrugLinkArms.forEachMissing(Arrays.asList("a", "b", "c"), Arrays.asList("b"), missing::add);
+        assertEquals(Arrays.asList("a", "c"), missing);
+    }
+
+    @Test
+    void chooseWithPassesTheArgumentToTheArmItPicks() {
+        List<String> seen = new ArrayList<>();
+        GrugLinkArms.chooseWith(
+                true, "a", v -> seen.add("server " + v), v -> seen.add("other " + v));
+        GrugLinkArms.chooseWith(
+                false, "b", v -> seen.add("server " + v), v -> seen.add("other " + v));
+        assertEquals(Arrays.asList("server a", "other b"), seen);
+    }
+
+    @Test
+    void membersOrNoneIsEmptyWithoutAWorldAndACopyWithOne() {
+        assertEquals(
+                new ArrayList<Object>(), GrugLinkArms.membersOrNone((List<String>) null, w -> w));
+        List<String> world = new ArrayList<>(Arrays.asList("p", "q"));
+        List<Object> copy = GrugLinkArms.membersOrNone(world, w -> w);
+        world.clear();
+        assertEquals(Arrays.<Object>asList("p", "q"), copy);
+    }
+
+    @Test
     void matchingKeepsOnlyAKnownMenuWithTheSameWindowId() {
         assertEquals(null, GrugLinkArms.matching((String) null, 3, String::length));
         assertEquals(null, GrugLinkArms.matching("ab", 3, String::length));

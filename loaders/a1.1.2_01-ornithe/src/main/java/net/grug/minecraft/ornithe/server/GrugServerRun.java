@@ -14,7 +14,6 @@ import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.ornithe.ServerOrnitheAdapter;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.minecraft.entity.mob.player.PlayerEntity;
-import net.minecraft.network.Connection;
 import net.minecraft.network.packet.PlayerMovePacket;
 import net.minecraft.world.World;
 
@@ -31,7 +30,6 @@ import java.util.List;
  * deadline keeps a client that never connects from hanging it. When the run ends, passed or failed,
  * the process exits, which is what ends the scripts watching it.
  */
-@GrugGenerated("a dedicated server, whose coverage no CI run merges until #167 stage 4")
 public final class GrugServerRun {
     /** How long to wait for a client to join before failing the run. */
     static final long PLAYER_JOIN_TIMEOUT_MILLIS = GrugServerJoin.timeoutMillis();
@@ -316,14 +314,20 @@ public final class GrugServerRun {
             advance(tickedWorld, gameSpeed - 1);
         }
         Object testPlayer = GrugCore.getAdapter().testPlayer();
-        if (testPlayer instanceof PlayerEntity) {
-            holdPlayer((PlayerEntity) testPlayer);
-        }
+        GrugLinkArms.applyTo(testPlayer, PlayerEntity.class, GrugServerRun::holdPlayer);
         // Applies what the joined client sent during the previous tick's calls, which here is a
         // forwarded click's packet (#1094). The game's own tick reads the connection too, but only
         // after this runner tick, and a test asserts on the tick after its click.
         GrugControlAlpha.server().applyClientWork();
         runner.tick(testPlayer);
+        finishIfDone();
+    }
+
+    /** Ends the process once the runner has finished, with a status that says whether it passed. */
+    @GrugGenerated(
+            "it ends the server process after the last coverage segment is written, so nothing in"
+                    + " it can be counted")
+    private static void finishIfDone() {
         if (runner.isFinished()) {
             stop(runner.isPassed() ? 0 : 1);
         }
@@ -356,8 +360,8 @@ public final class GrugServerRun {
         GrugPlayerFloor.BlockSource blocks = ServerOrnitheAdapter.solidBlocks(world);
         double feet = player.y;
         double floor = GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z);
-        GrugLinkArms.runIf(
-                GrugPlayerFloor.below(feet, floor), () -> putOnFloor(player, floor, feet));
+        GrugLinkArms.runIfWith(
+                GrugPlayerFloor.below(feet, floor), player, floor, feet, GrugServerRun::putOnFloor);
     }
 
     /**
@@ -370,7 +374,7 @@ public final class GrugServerRun {
                     + " collision prevents and a test cannot make it do; the move and the call of"
                     + " core's tested log are all that is in it (#1136)")
     private static void putOnFloor(PlayerEntity player, double floor, double feet) {
-        moveTo(player, floor);
+        moveTo(player, floor, player.x, player.z);
         heldOnFloorThisTick = true;
         FLOOR_LOG.record(System.out, floor, feet, System.currentTimeMillis());
     }
@@ -460,10 +464,6 @@ public final class GrugServerRun {
      * between the old and the new one, while one drawn after this handler is drawn from the height
      * the room was built around.
      */
-    private static void moveTo(PlayerEntity player, double feetY) {
-        moveTo(player, feetY, player.x, player.z);
-    }
-
     private static void moveTo(PlayerEntity player, double feetY, double x, double z) {
         moveTo(player, feetY, x, z, player.yaw, player.pitch);
     }
@@ -472,12 +472,18 @@ public final class GrugServerRun {
             PlayerEntity player, double feetY, double x, double z, float yaw, float pitch) {
         player.updatePositionAndAngles(x, feetY, z, yaw, pitch);
         player.velocityY = 0.0;
-        Connection connection = GrugControlAlpha.connectionFor(player);
-        if (connection != null) {
-            connection.send(
-                    new PlayerMovePacket.PositionAndAngles(
-                            x, feetY + GrugTestOrigin.EYE_HEIGHT, feetY, z, yaw, pitch, false));
-        }
+        GrugLinkArms.deliver(
+                GrugControlAlpha.connectionFor(player),
+                connection ->
+                        connection.send(
+                                new PlayerMovePacket.PositionAndAngles(
+                                        x,
+                                        feetY + GrugTestOrigin.EYE_HEIGHT,
+                                        feetY,
+                                        z,
+                                        yaw,
+                                        pitch,
+                                        false)));
     }
 
     /**
@@ -492,9 +498,10 @@ public final class GrugServerRun {
      * they were is saved first, so {@link #restoreTestPlayer} can put them back.
      */
     public static void snapToBlockCentre(PlayerEntity player) {
-        if (player == null) {
-            return;
-        }
+        GrugLinkArms.deliver(player, GrugServerRun::snapPlayer);
+    }
+
+    private static void snapPlayer(PlayerEntity player) {
         SNAP.save(player, player.x, player.y, player.z, player.yaw, player.pitch);
         holdX = SNAP.snappedX();
         holdZ = SNAP.snappedZ();
@@ -517,9 +524,10 @@ public final class GrugServerRun {
      * A server whose snap did not run, because it had no player copy yet, restores nothing.
      */
     public static void restoreTestPlayer(PlayerEntity player) {
-        if (!SNAP.claimRestore(player)) {
-            return;
-        }
+        GrugLinkArms.runIf(SNAP.claimRestore(player), () -> restorePlayer(player));
+    }
+
+    private static void restorePlayer(PlayerEntity player) {
         moveTo(
                 player,
                 SNAP.savedY(),
@@ -533,6 +541,9 @@ public final class GrugServerRun {
     }
 
     /** Ends the server process; a non-zero status says the run did not pass. */
+    @GrugGenerated(
+            "it ends the server process after the last coverage segment is written, so nothing in"
+                    + " it can be counted")
     private static void stop(int status) {
         done = true;
         GrugControlAlpha.server().endRun();
