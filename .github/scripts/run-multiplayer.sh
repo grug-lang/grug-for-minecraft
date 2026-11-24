@@ -599,6 +599,14 @@ starter_left_marker_landed() {
 
 deadline=$((SECONDS + ${GRUG_CI_RUN_TIMEOUT:-300}))
 while :; do
+  # Sampled before the log is read, never after: a server that writes its last line and exits between
+  # the reads and a liveness test written last leaves that line unread, and the leg reports a bare
+  # exit for a run that passed, which is how main's retry leg died once (#1715). run-loader.sh holds
+  # this order for the same reason since #597: a server that is already gone here wrote everything it
+  # ever will before this point, so the reads below see all of it, and one that dies after the sample
+  # is judged on the next pass.
+  server_alive=true
+  kill -0 "$server_pid" 2>/dev/null || server_alive=false
   # The second player holds its real START until the server has accepted the first one (#1027), so
   # the file it watches is written here. That keeps the two starts in the order the test asserts:
   # exactly one starter, and the second start arriving while a starter exists.
@@ -982,7 +990,7 @@ while :; do
     echo "==> The client crashed: ${line}" >&2
     exit 1
   fi
-  if ! kill -0 "$server_pid" 2>/dev/null; then
+  if [ "$server_alive" = false ]; then
     if starter_left_marker_landed; then
       continue
     fi
