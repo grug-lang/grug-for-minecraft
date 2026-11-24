@@ -62,7 +62,48 @@ class GrugTestOriginTest {
             assertTrue(GrugTestOrigin.clientEye(feet) - clientEyeHeight >= feet, "at " + feet);
         }
         // The decimal eye the packet used to carry is the one that put the box under the floor.
-        assertTrue(64.0 + GrugTestOrigin.EYE_HEIGHT - clientEyeHeight < 64.0);
+        assertTrue(64.0 + 1.62 - clientEyeHeight < 64.0);
+    }
+
+    /**
+     * The defect this guards against was two copies of the eye height, so this test names the
+     * game's own value itself: the {@code float} 1.62 widened is 1.6200000047683716, while the
+     * decimal 1.62 is 5e-9 under it and changes a joined camera's bits (#1629, #1662).
+     */
+    @Test
+    void theEyeHeightIsTheGamesOwnFloatAndNotTheDecimal() {
+        assertEquals((double) 1.62F, GrugTestOrigin.EYE_HEIGHT, 0.0);
+        assertTrue(GrugTestOrigin.EYE_HEIGHT != 1.62, "the eye height is the decimal 1.62");
+    }
+
+    /**
+     * A capture pin that names the eye of a client whose API takes the feet recovers those feet
+     * from the eye exactly, and the game's own {@code float} height then lands the eye the request
+     * named. The pin is in a loader, so this drives the arithmetic it calls.
+     */
+    @Test
+    void theCapturePinRecoversTheFeetExactly() {
+        double eyeHeight = (double) 1.62F;
+        for (double feet :
+                new double[] {64.0, 63.5, 70.94899540560743, -12.25, 255.0, 0.0, 71.0, -23.5}) {
+            assertEquals(feet, GrugTestOrigin.feetOfEye(GrugTestOrigin.clientEye(feet)), 0.0);
+            assertEquals(
+                    GrugTestOrigin.clientEye(feet),
+                    GrugTestOrigin.eyeOfFeet(0.5, feet, 0.5).y(),
+                    0.0);
+            assertEquals(
+                    GrugTestOrigin.clientEye(feet),
+                    GrugTestOrigin.clientEye(
+                            GrugTestOrigin.feetOfEye(GrugTestOrigin.clientEye(feet))),
+                    0.0);
+        }
+        java.util.Random random = new java.util.Random(1662);
+        for (int i = 0; i < 1_000_000; i++) {
+            double feet = random.nextDouble() * 600.0 - 300.0;
+            double eye = GrugTestOrigin.clientEye(feet);
+            assertEquals(feet, GrugTestOrigin.feetOfEye(eye), 0.0, "at " + feet);
+            assertEquals(eye, GrugTestOrigin.clientEye(GrugTestOrigin.feetOfEye(eye)), 0.0);
+        }
     }
 
     @Test
@@ -70,7 +111,7 @@ class GrugTestOriginTest {
         Vec3 eye = GrugTestOrigin.eyeOfFeet(1.5, 64.0, -3.5);
 
         assertEquals(1.5, eye.x(), 0.0);
-        assertEquals(65.62, eye.y(), 1e-9);
+        assertEquals(64.0 + (double) 1.62F, eye.y(), 0.0);
         assertEquals(-3.5, eye.z(), 0.0);
         assertEquals(eye, GrugTestOrigin.eyeOf(GrugTestOrigin.of(eye)));
     }

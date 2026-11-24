@@ -65,9 +65,6 @@ import java.util.List;
  */
 public class Grug125ServerAdapter extends Grug125Adapter {
 
-    /** A player's eye is this far above their feet. */
-    private static final double EYE_HEIGHT = 1.62;
-
     /**
      * The screen calls this server makes, which its joined client performs: a server has no screen
      * of its own, so every one of them is a round trip to the client of the player who started the
@@ -479,14 +476,16 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     /**
      * The eye of the test player. A server player keeps the feet in {@code posY} where the client
      * keeps the eye, so the eye is rebuilt from the bottom of the bounding box, rounded to a
-     * millionth to shed the arithmetic's last bits, which is what the client's {@code posY} is.
+     * millionth to shed the arithmetic's last bits, which is what the client's {@code posY} is. The
+     * height added is {@link GrugTestOrigin#EYE_HEIGHT}, the game's own float, the same one the
+     * client's camera and the capture pin use (#1662).
      */
     @Override
     public Vec3 testPlayerEye(Object playerObj) {
         EntityPlayer player = (EntityPlayer) playerObj;
         return new Vec3(
                 player.posX,
-                Math.rint(player.boundingBox.minY * 1e6) / 1e6 + EYE_HEIGHT,
+                Math.rint(player.boundingBox.minY * 1e6) / 1e6 + GrugTestOrigin.EYE_HEIGHT,
                 player.posZ);
     }
 

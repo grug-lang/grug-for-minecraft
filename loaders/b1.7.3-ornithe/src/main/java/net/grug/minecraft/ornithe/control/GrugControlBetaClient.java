@@ -135,7 +135,7 @@ public final class GrugControlBetaClient {
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
         player.setPositionAndAngles(
-                eye.x(), eye.y() - GrugTestOrigin.EYE_HEIGHT, eye.z(), 0.0F, 0.0F);
+                eye.x(), GrugTestOrigin.feetOfEye(eye.y()), eye.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
