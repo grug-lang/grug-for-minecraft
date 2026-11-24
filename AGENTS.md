@@ -182,8 +182,9 @@ CI. Light jobs stay local: Gradle builds,
   buildcraft golden pull request runs 11. A pull request also runs the dedicated-server leg of each
   loader whose own code its diff touches (`dedicated-needed.py --loaders`, #1601, #1656): none for a
   diff that reaches no loader, one for a single loader, two for shared or Ornithe code and all five
-  for `core/`, the API, `mods/coverage` or a doubt. The jar, installed and smoke jobs and two steps of the
-  core tests run only on push to `main`, the weekly schedule and `workflow_dispatch`, and the
+  for `core/`, the API, `mods/coverage` or a doubt. A pull request also builds `layer-<loader>` for each Ornithe
+  loader whose dedicated leg runs (`layer-selection.py`), since coverage analyses that server from
+  the jar (#169). The jar, installed and smoke jobs and two steps of the core tests run only on push to `main`, the weekly schedule and `workflow_dispatch`, and the
   Windows boot jobs only on a dispatch and on a push that adds a loader (#632), so a green pull
   request says nothing about them. A push to `main` runs only the mods its merge touched, on the
   loaders those reach, and leaves every other loader's job on `mods/coverage` alone, which is all
