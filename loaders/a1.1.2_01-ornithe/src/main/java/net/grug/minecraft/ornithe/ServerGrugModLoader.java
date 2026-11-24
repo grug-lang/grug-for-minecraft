@@ -12,7 +12,8 @@ import net.grug.minecraft.ornithe.block.entity.GrugSavedDataAlpha;
  * jar carries no crafting package, so recipes are registered lazily by {@link GrugServerRecipes}
  * the first time a crafting grid asks for a result (#1387). The suite is driven from the server
  * world's tick by {@code ServerWorldMixin}, so there is nothing to register here beyond saying the
- * server is up.
+ * server is up. The dedicated leg uploads the layer jar this class is in, so a later run that
+ * carries its exec data over analyses the same bytes (#1674).
  */
 public class ServerGrugModLoader implements DedicatedServerModInitializer {
     @Override

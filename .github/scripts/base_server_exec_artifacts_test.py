@@ -28,6 +28,12 @@ class PickTest(unittest.TestCase):
         self.assertEqual([name for name, _ in pairs], ["server-exec-a", "server-exec-b"])
         self.assertIn("2 live", why)
 
+    def test_the_jar_a_leg_ran_is_picked_with_its_exec_data(self):
+        pairs, _ = mod.pick(
+            {"artifacts": [art("server-exec-a"), art("server-layer-a"), art("layer-a")]}
+        )
+        self.assertEqual([name for name, _ in pairs], ["server-exec-a", "server-layer-a"])
+
     def test_a_base_run_without_a_dedicated_leg_carries_nothing(self):
         pairs, why = mod.pick({"artifacts": [art("coverage-exec-core")]})
         self.assertEqual(pairs, [])
