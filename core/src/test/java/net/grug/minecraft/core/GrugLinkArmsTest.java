@@ -107,6 +107,12 @@ class GrugLinkArmsTest {
     }
 
     @Test
+    void missingIsTheOtherSideOfKnown() {
+        assertFalse(GrugLinkArms.missing("player"));
+        assertTrue(GrugLinkArms.missing(null));
+    }
+
+    @Test
     void orElseAsksNextOnlyWhenFirstIsUnknown() {
         assertEquals("a", GrugLinkArms.orElse("a", () -> "b"));
         assertEquals("b", GrugLinkArms.orElse(null, () -> "b"));

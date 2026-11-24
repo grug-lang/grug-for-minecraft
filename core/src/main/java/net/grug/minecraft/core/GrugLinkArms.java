@@ -30,6 +30,14 @@ public final class GrugLinkArms {
     }
 
     /**
+     * Whether {@code value} is not known: {@link #known}'s other side, for a decision a counted run
+     * only ever answers one way, so the caller keeps no branch of its own.
+     */
+    public static boolean missing(Object value) {
+        return value == null;
+    }
+
+    /**
      * Runs {@code send} on {@code player} and answers true, or answers false without calling it
      * when the player is gone.
      */
