@@ -8,10 +8,12 @@ The ``multiplayer`` job runs the suite on a dedicated server with a client joine
 and when its diff against that base is confined to the mods the answer is ``false``: a mod port's
 grug code and tests are exercised by the client legs of every loader, and none of the server's
 code, the runner, the adapters or the API changes. The exception is a changed test under
-``mods/<mod>/tests/`` that calls a host function the joined client answers or performs
-(``JOINED_CLIENT_CALLS``), such as a capture, a screen, the camera or the client's own copy of the
-world: that test can fail on a dedicated leg a client leg passes, and the legs run (#1696). The
-answer is ``true`` for any other changed path, in particular:
+``mods/<mod>/tests/`` that calls a host function or a ``Test`` method the joined client answers or
+performs (``JOINED_CLIENT_CALLS``), such as a capture, a screen, the camera or the client's own copy
+of the world: that test can fail on a dedicated leg a client leg passes, and the legs run (#1696).
+Only that test file is read, so a helper in the mod's ``code/`` that a test handed its context to
+is not followed; no committed ``code/`` file takes one today. The answer is ``true`` for any other
+changed path, in particular:
 
 - ``core/``, ``mod_api.json``, ``loaders/``, ``test-saves/`` and ``.github/`` (the runner, the
   scripts, the workflows), which are the code and the harness the server legs run;
@@ -38,11 +40,11 @@ workflow changes no server class's bytes, so it runs no leg and the carried-over
 exceptions run every loader's leg: any ``core/`` path but ``core/src/test/`` (some core lines only a
 server leg executes), ``mod_api.json``, ``mods/coverage/``, the root build files (``gradle/``,
 ``gradle.properties``, ``build.gradle*``, ``settings.*``) and ``.github/actions/setup-loader-build/``.
-A mod test that calls a joined-client host function runs every loader's leg too, for the reason the
-dispatch answer above gives. A path under ``shared/``
-that no build declares, and every doubt (no base commit, an empty diff, a diff that cannot be
-computed, any error) run every loader's leg, which only runs more. The schedule never runs the legs
-(the job's own condition excludes it), so it answers every loader and nothing reads it.
+A mod test that calls a joined-client host function or ``Test`` method runs every loader's leg too,
+for the reason the dispatch answer above gives. A path under ``shared/`` that no build declares,
+and every doubt (no base commit, an empty diff, a diff that cannot be computed, any error) run
+every loader's leg, which only runs more. The schedule never runs the legs (the job's own condition
+excludes it), so it answers every loader and nothing reads it.
 
 ``--loaders`` prints the JSON list of loaders whose legs run: every loader that has a dedicated
 server for a dispatch (none when the dispatch skips them), and the narrowed list for a pull request
@@ -71,9 +73,16 @@ TEST_FILE = re.compile(r"mods/[^/]+/tests/.+\.grug")
 # and compared by the joined client, and so are its screens, its overlays, its camera and its own
 # copy of the world (a saved number, the light it holds, a hot-reloaded file). A call's receiver is
 # not checked, because a test hands `ctx` to a helper under another name and a comment that names
-# one is only a runner minute. `get_origin` and `get_player` are deliberately absent: on a
-# dedicated leg they answer from the server's own copy of the test player, so a test that only
-# builds from them cannot fail on that leg, which keeps the saving for the ports that read them.
+# one is only a runner minute; that also covers the two `Test` methods a dedicated adapter answers
+# from the joined client (me.overlay_supported and me.world_overlay_supported, #1099). `get_origin`
+# and `get_player` are deliberately absent: on a dedicated leg they answer from the server's own
+# copy of the test player, so a test that only builds from them cannot fail on that leg, which
+# keeps the saving for the ports that read them.
+#
+# Known limit: only files under mods/<mod>/tests/ are read, so a test that hands its ctx to a
+# helper in the mod's code/ is judged by the tests/ file alone, even when that helper captures. No
+# mods/*/code/*.grug takes a TestTickContext today, so nothing is misread; a code helper that did
+# would need this check to follow the helper into code/, which it does not.
 JOINED_CLIENT_CALLS = (
     "block_selection",
     "camera",
@@ -93,6 +102,7 @@ JOINED_CLIENT_CALLS = (
     "open_inventory",
     "overlay_drawn",
     "overlay_first_frame_cleared",
+    "overlay_supported",
     "press_screen_key",
     "press_world_key",
     "reload_count",
@@ -105,6 +115,7 @@ JOINED_CLIENT_CALLS = (
     "set_player_position",
     "use_block",
     "world_overlay_drawn",
+    "world_overlay_supported",
     "world_settled",
 )
 # Every loader with a dedicated server, which a dispatch runs and a doubt falls back to.
