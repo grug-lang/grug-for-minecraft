@@ -86,11 +86,14 @@ public final class GrugRelight {
 
     /**
      * A room's light engine as {@link #settleImmediately} drives it: one that recomputes a box the
-     * moment it is given one, rather than queuing it, and whose block light is read per cell.
+     * moment it is given one, rather than queuing it, and whose light is read per cell.
      */
     public interface ImmediateRoom {
-        /** Recomputes the box's block light now, draining whatever that queued. */
+        /** Recomputes the box's sky and block light now, draining whatever that queued. */
         void update(int minX, int minY, int minZ, int maxX, int maxY, int maxZ);
+
+        /** The sky light a cell holds now, 0 to 15, as the renderer reads it. */
+        int sky(int x, int y, int z);
 
         /** The block light a cell holds now, 0 to 15, as the renderer reads it. */
         int block(int x, int y, int z);
@@ -108,7 +111,7 @@ public final class GrugRelight {
     }
 
     /**
-     * Recomputes the box's block light until a sweep changes nothing, then returns how many sweeps
+     * Recomputes the box's light until a sweep changes neither field, then returns how many sweeps
      * that took.
      *
      * <p>Both dedicated servers whose engine recomputes a box at once settle a room through this,
@@ -129,8 +132,10 @@ public final class GrugRelight {
     }
 
     /**
-     * Recomputes the block light of the box once, in the pieces the engine accepts, and hashes what
-     * it holds afterwards.
+     * Recomputes the light of the box once, in the pieces the engine accepts, and hashes what it
+     * holds afterwards. The sky is hashed as well as the block light: an update recomputes only the
+     * field it was given, so a room put up where the sky was open keeps the sky's 15 until it is
+     * recomputed too, and a hash that ignores it calls that settled.
      */
     static long sweepImmediately(
             ImmediateRoom room, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
@@ -139,6 +144,7 @@ public final class GrugRelight {
         for (int y = minY; y <= maxY; y++) {
             for (int z = minZ; z <= maxZ; z++) {
                 for (int x = minX; x <= maxX; x++) {
+                    hash = hash * 31 + room.sky(x, y, z);
                     hash = hash * 31 + room.block(x, y, z);
                 }
             }

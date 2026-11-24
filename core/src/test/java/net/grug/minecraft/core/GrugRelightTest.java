@@ -133,7 +133,33 @@ class GrugRelightTest {
 
         assertEquals(2, sweeps);
         assertEquals(sweeps, room.boxesPerSweep.size());
-        for (List<int[]> boxes : room.boxesPerSweep) {
+        assertPiecesCoverExactlyOnce(room.boxesPerSweep, new int[] {0, 0, 0, 28, 41, 28});
+        assertEquals(room.skyQueues, room.blockQueues, "both fields should be queued in pieces");
+    }
+
+    @Test
+    void aBoxOverTheEnginesLimitReachesBetaAsPiecesItAcceptsAndSettlesBothFields() {
+        // What the two Ornithe Beta loaders now do with the box a resend relights, with an engine
+        // that behaves as theirs does: an update over 32768 cells is dropped and recomputes
+        // nothing. A settle that handed over the radius 13 room's whole box would drop every sweep
+        // and confirm the 15 its sky was left at, which the ask fingerprints and the resend then
+        // imposes on the joined client.
+        BetaRoom room = new BetaRoom(9, 8, 4, 0);
+
+        int sweeps = GrugRelight.settle(room, 0, 0, 0, 28, 41, 28, 8);
+
+        assertEquals(4, sweeps);
+        assertEquals(0, room.dropped, "no update may be larger than the engine accepts");
+        assertEquals(0, room.sky(0, 0, 0), "the sky should settle at the field its blocks define");
+        assertEquals(9, room.block(0, 0, 0));
+        assertPiecesCoverExactlyOnce(room.skyBoxesPerSweep, new int[] {0, 0, 0, 28, 41, 28});
+        assertPiecesCoverExactlyOnce(room.blockBoxesPerSweep, new int[] {0, 0, 0, 28, 41, 28});
+    }
+
+    /** Asserts that every sweep's boxes are accepted ones that cover {@code outer} exactly once. */
+    private static void assertPiecesCoverExactlyOnce(List<List<int[]>> boxesPerSweep, int[] outer) {
+        assertFalse(boxesPerSweep.isEmpty(), "a sweep should have queued at least one box");
+        for (List<int[]> boxes : boxesPerSweep) {
             long covered = 0;
             for (int at = 0; at < boxes.size(); at++) {
                 int[] box = boxes.get(at);
@@ -141,17 +167,15 @@ class GrugRelightTest {
                         cells(box) <= GrugRelight.MAX_UPDATE_CELLS,
                         "one update should cover at most " + GrugRelight.MAX_UPDATE_CELLS);
                 assertTrue(
-                        inside(box, new int[] {0, 0, 0, 28, 41, 28}),
-                        "a piece should stay inside the box it was cut from");
+                        inside(box, outer), "a piece should stay inside the box it was cut from");
                 covered = covered + cells(box);
                 for (int other = at + 1; other < boxes.size(); other++) {
                     assertFalse(
                             overlaps(box, boxes.get(other)), "two pieces should not share a cell");
                 }
             }
-            assertEquals(35322, covered, "the pieces should cover the box exactly once");
+            assertEquals(cells(outer), covered, "the pieces should cover the box exactly once");
         }
-        assertEquals(room.skyQueues, room.blockQueues, "both fields should be queued in pieces");
     }
 
     @Test
@@ -187,6 +211,24 @@ class GrugRelightTest {
             }
             assertEquals(35322, covered, "the pieces should cover the room exactly once");
         }
+    }
+
+    @Test
+    void aSettleOnAnEngineThatRecomputesAtOnceSweepsTheSkyItsBlocksDefine() {
+        // The two Ornithe Beta servers relight the box a resend sends through settleImmediately,
+        // and the settle ask fingerprints both of its fields, so an update that recomputed only
+        // one of them would leave the resend imposing the 15 the room's sky was built over. The sky
+        // walks to its enclosed value over three sweeps while the block light already holds the
+        // field its blocks define, so a hash of the block field alone calls that settled after the
+        // second sweep, with the sky still at 4.
+        DroppingRoom room = new DroppingRoom(8, 4, 0);
+
+        int sweeps = GrugRelight.settleImmediately(room, 0, 0, 0, 28, 41, 28, 8);
+
+        assertEquals(4, sweeps);
+        assertEquals(0, room.dropped, "no update may be larger than the engine accepts");
+        assertEquals(0, room.sky(0, 0, 0), "the sky should settle at the field its blocks define");
+        assertEquals(4, room.boxesPerSweep.size(), "every sweep should update the box");
     }
 
     @Test
@@ -304,6 +346,91 @@ class GrugRelightTest {
     }
 
     /**
+     * A queued engine that behaves as beta's does: an update over {@link
+     * GrugRelight#MAX_UPDATE_CELLS} is dropped and recomputes nothing, and an accepted sky update
+     * walks the sky light to the next value the room's blocks define. It records the boxes it
+     * accepted per sweep, so a test can check that none was dropped and that the pieces tile the
+     * box.
+     */
+    private static final class BetaRoom implements GrugRelight.Room {
+        private final int blockLight;
+        private final int[] skyPerSweep;
+        private int skyLight = 15;
+        private boolean skyQueued;
+        private int sweepsRun;
+        private List<int[]> skyBoxes;
+        private List<int[]> blockBoxes;
+        final List<List<int[]>> skyBoxesPerSweep = new ArrayList<>();
+        final List<List<int[]>> blockBoxesPerSweep = new ArrayList<>();
+        int dropped;
+
+        BetaRoom(int blockLight, int... skyPerSweep) {
+            this.blockLight = blockLight;
+            this.skyPerSweep = skyPerSweep;
+        }
+
+        @Override
+        public void queueSky(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+            if (accept(minX, minY, minZ, maxX, maxY, maxZ) == null) {
+                return;
+            }
+            if (this.skyBoxes == null) {
+                this.skyBoxes = new ArrayList<>();
+                this.skyBoxesPerSweep.add(this.skyBoxes);
+            }
+            this.skyBoxes.add(new int[] {minX, minY, minZ, maxX, maxY, maxZ});
+            this.skyQueued = true;
+        }
+
+        @Override
+        public void queueBlock(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+            if (accept(minX, minY, minZ, maxX, maxY, maxZ) == null) {
+                return;
+            }
+            if (this.blockBoxes == null) {
+                this.blockBoxes = new ArrayList<>();
+                this.blockBoxesPerSweep.add(this.blockBoxes);
+            }
+            this.blockBoxes.add(new int[] {minX, minY, minZ, maxX, maxY, maxZ});
+        }
+
+        /**
+         * The box when the engine accepts it, which is the box it covers; null when it drops it, as
+         * beta does for an update over the cells one may cover.
+         */
+        private int[] accept(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+            int[] box = {minX, minY, minZ, maxX, maxY, maxZ};
+            if (cells(box) > GrugRelight.MAX_UPDATE_CELLS) {
+                this.dropped++;
+                return null;
+            }
+            return box;
+        }
+
+        @Override
+        public void drain() {
+            if (this.skyQueued) {
+                this.skyLight =
+                        this.skyPerSweep[Math.min(this.sweepsRun, this.skyPerSweep.length - 1)];
+            }
+            this.skyQueued = false;
+            this.skyBoxes = null;
+            this.blockBoxes = null;
+            this.sweepsRun++;
+        }
+
+        @Override
+        public int sky(int x, int y, int z) {
+            return this.skyLight;
+        }
+
+        @Override
+        public int block(int x, int y, int z) {
+            return this.blockLight;
+        }
+    }
+
+    /**
      * A queued engine whose light never changes, recording the boxes one sweep queues for each
      * field, so a test can check that none of them is larger than the engine accepts.
      */
@@ -348,12 +475,20 @@ class GrugRelightTest {
      * An engine that recomputes a box the moment it is given one and refuses a box over 32768 cells
      * the way beta's {@code LightUpdate} does, recording the drop and leaving the room unlit. The
      * limit is the engine's own number rather than GrugRelight's, so the test cannot pass by
-     * agreeing with the production constant.
+     * agreeing with the production constant. Its sky walks the values it was given, one per sweep,
+     * as this version's engine recomputes the sky field it was given a box for.
      */
     private static final class DroppingRoom implements GrugRelight.ImmediateRoom {
         private final List<List<int[]>> boxesPerSweep = new ArrayList<>();
+        private final int[] skyPerSweep;
         private List<int[]> current;
+        private int skyLight;
+        private int sweepsRun;
         int dropped;
+
+        DroppingRoom(int... skyPerSweep) {
+            this.skyPerSweep = skyPerSweep;
+        }
 
         @Override
         public void update(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
@@ -365,14 +500,23 @@ class GrugRelightTest {
             if (this.current == null) {
                 this.current = new ArrayList<>();
                 this.boxesPerSweep.add(this.current);
+                if (this.sweepsRun < this.skyPerSweep.length) {
+                    this.skyLight = this.skyPerSweep[this.sweepsRun];
+                }
+                this.sweepsRun++;
             }
             this.current.add(box);
         }
 
         @Override
+        public int sky(int x, int y, int z) {
+            return this.skyLight;
+        }
+
+        @Override
         public int block(int x, int y, int z) {
             // A sweep reads the field after its updates, which is where the next sweep's boxes
-            // begin. The value never changes, so the settle confirms on its second sweep.
+            // begin. The value never changes, so the settle confirms once its sky stops walking.
             this.current = null;
             return 7;
         }

@@ -854,8 +854,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     private static final int RELIGHT_SWEEP_LIMIT = 16;
 
     /**
-     * Brings the room's block light to the one field its blocks define, whatever rooms were built
-     * before it.
+     * Brings the room's sky and block light to the one field its blocks define, whatever rooms were
+     * built before it.
+     *
+     * <p>Both fields are swept because the ask's fingerprint reads both: a block update recomputes
+     * only the field it was queued for, so a room put up where the sky was open keeps the sky's 15
+     * until it is queued for the sky too, and the resend would then impose a field its blocks do
+     * not define. The box is handed to the engine as {@link GrugRelight} cuts it, because this
+     * version's {@code LightUpdate} prints {@code Light too large, skipping!} and recomputes
+     * nothing for a box over 32768 cells, which a radius 13 room's box is.
      */
     private static void relightRoom(
             World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
@@ -866,7 +873,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /**
      * This version's engine as {@link GrugRelight.ImmediateRoom} drives it. {@code updateLight}
      * recomputes the box there and then, so each {@link GrugRelight} piece is drained before the
-     * next is handed over, and the hashed field is the one the resend will send.
+     * next is handed over, and the hashed fields are the ones the resend will send. Both fields are
+     * updated, because an update recomputes only the field it was given.
      */
     private static final class ImmediateLight implements GrugRelight.ImmediateRoom {
         private final World world;
@@ -877,8 +885,14 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
 
         @Override
         public void update(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+            this.world.updateLight(LightType.SKY, minX, minY, minZ, maxX, maxY, maxZ);
             this.world.updateLight(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
             GrugLinkArms.drain(this.world, this.world::doLightUpdates);
+        }
+
+        @Override
+        public int sky(int x, int y, int z) {
+            return this.world.getLight(LightType.SKY, x, y, z);
         }
 
         @Override
