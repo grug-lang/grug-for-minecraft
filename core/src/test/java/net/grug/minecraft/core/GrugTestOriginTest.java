@@ -2,6 +2,7 @@ package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.grug.Vec3;
 
@@ -44,6 +45,19 @@ class GrugTestOriginTest {
         assertEquals(64.62, eye.y(), 1e-9);
         assertEquals(-3.5, eye.z(), 0.0);
         assertEquals(origin, GrugTestOrigin.of(eye));
+    }
+
+    @Test
+    void aTeleportedClientEyeNeverPutsTheBoxUnderTheFeet() {
+        double clientEyeHeight = (double) 1.62F;
+        for (double feet : new double[] {64.0, 63.5, 70.94899540560743, -12.25, 255.0, 0.0}) {
+            double eye = GrugTestOrigin.clientEye(feet);
+
+            assertTrue(eye - clientEyeHeight >= feet, "box bottom under the feet at " + feet);
+            assertEquals(feet + clientEyeHeight, eye, 1e-12);
+        }
+        // The decimal eye the packet used to carry is the one that put the box under the floor.
+        assertTrue(64.0 + GrugTestOrigin.EYE_HEIGHT - clientEyeHeight < 64.0);
     }
 
     @Test

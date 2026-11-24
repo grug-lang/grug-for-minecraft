@@ -1,0 +1,63 @@
+# A player moved with set_player_position stays at the feet the test named while the client ticks
+# on (#1688). The a1 dedicated server's teleport carried the decimal eye 1.62, which put the
+# client's box 5e-9 under the feet, inside the stone it stood on, so the client fell through it
+# for the ticks until the server's hold corrected it and the camera read 0.2336 low (the flake of
+# camera_pose-Test, seen whenever a crowd pushed the server's copy and the hold teleported). Each
+# move is repeated and followed by a wait of several client ticks before the eye is read, because
+# the fall happens on the ticks after the teleport and not in the call.
+started: bool = false
+laid: bool = false
+moved: number = 0
+waited: number = 0
+feet_x: number = 0.0
+feet_y: number = 0.0
+feet_z: number = 0.0
+eye_y: number = 0.0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        ctx.not_done()
+        return
+    }
+    if not ctx.world_settled() {
+        ctx.not_done()
+        return
+    }
+    if not laid {
+        start: Vec3 = ctx.camera()
+        feet_x = Math.floor(start.x() + 1.0)
+        feet_y = Math.floor(start.y() - 1.62 + 0.5)
+        feet_z = Math.floor(start.z())
+        ctx.get_client_level().place_block(feet_x, feet_y - 1.0, feet_z, "minecraft:stone")
+        laid = true
+        ctx.not_done()
+        return
+    }
+    if ctx.get_client_level().is_air(feet_x, feet_y - 1.0, feet_z) {
+        ctx.not_done()
+        return
+    }
+    if waited == 0 {
+        ctx.set_player_position(feet_x + 0.5, feet_y, feet_z + 0.5)
+        waited = 1
+        ctx.not_done()
+        return
+    }
+    if waited < 6 {
+        waited = waited + 1
+        ctx.not_done()
+        return
+    }
+    camera: Vec3 = ctx.camera()
+    if moved == 0 {
+        eye_y = camera.y()
+    }
+    ctx.assert(camera.y() > eye_y - 0.000001 and camera.y() < eye_y + 0.000001, "The eye sank after the move.")
+    ctx.assert(camera.y() > feet_y + 1.619 and camera.y() < feet_y + 1.621, "The eye is not at the feet the test named.")
+    moved = moved + 1
+    waited = 0
+    if moved < 10 {
+        ctx.not_done()
+    }
+}
