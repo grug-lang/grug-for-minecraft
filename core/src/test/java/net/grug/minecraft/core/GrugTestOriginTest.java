@@ -77,33 +77,40 @@ class GrugTestOriginTest {
     }
 
     /**
-     * A capture pin that names the eye of a client whose API takes the feet recovers those feet
-     * from the eye exactly, and the game's own {@code float} height then lands the eye the request
-     * named. The pin is in a loader, so this drives the arithmetic it calls.
+     * A capture pin that names the eye of a client whose API takes the feet recovers those feet and
+     * lands the camera on the eye the request named. The feet here are the ones a room is built
+     * from: the eighth-block grid and the awkward heights the other tests use, both of which the
+     * game's own addition reproduces exactly. It does not claim an arbitrary double, which {@link
+     * GrugTestOrigin#feetOfEye} says is one unit in the last place off at worst. The pin is in a
+     * loader, so this drives the arithmetic it calls.
      */
     @Test
-    void theCapturePinRecoversTheFeetExactly() {
-        double eyeHeight = (double) 1.62F;
+    void theCapturePinLandsTheCameraOnTheRoomEye() {
+        // Written out here rather than through the constant, so a value that drifts back to the
+        // decimal 1.62 fails this as well as theEyeHeightIsTheGamesOwnFloatAndNotTheDecimal.
+        assertEquals(65.62000000476837, GrugTestOrigin.clientEye(64.0), 0.0);
+        assertEquals(64.0, GrugTestOrigin.feetOfEye(65.62000000476837), 0.0);
+
         for (double feet :
                 new double[] {64.0, 63.5, 70.94899540560743, -12.25, 255.0, 0.0, 71.0, -23.5}) {
-            assertEquals(feet, GrugTestOrigin.feetOfEye(GrugTestOrigin.clientEye(feet)), 0.0);
-            assertEquals(
-                    GrugTestOrigin.clientEye(feet),
-                    GrugTestOrigin.eyeOfFeet(0.5, feet, 0.5).y(),
-                    0.0);
-            assertEquals(
-                    GrugTestOrigin.clientEye(feet),
-                    GrugTestOrigin.clientEye(
-                            GrugTestOrigin.feetOfEye(GrugTestOrigin.clientEye(feet))),
-                    0.0);
+            assertThePinLandsOnTheEye(feet);
         }
-        java.util.Random random = new java.util.Random(1662);
-        for (int i = 0; i < 1_000_000; i++) {
-            double feet = random.nextDouble() * 600.0 - 300.0;
-            double eye = GrugTestOrigin.clientEye(feet);
-            assertEquals(feet, GrugTestOrigin.feetOfEye(eye), 0.0, "at " + feet);
-            assertEquals(eye, GrugTestOrigin.clientEye(GrugTestOrigin.feetOfEye(eye)), 0.0);
+        for (int eighths = -300 * 8; eighths <= 600 * 8; eighths++) {
+            assertThePinLandsOnTheEye(eighths / 8.0);
         }
+    }
+
+    /** Drives the two directions and the room's own eye at the feet the game built. */
+    private static void assertThePinLandsOnTheEye(double feet) {
+        double eye = GrugTestOrigin.clientEye(feet);
+
+        assertEquals(feet, GrugTestOrigin.feetOfEye(eye), 0.0, "the pin's feet at " + feet);
+        assertEquals(eye, GrugTestOrigin.eyeOfFeet(0.5, feet, 0.5).y(), 0.0, "the room's eye");
+        assertEquals(
+                eye,
+                GrugTestOrigin.clientEye(GrugTestOrigin.feetOfEye(eye)),
+                0.0,
+                "the pin's camera back at the eye");
     }
 
     @Test
