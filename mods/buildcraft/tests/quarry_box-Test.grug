@@ -35,6 +35,10 @@ export tick(ctx: TestTickContext) {
     ctx.assert(quarry.get_energy_stored() == 6974, "A quarry should spend 25 on its first step and lose 1 energy on its first tick past 100 ticks of world time.")
     ctx.tick_block_entity(quarry, 1)
     ctx.assert(quarry.get_energy_stored() == 6974, "A quarry should lose no energy and do no step while the world's clock has not moved 100 ticks.")
+
+    # The quarry holds 6974 energy and sits 100 blocks east, outside the area the runner clears, so it
+    # would keep building its frame every 20 ticks of the world's clock through every later test.
+    level.place_block(x + 100, y, z, "minecraft:air")
 }
 
 local _place(ctx: TestTickContext, level: Level, x: number, y: number, z: number, meta: number) BlockEntity {
