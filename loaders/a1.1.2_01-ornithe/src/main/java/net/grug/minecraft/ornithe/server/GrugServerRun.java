@@ -69,8 +69,15 @@ public final class GrugServerRun {
      */
     private static double holdY = 0;
 
-    /** How far the feet may drift from that height before the hold corrects them. */
-    private static final double HOLD_TOLERANCE = 0.25;
+    /**
+     * The x and z the test commanded last (the snap or a set_player_position), or NaN before any.
+     * The joined client simulates its own player while the server is frozen in a call, and pushes
+     * and a sag within a tolerance moved its camera off the pose a capture is meant to show, so the
+     * hold puts all three axes back with no tolerance beyond arithmetic noise (#1613).
+     */
+    private static double holdX = Double.NaN;
+
+    private static double holdZ = Double.NaN;
 
     /**
      * How many times the floor hold put the player back on the ground, and when it last said so.
@@ -370,7 +377,7 @@ public final class GrugServerRun {
 
     /**
      * Puts the test player back at the height the run started at when a tick leaves them further
-     * from it than {@link #HOLD_TOLERANCE} (#1134).
+     * from it than {@link GrugPlayerFloor#HELD_POSE_EPSILON} on any axis (#1134, #1613).
      *
      * <p>The room is rebuilt around the player's feet, so drift moves its walls, ceiling and clear
      * band with the player. A suite's worth of it puts the build's outermost writes outside Alpha's
@@ -406,10 +413,16 @@ public final class GrugServerRun {
             return;
         }
         double feet = player.y;
-        if (Math.abs(feet - holdY) <= HOLD_TOLERANCE) {
+        if (!GrugPlayerFloor.offHeldPose(holdX, holdY, holdZ, player.x, feet, player.z)) {
             return;
         }
-        moveTo(player, holdY);
+        player.velocityX = 0.0;
+        player.velocityZ = 0.0;
+        moveTo(
+                player,
+                holdY,
+                Double.isNaN(holdX) ? player.x : holdX,
+                Double.isNaN(holdZ) ? player.z : holdZ);
         START_LOG.record(System.out, holdY, feet, System.currentTimeMillis());
     }
 
@@ -418,6 +431,9 @@ public final class GrugServerRun {
      * the move the floor hold uses so the joined client's camera follows (#1040).
      */
     public static void moveToFeet(PlayerEntity player, double x, double feetY, double z) {
+        holdX = x;
+        holdY = feetY;
+        holdZ = z;
         moveTo(player, feetY, x, z);
     }
 
@@ -480,6 +496,8 @@ public final class GrugServerRun {
             return;
         }
         SNAP.save(player, player.x, player.y, player.z, player.yaw, player.pitch);
+        holdX = SNAP.snappedX();
+        holdZ = SNAP.snappedZ();
         moveTo(
                 player,
                 SNAP.snappedY(),
@@ -510,6 +528,8 @@ public final class GrugServerRun {
                 SNAP.savedYaw(),
                 SNAP.savedPitch());
         SNAP.clear();
+        holdX = Double.NaN;
+        holdZ = Double.NaN;
     }
 
     /** Ends the server process; a non-zero status says the run did not pass. */

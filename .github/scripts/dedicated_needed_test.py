@@ -2,6 +2,7 @@
 """Tests dedicated-needed.py: only a diff confined to mod ports skips the dedicated legs (#1342)."""
 
 import importlib.util
+import json
 import subprocess
 import sys
 import tempfile
@@ -31,7 +32,17 @@ BASE = {
     "mods/buildcraft/screenshots/a/forge.png": "png",
     "mods/mekanism/about.json": "{}",
     "shared/Shared.java": "class Shared {}\n",
+    "shared/ornithe/src/main/java/Common.java": "class Common {}\n",
+    "loaders/a1.1.2_01-ornithe/build.gradle": "sourceSets { main { java { srcDir '../../shared/ornithe/src/main/java' } } }\n",
+    "loaders/b1.7.3-ornithe/build.gradle": "sourceSets { main { java { srcDir '../../shared/ornithe/src/main/java' } } }\n",
+    "loaders/1.2.5-forge/src/Server.java": "class S {}\n",
+    "loaders/a1.1.2_01-ornithe/src/ServerGrugModLoader.java": "class S {}\n",
+    "loaders/b1.7.3-ornithe/src/ServerGrugModLoader.java": "class S {}\n",
+    "loaders/b1.7.3-stationapi/src/ServerStationApiAdapter.java": "class S {}\n",
+    "loaders/1.20.6-forge/src/main/java/GrugServerRun.java": "class S {}\n",
 }
+ALL = ["1.2.5-forge", "1.20.6-forge", "a1.1.2_01-ornithe", "b1.7.3-ornithe", "b1.7.3-stationapi"]
+ORNITHE = ["a1.1.2_01-ornithe", "b1.7.3-ornithe"]
 DISPATCH = ("--event", "workflow_dispatch", "--ref", "refs/heads/g1342")
 
 
@@ -123,9 +134,148 @@ class DedicatedNeededTest(unittest.TestCase):
         changes = {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"}
         self.assertEqual(self.answer(changes, "0" * 40, *DISPATCH), "true")
 
-    def test_a_non_dispatch_event_keeps_the_legs(self):
+    def test_a_schedule_or_unnamed_event_keeps_the_legs(self):
         changes = {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"}
-        self.assertEqual(self.answer(changes, None, "--event", "push"), "true")
+        self.assertEqual(self.answer(changes, None, "--event", "schedule"), "true")
+        self.assertEqual(self.answer(changes, None), "true")
+
+    def loaders_of(self, changes: dict, event="pull_request", base=None) -> list:
+        out = self.answer(changes, base, "--event", event, "--loaders")
+        return json.loads(out)
+
+    def test_a_pull_request_or_push_that_cannot_reach_server_code_runs_no_leg(self):
+        for name, changes in {
+            "mod port and prose": {
+                "mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n",
+                "AGENTS.md": "agents2\n",
+            },
+            "core unit test": {"core/src/test/java/XTest.java": "class XTest {}\n"},
+            "workflow and scripts": {
+                ".github/workflows/build.yml": "name: B2\n",
+                ".github/scripts/run-loader.sh": "# run2\n",
+            },
+        }.items():
+            for event in ("pull_request", "push"):
+                with self.subTest(name=name, event=event):
+                    self.setUp()
+                    self.assertEqual(self.loaders_of(changes, event), [])
+                    self.assertIn("skipping", self.reason)
+                    self.setUp()
+                    self.assertEqual(self.answer(changes, None, "--event", event), "false")
+
+    def test_core_the_api_the_coverage_mod_and_the_root_build_run_every_leg(self):
+        cases = {
+            "core main": "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+            "core build": "core/build.gradle.kts",
+            "api": "mod_api.json",
+            "coverage test": "mods/coverage/tests/x-Test.grug",
+            "coverage code": "mods/coverage/code/x-Block.grug",
+            "gradle dir": "gradle/grug-core.gradle",
+            "gradle properties": "gradle.properties",
+            "settings": "settings.gradle.kts",
+            "root build": "build.gradle.kts",
+            "setup action": ".github/actions/setup-loader-build/action.yml",
+            "test save": "test-saves/a.zip",
+            "multiplayer harness": ".github/scripts/run-multiplayer.sh",
+            "multiplayer test driver": ".github/scripts/run_multiplayer_test.py",
+        }
+        for name, path in cases.items():
+            for event in ("pull_request", "push"):
+                with self.subTest(name=name, event=event):
+                    self.setUp()
+                    self.assertEqual(self.loaders_of({path: "changed\n"}, event), ALL)
+                    self.assertIn(path, self.reason)
+
+    def test_each_loaders_server_code_runs_exactly_its_own_leg(self):
+        cases = {
+            "1.2.5-forge": "loaders/1.2.5-forge/src/Server.java",
+            "1.20.6-forge": "loaders/1.20.6-forge/src/main/java/GrugServerRun.java",
+            "a1.1.2_01-ornithe": "loaders/a1.1.2_01-ornithe/src/ServerGrugModLoader.java",
+            "b1.7.3-ornithe": "loaders/b1.7.3-ornithe/src/ServerGrugModLoader.java",
+            "b1.7.3-stationapi": "loaders/b1.7.3-stationapi/src/ServerStationApiAdapter.java",
+        }
+        for loader, path in cases.items():
+            for event in ("pull_request", "push"):
+                with self.subTest(loader=loader, event=event):
+                    self.setUp()
+                    changes = {path: "changed\n", "mods/buildcraft/code/wrench-Item.grug": "x\n"}
+                    self.assertEqual(self.loaders_of(changes, event), [loader])
+                    self.assertIn(path, self.reason)
+                    self.setUp()
+                    self.assertEqual(self.answer(changes, None, "--event", event), "true")
+
+    def test_the_shared_ornithe_directory_runs_both_ornithe_legs_and_no_other(self):
+        changes = {"shared/ornithe/src/main/java/Common.java": "class Common { int x; }\n"}
+        self.assertEqual(self.loaders_of(changes), ORNITHE)
+
+    def test_two_loaders_in_one_diff_run_both_legs_in_name_order(self):
+        changes = {
+            "loaders/b1.7.3-stationapi/src/ServerStationApiAdapter.java": "n\n",
+            "loaders/1.2.5-forge/src/Server.java": "n\n",
+        }
+        self.assertEqual(self.loaders_of(changes), ["1.2.5-forge", "b1.7.3-stationapi"])
+
+    def test_a_loader_build_file_runs_that_loaders_leg(self):
+        changes = {"loaders/1.20.6-forge/build.gradle": "plugins {}\n"}
+        self.assertEqual(self.loaders_of(changes), ["1.20.6-forge"])
+
+    def test_a_shared_path_no_build_declares_runs_every_leg(self):
+        self.assertEqual(self.loaders_of({"shared/Shared.java": "class Shared { int x; }\n"}), ALL)
+        self.assertIn("no loader's build declares", self.reason)
+
+    def test_a_path_under_loaders_naming_no_loader_runs_every_leg(self):
+        self.assertEqual(self.loaders_of({"loaders/notes.txt": "n\n"}), ALL)
+        self.assertEqual(self.loaders_of({"loaders/other/src/X.java": "n\n"}), ALL)
+
+    def test_a_pull_request_or_push_with_no_base_runs_every_leg(self):
+        changes = {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"}
+        for event in ("pull_request", "push"):
+            with self.subTest(event):
+                self.assertEqual(self.loaders_of(changes, event, ""), ALL)
+                self.assertIn("names no base", self.reason)
+                self.assertEqual(self.answer(changes, "", "--event", event), "true")
+
+    def test_an_unreachable_pull_request_base_runs_every_leg(self):
+        changes = {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"}
+        self.assertEqual(self.loaders_of(changes, "pull_request", "0" * 40), ALL)
+        self.assertEqual(self.answer(changes, "0" * 40, "--event", "pull_request"), "true")
+
+    def test_an_empty_pull_request_diff_runs_every_leg(self):
+        head = self.repo.commit({})
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                head,
+                head,
+                "--repo",
+                str(self.repo.path),
+                "--event",
+                "pull_request",
+                "--loaders",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(json.loads(result.stdout), ALL)
+
+    def test_a_dispatch_runs_every_loader_with_a_server(self):
+        changes = {"core/src/main/java/net/grug/minecraft/grug/HostFunctions.java": "c2\n"}
+        self.assertEqual(self.loaders_of(changes, "workflow_dispatch", ""), ALL)
+
+    def test_a_dispatch_of_mod_ports_runs_no_leg(self):
+        changes = {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"}
+        out = self.answer(changes, None, *DISPATCH, "--loaders")
+        self.assertEqual(json.loads(out), [])
+
+    def test_every_loader_is_a_loader_directory_with_a_server(self):
+        root = HERE.parent.parent / "loaders"
+        spec = importlib.util.spec_from_file_location("dedicated_needed", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(
+            sorted(module.DISPATCH_LOADERS), sorted(p.name for p in root.iterdir() if p.is_dir())
+        )
 
 
 if __name__ == "__main__":

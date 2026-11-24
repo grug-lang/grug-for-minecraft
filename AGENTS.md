@@ -179,7 +179,10 @@ CI. Light jobs stay local: Gradle builds,
   asset is rendered by every loader (#1088). `.github/scripts/reference-needed.py` and
   `.github/scripts/no-tests.py` skip the `reference` and the test jobs a diff cannot reach, each
   saying why in its log, and a golden also runs `reference`, which stages `screenshots/`, so a
-  buildcraft golden pull request runs 11. The jar, installed and smoke jobs and two steps of the
+  buildcraft golden pull request runs 11. A pull request also runs the dedicated-server leg of each
+  loader whose own code its diff touches (`dedicated-needed.py --loaders`, #1601, #1656): none for a
+  diff that reaches no loader, one for a single loader, two for shared or Ornithe code and all five
+  for `core/`, the API, `mods/coverage` or a doubt. The jar, installed and smoke jobs and two steps of the
   core tests run only on push to `main`, the weekly schedule and `workflow_dispatch`, and the
   Windows boot jobs only on a dispatch and on a push that adds a loader (#632), so a green pull
   request says nothing about them. A push to `main` runs only the mods its merge touched, on the
@@ -197,6 +200,9 @@ CI. Light jobs stay local: Gradle builds,
   dispatch, so the Windows boot jobs do not run for a diff that cannot reach the native path or the
   installed jar; a dispatch with no inputs, or on `main`, always runs them, and the four-hourly check
   and the weekly release send the first.
+  `build.yml` has no input that selects one job, so a diagnostic that needs a single leg is a
+  throwaway branch whose `build.yml` sets `if: false` on the other jobs and lists one loader in the
+  `multiplayer` matrix: that costs three jobs instead of the whole pipeline.
 - A release takes its jar from a dispatch of `build.yml` on main, not from the push that merged the
   commit, so `release.yml` requires that dispatch and refuses a jar without the Windows native. A
   docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what

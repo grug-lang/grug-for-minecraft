@@ -500,4 +500,22 @@ class GrugPlayerFloorTest {
                         + System.lineSeparator(),
                 lines(summary));
     }
+
+    @Test
+    void thePlayerIsOffTheHeldPoseOnAnyAxisBeyondArithmeticNoise() {
+        double n = Double.NaN;
+        // The drifts that moved the camera in runs 45257564087 (y sag of 0.234) and 45258065899 (x,
+        // z).
+        assertTrue(GrugPlayerFloor.offHeldPose(317.5, 64.0, 148.5, 317.5, 63.766, 148.5));
+        assertTrue(GrugPlayerFloor.offHeldPose(317.5, 64.0, 148.5, 317.944, 64.0, 148.5));
+        assertTrue(GrugPlayerFloor.offHeldPose(317.5, 64.0, 148.5, 317.5, 64.0, 148.04));
+        // The client's single precision eye is 5e-9 off the server's decimal, which is not a drift.
+        assertFalse(GrugPlayerFloor.offHeldPose(317.5, 64.0, 148.5, 317.5, 64.0000000047, 148.5));
+        assertFalse(GrugPlayerFloor.offHeldPose(0, 0, 0, GrugPlayerFloor.HELD_POSE_EPSILON, 0, 0));
+        assertTrue(
+                GrugPlayerFloor.offHeldPose(0, 0, 0, 0, 0, 2 * GrugPlayerFloor.HELD_POSE_EPSILON));
+        // An axis with no held value yet is never off it.
+        assertFalse(GrugPlayerFloor.offHeldPose(n, 64.0, n, 999.0, 64.0, -999.0));
+        assertTrue(GrugPlayerFloor.offHeldPose(n, 64.0, n, 999.0, 63.0, -999.0));
+    }
 }
