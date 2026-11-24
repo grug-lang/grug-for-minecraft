@@ -532,6 +532,14 @@ public interface ModLoaderAdapter {
 
     double countItemEntities(Object levelObj, double x, double y, double z, double radius);
 
+    /**
+     * {@link #countItemEntities} narrowed to the item entities that carry {@code itemObj}, whatever
+     * their damage: the count a test asks for when it knows which item a block was moving, so an
+     * item entity of anything else in reach is not mistaken for a drop.
+     */
+    double countItemEntitiesOf(
+            Object levelObj, double x, double y, double z, double radius, Object itemObj);
+
     void notifyNeighbors(Object levelObj, double x, double y, double z);
 
     double takeItemFromSlot(Object blockEntityObj, double slot, double amount);

@@ -1498,6 +1498,32 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         return count;
     }
 
+    /**
+     * {@link #countItemEntities} narrowed to the item entities that carry {@code itemObj}, whatever
+     * their damage, so a test that knows which item a block was moving can tell that item's drop
+     * from any other item entity in reach (#1692).
+     */
+    @Override
+    public double countItemEntitiesOf(
+            Object levelObj, double x, double y, double z, double radius, Object itemObj) {
+        World world = (World) levelObj;
+        double radiusSquared = radius * radius;
+        int count = 0;
+        for (Object entity : world.loadedEntityList) {
+            if (entity instanceof EntityItem) {
+                EntityItem item = (EntityItem) entity;
+                double dx = item.posX - x;
+                double dy = item.posY - y;
+                double dz = item.posZ - z;
+                if (item.item.getItem() == itemObj
+                        && dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
     @Override
     public void notifyNeighbors(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;

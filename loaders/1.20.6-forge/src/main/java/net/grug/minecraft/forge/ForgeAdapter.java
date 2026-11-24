@@ -1353,6 +1353,28 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
                 .size();
     }
 
+    /**
+     * {@link #countItemEntities} narrowed to the item entities that carry {@code itemObj}, whatever
+     * their damage, so a test that knows which item a block was moving can tell that item's drop
+     * from any other item entity in reach (#1692).
+     */
+    @Override
+    public double countItemEntitiesOf(
+            Object levelObj, double x, double y, double z, double radius, Object itemObj) {
+        Level world = (Level) levelObj;
+        net.minecraft.world.phys.AABB box =
+                new net.minecraft.world.phys.AABB(
+                        x - radius, y - radius, z - radius, x + radius, y + radius, z + radius);
+        int count = 0;
+        for (net.minecraft.world.entity.item.ItemEntity item :
+                world.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box)) {
+            if (item.getItem().getItem() == itemObj) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     @Override
     public void notifyNeighbors(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;

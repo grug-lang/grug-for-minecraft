@@ -1700,6 +1700,44 @@
 						}
 					]
 				},
+				"count_item_entities_of": {
+					"description": "The number of item entities within radius blocks of the specified coordinates that carry the given item, whatever the item's damage. A block that gives up on moving an item drops that item where it stood, so this is what a test asks to tell the item it handed over from any other item entity in reach.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "radius",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
 				"count_mobs": {
 					"description": "The number of living mobs in the world that the game's own spawner counts toward the cap of the category: every entity of the category's class, wherever it is in the world and however far from the player, which is also what the game compares with the cap before it lets that category spawn. The category is one of \"hostile\" (monsters), \"passive\" (animals) or \"water\" (squids). Reports an error and answers 0 for any other name, and for \"water\" on Alpha, which has no water mobs (Level.has_mob_category tells beforehand).",
 					"return_type": {
