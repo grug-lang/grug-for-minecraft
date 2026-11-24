@@ -832,8 +832,9 @@ while :; do
     # and redstone_engine_facings) are required on every leg. The joined client counts its control
     # run as a run and owns the view, so it pins the vignette, the flicker, the fog and the particles
     # the client-only run pins, and it is levelled and held at the room's eye, which is what makes it
-    # draw the same frame as the client-only run did (#1161). Proof 43763297057 (#1096) measured the
-    # first leg, and the run this list was widened on passed all four on all five legs.
+    # draw the same frame as the client-only run did (#1161). Run 45485069437 (#1711) passed all four
+    # on all five legs, each capture logging the camera at the room's eye, and 45490692989 (#1720)
+    # did so on four of them before the fifth stopped at #1695's intermittent stationapi light.
     # The wooden pipe captures are required on the legs whose proof recorded them. The requirement
     # only proves the test ran there: a capture that differed would fail its leg whichever list
     # names it.
