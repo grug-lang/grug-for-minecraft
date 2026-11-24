@@ -19,9 +19,7 @@
 # leg in run 45474288352 shows is about 2 to 3 minutes for the hundred, inside the 30 minute limit
 # of the job that took 14m50s there. Only that leg repeats: the defect has shown itself only there,
 # every other loader would pay the same minutes, and a leg that cannot advance its level inside the
-# test (the clients and the stationapi server) would have to wait for every round at real time. The
-# repeat is also skipped on the reference run, whose leg compares captures rather than hunting for
-# this red.
+# test (the clients and the stationapi server) would have to wait for every round at real time.
 source_a: Option[BlockEntity] = Option.new()
 source_b: Option[BlockEntity] = Option.new()
 target: Option[BlockEntity] = Option.new()
@@ -107,10 +105,13 @@ export tick(ctx: TestTickContext) {
 
 # #1205: whether this leg repeats the fixture. The red has come from the a1 dedicated server, the
 # one leg where an item's pickup is live and a joined client's copy is the only other world, so the
-# repeat is spent there and not on five other legs, and not on the reference run, whose leg
-# compares captures rather than hunting for this red.
+# repeat is spent there and not on five other legs. The reference run is a client on the reference's
+# own loader, so those two conditions skip it too. The test deliberately does not branch on the
+# reference: reference-needed.py stages every test that asks the harness whether it runs against
+# the reference, and the reference harness's blocks and pipes are the real BuildCraft ones with no
+# saved lists to read, so this test cannot run there at all (#1205).
 local _repeats() bool {
-    return me.on_dedicated_server() and me.loader_name() == "a1.1.2_01-ornithe" and not me.is_reference()
+    return me.on_dedicated_server() and me.loader_name() == "a1.1.2_01-ornithe"
 }
 
 # A pass that never delivers one of each is not the red this test reports, so it names itself
