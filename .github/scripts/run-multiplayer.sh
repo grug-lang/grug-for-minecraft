@@ -825,45 +825,36 @@ while :; do
       fi
     done
     # The wall-backed buildcraft captures have to show as passed, or a leg that skips one (its export
-    # reverted) would still look green. Each compares
-    # against its single flat golden, so a leg whose joined client draws a different picture fails
-    # in the test itself; this check catches one not running at all and passing quietly.
-    # The four #1161 promoted are required on the leg that can run them, which is 1.20.6-forge: its
-    # joined client matches the flat golden after the server half of the player snap and the particle
-    # pin, and that is what proves both. The other four legs list the ones their measured residue
-    # reaches (b1.7.3-ornithe and a1.1.2_01 all four and 1.2.5-forge two of them, #1213 and #1092),
-    # which are not required there; the client-only run of every loader is where all four goldens
-    # are checked. Requiring them on the four legs would only restate an open rendering defect, so
-    # the requirement is per loader.
-    # Proof 43763297057 (#1096) measured the rest: every leg passes cobblestone_pipe_shapes, and
-    # a1.1.2_01, b1.7.3-ornithe and 1.2.5-forge also pass redstone_engine, and proof 43764853785 added
-    # wooden_pipe_items on 1.2.5-forge. The captures that still differ are not required on a leg,
-    # and the client-only run checks their goldens.
-    wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes"
+    # reverted) would still look green. Each compares against its single flat golden, so a leg whose
+    # joined client draws a different picture fails in the test itself; this check catches one not
+    # running at all and passing quietly.
+    # The four #1161 promoted (cobblestone_pipe_shapes, redstone_engine, redstone_engine_animation
+    # and redstone_engine_facings) are required on every leg. The joined client counts its control
+    # run as a run and owns the view, so it pins the vignette, the flicker, the fog and the particles
+    # the client-only run pins, and it is levelled and held at the room's eye, which is what makes it
+    # draw the same frame as the client-only run did (#1161). Proof 43763297057 (#1096) measured the
+    # first leg, and the run this list was widened on passed all four on all five legs.
+    # The wooden pipe captures are required on the legs whose proof recorded them. The requirement
+    # only proves the test ran there: a capture that differed would fail its leg whichever list
+    # names it.
+    wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings"
     case "$LOADER" in
-      a1.1.2_01-ornithe|b1.7.3-ornithe|1.2.5-forge)
-        wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine"
-        ;;&
-      1.2.5-forge)
+      1.2.5-forge|b1.7.3-stationapi)
+        # Proof 43764853785 (#1096) added wooden_pipe_items on 1.2.5-forge, and 44202563938 (#1096)
+        # passed wooden_pipe_shapes on both once the item sweep told the joined client. Proof
+        # 43821458574 (#1096, #1351) passed wooden_pipe_items on b1.7.3-stationapi once #1360 dropped
+        # the stale entities.
         wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
         ;;
-      b1.7.3-ornithe)
-        # Proof 44202563938 (#1096) passed wooden_pipe_shapes here once the item sweep told the joined client.
-        # Proof 44407101535 (#1096) passed redstone_engine_facings here too, with it unlisted.
-        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_shapes buildcraft/tests/redstone_engine_facings"
-        ;;
-      a1.1.2_01-ornithe)
-        # Proof 44189598116 (#1096) passed wooden_pipe_shapes here once a model texture first made
-        # inside a chunk compile was uploaded outside the display list.
+      a1.1.2_01-ornithe|b1.7.3-ornithe)
+        # Proof 44189598116 (#1096) passed wooden_pipe_shapes on a1.1.2_01 once a model texture first
+        # made inside a chunk compile was uploaded outside the display list, and 44202563938 passed
+        # it on b1.7.3-ornithe.
         wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_shapes"
         ;;
-      b1.7.3-stationapi)
-        # Proof 43821458574 (#1096, #1351) passed wooden_pipe_items here once #1360 dropped the stale entities.
-        # Proof 44202563938 (#1096) passed wooden_pipe_shapes once the item sweep told the joined client.
-        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
-        ;;
       1.20.6-forge)
-        wall_backed_tests="buildcraft/tests/cobblestone_pipe_shapes buildcraft/tests/redstone_engine buildcraft/tests/redstone_engine_animation buildcraft/tests/redstone_engine_facings buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
+        # The leg the four #1161 captures were promoted on keeps the wooden pipe pair required too.
+        wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
         ;;
     esac
     for wall_backed in $wall_backed_tests; do
