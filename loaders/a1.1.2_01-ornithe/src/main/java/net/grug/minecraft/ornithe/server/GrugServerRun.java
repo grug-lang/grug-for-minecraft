@@ -41,6 +41,9 @@ public final class GrugServerRun {
     private static boolean advancing = false;
     private static int gameSpeed = 1;
 
+    /** Whether the run has printed the origin it builds its rooms around, so it prints it once. */
+    private static boolean originReported = false;
+
     /**
      * Where the test save's own player stands, as feet: the position a client-only run's room is
      * built around, because its player starts from the save. A joined player starts from the
@@ -242,9 +245,7 @@ public final class GrugServerRun {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
-                                + " ms. Firing tests! Test origin is "
-                                + GrugCore.getAdapter().getTestOrigin()
-                                + ".");
+                                + " ms. Firing tests!");
                 runner = new GrugTestRunner();
                 holdY = ((PlayerEntity) testPlayer).y;
             } else {
@@ -322,7 +323,23 @@ public final class GrugServerRun {
         // after this runner tick, and a test asserts on the tick after its click.
         GrugControlAlpha.server().applyClientWork();
         runner.tick(testPlayer);
+        reportOrigin();
         finishIfDone();
+    }
+
+    /**
+     * Prints the origin the run builds its rooms around, once, after the run's first runner tick.
+     *
+     * <p>The first tick snaps the server's copy of the joined player to the centre of their block
+     * and builds the room there (#1161), so the answer here is the one every test and capture of
+     * the run works from. Read before that tick it named where the player joined, which on a save
+     * that starts off the centre is not the origin the rooms and tests used.
+     */
+    private static void reportOrigin() {
+        if (originReported) return;
+        originReported = true;
+        System.out.println(
+                "[GRUG CI] Test origin is " + GrugCore.getAdapter().getTestOrigin() + ".");
     }
 
     /** Ends the process once the runner has finished, with a status that says whether it passed. */

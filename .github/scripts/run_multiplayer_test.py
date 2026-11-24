@@ -631,10 +631,13 @@ class TwoClientLegFixture(unittest.TestCase):
     # was drawn on the joined client writes.
     OVERLAY_PASSES = OVERLAY_DRAWN_TESTS
 
-    def passing_server_lines(
+def passing_server_lines(
         self, ignored_start=True, moved_stranger=True, kept_players=True, slain=False, omit=()
     ):
-        lines = ["[GRUG CONTROL] Dev started the run"]
+        lines = [
+            "[GRUG CONTROL] Dev started the run",
+            "[GRUG CI] Test origin is Vec3[x=0.5, y=70.62, z=52.5].",
+        ]
         if ignored_start:
             lines.append("[GRUG CONTROL] SecondPlayer sent a start, which was ignored")
         if moved_stranger:
@@ -720,6 +723,28 @@ class SecondPlayerTest(TwoClientLegFixture):
             "==> The run passed, but jei/tests/jei-Test.grug did not run on the dedicated server.",
             result.stderr,
         )
+
+    def test_a_leg_that_skips_a_wall_backed_capture_fails_the_run(self):
+        # The 1.20.6 leg is the one whose fixture stands in for the second client, so it is where the
+        # four-capture list is pinned for this loader; ServerUnlistedTest pins the other four.
+        wall_backed = (
+            "buildcraft/tests/cobblestone_pipe_shapes",
+            "buildcraft/tests/redstone_engine",
+            "buildcraft/tests/redstone_engine_animation",
+            "buildcraft/tests/redstone_engine_facings",
+        )
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines(omit=set(wall_backed)))
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn("these tests did not run on the dedicated server:", result.stderr)
+        for capture in wall_backed:
+            self.assertIn(f"{capture}-Test.grug", result.stderr)
 
     def test_a_server_that_does_not_halt_after_the_marker_fails_the_run(self):
         lines_file = self.tmp / "server-lines.log"
@@ -1031,6 +1056,7 @@ class ServerUnlistedTest(unittest.TestCase):
         buildcraft/tests/wooden_pipe_shapes
         coverage/tests/camera
         coverage/tests/test_origin_follows_the_test_player
+        coverage/tests/forwarded_capture_pinned_eye
         coverage/tests/remote_gui
         coverage/tests/item_icon
         coverage/tests/gui_builder
@@ -1051,13 +1077,8 @@ class ServerUnlistedTest(unittest.TestCase):
         scripts.mkdir(parents=True)
         stage_scripts(scripts, "run-multiplayer.sh", "pin-llvmpipe.sh", "retryable-failure.sh")
 
-        self.loader = self.tmp / "loaders" / self.LOADER
-        self.loader.mkdir(parents=True)
-        (self.loader / "test-save.txt").write_text("fake.zip\n")
-        # A standalone loader: root.gradle sends the script down the runServer path.
-        (self.loader / "root.gradle").write_text("")
         self.set_executable(self.tmp / "gradlew", "#!/usr/bin/env bash\nexit 0\n")
-        self.set_executable(self.loader / "gradlew", STANDALONE_GRADLEW)
+        self.loader = self.prepare_loader(self.LOADER)
 
         saves = self.tmp / "test-saves"
         saves.mkdir()
@@ -1066,19 +1087,33 @@ class ServerUnlistedTest(unittest.TestCase):
 
         self.lines_file = self.tmp / "server-lines.log"
 
+    def prepare_loader(self, loader):
+        """Creates the directory a run of `run-multiplayer.sh <loader>` reads its fakes from."""
+        directory = self.tmp / "loaders" / loader
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "test-save.txt").write_text("fake.zip\n")
+        # A standalone loader: root.gradle sends the script down the runServer path.
+        (directory / "root.gradle").write_text("")
+        self.set_executable(directory / "gradlew", STANDALONE_GRADLEW)
+        return directory
+
     def set_executable(self, path, content):
         path.write_text(content)
         path.chmod(0o755)
 
-    def server_lines(self):
-        lines = [f"[GRUG CI] PASS {path}-Test.grug" for path in self.REQUIRED_PASSES]
+    def server_lines(self, omit=(), origin=True, extra=()):
+        lines = []
+        if origin:
+            lines.append("[GRUG CI] Test origin is Vec3[x=0.5, y=70.62, z=52.5].")
+        names = [path for path in (*self.REQUIRED_PASSES, *extra) if path not in omit]
+        lines += [f"[GRUG CI] PASS {path}-Test.grug" for path in names]
         lines += [
             f"[GRUG MULTIPLAYER] {path}-Test.grug drew the overlay" for path in OVERLAY_DRAWN_TESTS
         ]
         lines.append("[GRUG CI] ALL 50 TESTS PASSED")
         return "\n".join(lines) + "\n"
 
-    def run_script(self, extra_env=None):
+    def run_script(self, extra_env=None, loader=None):
         env = dict(os.environ)
         env.update(
             {
@@ -1090,9 +1125,10 @@ class ServerUnlistedTest(unittest.TestCase):
         )
         env.update(extra_env or {})
         env.pop("JAVA_HOME", None)
+        env.pop("GRUG_ORNNITHE_SERVER_HASH", None)
         env.pop("GRUG_ORNITHE_SERVER_HASH", None)
         return subprocess.run(
-            [str(self.tmp / ".github" / "scripts" / "run-multiplayer.sh"), self.LOADER],
+            [str(self.tmp / ".github" / "scripts" / "run-multiplayer.sh"), loader or self.LOADER],
             cwd=self.tmp,
             env=env,
             capture_output=True,
@@ -1112,6 +1148,74 @@ class ServerUnlistedTest(unittest.TestCase):
         # The overlay pair is required on every leg now, so this one must have run them.
         self.assertIn("coverage/tests/overlay-Test.grug", log)
         self.assertIn("jei/tests/jei-Test.grug", log)
+
+    # The four #1161 captures the run script requires by name on every leg.
+    WALL_BACKED = (
+        "buildcraft/tests/cobblestone_pipe_shapes",
+        "buildcraft/tests/redstone_engine",
+        "buildcraft/tests/redstone_engine_animation",
+        "buildcraft/tests/redstone_engine_facings",
+    )
+
+    # Every leg but the 1.20.6 one, which SecondPlayerTest runs because its fixture is the one that
+    # stands in for the second client.
+    LEGS_WITHOUT_A_SECOND_PLAYER = (
+        "a1.1.2_01-ornithe",
+        "b1.7.3-ornithe",
+        "b1.7.3-stationapi",
+        "1.2.5-forge",
+    )
+
+    def test_a_leg_that_skips_a_wall_backed_capture_fails_the_run(self):
+        omitted = "buildcraft/tests/redstone_engine_facings"
+        self.lines_file.write_text(self.server_lines(omit={omitted}))
+        result = self.run_script()
+
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn(
+            f"these tests did not run on the dedicated server: {omitted}-Test.grug",
+            result.stderr,
+        )
+
+    def test_every_leg_requires_all_four_wall_backed_captures(self):
+        # The base list is what every leg starts from, so a leg that quietly narrowed it back to
+        # main's two would still pass every other case here, whose fake server prints all four PASS
+        # lines. Omitting all four makes each leg name all four, which pins the whole list per loader.
+        for loader in self.LEGS_WITHOUT_A_SECOND_PLAYER:
+            with self.subTest(loader=loader):
+                self.prepare_loader(loader)
+                # The two legs whose unlisted list names the forced-normalization item list would
+                # otherwise stop at that check first, one before the captures.
+                extra = (
+                    ("jei/tests/item_list_forced_normalization",)
+                    if loader in ("b1.7.3-ornithe", "1.2.5-forge")
+                    else ()
+                )
+                self.lines_file.write_text(
+                    self.server_lines(omit=set(self.WALL_BACKED), extra=extra)
+                )
+                result = self.run_script(loader=loader)
+
+                self.assertEqual(1, result.returncode, result.stdout)
+                self.assertIn("these tests did not run on the dedicated server:", result.stderr)
+                for capture in self.WALL_BACKED:
+                    self.assertIn(f"{capture}-Test.grug", result.stderr)
+
+    def test_a_leg_whose_server_prints_no_origin_line_fails_the_run(self):
+        # Nothing else reads the origin line, so a leg whose server lost the print would pass on its
+        # required PASS lines alone.
+        for lines in (
+            self.server_lines(origin=False),
+            self.server_lines().replace(
+                "Test origin is Vec3[x=0.5, y=70.62, z=52.5].", "Test origin is null."
+            ),
+        ):
+            with self.subTest(lines=lines.splitlines()[0]):
+                self.lines_file.write_text(lines)
+                result = self.run_script()
+
+                self.assertEqual(1, result.returncode, result.stdout)
+                self.assertIn("its server printed no test origin line", result.stderr)
 
     def test_a_server_that_writes_its_last_line_and_exits_inside_a_pass_passes(self):
         # The poll read the log and then tested the server, so a line that landed between the two was
@@ -1250,7 +1354,10 @@ Execution failed for task ':compileJava'.
         (self.failures / f"{attempt}.log").write_text(log)
 
     def server_lines(self):
-        lines = [f"[GRUG CI] PASS {path}-Test.grug" for path in self.REQUIRED_PASSES]
+        lines = [
+            "[GRUG CI] Test origin is Vec3[x=0.5, y=70.62, z=52.5].",
+        ]
+        lines += [f"[GRUG CI] PASS {path}-Test.grug" for path in self.REQUIRED_PASSES]
         lines += [
             f"[GRUG MULTIPLAYER] {path}-Test.grug drew the overlay" for path in OVERLAY_DRAWN_TESTS
         ]
