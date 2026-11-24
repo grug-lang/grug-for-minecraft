@@ -127,6 +127,11 @@ class GrugControlTest {
                 }
 
                 @Override
+                public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+                    return true;
+                }
+
+                @Override
                 public boolean isWorldSettled() {
                     throw new AssertionError("no settle ask was expected");
                 }
@@ -265,6 +270,11 @@ class GrugControlTest {
         }
 
         @Override
+        public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+            return true;
+        }
+
+        @Override
         public boolean isWorldSettled() {
             throw new AssertionError("no settle ask was expected");
         }
@@ -385,6 +395,14 @@ class GrugControlTest {
     private static final class Settled implements GrugControlClient.Caller {
         boolean settled;
         int forgotten;
+        boolean holds = true;
+        GrugBlockRegion.Expected asked;
+
+        @Override
+        public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+            asked = expected;
+            return holds;
+        }
 
         @Override
         public boolean hasSound(String path) {
@@ -544,6 +562,11 @@ class GrugControlTest {
         @Override
         public void playUiSound(String path, double volume, double pitch) {
             throw new AssertionError("no sound call was expected");
+        }
+
+        @Override
+        public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+            return true;
         }
 
         @Override
@@ -758,6 +781,38 @@ class GrugControlTest {
             System.setOut(original);
         }
         return bytes.toString();
+    }
+
+    @Test
+    void aSettleAskWaitsForTheClientToHoldTheBlocksTheTestPlaced() throws Exception {
+        Settled settled = new Settled();
+        Loopback loop = new Loopback() {};
+        loop.server = new GrugControlServer(loop, 1000);
+        loop.client = new GrugControlClient(loop, solid(0), settled, -1, -1);
+        loop.client.beginRun();
+        settled.settled = true;
+        settled.holds = false;
+
+        GrugBlockRegion placed = new GrugBlockRegion();
+        placed.note(3, 64, 3);
+        placed.note(2, 64, 3);
+        String ask = placed.ask((x, y, z) -> 54, (cx, cz) -> true);
+
+        // The first ask is a new revision and always unsettled; the next finds the blocks missing.
+        assertFalse(loop.server.worldSettled(ask));
+        assertFalse(loop.server.worldSettled(ask));
+        assertArrayEquals(new int[] {2, 64, 3, 3, 64, 3}, settled.asked.boxes.get(0));
+
+        // The packets arrive, but the client has not drawn its frames: holding the blocks is not
+        // settled.
+        settled.holds = true;
+        settled.settled = false;
+        assertFalse(loop.server.worldSettled(ask));
+        // Both hold: settled.
+        settled.settled = true;
+        assertTrue(loop.server.worldSettled(ask));
+        // An ask with no placements replaces the expectation.
+        loop.server.worldSettled("");
     }
 
     @Test
@@ -1926,6 +1981,19 @@ class GrugControlTest {
     }
 
     @Test
+    void anAdapterThatWiresNoRegionCheckHoldsEveryRegion() throws Throwable {
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        java.lang.reflect.InvocationHandler.invokeDefault(
+                                                proxy, method, args));
+        assertTrue(adapter.holdsBlockRegion(null));
+    }
+
+    @Test
     void theAdapterCallerHandsTheCallsToTheAdapterItIsGiven() {
         List<String> seen = new ArrayList<>();
         ModLoaderAdapter adapter =
@@ -1959,6 +2027,7 @@ class GrugControlTest {
         assertTrue(caller.hasSound("a"));
         caller.playUiSound("b", 1, 1);
         assertTrue(caller.isWorldSettled());
+        assertTrue(caller.holdsBlocks(null));
         caller.forgetSettledFrames();
         assertEquals(0L, caller.screenIdentity());
         assertEquals(0.0, caller.screenRead(GrugScreenCalls.GUI_LEFT));
@@ -1998,6 +2067,7 @@ class GrugControlTest {
                         "hasSound a",
                         "playUiSound b",
                         "isWorldSettled",
+                        "holdsBlockRegion null",
                         "forgetSettledFrames",
                         "screenIdentityForTest",
                         "guiLeftForTest",
@@ -3904,6 +3974,11 @@ class GrugControlTest {
                             @Override
                             public void playUiSound(String path, double volume, double pitch) {
                                 throw new AssertionError("a refused call must not be performed");
+                            }
+
+                            @Override
+                            public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+                                return true;
                             }
 
                             @Override

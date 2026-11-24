@@ -121,6 +121,9 @@ jobs:
       # The loaders whose dedicated legs run: every loader with a server on a dispatch, and the ones
       # whose own code the diff touches on a pull request and a push (#1601).
       dedicated-loaders: ${{ steps.dedicated.outputs.loaders }}
+      # The loaders whose layer job runs: all of them on a push and a dispatch, and on a pull request
+      # the Ornithe loaders whose dedicated leg runs, since coverage needs their layer jar (#169).
+      layer: ${{ steps.dedicated.outputs.layer }}
     steps:
       # The run timeout of a repeats run is 300 s plus 200 s per extra pass (see the loader job), and
       # the job's own limit is 90 minutes, so 26 passes is the most whose deadline the script reaches
@@ -387,6 +390,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE: ${{ steps.base.outputs.base || github.event.pull_request.base.sha || github.event.before }}
           REF: ${{ github.ref }}
+          MATRIX: ${{ steps.discover.outputs.matrix }}
         run: |
           # A pull request and a push (#1601) read their diff against the base commit the steps above
           # fetched and run the leg of each loader whose own code it touches; one that cannot be
@@ -396,6 +400,7 @@ jobs:
             || loaders='["1.2.5-forge","1.20.6-forge","a1.1.2_01-ornithe","b1.7.3-ornithe","b1.7.3-stationapi"]'
           echo "dedicated=$needed" >> "$GITHUB_OUTPUT"
           echo "loaders=$loaders" >> "$GITHUB_OUTPUT"
+          echo "layer=$(python3 .github/scripts/layer-selection.py "$EVENT" "$MATRIX" "$loaders")" >> "$GITHUB_OUTPUT"
 
   # grug-rs builds once per run and the loader jobs link the very same libgruggers.a. It depends on
   # nothing in this repository except the revision core/build.gradle.kts pins, so before this job each
@@ -766,14 +771,16 @@ jobs:
   # the two jobs start together.
   layer:
     name: layer ${{ matrix.dir }}
-    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
+    # A pull request builds only the layers coverage reads (#169), and none when no Ornithe leg runs,
+    # since GitHub refuses an empty matrix.
+    if: needs.discover.outputs.layer != '[]' && needs.discover.outputs.no-tests != 'true'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        dir: ${{ fromJson(needs.discover.outputs.matrix) }}
+        dir: ${{ fromJson(needs.discover.outputs.layer) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

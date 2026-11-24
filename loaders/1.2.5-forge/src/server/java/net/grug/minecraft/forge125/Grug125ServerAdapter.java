@@ -2,6 +2,7 @@ package net.grug.minecraft.forge125;
 
 import cpw.mods.fml.server.FMLServerHandler;
 
+import net.grug.minecraft.core.GrugBlockRegion;
 import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
@@ -31,6 +32,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
+import net.minecraft.src.ChunkCoordIntPair;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
@@ -428,6 +430,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public void buildTestBox(int radius) {
+        // What an earlier test placed and never asked about is not owed to this one (#1664).
+        placedRegion.reset();
         EntityPlayerMP player = (EntityPlayerMP) testPlayer();
         double held = GrugServerRun.heldFeetY();
         if (player == null || held == 0) {
@@ -581,7 +585,16 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         boolean clientSettled = false;
         if (!owed) {
             try {
-                clientSettled = GrugControlServer125.server().worldSettled();
+                World level = (World) getLevel();
+                clientSettled =
+                        GrugControlServer125.server()
+                                .worldSettled(
+                                        placedRegion.ask(
+                                                (x, y, z) -> level.getBlockId(x, y, z),
+                                                (cx, cz) -> clientHasOrWillGet(level, cx, cz)));
+                if (clientSettled) {
+                    placedRegion.answeredSettled();
+                }
             } catch (GrugControlServer.ControlException e) {
                 Grug.hostFunctionErrorHappened(
                         Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
@@ -602,7 +615,27 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         super.placeBlock(levelObj, x, y, z, blockName);
         lightResend.noteBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        placedRegion.note((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
+
+    /**
+     * Whether the joined client holds the chunk or will be sent it: the server has it loaded and
+     * the starter is listening to it, which is what {@code PlayerInstance.addPlayer} records when
+     * it sends the pre-chunk packet and {@code removePlayer} undoes. A chunk outside the player's
+     * view is never sent, so a placement there must not be waited for (#804, #1664).
+     */
+    private static boolean clientHasOrWillGet(World level, int cx, int cz) {
+        EntityPlayerMP starter = GrugControlServer125.starterPlayer();
+        return starter != null
+                && level.getChunkProvider().chunkExists(cx, cz)
+                && starter.listeningChunks.contains(new ChunkCoordIntPair(cx, cz));
+    }
+
+    /**
+     * The box of blocks a test placed that the joined client has not been seen to hold, sent with
+     * the settle ask so the client's own copy is compared with this server's (#1664).
+     */
+    private final GrugBlockRegion placedRegion = new GrugBlockRegion();
 
     /**
      * Sends the joined client this server's light for the blocks a test changed, once the tick that
