@@ -2,9 +2,10 @@
 # clicks follow the reference's cheat-mode bindings. A left or right click gives one item, a middle
 # click or shift+left gives a stack, and a left click while the cursor carries an item deletes that
 # stack unless the clicked item is the one it carries, which is DeleteItemInputHandler's
-# shouldDeleteItemOnClick and ServerCommandUtil.canStack. JEI's own give sends the item to the
-# server, so the test waits for the client to receive it in the player's hand rather than reading it
-# back at once.
+# shouldDeleteItemOnClick and ServerCommandUtil.canStack. A click on a cell with no item deletes too,
+# because the reference asks only whether the mouse is over the grid. JEI's own give sends the item
+# to the server, so the test waits for the client to receive it in the player's hand rather than
+# reading it back at once.
 
 # The overlay is drawn on every loader now; a loader that does not ask it still returns on its first
 # tick without opening a screen, so the test skips there instead of failing for a missing feature.
@@ -213,20 +214,75 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    waited = waited + 1
-    held: Option[Item] = ctx.get_player().get_held_item()
-    if not held.has() {
-        ctx.assert(waited < 200, "The clicked item should reach the player's hand.")
+    if step == 8 {
+        waited = waited + 1
+        held: Option[Item] = ctx.get_player().get_held_item()
+        if not held.has() {
+            ctx.assert(waited < 200, "The clicked item should reach the player's hand.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(equals(held.unwrap(), expected), "The item in the player's hand should be the one that was clicked.")
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == 1, "A left click should give one item.")
+        ctx.clear_held_item(ctx.get_player())
+        step = 9
         ctx.not_done()
         return
     }
 
-    ctx.assert(equals(held.unwrap(), expected), "The item in the player's hand should be the one that was clicked.")
-    ctx.assert(ctx.get_held_count(ctx.get_player()) == 1, "A left click should give one item.")
+    if step == 9 {
+        if me.loader_name() == "a1.1.2_01-ornithe" {
+            # Alpha has no item names, so its search matches the numeric registry name only and a
+            # name like bedrock matches nothing there, which is why search-Test skips it too.
+            ctx.close_screen()
+            return
+        }
+        # An empty cell deletes the stack on the cursor too, and the press is consumed. The
+        # reference's delete handler asks only whether the mouse is over the grid's area
+        # (IngredientGrid.isMouseOver, IngredientGrid.java:163-165) and reads no ingredient under
+        # the mouse as delete (getIngredientUnderMouse().findFirst().map(...).orElse(true),
+        # DeleteItemInputHandler.java:94-101), then reports the press handled (:64-70), so the
+        # screen never gets it. A search that matches a few items puts an empty cell in the first
+        # row of the first page.
+        ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 0), "The overlay should take a press on its search field.")
+        _press_key(ctx, 66)
+        _press_key(ctx, 69)
+        _press_key(ctx, 68)
+        _press_key(ctx, 82)
+        _press_key(ctx, 79)
+        _press_key(ctx, 67)
+        _press_key(ctx, 75)
+        matches: number = search_item_count("bedrock")
+        ctx.assert(matches > 0, "The search for bedrock should match the game's bedrock.")
+        ctx.assert(matches < _columns(ctx), "The search should leave an empty cell in the grid's first row.")
+        ctx.set_carried_item(expected)
+        ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item on the cursor.")
+        step = 10
+        taken: bool = ctx.click_screen(_cell_x(ctx, matches), _cell_y(0), 0)
+        ctx.assert(taken, "The overlay should take a press on an empty cell while the cursor carries an item.")
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(not ctx.get_carried_item().has(), "A left click on an empty cell should delete the stack on the cursor.")
     ctx.close_screen()
 }
 
 # The middle of a slot, in the scaled pixels a screen's mouse handlers take.
+
+# A typed letter, which the overlay takes while the search field has the keyboard.
+local _press_key(ctx: TestTickContext, key: number) {
+    ctx.assert(ctx.press_screen_key(key, false, true), "A typed letter should be taken while the search field is focused.")
+}
+
+# The search field is the 20 pixel bar 6 pixels above the bottom of the screen, as wide as the grid.
+local _field_x(ctx: TestTickContext) number {
+    return _grid_x(ctx) + 10
+}
+
+local _field_y(ctx: TestTickContext) number {
+    return ctx.gui_top() * 2 + ctx.gui_height() - 6 - 10
+}
 
 # The reference insets the display area to the right of the GUI by 6 pixels, leaves 22 pixels at
 # the bottom for its search bar, and crops 22 at the top for its page buttons. The screen's size and
