@@ -557,11 +557,21 @@ use.
   known gap still to be closed, each with a tracking issue. A port is done when its `deviations` key
   is removed (the schema refuses an empty list), and from then on `Screenshot.tolerance` refuses any
   percentage above 0 in its tests (BuildCraft's checklist is #75).
-- **Porting a whole mod at once.** One background subagent ports an entire mod from this brief, filled
-  in: `(Port <mod> <version> completely: read AGENTS.md and work in <worktree> on branch <branch>
-  from origin/main; spawn a research subagent to map the reference's live features against its dead
-  code in an issue, and port only the live rows, because a class nothing registers, a config id
-  nothing reads, or a class that is another feature's part is not a feature. Then work in two
+- **Porting a whole mod.** Two subagents, in this order, and the second waits for the first's file. The
+  research subagent reads the reference only and writes the map to
+  `~/agent-workspaces/<repo>-<mod>-map.md` (a reboot clears `/tmp`, so never there): every block,
+  item, tile entity, entity, GUI, renderer, recipe and pipe material the reference actually
+  registers, with the file and line that registers it, its metadata variants and its recipes; every
+  class that is dead code with the proof and which kind of dead code it is; the port's current state
+  beside each row; and the host functions each live feature needs, marked against `mod_api.json`. A
+  class name is neither a feature nor a non-feature: the registration sites and the reference's own
+  `addName` display names decide, which is what keeps a port from building what the reference never
+  ships (2.2.14's `BlockDockingStation` is declared and never constructed, and `EntityMechanicalArm`
+  is the quarry's arm). The issue for the port carries the map's counts and decisions and names the
+  file, so the table itself has one home.
+- **The porting subagent**, spawned only once the map file exists, ports an entire mod from this
+  brief, filled in: `(Port <mod> <version> completely: read AGENTS.md and the map at <path>, and
+  work in <worktree> on branch <branch> from origin/main; port only the map's live rows. Work in two
   phases. Phase one is the grug code and the graphics, but no capture test, with the mod_api.json
   entry and the smoketest.c implementation each new host function needs and its logic tests,
   iterated at -O0, until every test of the mod prints PASS or FAIL and none is STUBBED; pushing the
@@ -571,9 +581,7 @@ use.
   The two phases are what keep a whole-mod port off GitHub's CI until the end: only a pull request
   or a push to `main` starts a workflow, so a branch push is free, and nothing in phase one needs
   Java, because `mod_api.json` is what grug compiles against and the smoketest implements the entry
-  in C, and a `STUBBED` line is a test the host skipped rather than one that passed. The map is what
-  stops the port building dead code: the reference's `addName` display names and its registration
-  sites are the features, and a class name is neither.
+  in C, and a `STUBBED` line is a test the host skipped rather than one that passed.
 - The one exception is precision: a reference's Java `float` becomes a grug `number`, a 64-bit
   double. Do not emulate float32 rounding, and derive tick counts from float64 arithmetic. A mod's
   configs are the defaults the reference ships with.
