@@ -2,6 +2,7 @@ package net.grug.minecraft.core;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.ObjDoubleConsumer;
 
 /**
  * The decisions a dedicated server's run loop makes around a player, a held height and a failure,
@@ -50,7 +51,8 @@ public final class GrugServerRunArms {
 
     /**
      * Holds {@code player} at the height the run keeps them at when they are a tolerance under it,
-     * else on the floor when they are below it, else leaves them be.
+     * else on the floor when they are below it, else leaves them be. The floor is handed to the
+     * on-floor arm, which put the player there, so that arm reads the world once rather than twice.
      */
     public static <P> void hold(
             P player,
@@ -59,11 +61,11 @@ public final class GrugServerRunArms {
             double tolerance,
             double floor,
             Consumer<P> atHeight,
-            Consumer<P> onFloor) {
+            ObjDoubleConsumer<P> onFloor) {
         if (held != 0 && feet < held - tolerance) {
             atHeight.accept(player);
         } else if (GrugPlayerFloor.below(feet, floor)) {
-            onFloor.accept(player);
+            onFloor.accept(player, floor);
         }
     }
 

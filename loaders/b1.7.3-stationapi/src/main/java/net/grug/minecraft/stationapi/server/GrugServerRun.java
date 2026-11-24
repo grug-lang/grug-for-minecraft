@@ -471,10 +471,9 @@ public final class GrugServerRun {
             "it runs only when the joined client has fallen into the ground, which the client's own"
                 + " collision prevents and a test cannot make it do; the teleport and the call of"
                 + " core's tested log are all that is in it (#1136)")
-    private static void holdOnFloor(PlayerEntity player) {
+    private static void holdOnFloor(PlayerEntity player, double floor) {
         ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
         double feet = player.boundingBox.minY;
-        double floor = floorUnder(world(), player);
         serverPlayer.networkHandler.teleport(
                 serverPlayer.x, floor, serverPlayer.z, serverPlayer.yaw, serverPlayer.pitch);
         serverPlayer.velocityY = 0.0;
