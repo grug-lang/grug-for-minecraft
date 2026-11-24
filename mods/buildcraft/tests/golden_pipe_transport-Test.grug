@@ -1,0 +1,58 @@
+# Covers the golden pipe's block entity, which golden_pipe-Block.grug names, and the connection rule it
+# carries: PipeItemsGold.isPipeConnected refuses another golden pipe, so a golden pipe hands an item to a
+# stone pipe but drops it rather than hand it to another golden pipe. The block's shape() carries a copy
+# of the same rule, so golden_pipe_connections covers the look; this test covers the routing, which is
+# the block entity's copy, and is the one that catches a block pointed at the wrong block entity.
+# Each source gets a record at its own centre heading east, so the one tick that reaches the centre is
+# the pick, and the ticks after it walk the item to the neighbour's face.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    # Band 28, clear of the bands the other pipe tests use.
+    y: number = origin.y() + 28
+    z: number = origin.z()
+
+    # A golden pipe with a stone pipe east of it hands the item over.
+    level.place_block(x, y, z, "grug:golden_pipe")
+    level.place_block(x + 1, y, z, "grug:stone_pipe")
+    source: BlockEntity = _entity(ctx, level, x, y, z)
+    stone: BlockEntity = _entity(ctx, level, x + 1, y, z)
+    _record_at_centre(source)
+    ctx.tick_block_entity(source, 60)
+    ctx.assert(stone.get_saved_list_size("traveling") == 1, "A golden pipe should hand an item to a stone pipe.")
+
+    # A golden pipe with only another golden pipe east of it drops the item instead, because the two
+    # refuse each other.
+    level.place_block(x + 3, y, z, "grug:golden_pipe")
+    level.place_block(x + 4, y, z, "grug:golden_pipe")
+    refused: BlockEntity = _entity(ctx, level, x + 3, y, z)
+    golden: BlockEntity = _entity(ctx, level, x + 4, y, z)
+    _record_at_centre(refused)
+    ctx.tick_block_entity(refused, 60)
+    ctx.assert(refused.get_saved_list_size("traveling") == 0, "A golden pipe should have dropped an item with no exit.")
+    ctx.assert(golden.get_saved_list_size("traveling") == 0, "A golden pipe should not hand an item to another golden pipe.")
+}
+
+# A record at the pipe's floor at its centre, heading east, so the first tick's move reaches the centre
+# and runs the pipe's own pick of an exit.
+local _record_at_centre(pipe: BlockEntity) {
+    center: Vec3 = pipe.block_pos().center()
+    index: number = pipe.append_saved_list_record("traveling")
+    pipe.set_saved_list_number("traveling", index, "x", center.x())
+    pipe.set_saved_list_number("traveling", index, "y", center.y() - 0.25)
+    pipe.set_saved_list_number("traveling", index, "z", center.z())
+    pipe.set_saved_list_number("traveling", index, "speed", 0.01)
+    pipe.set_saved_list_number("traveling", index, "direction", 5)
+    pipe.set_saved_list_number("traveling", index, "steps", 0)
+    pipe.set_saved_list_number("traveling", index, "to_center", 1)
+    pipe.set_saved_list_number("traveling", index, "count", 1)
+    pipe.set_saved_list_number("traveling", index, "damage", 0)
+    pipe.set_saved_list_item("traveling", index, item(resource_location("minecraft:diamond")))
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}

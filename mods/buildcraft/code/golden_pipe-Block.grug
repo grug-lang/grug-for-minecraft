@@ -6,7 +6,7 @@
 export init(ctx: BlockInitContext) {
     ctx.set_hardness(0.5)
     ctx.set_material("wood")
-    ctx.set_block_entity(e"cobblestone_pipe_entity")
+    ctx.set_block_entity(e"golden_pipe_entity")
     ctx.set_custom_render()
     ctx.set_shape()
     # The reference's pipes are one block and answer a neighbour's pipe test, so this one declares
