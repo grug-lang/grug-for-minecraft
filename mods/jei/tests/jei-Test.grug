@@ -265,6 +265,10 @@ export tick(ctx: TestTickContext) {
     }
 
     ctx.assert(not ctx.get_carried_item().has(), "A left click on an empty cell should delete the stack on the cursor.")
+    # The search text is the overlay's own state and outlives the screen, as the reference's field
+    # does, so the test empties it before it closes the screen: a later test that opens the list
+    # must start with the whole list, not with this test's search.
+    ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 1), "The overlay should take a right click that empties the search field.")
     ctx.close_screen()
 }
 
