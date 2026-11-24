@@ -233,6 +233,7 @@ class RunMultiplayerTest(unittest.TestCase):
         scripts = self.tmp / ".github" / "scripts"
         scripts.mkdir(parents=True)
         shutil.copy(SCRIPTS / "run-multiplayer.sh", scripts / "run-multiplayer.sh")
+        shutil.copy(SCRIPTS / "retryable-failure.sh", scripts / "retryable-failure.sh")
         shutil.copy(SCRIPTS / "universal_jar.py", scripts / "universal_jar.py")
 
         self.loader = self.tmp / "loaders" / LOADER
@@ -423,7 +424,7 @@ class SecondPlayerTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp)
         scripts = self.tmp / ".github" / "scripts"
         scripts.mkdir(parents=True)
-        for name in ("run-multiplayer.sh", "run-client-with-second.sh"):
+        for name in ("run-multiplayer.sh", "retryable-failure.sh", "run-client-with-second.sh"):
             shutil.copy(SCRIPTS / name, scripts / name)
 
         self.loader = self.tmp / "loaders" / SECOND_LOADER
@@ -807,11 +808,18 @@ class SecondPlayerTest(unittest.TestCase):
 # and the loader's own runServer prints a passing suite after the client could have joined. A
 # standalone loader has no Ornithe install, no jacoco agent and no second client, which is what
 # makes it the cheap leg to stand a whole passing run up for.
+#
+# A case about the joined client's build (#1702) turns on two switches. FAKE_CLIENT_STARTED names a
+# file the server holds its tests until, so the client that does start is up before the server says
+# its tests began and a failed client build is what the script sees first. FAKE_CLIENT_FAILURES names
+# a directory whose <n>.log is the nth client build's output and whose absence means the build
+# succeeded, so a client build can be made to fail once and pass on the retry.
 STANDALONE_GRADLEW = """\
 #!/usr/bin/env bash
 case "$*" in
   *runServer*)
     printf 'Done (1.2s)! For help, type "help"\\n'
+    while [ -n "${FAKE_CLIENT_STARTED:-}" ] && [ ! -e "$FAKE_CLIENT_STARTED" ]; do sleep 0.1; done
     printf '[GRUG CI] CI mode active & player loaded after 1 ms. Firing tests!\\n'
     mkdir -p build/jacoco-server
     printf 'segment\\n' > build/jacoco-server/run.exec
@@ -820,6 +828,15 @@ case "$*" in
     exit 0
     ;;
   *runClient*)
+    if [ -n "${FAKE_CLIENT_FAILURES:-}" ]; then
+      count=$(cat "${FAKE_CLIENT_FAILURES}/count" 2>/dev/null || echo 0)
+      echo $((count + 1)) > "${FAKE_CLIENT_FAILURES}/count"
+      if [ -f "${FAKE_CLIENT_FAILURES}/$((count + 1)).log" ]; then
+        cat "${FAKE_CLIENT_FAILURES}/$((count + 1)).log"
+        exit 1
+      fi
+      : > "${FAKE_CLIENT_STARTED:?}"
+    fi
     exec sleep 600
     ;;
 esac
@@ -891,6 +908,7 @@ class ServerUnlistedTest(unittest.TestCase):
         scripts = self.tmp / ".github" / "scripts"
         scripts.mkdir(parents=True)
         shutil.copy(SCRIPTS / "run-multiplayer.sh", scripts / "run-multiplayer.sh")
+        shutil.copy(SCRIPTS / "retryable-failure.sh", scripts / "retryable-failure.sh")
 
         self.loader = self.tmp / "loaders" / self.LOADER
         self.loader.mkdir(parents=True)
@@ -952,6 +970,188 @@ class ServerUnlistedTest(unittest.TestCase):
         # The overlay pair is required on every leg now, so this one must have run them.
         self.assertIn("coverage/tests/overlay-Test.grug", log)
         self.assertIn("jei/tests/jei-Test.grug", log)
+
+
+class ClientBuildRetryTest(unittest.TestCase):
+    """The joined client's build gets one retry, and only for a download (#1702).
+
+    A dedicated leg builds its client with Gradle of its own after the server is ready, so a Loom
+    downloadAssets failure ends that build and the leg reports "The client exited before the server
+    started the tests" on its first attempt. run-loader.sh has always retried exactly that failure
+    for the server's build and its own poll loop, so the client's build gets the same one retry.
+    """
+
+    LOADER = ServerUnlistedTest.LOADER
+    REQUIRED_PASSES = ServerUnlistedTest.REQUIRED_PASSES
+
+    # The downloadAssets failure of #700, as the b1.7.3-stationapi leg's client log held it (#1702).
+    DOWNLOAD_FAILURE = """\
+> Task :downloadAssets FAILED
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':downloadAssets' (registered by plugin 'fabric-loom').
+> net.fabricmc.loom.util.download.DownloadException: Failed to download file from (https://resources.download.minecraft.net/99/991b421dfd401f115241601b2b373140a8d78572) to (.../run/resources/icons/minecraft.icns)
+
+* Exception is:
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':downloadAssets'.
+\tSuppressed: net.fabricmc.loom.util.download.DownloadException: Failed download after 3 attempts
+"""
+
+    # The same failure on the retry, with a line of its own so a case can tell which attempt's log
+    # the leg reported from.
+    SECOND_DOWNLOAD_FAILURE = """\
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':downloadAssets'.
+> Failed to download the icon of the second attempt
+> net.fabricmc.loom.util.download.DownloadException: Failed to download
+"""
+
+    # The code failing, which a retry would only delay.
+    COMPILE_ERROR = """\
+> Task :compileJava
+loaders/b1.7.3-stationapi/src/main/java/net/grug/Example.java:12: error: cannot find symbol
+    Grug.nope();
+        ^
+1 error
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler error output for details.
+"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        scripts = self.tmp / ".github" / "scripts"
+        scripts.mkdir(parents=True)
+        for name in ("run-multiplayer.sh", "retryable-failure.sh"):
+            shutil.copy(SCRIPTS / name, scripts / name)
+
+        self.loader = self.tmp / "loaders" / self.LOADER
+        self.loader.mkdir(parents=True)
+        (self.loader / "test-save.txt").write_text("fake.zip\n")
+        # A standalone loader: root.gradle sends the script down the runServer path.
+        (self.loader / "root.gradle").write_text("")
+        self.set_executable(self.tmp / "gradlew", "#!/usr/bin/env bash\nexit 0\n")
+        self.set_executable(self.loader / "gradlew", STANDALONE_GRADLEW)
+
+        saves = self.tmp / "test-saves"
+        saves.mkdir()
+        with zipfile.ZipFile(saves / "fake.zip", "w") as archive:
+            archive.writestr("world/level.dat", b"")
+
+        self.lines_file = self.tmp / "server-lines.log"
+        self.failures = self.tmp / "client-failures"
+        self.failures.mkdir()
+        self.client_started = self.tmp / "client-started"
+
+    def set_executable(self, path, content):
+        path.write_text(content)
+        path.chmod(0o755)
+
+    def client_failure(self, attempt, log):
+        (self.failures / f"{attempt}.log").write_text(log)
+
+    def server_lines(self):
+        lines = [f"[GRUG CI] PASS {path}-Test.grug" for path in self.REQUIRED_PASSES]
+        lines += [
+            f"[GRUG MULTIPLAYER] {path}-Test.grug drew the overlay" for path in OVERLAY_DRAWN_TESTS
+        ]
+        lines.append("[GRUG CI] ALL 50 TESTS PASSED")
+        return "\n".join(lines) + "\n"
+
+    def run_script(self):
+        self.lines_file.write_text(self.server_lines())
+        env = dict(os.environ)
+        env.update(
+            {
+                "DISPLAY": ":0",
+                "FAKE_SERVER_LINES_FILE": str(self.lines_file),
+                "FAKE_CLIENT_FAILURES": str(self.failures),
+                "FAKE_CLIENT_STARTED": str(self.client_started),
+                "GRUG_CI_BUILD_TIMEOUT": "30",
+                "GRUG_CI_RUN_TIMEOUT": "60",
+            }
+        )
+        env.pop("JAVA_HOME", None)
+        env.pop("GRUG_ORNITHE_SERVER_HASH", None)
+        return subprocess.run(
+            [str(self.tmp / ".github" / "scripts" / "run-multiplayer.sh"), self.LOADER],
+            cwd=self.tmp,
+            env=env,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=120,
+        )
+
+    def client_attempts(self):
+        return int((self.failures / "count").read_text().strip())
+
+    def client_log(self):
+        return (self.loader / "run-client-ci.log").read_text()
+
+    def kept_log(self, attempt):
+        return self.loader / f"run-client-ci.log.attempt-{attempt}"
+
+    def test_a_client_download_failure_is_retried_and_the_leg_passes(self):
+        self.client_failure(1, self.DOWNLOAD_FAILURE)
+        result = self.run_script()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("run on the dedicated server with a client connected.", result.stdout)
+        self.assertIn("The client failed fetching what it needs, not on the code", result.stderr)
+        self.assertIn("Retrying the client, attempt 2 of 2", result.stderr)
+        self.assertEqual(2, self.client_attempts())
+        # The failed attempt's log is kept beside the one that decided the leg, so the hiccup is
+        # still readable after a retry that passed.
+        self.assertIn("DownloadException", self.kept_log(1).read_text())
+
+    def test_a_client_compile_error_is_not_retried(self):
+        self.client_failure(1, self.COMPILE_ERROR)
+        result = self.run_script()
+
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("The client exited before the server started the tests", result.stderr)
+        self.assertNotIn("Retrying the client", result.stderr)
+        self.assertEqual(1, self.client_attempts())
+        self.assertFalse(self.kept_log(1).exists(), "a compile error kept a retry's log")
+        # Gradle's account of the failure reaches the job log, not only the artifact.
+        self.assertIn("Compilation failed", result.stderr)
+
+    def test_a_client_that_started_the_game_is_not_repeated(self):
+        # A run phase's log is the game's own, so a line in it that reads like a download failure
+        # could be the game's: a client that reached runClient is never built again, as
+        # run-loader.sh holds for its own run phase. Both shapes Gradle prints for that task keep
+        # the guard, the standalone loader's and a nested project's.
+        for started in ("> Task :runClient", "> Task :loaders:1.20.6-forge:runClient"):
+            with self.subTest(started=started):
+                (self.failures / "count").unlink(missing_ok=True)
+                self.client_failure(1, started + "\n" + self.DOWNLOAD_FAILURE)
+                result = self.run_script()
+
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertNotIn("Retrying the client", result.stderr)
+                self.assertEqual(1, self.client_attempts())
+
+    def test_a_retry_that_fails_again_fails_the_leg_with_the_second_log(self):
+        self.client_failure(1, self.DOWNLOAD_FAILURE)
+        self.client_failure(2, self.SECOND_DOWNLOAD_FAILURE)
+        result = self.run_script()
+
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("The client exited before the server started the tests", result.stderr)
+        # The job log names the failure of the attempt that decided the leg, which is the second one.
+        self.assertIn("Failed to download the icon of the second attempt", result.stderr)
+        self.assertEqual(2, self.client_attempts())
+        self.assertIn("991b421dfd401f115241601b2b373140a8d78572", self.kept_log(1).read_text())
+        self.assertIn("Failed to download the icon of the second attempt", self.client_log())
+        # Never a third attempt, and so never a second kept log.
+        self.assertFalse(self.kept_log(2).exists(), "the leg made a third attempt")
 
 
 def main(argv: list[str]) -> int:

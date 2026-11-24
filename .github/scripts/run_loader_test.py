@@ -182,7 +182,12 @@ class RunLoaderTest(unittest.TestCase):
 
         scripts = self.tmp / ".github" / "scripts"
         scripts.mkdir(parents=True)
-        for name in ("run-loader.sh", "report-native-abort.sh", "mod-loaders.py"):
+        for name in (
+            "run-loader.sh",
+            "retryable-failure.sh",
+            "report-native-abort.sh",
+            "mod-loaders.py",
+        ):
             shutil.copy(SCRIPTS / name, scripts / name)
         (scripts / "report-native-abort.sh").chmod(0o755)
         # The mods selection reads each mod's about.json through the repository's metadata module, so

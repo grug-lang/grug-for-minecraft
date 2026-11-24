@@ -54,6 +54,11 @@ if [ -z "${DISPLAY:-}" ]; then
 fi
 # shellcheck source=pin-llvmpipe.sh
 . "$(dirname "${BASH_SOURCE[0]}")/pin-llvmpipe.sh"
+# What counts as a failure worth another try, and how many attempts a leg may make, shared with
+# run-loader.sh so the joined client's build is retried on exactly the failures the server's is
+# (#1702).
+# shellcheck source=retryable-failure.sh
+. "$(dirname "${BASH_SOURCE[0]}")/retryable-failure.sh"
 SERVER_DIR="${REPO_ROOT}/${LOADER_DIR}/run-server"
 # The installed Ornithe server, which is the server's toolchain and not its world (#1244). The script
 # below wipes run-server and extracts a pristine save into it before every launch, so the install
@@ -81,6 +86,11 @@ STANDALONE=false
 
 # The same crash lines run-loader.sh watches, and a Rust abort, which kills the process.
 crash_re='Uncaught exception in thread "Server thread"|Exception in thread "main"|Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to|Broken grug invariant|Failed to start the minecraft server|panicked at .*\.rs:[0-9]+:[0-9]+'
+
+# A client whose Gradle already started the game's own task is never repeated, as run-loader.sh's
+# run phase holds: the whole log of a run phase is the game's, so a line in it that looks like a
+# download failure could be the game's own, and a game that ran is not a flake (#1702).
+client_game_start_re='^> Task (:loaders:[^ :]+)?:runClient( |$)'
 
 # The second client is 1.20.6's alone (#1027): that is the leg the second-player test runs on, and
 # another client would cost every other leg a boot for a property only this one proves.
@@ -530,10 +540,45 @@ if [ "$SECOND_CLIENT" = true ]; then
     "GRUG_SECOND_CLIENT_START_FILE=${SECOND_CLIENT_START_FILE}"
   )
 fi
-(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS GRUG_CI_CONTROL_DROP_WIDTH=7 GRUG_CI_CONTROL_LATE_WIDTH=9 GRUG_CI_CONNECT="127.0.0.1:${PORT}" "${second_client_env[@]}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
-client_pid=$!
+# The joined client's build. It is a Gradle invocation of its own, started once the server is ready,
+# and it gets the same one retry run-loader.sh gives its own builds (#1702): a client that died in
+# Loom's downloadAssets failed on a hiccup on resources.download.minecraft.net, not on the code, and
+# repeating the build repeats nothing the server did, because its tests have not started. The log of
+# the attempt that failed is kept beside the one that decided the leg, as run-loader.sh keeps its
+# `.attempt-<n>` logs, so the hiccup is still readable after a retry that passed.
+start_client() {
+  : > "$CLIENT_LOG"
+  (cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS GRUG_CI_CONTROL_DROP_WIDTH=7 GRUG_CI_CONTROL_LATE_WIDTH=9 GRUG_CI_CONNECT="127.0.0.1:${PORT}" "${second_client_env[@]}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
+  client_pid=$!
+}
+
+# One attempt and one retry, and only for a client build that failed fetching what it needs: a compile
+# error, a crash, a game that already started and an unrecognised failure all end the leg here, as
+# they end a loader job, because a retry would only delay the real report. The retry runs inside the
+# run's own deadline, which started at the client launch, so a leg cannot outlast the job by retrying.
+client_attempt=1
+retry_client_build() {
+  local reason
+  if [ "$client_attempt" -ge "$MAX_GRADLE_ATTEMPTS" ]; then
+    return 1
+  fi
+  if grep -q -E "$client_game_start_re" "$CLIENT_LOG"; then
+    return 1
+  fi
+  if ! reason=$(retryable_failure "$CLIENT_LOG"); then
+    return 1
+  fi
+  cp "$CLIENT_LOG" "${CLIENT_LOG}.attempt-${client_attempt}"
+  echo "==> The client failed fetching what it needs, not on the code: $reason" >&2
+  echo "==> Retrying the client, attempt $((client_attempt + 1)) of ${MAX_GRADLE_ATTEMPTS}." >&2
+  echo "==> The failed attempt's client log is ${CLIENT_LOG#"${REPO_ROOT}/"}.attempt-${client_attempt}" >&2
+  client_attempt=$((client_attempt + 1))
+  start_client
+}
+
 tail -n +1 -F "$CLIENT_LOG" 2>/dev/null | sed -u 's/^/[client] /' &
 client_tail_pid=$!
+start_client
 if [ "$SECOND_CLIENT" = true ]; then
   tail -n +1 -F "$SECOND_CLIENT_LOG" 2>/dev/null | sed -u 's/^/[second] /' &
   second_tail_pid=$!
@@ -939,7 +984,18 @@ while :; do
     exit 1
   fi
   if ! kill -0 "$client_pid" 2>/dev/null && ! grep -q '\[GRUG CI\] CI mode active' "$SERVER_LOG"; then
+    # The server has not started the tests, so the client's build is the only thing that ran, and a
+    # build that failed on a download is worth starting once more (#1702).
+    if retry_client_build; then
+      continue
+    fi
     echo "==> The client exited before the server started the tests." >&2
+    # Gradle's own account of why, in the job log and not only in the artifact, as run-loader.sh
+    # prints it for a build that failed.
+    if ! grep -m1 -A12 '^\* What went wrong:' "$CLIENT_LOG" >&2; then
+      tail -n 20 "$CLIENT_LOG" >&2 || true
+    fi
+    echo "==> See ${CLIENT_LOG#"${REPO_ROOT}/"}" >&2
     exit 1
   fi
   if [ "$SECONDS" -ge "$deadline" ]; then
