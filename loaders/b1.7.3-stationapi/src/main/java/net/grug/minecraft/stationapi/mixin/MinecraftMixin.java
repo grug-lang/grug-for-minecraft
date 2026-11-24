@@ -66,6 +66,7 @@ public abstract class MinecraftMixin implements GrugClientAccess {
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
+        net.grug.minecraft.stationapi.StationApiAdapter.holdPlayerForTest(this.player);
         grug$hooks.tick();
         // Drain control messages on the game thread, because the packet reader thread is not the
         // thread that owns the GL context and the frame (#1465).

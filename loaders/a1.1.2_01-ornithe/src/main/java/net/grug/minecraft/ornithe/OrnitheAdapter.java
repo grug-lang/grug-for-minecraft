@@ -13,6 +13,7 @@ import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestOrigin;
 import net.grug.minecraft.core.GrugTestPlayerMove;
+import net.grug.minecraft.core.GrugTestPlayerPin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -1715,6 +1716,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             return false;
         }
         player.setPositionAndAngles(x, y, z, player.yaw, player.pitch);
+        GrugTestPlayerPin.retarget(x, z);
         return true;
     }
 
@@ -1754,6 +1756,30 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 GrugTestPlayerSnap.blockCentre(savedZ),
                 0.0F,
                 0.0F);
+        // Read back, so the pin writes the client's own arithmetic. See #1580.
+        GrugTestPlayerPin.hold(
+                GrugTestPlayerSnap.blockCentre(savedX), GrugTestPlayerSnap.blockCentre(savedZ));
+    }
+
+    /**
+     * Puts the player back on the x and z the snap, or the last {@code set_player_position}, gave
+     * them, once per client tick at its head. Whatever moved them since, a crowd of mobs pushing or
+     * hitting them, would otherwise move the camera a capture is drawn from (#1580). The horizontal
+     * velocity goes too, because the game moves the player by the velocity the previous tick ended
+     * with. The height is left to gravity: holding it at the snap's height changed the buildcraft
+     * goldens.
+     */
+    @GrugGenerated(
+            "the no-player arm: a tick that runs before the world has a player is not reached in"
+                    + " this loader's counted runs")
+    public static void holdPlayerForTest(PlayerEntity player) {
+        GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.poseFor(player != null);
+        if (pose == null) {
+            return;
+        }
+        player.updatePositionAndAngles(pose.x, player.y, pose.z, player.yaw, player.pitch);
+        player.velocityX = 0.0;
+        player.velocityZ = 0.0;
     }
 
     @Override
@@ -1763,6 +1789,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // runner calls this for every test that ends, so it must not report an error for those.
         if (!testPlayerSnapped) return;
         testPlayerSnapped = false;
+        GrugTestPlayerPin.release();
 
         PlayerEntity player = GrugClientPlayer.get();
         if (player != null) {

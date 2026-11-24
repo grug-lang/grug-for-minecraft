@@ -78,6 +78,8 @@ public abstract class MinecraftMixin implements GrugClientAccess {
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
+        net.grug.minecraft.ornithe.OrnitheAdapter.holdPlayerForTest(
+                ((Minecraft) (Object) this).player);
         grug$hooks.tick();
         GrugControlBetaClient.onClientTick((Minecraft) (Object) this, grug$hooks);
         GrugOverlayHost.pollWorldKeys((Minecraft) (Object) this);

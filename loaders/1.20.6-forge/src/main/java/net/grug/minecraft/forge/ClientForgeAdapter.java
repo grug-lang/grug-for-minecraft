@@ -11,6 +11,7 @@ import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestCamera;
 import net.grug.minecraft.core.GrugTestPlayerMove;
+import net.grug.minecraft.core.GrugTestPlayerPin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
@@ -764,6 +765,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
             return false;
         }
         player.setPos(x, y, z);
+        GrugTestPlayerPin.retarget(x, z);
         return true;
     }
 
@@ -801,6 +803,26 @@ public class ClientForgeAdapter extends ForgeAdapter {
                 GrugTestPlayerSnap.blockCentre(savedX),
                 savedY,
                 GrugTestPlayerSnap.blockCentre(savedZ));
+        GrugTestPlayerPin.hold(
+                GrugTestPlayerSnap.blockCentre(savedX), GrugTestPlayerSnap.blockCentre(savedZ));
+    }
+
+    /**
+     * Puts the player back on the x and z the snap, or the last {@code set_player_position}, gave
+     * them, once per client tick at its head. Whatever moved them since, a crowd of mobs pushing or
+     * hitting them, would otherwise move the camera a capture is drawn from (#1580). The horizontal
+     * velocity goes too, because the game moves the player by the velocity the previous tick ended
+     * with. The height is left to gravity: holding it at the snap's height changed the buildcraft
+     * goldens.
+     */
+    public static void holdPlayerForTest(Player player) {
+        GrugTestPlayerPin.Pose pose = GrugTestPlayerPin.poseFor(player != null);
+        if (pose == null) {
+            return;
+        }
+        player.moveTo(pose.x, player.getY(), pose.z, player.getYRot(), player.getXRot());
+        net.minecraft.world.phys.Vec3 motion = player.getDeltaMovement();
+        player.setDeltaMovement(0.0, motion.y, 0.0);
     }
 
     @Override
@@ -811,6 +833,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
         // snap never ran must not report an error for those.
         if (!testPlayerSnapped) return;
         testPlayerSnapped = false;
+        GrugTestPlayerPin.release();
 
         onClientThread(this::restorePlayerOnClient);
     }

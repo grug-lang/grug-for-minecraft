@@ -713,6 +713,7 @@ public class GrugModLoader {
             if (event.phase == TickEvent.Phase.START) {
                 Minecraft mc = Minecraft.getInstance();
                 ClientForgeAdapter.noteClientThread();
+                ClientForgeAdapter.holdPlayerForTest(mc.player);
 
                 if (mc.getWindow() != null && !grug$titleSet) {
                     mc.getWindow().setTitle("Minecraft 1.20.6 - Forge with grug");
