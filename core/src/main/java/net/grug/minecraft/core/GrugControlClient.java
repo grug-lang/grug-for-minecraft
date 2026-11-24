@@ -78,6 +78,12 @@ public final class GrugControlClient {
          */
         boolean holdsBlocks(GrugBlockRegion.Expected expected);
 
+        /**
+         * Whether this client's own copy of the world holds the light the server describes in the
+         * box, on both its block and sky fields (#1695). A null expectation is held.
+         */
+        boolean holdsRoomLight(GrugLightAsk.Expected expected);
+
         /** Forgets the frames the settle answer counts, so it waits for frames drawn from now. */
         void forgetSettledFrames();
 
@@ -248,6 +254,11 @@ public final class GrugControlClient {
             @Override
             public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
                 return adapter.get().holdsBlockRegion(expected);
+            }
+
+            @Override
+            public boolean holdsRoomLight(GrugLightAsk.Expected expected) {
+                return adapter.get().holdsRoomLight(expected);
             }
 
             @Override
@@ -430,6 +441,12 @@ public final class GrugControlClient {
     private GrugBlockRegion.Expected owedRegion;
 
     /**
+     * The light of the box a dedicated server last sent this client that it has not yet been seen
+     * to hold, or null when the ask named none (#1695).
+     */
+    private GrugLightAsk.Expected owedLight;
+
+    /**
      * @param dropWidth fault injection for CI: a request whose rectangle is this wide is never
      *     answered, which is how a run makes the server time out. Negative disables it.
      * @param lateWidth fault injection for CI: the answer to a request whose rectangle is this wide
@@ -493,6 +510,7 @@ public final class GrugControlClient {
         runActive = true;
         seenRevision = Long.MIN_VALUE;
         owedRegion = null;
+        owedLight = null;
         System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
         link.send(GrugControlWire.runStart());
     }
@@ -505,6 +523,7 @@ public final class GrugControlClient {
         runActive = false;
         seenRevision = Long.MIN_VALUE;
         owedRegion = null;
+        owedLight = null;
         held.set(null);
     }
 
@@ -785,15 +804,18 @@ public final class GrugControlClient {
         GrugFrameRequest.request();
         // The revision travels in the volume slot; see GrugControlWire.worldSettledRequest.
         long revision = (long) message.volume;
-        // Each ask restates the checksum of the server's world now, so a block the game changed
-        // after the test placed it does not leave the client waiting for the old one.
-        // Every ask replaces it, an empty one included: the server restates the blocks until the
-        // client answers settled, so an expectation a later test did not repeat is not kept.
-        owedRegion = GrugBlockRegion.decode(message.text);
+        // Each ask restates what this client has to hold as the server sees it now, so a block the
+        // game changed after the test placed it does not leave the client waiting for the old
+        // checksum, and a box the server sent again is compared against the light it now holds.
+        // Every ask replaces it, an empty one included: the server restates the blocks and the
+        // light until the client answers settled, so an expectation a later test did not repeat is
+        // not kept.
+        owedLight = GrugLightAsk.decode(message.text);
+        owedRegion = owedLight == null ? GrugBlockRegion.decode(message.text) : null;
         if (revision != seenRevision) {
             seenRevision = revision;
             caller.forgetSettledFrames();
-            link.send(GrugControlWire.answerValue(message.id, (byte) 0));
+            link.send(GrugControlWire.answerValue(message.id, GrugControlWire.SETTLE_NO));
             return;
         }
         boolean holds = caller.holdsBlocks(owedRegion);
@@ -801,7 +823,20 @@ public final class GrugControlClient {
             owedRegion = null;
         }
         boolean settled = caller.isWorldSettled() && holds;
-        link.send(GrugControlWire.answerValue(message.id, (byte) (settled ? 1 : 0)));
+        // After the settle answer, so the light this reads is the one the frame the answer is
+        // about was drawn from: the loader's own answer drains its light queue first (#1695).
+        boolean light = !settled || caller.holdsRoomLight(owedLight);
+        if (settled && light) {
+            owedLight = null;
+        }
+        link.send(
+                GrugControlWire.answerValue(
+                        message.id,
+                        !settled
+                                ? GrugControlWire.SETTLE_NO
+                                : light
+                                        ? GrugControlWire.SETTLE_YES
+                                        : GrugControlWire.SETTLE_LIGHT_DIVERGED));
     }
 
     private void answer(long id, BufferedImage image) {

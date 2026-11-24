@@ -73,16 +73,47 @@ public final class GrugLightResend {
      * The box {@code {minX, minY, minZ, maxX, maxY, maxZ}} the regions {@link #due} last returned
      * were cut from, or an empty array before it has returned any. The loader recomputes its light
      * over this box before it sends, so the light that goes out is the field the final blocks
-     * define and not the one the order of the placements left.
+     * define and not the one the order of the placements left, and the box is what the light ask
+     * then compares ({@link GrugLightAsk}). Its height is whole pairs of rows, which is what a
+     * region packet's light copy covers.
      */
     public synchronized int[] lastBox() {
         return sent.clone();
     }
 
     /**
+     * Arms the regions {@link #due} last returned again, because the joined client's light came
+     * back different from this server's over that box (#1695).
+     *
+     * <p>A client that relit a block change after the region packet landed holds a field the
+     * server's engine never produced, and nothing else would replace it: the placements are no
+     * longer owed, so {@link #due} would send nothing and the divergence would be permanent. The
+     * box is the one that was sent, so re-arming neither grows it nor forgets a change noted since
+     * (that one has already widened it). One poll arms the send and the next makes it, as after a
+     * change, so the client is given a tick before the region it asked for arrives.
+     */
+    public synchronized void rearm() {
+        if (sent.length != 6) {
+            return;
+        }
+        owed = true;
+        waited = false;
+        minX = sent[0];
+        minY = sent[1];
+        minZ = sent[2];
+        maxX = sent[3];
+        maxY = sent[4];
+        maxZ = sent[5];
+    }
+
+    /**
      * The regions to send the client now, one per chunk the changes touched, each as {@code {x, y,
      * z, sizeX, sizeY, sizeZ}} in blocks, or an empty list while nothing is owed or the tick that
      * made the change has not ended. Clears what it returns.
+     *
+     * <p>The height is widened to whole pairs of rows, since a region packet copies a column's
+     * light one byte per pair: a range of an odd height or an odd lower edge would leave its top
+     * row as the client had it, and the light ask would compare a cell the server never sent.
      */
     public synchronized List<int[]> due() {
         List<int[]> regions = new ArrayList<>();
@@ -95,12 +126,13 @@ public final class GrugLightResend {
         }
         owed = false;
         waited = false;
-        sent = new int[] {minX, minY, minZ, maxX, maxY, maxZ};
-        int fromY = Math.max(minY, 0);
-        int toY = Math.min(maxY, WORLD_HEIGHT - 1);
+        int fromY = Math.max(minY, 0) >> 1 << 1;
+        int toY = (Math.min(maxY, WORLD_HEIGHT - 1) >> 1 << 1) + 1;
         if (fromY > toY) {
+            sent = new int[0];
             return regions;
         }
+        sent = new int[] {minX, fromY, minZ, maxX, toY, maxZ};
         for (int chunkX = minX >> 4; chunkX <= maxX >> 4; chunkX++) {
             for (int chunkZ = minZ >> 4; chunkZ <= maxZ >> 4; chunkZ++) {
                 int fromX = Math.max(minX, chunkX << 4);

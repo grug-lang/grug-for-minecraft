@@ -105,11 +105,26 @@ public final class GrugControlWire {
 
     /**
      * The call: whether the client has drawn the world the server has, for a server-run settle wait
-     * (#1086). The answer is 1 or 0. Its name is empty and its volume slot carries the world
-     * revision the ask is about, so a revision the client has already answered is asked of the
-     * client again rather than of the server's own empty client.
+     * (#1086). The answer is {@link #SETTLE_YES}, {@link #SETTLE_LIGHT_DIVERGED} or {@link
+     * #SETTLE_NO}. Its volume slot carries the world revision the ask is about, so a revision the
+     * client has already answered is asked of the client again rather than of the server's own
+     * empty client, and its name carries what the client also has to hold: the blocks a test placed
+     * ({@link GrugBlockRegion#ask}) or the light of the box the server sent the client ({@link
+     * GrugLightAsk#ask}).
      */
     public static final byte CALL_WORLD_SETTLED = 3;
+
+    /** A settle answer: the client has not drawn the world and what the ask named yet. */
+    public static final byte SETTLE_NO = 0;
+
+    /** A settle answer: the client has drawn the world and holds everything the ask named. */
+    public static final byte SETTLE_YES = 1;
+
+    /**
+     * A settle answer: the client has drawn the world and holds the ask's blocks, but the light of
+     * the ask's box in its own copy is not the server's, so the server sends the box again (#1695).
+     */
+    public static final byte SETTLE_LIGHT_DIVERGED = 2;
 
     /**
      * The call: the identity of the screen the client has open. The answer is an {@link
@@ -649,8 +664,10 @@ public final class GrugControlWire {
 
     /**
      * As {@link #worldSettledRequest(long, long)}, with the text of {@link GrugBlockRegion#encode}
-     * in the name slot: the box of blocks the test placed and the server's checksum of it, which
-     * the client's copy has to match before it answers settled (#1664). Empty for no placements.
+     * or {@link GrugLightAsk#encode} in the name slot: the box of blocks the test placed and the
+     * server's checksum of it, which the client's copy has to match before it answers settled
+     * (#1664), or the box a dedicated server sent its client the light of and the server's
+     * fingerprint of that light (#1695). Empty for neither.
      */
     public static byte[] worldSettledRequest(long id, long revision, String region) {
         return callRequest(id, CALL_WORLD_SETTLED, region, (double) revision, 0, 0);

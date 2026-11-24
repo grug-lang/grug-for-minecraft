@@ -4,6 +4,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugForcedNormalization;
+import net.grug.minecraft.core.GrugLightAsk;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOperatorStatus;
 import net.grug.minecraft.core.GrugRenderSettle;
@@ -1048,6 +1049,26 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 ((int) Math.floor(z)) >> 4,
                 blockLight,
                 skyLight);
+    }
+
+    /**
+     * Whether this client's own copy holds the light of the box a dedicated server last sent it, on
+     * both fields (#1695). See {@link ModLoaderAdapter#holdsRoomLight}.
+     *
+     * <p>Excluded from coverage for the same reason as {@link #clientLightFingerprint}: only the
+     * dispatch-only multiplayer job asks a joined client about its own copy.
+     */
+    @GrugGenerated("room light: only the dispatch-only multiplayer job asks a joined client")
+    @Override
+    public boolean holdsRoomLight(GrugLightAsk.Expected expected) {
+        Object level = clientLevel();
+        if (level == null) {
+            return expected == null;
+        }
+        return GrugLightAsk.holds(
+                expected,
+                new ClientBlockLight((World) level, LightType.BLOCK),
+                new ClientBlockLight((World) level, LightType.SKY));
     }
 
     /**

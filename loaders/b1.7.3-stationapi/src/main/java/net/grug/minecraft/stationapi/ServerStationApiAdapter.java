@@ -5,7 +5,9 @@ import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugControlWire;
 import net.grug.minecraft.core.GrugGameSpeed;
+import net.grug.minecraft.core.GrugLightAsk;
 import net.grug.minecraft.core.GrugLightResend;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOverlayCalls;
@@ -817,16 +819,37 @@ public class ServerStationApiAdapter extends StationApiAdapter {
             resendLight();
             return false;
         }
-        return GrugArms.tryAsk(
-                () -> GrugControlStation.server().worldSettled(),
-                ServerStationApiAdapter::worldSettledFailed);
+        byte answer =
+                GrugArms.tryAsk(
+                        () -> GrugControlStation.server().settle(lightAsk()),
+                        ServerStationApiAdapter::worldSettledFailed);
+        // A client that drew the world but holds its own light for the box this server sent it has
+        // to be sent that box again, so this poll is not settled (#1695).
+        return GrugLightAsk.settled(answer, lightResend::rearm);
+    }
+
+    /**
+     * What the settle ask compares once the client's frames and blocks are settled: this server's
+     * light of the box it last sent the joined client, or the empty text before it sent one
+     * (#1695). The box is the region {@link GrugLightResend#due} sent, so the comparison is over
+     * the cells the client was sent rather than a section that holds cells it never received.
+     *
+     * <p>The field is read after {@link #resendLight} recomputed it, because the same poll that
+     * finds nothing owed is the one that asks, and the recompute happens before the send.
+     */
+    private String lightAsk() {
+        World world = (World) getLevel();
+        return GrugLightAsk.ask(
+                lightResend.lastBox(),
+                (x, y, z) -> world.getBrightness(LightType.BLOCK, x, y, z),
+                (x, y, z) -> world.getBrightness(LightType.SKY, x, y, z));
     }
 
     @GrugGenerated("a forwarded settled check fails only when the joined client cannot answer it")
-    private static Boolean worldSettledFailed(GrugControlServer.ControlException e) {
+    private static Byte worldSettledFailed(GrugControlServer.ControlException e) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
-        return Boolean.TRUE;
+        return GrugControlWire.SETTLE_YES;
     }
 
     /**

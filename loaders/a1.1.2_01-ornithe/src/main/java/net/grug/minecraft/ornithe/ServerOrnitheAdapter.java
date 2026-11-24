@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugLightAsk;
 import net.grug.minecraft.core.GrugLightResend;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugLinkArms;
@@ -974,11 +975,34 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                         false,
                         () ->
                                 GrugLinkArms.callOrReport(
-                                        () -> GrugControlAlpha.server().worldSettled(),
+                                        this::askClientSettled,
                                         "TestTickContext.world_settled: ",
                                         true,
                                         ServerOrnitheAdapter::reportFailure));
         return GrugRenderSettle.serverSettled(clientSettled, owed);
+    }
+
+    /**
+     * Asks the joined client whether it settled, and sends the box it was last sent the light of
+     * again when its own copy holds a different field (#1695). See {@link GrugLightAsk#settled}.
+     */
+    private boolean askClientSettled() throws GrugControlServer.ControlException {
+        byte answer = GrugControlAlpha.server().settle(lightAsk());
+        return GrugLightAsk.settled(answer, lightResend::rearm);
+    }
+
+    /**
+     * The light of the box this server last sent the joined client, as a settle ask's text (#1695).
+     * The box is the region {@link GrugLightResend#due} sent, so the client is compared over the
+     * cells it was sent rather than a section that holds cells it never received, and the field is
+     * read after {@link #resendLight} recomputed it.
+     */
+    private String lightAsk() {
+        World world = (World) getLevel();
+        return GrugLightAsk.ask(
+                lightResend.lastBox(),
+                (x, y, z) -> world.getLight(LightType.BLOCK, x, y, z),
+                (x, y, z) -> world.getLight(LightType.SKY, x, y, z));
     }
 
     /**

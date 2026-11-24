@@ -35,7 +35,7 @@ class GrugLightResendTest {
         List<int[]> regions = resend.due();
 
         assertEquals(1, regions.size());
-        assertArrayEquals(new int[] {4, 63, 4, 3, 3, 3}, regions.get(0));
+        assertArrayEquals(new int[] {4, 62, 4, 3, 4, 3}, regions.get(0));
         assertFalse(resend.pending());
         assertTrue(resend.due().isEmpty(), "what was sent is not owed again");
     }
@@ -48,7 +48,7 @@ class GrugLightResendTest {
         resend.noteBlock(6, 64, 5);
 
         assertTrue(resend.due().isEmpty(), "the second change's tick has not ended");
-        assertArrayEquals(new int[] {4, 63, 4, 4, 3, 3}, resend.due().get(0));
+        assertArrayEquals(new int[] {4, 62, 4, 4, 4, 3}, resend.due().get(0));
     }
 
     @Test
@@ -59,7 +59,7 @@ class GrugLightResendTest {
         resend.noteBlock(8, 60, 1);
         resend.due();
 
-        assertArrayEquals(new int[] {1, 59, 0, 9, 13, 11}, resend.due().get(0));
+        assertArrayEquals(new int[] {1, 58, 0, 9, 14, 11}, resend.due().get(0));
     }
 
     @Test
@@ -72,10 +72,10 @@ class GrugLightResendTest {
         List<int[]> regions = resend.due();
 
         assertEquals(4, regions.size());
-        assertArrayEquals(new int[] {14, 9, 14, 2, 3, 2}, regions.get(0));
-        assertArrayEquals(new int[] {14, 9, 16, 2, 3, 2}, regions.get(1));
-        assertArrayEquals(new int[] {16, 9, 14, 1, 3, 2}, regions.get(2));
-        assertArrayEquals(new int[] {16, 9, 16, 1, 3, 2}, regions.get(3));
+        assertArrayEquals(new int[] {14, 8, 14, 2, 4, 2}, regions.get(0));
+        assertArrayEquals(new int[] {14, 8, 16, 2, 4, 2}, regions.get(1));
+        assertArrayEquals(new int[] {16, 8, 14, 1, 4, 2}, regions.get(2));
+        assertArrayEquals(new int[] {16, 8, 16, 1, 4, 2}, regions.get(3));
     }
 
     @Test
@@ -118,6 +118,54 @@ class GrugLightResendTest {
     }
 
     @Test
+    void theSentHeightIsWholePairsOfRowsBecauseAPacketsLightCopyIs() {
+        GrugLightResend resend = new GrugLightResend();
+        resend.noteBlock(5, 64, 5);
+        resend.due();
+
+        List<int[]> regions = resend.due();
+
+        // The changed block's box is 63..65, which the pair alignment widens to 62..65: a region
+        // packet copies each column's light one byte per pair of rows, so an odd height or an odd
+        // lower edge would leave its top row as the client had it, and the light ask would compare
+        // a cell the server never sent.
+        assertArrayEquals(new int[] {4, 62, 4, 3, 4, 3}, regions.get(0));
+        assertEquals(0, resend.lastBox()[1] % 2);
+        assertEquals(1, resend.lastBox()[4] % 2);
+        assertArrayEquals(new int[] {4, 62, 4, 6, 65, 6}, resend.lastBox());
+    }
+
+    @Test
+    void aRearmedRegionIsSentAgainWithoutGrowingTheBox() {
+        GrugLightResend resend = new GrugLightResend();
+        resend.noteBlock(5, 64, 5);
+        resend.due();
+        resend.due();
+        assertFalse(resend.pending());
+
+        resend.rearm();
+
+        assertTrue(resend.pending(), "the client's light differed, so the region is owed again");
+        assertTrue(resend.due().isEmpty(), "the poll that only arms the send");
+        List<int[]> again = resend.due();
+        assertEquals(1, again.size());
+        assertArrayEquals(new int[] {4, 62, 4, 3, 4, 3}, again.get(0));
+        assertArrayEquals(new int[] {4, 62, 4, 6, 65, 6}, resend.lastBox());
+        assertFalse(resend.pending(), "what was sent again is not owed a third time");
+    }
+
+    @Test
+    void rearmingBeforeAnyRegionWentOutSendsNothing() {
+        GrugLightResend resend = new GrugLightResend();
+
+        resend.rearm();
+
+        assertFalse(resend.pending());
+        assertTrue(resend.due().isEmpty());
+        assertEquals(0, resend.lastBox().length);
+    }
+
+    @Test
     void theBoxOfTheLastSendIsKept() {
         GrugLightResend resend = new GrugLightResend();
         assertEquals(0, resend.lastBox().length);
@@ -127,6 +175,6 @@ class GrugLightResendTest {
         assertEquals(0, resend.lastBox().length, "nothing was sent for the waiting poll");
         resend.due();
 
-        assertArrayEquals(new int[] {1, 63, 4, 6, 71, 10}, resend.lastBox());
+        assertArrayEquals(new int[] {1, 62, 4, 6, 71, 10}, resend.lastBox());
     }
 }

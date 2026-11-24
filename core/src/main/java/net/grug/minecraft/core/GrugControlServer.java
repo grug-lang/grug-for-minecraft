@@ -1221,11 +1221,28 @@ public final class GrugControlServer {
     }
 
     /**
-     * As {@link #worldSettled()}, asking the client to also hold the blocks {@code region}
-     * describes ({@link GrugBlockRegion#ask}): a joined client's world is its own copy, which the
-     * test's placements reach in packets (#1664).
+     * As {@link #worldSettled()}, asking the client to also hold what {@code held} describes: the
+     * blocks {@code region} lists ({@link GrugBlockRegion#ask}), or the light of the box a
+     * dedicated server last sent it ({@link GrugLightAsk#ask}). A null or empty text asks only
+     * about the frames. A joined client's world is its own copy, which the test's placements reach
+     * in packets (#1664) and which it lights for itself, so a light change can land after the
+     * server's region packet and never be replaced (#1695).
      */
-    public boolean worldSettled(String region) throws ControlException {
+    public boolean worldSettled(String held) throws ControlException {
+        return settle(held) == GrugControlWire.SETTLE_YES;
+    }
+
+    /**
+     * The client's answer to a settle ask, as {@link #worldSettled(String)} sends it: {@link
+     * GrugControlWire#SETTLE_YES}, {@link GrugControlWire#SETTLE_LIGHT_DIVERGED} when the client
+     * has drawn the world but its own light is not this server's, or {@link
+     * GrugControlWire#SETTLE_NO}.
+     *
+     * <p>The divergent answer is the loader's cue to send the box again ({@link
+     * GrugLightResend#rearm}); it is never recorded as settled, so the next ask is a fresh question
+     * rather than a remembered yes.
+     */
+    public byte settle(String held) throws ControlException {
         Object to = starter.get();
         if (to == null) {
             throw new ControlException(
@@ -1234,7 +1251,7 @@ public final class GrugControlServer {
         }
         long revision = GrugWorldRevision.current();
         if (settled.answeredSettled(revision)) {
-            return true;
+            return GrugControlWire.SETTLE_YES;
         }
         if (settled.needsFlush(revision)) {
             link.flushWorld();
@@ -1243,22 +1260,19 @@ public final class GrugControlServer {
         byte result;
         try {
             result =
-                    forward(
-                            GrugControlWire.CALL_WORLD_SETTLED,
-                            region,
-                            revision,
-                            0,
-                            0,
-                            Answer.VALUE)[0];
+                    forward(GrugControlWire.CALL_WORLD_SETTLED, held, revision, 0, 0, Answer.VALUE)[
+                            0];
         } catch (ControlException e) {
             FAILED.set(true);
             throw e;
         }
-        if (result != 0 && result != 1) {
-            throw failure("The client answered world_settled with " + result + ", not 0 or 1.");
+        if (result != GrugControlWire.SETTLE_NO
+                && result != GrugControlWire.SETTLE_YES
+                && result != GrugControlWire.SETTLE_LIGHT_DIVERGED) {
+            throw failure("The client answered world_settled with " + result + ", not 0, 1 or 2.");
         }
-        settled.record(revision, result == 1);
-        return result == 1;
+        settled.record(revision, result == GrugControlWire.SETTLE_YES);
+        return result;
     }
 
     private static ControlException failure(String message) {

@@ -712,6 +712,23 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Whether this client's own copy of the world holds the light the server has in the box {@code
+     * expected} names, on both its block and sky fields, which is what a dedicated server's settle
+     * ask compares (#1695). The default holds, for a loader that shares the server's world or sends
+     * the ask without a box.
+     *
+     * <p>A client that lights its own copy incrementally can hold a field the server's engine never
+     * produced, because it relit a block change that landed after the region packet which carried
+     * the server's field. Nothing else would replace it, so the settle ask says the light differs
+     * and the server sends the region again. A loader whose light query answers a level per block
+     * passes both fields to {@link GrugLightAsk#fingerprint}, the way {@link
+     * #clientLightFingerprint} does.
+     */
+    default boolean holdsRoomLight(GrugLightAsk.Expected expected) {
+        return true;
+    }
+
+    /**
      * The light of the section a position falls in, in the client's own copy of the world, as
      * {@link GrugLightSync#lightFingerprint}, {@link GrugClientLight#CANNOT_VERIFY} when this
      * adapter holds a section it cannot reproduce, or {@link GrugClientLight#NOT_RECEIVED} when the

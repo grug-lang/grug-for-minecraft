@@ -133,6 +133,11 @@ class GrugControlTest {
                 }
 
                 @Override
+                public boolean holdsRoomLight(GrugLightAsk.Expected expected) {
+                    return true;
+                }
+
+                @Override
                 public boolean isWorldSettled() {
                     throw new AssertionError("no settle ask was expected");
                 }
@@ -351,6 +356,11 @@ class GrugControlTest {
         }
 
         @Override
+        public boolean holdsRoomLight(GrugLightAsk.Expected expected) {
+            return true;
+        }
+
+        @Override
         public boolean isWorldSettled() {
             throw new AssertionError("no settle ask was expected");
         }
@@ -472,12 +482,22 @@ class GrugControlTest {
         boolean settled;
         int forgotten;
         boolean holds = true;
+        boolean light = true;
+        int lightAsks;
         GrugBlockRegion.Expected asked;
+        GrugLightAsk.Expected askedLight;
 
         @Override
         public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
             asked = expected;
             return holds;
+        }
+
+        @Override
+        public boolean holdsRoomLight(GrugLightAsk.Expected expected) {
+            askedLight = expected;
+            lightAsks++;
+            return light;
         }
 
         @Override
@@ -646,6 +666,11 @@ class GrugControlTest {
 
         @Override
         public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+            return true;
+        }
+
+        @Override
+        public boolean holdsRoomLight(GrugLightAsk.Expected expected) {
             return true;
         }
 
@@ -894,6 +919,36 @@ class GrugControlTest {
         assertTrue(loop.server.worldSettled(ask));
         // An ask with no placements replaces the expectation.
         loop.server.worldSettled("");
+    }
+
+    @Test
+    void aSettleAskSaysTheLightDiffersUntilTheClientHoldsTheBoxItSent() throws Exception {
+        Settled settled = new Settled();
+        Loopback loop = new Loopback() {};
+        loop.server = new GrugControlServer(loop, 1000);
+        loop.client = new GrugControlClient(loop, solid(0), settled, -1, -1);
+        loop.client.beginRun();
+        settled.settled = true;
+
+        int[] box = {0, 64, 0, 15, 71, 15};
+        String ask = GrugLightAsk.ask(box, (x, y, z) -> 0, (x, y, z) -> 15);
+        assertTrue(ask.startsWith("light:0,64,0,15,71,15|"), ask);
+
+        // The first ask is a new revision and always unsettled; the next finds the light different.
+        settled.light = false;
+        assertEquals(GrugControlWire.SETTLE_NO, loop.server.settle(ask));
+        assertEquals(GrugControlWire.SETTLE_LIGHT_DIVERGED, loop.server.settle(ask));
+        assertArrayEquals(box, settled.askedLight.box);
+        // A divergent answer is never remembered as settled, so the next ask asks the client again.
+        assertEquals(GrugControlWire.SETTLE_LIGHT_DIVERGED, loop.server.settle(ask));
+        assertEquals(2, settled.lightAsks);
+
+        // The region arrived again, so the client holds this server's field now.
+        settled.light = true;
+        assertEquals(GrugControlWire.SETTLE_YES, loop.server.settle(ask));
+        // The remembered yes answers the next ask without a round trip.
+        assertTrue(loop.server.worldSettled(ask));
+        assertEquals(3, settled.lightAsks);
     }
 
     @Test
@@ -2062,7 +2117,7 @@ class GrugControlTest {
     }
 
     @Test
-    void anAdapterThatWiresNoRegionCheckHoldsEveryRegion() throws Throwable {
+    void anAdapterThatWiresNoBlockOrLightCheckHoldsWhatTheAskNames() throws Throwable {
         ModLoaderAdapter adapter =
                 (ModLoaderAdapter)
                         java.lang.reflect.Proxy.newProxyInstance(
@@ -2072,6 +2127,7 @@ class GrugControlTest {
                                         java.lang.reflect.InvocationHandler.invokeDefault(
                                                 proxy, method, args));
         assertTrue(adapter.holdsBlockRegion(null));
+        assertTrue(adapter.holdsRoomLight(null));
     }
 
     @Test
@@ -2109,6 +2165,7 @@ class GrugControlTest {
         caller.playUiSound("b", 1, 1);
         assertTrue(caller.isWorldSettled());
         assertTrue(caller.holdsBlocks(null));
+        assertTrue(caller.holdsRoomLight(null));
         caller.forgetSettledFrames();
         assertEquals(0L, caller.screenIdentity());
         assertEquals(0.0, caller.screenRead(GrugScreenCalls.GUI_LEFT));
@@ -2149,6 +2206,7 @@ class GrugControlTest {
                         "playUiSound b",
                         "isWorldSettled",
                         "holdsBlockRegion null",
+                        "holdsRoomLight null",
                         "forgetSettledFrames",
                         "screenIdentityForTest",
                         "guiLeftForTest",
@@ -4131,6 +4189,11 @@ class GrugControlTest {
                             }
 
                             @Override
+                            public boolean holdsRoomLight(GrugLightAsk.Expected expected) {
+                                return true;
+                            }
+
+                            @Override
                             public boolean isWorldSettled() {
                                 throw new AssertionError("no settle ask was expected");
                             }
@@ -4517,7 +4580,7 @@ class GrugControlTest {
                     @Override
                     public boolean sendToStarter(Object starter, byte[] message) {
                         long id = GrugControlWire.decode(message).id;
-                        server[0].onMessage(PLAYER, GrugControlWire.answerValue(id, (byte) 2));
+                        server[0].onMessage(PLAYER, GrugControlWire.answerValue(id, (byte) 3));
                         return true;
                     }
 
@@ -4540,7 +4603,7 @@ class GrugControlTest {
                 assertThrows(
                         GrugControlServer.ControlException.class, () -> server[0].worldSettled());
 
-        assertTrue(e.getMessage().contains("not 0 or 1"), e.getMessage());
+        assertTrue(e.getMessage().contains("not 0, 1 or 2"), e.getMessage());
         assertTrue(GrugControlServer.failed());
     }
 
