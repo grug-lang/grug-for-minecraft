@@ -16,8 +16,8 @@ tests have to run when anything that mod can observe changed. A mod can observe:
   test-saves/, the scripts, the Gradle files, the workflow and so on;
 - the namespaces the mods share with vanilla: a mod's data/ or assets/ files outside its ``grug``
   namespace (``c`` and ``minecraft`` tags, say) change what every mod sees;
-- the stitched block atlas, which a texture that any mod's assets/ adds or removes grows or shrinks,
-  shifting every sprite in it and moving a texel of every capture (#1575).
+- the stitched atlases, which a texture that any mod's assets/ adds, removes or changes the type of
+  can rebuild, moving a texel of a capture (#1575).
 
 So only a change confined to the grug-namespace files of other mods lets a mod skip, and anything
 else selects every mod: a file outside mods/, a file directly in mods/, a mod directory whose name
@@ -54,8 +54,8 @@ SMOKETEST_DIR = ".github/smoketest/"
 # The namespace whose files only the mods that name them can see. Any other namespace under a mod's
 # data/ or assets/ (c, minecraft, ...) is shared with vanilla and with every other mod.
 PRIVATE_NAMESPACE = "grug"
-# A texture a mod's assets/ adds or removes can grow or shrink the stitched block atlas, which
-# shifts every sprite in it and moves a texel of every capture in every mod (#1575).
+# A texture a mod's assets/ adds, removes or changes the type of can rebuild a stitched atlas, which
+# moves a texel of a capture and can make any mod's golden stale (#1575).
 ATLAS_DIR = "textures"
 # What a mod ships that others can name, by the directory it is in.
 SHIPPED_DIRS = ("code", "data", "assets")
@@ -265,10 +265,10 @@ def affected_mods(repo: Path, base: str, head: str):
             raise SelectEverything(
                 f"{path} is in the namespace {parts[3]!r}, which every mod shares with vanilla"
             )
-        if status in ("A", "D") and is_texture(path):
+        if status in ("A", "D", "T") and is_texture(path):
             raise SelectEverything(
-                f"{path} adds or removes a texture, which changes the stitched block atlas and "
-                "moves a texel of every capture, so every mod's goldens may move"
+                f"{path} is a texture the diff adds, removes or changes the type of, which can "
+                "rebuild a stitched atlas and move a texel of a capture, so every mod's tests run"
             )
         changed.add(mod)
 
