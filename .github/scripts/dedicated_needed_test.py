@@ -12,6 +12,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "dedicated-needed.py"
 
+SCRIPT_SPEC = importlib.util.spec_from_file_location("dedicated_needed", SCRIPT)
+script = importlib.util.module_from_spec(SCRIPT_SPEC)
+SCRIPT_SPEC.loader.exec_module(script)
+
 REPO_SPEC = importlib.util.spec_from_file_location(
     "affected_mods_test", HERE / "affected_mods_test.py"
 )
@@ -93,6 +97,113 @@ class DedicatedNeededTest(unittest.TestCase):
         }
         self.assertEqual(self.answer(changes, None, *DISPATCH), "false")
         self.assertIn("all 5 changed paths", self.reason)
+
+    # A test that captures, or reads what the capture is drawn from, reaches the joined client of a
+    # dedicated leg and can fail there while every client leg passes (#1696). The two shapes below
+    # are #1696's: before the fix it stepped from ctx.camera(), and after it from ctx.get_origin().
+    OVERLAY_FOLLOWS_PLAYER = """\
+export tick(ctx: TestTickContext) {
+    origin: Vec3 = ctx.get_origin()
+    ctx.set_player_position(origin.x() + 3.0, origin.y() - 4.62, origin.z())
+    ctx.screenshot().equals(r"screenshots/overlay_follows_player", 100, 430, 840, 640)
+}
+"""
+    OVERLAY_BEFORE_1696 = """\
+export tick(ctx: TestTickContext) {
+    before: Vec3 = ctx.camera()
+    ctx.set_player_position(before.x() + 3.0, before.y() - 1.62, before.z())
+    ctx.screenshot().equals(r"screenshots/overlay_follows_player", 100, 430, 840, 640)
+}
+"""
+
+    def test_a_mod_test_that_draws_a_capture_runs_the_legs(self):
+        changes = {
+            "mods/safesquares/tests/overlay_follows_player-Test.grug": self.OVERLAY_FOLLOWS_PLAYER
+        }
+        self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
+        self.assertIn("screenshot", self.reason)
+
+    def test_the_1696_change_runs_the_legs(self):
+        changes = {
+            "mods/safesquares/tests/overlay_follows_player-Test.grug": self.OVERLAY_FOLLOWS_PLAYER,
+            "mods/safesquares/about.json": '{"b":2}',
+        }
+        self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
+        self.assertIn("overlay_follows_player-Test.grug", self.reason)
+
+    def test_a_mod_test_that_reads_the_joined_cameras_camera_runs_the_legs(self):
+        changes = {
+            "mods/safesquares/tests/overlay_follows_player-Test.grug": self.OVERLAY_BEFORE_1696
+        }
+        self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
+        self.assertIn("camera", self.reason)
+
+    def test_a_mod_test_that_only_reads_the_world_and_the_items_keeps_the_saving(self):
+        # get_origin and get_player answer from this side's own test player, which on a dedicated
+        # leg is the server's copy, so a test that only builds from them cannot fail there.
+        test = """\
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    player: Player = ctx.get_player()
+    level.place_block(origin.x(), origin.y() - 4.0, origin.z(), "minecraft:stone")
+    held: Option = player.get_held_item()
+    ctx.assert(held.has(), "the player should hold an item")
+    ctx.not_done()
+}
+"""
+        changes = {
+            "mods/buildcraft/tests/pipe-Test.grug": test,
+            "mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n",
+        }
+        self.assertEqual(self.answer(changes, None, *DISPATCH), "false")
+        self.assertIn("all 2 changed paths", self.reason)
+
+    def test_a_changed_grug_outside_tests_keeps_the_saving(self):
+        # Only a test file's own calls are read, so a code file's text cannot run a leg.
+        changes = {
+            "mods/buildcraft/code/wrench-Item.grug": "# ctx.screenshot() is a test's call\non_use() { }\n",
+            "mods/buildcraft/tests/wrench-Test.grug": "tick() { }\n",
+        }
+        self.assertEqual(self.answer(changes, None, *DISPATCH), "false")
+
+    def test_a_deleted_test_file_runs_the_legs(self):
+        changes = {"mods/buildcraft/tests/wrench-Test.grug": None}
+        self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
+        self.assertIn("cannot be read", self.reason)
+
+    def test_a_renamed_test_file_runs_the_legs(self):
+        # A rename is a delete and an add, and the deleted half cannot be read at the head.
+        changes = {
+            "mods/buildcraft/tests/wrench-Test.grug": None,
+            "mods/buildcraft/tests/wrench_renamed-Test.grug": "tick() { }\n",
+        }
+        self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
+        self.assertIn("wrench-Test.grug", self.reason)
+
+    def test_a_test_path_that_is_not_a_grug_runs_the_legs(self):
+        changes = {"mods/buildcraft/tests/notes.md": "notes\n"}
+        self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
+        self.assertIn("not a .grug test file", self.reason)
+
+    def test_a_test_file_the_script_cannot_read_runs_the_legs(self):
+        reason = script.mod_test_reason(
+            Path(self.repo.path), "0" * 40, "mods/buildcraft/tests/wrench-Test.grug"
+        )
+        self.assertIsNotNone(reason)
+        self.assertIn("cannot be read", reason)
+
+    def test_a_pull_request_that_changes_a_joined_client_test_runs_every_leg(self):
+        changes = {
+            "mods/safesquares/tests/overlay_follows_player-Test.grug": self.OVERLAY_FOLLOWS_PLAYER
+        }
+        for event in ("pull_request", "push"):
+            with self.subTest(event):
+                self.setUp()
+                self.assertEqual(self.loaders_of(changes, event), ALL)
+                self.assertIn("screenshot", self.reason)
+                self.setUp()
+                self.assertEqual(self.answer(changes, None, "--event", event), "true")
 
     def test_every_path_that_is_not_client_only_runs_the_legs(self):
         cases = {
