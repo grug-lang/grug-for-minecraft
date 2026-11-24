@@ -307,13 +307,16 @@ class AffectedModsTest(unittest.TestCase):
         )
 
     def test_a_deleted_mod_is_not_selected_but_the_mods_that_named_it_are(self):
-        base = self.repo.commit({"mods/solo/code/solo-Block.grug": 'x("grug:foo_block")\n'})
+        # buildcraft ships no texture, so its deletion moves no atlas and only its dependents run.
+        base = self.repo.commit({"mods/solo/code/solo-Block.grug": 'x("grug:wrench")\n'})
         self.assertEqual(
             self.select(
                 {
-                    "mods/examplemod/code/foo_block-Block.grug": None,
-                    "mods/examplemod/about.json": None,
-                    "mods/examplemod/assets/grug/textures/block/foo_block.png": None,
+                    "mods/buildcraft/about.json": None,
+                    "mods/buildcraft/code/wrench-Item.grug": None,
+                    "mods/buildcraft/tests/wrench-Test.grug": None,
+                    "mods/buildcraft/tests/pipe-Test.grug": None,
+                    "mods/buildcraft/data/grug/recipes/crafting/wrench.json": None,
                 },
                 base,
             ),
@@ -405,6 +408,48 @@ class AffectedModsTest(unittest.TestCase):
     def test_a_binary_file_is_not_scanned_but_still_counts_as_a_change(self):
         self.assertEqual(
             self.select({"mods/examplemod/assets/grug/textures/block/foo_block.png": "png2"}),
+            "coverage,examplemod",
+        )
+
+    # A texture that is added or removed moves the stitched block atlas, so every mod may need its
+    # goldens retaken (#1575). None of these diffs shows a mod's own test that could see a texel.
+
+    def test_an_added_texture_selects_every_mod(self):
+        self.assertEqual(
+            self.select({"mods/solo/assets/grug/textures/block/solo_block.png": "png"}), ""
+        )
+        self.assertIn("stitched block atlas", self.reason)
+        self.assertIn("solo_block.png", self.reason)
+
+    def test_a_removed_texture_selects_every_mod(self):
+        self.assertEqual(
+            self.select({"mods/examplemod/assets/grug/textures/block/foo_block.png": None}), ""
+        )
+        self.assertIn("stitched block atlas", self.reason)
+
+    def test_a_renamed_texture_selects_every_mod(self):
+        # A rename is a delete and an add, so the old mod and the new one both move the atlas.
+        old = self.repo.path / "mods/examplemod/assets/grug/textures/block/foo_block.png"
+        self.assertEqual(
+            self.select(
+                {
+                    "mods/examplemod/assets/grug/textures/block/foo_block.png": None,
+                    "mods/solo/assets/grug/textures/block/foo_block.png": old.read_text(),
+                }
+            ),
+            "",
+        )
+        self.assertIn("stitched block atlas", self.reason)
+
+    def test_a_modified_texture_keeps_the_mod_and_dependents(self):
+        self.assertEqual(
+            self.select({"mods/examplemod/assets/grug/textures/block/foo_block.png": "png2"}),
+            "coverage,examplemod",
+        )
+
+    def test_an_added_non_texture_asset_keeps_the_mod_and_dependents(self):
+        self.assertEqual(
+            self.select({"mods/examplemod/assets/grug/models/block/foo_block.json": "{}"}),
             "coverage,examplemod",
         )
 

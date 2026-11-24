@@ -15,7 +15,9 @@ tests have to run when anything that mod can observe changed. A mod can observe:
 - everything the game runs that is not in a mod directory: core/, shared/, loaders/, mod_api.json,
   test-saves/, the scripts, the Gradle files, the workflow and so on;
 - the namespaces the mods share with vanilla: a mod's data/ or assets/ files outside its ``grug``
-  namespace (``c`` and ``minecraft`` tags, say) change what every mod sees.
+  namespace (``c`` and ``minecraft`` tags, say) change what every mod sees;
+- the stitched block atlas, which a texture that any mod's assets/ adds or removes grows or shrinks,
+  shifting every sprite in it and moving a texel of every capture (#1575).
 
 So only a change confined to the grug-namespace files of other mods lets a mod skip, and anything
 else selects every mod: a file outside mods/, a file directly in mods/, a mod directory whose name
@@ -52,6 +54,9 @@ SMOKETEST_DIR = ".github/smoketest/"
 # The namespace whose files only the mods that name them can see. Any other namespace under a mod's
 # data/ or assets/ (c, minecraft, ...) is shared with vanilla and with every other mod.
 PRIVATE_NAMESPACE = "grug"
+# A texture a mod's assets/ adds or removes can grow or shrink the stitched block atlas, which
+# shifts every sprite in it and moves a texel of every capture in every mod (#1575).
+ATLAS_DIR = "textures"
 # What a mod ships that others can name, by the directory it is in.
 SHIPPED_DIRS = ("code", "data", "assets")
 # A mod directory name the runner and run-loader.sh take as a list entry unchanged. Anything else
@@ -78,13 +83,23 @@ def git(repo: Path, *args: str, data: bytes | None = None) -> bytes:
     return result.stdout
 
 
-def changed_paths(repo: Path, base: str, head: str) -> list[str]:
-    """Every path the diff touches. Renames are off, so a moved file is a delete and an add and
-    both of its paths count. -z keeps a path with a space, a newline or a quote in one piece."""
+def changed_entries(repo: Path, base: str, head: str) -> list[tuple[str, str]]:
+    """Every (git status letter, path) the diff touches. Renames are off, so a moved file is a
+    delete and an add and both of its paths count. -z keeps a path with a space, a newline or a
+    quote in one piece, and puts the status in its own NUL separated field."""
     for ref in (base, head):
         git(repo, "cat-file", "-e", f"{ref}^{{commit}}")
-    out = git(repo, "diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", base, head)
-    return [p.decode(errors="surrogateescape") for p in out.split(b"\0") if p]
+    out = git(repo, "diff", "--name-status", "-z", "--no-renames", "--no-ext-diff", base, head)
+    fields = out.split(b"\0")
+    entries = []
+    for i in range(0, len(fields) - 1, 2):
+        entries.append((fields[i].decode(), fields[i + 1].decode(errors="surrogateescape")))
+    return entries
+
+
+def changed_paths(repo: Path, base: str, head: str) -> list[str]:
+    """Every path the diff touches, whatever its status."""
+    return [path for _, path in changed_entries(repo, base, head)]
 
 
 def tree_files(repo: Path, ref: str) -> dict[str, list[tuple[str, str]]]:
@@ -140,6 +155,12 @@ def is_scanned(path: str) -> bool:
     if name in NOT_SCANNED_NAMES or name.startswith("LICENSE"):
         return False
     return PurePosixPath(name).suffix.lower() not in NOT_SCANNED_SUFFIXES
+
+
+def is_texture(path: str) -> bool:
+    """Whether a path inside a mod runs through a ``textures/`` directory under ``assets/``."""
+    parts = path.split("/")
+    return len(parts) > 4 and parts[2] == "assets" and ATLAS_DIR in parts[3:-1]
 
 
 def strip_grug_comments(text: str) -> str:
@@ -226,12 +247,12 @@ def dependencies(repo: Path, base: str, head: str):
 
 def affected_mods(repo: Path, base: str, head: str):
     """The sorted mods to run, or None for every mod. Raises SelectEverything with the reason."""
-    paths = changed_paths(repo, base, head)
-    if not paths:
+    entries = changed_entries(repo, base, head)
+    if not entries:
         raise SelectEverything("the diff is empty, which is more likely a mistake than a no-op")
 
     changed: set[str] = set()
-    for path in paths:
+    for status, path in entries:
         if path.startswith(SMOKETEST_DIR):
             continue  # the advisory smoketest host: no mod's test in the game reads it (#1589)
         parts = PurePosixPath(path).parts
@@ -243,6 +264,11 @@ def affected_mods(repo: Path, base: str, head: str):
         if parts[2] in ("data", "assets") and len(parts) > 3 and parts[3] != PRIVATE_NAMESPACE:
             raise SelectEverything(
                 f"{path} is in the namespace {parts[3]!r}, which every mod shares with vanilla"
+            )
+        if status in ("A", "D") and is_texture(path):
+            raise SelectEverything(
+                f"{path} adds or removes a texture, which changes the stitched block atlas and "
+                "moves a texel of every capture, so every mod's goldens may move"
             )
         changed.add(mod)
 

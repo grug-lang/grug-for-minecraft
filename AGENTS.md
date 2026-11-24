@@ -176,7 +176,10 @@ CI. Light jobs stay local: Gradle builds,
   diff: `.github/scripts/affected-loaders.py` narrows the loader jobs to the loaders its diff
   reaches plus one representative per mechanism (#637), except that a diff touching a mod's
   `screenshots/` or `assets/` runs every loader, because a golden is a capture per loader and an
-  asset is rendered by every loader (#1088). `.github/scripts/reference-needed.py` and
+  asset is rendered by every loader (#1088). An added or removed texture anywhere under a mod's
+  `assets/` grows or shrinks the stitched block atlas and moves one texel of every capture, as the
+  two `demo_chain` variants in #1575 show, so the pull request that adds one retakes every golden it
+  moves, on every loader, in the same pull request. `.github/scripts/reference-needed.py` and
   `.github/scripts/no-tests.py` skip the `reference` and the test jobs a diff cannot reach, each
   saying why in its log, and a golden also runs `reference`, which stages `screenshots/`, so a
   buildcraft golden pull request runs 11. A pull request also runs the dedicated-server leg of each
