@@ -246,6 +246,20 @@ public final class GrugLightSync {
      */
     public static long lightFingerprint(
             int sectionX, int sectionY, int sectionZ, BlockLight light) {
+        return lightFingerprint(sectionX, sectionY, sectionZ, light, (x, y, z) -> 0);
+    }
+
+    /**
+     * {@link #lightFingerprint(int, int, int, BlockLight)} over both light fields: each position
+     * hashes its block level in the low four bits and its sky level in the next four.
+     *
+     * <p>A loader whose renderer draws a position with the larger of its sky and block light has to
+     * compare both, or a joined client whose sky field is stale (open sky where the server's room
+     * is enclosed) fingerprints equal to the server's while its frame is drawn at full brightness.
+     * A section with neither field lit is 0, as in the one-field form. See #1695 and #1496.
+     */
+    public static long lightFingerprint(
+            int sectionX, int sectionY, int sectionZ, BlockLight light, BlockLight sky) {
         long hash = 0xcbf29ce484222325L;
         int originX = sectionX << 4;
         int originY = sectionY << 4;
@@ -254,7 +268,10 @@ public final class GrugLightSync {
         for (int y = 0; y < 16; y++) {
             for (int z = 0; z < 16; z++) {
                 for (int x = 0; x < 16; x++) {
-                    int level = light.levelAt(originX + x, originY + y, originZ + z) & 0xF;
+                    int level =
+                            (light.levelAt(originX + x, originY + y, originZ + z) & 0xF)
+                                    | ((sky.levelAt(originX + x, originY + y, originZ + z) & 0xF)
+                                            << 4);
                     if (level != 0) {
                         lit = true;
                     }

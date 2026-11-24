@@ -241,7 +241,17 @@ local _ready(ctx: TestTickContext) bool {
     }
     # The swap's blocks have to reach the client and the mesh they scheduled has to be drawn, which
     # is what the fixed tick hold used to stand in for. See coverage_render, #259 and #804.
-    return ctx.world_settled()
+    if not ctx.world_settled() {
+        return false
+    }
+    # An engine is drawn with the light of its own cell, read from the client's world when the frame
+    # is drawn, and a settled world says nothing of whether the client's copy of that light, sky as
+    # well as block, is the server's yet: the b1.7.3-stationapi dedicated leg drew the engines at
+    # full brightness in a scene whose golden is dim (#1695). So the capture waits on that light.
+    if not ctx.light_applied(ex, ey, ez) {
+        return false
+    }
+    return true
 }
 
 # Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
