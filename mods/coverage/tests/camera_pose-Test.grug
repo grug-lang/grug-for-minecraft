@@ -5,13 +5,15 @@
 # block in 1024, which is far looser than that, so this test requires the very same doubles on
 # 120 consecutive ticks after the world has settled, with the player standing on a block the test
 # lays under the feet, as overlay_crosses has it.
-# The camera must also be on the snap's x and z (#1580): the pose get_origin names, with no drift. The
-# height is left to gravity, which settles it on the floor the test lays, so it is only required to be
-# stable. A crowd of mobs spawned on the player pushes and hits them, and
-# the a1 client's camera left the snap by 0.1 to 0.5 blocks and jumped in an arc within a second
-# (the mobcap golden's dark stone moved one to three pixels between runs), so the test crowds the
-# player and requires the pin to hold them. The bob terms are zero by construction: the camera is
-# read from a pose that did not move, and a player held still has no walk bob.
+# The camera must also be on the snap's x and z (#1580): the pose get_origin names, with no drift, and
+# at the height of the stone the test lays. Gravity settles the feet on its top and the camera is the
+# player's eye, so the eye is that top plus the eye height; a player who sank through the stone leaves
+# a camera that is still stable, which the floor check below fails rather than passing as held. A
+# crowd of mobs spawned on the player pushes and hits them, and the a1 client's camera left the snap by
+# 0.1 to 0.5 blocks and jumped in an arc within a second (the mobcap golden's dark stone moved one to
+# three pixels between runs), so the test crowds the player and requires the pin to hold them. The bob
+# terms are zero by construction: the camera is read from a pose that did not move, and a player held
+# still has no walk bob.
 state: number = 0
 ticks: number = 0
 settled: number = 0
@@ -21,6 +23,10 @@ z: number = 0
 snap_x: number = 0
 snap_y: number = 0
 snap_z: number = 0
+floor_x: number = 0
+floor_y: number = 0
+floor_z: number = 0
+floor_top: number = 0
 crowd: number = 0
 
 export tick(ctx: TestTickContext) {
@@ -28,7 +34,16 @@ export tick(ctx: TestTickContext) {
     ctx.assert(ctx.current_tick() < 600, "Wait: the world should settle.")
     if state == 0 {
         origin: Vec3 = ctx.get_origin()
-        level.place_block(Math.floor(origin.x()), Math.floor(origin.y() - 4.12) - 1, Math.floor(origin.z()), "minecraft:stone")
+        # The stone's top, and the block under it. The origin is the eye plus 3 and the feet are 1.62
+        # under the eye, so the origin less 4.12 is the feet plus half a block: its floor is the top
+        # the feet stand on, which is the top of the block already under them, rounded so that a feet
+        # position a hair off the top still names that block. These are stored rather than
+        # recomputed, so the check below names the block that was placed.
+        floor_top = Math.floor(origin.y() - 4.12)
+        floor_y = floor_top - 1.0
+        floor_x = Math.floor(origin.x())
+        floor_z = Math.floor(origin.z())
+        level.place_block(floor_x, floor_y, floor_z, "minecraft:stone")
         snap_x = origin.x()
         snap_y = origin.y() - 3.0
         snap_z = origin.z()
@@ -63,11 +78,16 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    # The controls that make the x and z checks mean something: the pigs are still there to push
-    # and the floor under the player is solid, so a camera that stayed put was held and not spared.
+    # The controls that make the x and z checks mean something: the pigs are still there to push and
+    # the player is standing on the stone the test laid, so a camera that stayed put was held and not
+    # spared. The feet are read from the player rather than recomputed from the snap, so a player who
+    # fell through the stone fails here, and the eye one eye height above them is the camera's height.
     ctx.assert(level.count_mobs("passive") >= crowd, "The ten pigs on the player should still be there.")
-    ctx.assert(not level.is_air(Math.floor(snap_x), Math.floor(snap_y - 1.62) - 1, Math.floor(snap_z)), "The floor under the player should be solid.")
+    ctx.assert(not level.is_air(floor_x, floor_y, floor_z), "The floor under the player should be solid.")
+    feet: Vec3 = ctx.get_player().position()
+    ctx.assert(_near(feet.y(), floor_top), "The player's feet should be on the top of the stone the test laid.")
     camera: Vec3 = ctx.camera()
+    ctx.assert(_near(camera.y(), feet.y() + 1.62), "The camera should be the eye of the player standing on that stone.")
     if state == 1 {
         x = camera.x()
         y = camera.y()
@@ -83,4 +103,10 @@ export tick(ctx: TestTickContext) {
     if ticks < 120 {
         ctx.not_done()
     }
+}
+
+# The feet and the stone's top are the same number on every loader to within the eye height's own
+# float, which is far under this; a feet position one tick of gravity off is 0.0784.
+local _near(a: number, b: number) bool {
+    return a > b - 0.001 and a < b + 0.001
 }

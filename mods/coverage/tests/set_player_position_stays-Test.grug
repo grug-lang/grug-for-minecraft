@@ -3,8 +3,11 @@
 # client's box 5e-9 under the feet, inside the stone it stood on, so the client fell through it
 # for the ticks until the server's hold corrected it and the camera read 0.2336 low (the flake of
 # camera_pose-Test, seen whenever a crowd pushed the server's copy and the hold teleported). Each
-# move is repeated and followed by a wait of several client ticks before the eye is read, because
-# the fall happens on the ticks after the teleport and not in the call.
+# move is repeated, and the eye is read on every tick of the window that follows it: the server's
+# hold puts a fallen client back at the start of every server tick, so a single read at the window's
+# end can land after a correction and see a position the hold had to put back rather than one it
+# held. A read on each tick sees the fall wherever in the window it happens, and every one of them
+# has to be the eye the move named.
 started: bool = false
 laid: bool = false
 moved: number = 0
@@ -44,22 +47,35 @@ export tick(ctx: TestTickContext) {
         return
     }
     if waited == 0 {
+        # The move names the feet the player already stands at, one block along x: the eye is the
+        # height it had, and that is what every read below requires.
         ctx.set_player_position(start_x + 1.0, start_y - 1.62, start_z)
         waited = 1
         ctx.not_done()
         return
     }
+    camera: Vec3 = ctx.camera()
+    # A fall of one tick is 0.0784, so a thousandth is far inside what the bug moved the eye by.
+    ctx.assert(_near(camera.y(), start_y), "The eye sank after the move.")
     if waited < 6 {
         waited = waited + 1
         ctx.not_done()
         return
     }
-    camera: Vec3 = ctx.camera()
-    # A fall of one tick is 0.0784, so a thousandth is far inside what the bug moved the eye by.
-    ctx.assert(camera.y() > start_y - 0.001 and camera.y() < start_y + 0.001, "The eye sank after the move.")
+    # The window is over, so the move has had every tick it could need to reach the client: the
+    # player is at the feet the move named, one block along x at the same height and depth.
+    ctx.assert(_near(camera.x(), start_x + 1.0), "The player should be at the x the move named.")
+    ctx.assert(_near(camera.z(), start_z), "A move should leave the axis it did not name alone.")
     moved = moved + 1
     waited = 0
-    if moved < 10 {
+    if moved < 6 {
         ctx.not_done()
     }
+}
+
+# A block in 1024, the tolerance camera-Test uses and the neighbouring set_player_position test uses
+# for the same move: the older loaders carry the position as a float, so a coordinate near 70
+# expands when it is read back as a double.
+local _near(a: number, b: number) bool {
+    return a > b - 0.0009765625 and a < b + 0.0009765625
 }
