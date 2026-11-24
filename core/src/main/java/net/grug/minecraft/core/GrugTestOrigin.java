@@ -52,10 +52,17 @@ public final class GrugTestOrigin {
     }
 
     /**
-     * The feet under an eye at {@code eyeY}: {@link #clientEye(double)}'s inverse, exact for a
-     * position the game built as the feet plus its own {@code float} height. A loader whose {@code
-     * setPositionAndAngles} takes the feet subtracts this before passing them, and the game adds
-     * the same height back, so the pinned camera is the eye the capture named (#1662).
+     * The feet under an eye at {@code eyeY}: {@link #clientEye(double)}'s inverse. A loader whose
+     * {@code setPositionAndAngles} takes the feet subtracts this before passing them, and the game
+     * adds the same height back, so the pinned camera is the eye the capture named (#1662).
+     *
+     * <p>The subtraction recovers the feet bit for bit when the game's own addition was exact,
+     * which an eighth-block grid and every feet value a test room is built from are. It is not
+     * exact for an arbitrary double: the sum can round its lowest set bit away before this
+     * subtracts the height, and 1.7 comes back one unit in the last place of the sum high, 2.2e-16,
+     * which puts the pinned camera that far from the eye rather than on it. The eye direction needs
+     * no such caveat: {@link #clientEye(double)} is the same widening and the same addition the
+     * game does, so it names the game's own eye for every feet value.
      */
     public static double feetOfEye(double eyeY) {
         return eyeY - EYE_HEIGHT;
