@@ -1,8 +1,9 @@
 # Covers PipeTransportItems.entityEntering's readjustSpeed, which the cobblestone pipe inherits from
 # the default: a speed above Utils.pipeNormalSpeed (0.01) loses 0.01, and a speed below it is raised
-# to 0.01. In the reference the gold pipe's entityEntered is what makes an item faster than normal
-# (pipeNormalSpeed * 20), and this port has no gold pipe yet, so the three records are written at the
-# speeds a gold pipe would leave them. All three enter one cobblestone pipe in the same tick: 0.03
+# to 0.01. The golden pipe's entityEntered is what makes an item faster than normal
+# (pipeNormalSpeed * 20) in the reference, and this test writes the speeds a golden pipe would leave,
+# so the readjust is pinned without a golden pipe in the fixture. All three enter one cobblestone
+# pipe in the same tick: 0.03
 # loses 0.01 and enters at 0.02, 0.015 loses 0.01 and its 0.005 is raised back to 0.01, and 0.01
 # loses nothing because the floor puts it back.
 # Each record is written 0.01 short of the east face at its own speed, so the one move the test runs
