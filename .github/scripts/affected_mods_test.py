@@ -411,24 +411,24 @@ class AffectedModsTest(unittest.TestCase):
             "coverage,examplemod",
         )
 
-    # A texture that is added or removed moves the stitched block atlas, so every mod may need its
-    # goldens retaken (#1575). None of these diffs shows a mod's own test that could see a texel.
+    # A texture the diff adds, removes or changes the type of can rebuild a stitched atlas, so every
+    # mod runs (#1575). None of these diffs shows a mod's own test that could see a texel.
 
     def test_an_added_texture_selects_every_mod(self):
         self.assertEqual(
             self.select({"mods/solo/assets/grug/textures/block/solo_block.png": "png"}), ""
         )
-        self.assertIn("stitched block atlas", self.reason)
+        self.assertIn("stitched atlas", self.reason)
         self.assertIn("solo_block.png", self.reason)
 
     def test_a_removed_texture_selects_every_mod(self):
         self.assertEqual(
             self.select({"mods/examplemod/assets/grug/textures/block/foo_block.png": None}), ""
         )
-        self.assertIn("stitched block atlas", self.reason)
+        self.assertIn("stitched atlas", self.reason)
 
     def test_a_renamed_texture_selects_every_mod(self):
-        # A rename is a delete and an add, so the old mod and the new one both move the atlas.
+        # A rename is a delete and an add, so the old mod and the new one both rebuild the atlas.
         old = self.repo.path / "mods/examplemod/assets/grug/textures/block/foo_block.png"
         self.assertEqual(
             self.select(
@@ -439,15 +439,32 @@ class AffectedModsTest(unittest.TestCase):
             ),
             "",
         )
-        self.assertIn("stitched block atlas", self.reason)
+        self.assertIn("stitched atlas", self.reason)
 
-    def test_a_modified_texture_keeps_the_mod_and_dependents(self):
+    def test_a_texture_that_changes_type_selects_every_mod(self):
+        # A png replaced by a symlink is a typechange, not a delete and an add, and still counts.
+        texture = self.repo.path / "mods/examplemod/assets/grug/textures/block/foo_block.png"
+        texture.unlink()
+        texture.symlink_to("foo_block_target.png")
+        self.repo.commit({}, "png to symlink")
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), self.base, "HEAD", "--repo", str(self.repo.path)],
+            capture_output=True,
+            text=True,
+        )
+        self.reason = result.stderr
+        self.assertEqual(result.stdout.strip(), "")
+        self.assertIn("stitched atlas", self.reason)
+
+    def test_a_png_outside_a_textures_directory_keeps_the_mod_and_dependents(self):
+        # is_texture looks for a textures/ directory, never for the .png suffix alone.
         self.assertEqual(
-            self.select({"mods/examplemod/assets/grug/textures/block/foo_block.png": "png2"}),
+            self.select({"mods/examplemod/assets/grug/models/block/foo_block.png": "png"}),
             "coverage,examplemod",
         )
 
     def test_an_added_non_texture_asset_keeps_the_mod_and_dependents(self):
+        # The negative control: a model is no texture, so the rule must not widen to every asset.
         self.assertEqual(
             self.select({"mods/examplemod/assets/grug/models/block/foo_block.json": "{}"}),
             "coverage,examplemod",
