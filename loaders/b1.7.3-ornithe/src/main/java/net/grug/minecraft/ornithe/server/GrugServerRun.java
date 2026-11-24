@@ -261,7 +261,9 @@ public final class GrugServerRun {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
-                                + " ms. Firing tests!");
+                                + " ms. Firing tests! Test origin is "
+                                + GrugCore.getAdapter().getTestOrigin()
+                                + ".");
                 runner = new GrugTestRunner();
             } else {
                 failJoinTimeoutIfDue();
