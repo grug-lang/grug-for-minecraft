@@ -53,6 +53,9 @@ public final class GrugServerRun implements ITickHandler {
     private static boolean advancing = false;
     private static int gameSpeed = 1;
 
+    /** Whether the run has printed the origin it builds its rooms around, so it prints it once. */
+    private static boolean originReported = false;
+
     /**
      * Where the test save's own player stands, as feet: the position a client-only run's room is
      * built around. A joined player starts from the world's random spawn, and the renderer's single
@@ -473,9 +476,25 @@ public final class GrugServerRun implements ITickHandler {
             // click.
             GrugControlServer125.server().applyClientWork();
             runner.tick(testPlayer);
+            reportOrigin();
             if (runner.roomBuiltThisTick()) return;
             finishIfDone();
         }
+    }
+
+    /**
+     * Prints the origin the run builds its rooms around, once, after the run's first runner tick.
+     *
+     * <p>The first tick snaps the server's copy of the joined player to the centre of their block
+     * and builds the room there (#1161), so the answer here is the one every test and capture of
+     * the run works from. Read before that tick it named where the player joined, which on a save
+     * that starts off the centre is not the origin the rooms and tests used.
+     */
+    private static void reportOrigin() {
+        if (originReported) return;
+        originReported = true;
+        System.out.println(
+                "[GRUG CI] Test origin is " + GrugCore.getAdapter().getTestOrigin() + ".");
     }
 
     /**
@@ -524,9 +543,7 @@ public final class GrugServerRun implements ITickHandler {
         System.out.println(
                 "[GRUG CI] CI mode active & player loaded after "
                         + (System.currentTimeMillis() - waitStartMillis)
-                        + " ms. Firing tests! Test origin is "
-                        + GrugCore.getAdapter().getTestOrigin()
-                        + ".");
+                        + " ms. Firing tests!");
         testPlayer = starter;
         holdY = testPlayer.posY;
         runner = new GrugTestRunner();

@@ -858,12 +858,27 @@ while :; do
         wall_backed_tests="$wall_backed_tests buildcraft/tests/wooden_pipe_items buildcraft/tests/wooden_pipe_shapes"
         ;;
     esac
+    missing_wall_backed=""
     for wall_backed in $wall_backed_tests; do
       if ! grep -qF "[GRUG CI] PASS ${wall_backed}-Test.grug" "$SERVER_LOG"; then
-        echo "==> The run passed, but ${wall_backed}-Test.grug did not run on the dedicated server." >&2
-        exit 1
+        missing_wall_backed="$missing_wall_backed ${wall_backed}-Test.grug"
       fi
     done
+    # Every capture this leg skipped is named at once, so one log says which ones are missing instead
+    # of stopping at the first and leaving the rest for another run. A case that omits all four on a
+    # fake leg pins the whole list.
+    if [ -n "$missing_wall_backed" ]; then
+      echo "==> The run passed, but these tests did not run on the dedicated server:${missing_wall_backed}" >&2
+      exit 1
+    fi
+    # The server prints the origin it builds the run's rooms around (#1161), which is what tells a
+    # camera disagreement from a light one in the logs. Requiring the line keeps a leg whose print was
+    # lost, or that answered null, from passing on its required PASS lines alone, since neither the
+    # captures nor any test reads it.
+    if ! grep -qE '^\[GRUG CI\] Test origin is Vec3\[x=-?[0-9][0-9.Ee+-]*, y=-?[0-9][0-9.Ee+-]*, z=-?[0-9][0-9.Ee+-]*\]\.$' "$SERVER_LOG"; then
+      echo "==> The run passed, but its server printed no test origin line (#1161)." >&2
+      exit 1
+    fi
     # The parity #1161 added has to be proven on every leg that carries it: Test.camera reads the
     # joined client's camera on a dedicated server, and coverage/tests/camera asserts it is the eye
     # the room was built around. A loader whose capture client ignored the eye would otherwise
