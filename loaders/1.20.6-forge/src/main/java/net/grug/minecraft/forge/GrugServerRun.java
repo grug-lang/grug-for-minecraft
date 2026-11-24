@@ -138,7 +138,10 @@ public final class GrugServerRun {
         // Asking for the starter also covers every player leaving, since a cleared starter is not
         // connected, so the older players.isEmpty() question has no case of its own.
         GrugLinkArms.chooseWith(
-                starterPlayer(server) == null, server, this::failStarterLeft, this::runTests);
+                GrugLinkArms.missing(starterPlayer(server)),
+                server,
+                this::failStarterLeft,
+                this::runTests);
     }
 
     /** The runner's tick, once the world is ready and the starter is still here. */
@@ -190,7 +193,7 @@ public final class GrugServerRun {
      */
     private static void moveStrangersAway(MinecraftServer server) {
         GrugLinkArms.runOn(
-                System.getenv("GRUG_CI_SECOND_PLAYER") != null,
+                GrugLinkArms.known(System.getenv("GRUG_CI_SECOND_PLAYER")),
                 server,
                 GrugServerRun::moveStrangers);
     }
@@ -229,7 +232,7 @@ public final class GrugServerRun {
      */
     private void followTheTestsView(MinecraftServer server, ServerPlayer starter) {
         GrugLinkArms.runIfWith(
-                System.getenv("GRUG_CI_SECOND_PLAYER") != null,
+                GrugLinkArms.known(System.getenv("GRUG_CI_SECOND_PLAYER")),
                 this,
                 server,
                 starter,
