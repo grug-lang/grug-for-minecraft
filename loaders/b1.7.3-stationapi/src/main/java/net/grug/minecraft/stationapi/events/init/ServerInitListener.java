@@ -1,6 +1,5 @@
 package net.grug.minecraft.stationapi.events.init;
 
-import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugIdShortage;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
 import net.grug.minecraft.stationapi.server.ServerChatReports;
@@ -20,7 +19,6 @@ import java.lang.invoke.MethodHandles;
  * <p>A class named only here is never loaded by a client, which is what lets it mention classes the
  * game marked server-only.
  */
-@GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class ServerInitListener {
     static {
         EntrypointManager.registerLookup(MethodHandles.lookup());

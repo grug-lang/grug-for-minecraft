@@ -3,7 +3,6 @@ package net.grug.minecraft.stationapi;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.ModLoaderAdapter;
-import net.grug.minecraft.grug.GrugGenerated;
 
 /**
  * Picks the adapter for the process the game is running as.
@@ -14,7 +13,6 @@ import net.grug.minecraft.grug.GrugGenerated;
  * marked server-only in a client process, and the verifier does not load a class that is only
  * returned as an interface (#165).
  */
-@GrugGenerated("the server arm is reached only by the dispatch-only dedicated-server job")
 public final class ServerAdapterChoice {
     private ServerAdapterChoice() {}
 

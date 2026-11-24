@@ -63,9 +63,6 @@ public final class GrugControlForge {
     static final long DEFAULT_TIMEOUT_MILLIS = 20_000;
 
     /** The message, in either direction. */
-    @GrugGenerated(
-            "the Forge channel glue of #1040: no test the coverage gate counts can reach it, since"
-                    + " only the multiplayer job runs it")
     public record Packet(byte[] bytes) {}
 
     private static SimpleChannel channel;
