@@ -37,6 +37,20 @@ LOADER = "b1.7.3-ornithe"
 SERVER_VERSION = "b1.7.3"
 SECOND_LOADER = "1.20.6-forge"
 
+
+def stage_scripts(scripts: Path, *names: str) -> None:
+    """Copies the real scripts a fake repository runs into its `.github/scripts`.
+
+    run-multiplayer.sh sources pin-llvmpipe.sh and retryable-failure.sh at start, so a fixture that
+    copies it stages those too. A missing one puts a "No such file or directory" line in every fake
+    run's stderr, which is the stream a failing assertion here prints, so it hid this file's own
+    cause once (#1715). Sourcing pin-llvmpipe.sh only prints the CPU and exports two Mesa variables
+    in the run-multiplayer.sh process the fixture starts, so it cannot touch the runner's own flags.
+    """
+    for name in names:
+        shutil.copy(SCRIPTS / name, scripts / name)
+
+
 # The eleven overlay and JEI tests every leg but a1.1.2_01 requires twice: its PASS line and the line
 # only a test whose overlay was drawn on the joined client writes. a1.1.2_01 does not require
 # overlay and jei/jei, because its server does not apply the container click the joined client
@@ -234,9 +248,13 @@ class RunMultiplayerTest(unittest.TestCase):
 
         scripts = self.tmp / ".github" / "scripts"
         scripts.mkdir(parents=True)
-        shutil.copy(SCRIPTS / "run-multiplayer.sh", scripts / "run-multiplayer.sh")
-        shutil.copy(SCRIPTS / "retryable-failure.sh", scripts / "retryable-failure.sh")
-        shutil.copy(SCRIPTS / "universal_jar.py", scripts / "universal_jar.py")
+        stage_scripts(
+            scripts,
+            "run-multiplayer.sh",
+            "pin-llvmpipe.sh",
+            "retryable-failure.sh",
+            "universal_jar.py",
+        )
 
         self.loader = self.tmp / "loaders" / LOADER
         self.loader.mkdir(parents=True)
@@ -426,8 +444,13 @@ class SecondPlayerTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp)
         scripts = self.tmp / ".github" / "scripts"
         scripts.mkdir(parents=True)
-        for name in ("run-multiplayer.sh", "retryable-failure.sh", "run-client-with-second.sh"):
-            shutil.copy(SCRIPTS / name, scripts / name)
+        stage_scripts(
+            scripts,
+            "run-multiplayer.sh",
+            "pin-llvmpipe.sh",
+            "retryable-failure.sh",
+            "run-client-with-second.sh",
+        )
 
         self.loader = self.tmp / "loaders" / SECOND_LOADER
         self.loader.mkdir(parents=True)
@@ -827,7 +850,13 @@ case "$*" in
     printf '[GRUG CI] CI mode active & player loaded after 1 ms. Firing tests!\\n'
     mkdir -p build/jacoco-server
     printf 'segment\\n' > build/jacoco-server/run.exec
-    sleep 6
+    if [ -n "${FAKE_SERVER_READY_FILE:-}" ]; then
+      # One case holds the server at a known point in a poll pass instead of for a fixed time.
+      : > "$FAKE_SERVER_READY_FILE"
+      while [ ! -e "${FAKE_SERVER_SIGNAL_FILE:?}" ]; do sleep 0.05; done
+    else
+      sleep 6
+    fi
     cat "${FAKE_SERVER_LINES_FILE:?}"
     exit 0
     ;;
@@ -913,8 +942,7 @@ class ServerUnlistedTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp)
         scripts = self.tmp / ".github" / "scripts"
         scripts.mkdir(parents=True)
-        shutil.copy(SCRIPTS / "run-multiplayer.sh", scripts / "run-multiplayer.sh")
-        shutil.copy(SCRIPTS / "retryable-failure.sh", scripts / "retryable-failure.sh")
+        stage_scripts(scripts, "run-multiplayer.sh", "pin-llvmpipe.sh", "retryable-failure.sh")
 
         self.loader = self.tmp / "loaders" / self.LOADER
         self.loader.mkdir(parents=True)
@@ -943,7 +971,7 @@ class ServerUnlistedTest(unittest.TestCase):
         lines.append("[GRUG CI] ALL 50 TESTS PASSED")
         return "\n".join(lines) + "\n"
 
-    def run_script(self):
+    def run_script(self, extra_env=None):
         env = dict(os.environ)
         env.update(
             {
@@ -953,6 +981,7 @@ class ServerUnlistedTest(unittest.TestCase):
                 "GRUG_CI_RUN_TIMEOUT": "60",
             }
         )
+        env.update(extra_env or {})
         env.pop("JAVA_HOME", None)
         env.pop("GRUG_ORNITHE_SERVER_HASH", None)
         return subprocess.run(
@@ -976,6 +1005,57 @@ class ServerUnlistedTest(unittest.TestCase):
         # The overlay pair is required on every leg now, so this one must have run them.
         self.assertIn("coverage/tests/overlay-Test.grug", log)
         self.assertIn("jei/tests/jei-Test.grug", log)
+
+    def test_a_server_that_writes_its_last_line_and_exits_inside_a_pass_passes(self):
+        # The poll read the log and then tested the server, so a line that landed between the two was
+        # reported as "The dedicated server exited without an ALL n TESTS PASSED line": main's retry
+        # leg died that way once (#1715). A grep shim holds the pass just after its success read, and
+        # the fake server writes every line and exits during the hold, which is that window made
+        # deterministic. The pass samples the server before it reads the log for that reason, as
+        # run-loader.sh does since #597, so the line it could not see yet is read on the next pass.
+        ready = self.tmp / "server-ready"
+        signal = self.tmp / "server-signal"
+        shim = self.tmp / "shim"
+        shim.mkdir()
+        grep = shim / "grep"
+        grep.write_text(
+            "#!/usr/bin/env bash\n"
+            '/usr/bin/grep "$@"; status=$?\n'
+            'case "$*" in\n'
+            '  *"panicked at"*)\n'
+            f'    if [ -e "{ready}" ] && [ ! -e "{signal}" ]; then\n'
+            f'      : > "{signal}"\n'
+            "      sleep 1.5\n"
+            "    fi\n"
+            "    ;;\n"
+            "esac\n"
+            "exit $status\n"
+        )
+        grep.chmod(0o755)
+        self.lines_file.write_text(self.server_lines())
+
+        result = self.run_script(
+            {
+                "FAKE_SERVER_READY_FILE": str(ready),
+                "FAKE_SERVER_SIGNAL_FILE": str(signal),
+                "PATH": f"{shim}:/usr/bin:/bin:/usr/local/bin",
+            }
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("run on the dedicated server with a client connected.", result.stdout)
+
+    def test_the_fake_run_reports_no_missing_file_error(self):
+        # run-multiplayer.sh sources pin-llvmpipe.sh at start. A fixture that stages the script
+        # without that file prints a "No such file or directory" line into every fake run's stderr,
+        # which is the stream a failing assertion here prints, so it hid this file's own cause once
+        # (#1715). Sourcing the pin only exports two Mesa variables in the script's own process.
+        self.lines_file.write_text(self.server_lines())
+        result = self.run_script()
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("No such file or directory", result.stderr)
+        self.assertIn("llvmpipe pinned: GALLIUM_OVERRIDE_CPU_CAPS=sse4.1", result.stdout)
 
 
 class ClientBuildRetryTest(unittest.TestCase):
@@ -1034,7 +1114,7 @@ Execution failed for task ':compileJava'.
         self.addCleanup(shutil.rmtree, self.tmp)
         scripts = self.tmp / ".github" / "scripts"
         scripts.mkdir(parents=True)
-        for name in ("run-multiplayer.sh", "retryable-failure.sh"):
+        for name in ("run-multiplayer.sh", "pin-llvmpipe.sh", "retryable-failure.sh"):
             shutil.copy(SCRIPTS / name, scripts / name)
 
         self.loader = self.tmp / "loaders" / self.LOADER
