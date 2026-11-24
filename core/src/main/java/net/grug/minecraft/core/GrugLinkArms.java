@@ -1,10 +1,13 @@
 package net.grug.minecraft.core;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * The decisions of a loader's {@link GrugControlServer.Link} that only a race or a missing handle
@@ -74,5 +77,65 @@ public final class GrugLinkArms {
         if (type.isInstance(value)) {
             action.accept(type.cast(value));
         }
+    }
+
+    /** The key of the first entry of {@code map} whose value is {@code value} itself, else null. */
+    public static <K, V> K keyOf(Map<K, V> map, V value) {
+        synchronized (map) {
+            for (Map.Entry<K, V> entry : map.entrySet()) {
+                if (entry.getValue() == value) {
+                    return entry.getKey();
+                }
+            }
+        }
+        return null;
+    }
+
+    /** {@code first} when it is known, else what {@code next} finds. */
+    public static <T> T orElse(T first, Supplier<T> next) {
+        return first != null ? first : next.get();
+    }
+
+    /** Records {@code value} under {@code key} only when both are known. */
+    public static <K, V> void learn(Map<K, V> map, K key, V value) {
+        if (key != null && value != null) {
+            map.put(key, value);
+        }
+    }
+
+    /** Whether {@code adapter} exists and {@code sideOf} says it is a dedicated server's. */
+    public static <A> boolean onDedicatedServer(A adapter, Function<A, GrugSide> sideOf) {
+        return adapter != null && sideOf.apply(adapter) == GrugSide.DEDICATED_SERVER;
+    }
+
+    /** Answers {@code answer} when {@code here}, else false without asking it. */
+    public static boolean ifHere(boolean here, BooleanSupplier answer) {
+        return here && answer.getAsBoolean();
+    }
+
+    /** Runs {@code task} when {@code here}. */
+    public static void runIf(boolean here, Runnable task) {
+        if (here) {
+            task.run();
+        }
+    }
+
+    /** Runs {@code onServer} when {@code server}, else {@code otherwise}. */
+    public static void choose(boolean server, Runnable onServer, Runnable otherwise) {
+        if (server) {
+            onServer.run();
+        } else {
+            otherwise.run();
+        }
+    }
+
+    /** Runs {@code task} when the environment says this is a CI run ({@code GRUG_CI=true}). */
+    public static void runIfCi(Function<String, String> env, Runnable task) {
+        runIf("true".equals(env.apply("GRUG_CI")), task);
+    }
+
+    /** {@code menu} when it is known and holds window {@code windowId}, else null (a stale id). */
+    public static <M> M matching(M menu, int windowId, ToIntFunction<M> idOf) {
+        return menu != null && idOf.applyAsInt(menu) == windowId ? menu : null;
     }
 }

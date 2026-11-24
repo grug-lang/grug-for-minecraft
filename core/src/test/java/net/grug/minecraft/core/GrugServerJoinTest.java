@@ -150,4 +150,32 @@ class GrugServerJoinTest {
                 GrugServerJoin.timeoutReportIfDue(0, 1000, 1000));
         assertEquals(null, GrugServerJoin.timeoutReportIfDue(0, 999, 1000));
     }
+
+    @Test
+    void theRunFiresOnlyWhenEveryConditionHoldsAndTheWorldIsAskedLast() {
+        java.util.List<String> some = java.util.Arrays.asList("p");
+        java.util.List<String> none = java.util.Collections.emptyList();
+        java.util.concurrent.atomic.AtomicInteger asked =
+                new java.util.concurrent.atomic.AtomicInteger();
+        java.util.function.BooleanSupplier ready =
+                () -> {
+                    asked.incrementAndGet();
+                    return true;
+                };
+
+        assertFalse(GrugServerJoin.mayFire(none, true, "s", ready));
+        assertFalse(GrugServerJoin.mayFire(some, false, "s", ready));
+        assertFalse(GrugServerJoin.mayFire(some, true, null, ready));
+        assertEquals(0, asked.get());
+        assertFalse(GrugServerJoin.mayFire(some, true, "s", () -> false));
+        assertTrue(GrugServerJoin.mayFire(some, true, "s", ready));
+        assertEquals(1, asked.get());
+    }
+
+    @Test
+    void theStarterIsGoneWhenNobodyOrNotTheyAreOnTheServer() {
+        assertTrue(GrugServerJoin.starterGone(java.util.Collections.emptyList(), "s"));
+        assertTrue(GrugServerJoin.starterGone(java.util.Arrays.asList("a"), "s"));
+        assertFalse(GrugServerJoin.starterGone(java.util.Arrays.asList("a", "s"), "s"));
+    }
 }

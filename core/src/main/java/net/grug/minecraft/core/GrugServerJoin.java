@@ -1,5 +1,6 @@
 package net.grug.minecraft.core;
 
+import java.util.Collection;
 import java.util.function.Function;
 
 /**
@@ -121,5 +122,25 @@ public final class GrugServerJoin {
         return timedOut(waitStartMillis, nowMillis, timeoutMillis)
                 ? timeoutReport(timeoutMillis)
                 : null;
+    }
+
+    /**
+     * Whether the run may fire its tests: a player is here, a run was started, the starter's player
+     * is known, and then, asked only when the three before it hold, the world is ready.
+     */
+    public static boolean mayFire(
+            Collection<?> players,
+            boolean hasStarter,
+            Object starterPlayer,
+            java.util.function.BooleanSupplier worldReady) {
+        return !players.isEmpty()
+                && hasStarter
+                && starterPlayer != null
+                && worldReady.getAsBoolean();
+    }
+
+    /** Whether the player who started the run is no longer among {@code players}. */
+    public static boolean starterGone(Collection<?> players, Object starterPlayer) {
+        return players.isEmpty() || !players.contains(starterPlayer);
     }
 }

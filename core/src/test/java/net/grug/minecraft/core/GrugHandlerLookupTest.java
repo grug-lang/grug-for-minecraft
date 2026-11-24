@@ -1,5 +1,6 @@
 package net.grug.minecraft.core;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
@@ -141,5 +142,37 @@ class GrugHandlerLookupTest {
                         handler,
                         Player.class,
                         Arrays.asList(new Candidate("x"), new Candidate(null))));
+    }
+
+    private static class Own {
+        private final Object other = "x";
+        private final Handler handler;
+        private final Handler second;
+
+        Own(Handler handler, Handler second) {
+            this.handler = handler;
+            this.second = second;
+        }
+    }
+
+    private static class SubOwn extends Own {
+        SubOwn(Handler handler, Handler second) {
+            super(handler, second);
+        }
+    }
+
+    @Test
+    void theFirstNonNullConnectionOfAHandlerFieldWins() {
+        Handler first = new Handler(new Player());
+        Handler second = new Handler(null);
+        java.util.function.Function<Object, Object> id = value -> value == second ? "second" : null;
+        assertEquals(
+                "second",
+                GrugHandlerLookup.nestedConnectionOf(new Own(first, second), Handler.class, id));
+        assertEquals(
+                "second",
+                GrugHandlerLookup.nestedConnectionOf(new SubOwn(first, second), Handler.class, id));
+        assertNull(GrugHandlerLookup.nestedConnectionOf(new Own(null, null), Handler.class, id));
+        assertNull(GrugHandlerLookup.nestedConnectionOf(new Unrelated(), Handler.class, id));
     }
 }

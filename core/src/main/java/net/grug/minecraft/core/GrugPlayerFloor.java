@@ -233,4 +233,38 @@ public final class GrugPlayerFloor {
             }
         }
     }
+
+    /** The line a run prints when it puts the player back at the height the run started at. */
+    public static String startHeightMessage(double holdY, double feetY) {
+        return "[GRUG CI] holding the test player at " + holdY + ", back from " + feetY;
+    }
+
+    /**
+     * The count, the throttle and the text of the start-height hold (#1134), apart from the floor
+     * hold's {@link HoldLog}: it prints its first correction and then at most one per {@link
+     * #HOLD_REPORT_INTERVAL_MILLIS}, and {@link #printSummary} says how often it ran.
+     */
+    public static final class StartHoldLog {
+        private long holds;
+        private long lastReportMillis;
+
+        /** Counts one correction and prints its line to {@code out} when it is due. */
+        public void record(java.io.PrintStream out, double holdY, double feetY, long nowMillis) {
+            holds++;
+            if (holdReportDue(holds, nowMillis, lastReportMillis)) {
+                lastReportMillis = nowMillis;
+                out.println(startHeightMessage(holdY, feetY));
+            }
+        }
+
+        /** Prints how often the player was corrected, and nothing when they never were. */
+        public void printSummary(java.io.PrintStream out) {
+            if (holds > 0) {
+                out.println(
+                        "[GRUG CI] The test player was held at their start height "
+                                + holds
+                                + " times.");
+            }
+        }
+    }
 }
