@@ -474,6 +474,34 @@ class GrugPlayerFloorTest {
     }
 
     @Test
+    void theStartHoldLogSaysTheFirstCorrectionThenOncePerIntervalAndSummarises() {
+        GrugPlayerFloor.StartHoldLog log = new GrugPlayerFloor.StartHoldLog();
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream out = new java.io.PrintStream(bytes);
+
+        log.printSummary(out);
+        assertEquals("", lines(bytes));
+
+        log.record(out, 64, 65, 1000);
+        String first = lines(bytes);
+        assertEquals(
+                "[GRUG CI] holding the test player at 64.0, back from 65.0"
+                        + System.lineSeparator(),
+                first);
+        log.record(out, 64, 65, 2000);
+        assertEquals(first, lines(bytes));
+        log.record(out, 64, 65, 6000);
+        assertEquals(first + first, lines(bytes));
+
+        java.io.ByteArrayOutputStream summary = new java.io.ByteArrayOutputStream();
+        log.printSummary(new java.io.PrintStream(summary));
+        assertEquals(
+                "[GRUG CI] The test player was held at their start height 3 times."
+                        + System.lineSeparator(),
+                lines(summary));
+    }
+
+    @Test
     void thePlayerIsOffTheHeldPoseOnAnyAxisBeyondArithmeticNoise() {
         double n = Double.NaN;
         // The drifts that moved the camera in runs 45257564087 (y sag of 0.234) and 45258065899 (x,

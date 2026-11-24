@@ -3,6 +3,7 @@ package net.grug.minecraft.core;
 import net.grug.minecraft.grug.GrugGenerated;
 
 import java.lang.reflect.Field;
+import java.util.function.Function;
 
 /**
  * Finds the connection and the player a server-side network handler belongs to, by type, so a
@@ -51,6 +52,23 @@ public final class GrugHandlerLookup {
                 for (Field field : c.getDeclaredFields()) {
                     if (read(field, candidate) == handler) return playerType.cast(candidate);
                 }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The first non-null {@code connectionIn} answers for the value of a field of {@code holder}
+     * (or of a class it extends, up to the JDK's own) whose type is {@code handlerType} or a
+     * subtype of it, else null: the connection a player's own network handler holds (#1098).
+     */
+    public static <T> T nestedConnectionOf(
+            Object holder, Class<?> handlerType, Function<Object, T> connectionIn) {
+        for (Class<?> c = holder.getClass(); !isJdk(c); c = c.getSuperclass()) {
+            for (Field field : c.getDeclaredFields()) {
+                if (!handlerType.isAssignableFrom(field.getType())) continue;
+                T connection = connectionIn.apply(read(field, holder));
+                if (connection != null) return connection;
             }
         }
         return null;

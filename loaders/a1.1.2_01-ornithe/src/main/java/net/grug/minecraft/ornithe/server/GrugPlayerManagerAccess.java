@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe.server;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.grug.GrugGenerated;
 
 /**
@@ -18,7 +19,6 @@ import net.grug.minecraft.grug.GrugGenerated;
  * lower-cases a name and looks it up, and {@code addOp} and {@code removeOp} change the set and
  * save the file (#1331). They are reached the same way, by intermediary name, for the same reason.
  */
-@GrugGenerated("the server's player manager, which only the dedicated-server job reaches")
 public final class GrugPlayerManagerAccess {
     /** OSL's holder of the running server, which keeps its own name in every namespace. */
     private static final String SERVER_INSTANCE =
@@ -30,8 +30,8 @@ public final class GrugPlayerManagerAccess {
     /** The server's intermediary name of the player manager's tick. */
     private static final String SERVER_PLAYER_MANAGER_TICK = "m_23443588";
 
-    private static final boolean CLIENT =
-            FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT;
+    private static final boolean SERVER =
+            EnvType.SERVER.equals(FabricLoader.getInstance().getEnvironmentType());
 
     /** The server's intermediary names of the operator list's three methods, all taking a name. */
     private static final String SERVER_IS_OP = "m_55622692";
@@ -51,28 +51,18 @@ public final class GrugPlayerManagerAccess {
     /** The player manager, looked up on the first flush and kept for the run. */
     private static Object playerManager = null;
 
+    @GrugGenerated("utility class: never instantiated")
     private GrugPlayerManagerAccess() {}
 
     /** Sends the block changes the player manager has queued, and does nothing on a client. */
     static void flushQueuedChanges() {
-        if (CLIENT) {
-            return;
-        }
-        try {
-            if (playerManager == null) {
-                playerManager = findPlayerManager();
-            }
-            if (playerManager == null) {
-                return;
-            }
-            playerManager.getClass().getMethod(SERVER_PLAYER_MANAGER_TICK).invoke(playerManager);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(
-                    "The dedicated server's player manager has no "
-                            + SERVER_PLAYER_MANAGER_TICK
-                            + "().",
-                    e);
-        }
+        GrugLinkArms.runIf(SERVER, GrugPlayerManagerAccess::flushOnServer);
+    }
+
+    private static void flushOnServer() {
+        playerManager = GrugLinkArms.orElse(playerManager, GrugPlayerManagerAccess::findManager);
+        GrugLinkArms.deliver(
+                playerManager, manager -> invoke(manager, SERVER_PLAYER_MANAGER_TICK, null, null));
     }
 
     /** Whether the server's operator list holds {@code name}. */
@@ -92,31 +82,66 @@ public final class GrugPlayerManagerAccess {
 
     /** Calls one of the manager's methods that takes a name, and answers what it answers. */
     private static Object callWithName(String method, String name) {
+        playerManager = GrugLinkArms.orElse(playerManager, GrugPlayerManagerAccess::findManager);
+        return invoke(required(playerManager), method, String.class, name);
+    }
+
+    /** The manager of a running server, which every call that needs one is made after. */
+    @GrugGenerated(
+            "the missing arm: a call is made only while a server runs, because it is a test that"
+                    + " asks, and a server that runs has its manager")
+    private static Object required(Object manager) {
+        if (manager == null) {
+            throw new IllegalStateException(
+                    "There is no running server to ask who is an operator.");
+        }
+        return manager;
+    }
+
+    /**
+     * Calls {@code method} of {@code target} by name, with one optional argument of {@code type}.
+     */
+    @GrugGenerated(
+            "the reflection failure arm: the names are the game's own, pinned to its version, so a"
+                    + " failure means the pin is wrong and no run can make it")
+    private static Object invoke(Object target, String method, Class<?> type, Object argument) {
         try {
-            if (playerManager == null) {
-                playerManager = findPlayerManager();
+            if (type == null) {
+                return target.getClass().getMethod(method).invoke(target);
             }
-            if (playerManager == null) {
-                throw new IllegalStateException(
-                        "There is no running server to ask who is an operator.");
-            }
-            return playerManager
-                    .getClass()
-                    .getMethod(method, String.class)
-                    .invoke(playerManager, name);
+            return target.getClass().getMethod(method, type).invoke(target, argument);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(
-                    "The dedicated server's player manager has no " + method + "(String).", e);
+                    "The dedicated server's player manager has no " + method + "().", e);
+        }
+    }
+
+    /** The running server, or null before it exists or after it ended. */
+    @GrugGenerated(
+            "the no-server arm: it is asked before the server exists or after it ended, which no"
+                    + " test is running in; the reflection failure arm needs a wrong pinned name")
+    private static Object serverInstance() {
+        try {
+            return Class.forName(SERVER_INSTANCE).getMethod("get").invoke(null);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("The dedicated server could not be reached.", e);
         }
     }
 
     /** The running server's player manager, or null before the server exists or after it ended. */
-    private static Object findPlayerManager() throws ReflectiveOperationException {
-        Object server = Class.forName(SERVER_INSTANCE).getMethod("get").invoke(null);
+    @GrugGenerated(
+            "the no-server arm: it is asked before the server exists or after it ended, which no"
+                    + " test is running in; the reflection failure arm needs a wrong pinned name")
+    private static Object findManager() {
+        Object server = serverInstance();
         if (server == null) {
             return null;
         }
-        return server.getClass().getField(SERVER_PLAYER_MANAGER).get(server);
+        try {
+            return server.getClass().getField(SERVER_PLAYER_MANAGER).get(server);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("The server's player manager could not be read.", e);
+        }
     }
 
     /**
@@ -124,11 +149,15 @@ public final class GrugPlayerManagerAccess {
      * sent a destroy packet (#1096). Does nothing before the server exists.
      */
     public static void untrack(Object entity) {
+        GrugLinkArms.deliver(serverInstance(), server -> untrackFrom(server, entity));
+    }
+
+    @GrugGenerated(
+            "the reflection walk over the tracker's methods: its no-match throw and the failure arm"
+                    + " need a wrong pinned name, which no run can make, and the walk skips the"
+                    + " tracker's other methods in an order the game decides")
+    private static void untrackFrom(Object server, Object entity) {
         try {
-            Object server = Class.forName(SERVER_INSTANCE).getMethod("get").invoke(null);
-            if (server == null) {
-                return;
-            }
             Object tracker = server.getClass().getField(SERVER_ENTITY_TRACKER).get(server);
             for (java.lang.reflect.Method method : tracker.getClass().getMethods()) {
                 if (method.getName().equals(TRACKER_REMOVE) && method.getParameterCount() == 1) {
