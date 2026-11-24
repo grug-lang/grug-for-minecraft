@@ -869,6 +869,15 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     }
 
     /**
+     * Keeps the light resend to the room this test builds, in place of every block the room build
+     * cleared. See {@link ModLoaderAdapter#boundLightResend} and #1695.
+     */
+    @Override
+    public void boundLightResend(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        lightResend.bound(minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    /**
      * What the settle ask compares once the client's frames and blocks are settled: this server's
      * light of the box it last sent the joined client, or the empty text before it sent one
      * (#1695). The box is the region {@link GrugLightResend#due} sent, so the comparison is over

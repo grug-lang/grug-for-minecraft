@@ -104,6 +104,16 @@ public final class GrugTestBox {
         // cannot leave a gap under it for the sky light to pour through.
         int wallBottomY = Math.min(py - radius - 1, torchFloorY);
 
+        // Before the clear, so a block it removes outside the room is not owed to the joined
+        // client.
+        // The clear reaches the whole test area, while the frame a capture reads shows the room and
+        // the light its walls place: comparing the client's light over the clear named cells no
+        // test
+        // drew, on a world the client may not have received (#1695). The box is the one oweLight
+        // gives the room, which is the shell plus the torches' reach.
+        adapter.boundLightResend(
+                minX - 2, wallBottomY - 1, minZ - 2, maxX + 2, ceilingY + 1, maxZ + 2);
+
         // The whole test area is cleared first, top down, so a plant is cleared before the block it
         // stands on: the other order pops it off as an item, which the player then picks up and
         // carries into later captures. The area reaches past the room's box to the bands the tests

@@ -194,6 +194,45 @@ class GrugLightResendTest {
     }
 
     @Test
+    void aChangeOutsideTheRoomIsNotOwed() {
+        // The room build clears the whole test area, and a previous test's fixtures can reach its
+        // edge. A client's own light at such a cell is not the room this test captures, and the
+        // chunk may not even be one it received, so the wait must not compare it (#1695).
+        GrugLightResend resend = new GrugLightResend();
+        resend.bound(0, 60, 0, 15, 80, 15);
+
+        resend.noteBlock(200, 70, 0);
+        resend.noteBlock(0, 70, 200);
+
+        assertFalse(resend.pending(), "a change outside the bound owes the client nothing");
+        assertTrue(resend.due().isEmpty());
+        assertTrue(resend.due().isEmpty());
+
+        resend.noteBlock(5, 64, 5);
+        resend.due();
+        resend.due();
+        assertArrayEquals(new int[] {4, 62, 4, 6, 65, 6}, resend.lastBox());
+    }
+
+    @Test
+    void aBoundForgetsTheBoxOfTheLastRoom() {
+        GrugLightResend resend = new GrugLightResend();
+        resend.noteBlock(100, 64, 100);
+        resend.due();
+        resend.due();
+        assertArrayEquals(new int[] {99, 62, 99, 101, 65, 101}, resend.lastBox());
+
+        resend.bound(-35, 53, -80, -3, 104, -48);
+
+        assertFalse(resend.pending(), "the last room's placements are not this room's");
+        assertEquals(0, resend.lastBox().length, "and its box is not what a divergence arms");
+        resend.noteBlock(-32, 63, -48);
+        resend.due();
+        resend.due();
+        assertArrayEquals(new int[] {-33, 62, -49, -31, 65, -47}, resend.lastBox());
+    }
+
+    @Test
     void theBoxOfTheLastSendIsKept() {
         GrugLightResend resend = new GrugLightResend();
         assertEquals(0, resend.lastBox().length);

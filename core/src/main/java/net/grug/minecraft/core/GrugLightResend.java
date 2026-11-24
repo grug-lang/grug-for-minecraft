@@ -38,13 +38,46 @@ public final class GrugLightResend {
     private int maxY;
     private int maxZ;
     private int[] sent = new int[0];
+    private int[] bound;
+
+    /**
+     * Limits the changes this resend compares to {@code box}, or removes the limit for null, and
+     * forgets the box it last sent.
+     *
+     * <p>The runner clears the whole test area before every room, which on a world that still holds
+     * the previous test's fixtures changes blocks up to {@code GrugTestBox.areaRadius()} away.
+     * Those changes are real, but they are not the room the test builds or the frame it captures,
+     * and a joined client lights the area it cleared for itself: a cell at the far edge of the
+     * clear can hold a level the server's engine never produced, and a cell in a chunk the client
+     * never received holds none at all (#1695). The box the wait compares is therefore the room the
+     * test occupies plus the reach of the light it placed, and a change outside it is not noted.
+     */
+    public synchronized void bound(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        forget();
+        this.bound = new int[] {minX, minY, minZ, maxX, maxY, maxZ};
+    }
+
+    /** Whether a position is inside the box {@link #bound} set, or no bound was set. */
+    private boolean inBound(int x, int y, int z) {
+        return bound == null
+                || (x >= bound[0]
+                        && x <= bound[3]
+                        && y >= bound[1]
+                        && y <= bound[4]
+                        && z >= bound[2]
+                        && z <= bound[5]);
+    }
 
     /**
      * Records that the block at this position changed, and with it the light of the blocks around
      * it. Starts the wait over, because a change made now is flushed to the client at the end of
-     * the tick and the region has to follow that.
+     * the tick and the region has to follow that. A change outside the box {@link #bound} set is
+     * not recorded, because no frame a test of this room captures reads its light.
      */
     public synchronized void noteBlock(int x, int y, int z) {
+        if (!inBound(x, y, z)) {
+            return;
+        }
         if (owed) {
             minX = Math.min(minX, x - 1);
             minY = Math.min(minY, y - 1);
@@ -121,6 +154,7 @@ public final class GrugLightResend {
         owed = false;
         waited = false;
         sent = new int[0];
+        bound = null;
     }
 
     /**

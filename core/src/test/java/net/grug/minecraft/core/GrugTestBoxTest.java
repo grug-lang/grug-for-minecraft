@@ -62,6 +62,7 @@ class GrugTestBoxTest {
         int batchBegins = 0;
         int batchEnds = 0;
         final List<String> relights = new ArrayList<>();
+        final List<String> bounds = new ArrayList<>();
         int placementsOutsideBatch = 0;
         boolean batchOpen = false;
         final boolean canTell;
@@ -99,6 +100,9 @@ class GrugTestBoxTest {
                                                 return null;
                                             case "relightRoom":
                                                 relights.add(java.util.Arrays.toString(args));
+                                                return null;
+                                            case "boundLightResend":
+                                                bounds.add(java.util.Arrays.toString(args));
                                                 return null;
                                             case "placeBlock":
                                                 if (!batchOpen) {
@@ -172,6 +176,19 @@ class GrugTestBoxTest {
 
         assertEquals(2, world.relights.size());
         assertEquals("[level, 4, 58, -27, 16, 75, -15]", world.relights.get(1));
+    }
+
+    @Test
+    void theLightResendIsLimitedToTheRoomAndItsLightsReach() {
+        FakeWorld world = new FakeWorld(false);
+
+        world.build(3);
+
+        // The room's box plus two blocks around it in x and z and one above and below, which is
+        // the reach of the shell's light and the box oweLight gives the room. The clear reaches
+        // the whole test area, and a joined client's own light there is not the frame a test of
+        // this room captures (#1695). The feet block is (10, 64, -21).
+        assertEquals(List.of("[5, 59, -26, 15, 72, -16]"), world.bounds);
     }
 
     @Test

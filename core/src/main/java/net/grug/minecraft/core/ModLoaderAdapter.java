@@ -1191,6 +1191,20 @@ public interface ModLoaderAdapter {
     default void forgetLightForTest() {}
 
     /**
+     * Limits the light a joined client is sent and compared over to the room this test builds, in
+     * place of every block the room build cleared.
+     *
+     * <p>The runner clears {@code GrugTestBox.areaRadius()} blocks around the player before every
+     * room, which changes the previous test's fixtures and any terrain there. Those changes are
+     * real, but they are outside the room the test builds and the frame it captures, and a joined
+     * client lights a cleared area for itself: comparing its light up to the edge of the clear
+     * names a cell the capture never reads, in a chunk the client may not even hold. The box here
+     * is the room plus the reach of the light its walls place, and a loader that resends the room's
+     * light notes nothing outside it. See {@link GrugLightResend#bound} and #1695.
+     */
+    default void boundLightResend(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {}
+
+    /**
      * Puts the player back where {@link #snapPlayerForTest} found them, and puts their view back to
      * the yaw and pitch it had, so a test's change to the player or the camera does not outlive it.
      * A client restores its own local player; a dedicated server restores its copy of the joined

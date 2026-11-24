@@ -1021,6 +1021,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * Keeps the light resend to the room this test builds, in place of every block the room build
+     * cleared. See {@link ModLoaderAdapter#boundLightResend} and #1695.
+     */
+    @Override
+    public void boundLightResend(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        lightResend.bound(minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    /**
      * The light of the box this server last sent the joined client, as a settle ask's text (#1695).
      * The box is the region {@link GrugLightResend#due} sent, so the client is compared over the
      * cells it was sent rather than a section that holds cells it never received, and the field is
