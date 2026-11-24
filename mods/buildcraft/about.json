@@ -108,6 +108,11 @@
 					"what": "The redstone engine's particles are verified by count and position against 2.2.14's BlockEngine, which the test reads from what the display tick spawned, but no capture compares the drawn particles with the reference's.",
 					"why": "The screenshot runs drop particles (minimal setting, or the spawn skipped under GRUG_CI on Alpha and Beta), a particle's constructor draws random numbers a test cannot seed, and the reference run cannot record its spawns.",
 					"tracking_issue": 1006
+				},
+				{
+					"what": "The quarry's front is fixed to south (the reference's metadata 0) instead of facing opposite the placer, its explosion resistance is the default instead of 10, its light is not raised by 0.5 while a machine nearby is active, and its pipe connection is not modelled (the reference reports every side connected).",
+					"why": "No block export receives the placer (Forge and Fabric give it through onBlockPlacedBy), there is no set_resistance host function, and the pipes' neighbour test does not know the quarry yet. The facing lands in #1569.",
+					"tracking_issue": 1543
 				}
 			]
 		}
