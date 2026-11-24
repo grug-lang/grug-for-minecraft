@@ -12,10 +12,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "dedicated-needed.py"
 
-SCRIPT_SPEC = importlib.util.spec_from_file_location("dedicated_needed", SCRIPT)
-script = importlib.util.module_from_spec(SCRIPT_SPEC)
-SCRIPT_SPEC.loader.exec_module(script)
-
 REPO_SPEC = importlib.util.spec_from_file_location(
     "affected_mods_test", HERE / "affected_mods_test.py"
 )
@@ -123,6 +119,27 @@ export tick(ctx: TestTickContext) {
         self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
         self.assertIn("screenshot", self.reason)
 
+    def test_a_mod_test_that_asks_the_joined_client_about_overlays_runs_the_legs(self):
+        # The shape of mods/jei/tests/paging-Test.grug: these are Test methods, and the dedicated
+        # adapters answer them from the joined client because a server's own answer would deny
+        # (#1099), so a change that only touches this test still reaches the leg.
+        test = """\
+export tick(ctx: TestTickContext) {
+    has_screen: bool = me.overlay_supported()
+    has_world: bool = me.world_overlay_supported()
+    if not has_screen or not has_world {
+        return
+    }
+    ctx.not_done()
+}
+"""
+        changes = {"mods/jei/tests/paging-Test.grug": test}
+        self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
+        self.assertIn("overlay_supported", self.reason)
+        self.assertIn("world_overlay_supported", self.reason)
+        self.setUp()
+        self.assertEqual(self.loaders_of(changes), ALL)
+
     def test_the_1696_change_runs_the_legs(self):
         changes = {
             "mods/safesquares/tests/overlay_follows_player-Test.grug": self.OVERLAY_FOLLOWS_PLAYER,
@@ -168,8 +185,13 @@ export tick(ctx: TestTickContext) {
         self.assertEqual(self.answer(changes, None, *DISPATCH), "false")
 
     def test_a_deleted_test_file_runs_the_legs(self):
+        # A path the script cannot read is a path it cannot call client-only, and this drives both
+        # entry points the workflow reads, so reverting either one fails here.
         changes = {"mods/buildcraft/tests/wrench-Test.grug": None}
         self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
+        self.assertIn("cannot be read", self.reason)
+        self.setUp()
+        self.assertEqual(self.loaders_of(changes), ALL)
         self.assertIn("cannot be read", self.reason)
 
     def test_a_renamed_test_file_runs_the_legs(self):
@@ -186,13 +208,6 @@ export tick(ctx: TestTickContext) {
         self.assertEqual(self.answer(changes, None, *DISPATCH), "true")
         self.assertIn("not a .grug test file", self.reason)
 
-    def test_a_test_file_the_script_cannot_read_runs_the_legs(self):
-        reason = script.mod_test_reason(
-            Path(self.repo.path), "0" * 40, "mods/buildcraft/tests/wrench-Test.grug"
-        )
-        self.assertIsNotNone(reason)
-        self.assertIn("cannot be read", reason)
-
     def test_a_pull_request_that_changes_a_joined_client_test_runs_every_leg(self):
         changes = {
             "mods/safesquares/tests/overlay_follows_player-Test.grug": self.OVERLAY_FOLLOWS_PLAYER
@@ -202,8 +217,19 @@ export tick(ctx: TestTickContext) {
                 self.setUp()
                 self.assertEqual(self.loaders_of(changes, event), ALL)
                 self.assertIn("screenshot", self.reason)
-                self.setUp()
-                self.assertEqual(self.answer(changes, None, "--event", event), "true")
+
+    def test_a_pull_request_that_changes_only_mod_code_or_prose_runs_no_leg(self):
+        # The rule's control: a mod file no joined client is asked about keeps the saving, so it is
+        # the joined-client check that runs the leg above and not the directory the file lives in.
+        for name, changes in {
+            "code": {"mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n"},
+            "prose": {"mods/buildcraft/README.md": "readme\n"},
+        }.items():
+            for event in ("pull_request", "push"):
+                with self.subTest(name=name, event=event):
+                    self.setUp()
+                    self.assertEqual(self.loaders_of(changes, event), [])
+                    self.assertIn("skipping", self.reason)
 
     def test_every_path_that_is_not_client_only_runs_the_legs(self):
         cases = {
