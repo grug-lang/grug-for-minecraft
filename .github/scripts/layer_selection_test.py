@@ -44,5 +44,26 @@ class LayerSelectionTest(unittest.TestCase):
             self.assertEqual(selection.select(event, MATRIX, []), MATRIX)
 
 
+class WorkflowTest(unittest.TestCase):
+    """The workflow wires the selection to the right job (a slip once moved it to core-release)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import yaml
+
+        path = HERE.parent / "workflows" / "build.yml"
+        cls.jobs = yaml.safe_load(path.read_text())["jobs"]
+
+    def test_layer_job_runs_on_pull_request_by_the_layer_output(self):
+        job = self.jobs["layer"]
+        self.assertIn("needs.discover.outputs.layer != '[]'", job["if"])
+        self.assertNotIn("pull_request", job["if"])
+        self.assertIn("needs.discover.outputs.layer", job["strategy"]["matrix"]["dir"])
+
+    def test_jobs_that_build_for_the_jar_stay_off_pull_requests(self):
+        for name in ("core-release", "universal"):
+            self.assertIn("!= 'pull_request'", self.jobs[name]["if"], name)
+
+
 if __name__ == "__main__":
     unittest.main()

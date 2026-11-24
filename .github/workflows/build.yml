@@ -715,9 +715,7 @@ jobs:
   # does not wait for core's tests (#570).
   core-release:
     name: core release jar
-    # A pull request builds only the layers coverage reads (#169), and none when no Ornithe leg runs,
-    # since GitHub refuses an empty matrix.
-    if: needs.discover.outputs.layer != '[]' && needs.discover.outputs.no-tests != 'true'
+    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -773,7 +771,9 @@ jobs:
   # the two jobs start together.
   layer:
     name: layer ${{ matrix.dir }}
-    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
+    # A pull request builds only the layers coverage reads (#169), and none when no Ornithe leg runs,
+    # since GitHub refuses an empty matrix.
+    if: needs.discover.outputs.layer != '[]' && needs.discover.outputs.no-tests != 'true'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
