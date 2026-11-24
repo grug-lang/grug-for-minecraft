@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugHandlerLookup;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
@@ -205,7 +206,20 @@ public final class GrugControlAlpha {
                 onServer(),
                 bytes,
                 message -> handleOnServer(handler, message),
-                GrugControlAlphaClient::onMessage);
+                GrugControlAlpha::onClientMessage);
+    }
+
+    /**
+     * The client's arm of {@link #onHandle}. It is a method of this class, and not a method
+     * reference to {@link GrugControlAlphaClient}, because a method reference loads its target
+     * class when the call site links, which a dedicated server must not do with a client class
+     * (#1246).
+     */
+    @GrugGenerated(
+            "the client arm: a dedicated server never runs a client, and the client's own run is"
+                    + " measured with the client classes")
+    private static void onClientMessage(byte[] bytes) {
+        GrugControlAlphaClient.onMessage(bytes);
     }
 
     private static void handleOnServer(PacketHandler handler, byte[] bytes) {
