@@ -211,19 +211,17 @@ CI. Light jobs stay local: Gradle builds,
   docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what
   keeps a full run of `main` from going missing.
 - **The four-hourly `main` check.** `.github/workflows/main-dispatch.yml` checks every 15 minutes and
-  dispatches `build.yml --ref main` when main's newest dispatch is at least four hours old and no
-  build run is live (requested, waiting, pending, queued or in progress) on any branch, so the check
-  needs no live session and a due tick that was busy retries a quarter of an hour later rather than
-  four hours later (#1089). A dispatch past twice the interval goes ahead with runs live and its
-  jobs queue, because a proof or a pull request in flight at every tick starved the check for 106
-  hours and a broken Windows adapter went unseen under it (#1463, #1460). Its decision is
-  `.github/scripts/main-dispatch.py`, whose test pins each decision. The workflow re-reads the newest
-  dispatch's age immediately before dispatching and does not dispatch if another dispatch of `main`
-  appeared, because the facts can change between the check and the dispatch. No supervisor timer exists
-  any more (#1501 removed it), so the orchestrator checks the newest dispatch's age at a task boundary too.
-  When one is due and the workflow has not sent it, the orchestrator runs
-  `gh workflow run build.yml --ref main` and watches it with `.github/scripts/watch-run.sh <run-id>`.
-  Only a dispatch runs every job: a push to `main`
+  dispatches `build.yml --ref main` when main's newest dispatch is at least four hours old, whatever
+  else is running, so it needs no live session: a due tick's jobs queue behind the runs in flight,
+  and waiting for an idle pool is what starved the check, for 106 hours and with a broken Windows
+  adapter unseen under it (#1463, #1460). Before this, a day without a live session let the newest
+  dispatch reach 25 hours (#1089). Its decision is `.github/scripts/main-dispatch.py`, whose test
+  pins each decision. The workflow re-reads the newest dispatch's age immediately before dispatching
+  and does not dispatch if another dispatch of `main` appeared, because the facts can change between
+  the check and the dispatch. No supervisor timer exists any more (#1501 removed it), so the
+  orchestrator checks the newest dispatch's age at a task boundary too. When one is due and the
+  workflow has not sent it, the orchestrator runs `gh workflow run build.yml --ref main` and watches
+  it with `.github/scripts/watch-run.sh <run-id>`. Only a dispatch runs every job: a push to `main`
   skips some of them, and which ones can change with the workflow, so a green push is not this
   check. A dispatch with `-f mods=` or `-f base=` is the exception: it counts as the newest dispatch
   even though it ran fewer jobs, because the runs API does not expose a dispatch's inputs, so a
