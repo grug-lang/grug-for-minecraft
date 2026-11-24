@@ -40,7 +40,11 @@ if [ "$#" -ne 1 ]; then
   exit 2
 fi
 LOADER="$1"
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# The script's own directory, resolved before any cd: invoked as ./run-multiplayer.sh from this
+# directory, BASH_SOURCE is a bare name and a path built from it after the cd below names the
+# repository root instead, so the files sourced later would not be found (#1726).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "$REPO_ROOT"
 
 LOADER_DIR="loaders/${LOADER}"
@@ -53,12 +57,12 @@ if [ -z "${DISPLAY:-}" ]; then
   exit 2
 fi
 # shellcheck source=pin-llvmpipe.sh
-. "$(dirname "${BASH_SOURCE[0]}")/pin-llvmpipe.sh"
+. "${SCRIPT_DIR}/pin-llvmpipe.sh"
 # What counts as a failure worth another try, and how many attempts a leg may make, shared with
 # run-loader.sh so the joined client's build is retried on exactly the failures the server's is
 # (#1702).
 # shellcheck source=retryable-failure.sh
-. "$(dirname "${BASH_SOURCE[0]}")/retryable-failure.sh"
+. "${SCRIPT_DIR}/retryable-failure.sh"
 SERVER_DIR="${REPO_ROOT}/${LOADER_DIR}/run-server"
 # The installed Ornithe server, which is the server's toolchain and not its world (#1244). The script
 # below wipes run-server and extracts a pristine save into it before every launch, so the install

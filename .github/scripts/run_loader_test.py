@@ -185,6 +185,7 @@ class RunLoaderTest(unittest.TestCase):
         for name in (
             "run-loader.sh",
             "retryable-failure.sh",
+            "pin-llvmpipe.sh",
             "report-native-abort.sh",
             "mod-loaders.py",
         ):
@@ -222,6 +223,7 @@ class RunLoaderTest(unittest.TestCase):
         extra_env: dict[str, str] | None = None,
         phase: str = "run",
         sequence: list[tuple[str, int]] | None = None,
+        from_scripts_dir: bool = False,
     ) -> subprocess.CompletedProcess:
         log_file = self.tmp / "gradle.log"
         log_file.write_text(log)
@@ -255,13 +257,22 @@ class RunLoaderTest(unittest.TestCase):
         summary.write_text("")
         env["GITHUB_STEP_SUMMARY"] = str(summary)
 
-        result = subprocess.run(
-            [
+        if from_scripts_dir:
+            # The invocation a contributor makes from inside the scripts directory: a bare file name
+            # in BASH_SOURCE, which a source path resolved after the cd to the repository root
+            # misses.
+            command = ["./run-loader.sh", "fake-loader", phase]
+            cwd = self.tmp / ".github" / "scripts"
+        else:
+            command = [
                 str(self.tmp / ".github" / "scripts" / "run-loader.sh"),
                 "fake-loader",
                 phase,
-            ],
-            cwd=self.tmp,
+            ]
+            cwd = self.tmp
+        result = subprocess.run(
+            command,
+            cwd=cwd,
             env=env,
             capture_output=True,
             text=True,
@@ -664,6 +675,26 @@ class RunLoaderTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("passed all tests", result.stdout)
         self.assertEqual(len(result.gradle_args.splitlines()), 2)
+
+    def test_a_run_from_inside_the_scripts_directory_still_retries_a_download_failure(self):
+        # `cd .github/scripts && ./run-loader.sh ...` leaves a bare file name in BASH_SOURCE, so a
+        # source path built after the cd to the repository root points at a file that is not there.
+        # The retry decision then aborts on the unbound MAX_GRADLE_ATTEMPTS, so a download hiccup
+        # fails the job instead of earning its one retry (#1726).
+        result = self.run_script(
+            phase="build-run",
+            sequence=[
+                (LOOM_DOWNLOAD_FAILURE_LOG, 1),
+                (self.BUILD_LOG + self.GAME_START + PASSING_LOG, 0),
+            ],
+            from_scripts_dir=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("failed fetching what it needs", result.stderr)
+        self.assertEqual(len([c for c in result.gradle_args.splitlines() if "runClient" in c]), 2)
+        # The llvmpipe pin is sourced beside the classifier and prints its line.
+        self.assertIn("llvmpipe pinned: GALLIUM_OVERRIDE_CPU_CAPS=sse4.1", result.stdout)
 
     def test_a_download_failure_in_the_build_phase_is_retried(self):
         result = self.run_script(
