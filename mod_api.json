@@ -1282,6 +1282,9 @@
 						}
 					]
 				},
+				"set_pipe": {
+					"description": "Declares that this block is a pipe: a block that passes items, liquid or energy from one neighbour to another along itself, drawn as a centre with an arm on every side it connects to rather than as a cube. It is the declaration `Level.is_pipe` answers, and it is what lets a pipe accept a pipe of another mod without either script naming the other's block: the reference's `IPipeConnection` test, which a BuildCraft pipe passes by being a `BlockGenericPipe`. A pipe that also calls `set_shape` keeps entities out of the space between its arms, and one that calls `set_custom_render` draws the arms itself. The declaration says nothing about what travels through the pipe, since a pipe that carries nothing yet is still a pipe to its neighbours. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+				},
 				"set_shape": {
 					"description": "Declares that this block's collision and selection boxes come from its shape export rather than being the full cube, which is what lets a machine be a shape no model JSON can express: a pipe that reaches towards what is beside it, a slab, a fence. The block's script then has to export shape, which the game asks for the boxes at a position every time it needs them, so the boxes are not fixed at registration and may follow the block's neighbours or its state. A block that declares set_shape without a shape export, or whose shape adds no box, reports an error and keeps the full cube. A block that exports shape without declaring it is reported as well, on its first query, because the game would never run that export; the declaration is what tells the game to ask at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
 				}
@@ -2021,6 +2024,58 @@
 				},
 				"is_hostile_spawn_space": {
 					"description": "Whether the space at the specified coordinates passes the game's own ground check for a hostile mob to spawn there, which does not look at light: the block below is solid, and the space itself and the one above it are not solid and the space is not liquid. A newer version's spawner can refuse more of the space: 1.20.6 refuses a rail, which is in its prevent_mob_spawning_inside tag, and fire, which is dangerous to the mob, and asks that the mob's spawn box fit there. A mob's spawn also needs the light and the game's other rules, so this is where a mob may stand, not where one will appear.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"is_inventory": {
+					"description": "Whether the game's own inventory test accepts the block at these coordinates and finds at least one slot in it, which is the test a pipe or a machine makes of a neighbour before it draws an arm towards it or hands it an item: 1.2.5's `IInventory`, 1.20.6's `Container`, and the `Inventory` of the Ornithe and StationAPI versions. It covers a vanilla chest and another mod's inventory without the script naming either, and it ignores whether the inventory is full or which side a slot may be taken from. The slot count is part of the test because a grug block entity is a container whether or not its script declared any slots, so the interface alone would make every grug block an inventory a pipe reaches for; a block that declared no slots carries nothing and answers false. A position with no block, one with no block entity, and one outside the level also answer false.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"is_pipe": {
+					"description": "Whether the block at these coordinates declared itself a pipe with `set_pipe` in its init(), which is the reference's test that a neighbour is a pipe before its own connection rule runs. A pipe's connection rule asks this rather than comparing block names, so a pipe of another mod, whose block the script cannot name, still connects. A position with no block, and one outside the level, answer false, as does every block that declared nothing.",
 					"return_type": {
 						"name": "bool"
 					},

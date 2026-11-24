@@ -1,0 +1,8 @@
+# A block that declares itself a pipe, so Level.is_pipe answers true for it and a pipe of any mod
+# accepts its neighbour without naming its block. It carries nothing and has no block entity: the
+# declaration is about what may connect to the block, not about what travels through it.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(0.5)
+    ctx.set_material("stone")
+    ctx.set_pipe()
+}

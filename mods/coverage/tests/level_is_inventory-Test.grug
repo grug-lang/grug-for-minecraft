@@ -1,0 +1,29 @@
+# Covers Level.is_inventory, the game's own inventory test that a pipe makes of a neighbour before
+# it draws an arm towards it or hands it an item. A vanilla chest is an inventory, a block with no
+# block entity is not, and neither is a position with no block. A grug block entity with slots is an
+# inventory by the same test, because the loader's block entity is one in the game, whatever the
+# script declared.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:chest")
+    ctx.assert(level.is_inventory(x, y, z), "A chest should be an inventory.")
+
+    level.place_block(x + 1, y, z, "minecraft:stone")
+    ctx.assert(not level.is_inventory(x + 1, y, z), "Stone should not be an inventory.")
+
+    # A grug block entity that declared slots.
+    level.place_block(x + 2, y, z, "grug:coverage_block")
+    ctx.assert(level.is_inventory(x + 2, y, z), "A block entity with slots should be an inventory.")
+
+    # A grug block with a block entity that declared no slots and answers no special inventory call.
+    level.place_block(x + 3, y, z, "grug:coverage_pipe")
+    ctx.assert(not level.is_inventory(x + 3, y, z), "A block entity with no slots should not be an inventory.")
+
+    # Nothing there at all, which a pipe sees at the edge of what it may connect to.
+    ctx.assert(not level.is_inventory(x, y + 3, z), "A position with no block should not be an inventory.")
+}

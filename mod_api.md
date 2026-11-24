@@ -102,6 +102,7 @@ export tick(ctx: TestTickContext)
 .set_hardness(value: number)
 .set_inventory_size(size: number)
 .set_material(material_name: string)
+.set_pipe()
 .set_shape()
 
 ## BlockPos
@@ -161,6 +162,8 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .has_neighbor_signal(x: number, y: number, z: number) bool
 .is_air(x: number, y: number, z: number) bool
 .is_hostile_spawn_space(x: number, y: number, z: number) bool
+.is_inventory(x: number, y: number, z: number) bool
+.is_pipe(x: number, y: number, z: number) bool
 .place_block(x: number, y: number, z: number, block_name: string)
 .random_float() number
 .random_gaussian() number

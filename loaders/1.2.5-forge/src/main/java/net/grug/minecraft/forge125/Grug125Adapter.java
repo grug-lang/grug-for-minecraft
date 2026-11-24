@@ -1443,6 +1443,16 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isInventory(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        TileEntity blockEntity =
+                world.getBlockTileEntity(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        return blockEntity instanceof IInventory
+                && ((IInventory) blockEntity).getSizeInventory() > 0;
+    }
+
+    @Override
     public int getBlockLight(Object levelObj, double x, double y, double z) {
         return ((World) levelObj)
                 .getSavedLightValue(

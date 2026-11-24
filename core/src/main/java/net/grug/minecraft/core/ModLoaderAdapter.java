@@ -418,6 +418,17 @@ public interface ModLoaderAdapter {
     boolean isAir(Object levelObj, double x, double y, double z);
 
     /**
+     * Whether the game's own inventory test accepts the block at a position, which is what a pipe
+     * or a machine asks before it treats a neighbour as an inventory.
+     *
+     * <p>Each loader answers with its game's interface: 1.2.5's {@code IInventory}, 1.20.6's {@code
+     * Container} or an item-handler capability on any side, and the {@code Inventory} of the
+     * Ornithe and StationAPI versions. It is a test of the block entity only, so it says nothing
+     * about whether the inventory is full or which side a slot may be taken from.
+     */
+    boolean isInventory(Object levelObj, double x, double y, double z);
+
+    /**
      * The block light, 0 to 15, stored for the space at the position: the light the blocks give it,
      * without the sky's (#1255).
      */

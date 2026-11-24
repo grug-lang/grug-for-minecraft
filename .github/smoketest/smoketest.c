@@ -980,12 +980,12 @@ static void clear_bes(void) {
 // Per-block registry: Block.init runs once per test on first placement, with set_block_entity and
 // set_inventory_size the only BlockInitContext entries implemented. Any other setter a block calls
 // fails the placement naming the entry.
-struct blockdef { const char* name; long be_file; long slots; bool shape; };
+struct blockdef { const char* name; long be_file; long slots; bool shape; bool pipe; };
 static struct blockdef* blockdefs;
 static size_t nblockdefs;
 // Block.init's own results. Block.init can place another undefined block, whose init nests inside
 // this one, so find_blockdef saves and restores it and keeps no pointer into `blockdefs`.
-struct binit { long be_file; long slots; const char* mod; bool shape; };
+struct binit { long be_file; long slots; const char* mod; bool shape; bool pipe; };
 static struct binit cur_binit;
 
 // An entity string without a mod prefix names an entity of the mod the script is in (the grug
@@ -1024,6 +1024,9 @@ REGISTER("BlockInitContext", "set_material", BIC_noop);
 // set_shape declares that the game asks the block's shape() export for its boxes (block_collision reads it).
 static union grug_value BIC_set_shape(ARGS) { UNUSED; cur_binit.shape = true; return none(); }
 REGISTER("BlockInitContext", "set_shape", BIC_set_shape);
+// set_pipe declares the block a pipe, which Level.is_pipe answers for its neighbours.
+static union grug_value BIC_set_pipe(ARGS) { UNUSED; cur_binit.pipe = true; return none(); }
+REGISTER("BlockInitContext", "set_pipe", BIC_set_pipe);
 REGISTER("BlockInitContext", "set_display_tick", BIC_noop);
 REGISTER("BlockInitContext", "set_flat_lighting", BIC_noop);
 REGISTER("BlockInitContext", "set_frame_render", BIC_noop);
@@ -1046,21 +1049,24 @@ static long resolve_block(const char* name) {
         blockdefs[idx].name = keep(xstrdup(name));
         blockdefs[idx].be_file = BLOCK_NO_ENTITY;
         blockdefs[idx].shape = false;
+        blockdefs[idx].pipe = false;
         // Block.init has no entity to hold: create, run, drop.
         void* ent = grug_create_entity(g_state, fi->file_id);
         struct binit outer = cur_binit;
         cur_binit.be_file = BLOCK_NO_ENTITY;
         cur_binit.slots = 0;
         cur_binit.shape = false;
+        cur_binit.pipe = false;
         cur_binit.mod = fi->mod_name;
         union grug_value arg = id(new_obj(K_CTX));
         call_contained(ent, G.block_init, &arg, 1);
         long result = cur_binit.be_file, slots = cur_binit.slots;
-        bool shape = cur_binit.shape;
+        bool shape = cur_binit.shape, pipe = cur_binit.pipe;
         cur_binit = outer;
         blockdefs[idx].be_file = result;
         blockdefs[idx].slots = slots;
         blockdefs[idx].shape = shape;
+        blockdefs[idx].pipe = pipe;
         resolved_slots = slots;
         grug_deinit_entity(g_state, ent);
         return result;
@@ -1072,6 +1078,32 @@ static struct be* be_at(long x, long y, long z) {
     for (size_t i = 0; i < nbes; i++) if (bes[i].live && bes[i].x == x && bes[i].y == y && bes[i].z == z) return &bes[i];
     return NULL;
 }
+// Whether the block at a position declared itself a pipe with Block.init's set_pipe. The
+// declaration lives in the per-block registry, which is filled by running the block's init once, so
+// a block no test has placed yet is resolved here first. A position with no block answers false.
+static union grug_value Level_is_pipe(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.is_pipe")) return none();
+    struct block* b = find_block(p[0], p[1], p[2]);
+    if (!b) return boolean(false);
+    resolve_block_fwd(b->name);
+    for (size_t i = 0; i < nblockdefs; i++)
+        if (!strcmp(blockdefs[i].name, b->name)) return boolean(blockdefs[i].pipe);
+    return boolean(false);
+}
+REGISTER("Level", "is_pipe", Level_is_pipe);
+// The game's own inventory test: here a block entity with slots, or one whose script answers
+// add_item or extract_item for itself, which is how a special inventory behaves. A vanilla chest
+// has 27 slots; a block with no block entity, and a position with no block, answer false.
+static union grug_value Level_is_inventory(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.is_inventory")) return none();
+    struct be* b = be_at(p[0], p[1], p[2]);
+    return boolean(b && (b->nslots > 0 || b->item_inserted || b->item_extracted));
+}
+REGISTER("Level", "is_inventory", Level_is_inventory);
 static size_t cur_init_be;  // 1 + the index of the block entity whose init() is running (0: none); an index, since `bes` can move
 static void give_slots(struct be* b, long n) {
     b->slots = n ? xmalloc((size_t)n * sizeof *b->slots) : NULL;

@@ -42,6 +42,14 @@ public class GrugBlockData {
     public boolean hasShape = false;
 
     /**
+     * Whether the block is a pipe, declared by set_pipe: a block that passes items, liquid or
+     * energy from one neighbour to another along itself, which Level.is_pipe answers for its
+     * neighbours. It says nothing about what travels through the block, only that other pipes may
+     * connect to it.
+     */
+    public boolean pipe = false;
+
+    /**
      * Whether the block's script exports display_tick, declared by set_display_tick. The game calls
      * a block's display tick for blocks sampled at random around the player, so only a block that
      * declared one is asked.

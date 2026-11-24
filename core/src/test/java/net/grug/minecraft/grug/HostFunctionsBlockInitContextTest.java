@@ -55,9 +55,11 @@ class HostFunctionsBlockInitContextTest {
         HostFunctions.BlockInitContext_set_custom_render(context);
         HostFunctions.BlockInitContext_set_flat_lighting(context);
         HostFunctions.BlockInitContext_set_shape(context);
+        HostFunctions.BlockInitContext_set_pipe(context);
         HostFunctions.BlockInitContext_set_display_tick(context);
 
         assertTrue(block.hasShape);
+        assertTrue(block.pipe);
         assertTrue(block.hasDisplayTick);
         assertEquals(2.5f, block.hardness);
         assertEquals("stone", block.material);
@@ -137,13 +139,15 @@ class HostFunctionsBlockInitContextTest {
         HostFunctions.BlockInitContext_set_frame_render(context);
         HostFunctions.BlockInitContext_set_flat_lighting(context);
         HostFunctions.BlockInitContext_set_shape(context);
+        HostFunctions.BlockInitContext_set_pipe(context);
         HostFunctions.BlockInitContext_set_display_tick(context);
 
-        assertEquals(9, drain().size(), "Each refused call is reported.");
+        assertEquals(10, drain().size(), "Each refused call is reported.");
         assertEquals(new GrugBlockData(BLOCK).hardness, block.hardness);
         assertEquals(new GrugBlockData(BLOCK).material, block.material);
         assertFalse(block.customRender);
         assertFalse(block.hasShape);
+        assertFalse(block.pipe);
         assertFalse(block.hasDisplayTick);
     }
 

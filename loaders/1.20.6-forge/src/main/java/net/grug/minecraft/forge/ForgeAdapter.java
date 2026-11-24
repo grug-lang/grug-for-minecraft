@@ -1344,6 +1344,16 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isInventory(Object levelObj, double x, double y, double z) {
+        Level world = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        if (!(world.getBlockEntity(pos) instanceof Container container)) return false;
+        return container.getContainerSize() > 0;
+    }
+
+    @Override
     public double countItemEntities(Object levelObj, double x, double y, double z, double radius) {
         Level world = (Level) levelObj;
         net.minecraft.world.phys.AABB box =

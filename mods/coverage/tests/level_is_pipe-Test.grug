@@ -1,0 +1,27 @@
+# Covers Level.is_pipe and the Block.init declaration it answers: a block that called set_pipe is a
+# pipe, and every other block, a position with no block, and a position whose coordinates are not
+# whole numbers answer false. The fractional position matters because a pipe asks about a neighbour
+# it computed by adding 1 to its own coordinates, and a block's own coordinates can arrive as a
+# centre rather than as a corner.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_pipe")
+    ctx.assert(level.is_pipe(x, y, z), "The block that called set_pipe should be a pipe.")
+
+    # A block that declared nothing is not a pipe, however much it looks like one.
+    level.place_block(x + 1, y, z, "grug:coverage_block")
+    ctx.assert(not level.is_pipe(x + 1, y, z), "A block that declared nothing should not be a pipe.")
+    level.place_block(x + 2, y, z, "minecraft:stone")
+    ctx.assert(not level.is_pipe(x + 2, y, z), "A vanilla block should not be a pipe.")
+
+    # Nothing there at all.
+    ctx.assert(not level.is_pipe(x, y + 3, z), "A position with no block should not be a pipe.")
+
+    # A fractional position names the block its corner is in, as Level.get_block does.
+    ctx.assert(level.is_pipe(x + 0.25, y + 0.25, z + 0.25), "A fractional position should name its own block.")
+}

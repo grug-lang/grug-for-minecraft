@@ -827,6 +827,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isInventory(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        Object blockEntity =
+                world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        return blockEntity instanceof Inventory && ((Inventory) blockEntity).getSize() > 0;
+    }
+
+    @Override
     public int getBlockLight(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.getLight(

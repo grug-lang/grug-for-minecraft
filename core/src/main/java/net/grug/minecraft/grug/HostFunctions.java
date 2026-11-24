@@ -2204,6 +2204,45 @@ public class HostFunctions {
                 false);
     }
 
+    /**
+     * Whether the block at a position is an inventory by the game's own test, which is what a pipe
+     * or a machine asks before it treats a neighbour as one.
+     *
+     * <p>The loader answers, because each game version spells its inventory differently: 1.2.5's
+     * {@code IInventory}, 1.20.6's {@code Container} or an item-handler capability, and the {@code
+     * Inventory} of the Ornithe and StationAPI versions.
+     */
+    public static boolean Level_is_inventory(long levelId, double x, double y, double z) {
+        return withEntity(
+                "Level.is_inventory",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().isInventory(level, x, y, z),
+                false);
+    }
+
+    /**
+     * Whether the block at a position declared itself a pipe with {@code set_pipe} in its init().
+     *
+     * <p>This is the reference's test that a neighbour is a pipe before the pipe's own connection
+     * rule runs, asked of the declarations the loader registered, so a pipe accepts a pipe of
+     * another mod without either script naming the other's block. A position with no block, and one
+     * outside the level, answer false.
+     */
+    public static boolean Level_is_pipe(long levelId, double x, double y, double z) {
+        return withEntity(
+                "Level.is_pipe",
+                "level",
+                levelId,
+                level -> isDeclaredPipe(GrugCore.getAdapter().getBlock(level, x, y, z)),
+                false);
+    }
+
+    private static boolean isDeclaredPipe(String blockId) {
+        GrugBlockData block = GrugDeclarations.declaredBlocks.get(blockId);
+        return block != null && block.pipe;
+    }
+
     public static double Level_get_block_light(long levelId, double x, double y, double z) {
         return withEntity(
                 "Level.get_block_light",
@@ -4316,6 +4355,22 @@ public class HostFunctions {
         if (block == null) return;
 
         block.hasShape = true;
+    }
+
+    /**
+     * Declares that the block is a pipe: a block that passes items, liquid or energy from one
+     * neighbour to another along itself, which {@link #Level_is_pipe} answers for its neighbours.
+     *
+     * <p>The declaration is what lets a pipe accept a pipe of another mod without either script
+     * naming the other's block, and it is the reference's {@code IPipeConnection} test that a
+     * BuildCraft pipe passes by being a {@code BlockGenericPipe}. It says nothing about what
+     * travels through the block.
+     */
+    public static void BlockInitContext_set_pipe(long contextId) {
+        GrugBlockData block = requireBlockInitContext("BlockInitContext.set_pipe", contextId);
+        if (block == null) return;
+
+        block.pipe = true;
     }
 
     /**
