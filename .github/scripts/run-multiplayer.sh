@@ -408,6 +408,16 @@ require_second_player() {
     grep -F '[GRUG CI] Moved a second player' "$SERVER_LOG" >&2 || true
     exit 1
   fi
+  # The run keeps the players it owns out of the world's damage (#1738). This leg joins its players
+  # in the server's default game mode, survival, and a zombie slew the second player about a minute
+  # into run 45499221636; a slain player lies down below the crop the player model test captures, so
+  # that test then waited out its bound. A leg that kept no player is one where the world can do
+  # that again.
+  if ! grep -qF " out of the world's damage" "$SERVER_LOG"; then
+    echo "==> The server never kept a player out of the world's damage, so the world can slay one out of a capture." >&2
+    grep -F '[GRUG CI] Kept ' "$SERVER_LOG" >&2 || true
+    exit 1
+  fi
   # A request only ever goes to the starter's connection, so the second client receiving none is
   # what makes its answer a stranger's: it answers the first request ids on every tick, and the
   # server must ignore them while the starter's answer completes the call.

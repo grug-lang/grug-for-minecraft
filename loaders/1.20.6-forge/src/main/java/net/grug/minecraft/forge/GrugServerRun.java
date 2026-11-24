@@ -92,6 +92,7 @@ public final class GrugServerRun {
 
     private void tick(MinecraftServer server) {
         List<ServerPlayer> players = server.getPlayerList().getPlayers();
+        keepOwnedPlayers(players);
 
         if (runner == null) {
             if (waitStartMillis == 0) {
@@ -156,6 +157,34 @@ public final class GrugServerRun {
      */
     private static ServerPlayer starterPlayer(MinecraftServer server) {
         return server.getPlayerList().getPlayer((UUID) GrugControlForge.server().starter());
+    }
+
+    /**
+     * Keeps the players this leg owns out of the world's damage (#1738).
+     *
+     * <p>The run moves its players where the tests need them and reads where they stand, and no
+     * test is about the world hurting them. This leg joins its players in the world's default game
+     * mode, survival, in a save that already holds hostile mobs, and a zombie slew the second
+     * player about a minute into a run. A dead player's body lies down in the game's {@code DYING}
+     * pose, below the crop the player model test captures, so that crop stayed the empty room and
+     * the test waited out its bound. This is the one leg the run gives a second player to, so it is
+     * the one whose players it marks. Which players are due is core's tested {@link
+     * GrugRunPlayers#playersStillToKeep}; this only says whether the run owns them, which is the
+     * marker that also puts the second player in view, and marks the ones still to mark.
+     */
+    private static void keepOwnedPlayers(List<ServerPlayer> players) {
+        for (ServerPlayer player :
+                GrugRunPlayers.playersStillToKeep(
+                        players,
+                        ServerPlayer::isInvulnerable,
+                        GrugLinkArms.known(System.getenv("GRUG_CI_SECOND_PLAYER")))) {
+            player.setInvulnerable(true);
+            System.out.println(
+                    "[GRUG CI] Kept "
+                            + player.getGameProfile().getName()
+                            + " out of the world's damage: the run owns this leg's players, so the"
+                            + " world cannot take one out of a test.");
+        }
     }
 
     /**

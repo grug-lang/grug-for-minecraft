@@ -3,6 +3,9 @@
 # front of the starter while this test runs (GrugServerRun). The golden pins what the loader's own
 # entity renderer drew for it: the default skin, since the offline server sends no textures, with
 # its name tag. The capture is first person, so the only model in view is the other player's.
+# The server keeps every player on this leg out of the world's damage for the whole run (#1738): a
+# player the world had slain lies down in the game's DYING pose, below this crop, so the crop would
+# keep the empty room until the wait ended at its bound.
 # A model that never arrives leaves the crop as the empty room it was at the first tick, and the
 # wait ends at its bound with the assertion that says so; a model drawn from the wrong eye sits
 # elsewhere in the frame and the golden does not match.
