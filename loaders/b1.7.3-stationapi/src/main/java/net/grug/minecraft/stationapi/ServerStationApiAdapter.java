@@ -58,10 +58,9 @@ import java.util.Objects;
  * client-only function and is overridden: a click is not a client-only function, so the server
  * right-clicks in its own world, the world the test reads (#1090).
  *
- * <p>Excluded from coverage because only the dispatch-only multiplayer job launches a server (#167
- * stage 4). See #165.
+ * <p>Measured by the coverage gate like any class. The arms no test can force are annotated one
+ * method at a time with their reason (#1606).
  */
-@GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class ServerStationApiAdapter extends StationApiAdapter {
 
     /** A player's eye is this far above their feet. */
@@ -283,6 +282,8 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      * client-only run's (#1068, #1629). Logs the feet the room is anchored at.
      */
     @Override
+    @GrugGenerated(
+            "the run holds a height only once its starter has joined, and builds rooms only then")
     public void buildTestBox(int radius) {
         PlayerEntity player = (PlayerEntity) testPlayer();
         double held = GrugServerRun.heldFeetY();
