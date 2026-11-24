@@ -875,6 +875,37 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return count;
     }
 
+    /**
+     * {@link #countItemEntities} narrowed to the item entities that carry {@code itemObj}, whatever
+     * their damage, so a test that knows which item a block was moving can tell that item's drop
+     * from any other item entity in reach (#1692).
+     */
+    @Override
+    public double countItemEntitiesOf(
+            Object levelObj, double x, double y, double z, double radius, Object itemObj) {
+        World world = (World) levelObj;
+        double radiusSquared = radius * radius;
+        int count = 0;
+        for (ItemEntity item :
+                world.getEntitiesOfType(
+                        ItemEntity.class,
+                        Box.of(
+                                x - radius,
+                                y - radius,
+                                z - radius,
+                                x + radius,
+                                y + radius,
+                                z + radius))) {
+            double dx = item.x - x;
+            double dy = item.y - y;
+            double dz = item.z - z;
+            if (item.item.getItem() == itemObj && dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     @Override
     public void notifyNeighbors(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;

@@ -146,6 +146,7 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 
 ## Level
 .count_item_entities(x: number, y: number, z: number, radius: number) number
+.count_item_entities_of(x: number, y: number, z: number, radius: number, item: Item) number
 .count_mobs(category: string) number
 .explode(x: number, y: number, z: number, power: number)
 .find_item_entity(x: number, y: number, z: number, radius: number) Option[ItemEntity]

@@ -16,10 +16,9 @@ pipe_table_pipe: Option[BlockEntity] = Option.new()
 # where the suite's timing, and so the coverage_render references, were captured (#262).
 pipe_placed_at: number = -1
 
-# The tick the chest first held the bread, or -1 before that. The item entity that carried the
-# bread is swept from the world a tick or two after the chest takes it, so the check runs two ticks
-# after the arrival, with the sweep already done (#272). A genuinely dropped item persists, so it is
-# still there on the delayed check and the dropped-item assertion still fails on it.
+# The tick the chest first held the bread, or -1 before that. The check runs two ticks after the
+# arrival, which is the timing the suite's captures were taken with (#262); it no longer waits for
+# an item entity to be swept, because the bread travels as a recorded item and never as one (#1692).
 pipe_bread_at: number = -1
 
 export tick(ctx: TestTickContext) {
@@ -34,15 +33,13 @@ export tick(ctx: TestTickContext) {
     } else if not _bread_has_moved() {
         ctx.not_done()
     } else if pipe_bread_at < 0 {
-        # The chest first holds the bread on this tick, and the item entity that carried it through
-        # the pipe is still in the world until the sweep that follows (#272), so record the arrival
-        # and let it happen before the check.
+        # The chest first holds the bread on this tick, so record the arrival and check two ticks
+        # later, which is where the captures were taken (#262).
         pipe_bread_at = ctx.current_tick()
         ctx.not_done()
     } else if ctx.current_tick() < pipe_placed_at + 25 or ctx.current_tick() < pipe_bread_at + 2 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262). The two ticks after the
-        # arrival are for that sweep: the carrying entity is gone by then, while a genuinely
-        # dropped item persists and the dropped-item assertion still fails on it (#272).
+        # arrival are kept for the captures: a dropped bread persists, so the check still fails on it.
         ctx.not_done()
     } else {
         _check(ctx)
@@ -126,9 +123,10 @@ local _setup_pipe(ctx: TestTickContext) {
     pipe_table_chest.set(chest_opt.unwrap())
     pipe_table_pipe.set(pipe_opt.unwrap())
 
-    # An item entity of something the pipe never carries, resting on the chest. The dropped-item check
-    # counts every item entity in reach, so this fixture shows what that check does with an item the
-    # pipe did not drop (#1692).
+    # An item entity of something the pipe never carries, resting on the chest: the regression
+    # fixture for #1692. The dropped-item check counted every item entity in reach, so a stray one
+    # failed a pipe that had delivered the bread; _check asks for the bread alone and asserts this
+    # one is still there, so the test proves the difference rather than assuming it.
     stray_stack: ItemStack = item_stack(item(resource_location("minecraft:diamond")), 0, 1)
     stray: ItemEntity = item_entity(level, x + 1.5, y + 1, z + 0.5, stray_stack)
     stray.entity().set_delta_movement(Vec3.zero())
@@ -169,9 +167,12 @@ local _check(ctx: TestTickContext) {
         slot = slot + 1
     }
 
-    # Nothing was dropped on the way: the chest took it, and an item entity here would mean the pipe
-    # gave up on the push.
-    ctx.assert(level.count_item_entities(x, y, z, 5) == 0, "The pipe should not have dropped anything.")
+    # Nothing was dropped on the way: the chest took it, and an item entity of the bread here would
+    # mean the pipe gave up on the push. The count asks for the bread alone, so the stray diamond on
+    # the chest, or any other item entity in reach, is not read as this pipe's drop (#1692).
+    ctx.assert(level.count_item_entities(x, y, z, 5) >= 1, "The stray item entity should still be in reach.")
+    dropped: Item = item(resource_location("minecraft:bread"))
+    ctx.assert(level.count_item_entities_of(x, y, z, 5, dropped) == 0, "The pipe should not have dropped the bread.")
 }
 
 # The pipe moving the crafted bread into the chest is what this test observes, and the game's own tick

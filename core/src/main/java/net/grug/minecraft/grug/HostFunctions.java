@@ -2365,6 +2365,19 @@ public class HostFunctions {
                 0.0);
     }
 
+    public static double Level_count_item_entities_of(
+            long levelId, double x, double y, double z, double radius, long itemId) {
+        return withEntities(
+                "Level.count_item_entities_of",
+                "level",
+                levelId,
+                "item",
+                itemId,
+                (level, item) ->
+                        GrugCore.getAdapter().countItemEntitiesOf(level, x, y, z, radius, item),
+                0.0);
+    }
+
     public static long Level_find_item_entity(
             long levelId, double x, double y, double z, double radius) {
         return withEntity(

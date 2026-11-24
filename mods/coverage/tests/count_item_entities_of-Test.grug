@@ -1,0 +1,44 @@
+# Covers Level.count_item_entities_of(), which is what a test asks when it knows which item a block
+# was moving: autocrafting_table_pipe-Test asks for the bread its pipe delivered rather than for
+# every item entity in reach, so an item entity of anything else there is not read as a drop (#1692).
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    bread: Item = item(resource_location("minecraft:bread"))
+    ctx.assert(level.count_item_entities_of(x, y, z, 2, diamond) == 0, "There should be no item entities yet.")
+    ctx.assert(level.count_item_entities_of(x, y, z, 2, bread) == 0, "There should be no item entities of bread yet.")
+
+    stack: ItemStack = item_stack(diamond, 0, 1)
+    spawned: ItemEntity = item_entity(level, x, y, z, stack)
+    spawned.entity().set_delta_movement(Vec3.zero())
+    spawned.entity().spawn(level)
+
+    ctx.assert(level.count_item_entities(x, y, z, 2) == 1, "The spawned item entity should be counted.")
+    ctx.assert(level.count_item_entities_of(x, y, z, 2, diamond) == 1, "The spawned diamond should be counted.")
+    ctx.assert(level.count_item_entities_of(x, y, z, 2, bread) == 0, "An item entity of another item should not be counted.")
+    ctx.assert(level.count_item_entities_of(x + 10, y, z, 2, diamond) == 0, "A far position should count none.")
+
+    # The count is by item and not by item and damage, so a damaged stack of the same item counts.
+    broken_stack: ItemStack = item_stack(diamond, 1, 1)
+    broken: ItemEntity = item_entity(level, x + 1.5, y, z, broken_stack)
+    broken.entity().set_delta_movement(Vec3.zero())
+    broken.entity().spawn(level)
+
+    ctx.assert(level.count_item_entities_of(x, y, z, 2, diamond) == 2, "A damaged item still carries its item.")
+
+    # A matching item inside a query's box but diagonal from the query point, so the radius check has
+    # to leave it out on the loaders that have one, while a box-counting loader counts it. This is
+    # the item-match-true, radius-false branch of the filter.
+    qz: number = z + 6
+    corner_stack: ItemStack = item_stack(diamond, 0, 1)
+    corner: ItemEntity = item_entity(level, x + 1.5, y, qz + 1.5, corner_stack)
+    corner.entity().set_delta_movement(Vec3.zero())
+    corner.entity().spawn(level)
+
+    ctx.assert(level.count_item_entities_of(x, y, qz, 2, diamond) <= 1, "A corner item is at most the one in the box.")
+}
