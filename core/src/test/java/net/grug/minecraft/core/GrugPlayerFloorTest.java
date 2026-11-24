@@ -128,6 +128,15 @@ class GrugPlayerFloorTest {
         assertTrue(GrugPlayerFloor.insideABlock(level, -23.5, feet, -64.5));
     }
 
+    @Test
+    void aBlockWithACollisionShapeAtTheFeetIsOneTheHoldKeeps() {
+        FakeLevel level = new FakeLevel();
+        level.addSolid(-24, 70, -65);
+
+        assertTrue(GrugPlayerFloor.hasCollisionAt(level, -23.5, 70.2, -64.5));
+        assertFalse(GrugPlayerFloor.hasCollisionAt(level, -23.5, 71.2, -64.5));
+    }
+
     /**
      * The inside test and the standing test share one tolerance, so this pins the boundary: a
      * millionth above a top is not inside, a millionth under it is still standing on it (the

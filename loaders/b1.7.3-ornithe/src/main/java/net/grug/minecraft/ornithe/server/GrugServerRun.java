@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe.server;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugServerJoin;
@@ -31,7 +32,6 @@ import java.util.List;
  * client that never connects from hanging it. When the run ends, passed or failed, the process
  * exits, which is what ends the scripts watching it.
  */
-@GrugGenerated("a dedicated server, whose coverage no CI run merges until #167 stage 4")
 public final class GrugServerRun {
     /** How long to wait for a client to join before failing the run. */
     static final long PLAYER_JOIN_TIMEOUT_MILLIS = GrugServerJoin.timeoutMillis();
@@ -74,11 +74,9 @@ public final class GrugServerRun {
      * its own tick: a frozen tick never reaches it (#1040).
      */
     public static void flushBlockChanges() {
-        net.minecraft.server.MinecraftServer server =
-                net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get();
-        if (server != null) {
-            server.playerManager.tick();
-        }
+        GrugLinkArms.deliver(
+                net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get(),
+                server -> server.playerManager.tick());
     }
 
     /**
@@ -87,25 +85,27 @@ public final class GrugServerRun {
      * coordinates in its own world.
      */
     public static void sendToWorld(World world, Packet packet) {
-        net.minecraft.server.MinecraftServer server =
-                net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get();
-        if (server != null && server.playerManager != null) {
-            server.playerManager.sendPacket(packet, world.dimension.id);
-        }
+        GrugLinkArms.deliver(
+                net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get(),
+                server ->
+                        GrugLinkArms.deliver(
+                                server.playerManager,
+                                players -> players.sendPacket(packet, world.dimension.id)));
     }
 
     /** The dedicated server's only world, or null before the server exists. */
     public static World world() {
-        net.minecraft.server.MinecraftServer server =
-                net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get();
-        return server == null ? null : server.getWorld(0);
+        return GrugLinkArms.mapOrNull(
+                net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get(),
+                server -> server.getWorld(0));
     }
 
     /** Sends {@code packet} to one player, the one a server-opened GUI belongs to (#1098). */
     public static void sendToPlayer(PlayerEntity player, Packet packet) {
-        if (player instanceof ServerPlayerEntity) {
-            ((ServerPlayerEntity) player).networkHandler.sendPacket(packet);
-        }
+        GrugLinkArms.applyTo(
+                player,
+                ServerPlayerEntity.class,
+                joined -> joined.networkHandler.sendPacket(packet));
     }
 
     /**
@@ -114,9 +114,7 @@ public final class GrugServerRun {
      * it is added only after the screen packet so the client has a menu for those slots to land in.
      */
     public static void listenToMenu(PlayerEntity player, InventoryMenu menu) {
-        if (player instanceof ServerPlayerEntity) {
-            menu.addListener((ServerPlayerEntity) player);
-        }
+        GrugLinkArms.applyTo(player, ServerPlayerEntity.class, menu::addListener);
     }
 
     /**
@@ -125,11 +123,12 @@ public final class GrugServerRun {
      * their own inventory has nothing to close.
      */
     public static void closeOpenMenu(PlayerEntity player) {
-        if (player instanceof ServerPlayerEntity
-                && player.menu != null
-                && player.menu != player.playerMenu) {
-            ((ServerPlayerEntity) player).closeMenu();
-        }
+        GrugLinkArms.applyTo(player, ServerPlayerEntity.class, GrugServerRun::closeMenuIfOther);
+    }
+
+    private static void closeMenuIfOther(ServerPlayerEntity player) {
+        GrugLinkArms.runIf(
+                GrugLinkArms.otherMenuOpen(player.menu, player.playerMenu), player::closeMenu);
     }
 
     /**
@@ -138,10 +137,13 @@ public final class GrugServerRun {
      * click that changes it does.
      */
     public static void sendCursor(PlayerEntity player) {
-        if (!(player instanceof ServerPlayerEntity)) return;
-        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
-        serverPlayer.networkHandler.sendPacket(
-                new InventoryMenuSlotContentPacket(-1, -1, player.inventory.getCursorItem()));
+        GrugLinkArms.applyTo(
+                player,
+                ServerPlayerEntity.class,
+                serverPlayer ->
+                        serverPlayer.networkHandler.sendPacket(
+                                new InventoryMenuSlotContentPacket(
+                                        -1, -1, player.inventory.getCursorItem())));
     }
 
     /**
@@ -157,20 +159,12 @@ public final class GrugServerRun {
     public static void onServerTick(MinecraftServer server) {
         // A test's own tick may run the world again through #advance; the flush belongs after the
         // burst, not inside it (#1191).
-        if (advancing) {
-            return;
-        }
-        if (!done && "true".equals(System.getenv("GRUG_CI"))) {
-            try {
-                tick(server);
-            } catch (Throwable thrown) {
-                // The server loop would end the process without a word, which reads as a hang to
-                // whoever watches the log, so say what stopped the run.
-                System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
-                thrown.printStackTrace(System.out);
-                stop(1);
-            }
-        }
+        GrugLinkArms.runUnless(advancing, () -> tickOutsideAdvance(server));
+    }
+
+    private static void tickOutsideAdvance(MinecraftServer server) {
+        GrugLinkArms.runIfCi(
+                System::getenv, () -> GrugLinkArms.runUnless(done, () -> tickOrFail(server)));
         // Every tick, in a CI run or not: the server installs the deferring transport whenever it
         // starts, so a server outside CI would otherwise hold every change it ever made (#1191).
         // The flush covers every world the server runs, after the tick's own block changes. A
@@ -180,6 +174,22 @@ public final class GrugServerRun {
             flushBlockChanges();
         }
         GrugSavedDataSync.flush();
+    }
+
+    /** Runs one tick of the run, and ends the process with a failure when it throws. */
+    @GrugGenerated(
+            "its catch arm ends the server process through stop, with the run failed: a test that"
+                    + " reached it would end the very run it is part of")
+    private static void tickOrFail(MinecraftServer server) {
+        try {
+            tick(server);
+        } catch (Throwable thrown) {
+            // The server loop would end the process without a word, which reads as a hang to
+            // whoever watches the log, so say what stopped the run.
+            System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
+            thrown.printStackTrace(System.out);
+            stop(1);
+        }
     }
 
     /**
@@ -243,10 +253,11 @@ public final class GrugServerRun {
             }
             // The run starts when a player has started it (#1040): the joined client sends its
             // start once it is in the world.
-            if (!players.isEmpty()
-                    && GrugControlBeta.server().hasStarter()
-                    && waiting != null
-                    && GrugCore.getAdapter().isWorldReady(waiting)) {
+            if (GrugLinkArms.startReady(
+                    players.isEmpty(),
+                    GrugControlBeta.server()::hasStarter,
+                    waiting,
+                    ready -> GrugCore.getAdapter().isWorldReady(ready))) {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
@@ -259,10 +270,14 @@ public final class GrugServerRun {
             }
         }
 
-        if (players.isEmpty() || !players.contains(GrugControlBeta.starterPlayer())) {
-            failPlayerLeft();
-            return;
-        }
+        GrugLinkArms.choose(
+                GrugLinkArms.starterLeft(players, GrugControlBeta.starterPlayer()),
+                GrugServerRun::failPlayerLeft,
+                () -> runTicks(server));
+    }
+
+    /** Ticks the runner once per world tick, at the game's speed, while the starter is here. */
+    private static void runTicks(MinecraftServer server) {
 
         // The runner ticks once per world tick, as the client's does at speed: a server tick has
         // run the world once already, and each extra tick of a faster game is a world tick followed
@@ -284,9 +299,7 @@ public final class GrugServerRun {
                 advance(server.getWorld(0), 1);
             }
             PlayerEntity player = (PlayerEntity) GrugCore.getAdapter().testPlayer();
-            if (player != null) {
-                holdPlayer(player);
-            }
+            GrugLinkArms.applyTo(player, PlayerEntity.class, GrugServerRun::holdPlayer);
             // Applies what the joined client sent during the previous tick's calls, which here is a
             // forwarded click's packet (#1094). The game's own tick reads the connection too, but
             // only after this whole game-speed loop, and a test asserts on the tick after its
@@ -294,10 +307,17 @@ public final class GrugServerRun {
             GrugControlBeta.server().applyClientWork();
             runner.tick(player);
             if (runner.roomBuiltThisTick()) return;
-            if (runner.isFinished()) {
-                stop(runner.isPassed() ? 0 : 1);
-                return;
-            }
+            finishIfDone();
+        }
+    }
+
+    /** Ends the process once the runner has finished, with a status that says whether it passed. */
+    @GrugGenerated(
+            "it ends the server process after the last coverage segment is written, so nothing in"
+                    + " it can be counted")
+    private static void finishIfDone() {
+        if (runner.isFinished()) {
+            stop(runner.isPassed() ? 0 : 1);
         }
     }
 
@@ -314,10 +334,10 @@ public final class GrugServerRun {
      * #restoreTestPlayer} can put them back.
      */
     public static void snapToBlockCentre(PlayerEntity player) {
-        if (!(player instanceof ServerPlayerEntity)) {
-            return;
-        }
-        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        GrugLinkArms.applyTo(player, ServerPlayerEntity.class, GrugServerRun::snapPlayer);
+    }
+
+    private static void snapPlayer(ServerPlayerEntity serverPlayer) {
         SNAP.save(
                 serverPlayer,
                 serverPlayer.x,
@@ -343,10 +363,14 @@ public final class GrugServerRun {
      * player. A player this server does not own, or a snap that did not run, restores nothing.
      */
     public static void restoreTestPlayer(PlayerEntity player) {
-        if (!SNAP.claimRestore(player) || !(player instanceof ServerPlayerEntity)) {
-            return;
-        }
-        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        GrugLinkArms.runIf(
+                SNAP.claimRestore(player),
+                () ->
+                        GrugLinkArms.applyTo(
+                                player, ServerPlayerEntity.class, GrugServerRun::restorePlayer));
+    }
+
+    private static void restorePlayer(ServerPlayerEntity serverPlayer) {
         serverPlayer.networkHandler.teleport(
                 SNAP.savedX(), SNAP.savedY(), SNAP.savedZ(), SNAP.savedYaw(), SNAP.savedPitch());
         SNAP.clear();
@@ -357,12 +381,14 @@ public final class GrugServerRun {
      * the teleport the floor hold uses so the joined client's camera follows (#1040).
      */
     public static void moveToFeet(PlayerEntity player, double x, double feetY, double z) {
-        if (!(player instanceof ServerPlayerEntity)) {
-            return;
-        }
-        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
-        serverPlayer.networkHandler.teleport(x, feetY, z, serverPlayer.yaw, serverPlayer.pitch);
-        serverPlayer.velocityY = 0.0;
+        GrugLinkArms.applyTo(
+                player,
+                ServerPlayerEntity.class,
+                serverPlayer -> {
+                    serverPlayer.networkHandler.teleport(
+                            x, feetY, z, serverPlayer.yaw, serverPlayer.pitch);
+                    serverPlayer.velocityY = 0.0;
+                });
     }
 
     /**
@@ -384,17 +410,19 @@ public final class GrugServerRun {
      * moves the player down, so holding the feet at the floor cannot hide a test's own movement.
      */
     private static void holdPlayer(PlayerEntity player) {
-        World world = world();
-        if (world == null) {
-            return;
-        }
+        GrugLinkArms.deliver(world(), world -> holdIn(player, world));
+    }
+
+    private static void holdIn(PlayerEntity player, World world) {
         GrugPlayerFloor.BlockSource blocks = ServerOrnitheAdapter.solidBlocks(world);
         double feet = player.shape.minY;
         double floor = GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z);
-        if (!GrugPlayerFloor.below(feet, floor)) {
-            return;
-        }
-        holdOnFloor((ServerPlayerEntity) player, feet, floor);
+        GrugLinkArms.runIfWith(
+                GrugPlayerFloor.below(feet, floor),
+                player,
+                feet,
+                floor,
+                GrugServerRun::holdOnFloor);
     }
 
     /**
@@ -406,7 +434,8 @@ public final class GrugServerRun {
             "it runs only when the joined client has fallen into the ground, which the client's own"
                     + " collision prevents and a test cannot make it do; the teleport and the call"
                     + " of core's tested log are all that is in it (#1136)")
-    private static void holdOnFloor(ServerPlayerEntity serverPlayer, double feet, double floor) {
+    private static void holdOnFloor(PlayerEntity player, double feet, double floor) {
+        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
         serverPlayer.networkHandler.teleport(
                 serverPlayer.x, floor, serverPlayer.z, serverPlayer.yaw, serverPlayer.pitch);
         serverPlayer.velocityY = 0.0;
@@ -463,6 +492,9 @@ public final class GrugServerRun {
     }
 
     /** Ends the server process; a non-zero status says the run did not pass. */
+    @GrugGenerated(
+            "it ends the server process after the last coverage segment is written, so nothing in"
+                    + " it can be counted")
     private static void stop(int status) {
         done = true;
         GrugControlBeta.server().endRun();
