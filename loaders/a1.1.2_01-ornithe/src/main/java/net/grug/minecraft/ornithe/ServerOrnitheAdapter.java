@@ -544,7 +544,9 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                         ((int) Math.floor(y)) >> 4,
                         ((int) Math.floor(z)) >> 4,
                         (lightX, lightY, lightZ) ->
-                                world.getLight(LightType.BLOCK, lightX, lightY, lightZ));
+                                world.getLight(LightType.BLOCK, lightX, lightY, lightZ),
+                        (lightX, lightY, lightZ) ->
+                                world.getLight(LightType.SKY, lightX, lightY, lightZ));
         return clientLight.lightApplied(x, y, z, simulated);
     }
 
