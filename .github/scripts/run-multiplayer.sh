@@ -430,7 +430,62 @@ require_second_player() {
   echo "==> Two real clients: exactly one starter, its answers, and both connections survived the freezes."
 }
 
-# setsid gives each process its own group, so the cleanup ends Gradle and the game together.
+# A server whose Gradle already started its runServer is never repeated, as the client's build and
+# run-loader.sh's run phase hold: the log after that line is the game's, so a line in it that looks
+# like a download failure could be the game's own, and a server that started has written its world.
+server_game_start_re='^> Task (:loaders:[^ :]+)?:runServer( |$)'
+
+# The server's Gradle launch, kept as the command and the directory it ran in so a retry repeats
+# exactly the invocation that failed. A server launched from a jar has no build to repeat, so that
+# branch leaves the command empty and keeps its single launch.
+server_command=()
+server_env=()
+server_dir="$REPO_ROOT"
+server_attempt=1
+# setsid gives each process its own group, so the cleanup ends Gradle and the game together, and
+# server_pid is the group's leader, which is what cleanup and the retry below end.
+start_server_build() {
+  # A retry starts from an empty log, so what decided the leg is that attempt's output alone; the
+  # first attempt keeps whatever the caller wrote before it, such as the standalone publish.
+  if [ "$server_attempt" -gt 1 ]; then
+    : > "$SERVER_LOG"
+  fi
+  (
+    cd "$server_dir" || exit 1
+    GRUG_CI=true setsid env "${server_env[@]}" "${server_command[@]}"
+  ) >>"$SERVER_LOG" 2>&1 &
+  server_pid=$!
+}
+
+# One attempt and one retry, and only for a server build that died fetching what it needs before the
+# ready line: the rule the joined client's build follows (#1702) and the one run-loader.sh has
+# always applied to a loader's own build. A build that failed on a download never started the game,
+# so the retry repeats nothing the game did; a build whose runServer had started, a compile error, a
+# crash or a second failure ends the leg as it did before. The retry is bounded by the shared
+# MAX_GRADLE_ATTEMPTS, so it is never a third attempt, and the failed attempt's log is kept beside
+# the one that decided the leg, as the client's retry keeps its own.
+retry_server_build() {
+  local reason
+  if [ "${#server_command[@]}" -eq 0 ] || [ "$server_attempt" -ge "$MAX_GRADLE_ATTEMPTS" ]; then
+    return 1
+  fi
+  if grep -q -E "$server_game_start_re" "$SERVER_LOG"; then
+    return 1
+  fi
+  if ! reason=$(retryable_failure "$SERVER_LOG"); then
+    return 1
+  fi
+  # The attempt that died ran in a process group of its own, so anything it left there is ended
+  # before the retry writes the same world, rather than outliving the launch it belonged to.
+  kill -KILL -- "-${server_pid}" 2>/dev/null || true
+  cp "$SERVER_LOG" "${SERVER_LOG}.attempt-${server_attempt}"
+  echo "==> The server failed fetching what it needs, not on the code: $reason" >&2
+  echo "==> Retrying the server, attempt $((server_attempt + 1)) of ${MAX_GRADLE_ATTEMPTS}." >&2
+  echo "==> The failed attempt's server log is ${SERVER_LOG#"${REPO_ROOT}/"}.attempt-${server_attempt}" >&2
+  server_attempt=$((server_attempt + 1))
+  start_server_build
+}
+
 echo "==> Building and starting the dedicated server of ${LOADER}"
 if [ -n "$SERVER_VERSION" ]; then
   if ! install_ornithe_server >"$SERVER_LOG" 2>&1; then
@@ -466,25 +521,29 @@ elif [ "$STANDALONE" = true ]; then
     echo "==> Publishing core for ${LOADER} failed." >&2
     exit 1
   fi
-  cd "$LOADER_DIR"
-  GRUG_CI=true setsid ./gradlew runServer "${gradle_args[@]}" -x test >>"$SERVER_LOG" 2>&1 &
-  server_pid=$!
-  cd "$REPO_ROOT"
+  server_dir="${REPO_ROOT}/${LOADER_DIR}"
+  server_command=(./gradlew runServer "${gradle_args[@]}" -x test)
+  start_server_build
 else
   # The server is told this leg has a second player (#1027), because it moves that player away from
   # the starter before the tests read the room. Only 1.20.6 has one, and it is the loader that
   # reaches this branch, so the variable never reaches another leg.
-  server_env=()
   if [ "$SECOND_CLIENT" = true ]; then
     server_env=(GRUG_CI_SECOND_PLAYER=1)
   fi
-  GRUG_CI=true env "${server_env[@]}" setsid ./gradlew ":loaders:${LOADER}:classes" ":loaders:${LOADER}:runServer" "${gradle_args[@]}" -x test >"$SERVER_LOG" 2>&1 &
-  server_pid=$!
+  server_command=(./gradlew ":loaders:${LOADER}:classes" ":loaders:${LOADER}:runServer" "${gradle_args[@]}" -x test)
+  start_server_build
 fi
 
 build_deadline=$((SECONDS + ${GRUG_CI_BUILD_TIMEOUT:-600}))
 while ! grep -qE "$READY_RE" "$SERVER_LOG"; do
   if ! kill -0 "$server_pid" 2>/dev/null; then
+    if retry_server_build; then
+      # The retry is a whole build, so it gets a window of its own rather than what is left of the
+      # first attempt's, which a slow but working second attempt would otherwise overrun.
+      build_deadline=$((SECONDS + ${GRUG_CI_BUILD_TIMEOUT:-600}))
+      continue
+    fi
     echo "==> The dedicated server process exited before it was ready." >&2
     exit 1
   fi

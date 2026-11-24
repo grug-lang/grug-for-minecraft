@@ -1197,6 +1197,7 @@ jobs:
             loaders/${{ matrix.loader }}/run-server/logs
             loaders/${{ matrix.loader }}/run-server/crash-reports
             loaders/${{ matrix.loader }}/run-server-ci.log
+            loaders/${{ matrix.loader }}/run-server-ci.log.attempt-*
             loaders/${{ matrix.loader }}/run-server/grug-screenshot-artifacts
             loaders/${{ matrix.loader }}/run/logs
             loaders/${{ matrix.loader }}/run/crash-reports
