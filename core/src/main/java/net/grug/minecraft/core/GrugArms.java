@@ -72,4 +72,22 @@ public final class GrugArms {
             double x, double z, double minX, double maxX, double minZ, double maxZ, double edge) {
         return x >= minX - edge && x <= maxX + edge && z >= minZ - edge && z <= maxZ + edge;
     }
+
+    /**
+     * The highest floor so far after one more collision box: the box's top when the point is inside
+     * its footprint and higher than what was found, else what was found. The adapters' collision
+     * walks call it for every box, so the decision is not a branch of theirs.
+     */
+    public static double raisedTop(
+            double top,
+            double x,
+            double z,
+            double minX,
+            double maxX,
+            double minZ,
+            double maxZ,
+            double maxY,
+            double edge) {
+        return pointInFootprint(x, z, minX, maxX, minZ, maxZ, edge) ? Math.max(top, maxY) : top;
+    }
 }

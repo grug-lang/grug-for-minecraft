@@ -66,6 +66,15 @@ class GrugArmsTest {
     }
 
     @Test
+    void aBoxRaisesTheTopOnlyWhenItCoversThePointAndIsHigher() {
+        double none = Double.NEGATIVE_INFINITY;
+        assertEquals(1.0, GrugArms.raisedTop(none, 0.5, 0.5, 0, 1, 0, 1, 1.0, 1e-9));
+        assertEquals(1.0, GrugArms.raisedTop(0.5, 0.5, 0.5, 0, 1, 0, 1, 1.0, 1e-9));
+        assertEquals(0.75, GrugArms.raisedTop(0.75, 0.5, 0.5, 0, 1, 0, 1, 0.5, 1e-9), "lower box");
+        assertEquals(0.25, GrugArms.raisedTop(0.25, 2.5, 0.5, 0, 1, 0, 1, 1.0, 1e-9), "off box");
+    }
+
+    @Test
     void bothAndInRangeDecideEveryCombination() {
         assertTrue(GrugArms.both(true, true));
         assertFalse(GrugArms.both(true, false));
