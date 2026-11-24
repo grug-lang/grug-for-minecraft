@@ -427,7 +427,9 @@ def carry_over_server_exec(
     for nothing. A runner this run has no classes for takes none either. The data is only
     appended to the runner's exec list: JaCoCo analyses it against this run's class bytes and
     ignores a class whose id no longer matches, which counts as nothing and never as an error
-    (#1602). It is never the Ornithe server set, since that needs this run's layer jar.
+    (#1602). An Ornithe runner's server set is analysed from this run's layer jar against the
+    server's exec data, so apply_carried_server_exec hands it the carried data as its server exec
+    when the layer jar is there, and its classes count when the jar's bytes did not change.
     """
     taken: dict[str, tuple[list[Path], list[Path]]] = {}
     lines: list[str] = []
@@ -446,6 +448,25 @@ def carry_over_server_exec(
                 f"{runner}: carrying over {len(execs)} dedicated-server exec file(s) of the base run"
             )
     return taken, lines
+
+
+def apply_carried_server_exec(
+    runners: dict[str, dict], carried: dict[str, tuple[list[Path], list[Path]]]
+) -> None:
+    """Add the carried dedicated-server exec data to each runner, as a leg of this run would.
+
+    Every runner gets it in its exec and dropped lists. An Ornithe runner with this run's layer jar
+    also gets it as its server exec, so server_class_set analyses the classes only the server ran
+    from the jar's bytes against it (#1601): without that, a promoted Ornithe server class would
+    count only on a run whose own leg ran. A runner without a layer jar keeps the plain append.
+    """
+    for runner, (server_execs, server_dropped_files) in carried.items():
+        info = runners[runner]
+        info["exec"] = [*info.get("exec", []), *server_execs]
+        info["dropped"] = [*info.get("dropped", []), *server_dropped_files]
+        if runner in ORNITHE_LOADERS and info.get("layer_jar") is not None:
+            info["server_exec"] = server_execs
+            info["server_dropped"] = server_dropped_files
 
 
 def carried_unmatched(unmatched: list[str], carried: list[Path]) -> list[str]:
@@ -1233,9 +1254,7 @@ def main() -> int:
     if args.base_server_exec is not None:
         for line in carried_server_lines:
             print(line)
-    for runner, (server_execs, server_dropped_files) in carried_server.items():
-        runners[runner]["exec"] = [*runners[runner].get("exec", []), *server_execs]
-        runners[runner]["dropped"] = [*runners[runner].get("dropped", []), *server_dropped_files]
+    apply_carried_server_exec(runners, carried_server)
 
     carried = carried_by_runner(args.carry_over, "--carry-over")
     carried_dropped = carried_by_runner(args.carry_over_dropped, "--carry-over-dropped")

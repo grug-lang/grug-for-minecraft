@@ -5,9 +5,12 @@
 
 reads the GITHUB_TOKEN, GITHUB_REPOSITORY and GITHUB_API_URL environment and prints one
 `<artifact name> <download url>` line per live artifact of the newest run that has any, and says on
-stderr which run and how old it is. Only the dispatch-only multiplayer job uploads server-exec, so
-the run is not the pull request's base run (a push to main) but the newest dispatch or scheduled
-run of build.yml on main within the 7 day retention, among the 10 newest. No such run, or any
+stderr which run and how old it is. A leg runs on a dispatch, on a schedule and, for each loader whose
+code the diff touches, on a push to main and a pull request (#1601), so the artifacts of one loader
+come from the newest run of build.yml on main (a dispatch, a schedule or a push) within the 7 day
+retention, among the 50 newest, whose leg for that loader concluded success and uploaded one: a loader's class bytes only change in a run that
+touched it, and that run's leg recorded them, so the newest artifact of a loader matches the bytes
+of main's head until a later push changes the loader and records its own. No such run, or any
 error, answers no lines and exit 0: the carry-over is a source of exec data for a promoted class,
 and without it the gate counts what the run's own legs recorded, as before.
 """
@@ -20,10 +23,11 @@ import re
 import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 RETENTION = timedelta(days=7)
-EVENTS = ("workflow_dispatch", "schedule")
-MAX_RUNS = 10
+EVENTS = ("workflow_dispatch", "schedule", "push")
+MAX_RUNS = 50
 MAX_PAGES = 5
 
 NAME = re.compile(r"^server-exec-(.+)$")
@@ -61,13 +65,45 @@ def candidate_runs(listing: dict, now: datetime) -> list[dict]:
     return runs[:MAX_RUNS]
 
 
-def choose_run(runs: list[dict], fetch) -> tuple[dict | None, list[tuple[str, str]]]:
-    """The first run, newest first, whose artifacts (fetch(run id) -> listing) hold a live one."""
+LEG = re.compile(r"^(.+) on a dedicated server$")
+
+
+def succeeded_loaders(jobs: dict) -> set[str]:
+    """The loaders whose dedicated-server leg concluded success in a run's job listing."""
+    found = set()
+    for job in jobs.get("jobs", []):
+        match = LEG.match(job.get("name", ""))
+        if match and job.get("conclusion") == "success":
+            found.add(match.group(1))
+    return found
+
+
+def choose_runs(
+    runs: list[dict], fetch, wanted: set[str] | None = None, fetch_jobs=None
+) -> list[tuple[dict, list[tuple[str, str]]]]:
+    """Per artifact name, the newest run (fetch(run id) -> listing) holding a live one.
+
+    The result is one (run, pairs) entry per run that supplies at least one name, newest first, so
+    the log can name each run. ``wanted`` names the artifacts to look for: the walk stops once every
+    one is found, and None walks every run. With ``fetch_jobs`` (run id -> job listing), an artifact
+    counts only when that loader's leg concluded success in the run, so a failed or partial leg never
+    shadows a good artifact (#1601); a run is asked for its jobs only when it holds a live artifact,
+    so a run that ran no multiplayer job (a docs-only push) costs one request.
+    """
+    found: set[str] = set()
+    chosen: list[tuple[dict, list[tuple[str, str]]]] = []
     for run in runs:
         pairs, _ = pick(fetch(run["id"]))
-        if pairs:
-            return run, pairs
-    return None, []
+        if pairs and fetch_jobs is not None:
+            good = succeeded_loaders(fetch_jobs(run["id"]))
+            pairs = [(n, u) for n, u in pairs if NAME.match(n).group(1) in good]
+        fresh = [(name, url) for name, url in pairs if name not in found]
+        if fresh:
+            chosen.append((run, fresh))
+            found.update(name for name, _ in fresh)
+        if wanted is not None and wanted <= found:
+            break
+    return chosen
 
 
 def get_json(url: str, token: str):
@@ -95,32 +131,43 @@ def main() -> int:
                 break
         return {"artifacts": artifacts}
 
+    def fetch_jobs(run_id):
+        url = f"{api}/repos/{slug}/actions/runs/{run_id}/jobs?per_page=100&filter=latest"
+        return get_json(url, token)
+
     try:
         url = (
             f"{api}/repos/{slug}/actions/workflows/build.yml/runs"
             "?branch=main&status=completed&per_page=100"
         )
-        run, pairs = choose_run(candidate_runs(get_json(url, token), now), fetch)
+        loader_dirs = Path("loaders")
+        wanted = (
+            {f"server-exec-{d.name}" for d in loader_dirs.iterdir() if d.is_dir()}
+            if loader_dirs.is_dir()
+            else None
+        )
+        chosen = choose_runs(candidate_runs(get_json(url, token), now), fetch, wanted, fetch_jobs)
     except Exception as error:  # a lookup that fails carries nothing and never fails the job
         print(
             f"no dedicated-server exec data carried over: lookup failed ({error})", file=sys.stderr
         )
         return 0
-    if run is None:
+    if not chosen:
         print(
-            "no dedicated-server exec data carried over: none of the 10 newest dispatch or "
-            "scheduled runs of build.yml on main within 7 days has a live server-exec artifact",
+            "no dedicated-server exec data carried over: none of the 50 newest dispatch, scheduled or "
+            "push runs of build.yml on main within 7 days has a live server-exec artifact of a leg that succeeded",
             file=sys.stderr,
         )
         return 0
-    age = now - parse_time(run["created_at"])
-    print(
-        f"carrying over the server-exec artifacts of run {run['id']} "
-        f"({run['event']}, {age.total_seconds() / 3600:.1f} h old)",
-        file=sys.stderr,
-    )
-    for name, link in pairs:
-        print(name, link)
+    for run, pairs in chosen:
+        age = now - parse_time(run["created_at"])
+        print(
+            f"carrying over {', '.join(name for name, _ in pairs)} of run {run['id']} "
+            f"({run['event']}, {age.total_seconds() / 3600:.1f} h old)",
+            file=sys.stderr,
+        )
+        for name, link in pairs:
+            print(name, link)
     return 0
 
 
