@@ -20,5 +20,6 @@
 			"name": "BSD Zero Clause License",
 			"url": "https://spdx.org/licenses/0BSD.html"
 		}
-	]
+	],
+	"done": "all"
 }

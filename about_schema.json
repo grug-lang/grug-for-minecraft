@@ -154,6 +154,13 @@
                     }
                 ]
             }
+        },
+        "done": {
+            "description": "How finished the mod is. A mod is a port, whose every feature the reference registers is ported and tested, or it is the repository's own, whose every intended feature is there. Three states: the key absent is not finished; \"logic\" is behaviour complete and audited, with no accepted capture asserting what the mod renders; \"all\" is the same plus an accepted golden for every rendered feature on every loader the mod runs on, which a mod that renders nothing through its own code satisfies because it has nothing of its own to capture. The enum refuses every other value. Either value is refused by about_schema.py while the first derived_from entry still lists a deviation, since a deviation is a gap that is still open. Finished is not frozen, so a fix or a small edit keeps the key.",
+            "enum": [
+                "logic",
+                "all"
+            ]
         }
     },
     "definitions": {
