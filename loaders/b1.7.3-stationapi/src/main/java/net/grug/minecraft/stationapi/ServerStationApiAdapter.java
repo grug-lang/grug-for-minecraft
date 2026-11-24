@@ -842,29 +842,31 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      * rather than asked again until the tick budget is gone. See {@link GrugLightRetry}.
      */
     private GrugLightRetry.Verdict lightVerdict() throws GrugControlServer.ControlException {
+        World world = (World) getLevel();
         GrugLightRetry.Verdict verdict =
-                lightRetry.answered(GrugControlStation.server().settle(lightAsk()));
+                lightRetry.answered(
+                        GrugControlStation.server().settle(lightAsk()),
+                        lightResend.lastBox(),
+                        (x, y, z) -> world.getBrightness(LightType.BLOCK, x, y, z),
+                        (x, y, z) -> world.getBrightness(LightType.SKY, x, y, z),
+                        GrugControlStation.server()::probeLight,
+                        (x, y, z) ->
+                                (long) GrugControlStation.server().clientLightFingerprint(x, y, z));
         if (verdict == GrugLightRetry.Verdict.PERSISTED) {
-            throw new GrugControlServer.ControlException(difference());
+            throw new GrugControlServer.ControlException(lightRetry.report());
         }
         return verdict;
     }
 
-    /**
-     * The cell where the joined client's light still differs, with both fields' levels on each side
-     * (#1695), so a dispatch log names what to fix.
-     */
-    private String difference() throws GrugControlServer.ControlException {
-        World world = (World) getLevel();
-        return GrugLightRetry.difference(
-                lightResend.lastBox(),
-                (x, y, z) -> world.getBrightness(LightType.BLOCK, x, y, z),
-                (x, y, z) -> world.getBrightness(LightType.SKY, x, y, z),
-                GrugControlStation.server()::probeLight);
-    }
-
-    /** The light answers so far, so a second divergence is reported rather than re-armed again. */
+    /** The light answers so far, so a divergence is reported when it stops moving (#1695). */
     private final GrugLightRetry lightRetry = new GrugLightRetry();
+
+    /** Forgets the last test's light box and divergence, before the next test's room build. */
+    @Override
+    public void forgetLightForTest() {
+        lightResend.forget();
+        lightRetry.forget();
+    }
 
     /**
      * What the settle ask compares once the client's frames and blocks are settled: this server's

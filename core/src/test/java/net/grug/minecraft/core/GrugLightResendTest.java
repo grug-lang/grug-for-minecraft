@@ -166,6 +166,34 @@ class GrugLightResendTest {
     }
 
     @Test
+    void forgettingTheBoxSendsOnlyTheNextTestsOwnChanges() {
+        // A test that never waits leaves its placements owed, and a test that did wait leaves the
+        // box of its last send, which a divergence would arm again. Neither is the next test's: the
+        // next test's box is its room and its own placements, so forgetting both keeps a wait from
+        // comparing a cell no test touched (#1695).
+        GrugLightResend resend = new GrugLightResend();
+        resend.noteBlock(100, 64, 100);
+        resend.due();
+        resend.due();
+        resend.noteBlock(60, 64, 3);
+        assertArrayEquals(new int[] {99, 62, 99, 101, 65, 101}, resend.lastBox());
+
+        resend.forget();
+
+        assertFalse(resend.pending(), "the last test's changes are not owed to the next");
+        assertEquals(0, resend.lastBox().length, "and its box is not what a divergence arms");
+        resend.rearm();
+        assertFalse(resend.pending(), "so a stale divergence sends nothing");
+        assertTrue(resend.due().isEmpty());
+        assertTrue(resend.due().isEmpty());
+
+        resend.noteBlock(5, 70, 5);
+        resend.due();
+        assertArrayEquals(new int[] {4, 68, 4, 3, 4, 3}, resend.due().get(0));
+        assertArrayEquals(new int[] {4, 68, 4, 6, 71, 6}, resend.lastBox());
+    }
+
+    @Test
     void theBoxOfTheLastSendIsKept() {
         GrugLightResend resend = new GrugLightResend();
         assertEquals(0, resend.lastBox().length);

@@ -295,7 +295,10 @@ public final class GrugRenderSettle {
      *
      * <p>{@link #captureable} needs the frame a capture reads to be one drawn after it asked: the
      * main render target holds the last completed frame, and a capture that asked between two
-     * frames would otherwise read the one before its ask. The count is what tells the two apart.
+     * frames would otherwise read the one before its ask. The count is what tells the two apart,
+     * and the wait that repeats one not-settled answer at one world revision reads it too (#1695):
+     * a client whose count does not move across asks is not drawing at all, which is a different
+     * case from a renderer that is slow to finish the frame it has.
      */
     public synchronized long framesDrawn() {
         return frames;

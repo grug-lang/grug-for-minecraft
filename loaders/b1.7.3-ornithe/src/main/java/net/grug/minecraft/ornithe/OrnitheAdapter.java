@@ -1652,6 +1652,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 blockSync.settled((x, y, z) -> getBlock(simulated, x, y, z)));
     }
 
+    /** The frames this client has drawn, for the wait that repeats one answer (#1695). */
+    @Override
+    public long settleFrames() {
+        return renderSettle.framesDrawn();
+    }
+
     @Override
     public void forgetSettledFrames() {
         renderSettle.reset();

@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * Covers what a loader makes of the light ask's answers, and the report that names the cell a
  * persisting divergence is at (#1695).
@@ -27,28 +29,123 @@ class GrugLightRetryTest {
         };
     }
 
+    /** The client's own section fingerprint, as its client-side call answers it. */
+    private static GrugLightRetry.SectionRead section(
+            GrugLightSync.BlockLight block, GrugLightSync.BlockLight sky) {
+        return (x, y, z) -> GrugLightSync.lightFingerprint(x >> 4, y >> 4, z >> 4, block, sky);
+    }
+
+    private static GrugLightRetry.Verdict diverged(
+            GrugLightRetry retry,
+            int[] box,
+            GrugLightSync.BlockLight block,
+            GrugLightSync.BlockLight sky,
+            GrugLightRetry.Probe probe,
+            GrugLightRetry.SectionRead section)
+            throws GrugControlServer.ControlException {
+        return retry.answered(
+                GrugControlWire.SETTLE_LIGHT_DIVERGED, box, block, sky, probe, section);
+    }
+
     @Test
-    void oneDivergenceSendsTheBoxAgainAndASecondOneIsTheDefect() {
+    void aFieldThatStopsMovingIsReportedAtItsCell() throws Exception {
+        int[] box = {0, 64, 0, 0, 64, 0};
+        GrugLightSync.BlockLight serverBlock = (x, y, z) -> 7;
+        GrugLightSync.BlockLight serverSky = (x, y, z) -> 3;
+        // The client's field does not move across the re-sends, so no send replaces it.
+        GrugLightSync.BlockLight clientBlock = (x, y, z) -> 9;
+        GrugLightSync.BlockLight clientSky = (x, y, z) -> 0;
+        GrugLightRetry.Probe probe = probe(clientBlock, clientSky);
+        GrugLightRetry.SectionRead section = section(clientBlock, clientSky);
         GrugLightRetry retry = new GrugLightRetry();
-        assertEquals(GrugLightRetry.Verdict.SETTLED, retry.answered(GrugControlWire.SETTLE_YES));
-        assertEquals(GrugLightRetry.Verdict.UNSETTLED, retry.answered(GrugControlWire.SETTLE_NO));
+
+        assertEquals(
+                GrugLightRetry.Verdict.SETTLED,
+                retry.answered(
+                        GrugControlWire.SETTLE_YES, box, serverBlock, serverSky, probe, section));
+        assertEquals(
+                GrugLightRetry.Verdict.UNSETTLED,
+                retry.answered(
+                        GrugControlWire.SETTLE_NO, box, serverBlock, serverSky, probe, section));
         assertEquals(
                 GrugLightRetry.Verdict.DIVERGED,
-                retry.answered(GrugControlWire.SETTLE_LIGHT_DIVERGED));
-        // A client that goes back to drawing still holds the field it relit, so the divergence
-        // stands until a settled answer.
-        assertEquals(GrugLightRetry.Verdict.UNSETTLED, retry.answered(GrugControlWire.SETTLE_NO));
-        assertEquals(
-                GrugLightRetry.Verdict.PERSISTED,
-                retry.answered(GrugControlWire.SETTLE_LIGHT_DIVERGED));
-        assertEquals(
-                GrugLightRetry.Verdict.PERSISTED,
-                retry.answered(GrugControlWire.SETTLE_LIGHT_DIVERGED));
-        // A settled answer forgets it, so a later divergence starts over.
-        assertEquals(GrugLightRetry.Verdict.SETTLED, retry.answered(GrugControlWire.SETTLE_YES));
+                diverged(retry, box, serverBlock, serverSky, probe, section),
+                "the first divergence sends the box again");
         assertEquals(
                 GrugLightRetry.Verdict.DIVERGED,
-                retry.answered(GrugControlWire.SETTLE_LIGHT_DIVERGED));
+                diverged(retry, box, serverBlock, serverSky, probe, section),
+                "a located difference that is still moving gets another send");
+        assertEquals(
+                GrugLightRetry.Verdict.PERSISTED,
+                diverged(retry, box, serverBlock, serverSky, probe, section),
+                "the same cell with the same bytes stopped moving, so it reports");
+        String report = retry.report();
+        assertTrue(report.contains("first at 0,64,0"), report);
+        assertTrue(report.contains("sky 3 on this server and 0 on the client"), report);
+        assertTrue(report.contains("block 7 on this server and 9 on the client"), report);
+        assertEquals(
+                GrugLightRetry.Verdict.PERSISTED,
+                diverged(retry, box, serverBlock, serverSky, probe, section),
+                "it keeps reporting rather than falling back to sending the box again");
+    }
+
+    @Test
+    void aFieldThatKeepsMovingGetsEveryResendThenReports() throws Exception {
+        int[] box = {0, 64, 0, 0, 64, 0};
+        GrugLightSync.BlockLight serverBlock = (x, y, z) -> 7;
+        int[] client = {9};
+        GrugLightSync.BlockLight clientBlock = (x, y, z) -> client[0];
+        GrugLightRetry.Probe probe = probe(clientBlock, DARK);
+        GrugLightRetry.SectionRead section = section(clientBlock, DARK);
+        GrugLightRetry retry = new GrugLightRetry();
+
+        assertEquals(
+                GrugLightRetry.Verdict.DIVERGED,
+                diverged(retry, box, serverBlock, DARK, probe, section));
+        for (int resend = 1; resend < GrugLightRetry.MAX_RESENDS; resend++) {
+            client[0]++;
+            assertEquals(
+                    GrugLightRetry.Verdict.DIVERGED,
+                    diverged(retry, box, serverBlock, DARK, probe, section),
+                    "re-send "
+                            + resend
+                            + " of "
+                            + GrugLightRetry.MAX_RESENDS
+                            + " follows a field that still moves");
+        }
+        client[0]++;
+        assertEquals(
+                GrugLightRetry.Verdict.PERSISTED,
+                diverged(retry, box, serverBlock, DARK, probe, section),
+                "the re-sends are spent, so the last located difference reports");
+        assertTrue(
+                retry.report()
+                        .contains("block 7 on this server and " + client[0] + " on the client"),
+                retry.report());
+    }
+
+    @Test
+    void forgettingTheDivergenceStartsTheNextTestsWaitOver() throws Exception {
+        int[] box = {0, 64, 0, 0, 64, 0};
+        GrugLightSync.BlockLight serverBlock = (x, y, z) -> 7;
+        GrugLightSync.BlockLight clientBlock = (x, y, z) -> 9;
+        GrugLightRetry.Probe probe = probe(clientBlock, DARK);
+        GrugLightRetry.SectionRead section = section(clientBlock, DARK);
+        GrugLightRetry retry = new GrugLightRetry();
+        diverged(retry, box, serverBlock, DARK, probe, section);
+        diverged(retry, box, serverBlock, DARK, probe, section);
+        diverged(retry, box, serverBlock, DARK, probe, section);
+        assertEquals(
+                GrugLightRetry.Verdict.PERSISTED,
+                diverged(retry, box, serverBlock, DARK, probe, section));
+
+        retry.forget();
+
+        assertEquals(
+                GrugLightRetry.Verdict.DIVERGED,
+                diverged(retry, box, serverBlock, DARK, probe, section),
+                "the next test's first divergence sends the box, it is not reported");
+        assertFalse(retry.report().contains("first at"), "the last test's cell is forgotten");
     }
 
     @Test
@@ -58,7 +155,9 @@ class GrugLightRetryTest {
         GrugLightSync.BlockLight serverSky = (x, y, z) -> 15;
         GrugLightSync.BlockLight clientSky = (x, y, z) -> x == 2 && y == 64 && z == 1 ? 0 : 15;
 
-        String report = GrugLightRetry.difference(box, DARK, serverSky, probe(DARK, clientSky));
+        String report =
+                GrugLightRetry.firstDifference(box, DARK, serverSky, probe(DARK, clientSky), null)
+                        .describe();
 
         assertTrue(report.contains("first at 2,64,1"), report);
         assertTrue(report.contains("sky 15 on this server and 0 on the client"), report);
@@ -73,40 +172,82 @@ class GrugLightRetryTest {
         GrugLightSync.BlockLight clientBlock =
                 (x, y, z) -> (x == 1 && y == 64 && z == 1) || (x == 3 && y == 65 && z == 0) ? 9 : 7;
 
-        String report = GrugLightRetry.difference(box, serverBlock, DARK, probe(clientBlock, DARK));
+        String report =
+                GrugLightRetry.firstDifference(
+                                box, serverBlock, DARK, probe(clientBlock, DARK), null)
+                        .describe();
 
         assertTrue(report.contains("first at 1,64,1"), report);
         assertTrue(report.contains("block 7 on this server and 9 on the client"), report);
     }
 
     @Test
-    void aLevelTheClientNeverConfirmsIsReportedAsUnread() throws Exception {
-        int[] box = {0, 64, 0, 1, 64, 1};
-        // Every sub-box differs, so the cell is never located and no level confirms either.
-        GrugLightRetry.Probe never = ask -> GrugControlWire.SETTLE_LIGHT_DIVERGED;
+    void theLevelIsReadFromOneSectionFingerprintRatherThanAWalOfAsks() throws Exception {
+        int[] box = {0, 64, 0, 0, 64, 0};
+        GrugLightSync.BlockLight serverBlock = (x, y, z) -> 7;
+        GrugLightSync.BlockLight serverSky = (x, y, z) -> 3;
+        GrugLightSync.BlockLight clientBlock = (x, y, z) -> x == 0 && y == 64 && z == 0 ? 9 : 7;
+        GrugLightSync.BlockLight clientSky = (x, y, z) -> x == 0 && y == 64 && z == 0 ? 0 : 3;
+        AtomicInteger asks = new AtomicInteger();
+        GrugLightRetry.Probe probe = probe(clientBlock, clientSky);
+        GrugLightRetry.Probe counted =
+                ask -> {
+                    asks.incrementAndGet();
+                    return probe.probe(ask);
+                };
 
-        String report = GrugLightRetry.difference(box, DARK, DARK, never);
+        String report =
+                GrugLightRetry.firstDifference(
+                                box,
+                                serverBlock,
+                                serverSky,
+                                counted,
+                                section(clientBlock, clientSky))
+                        .describe();
+
+        assertTrue(report.contains("block 7 on this server and 9 on the client"), report);
+        assertEquals(
+                1,
+                asks.get(),
+                "the cell was located by one ask and the level came from the section fingerprint");
+    }
+
+    @Test
+    void aSectionTheClientCannotReadFallsBackToBoundedCandidates() throws Exception {
+        int[] box = {0, 64, 0, 0, 64, 0};
+        AtomicInteger asks = new AtomicInteger();
+        GrugLightRetry.Probe always =
+                ask -> {
+                    asks.incrementAndGet();
+                    return GrugControlWire.SETTLE_LIGHT_DIVERGED;
+                };
+
+        String report =
+                GrugLightRetry.firstDifference(
+                                box, DARK, DARK, always, (x, y, z) -> GrugClientLight.CANNOT_VERIFY)
+                        .describe();
 
         assertTrue(report.contains("the client's level there could not be read"), report);
+        assertTrue(
+                asks.get() <= 1 + GrugLightRetry.CANDIDATE_LIMIT,
+                "the report asked " + asks.get() + " times, over the candidate limit plus one");
     }
 
     @Test
-    void aBoxThatNoLongerDiffersSaysSoRatherThanNamingACell() throws Exception {
+    void aBoxThatNoLongerDiffersHasNoDifference() throws Exception {
         int[] box = {0, 64, 0, 1, 64, 1};
-        GrugLightRetry.Probe same = ask -> GrugControlWire.SETTLE_YES;
 
-        String report = GrugLightRetry.difference(box, DARK, DARK, same);
-
-        assertTrue(report.contains("no cell of it was found to differ"), report);
-        assertTrue(report.contains("0..1, 64..64, 0..1"), report);
+        assertNull(
+                GrugLightRetry.firstDifference(
+                        box, DARK, DARK, ask -> GrugControlWire.SETTLE_YES, null));
     }
 
     @Test
-    void aBoxThatWasNeverSentIsReportedWithoutOne() throws Exception {
-        String report =
-                GrugLightRetry.difference(
-                        new int[0], DARK, DARK, ask -> GrugControlWire.SETTLE_YES);
-        assertTrue(report.contains("no box was sent"), report);
+    void aBoxThatWasNeverSentHasNoDifference() throws Exception {
+        assertNull(
+                GrugLightRetry.firstDifference(
+                        new int[0], DARK, DARK, ask -> GrugControlWire.SETTLE_YES, null));
+        assertTrue(new GrugLightRetry().report().contains("could not be located"));
     }
 
     @Test
@@ -116,8 +257,8 @@ class GrugLightRetryTest {
                 assertThrows(
                         GrugControlServer.ControlException.class,
                         () ->
-                                GrugLightRetry.difference(
-                                        box, DARK, DARK, ask -> GrugControlWire.SETTLE_NO));
+                                GrugLightRetry.firstDifference(
+                                        box, DARK, DARK, ask -> GrugControlWire.SETTLE_NO, null));
         assertTrue(failure.getMessage().contains("stopped drawing"), failure.getMessage());
     }
 

@@ -82,6 +82,16 @@ public final class GrugControlClient {
         }
 
         /**
+         * How many frames this client has drawn, for the wait that repeats one not-settled answer
+         * at one world revision (#1695): a client whose count does not move across asks is not
+         * drawing, which is a different case from a renderer that is slow. -1 when the loader
+         * cannot count them, which leaves only the revision's own limit.
+         */
+        default long settleFrames() {
+            return -1;
+        }
+
+        /**
          * Whether this client's own copy of the world holds the block ids the server's checksum
          * describes in the boxes (#1664).
          */
@@ -263,6 +273,11 @@ public final class GrugControlClient {
             @Override
             public String settleReason() {
                 return adapter.get().settleReason();
+            }
+
+            @Override
+            public long settleFrames() {
+                return adapter.get().settleFrames();
             }
 
             @Override
@@ -863,7 +878,7 @@ public final class GrugControlClient {
                     holds
                             ? caller.settleReason()
                             : "the blocks a test placed have not all reached this client";
-            String stuck = settleLoop.answered(revision, reason);
+            String stuck = settleLoop.answered(revision, reason, caller.settleFrames());
             if (revision != loggedUnsettledRevision) {
                 loggedUnsettledRevision = revision;
                 System.out.println(

@@ -715,6 +715,16 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * How many frames this client has drawn, for the wait that repeats one not-settled answer at
+     * one world revision (#1695): a client whose count does not move across asks is not drawing,
+     * which is a different case from a renderer that is slow to finish the frame it has. -1 when
+     * the loader cannot count them, which leaves that wait its revision's own limit.
+     */
+    default long settleFrames() {
+        return -1;
+    }
+
+    /**
      * Whether this client's own copy of the world holds the block ids {@code expected} describes,
      * which the server's settle ask sends for the blocks its test placed (#1664). A null
      * expectation is held. The default holds, for a loader whose client shares the server's world
@@ -1169,6 +1179,16 @@ public interface ModLoaderAdapter {
      * forwarding are live keeps such a queue, so every other side keeps this no-op.
      */
     default void forgetQueuedGivesForTest() {}
+
+    /**
+     * Forgets the light of the blocks the test that just ended changed, before the next test's room
+     * is built: the box whose light the joined client was sent again, and any divergence that test
+     * left armed. A test that never waits on the world leaves its placements owed, and the next
+     * test's waits would then send and compare every placement since the last wait, including cells
+     * neither test touched. The next test's room build records its own light straight after. See
+     * {@link GrugLightResend#forget}, {@link GrugLightRetry#forget} and #1695.
+     */
+    default void forgetLightForTest() {}
 
     /**
      * Puts the player back where {@link #snapPlayerForTest} found them, and puts their view back to

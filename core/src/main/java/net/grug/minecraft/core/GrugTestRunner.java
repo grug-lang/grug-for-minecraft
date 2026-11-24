@@ -139,6 +139,13 @@ public class GrugTestRunner {
          */
         default void forgetQueuedGivesForTest() {}
 
+        /**
+         * Forgets the light of the blocks the last test changed, before this test's room build, so
+         * a wait compares only the box this test's own changes make. See {@link
+         * ModLoaderAdapter#forgetLightForTest}.
+         */
+        default void forgetLightForTest() {}
+
         void build(int radius);
 
         /** Sweeps the dropped items out of the test area, in the tick a test ends. See #323. */
@@ -481,6 +488,11 @@ public class GrugTestRunner {
                     @Override
                     public void forgetQueuedGivesForTest() {
                         GrugCore.getAdapter().forgetQueuedGivesForTest();
+                    }
+
+                    @Override
+                    public void forgetLightForTest() {
+                        GrugCore.getAdapter().forgetLightForTest();
                     }
 
                     @Override
@@ -1765,6 +1777,9 @@ public class GrugTestRunner {
         // land in the fresh inventory and the test that starts here reads its own starting state.
         // See #1144.
         boxBuilder.forgetQueuedGivesForTest();
+        // Before the room and the init, so the box a wait compares is the one this test's own
+        // room and placements make, and not every placement the last test left unsent (#1695).
+        boxBuilder.forgetLightForTest();
 
         // Before the first tick, so the budget it sets is the one the whole test runs under.
         long initFnId = ops.getExportFnId("Test", "init");

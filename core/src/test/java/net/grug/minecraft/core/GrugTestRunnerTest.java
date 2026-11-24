@@ -412,6 +412,47 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void theLightBoxOfTheLastTestIsForgottenBeforeTheNextRoomIsBuilt() {
+        // A test that never waits leaves its placements unsent, so the next test's waits would
+        // compare every placement since the last wait, a quarry a hundred blocks east included, and
+        // report a cell that test never touched (#1695). The forget has to run before the room is
+        // built, because the room's own blocks are what the next box should hold.
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        List<String> order = new ArrayList<>();
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        new FakeOps(),
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void forgetLightForTest() {
+                                order.add("light");
+                            }
+
+                            @Override
+                            public void build(int radius) {
+                                order.add("room");
+                            }
+
+                            @Override
+                            public void sweepItems() {}
+                        },
+                        1);
+
+        runner.tick(null);
+        runner.tick(null);
+
+        assertEquals(
+                List.of("light", "room", "light", "room"),
+                order,
+                "every test forgets the last one's light before it builds its own room");
+    }
+
+    @Test
     void aQueuedTickIsStaleOnlyOnceALaterTestHasStarted() {
         // The loader reads the count when it queues the task and asks this when the task runs, so a
         // count that did not move is the same test and the tick belongs to it (#717).

@@ -1267,7 +1267,7 @@ public final class GrugControlServer {
      * records nothing: it is about part of the world, so its answer must not stand as the whole
      * world's, and the wait that follows it still has to ask (#1695). A divergence that survives
      * the box being sent again is reported through this, so the report asks the client rather than
-     * naming a cell from this server's own field alone ({@link GrugLightRetry#difference}).
+     * naming a cell from this server's own field alone ({@link GrugLightRetry#firstDifference}).
      */
     public byte probeLight(String held) throws ControlException {
         if (starter.get() == null) {

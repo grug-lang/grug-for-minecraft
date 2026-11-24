@@ -107,6 +107,23 @@ public final class GrugLightResend {
     }
 
     /**
+     * Forgets the box this test owes or last sent, for the next test's room build.
+     *
+     * <p>A test that never waits on the world leaves the blocks it placed owed, and {@link #due}
+     * unions them with the next test's changes: the box then spans every placement since the last
+     * wait, a quarry a hundred blocks east included, and every untouched cell between them. The
+     * joined client lit those cells for itself, and a differing cell there is neither one the
+     * waiting test changed nor one a capture of it reads, so the wait would report a divergence the
+     * test cannot fix (#1695). The next test's room and placements are noted after this, so the box
+     * its waits compare is the one its own changes made.
+     */
+    public synchronized void forget() {
+        owed = false;
+        waited = false;
+        sent = new int[0];
+    }
+
+    /**
      * The regions to send the client now, one per chunk the changes touched, each as {@code {x, y,
      * z, sizeX, sizeY, sizeZ}} in blocks, or an empty list while nothing is owed or the tick that
      * made the change has not ended. Clears what it returns.

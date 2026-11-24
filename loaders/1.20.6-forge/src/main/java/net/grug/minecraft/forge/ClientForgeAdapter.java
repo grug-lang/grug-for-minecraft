@@ -445,6 +445,12 @@ public class ClientForgeAdapter extends ForgeAdapter {
                 BLOCK_SYNC.settled((x, y, z) -> blockNameAt((Level) simulated, x, y, z)));
     }
 
+    /** The frames this client has drawn, for the wait that repeats one answer (#1695). */
+    @Override
+    public long settleFrames() {
+        return RENDER_SETTLE.framesDrawn();
+    }
+
     /**
      * One completed frame, called from the render event handler: the level has been uploaded and
      * drawn, so whether it still had work in it is the answer a capture reading this frame needs.

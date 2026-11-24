@@ -752,33 +752,35 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * until the tick budget is gone. See {@link GrugLightRetry}.
      */
     private boolean askClientSettled() throws GrugControlServer.ControlException {
+        World world = (World) getLevel();
         GrugLightRetry.Verdict verdict =
-                lightRetry.answered(GrugControlBeta.server().settle(lightAsk()));
+                lightRetry.answered(
+                        GrugControlBeta.server().settle(lightAsk()),
+                        lightResend.lastBox(),
+                        (x, y, z) -> world.getLight(LightType.BLOCK, x, y, z),
+                        (x, y, z) -> world.getLight(LightType.SKY, x, y, z),
+                        GrugControlBeta.server()::probeLight,
+                        (x, y, z) ->
+                                (long) GrugControlBeta.server().clientLightFingerprint(x, y, z));
         if (verdict == GrugLightRetry.Verdict.DIVERGED) {
             lightResend.rearm();
             return false;
         }
         if (verdict == GrugLightRetry.Verdict.PERSISTED) {
-            throw new GrugControlServer.ControlException(difference());
+            throw new GrugControlServer.ControlException(lightRetry.report());
         }
         return verdict == GrugLightRetry.Verdict.SETTLED;
     }
 
-    /**
-     * The cell where the joined client's light still differs, with both fields' levels on each side
-     * (#1695), so a dispatch log names what to fix.
-     */
-    private String difference() throws GrugControlServer.ControlException {
-        World world = (World) getLevel();
-        return GrugLightRetry.difference(
-                lightResend.lastBox(),
-                (x, y, z) -> world.getLight(LightType.BLOCK, x, y, z),
-                (x, y, z) -> world.getLight(LightType.SKY, x, y, z),
-                GrugControlBeta.server()::probeLight);
-    }
-
-    /** The light answers so far, so a second divergence is reported rather than re-armed again. */
+    /** The light answers so far, so a divergence is reported when it stops moving (#1695). */
     private final GrugLightRetry lightRetry = new GrugLightRetry();
+
+    /** Forgets the last test's light box and divergence, before the next test's room build. */
+    @Override
+    public void forgetLightForTest() {
+        lightResend.forget();
+        lightRetry.forget();
+    }
 
     /**
      * The light of the box this server last sent the joined client, as a settle ask's text (#1695).
