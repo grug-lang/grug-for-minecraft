@@ -587,8 +587,7 @@ class TwoClientLegFixture(unittest.TestCase):
         "coverage/tests/decline_use_places",
         "coverage/tests/decline_use",
         "coverage/tests/sound",
-        # The four wall-backed captures #1161 promoted, which this leg requires by name because it
-        # is the one whose joined client matches their flat goldens.
+        # The four wall-backed captures #1161 promoted, which every leg requires by name.
         "buildcraft/tests/cobblestone_pipe_shapes",
         "buildcraft/tests/redstone_engine",
         "buildcraft/tests/redstone_engine_animation",
@@ -1025,6 +1024,9 @@ class ServerUnlistedTest(unittest.TestCase):
         coverage/tests/click_screen_release
         coverage/tests/hook_forced_normalization
         buildcraft/tests/cobblestone_pipe_shapes
+        buildcraft/tests/redstone_engine
+        buildcraft/tests/redstone_engine_animation
+        buildcraft/tests/redstone_engine_facings
         buildcraft/tests/wooden_pipe_items
         buildcraft/tests/wooden_pipe_shapes
         coverage/tests/camera
