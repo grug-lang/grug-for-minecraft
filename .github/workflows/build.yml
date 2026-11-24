@@ -118,8 +118,9 @@ jobs:
       dedicated: ${{ steps.dedicated.outputs.dedicated }}
       # Whether the smoketest job runs on a pull request (#1589).
       smoketest: ${{ steps.smoketest.outputs.smoketest }}
-      # The loaders whose dedicated legs run: every loader with a server on a dispatch, and the ones
-      # whose own code the diff touches on a pull request and a push (#1601).
+      # The loaders whose dedicated legs run: every loader with a server on a dispatch, and on a pull
+      # request and a push the ones whose own code the diff touches (#1601) plus the ones whose
+      # carried-over server exec data no longer matches the head's class bytes (#1739).
       dedicated-loaders: ${{ steps.dedicated.outputs.loaders }}
       # The loaders whose layer job runs: all of them on a push and a dispatch, and on a pull request
       # the Ornithe loaders whose dedicated leg runs, since coverage needs their layer jar (#169).
@@ -386,6 +387,13 @@ jobs:
       # exception, because such a test can fail on a dedicated leg a client leg passes (#1696). A
       # dispatch with no base or on main (the four-hourly check and the release), and any doubt, keep
       # them. The step above resolved the base, so both read the same commit.
+      #
+      # A pull request and a push also run a leg whose carried-over server exec data no longer
+      # matches the head's class bytes (#1739): the coverage job counts that data against the bytes
+      # staged now, and JaCoCo drops every class whose id changed, so without the leg the class
+      # counts as fully missed. server-exec-needed.py reads each loader's artifact run's commit from
+      # the same record base_server_exec_artifacts.py finds the artifacts in, fetches it one commit
+      # deep and asks dedicated-needed.py's own path rules which loaders changed since.
       - name: Decide whether the dedicated-server legs run
         id: dedicated
         env:
@@ -393,6 +401,9 @@ jobs:
           BASE: ${{ steps.base.outputs.base || github.event.pull_request.base.sha || github.event.before }}
           REF: ${{ github.ref }}
           MATRIX: ${{ steps.discover.outputs.matrix }}
+          # Listing the runs, their jobs and their artifacts needs the token, which a step only
+          # sees when it passes it in.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           # A pull request and a push (#1601) read their diff against the base commit the steps above
           # fetched and run the leg of each loader whose own code it touches; one that cannot be
@@ -400,6 +411,28 @@ jobs:
           needed=$(python3 .github/scripts/dedicated-needed.py --event "$EVENT" --ref "$REF" "$BASE" HEAD) || needed=true
           loaders=$(python3 .github/scripts/dedicated-needed.py --event "$EVENT" --ref "$REF" --loaders "$BASE" HEAD) \
             || loaders='["1.2.5-forge","1.20.6-forge","a1.1.2_01-ornithe","b1.7.3-ornithe","b1.7.3-stationapi"]'
+          if [ "$EVENT" = pull_request ] || [ "$EVENT" = push ]; then
+            # The carried server exec data is analysed against the head's class bytes, and JaCoCo
+            # drops a class whose id no longer matches, so a loader whose code changed after its
+            # artifact was recorded runs its leg (#1739). The record names that run's commit; the
+            # checkout is one commit deep, so it is fetched one commit deep too. A loader with no
+            # live artifact, or one whose commit cannot be fetched, runs its leg in doubt.
+            bases=()
+            commits=$(python3 .github/scripts/base_server_exec_artifacts.py --head-shas) || commits=
+            while read -r loader sha; do
+              [ -n "$loader" ] || continue
+              if [ -n "$sha" ] && { git cat-file -e "${sha}^{commit}" 2>/dev/null || git fetch --quiet --no-tags --depth=1 origin "$sha"; }; then
+                bases+=(--base "$loader=$sha")
+              else
+                echo "The $loader server-exec artifact names the commit '$sha', which this checkout cannot fetch, so its dedicated leg runs."
+              fi
+            done <<< "$commits"
+            loaders=$(python3 .github/scripts/server-exec-needed.py --repo . --already "$loaders" "${bases[@]}" HEAD) \
+              || loaders='["1.2.5-forge","1.20.6-forge","a1.1.2_01-ornithe","b1.7.3-ornithe","b1.7.3-stationapi"]'
+            [ "$loaders" = '[]' ] || needed=true
+          else
+            echo "Not consulting the carried-over server exec data: a $EVENT run carries none."
+          fi
           echo "dedicated=$needed" >> "$GITHUB_OUTPUT"
           echo "loaders=$loaders" >> "$GITHUB_OUTPUT"
           echo "layer=$(python3 .github/scripts/layer-selection.py "$EVENT" "$MATRIX" "$loaders")" >> "$GITHUB_OUTPUT"
@@ -1016,7 +1049,9 @@ jobs:
     # accepts the skipped result, and the gate counts server exec data only when a leg uploaded it.
     # A pull request and a push run the leg of each loader whose own code the diff touches
     # (dedicated-needed.py --loaders, #1601), so a promoted server class's exec data is the run's
-    # own whenever its bytes changed, and a diff that touches no loader runs none, as before.
+    # own whenever its bytes changed, and a diff that touches no loader runs none, as before. They
+    # also run the leg of a loader whose carried-over server exec data is older than its class
+    # bytes (server-exec-needed.py, #1739), which the gate would otherwise drop and count missed.
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'push') && needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.dedicated != 'false'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
@@ -2327,7 +2362,8 @@ jobs:
     # cannot change coverage, and main's next full run restores the global guarantee.
     # The dedicated servers' exec data is downloaded here (#1027), so on a dispatch this job waits
     # for those legs rather than downloading artifacts that do not exist yet. A pull request and a push
-    # run the legs of the loaders their diff touches (#1601), and !cancelled() keeps this job running when a need was skipped or failed:
+    # run the legs of the loaders their diff touches (#1601) and of the loaders whose carried-over
+    # server exec data no longer matches their class bytes (#1739), and !cancelled() keeps this job running when a need was skipped or failed:
     # its own verdict is what the gate reports, and a failed leg already fails the run.
     if: ${{ !cancelled() && needs.discover.outputs.no-tests != 'true' }}
     # discover is a need because this job reads its carry-over: the two outputs are what names

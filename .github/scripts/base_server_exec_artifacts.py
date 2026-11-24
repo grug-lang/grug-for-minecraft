@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Which server-exec-<loader> and server-layer-<loader> artifacts the coverage job downloads from an earlier run (#1602).
 
-    base_server_exec_artifacts.py
+    base_server_exec_artifacts.py [--head-shas]
 
 reads the GITHUB_TOKEN, GITHUB_REPOSITORY and GITHUB_API_URL environment and prints one
 `<artifact name> <download url>` line per live artifact of the newest run that has any, and says on
@@ -13,10 +13,16 @@ touched it, and that run's leg recorded them, so the newest artifact of a loader
 of main's head until a later push changes the loader and records its own. No such run, or any
 error, answers no lines and exit 0: the carry-over is a source of exec data for a promoted class,
 and without it the gate counts what the run's own legs recorded, as before.
+
+``--head-shas`` prints one `<loader> <head commit>` line instead, for the run whose artifact of that
+loader is carried over: the discover job diffs that commit against the run's head to decide whether
+the recording still matches the loader's class bytes (#1739). A loader with no live artifact prints
+nothing, which is the missing case that runs its dedicated leg.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -68,6 +74,23 @@ def candidate_runs(listing: dict, now: datetime) -> list[dict]:
 LEG = re.compile(r"^(.+) on a dedicated server$")
 
 
+def head_shas(chosen: list[tuple[dict, list[tuple[str, str]]]]) -> dict[str, str]:
+    """Per loader, the head commit of the run whose live server-exec artifact is carried over.
+
+    ``server-layer-<loader>`` names the jar the same leg ran, not a recording of its own, so only
+    the exec artifacts are read. An empty commit is returned as such rather than left out: the run
+    named no commit, which the caller must treat like a missing artifact.
+    """
+    found: dict[str, str] = {}
+    for run, pairs in chosen:
+        for name, _ in pairs:
+            match = NAME.match(name)
+            if not match or not name.startswith("server-exec-"):
+                continue
+            found.setdefault(match.group(1), run.get("head_sha", ""))
+    return found
+
+
 def succeeded_loaders(jobs: dict) -> set[str]:
     """The loaders whose dedicated-server leg concluded success in a run's job listing."""
     found = set()
@@ -115,7 +138,14 @@ def get_json(url: str, token: str):
         return json.load(response)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
+    parser.add_argument(
+        "--head-shas",
+        action="store_true",
+        help="print the head commit of each loader's artifact run instead of the artifact urls",
+    )
+    args = parser.parse_args(argv)
     api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
     slug = os.environ.get("GITHUB_REPOSITORY", "")
     token = os.environ.get("GITHUB_TOKEN", "")
@@ -166,6 +196,11 @@ def main() -> int:
             f"({run['event']}, {age.total_seconds() / 3600:.1f} h old)",
             file=sys.stderr,
         )
+    if args.head_shas:
+        for loader, sha in sorted(head_shas(chosen).items()):
+            print(loader, sha)
+        return 0
+    for run, pairs in chosen:
         for name, link in pairs:
             print(name, link)
     return 0

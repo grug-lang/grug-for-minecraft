@@ -46,6 +46,11 @@ and every doubt (no base commit, an empty diff, a diff that cannot be computed, 
 every loader's leg, which only runs more. The schedule never runs the legs (the job's own condition
 excludes it), so it answers every loader and nothing reads it.
 
+That answer is the diff's alone. The workflow unions it with server-exec-needed.py's (#1739), which
+runs a loader's leg when the carried-over server exec data was recorded before that loader's class
+bytes changed, or when no live artifact of it exists; this script's path rules are what decide
+whether a commit moved a loader's bytes.
+
 ``--loaders`` prints the JSON list of loaders whose legs run: every loader that has a dedicated
 server for a dispatch (none when the dispatch skips them), and the narrowed list for a pull request
 or a push. The default answer is ``true`` exactly when that list is not empty.
