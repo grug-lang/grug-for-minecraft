@@ -283,21 +283,10 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      */
     @Override
     public void buildTestBox(int radius) {
-        PlayerEntity player = (PlayerEntity) testPlayer();
+        // The run holds the starter's height before its runner exists, and the runner is what
+        // builds a room, so there is always a player here.
+        PlayerEntity player = Objects.requireNonNull((PlayerEntity) testPlayer());
         double held = GrugServerRun.heldFeetY();
-        GrugArms.runIf(
-                GrugArms.both(Objects.nonNull(player), held != 0),
-                () -> buildAtHeld(radius, player, held),
-                () -> buildWithoutHold(radius));
-    }
-
-    @GrugGenerated(
-            "the run holds a height only once its starter has joined, and builds rooms only then")
-    private void buildWithoutHold(int radius) {
-        super.buildTestBox(radius);
-    }
-
-    private void buildAtHeld(int radius, PlayerEntity player, double held) {
         double anchor = GrugPlayerFloor.buildAnchor(player.boundingBox.minY, held);
         System.out.println(
                 "[GRUG CI] buildTestBox on the server: feet "

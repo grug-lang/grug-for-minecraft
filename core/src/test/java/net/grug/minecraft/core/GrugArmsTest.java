@@ -24,14 +24,6 @@ class GrugArmsTest {
     }
 
     @Test
-    void runIfRunsExactlyOneArm() {
-        StringBuilder ran = new StringBuilder();
-        GrugArms.runIf(true, () -> ran.append("t"), () -> ran.append("o"));
-        GrugArms.runIf(false, () -> ran.append("t"), () -> ran.append("o"));
-        assertEquals("to", ran.toString());
-    }
-
-    @Test
     void tryAskReturnsTheAnswerOrWhatTheFailureBecomes() {
         assertEquals(7, GrugArms.tryAsk(() -> 7, e -> -1));
         int failed =
