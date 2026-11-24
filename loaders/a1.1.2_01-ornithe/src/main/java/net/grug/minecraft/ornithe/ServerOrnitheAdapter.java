@@ -991,11 +991,10 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private boolean askClientSettled() throws GrugControlServer.ControlException {
         World world = (World) getLevel();
-        int[] box = comparedLightBox();
         GrugLightRetry.Verdict verdict =
                 lightRetry.answered(
-                        GrugControlAlpha.server().settle(lightAsk(box)),
-                        box,
+                        GrugControlAlpha.server().settle(lightAsk()),
+                        lightResend.lastBox(),
                         (x, y, z) -> world.getLight(LightType.BLOCK, x, y, z),
                         (x, y, z) -> world.getLight(LightType.SKY, x, y, z),
                         GrugControlAlpha.server()::probeLight,
@@ -1031,31 +1030,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
-     * The cells the settle ask compares: the box this server last sent the joined client, cut to
-     * the part a frame drawn from the test player's eye can read (#1695). The room reaches six
-     * blocks behind the eye, where the joined client can hold a field this server's engine never
-     * produced and no capture can show it, so that part is not compared. See {@link
-     * GrugLightAsk#inFrontOf}.
+     * The light of the box this server last sent the joined client, as a settle ask's text (#1695).
+     * The box is the region {@link GrugLightResend#due} sent, so the client is compared over the
+     * cells it was sent rather than a section that holds cells it never received, and the field is
+     * read after {@link #resendLight} recomputed it.
      */
-    private int[] comparedLightBox() {
-        int[] box = lightResend.lastBox();
-        Object player = testPlayer();
-        if (box.length != 6 || player == null) {
-            return box;
-        }
-        return GrugLightAsk.inFrontOf(box, testPlayerEye(player).z());
-    }
-
-    /**
-     * The light of {@code box} as a settle ask's text (#1695). The box is the region {@link
-     * GrugLightResend#due} sent, so the client is compared over the cells it was sent rather than a
-     * section that holds cells it never received, and the field is read after {@link #resendLight}
-     * recomputed it.
-     */
-    private String lightAsk(int[] box) {
+    private String lightAsk() {
         World world = (World) getLevel();
         return GrugLightAsk.ask(
-                box,
+                lightResend.lastBox(),
                 (x, y, z) -> world.getLight(LightType.BLOCK, x, y, z),
                 (x, y, z) -> world.getLight(LightType.SKY, x, y, z));
     }

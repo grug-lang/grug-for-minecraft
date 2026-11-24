@@ -97,38 +97,6 @@ public final class GrugLightAsk {
     }
 
     /**
-     * The part of {@code box} a frame drawn by a camera at {@code eyeZ} can read, or the empty box
-     * when none of it is left.
-     *
-     * <p>The runner levels every test's view, so the camera looks along positive z from the eye
-     * ({@code camera_yaw} answers 0 for it for the same reason). A cell whose far face is at or
-     * behind the eye's plane lies wholly behind the camera, so no frame can draw it and its light
-     * cannot reach a captured pixel: the brightness a face reads is read where the face is, and a
-     * face in front of the eye by definition has both its cells in front of the plane. The room a
-     * test builds reaches six blocks behind the eye, which is where the joined client's own relight
-     * can leave a field this server never produced without any capture showing it (#1695).
-     *
-     * <p>The box keeps a cell that straddles the plane, because its face on the camera's side is
-     * drawn, and a box wholly in front of the eye is returned unchanged. Pure, so its unit test
-     * covers the cut.
-     */
-    public static int[] inFrontOf(int[] box, double eyeZ) {
-        if (box.length != 6) {
-            return new int[0];
-        }
-        int firstDrawn = (int) Math.floor(eyeZ);
-        if (box[2] >= firstDrawn) {
-            return box.clone();
-        }
-        if (box[5] < firstDrawn) {
-            return new int[0];
-        }
-        int[] cut = box.clone();
-        cut[2] = firstDrawn;
-        return cut;
-    }
-
-    /**
      * The fingerprint of both light fields in a box, the same for two boxes that hold the same
      * light, with a box that holds none at all giving 0.
      *

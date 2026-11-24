@@ -82,23 +82,4 @@ class GrugLightAskTest {
     void anAskWithNoBoxIsTheEmptyText() {
         assertEquals("", GrugLightAsk.ask(new int[0], DARK, FULL));
     }
-
-    @Test
-    void theComparedBoxKeepsOnlyCellsAFrameCanDraw() {
-        // The eye at -63.5 is inside the block -64, whose face at -63 is the nearest a frame can
-        // draw: that cell stays and the eight behind it go.
-        int[] box = {-25, 62, -72, -13, 85, -56};
-        assertArrayEquals(
-                new int[] {-25, 62, -64, -13, 85, -56}, GrugLightAsk.inFrontOf(box, -63.5));
-
-        // An eye exactly on a block boundary: the cell whose far face lies in the eye's plane is
-        // edge on and cannot be drawn, so only the cells in front of it stay.
-        assertArrayEquals(
-                new int[] {-25, 62, -63, -13, 85, -56}, GrugLightAsk.inFrontOf(box, -63.0));
-        // A box wholly behind the eye has nothing to compare, and one wholly in front is unchanged.
-        assertArrayEquals(new int[0], GrugLightAsk.inFrontOf(box, 12.5));
-        assertArrayEquals(box, GrugLightAsk.inFrontOf(box, -200.0));
-        // A box that is not a box asks about nothing, which the caller sends as the empty text.
-        assertArrayEquals(new int[0], GrugLightAsk.inFrontOf(new int[0], -63.5));
-    }
 }
