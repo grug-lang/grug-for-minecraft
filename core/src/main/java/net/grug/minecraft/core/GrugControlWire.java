@@ -318,8 +318,10 @@ public final class GrugControlWire {
      * mark is about. A press carries its key in the second number and its control flag in the
      * third. The answer is 1 or 0, and a press answers 1.
      *
-     * <p>The code is 23 and the loader's channel version is 11, above the 22 and 10 of #1441, so a
-     * pair built either side of this call refuses each other.
+     * <p>The code is 23, and the loader's channel version is 12 since the settle ask carried the
+     * light of the box the server last sent a joined client with a third answer for a client that
+     * holds a different field (#1695). It was 11 when this call was added, above the 22 and 10 of
+     * #1441, so a pair built either side of either change refuses each other.
      */
     public static final byte CALL_WORLD_OVERLAY = 23;
 
