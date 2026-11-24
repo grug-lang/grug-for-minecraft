@@ -28,6 +28,15 @@ public final class GrugArms {
         return when ? ask.get() : otherwise;
     }
 
+    /** {@code then} run when {@code when} holds, else {@code otherwise} run, never both. */
+    public static void runIf(boolean when, Runnable then, Runnable otherwise) {
+        if (when) {
+            then.run();
+        } else {
+            otherwise.run();
+        }
+    }
+
     /** What {@code ask} answers, or what {@code failed} makes of the failure it threw. */
     public static <T> T tryAsk(Ask<T> ask, Function<GrugControlServer.ControlException, T> failed) {
         try {

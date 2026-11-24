@@ -282,15 +282,22 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      * client-only run's (#1068, #1629). Logs the feet the room is anchored at.
      */
     @Override
-    @GrugGenerated(
-            "the run holds a height only once its starter has joined, and builds rooms only then")
     public void buildTestBox(int radius) {
         PlayerEntity player = (PlayerEntity) testPlayer();
         double held = GrugServerRun.heldFeetY();
-        if (player == null || held == 0) {
-            super.buildTestBox(radius);
-            return;
-        }
+        GrugArms.runIf(
+                GrugArms.both(Objects.nonNull(player), held != 0),
+                () -> buildAtHeld(radius, player, held),
+                () -> buildWithoutHold(radius));
+    }
+
+    @GrugGenerated(
+            "the run holds a height only once its starter has joined, and builds rooms only then")
+    private void buildWithoutHold(int radius) {
+        super.buildTestBox(radius);
+    }
+
+    private void buildAtHeld(int radius, PlayerEntity player, double held) {
         double anchor = GrugPlayerFloor.buildAnchor(player.boundingBox.minY, held);
         System.out.println(
                 "[GRUG CI] buildTestBox on the server: feet "
