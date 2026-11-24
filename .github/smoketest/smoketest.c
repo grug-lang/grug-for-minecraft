@@ -277,9 +277,11 @@ static bool is_whole(double d) { return isfinite(d) && d == floor(d); }
 // SECTION: TestTickContext
 // =============================================================================================
 // TestTickContext
+// The real host reports a false assertion as "Assertion failed: " and the test's message
+// (HostFunctions.TestTickContext_assert), which expect_assert_failure-Test matches on.
 static union grug_value TTC_assert(ARGS) {
     UNUSED;
-    if (!a[1]._bool) return fail("%s", a[2]._string);
+    if (!a[1]._bool) return fail("Assertion failed: %s", a[2]._string);
     return none();
 }
 REGISTER("TestTickContext", "assert", TTC_assert);
@@ -544,8 +546,17 @@ static union grug_value Vec3_y(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id,
 REGISTER("Vec3", "y", Vec3_y);
 static union grug_value Vec3_z(ARGS) { UNUSED; struct obj* o = get_obj(a[0]._id, K_VEC3); return num(o ? o->z : 0); }
 REGISTER("Vec3", "z", Vec3_z);
+// A Vec3's coordinates have to be finite, as HostFunctions.Vec3_new reports them, because a spawned
+// entity with a NaN velocity has meaningless motion (expect_vec3_non_finite-Test).
 static union grug_value Vec3_new(ARGS) {
     UNUSED;
+    static const char* const names[3] = {"x", "y", "z"};
+    char text[400];
+    for (int i = 0; i < 3; i++)
+        if (!isfinite(a[i]._number)) {
+            double_text(a[i]._number, text, sizeof text);
+            return fail("Vec3.new: %s must be finite, got %s", names[i], text);
+        }
     uint64_t v = new_obj(K_VEC3);
     objs[v - 1].x = a[0]._number; objs[v - 1].y = a[1]._number; objs[v - 1].z = a[2]._number;
     return id(v);
@@ -2256,12 +2267,15 @@ static union grug_value Entity_spawn(ARGS) {
 }
 REGISTER("Entity", "spawn", Entity_spawn);
 
-// The spawned item entities within the radius of a point, the first one's index in *first.
-static double items_near(const union grug_value a[], size_t* first) {
+// The spawned item entities within the radius of a point, the first one's index in *first. When
+// item_id is non-zero only the entities carrying that item count, whatever the item's damage, which
+// is Level.count_item_entities_of (count_item_entities_of-Test, autocrafting_table_pipe-Test).
+static double items_near(const union grug_value a[], size_t* first, uint64_t item_id) {
     double n = 0;
     for (size_t i = 0; i < nents; i++) {
         double dx = ents[i].x - a[1]._number, dy = ents[i].y - a[2]._number, dz = ents[i].z - a[3]._number;
         if (!ents[i].spawned || !(sqrt(dx * dx + dy * dy + dz * dz) <= a[4]._number)) continue;
+        if (item_id && ents[i].item != item_id) continue;
         if (n == 0) *first = i;
         n++;
     }
@@ -2270,13 +2284,21 @@ static double items_near(const union grug_value a[], size_t* first) {
 static union grug_value Level_count_item_entities(ARGS) {
     UNUSED;
     size_t first = 0;
-    return num(items_near(a, &first));
+    return num(items_near(a, &first, 0));
 }
 REGISTER("Level", "count_item_entities", Level_count_item_entities);
+// The item is at a[5], after the point and the radius the shared sweep reads.
+static union grug_value Level_count_item_entities_of(ARGS) {
+    UNUSED;
+    if (!get_obj(a[5]._id, K_ITEM)) return fail("Level.count_item_entities_of: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but an Item
+    size_t first = 0;
+    return num(items_near(a, &first, a[5]._id));
+}
+REGISTER("Level", "count_item_entities_of", Level_count_item_entities_of);
 static union grug_value Level_find_item_entity(ARGS) {
     UNUSED;
     size_t first = 0;
-    double n = items_near(a, &first);
+    double n = items_near(a, &first, 0);
     uint64_t o = new_obj(K_OPTION);
     if (n > 0) {
         objs[o - 1].has = true;
@@ -2596,6 +2618,11 @@ static union grug_value TTC_tick_level(ARGS) {
     return num(0);
 }
 REGISTER("TestTickContext", "tick_level", TTC_tick_level);
+// A block id above 255 surviving the game's own chunk save and load (high_block_round_trip-Test, #518).
+// The toy world hands blocks out as names with no numeric id and saves no chunk, so it has no such id
+// to round trip; -1 is the API's no-op answer for a loader whose block ids never reach there.
+static union grug_value TTC_high_block_round_trip(ARGS) { UNUSED; return num(-1); }
+REGISTER("TestTickContext", "high_block_round_trip", TTC_high_block_round_trip);
 // GrugSoundArgs.nameProblem: [a-z0-9_.-]+:[a-z0-9_./-]+, the whole string.
 static bool sound_name_ok(const char* n) {
     const char* c = strchr(n, ':');
@@ -2889,7 +2916,9 @@ static union grug_value TTC_light_applied(ARGS) {
 }
 REGISTER("TestTickContext", "light_applied", TTC_light_applied);
 // The 0 to 10000 ms limit is asserted by expect_stall_negative-Test and expect_stall_too_long-Test;
-// nothing blocks, so a pass is STUBBED.
+// nothing blocks, so a pass is STUBBED. TestInitContext.stall is the same call from init() (its only
+// committed caller is runner_first_tick-Test, and the smoketest has no queued ticks to replay), so it
+// shares this implementation.
 static union grug_value TTC_stall(ARGS) {
     UNUSED;
     stubbed = true;
@@ -2897,6 +2926,7 @@ static union grug_value TTC_stall(ARGS) {
     return none();
 }
 REGISTER("TestTickContext", "stall", TTC_stall);
+REGISTER("TestInitContext", "stall", TTC_stall);
 static union grug_value TTC_close_screen(ARGS) {
     UNUSED;
     stubbed = true;  // the game also hands a carried stack back to the player, which is not modelled
@@ -3026,9 +3056,11 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         uint64_t ictx = new_obj(K_CTX);
         union grug_value iarg = id(ictx);
         // A false with no error recorded is a file that has no init, which most tests do not.
-        if (!grug_call_export_fn(g_state, entity, init_fn, &iarg, 1) && last_error[0]) {
+        if (!grug_call_export_fn(g_state, entity, init_fn, &iarg, 1) && last_error[0]) {  // SMOKETEST_EXCL_BRANCH: no committed test's init() reports an error, so this branch is never taken
+            // SMOKETEST_EXCL_START: no committed test's init() reports an error. runner_first_tick-Test was the only init that failed, on TestInitContext.stall, which the host now implements, and a test that asserted this path would itself be the failing init.
             report("FAIL", label, "init stopped: %s", last_error);
             rc = 1;
+            // SMOKETEST_EXCL_STOP
         }
     }
     while (!rc) {
