@@ -124,8 +124,6 @@ UNMASKED_DESCRIPTOR = b"GrugGeneratxd;"
 # - Mixin classes can never be measured: Mixin copies a mixin's methods into its target without
 #   defining the mixin class, so JaCoCo never instruments them. The logic they used to hold lives in
 #   measured net.grug.* helpers instead.
-# - The b1.7.3-ornithe ServerGrugModLoader carries its own class-level @GrugGenerated until its
-#   server run measures 0 missed; the a1.1.2_01-ornithe one is promoted (#1646).
 # - GrugRecipeHelper is a shim around the package-private CraftingManager.registerShaped, and
 #   GrugRecipeParser is the part of it that needs a running game's registries to answer: whether an id
 #   names an item or a tag is that answer. Both are per-loader, and the rules they apply are measured

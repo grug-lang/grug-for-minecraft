@@ -9,6 +9,7 @@ import net.grug.minecraft.ornithe.resource.GrugResourcePackProvider;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.crafting.GrugRecipeHelper;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerEvents;
+import net.ornithemc.osl.resource.loader.api.resource.repository.ResourcePackRepository;
 import net.ornithemc.osl.resource.loader.api.server.ServerResourceLoaderEvents;
 
 /**
@@ -17,8 +18,15 @@ import net.ornithemc.osl.resource.loader.api.server.ServerResourceLoaderEvents;
  * (#163). The dedicated leg uploads the layer jar this class is in, so a later run that carries its
  * exec data over analyses the same bytes (#1674).
  */
-@GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class ServerGrugModLoader implements DedicatedServerModInitializer {
+    /** Adds the mod's resource pack to the repository a server builds. */
+    @GrugGenerated(
+            "OSL raises this event only when the server builds a resource pack repository, which"
+                    + " the measured dedicated run never does, so no coverage test can reach it")
+    private static void addResourcePack(ResourcePackRepository repo) {
+        repo.addSource(new GrugResourcePackProvider());
+    }
+
     @Override
     public void onInitializeServer() {
         // The client keeps its own copy of a grug block entity, so a saved number the script writes
@@ -26,9 +34,7 @@ public class ServerGrugModLoader implements DedicatedServerModInitializer {
         GrugSavedDataSync.install(new GrugSavedDataBeta());
 
         ServerResourceLoaderEvents.INIT_RESOURCE_PACK_REPOSITORY.register(
-                repo -> {
-                    repo.addSource(new GrugResourcePackProvider());
-                });
+                ServerGrugModLoader::addResourcePack);
 
         MinecraftServerEvents.READY.register(
                 server -> {
