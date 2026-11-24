@@ -8,22 +8,18 @@ name: Main dispatch
 # main's newest dispatch reach 25 h 2 min on 2026-11-04. This workflow makes the check independent of
 # a session being open; the supervisor is unchanged and still never dispatches.
 #
-# The decision is .github/scripts/main-dispatch.py's should_dispatch: a recent dispatch holds it
-# off, and a due one waits while a build run is live, but only until the newest dispatch is twice the
-# interval old, when it goes ahead with runs live and lets its jobs queue rather than stay starved
-# (#1463). Busy means any build.yml run that is live (requested, waiting, pending, queued or in
-# progress), on any branch, because every run shares the 20 job slots and a dispatch should not
-# compete with one. The
+# The decision is .github/scripts/main-dispatch.py's should_dispatch: a dispatch is due when main's
+# newest workflow_dispatch of build.yml is at least four hours old, and a due tick dispatches
+# whatever else is running, so its jobs queue behind the runs in flight rather than the check
+# waiting. Waiting for an idle pool is what starved it: a proof or a pull request in flight at every
+# tick left the full check 106 hours undone and a broken Windows adapter unseen (#1463, #1460). The
 # newest workflow_dispatch of build.yml on main is the age that matters, so the Sunday release's
 # dispatch, which is one of those, holds the check off for four hours like any other. A run list that
 # cannot be read fails this job instead of dispatching blindly.
 #
 # The schedule is every 15 minutes, not every four hours: the check itself is a few API reads and
-# one short job, and it dispatches only when the newest dispatch is at least four hours old. A tick
-# that is due but busy therefore retries a quarter of an hour later rather than four hours later, so
-# a busy pipeline delays the check by the length of that busy period instead of adding a second
-# four-hour wait. A long busy period can still hold the age near the end of it: it reached 8 h on
-# 2026-11-03, and the 25 h gap this replaces cannot come back from a busy tick alone.
+# one short job, and it dispatches only when the newest dispatch is at least four hours old, so one
+# that lands slightly late still keeps a full run of main close to the interval.
 #
 # The manual trigger exists to exercise the check on a throwaway branch: dry_run defaults to true,
 # and interval_minutes can shorten the four hours so the due path runs without waiting. A scheduled

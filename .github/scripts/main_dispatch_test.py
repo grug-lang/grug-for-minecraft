@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests main-dispatch.py: the check dispatches when due and idle, and past twice that even when busy (#1089, #1463)."""
+"""Tests main-dispatch.py: the check dispatches when due, whatever else is running (#1089, #1463)."""
 
 import contextlib
 import datetime
@@ -35,7 +35,11 @@ def run(run_id, age):
 
 
 class ApiHandler(http.server.BaseHTTPRequestHandler):
-    """Serves the two listings the decision reads and the dispatch it may send."""
+    """Serves the dispatch listing and the dispatch it may send.
+
+    A status listing is answered too, with whatever live runs the test set, so a check that
+    reinstated the busy read sees them and a test that expects a dispatch fails.
+    """
 
     def _reply(self, status, body=None):
         self.send_response(status)
@@ -53,11 +57,10 @@ class ApiHandler(http.server.BaseHTTPRequestHandler):
         if parsed.path != RUNS:
             self._reply(404)
             return
-        status = query.get("status", [""])[0]
         if query.get("event") == ["workflow_dispatch"]:
             kind = "dispatches"
-        elif status in main_dispatch.LIVE_STATUSES:
-            kind = status
+        elif query.get("status"):
+            kind = "live"
         else:
             self._reply(400)
             return
@@ -91,9 +94,7 @@ class MainDispatchTest(unittest.TestCase):
 
     def setUp(self):
         self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
-        self.server.routes = {"dispatches": []}
-        for status in main_dispatch.LIVE_STATUSES:
-            self.server.routes[status] = []
+        self.server.routes = {"dispatches": [], "live": []}
         self.server.fail = set()
         self.server.refuse_dispatch = False
         self.server.requests = []
@@ -126,9 +127,9 @@ class MainDispatchTest(unittest.TestCase):
     def dispatched(self):
         return [body for method, path, _, body in self.server.requests if method == "POST"]
 
-    # The four cases the check exists for.
+    # The cases the check exists for.
 
-    def test_due_and_idle_dispatches(self):
+    def test_due_dispatches(self):
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
         code, out, err = self.run_script()
         self.assertEqual(code, 0, err)
@@ -136,35 +137,28 @@ class MainDispatchTest(unittest.TestCase):
         self.assertIn("the four-hourly check is due", out)
         self.assertIn("dispatched build.yml on main", out)
 
-    def test_due_and_busy_dispatches_nothing(self):
+    def test_due_with_a_run_live_on_another_branch_dispatches(self):
+        # A proof or a pull request in flight is no reason to wait: a due tick dispatches and its
+        # jobs queue behind that run. Waiting for an idle pool starved the check for 106 hours
+        # (#1463), so a check that reads the live run and still dispatches is the rule under test.
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
-        self.server.routes["in_progress"] = [run(11, datetime.timedelta(minutes=20))]
-        code, out, err = self.run_script()
-        self.assertEqual(code, 0, err)
-        self.assertEqual(self.dispatched(), [])
-        self.assertIn("20 job slots", out)
-        self.assertNotIn("dispatched build.yml", out)
-
-    def test_a_starved_check_dispatches_even_with_runs_live(self):
-        # A proof or a pull request in flight at every check starved the full run of main for 106
-        # hours (#1463), so a check past twice the interval dispatches and its jobs queue.
-        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=9))]
-        self.server.routes["in_progress"] = [run(11, datetime.timedelta(minutes=20))]
+        self.server.routes["live"] = [run(11, datetime.timedelta(minutes=20))]
         code, out, err = self.run_script()
         self.assertEqual(code, 0, err)
         self.assertEqual(self.dispatched(), [{"ref": "main"}])
-        self.assertIn("past twice the 4 h 0 min interval", out)
+        self.assertIn("queue behind any run in flight", out)
         self.assertIn("dispatched build.yml on main", out)
 
-    def test_exactly_twice_the_interval_with_runs_live_dispatches(self):
-        # The boundary belongs to the dispatch side: at exactly twice the interval a dispatch may not
-        # wait another tick, or a pool that is busy at every boundary starves it forever.
-        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=8))]
-        self.server.routes["in_progress"] = [run(11, datetime.timedelta(minutes=20))]
+    def test_a_full_build_past_twice_the_interval_dispatches(self):
+        # The old rule waited until twice the interval before dispatching over a live run; the new
+        # rule dispatches a due check at any age, so a full build this old is simply due too.
+        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=9))]
+        self.server.routes["live"] = [run(11, datetime.timedelta(minutes=20))]
         code, out, err = self.run_script()
         self.assertEqual(code, 0, err)
         self.assertEqual(self.dispatched(), [{"ref": "main"}])
-        self.assertIn("past twice the 4 h 0 min interval", out)
+        self.assertIn("at least the 4 h 0 min interval", out)
+        self.assertIn("dispatched build.yml on main", out)
 
     def test_a_dispatch_created_during_the_check_is_not_doubled(self):
         # Another tick, or the orchestrator's own dispatch, can create the dispatch this check
@@ -178,48 +172,25 @@ class MainDispatchTest(unittest.TestCase):
         self.assertEqual(self.dispatched(), [])
         self.assertIn("appeared while this check read the run lists", out)
 
-    def test_recent_and_idle_dispatches_nothing(self):
+    def test_a_not_due_check_with_a_run_live_dispatches_nothing(self):
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=1))]
+        self.server.routes["live"] = [run(11, datetime.timedelta(minutes=1))]
         code, out, err = self.run_script()
         self.assertEqual(code, 0, err)
         self.assertEqual(self.dispatched(), [])
         self.assertIn("younger than the 4 h 0 min interval", out)
 
-    def test_recent_and_busy_dispatches_nothing(self):
-        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=1))]
-        self.server.routes["queued"] = [run(11, datetime.timedelta(minutes=1))]
-        code, out, err = self.run_script()
-        self.assertEqual(code, 0, err)
-        self.assertEqual(self.dispatched(), [])
-        self.assertIn("are live", out)
+    # The edges around those cases.
 
-    def test_every_live_status_blocks_the_dispatch(self):
-        # A run created between the dispatch read and the busy read is often still requested, and
-        # GitHub also reports waiting and pending, so every live status counts as in flight.
+    def test_the_check_reads_no_live_run_list(self):
+        # The busy read is gone on purpose: the check must not let another run hold it off, so it
+        # never asks GitHub for a live status listing.
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
-        for status in main_dispatch.LIVE_STATUSES:
-            with self.subTest(status=status):
-                for other in main_dispatch.LIVE_STATUSES:
-                    self.server.routes[other] = []
-                self.server.routes[status] = [run(11, datetime.timedelta(minutes=5))]
-                self.server.requests = []
-                code, out, err = self.run_script()
-                self.assertEqual(code, 0, err)
-                self.assertEqual(self.dispatched(), [])
-                self.assertIn("are live", out)
-
-    def test_a_run_returned_under_two_statuses_is_counted_once(self):
-        # A run moves from requested to queued between the listings, so the same id can come back
-        # twice; the reason must still name one run.
-        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
-        self.server.routes["requested"] = [run(11, datetime.timedelta(minutes=1))]
-        self.server.routes["queued"] = [run(11, datetime.timedelta(minutes=1))]
-        code, out, err = self.run_script()
+        self.server.routes["live"] = [run(11, datetime.timedelta(minutes=5))]
+        code, _, err = self.run_script()
         self.assertEqual(code, 0, err)
-        self.assertEqual(self.dispatched(), [])
-        self.assertIn("1 build.yml run(s) are live", out)
-
-    # The edges around those four.
+        queries = [q for method, _, q, _ in self.server.requests if method == "GET"]
+        self.assertFalse(any(q.get("status") for q in queries))
 
     def test_no_dispatch_ever_is_due(self):
         code, out, err = self.run_script()
@@ -249,7 +220,7 @@ class MainDispatchTest(unittest.TestCase):
     def test_a_dispatch_exactly_one_interval_old_is_due(self):
         now = datetime.datetime.now(datetime.timezone.utc)
         latest = {"id": 10, "created_at": (now - datetime.timedelta(hours=4)).isoformat()}
-        due, reason = main_dispatch.should_dispatch(now, [latest], [])
+        due, reason = main_dispatch.should_dispatch(now, [latest])
         self.assertTrue(due, reason)
 
     def test_the_interval_can_be_shortened_for_a_verification_run(self):
@@ -266,21 +237,13 @@ class MainDispatchTest(unittest.TestCase):
         self.assertEqual(self.dispatched(), [])
         self.assertIn("dry run", out)
 
-    def test_an_unreadable_dispatch_list_fails_without_dispatching(self):
+    def test_an_unreadable_run_list_fails_without_dispatching(self):
         self.server.fail = {"dispatches"}
         code, out, err = self.run_script()
         self.assertEqual(code, 1)
         self.assertEqual(self.dispatched(), [])
         self.assertIn("could not read the build.yml run list", err)
         self.assertIn("dispatched nothing", err)
-
-    def test_an_unreadable_busy_list_fails_without_dispatching(self):
-        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
-        self.server.fail = {"in_progress"}
-        code, out, err = self.run_script()
-        self.assertEqual(code, 1)
-        self.assertEqual(self.dispatched(), [])
-        self.assertIn("could not read the build.yml run list", err)
 
     def test_a_refused_dispatch_fails_the_run(self):
         self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
@@ -295,18 +258,6 @@ class MainDispatchTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(self.dispatched(), [])
         self.assertIn("GITHUB_REPOSITORY is not set", err)
-
-    def test_the_busy_listing_asks_for_every_live_status_and_branch(self):
-        # The 20 job slots are shared by every run, so a pull request's run in flight holds the check
-        # off too; every live status is read and the status queries name no branch.
-        self.server.routes["dispatches"] = [run(10, datetime.timedelta(hours=5))]
-        self.server.routes["in_progress"] = [run(11, datetime.timedelta(minutes=5))]
-        code, _, err = self.run_script()
-        self.assertEqual(code, 0, err)
-        queries = [q for method, _, q, _ in self.server.requests if method == "GET"]
-        statuses = {q["status"][0] for q in queries if q.get("status")}
-        self.assertEqual(statuses, set(main_dispatch.LIVE_STATUSES))
-        self.assertFalse(any("branch" in q for q in queries if q.get("status")))
 
 
 if __name__ == "__main__":
