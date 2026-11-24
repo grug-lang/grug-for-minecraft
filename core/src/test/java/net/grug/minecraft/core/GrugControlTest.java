@@ -2067,7 +2067,7 @@ class GrugControlTest {
                         "hasSound a",
                         "playUiSound b",
                         "isWorldSettled",
-                        "holdsBlockRegion",
+                        "holdsBlockRegion null",
                         "forgetSettledFrames",
                         "screenIdentityForTest",
                         "guiLeftForTest",
