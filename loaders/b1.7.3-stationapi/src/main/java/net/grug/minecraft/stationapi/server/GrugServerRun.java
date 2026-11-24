@@ -258,7 +258,9 @@ public final class GrugServerRun {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
-                                + " ms. Firing tests!");
+                                + " ms. Firing tests! Test origin is "
+                                + GrugCore.getAdapter().getTestOrigin()
+                                + ".");
                 PlayerEntity starter = (PlayerEntity) GrugCore.getAdapter().testPlayer();
                 heldFeetY = GrugServerRunArms.roundedHeight(starter.boundingBox.minY);
                 System.out.println("[GRUG CI] the run holds the test player at feet " + heldFeetY);
