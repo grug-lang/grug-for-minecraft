@@ -38,6 +38,8 @@ retryable_failure() {
 
 # The first attempt and one retry. Never a third: an outage longer than this is not a flake for a
 # single job to ride out, and each attempt repeats the job's whole build or, in a production launch,
-# its whole install. run-multiplayer.sh's client build and dedicated server build are held to the
-# same two attempts, so a leg cannot outlast the job on retries either.
+# its whole install. run-multiplayer.sh's client build is held to the same two attempts, and its
+# dedicated server build to the same two attempts inside one build window: the server's retry spends
+# what is left of the first attempt's window rather than asking for a second one, as run-loader.sh's
+# own retry does, so a leg cannot outlast the job on retries either.
 MAX_GRADLE_ATTEMPTS=2

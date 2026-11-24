@@ -448,12 +448,15 @@ start_server_build() {
   # A retry starts from an empty log, so what decided the leg is that attempt's output alone; the
   # first attempt keeps whatever the caller wrote before it, such as the standalone publish.
   if [ "$server_attempt" -gt 1 ]; then
-    : > "$SERVER_LOG"
+    : > "$SERVER_LOG" || true
   fi
   (
+    # The build runs where its Gradle wrapper lives, which is the loader's own directory for a
+    # standalone loader. A directory that is gone by now fails here, before Gradle is started.
     cd "$server_dir" || exit 1
+    exec >>"$SERVER_LOG" 2>&1
     GRUG_CI=true setsid env "${server_env[@]}" "${server_command[@]}"
-  ) >>"$SERVER_LOG" 2>&1 &
+  ) &
   server_pid=$!
 }
 
@@ -538,10 +541,11 @@ fi
 build_deadline=$((SECONDS + ${GRUG_CI_BUILD_TIMEOUT:-600}))
 while ! grep -qE "$READY_RE" "$SERVER_LOG"; do
   if ! kill -0 "$server_pid" 2>/dev/null; then
+    # The retry spends what is left of the first attempt's window rather than asking for a second
+    # one, as run-loader.sh's retry does: two full windows at the default would own 1200 s of a job
+    # that also runs the suite, and a late first attempt would get the leg cancelled with no verdict
+    # instead of reporting that its build timed out.
     if retry_server_build; then
-      # The retry is a whole build, so it gets a window of its own rather than what is left of the
-      # first attempt's, which a slow but working second attempt would otherwise overrun.
-      build_deadline=$((SECONDS + ${GRUG_CI_BUILD_TIMEOUT:-600}))
       continue
     fi
     echo "==> The dedicated server process exited before it was ready." >&2
