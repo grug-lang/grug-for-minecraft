@@ -166,6 +166,11 @@ public final class GrugForge125Arms {
         return forwarded(call, label, fail, null);
     }
 
+    /** Whether a chunk is loaded and the starter, when there is one, listens to it. */
+    public static boolean chunkReaches(java.util.List<?> listening, boolean loaded, Object chunk) {
+        return listening != null && loaded && listening.contains(chunk);
+    }
+
     /** What the function gives for a value, or null for none. */
     public static <T, R> R map(T value, java.util.function.Function<T, R> function) {
         return value == null ? null : function.apply(value);
