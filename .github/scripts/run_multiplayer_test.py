@@ -18,7 +18,9 @@ a fake java as the second client in its own game directory, and the test reads w
 launched. The wrapper and the run script are the real files; only the game and its Gradle are fakes.
 """
 
+import fnmatch
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -813,7 +815,8 @@ class SecondPlayerTest(unittest.TestCase):
 # file the server holds its tests until, so the client that does start is up before the server says
 # its tests began and a failed client build is what the script sees first. FAKE_CLIENT_FAILURES names
 # a directory whose <n>.log is the nth client build's output and whose absence means the build
-# succeeded, so a client build can be made to fail once and pass on the retry.
+# succeeded, so a client build can be made to fail once and pass on the retry, and FAKE_CLIENT_SLEEP
+# holds that failing build before it prints, so a case can make it die after the run's deadline.
 STANDALONE_GRADLEW = """\
 #!/usr/bin/env bash
 case "$*" in
@@ -832,6 +835,7 @@ case "$*" in
       count=$(cat "${FAKE_CLIENT_FAILURES}/count" 2>/dev/null || echo 0)
       echo $((count + 1)) > "${FAKE_CLIENT_FAILURES}/count"
       if [ -f "${FAKE_CLIENT_FAILURES}/$((count + 1)).log" ]; then
+        sleep "${FAKE_CLIENT_SLEEP:-0}"
         cat "${FAKE_CLIENT_FAILURES}/$((count + 1)).log"
         exit 1
       fi
@@ -1064,7 +1068,7 @@ Execution failed for task ':compileJava'.
         lines.append("[GRUG CI] ALL 50 TESTS PASSED")
         return "\n".join(lines) + "\n"
 
-    def run_script(self):
+    def run_script(self, run_timeout=60, client_sleep=0):
         self.lines_file.write_text(self.server_lines())
         env = dict(os.environ)
         env.update(
@@ -1073,8 +1077,9 @@ Execution failed for task ':compileJava'.
                 "FAKE_SERVER_LINES_FILE": str(self.lines_file),
                 "FAKE_CLIENT_FAILURES": str(self.failures),
                 "FAKE_CLIENT_STARTED": str(self.client_started),
+                "FAKE_CLIENT_SLEEP": str(client_sleep),
                 "GRUG_CI_BUILD_TIMEOUT": "30",
-                "GRUG_CI_RUN_TIMEOUT": "60",
+                "GRUG_CI_RUN_TIMEOUT": str(run_timeout),
             }
         )
         env.pop("JAVA_HOME", None)
@@ -1152,6 +1157,74 @@ Execution failed for task ':compileJava'.
         self.assertIn("Failed to download the icon of the second attempt", self.client_log())
         # Never a third attempt, and so never a second kept log.
         self.assertFalse(self.kept_log(2).exists(), "the leg made a third attempt")
+
+    def test_a_retry_is_not_started_after_the_run_deadline_has_passed(self):
+        # A retry is a whole Gradle build, so one started past the run's deadline is killed by the
+        # next pass, and the leg reported "Timed out" instead of the client failure the check had
+        # just identified from the log. The client here dies a second after the launch, and the poll
+        # after the two-second deadline finds it dead, which is the only way this is reached without
+        # a timeout of its own: a client still alive at the deadline times the leg out.
+        self.client_failure(1, self.DOWNLOAD_FAILURE)
+        result = self.run_script(run_timeout=2, client_sleep=1)
+
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("Not retrying the client: the run's 2s deadline has passed", result.stderr)
+        self.assertNotIn("Retrying the client, attempt", result.stderr)
+        self.assertEqual(1, self.client_attempts())
+        self.assertFalse(self.kept_log(1).exists(), "a retry past the deadline kept a log")
+        # The leg reports the failure the check identified, not a timeout.
+        self.assertIn("The client exited before the server started the tests", result.stderr)
+        self.assertIn("DownloadException", result.stderr)
+        self.assertNotIn("Timed out after", result.stderr)
+
+
+class AttemptLogUploadTest(unittest.TestCase):
+    """The logs a retry keeps reach the artifact, not only the job log (#1702).
+
+    GitHub's upload-artifact reads each path line as a glob, so a kept log is in the artifact only
+    when a line matches its name. Nothing is uploaded here: the workflow is read, and each glob is
+    matched against the name the script writes, as the upload would.
+    """
+
+    # A token standing in for the job's matrix or step output, so one path serves every job.
+    TOKEN = "matrix-value"
+
+    @classmethod
+    def setUpClass(cls):
+        import yaml
+
+        cls.jobs = yaml.safe_load((SCRIPTS.parent / "workflows" / "build.yml").read_text())["jobs"]
+
+    def upload_globs(self, job, step_name):
+        for step in self.jobs[job]["steps"]:
+            if step.get("name") == step_name:
+                lines = step["with"]["path"].splitlines()
+                return [
+                    re.sub(r"\$\{\{[^}]*\}\}", self.TOKEN, line.strip())
+                    for line in lines
+                    if line.strip() and not line.strip().startswith("#")
+                ]
+        self.fail(f"{job} has no {step_name} step")
+
+    def assert_uploaded(self, job, step_name, name_on_disk):
+        target = f"loaders/{self.TOKEN}/{name_on_disk}"
+        globs = self.upload_globs(job, step_name)
+        matched = [pattern for pattern in globs if fnmatch.fnmatchcase(target, pattern)]
+        self.assertTrue(matched, f"{target} matches none of {job}'s upload paths: {globs}")
+
+    def test_the_multiplayer_upload_carries_the_client_attempt_log(self):
+        self.assert_uploaded(
+            "multiplayer", "Upload logs and crash reports", "run-client-ci.log.attempt-1"
+        )
+
+    def test_every_upload_of_a_loader_log_carries_its_build_attempt_log(self):
+        # build.yml uploads run-loader.sh's logs from three jobs, and the retry keeps the failed
+        # attempt under the same name in each of them.
+        for job in ("build", "reference", "windows"):
+            with self.subTest(job=job):
+                self.assert_uploaded(
+                    job, "Upload logs and crash reports", "run/ci-build.log.attempt-1"
+                )
 
 
 def main(argv: list[str]) -> int:
