@@ -3,6 +3,7 @@ package net.grug.minecraft.forge;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugPlayerFloor;
+import net.grug.minecraft.core.GrugRunOrigin;
 import net.grug.minecraft.core.GrugRunPlayers;
 import net.grug.minecraft.core.GrugServerJoin;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
@@ -81,9 +82,6 @@ public final class GrugServerRun {
     private GrugTestRunner runner = null;
     private boolean done = false;
 
-    /** Whether the run has printed the origin it builds its rooms around, so it prints it once. */
-    private boolean originReported = false;
-
     /** How many times the hold put the player back on the floor, and when it last said so. */
     private final GrugPlayerFloor.HoldLog holdLog = new GrugPlayerFloor.HoldLog();
 
@@ -148,24 +146,9 @@ public final class GrugServerRun {
         // this test's tick, and a test asserts on the tick after its click.
         GrugControlForge.server().applyClientWork();
         runner.tick(testPlayer);
-        reportOrigin();
+        GrugRunOrigin.reportOnce(GrugCore.getAdapter().getTestOrigin());
         followTheTestsView(server, testPlayer);
         GrugLinkArms.runOn(runner.isFinished(), server, this::stop);
-    }
-
-    /**
-     * Prints the origin the run builds its rooms around, once, after the run's first runner tick.
-     *
-     * <p>The first tick snaps the server's copy of the joined player to the centre of their block
-     * and builds the room there (#1161), so the answer here is the one every test and capture of
-     * the run works from. Read before that tick, as this line was, it named where the player
-     * joined: 0.89, 52.1 on this loader's save, while the rooms and tests used 0.5, 52.5.
-     */
-    private void reportOrigin() {
-        if (originReported) return;
-        originReported = true;
-        System.out.println(
-                "[GRUG CI] Test origin is " + GrugCore.getAdapter().getTestOrigin() + ".");
     }
 
     /**
