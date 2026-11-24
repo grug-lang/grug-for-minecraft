@@ -1,13 +1,13 @@
 package net.grug.minecraft.stationapi.control;
 
+import net.grug.minecraft.core.GrugArms;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugHandlerLookup;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugSavedDataSync;
-import net.grug.minecraft.core.GrugSide;
-import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.Connection;
@@ -40,10 +40,6 @@ import java.util.WeakHashMap;
  * the server only sends them at the end of its own tick, which a frozen tick never reaches. Sound
  * and screen calls do not flush, because they depend on no world state.
  */
-@GrugGenerated(
-        "the StationAPI channel glue of #1040: no test the coverage gate counts can reach it, since"
-                + " only the multiplayer job runs it; every decision in it lives in core's"
-                + " GrugControlServer and GrugControlClient")
 public final class GrugControlStation {
     static final long DEFAULT_TIMEOUT_MILLIS = 20_000;
 
@@ -77,9 +73,6 @@ public final class GrugControlStation {
         return starter == null ? null : PLAYERS.get((Connection) starter);
     }
 
-    @GrugGenerated(
-            "the StationAPI channel glue of #1040: no test the coverage gate counts can reach it,"
-                    + " since only the multiplayer job runs it")
     private static final class StationLink implements GrugControlServer.Link {
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
@@ -138,10 +131,9 @@ public final class GrugControlStation {
         /** Shows the player the error in red chat, the way the game shows a refused command. */
         @Override
         public void tell(Object sender, String message) {
-            PlayerEntity player = PLAYERS.get((Connection) sender);
-            if (player != null) {
-                player.sendMessage("\u00a7c" + message);
-            }
+            GrugLinkArms.deliver(
+                    PLAYERS.get((Connection) sender),
+                    player -> player.sendMessage("\u00a7c" + message));
         }
 
         /**
@@ -159,17 +151,17 @@ public final class GrugControlStation {
         /** A CI server makes the player who starts a run an operator (#882); a real one never. */
         @Override
         public void onRunStarted(Object starter) {
-            if (!"true".equals(System.getenv("GRUG_CI"))) return;
-            PlayerEntity player = PLAYERS.get((Connection) starter);
-            if (player != null) {
-                GrugCore.getAdapter().makeOperator(player);
-            }
+            GrugLinkArms.runIfCi(
+                    System::getenv,
+                    () ->
+                            GrugLinkArms.deliver(
+                                    PLAYERS.get((Connection) starter),
+                                    player -> GrugCore.getAdapter().makeOperator(player)));
         }
     }
 
     private static boolean onServer() {
-        return GrugCore.getAdapter() != null
-                && GrugCore.getAdapter().getSide() == GrugSide.DEDICATED_SERVER;
+        return GrugLinkArms.onDedicatedServer(GrugCore.getAdapter(), ModLoaderAdapter::getSide);
     }
 
     /**
@@ -181,30 +173,32 @@ public final class GrugControlStation {
      * and learns the player it gives to there (#1418).
      */
     static boolean onRead(byte[] bytes) {
-        if (!onServer()) return false;
         // The reader thread of a Connection is a Thread subclass that holds it, so the sender of
         // this message is the connection it was read from, which the server compares with the
         // starter's and which its player is found by.
-        Connection sender = findConnection(Thread.currentThread(), 0);
-        return server().onRead(sender, bytes);
+        return GrugArms.askIf(
+                onServer(),
+                Boolean.FALSE,
+                () -> server().onRead(findConnection(Thread.currentThread(), 0), bytes));
     }
 
     /** Called on the game thread for every other message, from {@code Connection.tick}. */
     static void onHandle(NetworkHandler handler, byte[] bytes) {
-        if (onServer()) {
-            Connection connection = findConnection(handler, 1);
-            PlayerEntity player = playerOf(handler);
-            if (connection != null && player != null) {
-                PLAYERS.put(connection, player);
-            }
-            ON_GAME_THREAD.set(Boolean.TRUE);
-            try {
-                server().onMessage(connection, bytes);
-            } finally {
-                ON_GAME_THREAD.set(Boolean.FALSE);
-            }
-        } else {
-            GrugControlStationClient.onMessage(bytes);
+        GrugLinkArms.chooseWith(
+                onServer(),
+                bytes,
+                message -> handleOnServer(handler, message),
+                GrugControlStationClient::onMessage);
+    }
+
+    private static void handleOnServer(NetworkHandler handler, byte[] bytes) {
+        Connection connection = findConnection(handler, 1);
+        GrugLinkArms.learn(PLAYERS, connection, playerOf(handler));
+        ON_GAME_THREAD.set(Boolean.TRUE);
+        try {
+            server().onMessage(connection, bytes);
+        } finally {
+            ON_GAME_THREAD.set(Boolean.FALSE);
         }
     }
 
@@ -227,8 +221,7 @@ public final class GrugControlStation {
      */
     private static PlayerEntity playerOf(NetworkHandler handler) {
         World world = GrugServerRun.world();
-        List<Object> candidates =
-                world == null ? Collections.emptyList() : new ArrayList<Object>(world.players);
+        List<Object> candidates = GrugLinkArms.membersOrNone(world, w -> w.players);
         return GrugHandlerLookup.playerOf(handler, PlayerEntity.class, candidates);
     }
 }

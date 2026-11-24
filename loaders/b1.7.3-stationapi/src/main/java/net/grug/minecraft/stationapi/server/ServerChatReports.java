@@ -25,7 +25,6 @@ import java.util.function.Consumer;
  * that is exactly an {@code en_US} key is translated on its way to the player. An err carries the
  * {@code §c} prefix, so it can never match one.
  */
-@GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public final class ServerChatReports {
     private ServerChatReports() {}
 
