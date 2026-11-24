@@ -4,7 +4,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * A test's read of the joined client's own copy of a section's block light (#1207, #1240).
+ * A test's read of the joined client's own copy of a section's light (#1207, #1240).
  *
  * <p>A test runs on the side that simulates the world, and on a dedicated server that side is the
  * server, whose light is not the one the joined client's frame pass bakes the room from. A capture

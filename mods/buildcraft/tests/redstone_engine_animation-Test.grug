@@ -221,6 +221,9 @@ local _ready(ctx: TestTickContext) bool {
     if not ctx.light_applied(ex, ey, ez) {
         return false
     }
+    if not ctx.light_applied(ex + 5, ey, ez) {
+        return false
+    }
     return true
 }
 

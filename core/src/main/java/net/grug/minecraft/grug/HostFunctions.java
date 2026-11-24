@@ -1025,8 +1025,8 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: whether the client's copy of the world holds the same block light at this position
-     * as the world the test edits, which is the light the client's frame pass draws the room with
+     * Test only: whether the client's copy of the world holds the same light at this position as
+     * the world the test edits, which is the light the client's frame pass draws the room with
      * (#1207).
      *
      * <p>A light change reaches a 1.20.6 client in a packet after the block changes a capture
