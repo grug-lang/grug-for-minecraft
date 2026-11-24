@@ -484,6 +484,7 @@ class GrugControlTest {
         boolean holds = true;
         boolean light = true;
         int lightAsks;
+        String reason = "";
         GrugBlockRegion.Expected asked;
         GrugLightAsk.Expected askedLight;
 
@@ -513,6 +514,11 @@ class GrugControlTest {
         @Override
         public boolean isWorldSettled() {
             return settled;
+        }
+
+        @Override
+        public String settleReason() {
+            return reason;
         }
 
         @Override
@@ -949,6 +955,77 @@ class GrugControlTest {
         // The remembered yes answers the next ask without a round trip.
         assertTrue(loop.server.worldSettled(ask));
         assertEquals(3, settled.lightAsks);
+    }
+
+    @Test
+    void aProbeAskAnswersWithoutStandingAsTheWorldsSettle() throws Exception {
+        Settled settled = new Settled();
+        Loopback loop = new Loopback() {};
+        loop.server = new GrugControlServer(loop, 1000);
+        loop.client = new GrugControlClient(loop, solid(0), settled, -1, -1);
+        loop.client.beginRun();
+        settled.settled = true;
+        settled.light = false;
+
+        int[] box = {0, 64, 0, 15, 71, 15};
+        String ask = GrugLightAsk.ask(box, (x, y, z) -> 0, (x, y, z) -> 15);
+        // A new revision is never settled; the next ask finds the light different.
+        assertFalse(loop.server.worldSettled(ask));
+        assertEquals(GrugControlWire.SETTLE_LIGHT_DIVERGED, loop.server.settle(ask));
+
+        // The report narrows the box, and a yes about part of it must not answer the wait for the
+        // whole box: the next ask still asks the client.
+        settled.light = true;
+        int[] part = {0, 64, 0, 7, 71, 7};
+        int asksBefore = settled.lightAsks;
+        assertEquals(
+                GrugControlWire.SETTLE_YES,
+                loop.server.probeLight(GrugLightAsk.ask(part, (x, y, z) -> 0, (x, y, z) -> 15)));
+        assertEquals(GrugControlWire.SETTLE_YES, loop.server.settle(ask));
+        assertEquals(asksBefore + 2, settled.lightAsks, "the probe did not stand as the world's");
+    }
+
+    @Test
+    void aCallerThatCannotNameItsReasonKeepsTheDefault() {
+        assertEquals("", NO_CALLS.settleReason());
+    }
+
+    @Test
+    void aProbeWithNoRunStartedSaysSo() {
+        Loopback loop = new Loopback() {};
+        loop.server = new GrugControlServer(loop, 1000);
+        loop.client = new GrugControlClient(loop, solid(0), new Settled(), -1, -1);
+        GrugControlServer.ControlException failure =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> loop.server.probeLight(""));
+        assertTrue(failure.getMessage().contains("No client has started a run"));
+    }
+
+    @Test
+    void aWaitThatRepeatsOneUnsettledReasonReportsInsteadOfAskingForever() throws Exception {
+        Settled settled = new Settled();
+        Loopback loop = new Loopback() {};
+        loop.server = new GrugControlServer(loop, 1000);
+        loop.client = new GrugControlClient(loop, solid(0), settled, -1, -1);
+        loop.client.beginRun();
+        settled.settled = false;
+        settled.reason = "the light engine still has work";
+        String ask =
+                GrugLightAsk.ask(new int[] {0, 64, 0, 15, 71, 15}, (x, y, z) -> 0, (x, y, z) -> 15);
+
+        // The first ask is about a revision the client has not answered, which is a normal no.
+        assertFalse(loop.server.worldSettled(ask));
+        for (int at = 1; at < GrugSettleLoop.LIMIT; at++) {
+            assertFalse(loop.server.worldSettled(ask), "ask " + at + " is under the limit");
+        }
+        GrugControlServer.ControlException failure =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> loop.server.worldSettled(ask));
+        assertTrue(
+                failure.getMessage().contains("the light engine still has work"),
+                failure.getMessage());
+        assertTrue(failure.getMessage().contains("world revision"), failure.getMessage());
     }
 
     @Test
@@ -2155,7 +2232,11 @@ class GrugControlTest {
                                                                     : method.getReturnType()
                                                                                     == Vec3.class
                                                                             ? new Vec3(1, 2, 3)
-                                                                            : null;
+                                                                            : method.getReturnType()
+                                                                                            == String
+                                                                                                    .class
+                                                                                    ? ""
+                                                                                    : null;
                                 });
         GrugControlClient.Caller caller = GrugControlClient.adapterCaller(() -> adapter);
         // The screen calls share whether a screen was already open, so start from closed.
@@ -2164,6 +2245,7 @@ class GrugControlTest {
         assertTrue(caller.hasSound("a"));
         caller.playUiSound("b", 1, 1);
         assertTrue(caller.isWorldSettled());
+        assertEquals("", caller.settleReason(), "a loader that cannot name one says nothing");
         assertTrue(caller.holdsBlocks(null));
         assertTrue(caller.holdsRoomLight(null));
         caller.forgetSettledFrames();
@@ -2205,6 +2287,7 @@ class GrugControlTest {
                         "hasSound a",
                         "playUiSound b",
                         "isWorldSettled",
+                        "settleReason",
                         "holdsBlockRegion null",
                         "holdsRoomLight null",
                         "forgetSettledFrames",

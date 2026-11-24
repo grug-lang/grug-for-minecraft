@@ -1638,6 +1638,20 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 blockSync.settled((x, y, z) -> getBlock(simulated, x, y, z)));
     }
 
+    /**
+     * Why {@link #isWorldSettled} said no, for the report a wait makes when the answer repeats at
+     * one revision (#1695). This generation drains the light queue inside the renderer's pending
+     * work, so the reason names the blocks a test placed, the renderer's work, or the frames since
+     * the last busy one.
+     */
+    @Override
+    public String settleReason() {
+        Object simulated = getLevel();
+        return renderSettle.busyReason(
+                frameHadPendingWork(),
+                blockSync.settled((x, y, z) -> getBlock(simulated, x, y, z)));
+    }
+
     @Override
     public void forgetSettledFrames() {
         renderSettle.reset();

@@ -415,6 +415,37 @@ public class ClientForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * Why {@link #isWorldSettled} said no, for a wait that repeats one answer at one world revision
+     * (#1695): the same reads in the same order, named rather than only counted, so a dispatch log
+     * says which input was still busy. This is the loader that reads the light engine and the queue
+     * of light packets separately, so its reason can name both.
+     */
+    @Override
+    public String settleReason() {
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientLevel level = minecraft.level;
+        if (level == null) {
+            return "the client has no level yet";
+        }
+        if (GrugModLoader.isReloading()) {
+            return "the client is still reloading its resources";
+        }
+        Object simulated = getLevel();
+        if (!GrugLightSync.roomSettled(
+                (x, y, z) -> blockLightLayer(simulated, x, y, z),
+                (x, y, z) -> blockLightLayer(level, x, y, z))) {
+            return "the light of the box this server sent differs on this client";
+        }
+        if (handMovedInLastClientTick) {
+            return "the hand is moving";
+        }
+        return RENDER_SETTLE.busyReason(
+                level.getChunkSource().getLightEngine().hasLightWork(),
+                level.isLightUpdateQueueEmpty(),
+                BLOCK_SYNC.settled((x, y, z) -> blockNameAt((Level) simulated, x, y, z)));
+    }
+
+    /**
      * One completed frame, called from the render event handler: the level has been uploaded and
      * drawn, so whether it still had work in it is the answer a capture reading this frame needs.
      *

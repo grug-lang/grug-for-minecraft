@@ -7,6 +7,7 @@ import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugLightAsk;
 import net.grug.minecraft.core.GrugLightResend;
+import net.grug.minecraft.core.GrugLightRetry;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugOverlayCalls;
@@ -746,12 +747,38 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
 
     /**
      * Asks the joined client whether it settled, and sends the box it was last sent the light of
-     * again when its own copy holds a different field (#1695). See {@link GrugLightAsk#settled}.
+     * again when its own copy holds a different field (#1695). A divergence that survives that send
+     * is a defect, so it is reported at the first cell whose light differs rather than asked again
+     * until the tick budget is gone. See {@link GrugLightRetry}.
      */
     private boolean askClientSettled() throws GrugControlServer.ControlException {
-        byte answer = GrugControlBeta.server().settle(lightAsk());
-        return GrugLightAsk.settled(answer, lightResend::rearm);
+        GrugLightRetry.Verdict verdict =
+                lightRetry.answered(GrugControlBeta.server().settle(lightAsk()));
+        if (verdict == GrugLightRetry.Verdict.DIVERGED) {
+            lightResend.rearm();
+            return false;
+        }
+        if (verdict == GrugLightRetry.Verdict.PERSISTED) {
+            throw new GrugControlServer.ControlException(difference());
+        }
+        return verdict == GrugLightRetry.Verdict.SETTLED;
     }
+
+    /**
+     * The cell where the joined client's light still differs, with both fields' levels on each side
+     * (#1695), so a dispatch log names what to fix.
+     */
+    private String difference() throws GrugControlServer.ControlException {
+        World world = (World) getLevel();
+        return GrugLightRetry.difference(
+                lightResend.lastBox(),
+                (x, y, z) -> world.getLight(LightType.BLOCK, x, y, z),
+                (x, y, z) -> world.getLight(LightType.SKY, x, y, z),
+                GrugControlBeta.server()::probeLight);
+    }
+
+    /** The light answers so far, so a second divergence is reported rather than re-armed again. */
+    private final GrugLightRetry lightRetry = new GrugLightRetry();
 
     /**
      * The light of the box this server last sent the joined client, as a settle ask's text (#1695).

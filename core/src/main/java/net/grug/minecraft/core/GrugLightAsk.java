@@ -18,7 +18,8 @@ package net.grug.minecraft.core;
  * pair the frame pass bakes the room from ({@link GrugLightSync#lightFingerprint(int, int, int,
  * GrugLightSync.BlockLight, GrugLightSync.BlockLight)}). A client that holds the boxes and the
  * frames but not the light answers {@link GrugControlWire#SETTLE_LIGHT_DIVERGED}, and the server
- * sends the region again rather than settling.
+ * sends the region again rather than settling; a divergence that survives that send is a defect the
+ * run reports at the first cell that differs ({@link GrugLightRetry}).
  *
  * <p>The text travels in the settle ask's name slot, which {@link GrugBlockRegion} also uses, so it
  * is told apart by {@link #PREFIX}. A loader sends one or the other and never both. The box is read
@@ -132,23 +133,5 @@ public final class GrugLightAsk {
     public static boolean holds(
             Expected expected, GrugLightSync.BlockLight block, GrugLightSync.BlockLight sky) {
         return expected == null || fingerprint(expected.box, block, sky) == expected.fingerprint;
-    }
-
-    /**
-     * What a loader makes of the client's settle answer: whether it settled, and whether the box
-     * has to be sent again because the client's own light is not this server's.
-     *
-     * <p>The divergent answer is not settled, and it runs {@code rearm} so the next poll sends the
-     * region again ({@link GrugLightResend#rearm}). That is how a client whose relight landed after
-     * the first region ends up holding this server's field rather than its own (#1695). The poll
-     * after the re-armed send asks again, and the answer is settled once the copied bytes are what
-     * the comparison reads.
-     */
-    public static boolean settled(byte answer, Runnable rearm) {
-        if (answer == GrugControlWire.SETTLE_LIGHT_DIVERGED) {
-            rearm.run();
-            return false;
-        }
-        return answer == GrugControlWire.SETTLE_YES;
     }
 }

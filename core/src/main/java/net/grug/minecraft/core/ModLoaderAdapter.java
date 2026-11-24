@@ -702,6 +702,19 @@ public interface ModLoaderAdapter {
     boolean isWorldSettled();
 
     /**
+     * Why this client's settle answer is not settled, named for the report a wait makes when the
+     * same answer repeats at one revision (#1695): the light engine or its packet queue, the
+     * renderer's work, the frames since the last busy one, or the blocks a test placed. Empty when
+     * nothing is busy or when this loader cannot say, which the report says in place of a reason.
+     *
+     * <p>A client that shares the server's world and a loader with no joined client never answer,
+     * so they keep this default.
+     */
+    default String settleReason() {
+        return "";
+    }
+
+    /**
      * Whether this client's own copy of the world holds the block ids {@code expected} describes,
      * which the server's settle ask sends for the blocks its test placed (#1664). A null
      * expectation is held. The default holds, for a loader whose client shares the server's world

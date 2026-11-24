@@ -73,6 +73,15 @@ public final class GrugControlClient {
         boolean isWorldSettled();
 
         /**
+         * Why {@link #isWorldSettled} answered false, named for the report a wait makes when the
+         * same answer repeats at one revision (#1695). Empty when nothing is busy or the loader
+         * cannot say, which the report reads as unnamed.
+         */
+        default String settleReason() {
+            return "";
+        }
+
+        /**
          * Whether this client's own copy of the world holds the block ids the server's checksum
          * describes in the boxes (#1664).
          */
@@ -249,6 +258,11 @@ public final class GrugControlClient {
             @Override
             public boolean isWorldSettled() {
                 return adapter.get().isWorldSettled();
+            }
+
+            @Override
+            public String settleReason() {
+                return adapter.get().settleReason();
             }
 
             @Override
@@ -447,6 +461,17 @@ public final class GrugControlClient {
     private GrugLightAsk.Expected owedLight;
 
     /**
+     * How many not-settled answers this client has given at one revision with one reason, so a wait
+     * that cannot end reports instead of spending the test's tick budget (#1695).
+     */
+    private final GrugSettleLoop settleLoop = new GrugSettleLoop();
+
+    /**
+     * The revision whose not-settled reason this client last wrote to the log, once per revision.
+     */
+    private long loggedUnsettledRevision = Long.MIN_VALUE;
+
+    /**
      * @param dropWidth fault injection for CI: a request whose rectangle is this wide is never
      *     answered, which is how a run makes the server time out. Negative disables it.
      * @param lateWidth fault injection for CI: the answer to a request whose rectangle is this wide
@@ -511,6 +536,8 @@ public final class GrugControlClient {
         seenRevision = Long.MIN_VALUE;
         owedRegion = null;
         owedLight = null;
+        settleLoop.forget();
+        loggedUnsettledRevision = Long.MIN_VALUE;
         System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
         link.send(GrugControlWire.runStart());
     }
@@ -524,6 +551,8 @@ public final class GrugControlClient {
         seenRevision = Long.MIN_VALUE;
         owedRegion = null;
         owedLight = null;
+        settleLoop.forget();
+        loggedUnsettledRevision = Long.MIN_VALUE;
         held.set(null);
     }
 
@@ -799,6 +828,10 @@ public final class GrugControlClient {
      * flushed before it, and forgetting the frames counted so far makes the answer wait for frames
      * drawn after those changes arrived. A revision it has already answered is asked of the
      * adapter, so the wait ends once its light and its frames are idle.
+     *
+     * <p>A client that keeps answering not settled at one revision with one reason is a wait that
+     * cannot end, because the server is frozen while it asks, so it reports after {@link
+     * GrugSettleLoop#LIMIT} asks instead of spending the test's tick budget (#1695).
      */
     private void worldSettled(GrugControlWire.Message message) {
         GrugFrameRequest.request();
@@ -823,6 +856,27 @@ public final class GrugControlClient {
             owedRegion = null;
         }
         boolean settled = caller.isWorldSettled() && holds;
+        if (!settled) {
+            // The client says what it is still busy with, so a wait that repeats one answer at one
+            // world revision reports instead of asking until its tick budget is gone (#1695).
+            String reason =
+                    holds
+                            ? caller.settleReason()
+                            : "the blocks a test placed have not all reached this client";
+            String stuck = settleLoop.answered(revision, reason);
+            if (revision != loggedUnsettledRevision) {
+                loggedUnsettledRevision = revision;
+                System.out.println(
+                        "[GRUG CONTROL] world revision "
+                                + revision
+                                + " is not settled: "
+                                + settleLoop.named());
+            }
+            if (stuck != null) {
+                link.send(GrugControlWire.answerError(message.id, stuck));
+                return;
+            }
+        }
         // After the settle answer, so the light this reads is the one the frame the answer is
         // about was drawn from: the loader's own answer drains its light queue first (#1695).
         boolean light = !settled || caller.holdsRoomLight(owedLight);

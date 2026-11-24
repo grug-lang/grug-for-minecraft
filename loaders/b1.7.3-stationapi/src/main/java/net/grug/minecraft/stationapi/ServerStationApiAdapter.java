@@ -9,6 +9,7 @@ import net.grug.minecraft.core.GrugControlWire;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugLightAsk;
 import net.grug.minecraft.core.GrugLightResend;
+import net.grug.minecraft.core.GrugLightRetry;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
@@ -819,14 +820,51 @@ public class ServerStationApiAdapter extends StationApiAdapter {
             resendLight();
             return false;
         }
-        byte answer =
+        GrugLightRetry.Verdict verdict =
                 GrugArms.tryAsk(
-                        () -> GrugControlStation.server().settle(lightAsk()),
-                        ServerStationApiAdapter::worldSettledFailed);
-        // A client that drew the world but holds its own light for the box this server sent it has
-        // to be sent that box again, so this poll is not settled (#1695).
-        return GrugLightAsk.settled(answer, lightResend::rearm);
+                        this::lightVerdict,
+                        e -> {
+                            worldSettledFailed(e);
+                            return GrugLightRetry.Verdict.SETTLED;
+                        });
+        if (verdict == GrugLightRetry.Verdict.DIVERGED) {
+            // A client that drew the world but holds its own light for the box this server sent it
+            // has to be sent that box again, so this poll is not settled (#1695).
+            lightResend.rearm();
+            return false;
+        }
+        return verdict == GrugLightRetry.Verdict.SETTLED;
     }
+
+    /**
+     * The client's answer to the light ask, as the loader reads it. A divergence that survived the
+     * box being sent again is a defect, so it is reported at the first cell whose light differs
+     * rather than asked again until the tick budget is gone. See {@link GrugLightRetry}.
+     */
+    private GrugLightRetry.Verdict lightVerdict() throws GrugControlServer.ControlException {
+        GrugLightRetry.Verdict verdict =
+                lightRetry.answered(GrugControlStation.server().settle(lightAsk()));
+        if (verdict == GrugLightRetry.Verdict.PERSISTED) {
+            throw new GrugControlServer.ControlException(difference());
+        }
+        return verdict;
+    }
+
+    /**
+     * The cell where the joined client's light still differs, with both fields' levels on each side
+     * (#1695), so a dispatch log names what to fix.
+     */
+    private String difference() throws GrugControlServer.ControlException {
+        World world = (World) getLevel();
+        return GrugLightRetry.difference(
+                lightResend.lastBox(),
+                (x, y, z) -> world.getBrightness(LightType.BLOCK, x, y, z),
+                (x, y, z) -> world.getBrightness(LightType.SKY, x, y, z),
+                GrugControlStation.server()::probeLight);
+    }
+
+    /** The light answers so far, so a second divergence is reported rather than re-armed again. */
+    private final GrugLightRetry lightRetry = new GrugLightRetry();
 
     /**
      * What the settle ask compares once the client's frames and blocks are settled: this server's

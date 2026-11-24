@@ -1257,6 +1257,29 @@ public final class GrugControlServer {
             link.flushWorld();
             settled.flushed(revision);
         }
+        byte result = askClient(held, revision);
+        settled.record(revision, result == GrugControlWire.SETTLE_YES);
+        return result;
+    }
+
+    /**
+     * The same question as {@link #settle(String)} for a box the server is narrowing down, and
+     * records nothing: it is about part of the world, so its answer must not stand as the whole
+     * world's, and the wait that follows it still has to ask (#1695). A divergence that survives
+     * the box being sent again is reported through this, so the report asks the client rather than
+     * naming a cell from this server's own field alone ({@link GrugLightRetry#difference}).
+     */
+    public byte probeLight(String held) throws ControlException {
+        if (starter.get() == null) {
+            throw new ControlException(
+                    "No client has started a run, so there is no client to ask whether the world is"
+                            + " settled. A client starts a run when its player starts one.");
+        }
+        return askClient(held, GrugWorldRevision.current());
+    }
+
+    /** Forwards one settle question and holds the answer to the three values it may take. */
+    private byte askClient(String held, long revision) throws ControlException {
         byte result;
         try {
             result =
@@ -1271,7 +1294,6 @@ public final class GrugControlServer {
                 && result != GrugControlWire.SETTLE_LIGHT_DIVERGED) {
             throw failure("The client answered world_settled with " + result + ", not 0, 1 or 2.");
         }
-        settled.record(revision, result == GrugControlWire.SETTLE_YES);
         return result;
     }
 

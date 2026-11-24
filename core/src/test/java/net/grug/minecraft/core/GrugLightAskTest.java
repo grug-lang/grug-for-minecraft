@@ -79,22 +79,6 @@ class GrugLightAskTest {
     }
 
     @Test
-    void aDivergentAnswerIsNotSettledAndSendsTheBoxAgain() {
-        int[] rearms = new int[1];
-        Runnable rearm = () -> rearms[0]++;
-
-        assertTrue(GrugLightAsk.settled(GrugControlWire.SETTLE_YES, rearm));
-        assertEquals(0, rearms[0], "a settled answer owes nothing");
-        assertFalse(GrugLightAsk.settled(GrugControlWire.SETTLE_NO, rearm));
-        assertEquals(0, rearms[0], "an unsettled world is not about the light");
-
-        // The divergent answer is a client that drew the world from its own light: the loader sends
-        // the box again and this poll is not settled.
-        assertFalse(GrugLightAsk.settled(GrugControlWire.SETTLE_LIGHT_DIVERGED, rearm));
-        assertEquals(1, rearms[0]);
-    }
-
-    @Test
     void anAskWithNoBoxIsTheEmptyText() {
         assertEquals("", GrugLightAsk.ask(new int[0], DARK, FULL));
     }

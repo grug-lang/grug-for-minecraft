@@ -28,6 +28,54 @@ class GrugRenderSettleTest {
     }
 
     @Test
+    void theReasonNamesTheInputThatIsBusy() {
+        GrugRenderSettle settle = new GrugRenderSettle();
+        settle.onFrame(false, false);
+        settle.onFrame(false, false);
+        assertEquals("", settle.busyReason(false, true), "nothing is busy");
+
+        // The loader that reads the light engine as one flag names the blocks first, then the
+        // renderer, then the frames since the last busy one.
+        assertTrue(
+                settle.busyReason(false, false).contains("the blocks a test placed"),
+                settle.busyReason(false, false));
+        assertTrue(
+                settle.busyReason(true, true).contains("the renderer still has work"),
+                settle.busyReason(true, true));
+        settle.noteBusy();
+        assertEquals(
+                "the frames (0 of 2 idle frames drawn since the last busy one)",
+                settle.busyReason(false, true));
+        settle.onFrame(false, false);
+        assertTrue(
+                settle.busyReason(false, true).contains("1 of 2 idle"),
+                settle.busyReason(false, true));
+        settle.onFrame(false, false);
+        assertEquals("", settle.busyReason(false, true));
+    }
+
+    @Test
+    void theReasonNamesTheLightQueueAndTheBlocksToo() {
+        GrugRenderSettle settle = new GrugRenderSettle();
+        settle.onFrame(false, false);
+        settle.onFrame(false, false);
+        assertEquals("", settle.busyReason(false, true, true), "nothing is busy");
+        assertTrue(
+                settle.busyReason(true, true, true).contains("the light engine still has work"),
+                settle.busyReason(true, true, true));
+        assertTrue(
+                settle.busyReason(false, false, true).contains("the queue of light packets"),
+                settle.busyReason(false, false, true));
+        assertTrue(
+                settle.busyReason(false, true, false).contains("the blocks a test placed"),
+                settle.busyReason(false, true, false));
+        settle.noteBusy();
+        assertTrue(
+                settle.busyReason(false, true, true).contains("the frames ("),
+                settle.busyReason(false, true, true));
+    }
+
+    @Test
     void pendingWorkAtTheMomentOfTheQuestionIsNotSettledAndCountsAsBusy() {
         GrugRenderSettle settle = new GrugRenderSettle();
         settle.onFrame(false, false);

@@ -39,6 +39,9 @@ import net.grug.minecraft.grug.GrugScreenshots;
  * #captureable} is what keeps a capture from reading a frame that has it (#1132).
  */
 public final class GrugRenderSettle {
+    /** The idle frames a capture needs since the last busy one. */
+    private static final int IDLE_FRAMES = 2;
+
     /** Frames drawn so far. */
     private long frames;
 
@@ -79,7 +82,59 @@ public final class GrugRenderSettle {
      * drawn, when there is nothing settled to read yet.
      */
     public synchronized boolean settled() {
-        return frames - lastBusyFrame >= 2;
+        return frames - lastBusyFrame >= IDLE_FRAMES;
+    }
+
+    /**
+     * Why {@link #settledNow} said no, for the wait that reports a client that never settles
+     * (#1695): the blocks a test placed that have not reached the client, the renderer still having
+     * work for a frame not drawn yet, or the frames since the last busy one.
+     *
+     * <p>The loaders that read the light engine as one flag for the next frame pass this way round;
+     * the one that reads the light queue separately passes {@link #busyReason(boolean, boolean,
+     * boolean)} instead. Both are read after the settle answer, so the reason describes the same
+     * inputs that answer did.
+     */
+    public synchronized String busyReason(boolean workPendingNow, boolean blocksIdle) {
+        if (!blocksIdle) {
+            return "the blocks a test placed have not all reached the client";
+        }
+        if (workPendingNow) {
+            return "the renderer still has work for a frame that has not been drawn";
+        }
+        return framesReason();
+    }
+
+    /**
+     * As {@link #busyReason(boolean, boolean)} for the loader that reads the light engine and the
+     * queue of light packets separately, which is what its settle answer is made of.
+     */
+    public synchronized String busyReason(
+            boolean engineHasLightWork, boolean updateQueueEmpty, boolean blocksIdle) {
+        if (engineHasLightWork) {
+            return "the light engine still has work";
+        }
+        if (!updateQueueEmpty) {
+            return "the queue of light packets is not empty";
+        }
+        if (!blocksIdle) {
+            return "the blocks a test placed have not all reached the client";
+        }
+        return framesReason();
+    }
+
+    /**
+     * The frames a capture still lacks since the last busy one, or the empty text when it has them.
+     */
+    private String framesReason() {
+        long idle = frames - lastBusyFrame;
+        return idle >= IDLE_FRAMES
+                ? ""
+                : "the frames ("
+                        + idle
+                        + " of "
+                        + IDLE_FRAMES
+                        + " idle frames drawn since the last busy one)";
     }
 
     /**
