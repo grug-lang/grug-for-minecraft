@@ -562,16 +562,18 @@ use.
   from origin/main; spawn a research subagent to map the reference's live features against its dead
   code in an issue, and port only the live rows, because a class nothing registers, a config id
   nothing reads, or a class that is another feature's part is not a feature. Then work in two
-  phases: first the grug code and the graphics, but no capture test, with the `mod_api.json` entry
-  and the `smoketest.c` implementation each new host function needs and its logic tests, iterated at
-  `-O0`, until every test of the mod prints PASS or FAIL and none is STUBBED; only then the Java
-  side, `HostFunctions`, each loader's adapter and the `mods/coverage/` tests, with each loader built
-  locally. Then one pull request whose body carries the inventory, and one CI run.)`
-  The two phases are what keep a whole-mod port off GitHub's CI until the end: nothing in phase one
-  needs Java, because `mod_api.json` is what grug compiles against and the smoketest implements the
-  entry in C, and a `STUBBED` line is a test the host skipped rather than one that passed. The map is
-  what stops the port building dead code: the reference's `addName` display names and its
-  registration sites are the features, and a class name is neither.
+  phases. Phase one is the grug code and the graphics, but no capture test, with the mod_api.json
+  entry and the smoketest.c implementation each new host function needs and its logic tests,
+  iterated at -O0, until every test of the mod prints PASS or FAIL and none is STUBBED; pushing the
+  branch costs no CI, so push it for backup, but open no pull request yet. Phase two is the Java
+  side, HostFunctions, each loader's adapter and the mods/coverage/ tests, with each loader built
+  locally; then one pull request whose body carries the inventory, and one CI run.)`
+  The two phases are what keep a whole-mod port off GitHub's CI until the end: only a pull request
+  or a push to `main` starts a workflow, so a branch push is free, and nothing in phase one needs
+  Java, because `mod_api.json` is what grug compiles against and the smoketest implements the entry
+  in C, and a `STUBBED` line is a test the host skipped rather than one that passed. The map is what
+  stops the port building dead code: the reference's `addName` display names and its registration
+  sites are the features, and a class name is neither.
 - The one exception is precision: a reference's Java `float` becomes a grug `number`, a 64-bit
   double. Do not emulate float32 rounding, and derive tick counts from float64 arithmetic. A mod's
   configs are the defaults the reference ships with.
