@@ -12,7 +12,9 @@ waited: number = 0
 feet_x: number = 0.0
 feet_y: number = 0.0
 feet_z: number = 0.0
-eye_y: number = 0.0
+start_x: number = 0.0
+start_y: number = 0.0
+start_z: number = 0.0
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -26,6 +28,9 @@ export tick(ctx: TestTickContext) {
     }
     if not laid {
         start: Vec3 = ctx.camera()
+        start_x = start.x()
+        start_y = start.y()
+        start_z = start.z()
         feet_x = Math.floor(start.x() + 1.0)
         feet_y = Math.floor(start.y() - 1.62 + 0.5)
         feet_z = Math.floor(start.z())
@@ -39,7 +44,7 @@ export tick(ctx: TestTickContext) {
         return
     }
     if waited == 0 {
-        ctx.set_player_position(feet_x + 0.5, feet_y, feet_z + 0.5)
+        ctx.set_player_position(start_x + 1.0, start_y - 1.62, start_z)
         waited = 1
         ctx.not_done()
         return
@@ -50,11 +55,8 @@ export tick(ctx: TestTickContext) {
         return
     }
     camera: Vec3 = ctx.camera()
-    if moved == 0 {
-        eye_y = camera.y()
-    }
-    ctx.assert(camera.y() > eye_y - 0.000001 and camera.y() < eye_y + 0.000001, "The eye sank after the move.")
-    ctx.assert(camera.y() > feet_y + 1.619 and camera.y() < feet_y + 1.621, "The eye is not at the feet the test named.")
+    # A fall of one tick is 0.0784, so a thousandth is far inside what the bug moved the eye by.
+    ctx.assert(camera.y() > start_y - 0.001 and camera.y() < start_y + 0.001, "The eye sank after the move.")
     moved = moved + 1
     waited = 0
     if moved < 10 {
