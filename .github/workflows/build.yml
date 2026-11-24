@@ -1164,6 +1164,19 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # The jar an Ornithe dedicated server ran, which its exec data's class ids are of (#1674). A
+      # later run whose diff runs no leg carries that data over and has no layer job of its own, and
+      # a build of the same source elsewhere is not byte-equal (the client's dev classes are
+      # remapped differently), so coverage analyses the carried data against this jar.
+      - name: Upload the layer jar the dedicated server ran
+        if: always() && (matrix.loader == 'b1.7.3-ornithe' || matrix.loader == 'a1.1.2_01-ornithe')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: server-layer-${{ matrix.loader }}
+          path: loaders/${{ matrix.loader }}/build/layer/grug-${{ matrix.loader }}.jar
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload logs and crash reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

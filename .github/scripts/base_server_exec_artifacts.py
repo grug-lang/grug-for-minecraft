@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Which server-exec-<loader> artifacts the coverage job downloads from an earlier run (#1602).
+"""Which server-exec-<loader> and server-layer-<loader> artifacts the coverage job downloads from an earlier run (#1602).
 
     base_server_exec_artifacts.py
 
@@ -30,7 +30,7 @@ EVENTS = ("workflow_dispatch", "schedule", "push")
 MAX_RUNS = 50
 MAX_PAGES = 5
 
-NAME = re.compile(r"^server-exec-(.+)$")
+NAME = re.compile(r"^server-(?:exec|layer)-(.+)$")
 
 
 def pick(listing: dict) -> tuple[list[tuple[str, str]], str]:
