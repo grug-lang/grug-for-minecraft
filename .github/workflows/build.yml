@@ -1042,7 +1042,7 @@ jobs:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'push') && needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.dedicated != 'false'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -1105,9 +1105,13 @@ jobs:
           # forwarding (#1227) then made the jei tests a round trip per read, and dispatch
           # 43245283483 was cut at 645 s: every coverage test had passed by 15:19:35, the jei
           # hotkey took 46 s, and paging was still going when the cap fired, while a1, 1.2.5 and
-          # 1.20.6 finished in 334, 308 and 324 s (#1277). 900 s leaves room for that growth and
-          # still catches a hang.
-          GRUG_CI_RUN_TIMEOUT: '900'
+          # 1.20.6 finished in 334, 308 and 324 s (#1277). The a1 leg then grew to 343 tests and
+          # 805 s on a fast runner, and run 45315917198 attempt 1 was cut at 900 s while still
+          # passing tests two tests before its last, with the world answering every call in 50 to
+          # 120 ms (#1672: it was never a hang, the server logged the answers). 1200 s leaves 40%
+          # over the fast runner's time and still catches a hang, which the server's own 30 s
+          # bound on each call names long before.
+          GRUG_CI_RUN_TIMEOUT: '1200'
           # An update-goldens dispatch accepts each unmatched capture into its own side's reference
           # directory, which is the only way the server goldens are generated (#1092). core reads
           # this, and run-multiplayer.sh prints which mode the leg is in.
