@@ -80,6 +80,7 @@ class SchemaCase(unittest.TestCase):
         messages += [
             message for _, message in about_schema.loaders_errors(data, loaders_dir=loaders_dir)
         ]
+        messages += [message for _, message in about_schema.done_errors(data)]
         return messages
 
     def assertValid(self, data: dict):
@@ -361,6 +362,90 @@ class UnsafeModeRequestTest(SchemaCase):
         mod = base_mod()
         mod["requests_unsafe_mode"] = 1
         self.assertInvalid(mod, "is not of type 'boolean'")
+
+
+class DoneSchemaTest(SchemaCase):
+    """The done claim: the schema's enum, and about_schema.py's deviation rule over it."""
+
+    def deviation(self) -> list:
+        return [{"what": "x", "why": "y", "tracking_issue": 1}]
+
+    def test_logic_is_a_valid_claim(self):
+        mod = base_mod()
+        mod["done"] = "logic"
+        self.assertValid(mod)
+
+    def test_all_is_a_valid_claim(self):
+        mod = base_mod()
+        mod["done"] = "all"
+        self.assertValid(mod)
+
+    def test_a_mod_without_a_lineage_entry_may_claim_either_value(self):
+        # The repository's own mod has no reference to have checked, so the deviation rule is moot.
+        # The empty array is the other shape of the same state, and it must not be indexed.
+        for lineage in (None, []):
+            for value in about_schema.DONE_VALUES:
+                with self.subTest(lineage=lineage, value=value):
+                    mod = base_mod()
+                    if lineage is None:
+                        del mod["derived_from"]
+                    else:
+                        mod["derived_from"] = lineage
+                    mod["done"] = value
+                    self.assertValid(mod)
+
+    def test_leaving_done_out_is_the_truthful_state_even_with_a_deviation(self):
+        # Absence says not finished, which is exactly what a listed deviation says, so the two agree
+        # and only a claim would contradict the list.
+        mod = base_mod()
+        mod["derived_from"][0]["deviations"] = self.deviation()
+        self.assertValid(mod)
+
+    def test_each_value_is_refused_while_the_first_entry_lists_a_deviation(self):
+        for value in about_schema.DONE_VALUES:
+            with self.subTest(value=value):
+                mod = base_mod()
+                mod["derived_from"][0]["deviations"] = self.deviation()
+                mod["done"] = value
+                self.assertInvalid(mod, f"done is {value} while derived_from/0/deviations")
+
+    def test_a_deviation_on_a_later_entry_is_only_the_recreation_error(self):
+        # A later entry may not carry recreation fields at all, which recreation_errors says;
+        # done_errors reading only the first entry is what keeps that one mistake to one message.
+        mod = base_mod()
+        later = base_entry()
+        later["deviations"] = self.deviation()
+        mod["derived_from"].append(later)
+        mod["done"] = "all"
+        errors = self.errors(mod)
+        self.assertTrue(
+            any("only the first derived_from entry may carry" in message for message in errors),
+            errors,
+        )
+        self.assertEqual([], [message for message in errors if "done is" in message], errors)
+
+    def test_a_value_the_enum_does_not_list_is_refused_by_the_schema_alone(self):
+        # true, a number and null are not strings, and "done" is a string the enum has no room for.
+        # None of them is a claim, so done_errors must add nothing to the schema's own refusal; the
+        # deviation is there so that a value wrongly read as a claim would show up as a /done
+        # message rather than pass by having nothing to conflict with.
+        for value in (True, 1, "done", None):
+            with self.subTest(value=value):
+                mod = base_mod()
+                mod["derived_from"][0]["deviations"] = self.deviation()
+                mod["done"] = value
+                errors = self.errors(mod)
+                self.assertTrue(
+                    any("is not one of" in message for message in errors),
+                    f"expected an enum refusal in {errors!r}",
+                )
+                offenders = [message for message in errors if "done is" in message]
+                self.assertEqual([], offenders, errors)
+
+    def test_a_misspelled_key_is_refused(self):
+        mod = base_mod()
+        mod["Done"] = "all"
+        self.assertInvalid(mod, "Additional properties are not allowed")
 
 
 if __name__ == "__main__":

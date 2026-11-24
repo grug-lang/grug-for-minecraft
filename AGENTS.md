@@ -555,14 +555,21 @@ use.
 - A port reproduces its reference exactly, in behaviour and in graphics, reference bugs included;
   there is no lesser standard. It targets the first entry of `about.json`'s `derived_from`: its
   `artifacts` are the reference files, its `runtime` is where they run, and `deviations` lists every
-  known gap still to be closed, each with a tracking issue. A port is done when its `deviations` key
-  is removed (the schema refuses an empty list), and from then on `Screenshot.tolerance` refuses any
-  percentage above 0 in its tests (BuildCraft's checklist is #75). Removing the key is a claim about
-  the reference, not only about the list: `deviations` holds the gaps someone found, so it goes only
-  once every feature the reference registers has been checked against the port, with the map's
-  feature list worked through row by row. A port with an empty list and a reference feature nobody
-  started is an unfinished port with an empty list, and no agent may report it as done on the
-  strength of the list alone.
+  known gap still to be closed, each with a tracking issue. Removing the `deviations` key is the
+  precondition for calling a port finished, not the claim itself (the schema refuses an empty list),
+  and from then on `Screenshot.tolerance` refuses any percentage above 0 in its tests (BuildCraft's
+  checklist is #75). Removing the key is a claim about the reference, not only about the list:
+  `deviations` holds the gaps someone found, so it goes only once every feature the reference
+  registers has been checked against the port, with the map's feature list worked through row by
+  row. A port with an empty list and a reference feature nobody started is an unfinished port with
+  an empty list, and no agent may report it as done on the strength of the list alone. The claim
+  itself is the `done` key, whose only values are `"logic"`, meaning the behaviour is complete and
+  audited while no accepted capture asserts what the mod renders, and `"all"`, meaning the same plus
+  an accepted golden for every rendered feature on every loader it runs on, which a mod that renders
+  nothing through its own code (examplemod draws its blocks through vanilla's model system)
+  satisfies because it has nothing of its own to capture. Leaving the key out is how a mod says it
+  is not finished, the schema refuses every other value, and a mod that lists a `deviations`
+  entry on its first lineage entry cannot claim either one.
 - **Porting a whole mod.** Two subagents, in this order, and the second waits for the first's file. The
   research subagent reads the reference only and writes the map to
   `~/agent-workspaces/<repo>-<mod>-map.md` (a reboot clears `/tmp`, so never there): every block,

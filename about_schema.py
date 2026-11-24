@@ -22,6 +22,10 @@ JAVA_VERSIONS = ("8", "17", "21")
 # and the only one that may carry them; later entries are its own sources.
 RECREATION_FIELDS = ("artifacts", "runtime", "install", "deviations")
 
+# The values of about.json's done key, in the order about_schema.json's enum lists them. Any value
+# outside this tuple is the schema's to refuse, so done_errors stays silent about it.
+DONE_VALUES = ("logic", "all")
+
 
 def runtime_errors(
     runtime: dict, path: str = "/derived_from/0/runtime", loaders_dir: Path | None = None
@@ -127,6 +131,35 @@ def loaders_errors(about: dict, loaders_dir: Path | None = None) -> list:
             )
 
     return errors
+
+
+def done_errors(about: dict) -> list:
+    """The done claim's rule that jsonschema cannot express, as (path, message).
+
+    ``about_schema.json``'s enum already refuses every value but the two in ``DONE_VALUES``, so
+    anything else returns here without a message rather than repeating that refusal, and never
+    reaches the deviation check. A mod cannot claim either value while a deviation lists a gap,
+    because that deviation is itself the statement that the mod is not finished. Only the first
+    derived_from entry is read: a later entry that carries ``deviations`` (or any other recreation
+    field) is already ``recreation_errors``' error, and one mistake reads better as one message.
+    """
+    done = about.get("done")
+    if not isinstance(done, str) or done not in DONE_VALUES:
+        return []
+
+    derived_from = about.get("derived_from")
+    if not isinstance(derived_from, list) or not derived_from:
+        return []
+    entry = derived_from[0]
+    if isinstance(entry, dict) and entry.get("deviations"):
+        return [
+            (
+                "/done",
+                f"done is {done} while derived_from/0/deviations lists a gap; a deviation is a gap"
+                " that is still open, so the deviations key goes first.",
+            )
+        ]
+    return []
 
 
 def recreation_errors(derived_from) -> list:
@@ -241,13 +274,14 @@ def main() -> int:
         errors = list(validator.iter_errors(data))
         recreation_problems = recreation_errors(data.get("derived_from"))
         loaders_problems = loaders_errors(data)
-        if errors or recreation_problems or loaders_problems:
+        done_problems = done_errors(data)
+        if errors or recreation_problems or loaders_problems or done_problems:
             has_error = True
             print(f"FAILED: {rel_path}", file=sys.stderr)
             for err in errors:
                 json_path = "/" + "/".join(str(p) for p in err.path) if err.path else "/"
                 print(f"  - At '{json_path}': {err.message}", file=sys.stderr)
-            for json_path, message in recreation_problems + loaders_problems:
+            for json_path, message in recreation_problems + loaders_problems + done_problems:
                 print(f"  - At '{json_path}': {message}", file=sys.stderr)
             print("", file=sys.stderr)
         else:
