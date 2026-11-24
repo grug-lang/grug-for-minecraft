@@ -1267,6 +1267,39 @@ class BaseServerExecCarryOverTest(unittest.TestCase):
         self.assertEqual(forge["exec"], base["1.20.6-forge"][0])
         self.assertNotIn("server_exec", forge)
 
+    def test_an_ornithe_runner_without_its_own_layer_jar_is_analysed_from_the_base_legs_jar(self):
+        # A pull request that ran no dedicated leg has no layer job, so the carried data was
+        # recorded against bytes only the base leg's jar has (#1674).
+        base = self.base(**{"a1.1.2_01-ornithe": ["net/A"], "1.20.6-forge": ["net/B"]})
+        jar_dir = self.root / "server-layer-a1.1.2_01-ornithe"
+        jar_dir.mkdir()
+        (jar_dir / "grug-a1.1.2_01-ornithe.jar").write_bytes(b"jar")
+        (self.root / "server-layer-empty").mkdir()
+        layers = combine.base_server_layers(self.root)
+        self.assertEqual(list(layers), ["a1.1.2_01-ornithe"])
+        runners = {
+            "a1.1.2_01-ornithe": {"classes": Path("c")},
+            "1.20.6-forge": {"classes": Path("c")},
+        }
+        taken, _ = combine.carry_over_server_exec(runners, base)
+        combine.apply_carried_server_exec(runners, taken, layers)
+        ornithe = runners["a1.1.2_01-ornithe"]
+        self.assertEqual(ornithe["layer_jar"], layers["a1.1.2_01-ornithe"])
+        self.assertEqual(ornithe["server_exec"], base["a1.1.2_01-ornithe"][0])
+        self.assertNotIn("layer_jar", runners["1.20.6-forge"])
+
+    def test_a_runner_with_its_own_layer_jar_keeps_it(self):
+        base = self.base(**{"a1.1.2_01-ornithe": ["net/A"]})
+        own = Path("own.jar")
+        runners = {"a1.1.2_01-ornithe": {"classes": Path("c"), "layer_jar": own}}
+        taken, _ = combine.carry_over_server_exec(runners, base)
+        combine.apply_carried_server_exec(runners, taken, {"a1.1.2_01-ornithe": Path("base.jar")})
+        self.assertEqual(runners["a1.1.2_01-ornithe"]["layer_jar"], own)
+
+    def test_no_base_directory_has_no_layers(self):
+        self.assertEqual(combine.base_server_layers(None), {})
+        self.assertEqual(combine.base_server_layers(self.root / "missing"), {})
+
     def test_an_ornithe_runner_without_a_layer_jar_keeps_the_plain_append(self):
         base = self.base(**{"b1.7.3-ornithe": ["net/A"]})
         runners = {"b1.7.3-ornithe": {"classes": Path("c")}}

@@ -76,6 +76,9 @@ ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 # server loads as its mod, so its class bytes are the ones the server's exec data was recorded
 # against (the client run's staged classes are the dev build's, with other names).
 LAYER = "layer-"
+# The jar the dedicated-server leg itself ran, uploaded beside its exec data so a later run that
+# carries the data over analyses it against the very bytes it was recorded on (#1674).
+SERVER_LAYER = "server-layer-"
 
 # The loader classes only a dedicated server runs (#169's twenty-one), by runner. Each carries a
 # class-level @GrugGenerated or sits in EXCLUDED_CLASSES, so no report shows it; measure_server_only
@@ -415,6 +418,25 @@ def base_server_exec(base_dir: Path | None) -> dict[str, tuple[list[Path], list[
     return found
 
 
+def base_server_layers(base_dir: Path | None) -> dict[str, Path]:
+    """The layer jar of each loader's base-run leg, from its server-layer-<loader> artifact.
+
+    The leg's dedicated server ran that jar and recorded its exec data against the jar's class
+    bytes, so those bytes, not this run's, are what the carried data has to be analysed against
+    (#1674): this run's own layer jar exists only when its own leg ran, and a build of the same
+    source elsewhere (the client's dev classes, another run's layer job) need not be byte-equal.
+    """
+    found: dict[str, Path] = {}
+    if base_dir is None or not base_dir.is_dir():
+        return found
+    for entry in sorted(base_dir.iterdir()):
+        if entry.is_dir() and entry.name.startswith(SERVER_LAYER):
+            jars = sorted(entry.glob("*.jar"))
+            if jars:
+                found[entry.name[len(SERVER_LAYER) :]] = jars[0]
+    return found
+
+
 def carry_over_server_exec(
     runners: dict[str, dict], base: dict[str, tuple[list[Path], list[Path]]]
 ) -> tuple[dict[str, tuple[list[Path], list[Path]]], list[str]]:
@@ -449,7 +471,9 @@ def carry_over_server_exec(
 
 
 def apply_carried_server_exec(
-    runners: dict[str, dict], carried: dict[str, tuple[list[Path], list[Path]]]
+    runners: dict[str, dict],
+    carried: dict[str, tuple[list[Path], list[Path]]],
+    base_layers: dict[str, Path] | None = None,
 ) -> None:
     """Add the carried dedicated-server exec data to each runner, as a leg of this run would.
 
@@ -462,6 +486,10 @@ def apply_carried_server_exec(
         info = runners[runner]
         info["exec"] = [*info.get("exec", []), *server_execs]
         info["dropped"] = [*info.get("dropped", []), *server_dropped_files]
+        if runner in ORNITHE_LOADERS and info.get("layer_jar") is None and base_layers:
+            # The carried data was recorded against the base leg's jar, which is the only bytes
+            # that match its ids (#1674).
+            info["layer_jar"] = base_layers.get(runner)
         if runner in ORNITHE_LOADERS and info.get("layer_jar") is not None:
             info["server_exec"] = server_execs
             info["server_dropped"] = server_dropped_files
@@ -1252,7 +1280,7 @@ def main() -> int:
     if args.base_server_exec is not None:
         for line in carried_server_lines:
             print(line)
-    apply_carried_server_exec(runners, carried_server)
+    apply_carried_server_exec(runners, carried_server, base_server_layers(args.base_server_exec))
 
     carried = carried_by_runner(args.carry_over, "--carry-over")
     carried_dropped = carried_by_runner(args.carry_over_dropped, "--carry-over-dropped")
