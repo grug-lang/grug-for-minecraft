@@ -437,11 +437,14 @@ public class StationApiAdapter implements ModLoaderAdapter {
         if (level == null) {
             return -1;
         }
+        ClientBlockLight blockLight = new ClientBlockLight((World) level, LightType.BLOCK);
+        ClientBlockLight skyLight = new ClientBlockLight((World) level, LightType.SKY);
         return GrugLightSync.lightFingerprint(
                 ((int) Math.floor(x)) >> 4,
                 ((int) Math.floor(y)) >> 4,
                 ((int) Math.floor(z)) >> 4,
-                new ClientBlockLight((World) level));
+                blockLight,
+                skyLight);
     }
 
     /**
@@ -453,14 +456,16 @@ public class StationApiAdapter implements ModLoaderAdapter {
             "client light: only the dispatch-only multiplayer job reads a joined client's section")
     private static final class ClientBlockLight implements GrugLightSync.BlockLight {
         private final World world;
+        private final LightType type;
 
-        ClientBlockLight(World world) {
+        ClientBlockLight(World world, LightType type) {
             this.world = world;
+            this.type = type;
         }
 
         @Override
         public int levelAt(int x, int y, int z) {
-            return world.getBrightness(LightType.BLOCK, x, y, z);
+            return world.getBrightness(type, x, y, z);
         }
     }
 

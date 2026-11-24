@@ -464,7 +464,9 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                         ((int) Math.floor(y)) >> 4,
                         ((int) Math.floor(z)) >> 4,
                         (lightX, lightY, lightZ) ->
-                                world.getBrightness(LightType.BLOCK, lightX, lightY, lightZ));
+                                world.getBrightness(LightType.BLOCK, lightX, lightY, lightZ),
+                        (lightX, lightY, lightZ) ->
+                                world.getBrightness(LightType.SKY, lightX, lightY, lightZ));
         return clientLight.lightApplied(x, y, z, simulated);
     }
 

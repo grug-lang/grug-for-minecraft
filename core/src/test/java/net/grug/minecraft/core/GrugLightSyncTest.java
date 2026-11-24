@@ -278,4 +278,23 @@ class GrugLightSyncTest {
         org.junit.jupiter.api.Assertions.assertFalse(GrugLightSync.mayAsk(5, false), "no starter");
         org.junit.jupiter.api.Assertions.assertFalse(GrugLightSync.mayAsk(-1, false));
     }
+
+    @Test
+    void aStaleSkyFieldChangesTheTwoFieldFingerprintThatTheBlockOnlyOneCannotSee() {
+        GrugLightSync.BlockLight none = (x, y, z) -> 0;
+        GrugLightSync.BlockLight open = (x, y, z) -> 15;
+        // The stale copy of #1695: block light 0 everywhere, sky 15 on the client and 0 on the
+        // server. The one-field fingerprint of both is 0, the two-field one tells them apart.
+        long server = GrugLightSync.lightFingerprint(0, 0, 0, none, none);
+        long client = GrugLightSync.lightFingerprint(0, 0, 0, none, open);
+        assertEquals(0, server);
+        assertEquals(0, GrugLightSync.lightFingerprint(0, 0, 0, none));
+        assertFalse(client == 0);
+        assertEquals(client, GrugLightSync.lightFingerprint(0, 0, 0, none, open));
+        // The fields are kept apart: sky 15 is not block 15, and a sky level of 14 is another light.
+        assertFalse(client == GrugLightSync.lightFingerprint(0, 0, 0, open, none));
+        assertFalse(client == GrugLightSync.lightFingerprint(0, 0, 0, none, (x, y, z) -> 14));
+        // A level above a nibble is masked in the sky field as in the block one.
+        assertEquals(0, GrugLightSync.lightFingerprint(0, 0, 0, none, (x, y, z) -> 16));
+    }
 }
