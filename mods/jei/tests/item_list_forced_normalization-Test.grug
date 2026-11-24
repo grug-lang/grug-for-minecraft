@@ -1,13 +1,14 @@
-# Captures the item list on the open container screen, so the reference job pins what real JEI
-# draws and every loader pins what the port draws, with the GL capability that normalizes normals
-# turned on the way Beta's slime renderer leaves it. See #874 and #1137.
+# Captures the item list on the open container screen, so every loader pins what the port draws,
+# with the GL capability that normalizes normals turned on the way Beta's slime renderer leaves it.
+# The reference run reads the same rectangle without comparing it, because the reference's own frame
+# is a measurement and not a golden (#874). See #961 and #1137.
 
 # The file name's _forced_normalization mark makes the runner turn the normalizing capabilities on
 # before this test's first tick (GrugForcedNormalization), so every frame it captures is drawn with
 # the state a slime rendered earlier in a run would leave behind. Without the overlay's item draw
 # pinning that state off, it shades each icon's left face about 1.9 times brighter, which is the
-# flake #1137 records. A reference run never forces the state, so this test pins the reference
-# mod's own drawing unaltered.
+# flake #1137 records. A reference run never forces the state, so the reference side reads real JEI's
+# drawing as the game leaves it, which does not change the port's golden.
 
 # The crop is one row of the grid, the third from its top, and the five columns at its right edge:
 # the smallest rectangle that shows the overlay's own drawing without the parts of the frame that
@@ -53,11 +54,11 @@
 # DrawBackground is off, and the port draws no slot background (#870).
 
 # The item in a cell is not the same one in the two runs. The port lists by registry key and JEI by
-# creative tab and then mod name, which is the deviation #870 records, so each rendering is compared
-# exactly with pixels of its own: the reference's in jei_item_list_reference, the port's in
-# jei_item_list. That is what makes the two committed frames comparable rather than identical: the
-# grid's edges, the pixels between its cells and the world behind them are the same area of the
-# screen in both runs, so only the icons in the cells differ.
+# creative tab and then mod name, which is the deviation #870 records, so the two renderings share
+# no pixels to compare: the port's frame is the only golden here, jei_item_list, and the reference
+# run only reads the same rectangle. A reference's frame is never committed as a golden (#874): it
+# is a measurement of what real JEI draws, recorded on the issue that asked for it, and the crop's
+# stability across runs was measured that way in #961.
 
 # The frame pixels one scaled pixel covers. GrugRunWindow holds the window at 1280x720 and the auto
 # GUI scale picks 3 for it, as every screenshot test's fixed rectangle already assumes; the assert
@@ -145,7 +146,9 @@ export tick(ctx: TestTickContext) {
     right: number = (grid_right - 1) * frame_scale
     bottom: number = (_grid_y() + (first_row + row_count) * 18 - 1) * frame_scale
     if me.is_reference() {
-        ctx.screenshot().equals(r"screenshots/jei_item_list_reference", left, top, right, bottom)
+        # The reference's frame is a measurement of real JEI, not a golden (#874), so the crop is
+        # read back without comparing it, which still checks that it lies inside the frame.
+        ctx.screenshot().capture(left, top, right, bottom)
     } else {
         ctx.screenshot().equals(r"screenshots/jei_item_list", left, top, right, bottom)
     }

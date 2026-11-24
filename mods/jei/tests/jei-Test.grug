@@ -1,8 +1,10 @@
 # The item list on the player's inventory screen: it is drawn while the screen is open, and its
 # clicks follow the reference's cheat-mode bindings. A left or right click gives one item, a middle
 # click or shift+left gives a stack, and a left click while the cursor carries an item deletes that
-# item instead of giving one. JEI's own give sends the item to the server, so the test waits for the
-# client to receive it in the player's hand rather than reading it back at once.
+# stack unless the clicked item is the one it carries, which is DeleteItemInputHandler's
+# shouldDeleteItemOnClick and ServerCommandUtil.canStack. JEI's own give sends the item to the
+# server, so the test waits for the client to receive it in the player's hand rather than reading it
+# back at once.
 
 # The overlay is drawn on every loader now; a loader that does not ask it still returns on its first
 # tick without opening a screen, so the test skips there instead of failing for a missing feature.
@@ -71,6 +73,9 @@ export tick(ctx: TestTickContext) {
 
     expected: Item = item_at(clicked_row * _columns(ctx) + clicked_column)
     expected_stack: Item = item_at(stack_row * _columns(ctx) + stack_column)
+    # The first cell holds an item the cursor does not carry, which the delete case needs: the
+    # clicked cell is rows down the list, so the two entries are always different items.
+    other: Item = item_at(0)
 
     if step == 0 {
         # A right click gives one item, which is the reference's cheatOneItem2. An earlier test may
@@ -142,30 +147,66 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 4 {
-        # A left click while the cursor carries an item deletes it, as DeleteItemInputHandler does,
-        # rather than giving another one.
+        # A left click on an item the cursor does not carry deletes the carried stack, which is the
+        # reference's DeleteItemInputHandler.shouldDeleteItemOnClick: it deletes only when the
+        # clicked ingredient cannot stack with the cursor's (ServerCommandUtil.canStack).
+        ctx.assert(not equals(other, expected), "The first cell should hold another item than the clicked cell.")
         ctx.set_carried_item(expected)
         carried: Option[Item] = ctx.get_carried_item()
         ctx.assert(carried.has(), "The test should be able to put an item on the cursor.")
         step = 5
-        taken: bool = ctx.click_screen(_cell_x(ctx, clicked_column), _cell_y(clicked_row), 0)
+        taken: bool = ctx.click_screen(_cell_x(ctx, 0), _cell_y(0), 0)
         ctx.assert(taken, "The overlay should take a left click while the cursor carries an item.")
         ctx.not_done()
         return
     }
 
     if step == 5 {
-        ctx.assert(not ctx.get_carried_item().has(), "A left click on the list should delete the item on the cursor.")
+        ctx.assert(not ctx.get_carried_item().has(), "A left click on another item should delete the item on the cursor.")
         ctx.assert(not ctx.get_player().get_held_item().has(), "Deleting the carried item should not also give one.")
+        # A left click on the item the cursor already carries gives one instead of deleting the
+        # stack, because the two can stack. The port gives into the inventory where the reference
+        # merges into the cursor, which is the deviation about.json records (#870).
+        ctx.set_carried_item(expected)
         step = 6
+        taken: bool = ctx.click_screen(_cell_x(ctx, clicked_column), _cell_y(clicked_row), 0)
+        ctx.assert(taken, "The overlay should take a left click on the item the cursor carries.")
         ctx.not_done()
         return
     }
 
     if step == 6 {
-        # With the cursor empty again, a left click gives one item.
+        carried: Option[Item] = ctx.get_carried_item()
+        ctx.assert(carried.has(), "A left click on the item the cursor carries should not delete it.")
+        ctx.assert(equals(carried.unwrap(), expected), "The cursor should still carry the item it carried before the click.")
+        waited = waited + 1
+        held: Option[Item] = ctx.get_player().get_held_item()
+        if not held.has() {
+            ctx.assert(waited < 200, "A left click on the item the cursor carries should give one.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(equals(held.unwrap(), expected), "The item a left click gives should be the clicked one.")
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == 1, "A left click should give one item.")
         ctx.clear_held_item(ctx.get_player())
+        ctx.clear_carried_item()
+        waited = 0
         step = 7
+        ctx.not_done()
+        return
+    }
+
+    if step == 7 {
+        # The hand is empty before the last press, so the item that arrives is the one it gives.
+        if ctx.get_player().get_held_item().has() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The hand should be empty after it is cleared.")
+            ctx.not_done()
+            return
+        }
+        # With the cursor empty again, a left click gives one item.
+        ctx.assert(not ctx.get_carried_item().has(), "The cursor should be empty before the last press.")
+        step = 8
         taken: bool = ctx.click_screen(_cell_x(ctx, clicked_column), _cell_y(clicked_row), 0)
         ctx.assert(taken, "The overlay should take a left click on its item, so that the vanilla slot under it is not clicked too.")
         ctx.not_done()
