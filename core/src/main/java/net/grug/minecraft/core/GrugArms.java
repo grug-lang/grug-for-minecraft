@@ -43,6 +43,15 @@ public final class GrugArms {
         return type.isInstance(value) ? present.apply(type.cast(value)) : absent.get();
     }
 
+    /**
+     * {@code present} applied to {@code value} when it is a {@code type}, else {@code absent}. The
+     * absent value is an argument, so a caller has no lambda whose arm no counted run enters.
+     */
+    public static <P, R> R mapTypeOr(
+            Object value, Class<P> type, Function<P, R> present, R absent) {
+        return type.isInstance(value) ? present.apply(type.cast(value)) : absent;
+    }
+
     /** {@code present} run on {@code value} when it is a {@code type}, else {@code absent} run. */
     public static <P> void ifType(
             Object value, Class<P> type, Consumer<P> present, Runnable absent) {

@@ -43,6 +43,13 @@ class GrugArmsTest {
     }
 
     @Test
+    void mapTypeOrAnswersTheAbsentValueWithoutTheCallerNamingALambda() {
+        assertEquals("s:abc", GrugArms.mapTypeOr("abc", String.class, s -> "s:" + s, "none"));
+        assertEquals("none", GrugArms.mapTypeOr(5, String.class, s -> "s:" + s, "none"));
+        assertEquals("none", GrugArms.mapTypeOr(null, String.class, s -> "s:" + s, "none"));
+    }
+
+    @Test
     void ifTypeRunsExactlyOneArm() {
         StringBuilder log = new StringBuilder();
         GrugArms.ifType(
