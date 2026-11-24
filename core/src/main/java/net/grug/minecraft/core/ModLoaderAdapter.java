@@ -673,14 +673,17 @@ public interface ModLoaderAdapter {
     }
 
     /**
-     * The block light of the section a position falls in, in the client's own copy of the world, as
+     * The light of the section a position falls in, in the client's own copy of the world, as
      * {@link GrugLightSync#lightFingerprint}, {@link GrugClientLight#CANNOT_VERIFY} when this
      * adapter holds a section it cannot reproduce, or {@link GrugClientLight#NOT_RECEIVED} when the
      * client was never sent the position's chunk column (#1207, #1242).
      *
      * <p>A loader whose light query answers a level per block uses {@link
      * GrugLightSync#lightFingerprint(int, int, int, GrugLightSync.BlockLight)} instead of handing
-     * over a stored layer, so no adapter has to reimplement the game's nibble layout.
+     * over a stored layer, so no adapter has to reimplement the game's nibble layout. A loader
+     * whose renderer draws a position with the larger of its sky and block light passes the
+     * two-field form with both, or a stale sky field compares equal and a capture drawn at full
+     * brightness passes the wait (#1695).
      *
      * <p>A fingerprint of the whole section rather than one position's light. On the leg where the
      * client and the server run in one process, the test asks a client's copy it can only read from
@@ -701,9 +704,9 @@ public interface ModLoaderAdapter {
     }
 
     /**
-     * Whether the client's copy of the world holds the same block light in the section this
-     * position falls in as the world a test edits, which is what makes a capture of a room whose
-     * light just changed safe to take (#1207).
+     * Whether the client's copy of the world holds the same light in the section this position
+     * falls in as the world a test edits, which is what makes a capture of a room whose light just
+     * changed safe to take (#1207).
      *
      * <p>A test waits on this before it captures a room whose light came from a change it made,
      * because a client that has not been told about the change draws the room from the light it had

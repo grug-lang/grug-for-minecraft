@@ -291,7 +291,8 @@ class GrugLightSyncTest {
         assertEquals(0, GrugLightSync.lightFingerprint(0, 0, 0, none));
         assertFalse(client == 0);
         assertEquals(client, GrugLightSync.lightFingerprint(0, 0, 0, none, open));
-        // The fields are kept apart: sky 15 is not block 15, and a sky level of 14 is another light.
+        // The fields are kept apart: sky 15 is not block 15, and a sky level of 14 is another
+        // light.
         assertFalse(client == GrugLightSync.lightFingerprint(0, 0, 0, open, none));
         assertFalse(client == GrugLightSync.lightFingerprint(0, 0, 0, none, (x, y, z) -> 14));
         // A level above a nibble is masked in the sky field as in the block one.
