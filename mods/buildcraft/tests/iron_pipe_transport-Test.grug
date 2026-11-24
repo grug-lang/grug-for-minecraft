@@ -1,0 +1,85 @@
+# Covers where an item leaves an iron pipe, which PipeLogicIron.outputOpen limits to the pipe's one
+# output side and PipeTransportItems.allowBouncing sends back the way it came when that side is the
+# one it arrived on. A wooden pipe beside the iron one pulls a diamond from a chest and pushes it in,
+# so the item really travels through both transports rather than being planted as a record.
+# The pipe's block damage value is its output side, so the test writes it after placing the pipe:
+# fixture 1 sends the item east into a chest, and the south chest it is also connected to stays
+# empty. Fixture 2 points the output west, the side the item arrives on, so the item bounces back into
+# the wooden pipe and returns to the chest it came from instead of going to the south chest.
+step: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    z: number = origin.z()
+    y: number = origin.y() + 6
+
+    if step == 0 {
+        # Fixture 1: west chest, wooden pipe, iron pipe, east chest, and a south chest the pipe is
+        # connected to but must not use.
+        level.place_block(x - 2, y, z, "minecraft:chest")
+        level.place_block(x - 1, y, z, "grug:wooden_pipe")
+        level.place_block(x, y, z, "grug:iron_pipe")
+        level.place_block(x + 1, y, z, "minecraft:chest")
+        level.place_block(x, y, z + 1, "minecraft:chest")
+        level.set_block_damage(x, y, z, 5)
+
+        # Fixture 2: the same, with the iron pipe's output on the side the item arrives from.
+        y2: number = y + 4
+        level.place_block(x - 2, y2, z, "minecraft:chest")
+        level.place_block(x - 1, y2, z, "grug:wooden_pipe")
+        level.place_block(x, y2, z, "grug:iron_pipe")
+        level.place_block(x, y2, z + 1, "minecraft:chest")
+        level.set_block_damage(x, y2, z, 4)
+
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.world_settled() {
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        diamond: Item = item(resource_location("minecraft:diamond"))
+        _entity(ctx, level, x - 2, y, z).set_item_in_slot(0, diamond, 1)
+        _entity(ctx, level, x - 2, y + 4, z).set_item_in_slot(0, diamond, 1)
+
+        # One dose of energy lets the wooden pipe pull, and 120 of its own ticks carry the item to
+        # its centre and on into the iron pipe's west face.
+        wood: BlockEntity = _entity(ctx, level, x - 1, y, z)
+        wood.receive_energy(64)
+        ctx.tick_block_entity(wood, 121)
+        iron: BlockEntity = _entity(ctx, level, x, y, z)
+        ctx.assert(wood.get_saved_list_size("traveling") == 0, "The wooden pipe should have handed the item on.")
+        ctx.assert(iron.get_saved_list_size("traveling") == 1, "The iron pipe should hold the travelling item.")
+
+        ctx.tick_block_entity(iron, 120)
+        ctx.assert(iron.get_saved_list_size("traveling") == 0, "The item should have left the iron pipe.")
+        ctx.assert(_entity(ctx, level, x + 1, y, z).get_item_count_in_slot(0) == 1, "The item should leave by the output side, into the east chest.")
+        ctx.assert(_entity(ctx, level, x, y, z + 1).get_item_count_in_slot(0) == 0, "The south chest is not an exit, because only the output side is open.")
+        ctx.assert(_entity(ctx, level, x - 2, y, z).get_item_count_in_slot(0) == 0, "The source chest should be empty.")
+
+        # Fixture 2. The same sequence, with the output on the arrival side, so the item bounces.
+        wood2: BlockEntity = _entity(ctx, level, x - 1, y + 4, z)
+        wood2.receive_energy(64)
+        ctx.tick_block_entity(wood2, 121)
+        iron2: BlockEntity = _entity(ctx, level, x, y + 4, z)
+        ctx.assert(iron2.get_saved_list_size("traveling") == 1, "The iron pipe should hold the second item.")
+
+        ctx.tick_block_entity(iron2, 120)
+        ctx.assert(iron2.get_saved_list_size("traveling") == 0, "The bounced item should have left the iron pipe.")
+        ctx.assert(_entity(ctx, level, x, y + 4, z + 1).get_item_count_in_slot(0) == 0, "A bounce should not use another side.")
+        ctx.tick_block_entity(wood2, 120)
+        ctx.assert(_entity(ctx, level, x - 2, y + 4, z).get_item_count_in_slot(0) == 1, "The bounced item should return to the chest it came from.")
+    }
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}

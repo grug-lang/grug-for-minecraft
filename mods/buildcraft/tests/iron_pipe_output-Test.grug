@@ -1,0 +1,85 @@
+# Covers PipeLogicIron's output side, which is the pipe's block damage value in Minecraft 1.2.5 and
+# the port's Level.get_block_damage here. A fresh pipe's onBlockPlaced writes 1 and then
+# switchPosition starts at the side after it and wraps round, taking the first neighbour that can
+# receive an item: a pipe that is not a wooden pipe, or an inventory. The wrench and a change in the
+# redstone signal both switch again, and a pipe with no candidate keeps the side it had.
+# The placement goes through a click with the pipe as the held item, because Level.place_block is
+# quiet and does not run a block's placed export, as Test.placed_supported says. Every other fixture
+# writes the side it needs with set_block_damage after placing the pipe.
+step: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x())
+    y: number = Math.floor(origin.y())
+    z: number = Math.floor(origin.z())
+    player: Player = ctx.get_player()
+
+    if step == 0 {
+        # A: clicked from below, so the pipe lands one block under the clicked stone, with a wooden
+        # pipe at side 2 that switchPosition refuses and a chest at side 3 that it takes.
+        level.place_block(x, y + 10, z, "minecraft:stone")
+        level.place_block(x, y + 9, z - 1, "grug:wooden_pipe")
+        level.place_block(x, y + 9, z + 1, "minecraft:chest")
+        ctx.set_held_item(player, item(resource_location("grug:iron_pipe")))
+        ctx.use_block(level, x, y + 10, z)
+        ctx.clear_held_item(player)
+
+        # B: chests at 3 and 5, for the wrench to move between.
+        by: number = y + 6
+        level.place_block(x + 4, by, z + 1, "minecraft:chest")
+        level.place_block(x + 5, by, z, "minecraft:chest")
+        level.place_block(x + 4, by, z, "grug:iron_pipe")
+        level.set_block_damage(x + 4, by, z, 3)
+
+        # A pipe with no neighbour to send to, so switchPosition has nothing to move to.
+        level.place_block(x + 8, by, z, "grug:iron_pipe")
+        level.set_block_damage(x + 8, by, z, 2)
+
+        # C: two chests and a redstone torch to toggle under the pipe.
+        cy: number = y + 14
+        level.place_block(x, cy, z + 1, "minecraft:chest")
+        level.place_block(x + 1, cy, z, "minecraft:chest")
+        level.place_block(x, cy, z, "grug:iron_pipe")
+        level.set_block_damage(x, cy, z, 3)
+
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.world_settled() {
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(level.get_block(x, y + 9, z) == "grug:iron_pipe", "The held iron pipe should be placed below the clicked block.")
+    ctx.assert(_damage(level, x, y + 9, z) == 3, "A freshly placed iron pipe should point at the first side that can take items, skipping a wooden pipe.")
+
+    # The wrench moves the output to the next side that can take items, and with the east chest gone
+    # it wraps round to the south one.
+    wrench: Item = item(resource_location("grug:wrench"))
+    ctx.set_held_item(player, wrench)
+    ctx.use_block(level, x + 4, y + 6, z)
+    ctx.assert(_damage(level, x + 4, y + 6, z) == 5, "A wrench click should move the output to the next chest.")
+    level.place_block(x + 5, y + 6, z, "minecraft:stone")
+    ctx.use_block(level, x + 4, y + 6, z)
+    ctx.assert(_damage(level, x + 4, y + 6, z) == 3, "A wrench click with the east chest gone should wrap round to the south chest.")
+    ctx.use_block(level, x + 8, y + 6, z)
+    ctx.assert(_damage(level, x + 8, y + 6, z) == 2, "A wrench click with no candidate should leave the side alone.")
+    ctx.clear_held_item(player)
+
+    # PipeLogicIron.switchPower runs on a neighbour change: a redstone torch under the pipe turns the
+    # output to the next side, and taking it away turns it again.
+    level.place_block(x, y + 13, z, "minecraft:redstone_torch")
+    ctx.notify_neighbors(level, x, y + 13, z)
+    ctx.assert(_damage(level, x, y + 14, z) == 5, "A redstone signal should turn the output to the next side.")
+    level.place_block(x, y + 13, z, "minecraft:air")
+    ctx.notify_neighbors(level, x, y + 13, z)
+    ctx.assert(_damage(level, x, y + 14, z) == 3, "Losing the redstone signal should turn the output back.")
+}
+
+local _damage(level: Level, x: number, y: number, z: number) number {
+    return level.get_block_damage(x, y, z)
+}

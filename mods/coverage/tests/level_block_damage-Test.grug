@@ -1,0 +1,30 @@
+# Covers Level.get_block_damage and Level.set_block_damage, the four-bit value Minecraft 1.2.5 kept
+# beside a block id. A placed block starts at 0, a value written is read back, the block itself is
+# unchanged by the write, a fractional coordinate asks the block it falls in, placing the block again
+# resets the value, and a position with no block reads 0 and keeps nothing from a write there.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_block")
+    ctx.assert(level.get_block_damage(x, y, z) == 0, "A block placed without a damage should read 0.")
+
+    level.set_block_damage(x, y, z, 5)
+    ctx.assert(level.get_block_damage(x, y, z) == 5, "The damage should read back.")
+    ctx.assert(level.get_block(x, y, z) == "grug:coverage_block", "Setting the damage should not change the block.")
+
+    # get_block floors the coordinates, and the damage of the block it names answers the same way.
+    ctx.assert(level.get_block_damage(x + 0.25, y + 0.25, z) == 5, "A fractional coordinate should ask the block it falls in.")
+
+    level.place_block(x, y, z, "grug:coverage_block")
+    ctx.assert(level.get_block_damage(x, y, z) == 0, "Placing the block again should reset its damage.")
+
+    # Air belongs to no block, so a write there is ignored and a block placed later starts at 0.
+    level.set_block_damage(x, y + 3, z, 9)
+    ctx.assert(level.get_block_damage(x, y + 3, z) == 0, "A position with no block should read 0.")
+    level.place_block(x, y + 3, z, "grug:coverage_block")
+    ctx.assert(level.get_block_damage(x, y + 3, z) == 0, "A block placed after a write to air should start at 0.")
+}

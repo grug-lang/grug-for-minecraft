@@ -1847,6 +1847,32 @@
 						}
 					]
 				},
+				"get_block_damage": {
+					"description": "The damage value of the block at the specified coordinates, the whole number from 0 to 15 that Minecraft 1.2.5 kept beside each block as its metadata. A block placed with `place_block` has damage 0, a position with no block has damage 0, and a block given a value by `set_block_damage` has that value. On a version whose blocks have named states instead of metadata, the loader keeps this number for the positions a script sets, so it answers for the port's own blocks exactly as the reference's metadata does and leaves a vanilla block at 0; the reference's live metadata is all on its own blocks. See `get_block` for the block's name and `set_block_damage` for writing it.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"get_block_entity": {
 					"description": "Gets the BlockEntity at the specified coordinates.",
 					"return_type": {
@@ -2149,6 +2175,35 @@
 					"parameters": [
 						{
 							"name": "bound",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_block_damage": {
+					"description": "Sets the damage value of the block at the specified coordinates, the metadata Minecraft 1.2.5 kept beside a block id, and answers nothing. The value has to be a whole number from 0 to 15, or it is reported and the block is left alone: a 1.2.5 block's metadata is a four-bit nibble, and the reference never writes a value outside that range. A position with no block is left alone and still reads 0, because the damage belongs to the block, and `place_block` gives a block it places the damage 0. The game is told that the block changed, so a client draws it again and its neighbours see the change. On a version whose blocks have named states instead of metadata, the loader keeps the number for the positions a script sets; see `get_block_damage`.",
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "damage",
 							"type": {
 								"name": "number"
 							}

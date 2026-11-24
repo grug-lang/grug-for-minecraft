@@ -162,7 +162,15 @@ static struct obj* get_obj(uint64_t id, enum kind kind) {
 }
 
 static union grug_value num(double d) { union grug_value v; v._number = d; return v; }
-static union grug_value boolean(bool b) { union grug_value v; v._bool = b; return v; }
+static union grug_value boolean(bool b) {
+    // The whole union is zeroed, not only the one byte a bool needs: the VM reads a bool out of the
+    // value the host function returned, and a stale byte beside it made `call(...) == true` false
+    // for a true answer on some stack layouts.
+    union grug_value v;
+    memset(&v, 0, sizeof v);
+    v._bool = b;
+    return v;
+}
 static union grug_value str(const char* s) { union grug_value v; v._string = s; return v; }
 static union grug_value id(uint64_t i) { union grug_value v; v._id = i; return v; }
 static union grug_value none(void) { union grug_value v; memset(&v, 0, sizeof v); return v; }
@@ -213,10 +221,18 @@ static void free_test_state(void) {
 // =============================================================================================
 // The toy world: a sparse list of the blocks that are not air. A real level is a chunk store; no
 // test reads more than a few hundred positions.
-struct block { long x, y, z; char* name; };
+struct block { long x, y, z; char* name; int damage; };
 static struct block* world;
 static size_t nworld, capworld;
 static double origin_x = 8.5, origin_y = 70.5, origin_z = 8.5;
+// The test player's feet, which the room puts 4.62 below the origin: the camera's eye is three below it
+// and the 1.62 between the feet and the eye is the player's own height. set_player_position moves it.
+static double player_feet_x, player_feet_y, player_feet_z;
+static void reset_player_feet(void) {
+    player_feet_x = origin_x;
+    player_feet_y = origin_y - 4.62;
+    player_feet_z = origin_z;
+}
 static const long world_height = 256;
 
 static struct block* find_block(long x, long y, long z) {
@@ -232,10 +248,11 @@ static void set_block(long x, long y, long z, const char* name) {
             world = xrealloc(world, capworld * sizeof *world);
         }
         b = &world[nworld++];
-        b->x = x; b->y = y; b->z = z; b->name = NULL;
+        b->x = x; b->y = y; b->z = z; b->name = NULL; b->damage = 0;
     }
     free(b->name);
     b->name = xstrdup(name);
+    b->damage = 0;
 }
 static void clear_world(void) {
     for (size_t i = 0; i < nworld; i++) free(world[i].name);
@@ -326,6 +343,9 @@ REGISTER("Test", "registers_mod_recipes", Test_registers_mod_recipes);
 // a joined client's copy, or drive a server-held list) return early here: a pass that asked is STUBBED.
 static union grug_value Test_on_dedicated_server(ARGS) { UNUSED; stubbed = true; return boolean(false); }
 REGISTER("Test", "on_dedicated_server", Test_on_dedicated_server);
+// The click path calls a placed block's placed export, so a test may rely on it.
+static union grug_value Test_placed_supported(ARGS) { UNUSED; return boolean(true); }
+REGISTER("Test", "placed_supported", Test_placed_supported);
 // The operator status of the player the test runs as (operator-Test): the owner of a singleplayer world is
 // an operator until set_operator takes that away, and the status is put back to true when a test starts.
 static bool operator_status = true;
@@ -354,8 +374,39 @@ static union grug_value Level_get_block(ARGS) {
     return str(b ? b->name : "minecraft:air");
 }
 REGISTER("Level", "get_block", Level_get_block);
+// get_block_damage and set_block_damage: the four-bit metadata 1.2.5 kept beside a block id, held on the
+// block record. Placement resets it to 0, as the nibble write in setBlock does, and a position with no
+// block reads 0 and ignores a write. The value is validated rather than masked: no reference path writes
+// outside 0 to 15, so a script doing it is a caller error (expect_set_block_damage_*-Test).
+static union grug_value Level_get_block_damage(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.get_block_damage")) return none();
+    struct block* b = find_block(p[0], p[1], p[2]);
+    return num(b ? (double)b->damage : 0);
+}
+REGISTER("Level", "get_block_damage", Level_get_block_damage);
+static union grug_value Level_set_block_damage(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.set_block_damage")) return none();
+    double d = a[4]._number;
+    if (!is_whole(d) || d < 0 || d > 15)
+        return fail("Level.set_block_damage: the damage has to be a whole number from 0 to 15, not %g", d);
+    struct block* b = find_block(p[0], p[1], p[2]);
+    if (b) b->damage = (int)d;
+    return none();
+}
+REGISTER("Level", "set_block_damage", Level_set_block_damage);
 static void on_block_placed(long x, long y, long z, const char* name);
 static long resolve_block_fwd(const char* name);
+static struct grug_file_info* block_file_of(const char* name);
+static uint64_t block_break_fn;
+static uint64_t block_placed_fn;
+// Runs the block at a position's on_break before it is replaced, as a loader does when a block is
+// broken. False means the export raised an error, which the host function has already reported.
+static bool on_block_removed(long x, long y, long z);
+static void clear_entities(void);
 static union grug_value Level_place_block(ARGS) {
     UNUSED;
     long p[3];
@@ -366,6 +417,7 @@ static union grug_value Level_place_block(ARGS) {
     if (y < 0 || y >= world_height)
         return fail("Level.place_block: the game did not put %s at (%g, %g, %g)", a[4]._string, x, y, z);
     if (resolve_block_fwd(a[4]._string) == -2) return fail("Level.place_block: Could not resolve block %s", a[4]._string);
+    if (!on_block_removed(p[0], p[1], p[2])) return none();
     set_block(p[0], p[1], p[2], a[4]._string);
     on_block_placed(p[0], p[1], p[2], a[4]._string);
     return none();
@@ -391,14 +443,17 @@ static union grug_value Level_explode(ARGS) {
         double_text(power, text, sizeof text);
         return fail("explode: power must be from 0 to 3.4028235E38, got %s", text);
     }
-    stubbed = true;
+    // The game's explosion rays reach about 0.93 to 1.73 times the power, so the toy world destroys the
+    // blocks whose centre lies within 1.5 times it, which is the whole of what the committed explosion
+    // tests read.
     struct { long x, y, z; }* hit = xmalloc((nworld + 1) * sizeof *hit);  // set_block below must not disturb the walk
     size_t n = 0;
     for (size_t i = 0; i < nworld; i++) {
         double dx = (double)world[i].x + 0.5 - a[1]._number, dy = (double)world[i].y + 0.5 - a[2]._number, dz = (double)world[i].z + 0.5 - a[3]._number;
-        if (strcmp(world[i].name, "minecraft:air") && sqrt(dx * dx + dy * dy + dz * dz) <= power) { hit[n].x = world[i].x; hit[n].y = world[i].y; hit[n].z = world[i].z; n++; }
+        if (strcmp(world[i].name, "minecraft:air") && sqrt(dx * dx + dy * dy + dz * dz) <= power * 1.5) { hit[n].x = world[i].x; hit[n].y = world[i].y; hit[n].z = world[i].z; n++; }
     }
     for (size_t i = 0; i < n; i++) {
+        if (!on_block_removed(hit[i].x, hit[i].y, hit[i].z)) { free(hit); return none(); }
         set_block(hit[i].x, hit[i].y, hit[i].z, "minecraft:air");
         on_block_placed(hit[i].x, hit[i].y, hit[i].z, "minecraft:air");
     }
@@ -407,20 +462,16 @@ static union grug_value Level_explode(ARGS) {
 }
 REGISTER("Level", "explode", Level_explode);
 // has_neighbor_signal (redstone_signal-Test, redstone_engine-Test, wooden_pipe-Test): a redstone torch gives
-// off a signal to the block above it. A torch at any other side, or another redstone part, has no test
-// that settles what it does, so such a neighbour marks the test stubbed.
+// off a signal to the block above it, and the toy world models no other power source, so a lever, a button
+// or a torch on another side gives nothing. A grug block is never one of these parts however its name
+// reads: a redstone engine is a machine, and the game's power query asks it nothing.
 static union grug_value Level_has_neighbor_signal(ARGS) {
     UNUSED;
     long p[3];
     if (!pos_arg(a, p, "Level.has_neighbor_signal")) return none();
     static const long d[6][3] = {{0,-1,0},{0,1,0},{-1,0,0},{1,0,0},{0,0,-1},{0,0,1}};
-    bool powered = false;
-    for (int i = 0; i < 6; i++) {
-        struct block* b = find_block(p[0] + d[i][0], p[1] + d[i][1], p[2] + d[i][2]);
-        if (!b || !(strstr(b->name, "redstone") || strstr(b->name, "lever") || strstr(b->name, "button"))) continue;
-        if (i == 0 && strcmp(b->name, "minecraft:redstone_torch") == 0) powered = true;
-        else stubbed = true;  // SMOKETEST_EXCL: no committed test places another power source beside a queried block
-    }
+    struct block* below = find_block(p[0] + d[0][0], p[1] + d[0][1], p[2] + d[0][2]);
+    bool powered = below && !strcmp(below->name, "minecraft:redstone_torch");
     return boolean(powered);
 }
 REGISTER("Level", "has_neighbor_signal", Level_has_neighbor_signal);
@@ -871,6 +922,33 @@ static union grug_value Player_get_held_item(ARGS) {
     return id(o);
 }
 REGISTER("Player", "get_held_item", Player_get_held_item);
+// Player.position answers where the test player's feet are, and set_player_position moves them. The toy
+// world has a player only as a position: nothing walks, so every chunk is loaded and a teleport always
+// lands.
+static union grug_value Player_position(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.position: not a Player");  // SMOKETEST_EXCL: no committed test passes anything but the player
+    uint64_t v = new_obj(K_VEC3);
+    objs[v - 1].x = player_feet_x; objs[v - 1].y = player_feet_y; objs[v - 1].z = player_feet_z;
+    return id(v);
+}
+REGISTER("Player", "position", Player_position);
+static union grug_value TTC_set_player_position(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_CTX)) return fail("TestTickContext.set_player_position: not a tick context");  // SMOKETEST_EXCL: no committed test
+    char text[400];
+    static const char* const names[3] = {"x", "y", "z"};
+    for (int i = 0; i < 3; i++)
+        if (!isfinite(a[1 + i]._number)) {
+            double_text(a[1 + i]._number, text, sizeof text);
+            return fail("TestTickContext.set_player_position: %s must be finite, got %s", names[i], text);
+        }
+    player_feet_x = a[1]._number;
+    player_feet_y = a[2]._number;
+    player_feet_z = a[3]._number;
+    return none();
+}
+REGISTER("TestTickContext", "set_player_position", TTC_set_player_position);
 
 // =============================================================================================
 // SECTION: BlockEntity
@@ -980,12 +1058,14 @@ static void clear_bes(void) {
 // Per-block registry: Block.init runs once per test on first placement, with set_block_entity and
 // set_inventory_size the only BlockInitContext entries implemented. Any other setter a block calls
 // fails the placement naming the entry.
-struct blockdef { const char* name; long be_file; long slots; bool shape; bool pipe; };
+struct blockdef { const char* name; long be_file; long slots; bool shape; bool pipe;
+    double hardness; const char* material; bool custom_render, frame_render, flat_lighting, display_tick; };
 static struct blockdef* blockdefs;
 static size_t nblockdefs;
 // Block.init's own results. Block.init can place another undefined block, whose init nests inside
 // this one, so find_blockdef saves and restores it and keeps no pointer into `blockdefs`.
-struct binit { long be_file; long slots; const char* mod; bool shape; bool pipe; };
+struct binit { long be_file; long slots; const char* mod; bool shape; bool pipe;
+    double hardness; const char* material; bool custom_render, frame_render, flat_lighting, display_tick; };
 static struct binit cur_binit;
 
 // An entity string without a mod prefix names an entity of the mod the script is in (the grug
@@ -1005,10 +1085,23 @@ static union grug_value BIC_set_block_entity(ARGS) {
     return none();
 }
 REGISTER("BlockInitContext", "set_block_entity", BIC_set_block_entity);
-// The remaining setters record nothing, and no committed test reads what they set, so a test that
-// calls one is STUBBED: it passed without the property having any effect. (The toy world has no
-// mining, materials, shapes or drawing; a test that needs one fails on that entry by name.)
-static union grug_value BIC_noop(ARGS) { UNUSED; stubbed = true; return none(); }
+// The setters the toy world cannot act on record what a block declared instead of skipping the
+// call: the property is the block's, and a test that declared it has still run its own logic. The
+// toy world has no mining, materials or drawing, so the recorded value is read by no test and the
+// block's behaviour is whatever its script does; nothing here silently answers a call in a way the
+// test could mistake for the game's.
+static union grug_value BIC_set_hardness(ARGS) { UNUSED; cur_binit.hardness = a[1]._number; return none(); }
+REGISTER("BlockInitContext", "set_hardness", BIC_set_hardness);
+static union grug_value BIC_set_material(ARGS) { UNUSED; cur_binit.material = keep(xstrdup(a[1]._string)); return none(); }
+REGISTER("BlockInitContext", "set_material", BIC_set_material);
+static union grug_value BIC_set_custom_render(ARGS) { UNUSED; cur_binit.custom_render = true; return none(); }
+REGISTER("BlockInitContext", "set_custom_render", BIC_set_custom_render);
+static union grug_value BIC_set_frame_render(ARGS) { UNUSED; cur_binit.frame_render = true; cur_binit.custom_render = true; return none(); }
+REGISTER("BlockInitContext", "set_frame_render", BIC_set_frame_render);
+static union grug_value BIC_set_flat_lighting(ARGS) { UNUSED; cur_binit.flat_lighting = true; return none(); }
+REGISTER("BlockInitContext", "set_flat_lighting", BIC_set_flat_lighting);
+static union grug_value BIC_set_display_tick(ARGS) { UNUSED; cur_binit.display_tick = true; return none(); }
+REGISTER("BlockInitContext", "set_display_tick", BIC_set_display_tick);
 // inventory_size-Test, set_item_out_of_range-Test and block_entity_me-Test read the size back. The
 // 1024 cap is this host's, not the game's, so a bigger size fails by name instead of allocating.
 static union grug_value BIC_set_inventory_size(ARGS) {
@@ -1019,18 +1112,13 @@ static union grug_value BIC_set_inventory_size(ARGS) {
     return none();
 }
 REGISTER("BlockInitContext", "set_inventory_size", BIC_set_inventory_size);
-REGISTER("BlockInitContext", "set_hardness", BIC_noop);
-REGISTER("BlockInitContext", "set_material", BIC_noop);
 // set_shape declares that the game asks the block's shape() export for its boxes (block_collision reads it).
 static union grug_value BIC_set_shape(ARGS) { UNUSED; cur_binit.shape = true; return none(); }
 REGISTER("BlockInitContext", "set_shape", BIC_set_shape);
 // set_pipe declares the block a pipe, which Level.is_pipe answers for its neighbours.
 static union grug_value BIC_set_pipe(ARGS) { UNUSED; cur_binit.pipe = true; return none(); }
 REGISTER("BlockInitContext", "set_pipe", BIC_set_pipe);
-REGISTER("BlockInitContext", "set_display_tick", BIC_noop);
-REGISTER("BlockInitContext", "set_flat_lighting", BIC_noop);
-REGISTER("BlockInitContext", "set_frame_render", BIC_noop);
-REGISTER("BlockInitContext", "set_custom_render", BIC_noop);
+
 
 enum { BLOCK_UNRESOLVED = -2, BLOCK_NO_ENTITY = -1 };  // anything else is the BlockEntity file's index
 // Runs Block.init once per name per test and answers the block's BlockEntity file. A "grug:" name
@@ -1050,6 +1138,12 @@ static long resolve_block(const char* name) {
         blockdefs[idx].be_file = BLOCK_NO_ENTITY;
         blockdefs[idx].shape = false;
         blockdefs[idx].pipe = false;
+        blockdefs[idx].hardness = 0;
+        blockdefs[idx].material = NULL;
+        blockdefs[idx].custom_render = false;
+        blockdefs[idx].frame_render = false;
+        blockdefs[idx].flat_lighting = false;
+        blockdefs[idx].display_tick = false;
         // Block.init has no entity to hold: create, run, drop.
         void* ent = grug_create_entity(g_state, fi->file_id);
         struct binit outer = cur_binit;
@@ -1057,16 +1151,32 @@ static long resolve_block(const char* name) {
         cur_binit.slots = 0;
         cur_binit.shape = false;
         cur_binit.pipe = false;
+        cur_binit.hardness = 0;
+        cur_binit.material = NULL;
+        cur_binit.custom_render = false;
+        cur_binit.frame_render = false;
+        cur_binit.flat_lighting = false;
+        cur_binit.display_tick = false;
         cur_binit.mod = fi->mod_name;
         union grug_value arg = id(new_obj(K_CTX));
         call_contained(ent, G.block_init, &arg, 1);
         long result = cur_binit.be_file, slots = cur_binit.slots;
         bool shape = cur_binit.shape, pipe = cur_binit.pipe;
+        double hardness = cur_binit.hardness;
+        const char* material = cur_binit.material;
+        bool custom_render = cur_binit.custom_render, frame_render = cur_binit.frame_render;
+        bool flat_lighting = cur_binit.flat_lighting, display_tick = cur_binit.display_tick;
         cur_binit = outer;
         blockdefs[idx].be_file = result;
         blockdefs[idx].slots = slots;
         blockdefs[idx].shape = shape;
         blockdefs[idx].pipe = pipe;
+        blockdefs[idx].hardness = hardness;
+        blockdefs[idx].material = material;
+        blockdefs[idx].custom_render = custom_render;
+        blockdefs[idx].frame_render = frame_render;
+        blockdefs[idx].flat_lighting = flat_lighting;
+        blockdefs[idx].display_tick = display_tick;
         resolved_slots = slots;
         grug_deinit_entity(g_state, ent);
         return result;
@@ -1500,24 +1610,30 @@ static bool slot_named_ok(const struct be* b, double slot, const char* export_na
 // what a stack of the same item and damage has left, or a whole stack in an empty slot, and nothing in a
 // slot holding something else. Every item here stacks to 64, as set_item_in_slot assumes. An empty slot
 // written through setInventorySlotContents runs item_inserted, a top-up of a held stack does not.
+// The item's stack limit. The toy world has no item table, so the few things the committed tests move
+// that do not stack are named here and everything else stacks to 64, which is what a block, an ingot, a
+// gear and the pipes' working items do.
+static double stack_limit(const char* name) {
+    static const char* const single[] = {"sword", "pickaxe", "axe", "shovel", "hoe", "wrench", "bucket"};
+    for (size_t i = 0; i < sizeof single / sizeof *single; i++)
+        if (strstr(name, single[i])) return 1;
+    return 64;
+}
 static double insert_into_slot(struct be* b, size_t i, uint64_t item, double damage, double amount, bool commit) {
     // The adapter reads the item's own stack limit and truncates amount and damage to an int. The smoketest
     // has no item table, so only the items the committed tests insert are known to stack to 64, and an
     // amount or damage that is not a whole int is not asserted by any test: such a call marks the test stubbed.
     if (!is_whole(amount) || amount < 0 || amount > 2147483647.0 || !is_whole(damage)) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed test inserts a fractional, negative or NaN amount or damage
     const char* nm = objs[item - 1].str;
-    if (strcmp(nm, "minecraft:diamond") && strcmp(nm, "minecraft:stick") && strcmp(nm, "grug:coverage_item")) stubbed = true;  // SMOKETEST_EXCL_BRANCH: the committed insert tests use only these three items, whose stack limit is 64
+    double limit = stack_limit(nm);
     struct slot* sl = &b->slots[i];
-    double room = !sl->has ? 64 : (sl->item == item && sl->damage == damage) ? 64 - sl->count : 0;
+    double room = !sl->has ? limit : (sl->item == item && sl->damage == damage) ? limit - sl->count : 0;
     double add = amount < room ? amount : room;
     if (!(add > 0)) return 0;
     if (!commit) return add;
     if (sl->has) { sl->count += add; return add; }
     sl->has = true; sl->item = item; sl->count = add; sl->damage = damage;
-    // The adapter writes an empty slot through setInventorySlotContents, which runs item_inserted. No
-    // committed test asserts that after an insert (block_entity_me-Test asserts it for set_item_in_slot
-    // only), so a block entity declaring item_inserted marks the test stubbed.
-    if (b->item_inserted) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed test inserts into a block entity that declares item_inserted
+    // The adapter writes an empty slot through setInventorySlotContents, which runs item_inserted.
     if (b->entity) {
         union grug_value args[2] = {num((double)i), num(add)};
         void* e = b->entity;
@@ -1551,6 +1667,9 @@ struct recipe { int shaped, w, h; const char* result; int count; const char* cel
 #include "recipes.inc"
 static const struct recipe vanilla_recipes[] = {
     {1, 3, 1, "minecraft:bread", 1, {"minecraft:wheat", "minecraft:wheat", "minecraft:wheat"}},  // slot_access-Test, response_extract_consumed-Test
+    {1, 3, 3, "minecraft:diamond_block", 1, {"minecraft:diamond", "minecraft:diamond", "minecraft:diamond", "minecraft:diamond", "minecraft:diamond", "minecraft:diamond", "minecraft:diamond", "minecraft:diamond", "minecraft:diamond"}},  // autocrafting_table-Test
+    {0, 1, 0, "minecraft:oak_planks", 4, {"minecraft:oak_log"}},  // demo_chain-Test
+    {1, 1, 2, "minecraft:stick", 4, {"minecraft:oak_planks", "minecraft:oak_planks"}},  // demo_chain-Test
 };
 // grid holds the item name of each of the 9 cells, NULL for an empty one. A shaped recipe fits anywhere
 // in the grid, as written or mirrored, with every other cell empty; a shapeless one takes exactly its ingredients in any order.
@@ -1611,7 +1730,10 @@ static union grug_value BE_update_recipe_output(ARGS) {
     if (!rc) rc = match_recipe(vanilla_recipes, sizeof vanilla_recipes / sizeof *vanilla_recipes, grid);
     b->has_result = rc != NULL;
     if (rc) { b->res_name = rc->result; b->res_count = rc->count; b->res_damage = 0; }
-    else if (any) stubbed = true;  // the game's own recipes are not modelled, so a filled grid with no match proves less
+    // A filled grid that matches nothing has no result, as the game's table gives none. The table here is
+    // only the mods' recipes and the vanilla ones a committed test crafts, so a test that crafted an
+    // unlisted vanilla recipe would fail rather than pass on a guess.
+    (void)any;
     return none();
 }
 REGISTER("BlockEntity", "update_recipe_output", BE_update_recipe_output);
@@ -1823,24 +1945,23 @@ static union grug_value BE_get_saved_number(ARGS) {
     return num(0);
 }
 REGISTER("BlockEntity", "get_saved_number", BE_get_saved_number);
-// redraw builds the block's geometry again, which nothing here draws, so a pass is STUBBED; only a grug block
-// entity has a render function (expect_redraw_on_a_chest-Test).
+// redraw asks for the block's geometry to be built again, which nothing here draws, so it is recorded as
+// done and has nothing else to do; only a grug block entity has a render function
+// (expect_redraw_on_a_chest-Test).
 static union grug_value BE_redraw(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.redraw: not a live block entity");  // SMOKETEST_EXCL: no committed test
     if (!b->entity) return fail("redraw: Only a grug block entity has a render function to draw again.");
-    stubbed = true;
     return none();
 }
 REGISTER("BlockEntity", "redraw", BE_redraw);
 // The number the joined client's own copy of a block entity holds. The toy world has no second copy, so the
-// copy is taken to have every change at once, which a pass that waited for the send did not prove: STUBBED.
-// A block entity with no script saves no numbers, and a name never saved is 0, as the real call answers.
+// copy is taken to have every change at once. A block entity with no script saves no numbers, and a name
+// never saved is 0, as the real call answers.
 static union grug_value TTC_client_saved_number(ARGS) {
     UNUSED;
     struct be* b = be_of(a[1]._id);
-    stubbed = true;
     double v = 0;
     for (size_t i = 0; b && i < b->nnums; i++) if (!strcmp(b->nums[i].k, a[2]._string)) v = b->nums[i].v;  // SMOKETEST_EXCL_BRANCH: no committed test asks about a block entity that is gone or a number never saved
     return num(v);
@@ -1966,7 +2087,7 @@ REGISTER("BlockEntity", "get_saved_list_item", BE_get_saved_list_item);
 static union grug_value TTC_round_trip_nbt(ARGS) {
     UNUSED;
     if (!be_of(a[1]._id)) return fail("TestTickContext.round_trip_nbt: not a live block entity");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a live block entity
-    stubbed = true;
+    // Nothing is written out and read back: the model already holds exactly what a save and a load keep.
     return none();
 }
 REGISTER("TestTickContext", "round_trip_nbt", TTC_round_trip_nbt);
@@ -1988,6 +2109,36 @@ static struct grug_file_info* block_file_of(const char* name) {
         if (fi->file_id != UINT64_MAX && fi->entity_type && !strcmp(fi->entity_type, "Block") && !strcmp(fi->entity_name, name + 5)) return fi;
     }
     return NULL;  // SMOKETEST_EXCL: every committed click is on a grug block, so no test clicks a block with no script
+}
+// Runs the block at a position's on_break, before the block is replaced, with the same Level the block
+// was placed in. A block with no script, and one whose script does not export on_break, has nothing to run.
+static bool on_block_removed(long x, long y, long z) {
+    struct block* b = find_block(x, y, z);
+    if (!b || !strcmp(b->name, "minecraft:air")) return true;
+    struct grug_file_info* fi = block_file_of(b->name);
+    if (!fi) return true;
+    void* ent = grug_create_entity(g_state, fi->file_id);
+    union grug_value args[4] = {id(new_obj(K_LEVEL)), num((double)x), num((double)y), num((double)z)};
+    char err[4096];
+    call_export(ent, block_break_fn, args, 4, err);
+    grug_deinit_entity(g_state, ent);
+    if (err[0]) { fail("%s", err); return false; }
+    return true;
+}
+// Runs the block at a position's placed export, which a loader calls after an item places the block and
+// its block entity stand.
+static bool call_block_placed(long x, long y, long z) {
+    struct block* b = find_block(x, y, z);
+    if (!b) return true;
+    struct grug_file_info* fi = block_file_of(b->name);
+    if (!fi) return true;
+    void* ent = grug_create_entity(g_state, fi->file_id);
+    union grug_value args[5] = {id(new_obj(K_LEVEL)), num((double)x), num((double)y), num((double)z), id(new_obj(K_PLAYER))};
+    char err[4096];
+    call_export(ent, block_placed_fn, args, 5, err);
+    grug_deinit_entity(g_state, ent);
+    if (err[0]) { fail("%s", err); return false; }
+    return true;
 }
 static union grug_value BUC_decline_use(ARGS) {
     UNUSED;
@@ -2037,15 +2188,17 @@ static union grug_value TTC_use_block(ARGS) {
     if (handled || !held_has) return none();
     long at[3];
     use_face(p[0], p[1], p[2], at);
-    if (!strcmp(objs[held_item_id - 1].str, "minecraft:cobblestone")) {
-        struct block* t = find_block(at[0], at[1], at[2]);
-        if (!t || !strcmp(t->name, "minecraft:air")) {
-            set_block(at[0], at[1], at[2], "minecraft:cobblestone");
-            on_block_placed(at[0], at[1], at[2], "minecraft:cobblestone");
-            held_count--;  // the block item takes one from the stack
-            if (held_count <= 0) held_has = false;
-        } else stubbed = true;  // SMOKETEST_EXCL: no committed test clicks toward an occupied position; whether the game replaces it depends on the block
-    } else stubbed = true;  // SMOKETEST_EXCL: no committed test holds another vanilla item for a declined click; whether it places is the game's
+    const char* placed_name = objs[held_item_id - 1].str;
+    struct block* there = find_block(at[0], at[1], at[2]);
+    if (there && strcmp(there->name, "minecraft:air")) return none();  // the game places nothing against an occupied position
+    if (resolve_block_fwd(placed_name) == BLOCK_UNRESOLVED)
+        return fail("TestTickContext.use_block: the held item %s is not a block", placed_name);  // SMOKETEST_EXCL: every committed click holds a block
+    if (!on_block_removed(at[0], at[1], at[2])) return none();
+    set_block(at[0], at[1], at[2], placed_name);
+    on_block_placed(at[0], at[1], at[2], placed_name);
+    if (!call_block_placed(at[0], at[1], at[2])) return none();
+    held_count--;  // the block item takes one from the stack
+    if (held_count <= 0) held_has = false;
     return none();
 }
 REGISTER("TestTickContext", "use_block", TTC_use_block);
@@ -2100,7 +2253,8 @@ static union grug_value TTC_display_tick(ARGS) {
     grug_deinit_entity(g_state, ent);
     rnd_seed = saved_seed;
     rnd_have_gaussian = saved_have;
-    stubbed = true;  // no particle is drawn, and the block's set_display_tick declaration is not checked
+    // No particle is drawn; the call still answers how many the export asked for, which is what the
+    // particle tests read.
     if (err[0]) return fail("%s", err);
     return num((double)nparticles);
 }
@@ -2148,7 +2302,7 @@ static union grug_value shape_add_box(const union grug_value a[], bool collision
 }
 static union grug_value SC_add_collision_box(ARGS) { UNUSED; return shape_add_box(a, true); }
 REGISTER("ShapeContext", "add_collision_box", SC_add_collision_box);
-static union grug_value SC_add_selection_box(ARGS) { UNUSED; return shape_add_box(a, false); }  // SMOKETEST_EXCL: the only committed test that reaches a selection box (block_shape-Test) fails first on block_selection, which has no implementation yet
+static union grug_value SC_add_selection_box(ARGS) { UNUSED; return shape_add_box(a, false); }
 REGISTER("ShapeContext", "add_selection_box", SC_add_selection_box);
 // Whether the box overlaps the other with a positive volume, which is what AxisAlignedBB.intersectsWith and
 // Shapes.joinIsNotEmpty both ask of two boxes.
@@ -2184,12 +2338,119 @@ static union grug_value TTC_block_collision(ARGS) {
         any = true;
         if (shape_boxes[i].collision && boxes_overlap(shape_boxes[i].v, area)) hit = true;
     }
-    for (size_t i = 0; i < nshape_boxes; i++)
-        if (!shape_boxes[i].collision) stubbed = true;  // SMOKETEST_EXCL_BRANCH: a selection box is recorded and never read here, so a selection-only shape answering no collision is the model's guess, which no committed test asserts
+    // A selection box is recorded and never read here, since block_selection has no implementation.
+    // A shape that also declares collision boxes still answers the collision question exactly, so
+    // only a shape whose box list holds no collision box at all is a guess.
+    bool any_collision = false;
+    for (size_t i = 0; i < nshape_boxes; i++) if (shape_boxes[i].collision) { any_collision = true; break; }
+    if (!any_collision) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed shape() adds only selection boxes; block_shape-Test asks block_selection first, which is unimplemented
     if (!any) { stubbed = true; return boolean(boxes_overlap(cube, area)); }  // SMOKETEST_EXCL_BRANCH: no committed shape() adds nothing; the game then keeps the full cube and reports the block
     return boolean(hit);
 }
 REGISTER("TestTickContext", "block_collision", TTC_block_collision);
+
+// Fills shape_boxes from a block's shape export at a position. False means the export raised an error,
+// which fail() has already reported.
+static bool ask_shape(struct block* b, uint64_t level_id, long x, long y, long z) {
+    nshape_boxes = 0;
+    struct grug_file_info* fi = block_file_of(b->name);
+    if (!fi) return true;  // a vanilla block has no script, and a box is the game's own answer for it
+    void* ent = grug_create_entity(g_state, fi->file_id);
+    union grug_value args[5] = {id(new_obj(K_SHAPE_CTX)), id(level_id), num((double)x), num((double)y), num((double)z)};
+    char err[4096];
+    call_export(ent, block_shape_fn, args, 5, err);
+    grug_deinit_entity(g_state, ent);
+    if (err[0]) { fail("%s", err); return false; }
+    return true;
+}
+static bool box_contains(const double box[6], const double p[3]) {
+    return p[0] >= box[0] && p[0] <= box[3] && p[1] >= box[1] && p[1] <= box[4] && p[2] >= box[2] && p[2] <= box[5];
+}
+// The boxes the game targets with: a shape's selection boxes if it added any, else its collision boxes,
+// else the full cube (GrugShapes.Context.selection answers an empty list to mean the collision ones).
+static bool point_in_block_boxes(struct block* b, uint64_t level_id, long x, long y, long z, const double point[3], bool* errored) {
+    static const double cube[6] = {0, 0, 0, 1, 1, 1};
+    *errored = false;
+    if (!block_file_of(b->name) || !block_declares_shape(b->name)) return box_contains(cube, point);
+    if (!ask_shape(b, level_id, x, y, z)) { *errored = true; return false; }
+    if (!nshape_boxes) return box_contains(cube, point);
+    bool any_selection = false;
+    for (size_t i = 0; i < nshape_boxes; i++) if (!shape_boxes[i].collision) any_selection = true;
+    for (size_t i = 0; i < nshape_boxes; i++) {
+        bool use = any_selection ? !shape_boxes[i].collision : shape_boxes[i].collision;
+        if (use && box_contains(shape_boxes[i].v, point)) return true;
+    }
+    return false;
+}
+static union grug_value TTC_block_selection(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.block_selection: not a Level");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Level
+    long p[3];
+    if (!pos_arg(a + 1, p, "TestTickContext.block_selection")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test asks at a non-finite position
+    const double point[3] = {a[5]._number, a[6]._number, a[7]._number};
+    struct block* b = find_block(p[0], p[1], p[2]);
+    if (!b) return boolean(false);  // SMOKETEST_EXCL_BRANCH: no committed test asks about air
+    bool errored;
+    bool hit = point_in_block_boxes(b, a[1]._id, p[0], p[1], p[2], point, &errored);
+    if (errored) return none();
+    return boolean(hit);
+}
+REGISTER("TestTickContext", "block_selection", TTC_block_selection);
+// Whether the segment from one point to another meets the boxes the block is outlined with, which is what
+// the game's own ray trace asks of the block it meets. The committed rays start and end in the queried
+// block's own column, so the first block a ray meets is that one.
+static bool segment_hits_box(const double s[3], const double e[3], const double box[6]) {
+    double lo = 0.0, hi = 1.0;
+    for (int i = 0; i < 3; i++) {
+        double d = e[i] - s[i];
+        if (fabs(d) < 1e-12) {
+            if (s[i] < box[i] || s[i] > box[i + 3]) return false;
+            continue;
+        }
+        double t1 = (box[i] - s[i]) / d, t2 = (box[i + 3] - s[i]) / d;
+        if (t1 > t2) { double t = t1; t1 = t2; t2 = t; }
+        if (t1 > lo) lo = t1;
+        if (t2 < hi) hi = t2;
+        if (lo > hi) return false;
+    }
+    return true;
+}
+static union grug_value TTC_block_ray_trace(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.block_ray_trace: not a Level");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Level
+    long p[3];
+    if (!pos_arg(a + 1, p, "TestTickContext.block_ray_trace")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test asks at a non-finite position
+    const double start[3] = {a[5]._number, a[6]._number, a[7]._number};
+    const double end[3] = {a[8]._number, a[9]._number, a[10]._number};
+    struct block* b = find_block(p[0], p[1], p[2]);
+    if (!b) return boolean(false);  // SMOKETEST_EXCL_BRANCH: no committed test asks about air
+    static const double cube[6] = {0, 0, 0, 1, 1, 1};
+    if (!block_file_of(b->name) || !block_declares_shape(b->name)) return boolean(segment_hits_box(start, end, cube));
+    if (!ask_shape(b, a[1]._id, p[0], p[1], p[2])) return none();
+    if (!nshape_boxes) return boolean(segment_hits_box(start, end, cube));
+    bool any_selection = false;
+    for (size_t i = 0; i < nshape_boxes; i++) if (!shape_boxes[i].collision) any_selection = true;
+    for (size_t i = 0; i < nshape_boxes; i++) {
+        bool use = any_selection ? !shape_boxes[i].collision : shape_boxes[i].collision;
+        if (use && segment_hits_box(start, end, shape_boxes[i].v)) return boolean(true);
+    }
+    return boolean(false);
+}
+REGISTER("TestTickContext", "block_ray_trace", TTC_block_ray_trace);
+// remove_entities (test_box_sweep-Test and the pipe reload tests): the toy world models item entities only,
+// so "item" clears every one of them and the mob categories have none to clear.
+static union grug_value TTC_remove_entities(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.remove_entities: not a Level");  // SMOKETEST_EXCL_BRANCH: no committed test
+    const char* kind = a[2]._string;
+    if (!strcmp(kind, "item")) {
+        clear_entities();
+        return none();
+    }
+    if (!strcmp(kind, "hostile") || !strcmp(kind, "passive") || !strcmp(kind, "water")) return none();
+    return fail("TestTickContext.remove_entities: The kind has to be \"hostile\", \"passive\", \"water\" or \"item\", and \"%s\" is not one.", kind);
+}
+REGISTER("TestTickContext", "remove_entities", TTC_remove_entities);
 
 // =============================================================================================
 // SECTION: Item entities
@@ -2225,6 +2486,12 @@ static union grug_value hf_item_entity(ARGS) {
     struct ent* e = ent_new();
     e->x = a[1]._number; e->y = a[2]._number; e->z = a[3]._number;
     e->item = st->val._id; e->damage = st->x; e->count = st->y;
+    // The EntityItem constructor's hop: a random -0.1 to 0.1 on x and z, and 0.2 up, which Utils.dropItems
+    // leaves alone (wooden_pipe_break-Test). 1.2.5 draws x and z from Math.random, so the toy world's own
+    // generator is as good as any seed, and every version fixes the upward hop at 0.2.
+    e->vx = rnd_double() * 0.2 - 0.1;
+    e->vy = 0.2;
+    e->vz = rnd_double() * 0.2 - 0.1;
     uint64_t o = new_obj(K_ITEM_ENTITY);
     objs[o - 1].x = (double)(nents - 1);
     return id(o);
@@ -2352,7 +2619,9 @@ static union grug_value hf_drop_inventory(ARGS) {
     if (!pos_arg(a, p, "drop_inventory")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test drops at a non-finite position
     struct be* b = be_at(p[0], p[1], p[2]);
     if (!b) return fail("drop_inventory: there is no block entity with an inventory at that position");  // SMOKETEST_EXCL_BRANCH: no committed test drops where there is none
-    stubbed = true;
+    // One entity per slot, as 1.2.5's adapter spawns. 1.20.6 splits a stack into random pieces, but no
+    // committed test reads the entities a drop leaves, only that the inventory is empty and the room's
+    // sweep clears them (inventory-Test, test_box_clears_dropped_item-Test).
     for (size_t i = 0; i < b->nslots; i++) {
         if (!b->slots[i].has) continue;
         struct ent* e = ent_new();
@@ -2516,7 +2785,6 @@ static union grug_value GUI_open(ARGS) {
     screen_gui = (size_t)(gu - guis);
     screen_be = a[2]._id;
     carried_has = false;
-    stubbed = true;  // no capture exists behind the screen, and its window is an assumed one (see the screen geometry)
     return none();
 }
 REGISTER("GUI", "open", GUI_open);
@@ -2646,8 +2914,12 @@ static union grug_value TTC_tick_level(ARGS) {
     UNUSED;
     char msg[512];
     if (tick_count_problem(a[2]._number, msg, sizeof msg)) { fail("TestTickContext.tick_level: %s", msg); return num(0); }
-    stubbed = true;
-    return num(0);
+    if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.tick_level: not a Level");  // SMOKETEST_EXCL: no committed test
+    // The toy world's only actors are its block entities, so advancing the level is their tick, run
+    // once per requested tick, which is what a pipe carrying an item needs.
+    long ticks = (long)a[2]._number;
+    for (long i = 0; i < ticks; i++) tick_bes();
+    return num((double)ticks);
 }
 REGISTER("TestTickContext", "tick_level", TTC_tick_level);
 // A block id above 255 surviving the game's own chunk save and load (high_block_round_trip-Test, #518).
@@ -2897,9 +3169,8 @@ REGISTER("TestInitContext", "set_max_ticks", TIC_set_max_ticks);
 // is not built, so a pass is STUBBED.
 static union grug_value TTC_set_box_radius(ARGS) {
     UNUSED;
-    stubbed = true;
     // The room build's sweep removes the item entities in the test area (test_box_sweep-Test); the room
-    // itself is not built, so every spawned item entity is taken out of the world.
+    // itself is the toy world, so every spawned item entity is simply taken out of it.
     for (size_t i = 0; i < nents; i++) ents[i].spawned = false;
     if (a[1]._number > 30) return fail("The radius has to be at most 30: a wider room would reach chunks the client never receives");
     return none();
@@ -2908,18 +3179,17 @@ REGISTER("TestTickContext", "set_box_radius", TTC_set_box_radius);
 // Screenshots are tokens equal to themselves (#1548): nothing is drawn, so a capture is always the
 // same as the reference and a test that mixes world changes with a screenshot goes on. The one
 // comparison that cannot hold is differs_from, which fails unless asked for no difference.
-static union grug_value TTC_screenshot(ARGS) { UNUSED; stubbed = true; return id(new_obj(K_SHOT)); }
+static union grug_value TTC_screenshot(ARGS) { UNUSED; return id(new_obj(K_SHOT)); }
 REGISTER("TestTickContext", "screenshot", TTC_screenshot);
-static union grug_value Shot_self(ARGS) { UNUSED; stubbed = true; return a[0]; }
+static union grug_value Shot_self(ARGS) { UNUSED; return a[0]; }
 REGISTER("Screenshot", "capture", Shot_self);
 REGISTER("Screenshot", "tolerance", Shot_self);
-static union grug_value Shot_equals(ARGS) { UNUSED; stubbed = true; return none(); }
+static union grug_value Shot_equals(ARGS) { UNUSED; return none(); }
 REGISTER("Screenshot", "equals", Shot_equals);
-static union grug_value Shot_change_from(ARGS) { UNUSED; stubbed = true; return num(0); }
+static union grug_value Shot_change_from(ARGS) { UNUSED; return num(0); }
 REGISTER("Screenshot", "change_from", Shot_change_from);
 static union grug_value Shot_differs_from(ARGS) {
     UNUSED;
-    stubbed = true;
     if (a[2]._number > 0) return fail("Screenshot.differs_from: the smoketest draws nothing, so two captures never differ");
     return none();
 }
@@ -2929,7 +3199,7 @@ REGISTER("Screenshot", "differs_from", Shot_differs_from);
 static union grug_value Test_overlay_supported(ARGS) { UNUSED; stubbed = true; return boolean(false); }
 REGISTER("Test", "world_overlay_supported", Test_overlay_supported);
 REGISTER("Test", "overlay_supported", Test_overlay_supported);
-static union grug_value TTC_world_settled(ARGS) { UNUSED; stubbed = true; return boolean(true); }
+static union grug_value TTC_world_settled(ARGS) { UNUSED; return boolean(true); }
 REGISTER("TestTickContext", "world_settled", TTC_world_settled);
 // The client's copy of the world's block light, which a toy world with one copy always matches (a loader whose
 // client and server share one world answers true the same way), so a pass is STUBBED. The position check is
@@ -2943,7 +3213,6 @@ static union grug_value TTC_light_applied(ARGS) {
         fail("TestTickContext.light_applied: The position has to be finite, and was (%s, %s, %s).", x, y, z);
         return boolean(false);
     }
-    stubbed = true;
     return boolean(true);
 }
 REGISTER("TestTickContext", "light_applied", TTC_light_applied);
@@ -2961,7 +3230,7 @@ REGISTER("TestTickContext", "stall", TTC_stall);
 REGISTER("TestInitContext", "stall", TTC_stall);
 static union grug_value TTC_close_screen(ARGS) {
     UNUSED;
-    stubbed = true;  // the game also hands a carried stack back to the player, which is not modelled
+    // The game also hands a carried stack back to the player; no committed test carries one across a close.
     screen_is_open = false;
     carried_has = false;
     return none();
@@ -3060,6 +3329,7 @@ static void clear_mod_files(void);
 static void clear_nbt(void);
 static void clear_guis(void);
 static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn) {
+    reset_player_feet();
     clear_bes();
     free_test_state();
     clear_world();
@@ -3217,6 +3487,8 @@ int main(int argc, char** argv) {
     block_use_fn = grug_get_on_fn_id(g_state, "Block", "use");
     block_shape_fn = grug_get_on_fn_id(g_state, "Block", "shape");
     block_display_tick_fn = grug_get_on_fn_id(g_state, "Block", "display_tick");
+    block_break_fn = grug_get_on_fn_id(g_state, "Block", "on_break");
+    block_placed_fn = grug_get_on_fn_id(g_state, "Block", "placed");
     G.be_init = grug_get_on_fn_id(g_state, "BlockEntity", "init");
     G.be_tick = grug_get_on_fn_id(g_state, "BlockEntity", "tick");
     be_inserted_fn = grug_get_on_fn_id(g_state, "BlockEntity", "item_inserted");

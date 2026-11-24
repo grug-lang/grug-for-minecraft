@@ -152,6 +152,7 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .explode(x: number, y: number, z: number, power: number)
 .find_item_entity(x: number, y: number, z: number, radius: number) Option[ItemEntity]
 .get_block(x: number, y: number, z: number) string
+.get_block_damage(x: number, y: number, z: number) number
 .get_block_entity(x: number, y: number, z: number) Option[BlockEntity]
 .get_block_light(x: number, y: number, z: number) number
 .get_hostile_block_light_limit() number
@@ -168,6 +169,7 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .random_float() number
 .random_gaussian() number
 .random_int(bound: number) number
+.set_block_damage(x: number, y: number, z: number, damage: number)
 .set_time(ticks: number)
 
 ## Math

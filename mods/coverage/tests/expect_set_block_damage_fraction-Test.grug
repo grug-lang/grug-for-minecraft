@@ -1,0 +1,10 @@
+# The damage is a whole number, so 2.5 is reported rather than truncated to 2: the reference's
+# metadata is an int, and a caller that computed a fraction has made a mistake the host can name.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+
+    level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_block")
+    ctx.expect_error("whole number from 0 to 15")
+    level.set_block_damage(origin.x(), origin.y(), origin.z(), 2.5)
+}

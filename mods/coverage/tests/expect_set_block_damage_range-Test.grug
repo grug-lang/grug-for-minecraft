@@ -1,0 +1,11 @@
+# A 1.2.5 block's metadata is four bits, so 16 is not a damage a script may write. The host reports
+# it rather than masking it to 0, because no reference path writes outside 0 to 15 and a silent wrap
+# would leave a pipe's side or an engine's kind at a value the script did not ask for.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+
+    level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_block")
+    ctx.expect_error("whole number from 0 to 15")
+    level.set_block_damage(origin.x(), origin.y(), origin.z(), 16)
+}
