@@ -567,8 +567,11 @@ use.
   class name is neither a feature nor a non-feature: the registration sites and the reference's own
   `addName` display names decide, which is what keeps a port from building what the reference never
   ships (2.2.14's `BlockDockingStation` is declared and never constructed, and `EntityMechanicalArm`
-  is the quarry's arm). The issue for the port carries the map's counts and decisions and names the
-  file, so the table itself has one home.
+  is the quarry's arm). A package whose classes are all named from outside it is an extension API,
+  not a port list: it exists for other Java mods to call, and a grug mod implements no Java
+  interface, so its behaviour classes are ported and its interfaces are not, their questions
+  answered by grug functions and the host calls that already exist. The issue for the port carries
+  the map's counts and decisions and names the file, so the table itself has one home.
 - **The porting subagent**, spawned only once the map file exists, ports an entire mod from this
   brief, filled in: `(Port <mod> <version> completely: read AGENTS.md and the map at <path>, and
   work in <worktree> on branch <branch> from origin/main; port only the map's live rows. Work in two
