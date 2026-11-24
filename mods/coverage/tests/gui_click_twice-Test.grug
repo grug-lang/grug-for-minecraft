@@ -1,0 +1,83 @@
+# Two clicks a test makes are independent, so 1.20.6 must not read the second as the second half of
+# a double click. That read is not cosmetic: the release of such a press sends ClickType.PICKUP_ALL
+# instead of the click the press scheduled, and PICKUP_ALL gathers every matching stack in the
+# container onto the cursor, so a click that was meant to move one slot's item moves another slot's
+# too. The two presses are made in one tick, which is microseconds of wall time, so the 250
+# millisecond window was open by construction on the run that failed rather than by timing (#1666).
+# The grid's second slot is the witness: it holds a diamond stack nothing in this test clicks, and
+# the pair must leave it alone. Slot 0 is filled by a press of the test's own instead of a write to
+# the block entity, because the client's screen predicts from its own copy of the slot: the ordinary
+# click teaches both copies the same grid, so the empty cursor of the pair takes slot 0's diamond
+# out on its press, and the press after it is the one a double click window would catch.
+started: bool = false
+placed: bool = false
+pressed: bool = false
+round: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        ctx.close_screen()
+        # Cleared before the screen opens, so the client's queued half of the clear has landed on
+        # the server by the tick that presses.
+        ctx.clear_carried_item()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_block")
+        ctx.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.not_done()
+        return
+    }
+    if not placed {
+        if not ctx.screen_open() {
+            ctx.not_done()
+            return
+        }
+        placed = true
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+        # The stack the pair must not gather. It is written to the server's container, and the
+        # client's screen copy catches up from the container sync, which no assertion here reads.
+        block_entity.set_item_in_slot(1, item(resource_location("minecraft:diamond")), 3)
+        # On 1.20.6 a press whose cursor carries a stack only starts a drag and leaves the click
+        # packet to the release, so this press puts the cursor's diamond into the empty slot 0.
+        ctx.set_carried_item(item(resource_location("minecraft:diamond")))
+        left: number = ctx.gui_left()
+        top: number = ctx.gui_top()
+        ctx.assert(not ctx.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        round = round + 1
+        ctx.assert(not ctx.get_carried_item().has(), "The cursor should be empty before the pair of presses.")
+        left: number = ctx.gui_left()
+        top: number = ctx.gui_top()
+        # Both presses in this one tick. Whatever the game speed, the second lands inside the 250
+        # millisecond double click window of the first, which no tick count can promise.
+        ctx.assert(not ctx.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+        ctx.assert(not ctx.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+        ctx.not_done()
+        return
+    }
+    pressed = false
+    # Read on the tick after the pair, once the click's handler ran: the first press takes slot 0's
+    # diamond onto the cursor, and the second press must not gather the grid's other stack while it
+    # does.
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+    ctx.assert(block_entity.get_item_count_in_slot(1) == 3, "A press made after another one in the same tick should not gather the grid's second slot onto the cursor.")
+    in_slot: Option[Item] = block_entity.get_item_in_slot(1)
+    ctx.assert(in_slot.has(), "The grid's second slot should still hold its stack.")
+    if in_slot.has() {
+        ctx.assert(equals(in_slot.unwrap(), item(resource_location("minecraft:diamond"))), "The grid's second slot should still hold the diamond it held.")
+    }
+    if round < 3 {
+        ctx.not_done()
+        return
+    }
+    ctx.close_screen()
+}
