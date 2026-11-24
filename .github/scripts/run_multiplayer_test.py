@@ -370,6 +370,24 @@ class RunMultiplayerTest(unittest.TestCase):
         # NNN-named files cannot overwrite each other's (#1027).
         self.assertIn(f"-Dgrug.coverage.dir={self.loader}/build/jacoco-server", argv)
 
+    def test_a_server_launched_from_a_jar_is_not_relaunched(self):
+        # The Ornithe legs start the server from a jar, so a death before its ready line has no
+        # build to repeat. A download line in that log must not make this branch launch it twice
+        # (#1722).
+        self.set_executable(
+            self.bin / "java",
+            "#!/usr/bin/env bash\n"
+            "printf 'launch\\n' >> \"${FAKE_JAVA_ARGV:?}\"\n"
+            "printf 'Failed to get asset: minecraft/lang/pls.json\\n'\n"
+            "exit 0\n",
+        )
+        result = self.run_script()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("exited before it was ready", result.stderr)
+        self.assertNotIn("Retrying the server", result.stderr)
+        self.assertEqual(["launch"], self.java_argv.read_text().splitlines())
+
     def test_a_build_that_prints_no_agent_path_fails_before_the_launch(self):
         result = self.run_script(agent_line=False)
 
@@ -878,6 +896,39 @@ exit 0
 """
 
 
+# The fake Gradle of a leg whose server is the root project's, which is the branch 1.20.6-forge and
+# 1.2.5-forge take and the one the downloadAssets failure of #1722 killed. FAKE_SERVER_FAILURES names
+# a directory whose <n>.log is the nth server build's output and whose absence means the build
+# succeeded, so a server build can fail once and pass on the retry. The client task is held alive so
+# the leg's own poll has a client to watch.
+ROOT_SERVER_GRADLEW = """\
+#!/usr/bin/env bash
+case "$*" in
+  *runServer*)
+    if [ -n "${FAKE_SERVER_FAILURES:-}" ]; then
+      count=$(cat "${FAKE_SERVER_FAILURES}/count" 2>/dev/null || echo 0)
+      echo $((count + 1)) > "${FAKE_SERVER_FAILURES}/count"
+      if [ -f "${FAKE_SERVER_FAILURES}/$((count + 1)).log" ]; then
+        cat "${FAKE_SERVER_FAILURES}/$((count + 1)).log"
+        exit 1
+      fi
+    fi
+    printf 'Done (1.2s)! For help, type "help"\\n'
+    printf '[GRUG CI] CI mode active & player loaded after 1 ms. Firing tests!\\n'
+    mkdir -p loaders/@LOADER@/build/jacoco-server
+    printf 'segment\\n' > loaders/@LOADER@/build/jacoco-server/run.exec
+    sleep 6
+    cat "${FAKE_SERVER_LINES_FILE:?}"
+    exit 0
+    ;;
+  *runClient*)
+    exec sleep 600
+    ;;
+esac
+exit 0
+""".replace("@LOADER@", "1.2.5-forge")
+
+
 class ServerUnlistedTest(unittest.TestCase):
     """A standalone leg the script does not require the forced-normalization item list of (#1040)."""
 
@@ -1283,6 +1334,193 @@ Execution failed for task ':compileJava'.
         self.assertNotIn("Timed out after", result.stderr)
 
 
+class ServerBuildRetryTest(unittest.TestCase):
+    """The dedicated server's build gets one retry, and only for a download (#1722).
+
+    On 1.20.6-forge and 1.2.5-forge the server is the root project's
+    `:loaders:<loader>:classes :loaders:<loader>:runServer`, so its build is a Gradle invocation of
+    its own. A ForgeGradle `downloadAssets` failure ended such a leg at "The dedicated server
+    process exited before it was ready" on its first attempt, while the joined client's build has
+    had one retry since #1702 and run-loader.sh retries its own launches.
+    """
+
+    LOADER = "1.2.5-forge"
+
+    # What this leg's success branch requires, which is the standalone fixture's list plus the
+    # forced-normalization item list: a standalone leg's branch does not require it, and this one's
+    # does, because only the item list is client-only here.
+    REQUIRED_PASSES = ServerUnlistedTest.REQUIRED_PASSES + [
+        "buildcraft/tests/redstone_engine",
+        "jei/tests/item_list_forced_normalization",
+    ]
+
+    # The failure of #1722, as job 138784530298 held it: ForgeGradle's own "run the task again".
+    DOWNLOAD_FAILURE = """\
+> Task :loaders:1.2.5-forge:downloadAssets FAILED
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':loaders:1.2.5-forge:downloadAssets'.
+> Failed to get asset: minecraft/lang/pls.json
+> Some assets failed to download or validate, try running the task again
+"""
+
+    # The same failure on the retry, with a line of its own so a case can tell which attempt's log
+    # the leg ended on.
+    SECOND_DOWNLOAD_FAILURE = """\
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':loaders:1.2.5-forge:downloadAssets'.
+> Failed to get asset: minecraft/lang/pls.json on the second attempt
+"""
+
+    # The code failing, which a retry would only delay.
+    COMPILE_ERROR = """\
+> Task :loaders:1.2.5-forge:compileJava
+loaders/1.2.5-forge/src/main/java/net/grug/Example.java:12: error: cannot find symbol
+    Grug.nope();
+        ^
+1 error
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':loaders:1.2.5-forge:compileJava'.
+> Compilation failed; see the compiler error output for details.
+"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        scripts = self.tmp / ".github" / "scripts"
+        scripts.mkdir(parents=True)
+        stage_scripts(scripts, "run-multiplayer.sh", "pin-llvmpipe.sh", "retryable-failure.sh")
+
+        self.loader = self.tmp / "loaders" / self.LOADER
+        self.loader.mkdir(parents=True)
+        (self.loader / "test-save.txt").write_text("fake.zip\n")
+        # Neither root.gradle nor server-version.txt: the root project builds and runs this server,
+        # which is the branch 1.20.6-forge reaches.
+        self.set_executable(self.tmp / "gradlew", ROOT_SERVER_GRADLEW)
+
+        saves = self.tmp / "test-saves"
+        saves.mkdir()
+        with zipfile.ZipFile(saves / "fake.zip", "w") as archive:
+            archive.writestr("world/level.dat", b"")
+
+        self.lines_file = self.tmp / "server-lines.log"
+        self.failures = self.tmp / "server-failures"
+        self.failures.mkdir()
+
+    def set_executable(self, path, content):
+        path.write_text(content)
+        path.chmod(0o755)
+
+    def server_failure(self, attempt, log):
+        (self.failures / f"{attempt}.log").write_text(log)
+
+    def server_lines(self):
+        lines = [f"[GRUG CI] PASS {path}-Test.grug" for path in self.REQUIRED_PASSES]
+        lines += [
+            f"[GRUG MULTIPLAYER] {path}-Test.grug drew the overlay" for path in OVERLAY_DRAWN_TESTS
+        ]
+        lines.append("[GRUG CI] ALL 50 TESTS PASSED")
+        return "\n".join(lines) + "\n"
+
+    def run_script(self):
+        self.lines_file.write_text(self.server_lines())
+        env = dict(os.environ)
+        env.update(
+            {
+                "DISPLAY": ":0",
+                "FAKE_SERVER_LINES_FILE": str(self.lines_file),
+                "FAKE_SERVER_FAILURES": str(self.failures),
+                "GRUG_CI_BUILD_TIMEOUT": "30",
+                "GRUG_CI_RUN_TIMEOUT": "60",
+            }
+        )
+        env.pop("JAVA_HOME", None)
+        env.pop("GRUG_ORNITHE_SERVER_HASH", None)
+        return subprocess.run(
+            [str(self.tmp / ".github" / "scripts" / "run-multiplayer.sh"), self.LOADER],
+            cwd=self.tmp,
+            env=env,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=120,
+        )
+
+    def server_attempts(self):
+        return int((self.failures / "count").read_text().strip())
+
+    def server_log(self):
+        return (self.loader / "run-server-ci.log").read_text()
+
+    def kept_log(self, attempt):
+        return self.loader / f"run-server-ci.log.attempt-{attempt}"
+
+    def test_a_server_download_failure_is_retried_and_the_leg_passes(self):
+        self.server_failure(1, self.DOWNLOAD_FAILURE)
+        result = self.run_script()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("run on the dedicated server with a client connected.", result.stdout)
+        self.assertIn("The server failed fetching what it needs, not on the code", result.stderr)
+        self.assertIn("Retrying the server, attempt 2 of 2", result.stderr)
+        self.assertEqual(2, self.server_attempts())
+
+    def test_a_server_compile_error_is_not_retried(self):
+        self.server_failure(1, self.COMPILE_ERROR)
+        result = self.run_script()
+
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("The dedicated server process exited before it was ready.", result.stderr)
+        self.assertNotIn("Retrying the server", result.stderr)
+        self.assertEqual(1, self.server_attempts())
+        self.assertFalse(self.kept_log(1).exists(), "a compile error kept a retry's log")
+
+    def test_a_server_that_started_is_not_repeated(self):
+        # The log of a build whose runServer task began is the game's, so a line in it that reads
+        # like a download failure could be the game's own, and a server that started has written
+        # its world. run-loader.sh's run phase and the client's retry hold the same rule (#1702).
+        # Both shapes Gradle prints for that task are kept, a standalone loader's and a nested
+        # project's, as the client's own case does.
+        for started in ("> Task :runServer", "> Task :loaders:1.2.5-forge:runServer"):
+            with self.subTest(started=started):
+                (self.failures / "count").unlink(missing_ok=True)
+                self.server_failure(1, started + "\n" + self.DOWNLOAD_FAILURE)
+                result = self.run_script()
+
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertNotIn("Retrying the server", result.stderr)
+                self.assertEqual(1, self.server_attempts())
+
+    def test_a_second_server_download_failure_fails_the_leg(self):
+        self.server_failure(1, self.DOWNLOAD_FAILURE)
+        self.server_failure(2, self.SECOND_DOWNLOAD_FAILURE)
+        result = self.run_script()
+
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("The dedicated server process exited before it was ready.", result.stderr)
+        # Never a third attempt, and so never a second kept log.
+        self.assertEqual(2, self.server_attempts())
+        self.assertFalse(self.kept_log(2).exists(), "the leg made a third attempt")
+
+    def test_the_failed_attempts_server_log_is_kept_and_named(self):
+        self.server_failure(1, self.DOWNLOAD_FAILURE)
+        result = self.run_script()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            f"The failed attempt's server log is loaders/{self.LOADER}/run-server-ci.log.attempt-1",
+            result.stderr,
+        )
+        self.assertIn("minecraft/lang/pls.json", self.kept_log(1).read_text())
+        # The log that decided the leg is the retry's own, so the two are not the same file.
+        self.assertNotIn("minecraft/lang/pls.json", self.server_log())
+
+
 class AttemptLogUploadTest(unittest.TestCase):
     """The logs a retry keeps reach the artifact, not only the job log (#1702).
 
@@ -1320,6 +1558,11 @@ class AttemptLogUploadTest(unittest.TestCase):
     def test_the_multiplayer_upload_carries_the_client_attempt_log(self):
         self.assert_uploaded(
             "multiplayer", "Upload logs and crash reports", "run-client-ci.log.attempt-1"
+        )
+
+    def test_the_multiplayer_upload_carries_the_server_attempt_log(self):
+        self.assert_uploaded(
+            "multiplayer", "Upload logs and crash reports", "run-server-ci.log.attempt-1"
         )
 
     def test_every_upload_of_a_loader_log_carries_its_build_attempt_log(self):
