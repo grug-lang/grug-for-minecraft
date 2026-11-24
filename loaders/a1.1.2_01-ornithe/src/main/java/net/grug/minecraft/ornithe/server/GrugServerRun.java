@@ -230,6 +230,16 @@ public final class GrugServerRun {
             if (testPlayer instanceof PlayerEntity) {
                 holdOnFloor((PlayerEntity) testPlayer);
                 if (STARTER_PLACEMENT.shouldPlace(GrugControlAlpha.server().starter())) {
+                    PlayerEntity joined = (PlayerEntity) testPlayer;
+                    System.out.println(
+                            "[GRUG CI] the test player joined at "
+                                    + joined.x
+                                    + ", "
+                                    + joined.y
+                                    + ", "
+                                    + joined.z
+                                    + ", on ground "
+                                    + joined.onGround);
                     moveTo((PlayerEntity) testPlayer, START_FEET_Y, START_X, START_Z, 0.0F, 0.0F);
                     System.out.println(
                             "[GRUG CI] placed the test player at the save's start "
