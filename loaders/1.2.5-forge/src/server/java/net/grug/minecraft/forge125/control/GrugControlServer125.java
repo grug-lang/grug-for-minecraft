@@ -3,9 +3,9 @@ package net.grug.minecraft.forge125.control;
 import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugForge125Arms;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.forge125.GrugServerRun;
-import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.EntityPlayerMP;
 import net.minecraft.src.NetHandler;
 import net.minecraft.src.NetworkManager;
@@ -27,10 +27,6 @@ import java.util.WeakHashMap;
  * drain. The sender of a message is the connection the reader thread belongs to, and core accepts
  * an answer or a give only from the connection that started the run.
  */
-@GrugGenerated(
-        "the 1.2.5 channel glue of #1040: no test the coverage gate counts can reach it, since only"
-                + " the multiplayer job runs it; every decision in it lives in core's"
-                + " GrugControlServer")
 public final class GrugControlServer125 implements GrugControlRouter {
     /**
      * The wait for an answer: under the 30 s of silence after which a client's socket read times
@@ -50,8 +46,7 @@ public final class GrugControlServer125 implements GrugControlRouter {
      * connection, so a strong value would keep the map's weak key alive for the process's life.
      */
     private static EntityPlayerMP playerOf(NetworkManager connection) {
-        WeakReference<EntityPlayerMP> ref = PLAYERS.get(connection);
-        return ref == null ? null : ref.get();
+        return GrugForge125Arms.referent(PLAYERS.get(connection));
     }
 
     /** Whether this thread is inside {@link #onHandle}, which the game thread runs. */
@@ -82,9 +77,6 @@ public final class GrugControlServer125 implements GrugControlRouter {
         return starter == null ? null : playerOf((NetworkManager) starter);
     }
 
-    @GrugGenerated(
-            "the 1.2.5 channel glue of #1040: no test the coverage gate counts can reach it, since"
-                    + " only the multiplayer job runs it")
     private static final class Link implements GrugControlServer.Link {
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
@@ -112,10 +104,10 @@ public final class GrugControlServer125 implements GrugControlRouter {
          */
         @Override
         public void applyClientWork() {
-            Object starter = GrugControlServer125.server().starter();
-            if (starter instanceof NetworkManager) {
-                ((NetworkManager) starter).processReadPackets();
-            }
+            GrugLinkArms.applyTo(
+                    GrugControlServer125.server().starter(),
+                    NetworkManager.class,
+                    NetworkManager::processReadPackets);
         }
 
         /** This loader gives to the player who asked, after the operator check (#882). */
@@ -132,10 +124,11 @@ public final class GrugControlServer125 implements GrugControlRouter {
         /** Shows the player the error in red chat, the way the game shows a refused command. */
         @Override
         public void tell(Object sender, String message) {
-            EntityPlayerMP player = playerOf((NetworkManager) sender);
-            if (player != null) {
-                player.playerNetServerHandler.sendPacket(new Packet3Chat("\u00a7c" + message));
-            }
+            GrugLinkArms.deliver(
+                    playerOf((NetworkManager) sender),
+                    player ->
+                            player.playerNetServerHandler.sendPacket(
+                                    new Packet3Chat("\u00a7c" + message)));
         }
 
         /**
@@ -153,11 +146,11 @@ public final class GrugControlServer125 implements GrugControlRouter {
         /** A CI server makes the player who starts a run an operator (#882); a real one never. */
         @Override
         public void onRunStarted(Object starter) {
-            if (!"true".equals(System.getenv("GRUG_CI"))) return;
-            EntityPlayerMP player = playerOf((NetworkManager) starter);
-            if (player != null) {
-                GrugCore.getAdapter().makeOperator(player);
-            }
+            GrugLinkArms.deliver(
+                    GrugForge125Arms.onlyIf(
+                            "true".equals(System.getenv("GRUG_CI")),
+                            playerOf((NetworkManager) starter)),
+                    player -> GrugCore.getAdapter().makeOperator(player));
         }
 
         /**
@@ -167,7 +160,7 @@ public final class GrugControlServer125 implements GrugControlRouter {
          */
         @Override
         public boolean mayStartRun(Object sender) {
-            return playerOf((NetworkManager) sender) != null;
+            return GrugLinkArms.known(playerOf((NetworkManager) sender));
         }
     }
 
@@ -187,9 +180,10 @@ public final class GrugControlServer125 implements GrugControlRouter {
     public void onHandle(NetHandler handler, byte[] bytes) {
         NetworkManager connection = GrugControlFind.byType(handler, NetworkManager.class);
         EntityPlayerMP player = GrugControlFind.byType(handler, EntityPlayerMP.class);
-        if (connection != null && player != null) {
-            PLAYERS.put(connection, new WeakReference<EntityPlayerMP>(player));
-        }
+        GrugLinkArms.deliverIf(
+                GrugForge125Arms.bothKnown(connection, player),
+                connection,
+                known -> PLAYERS.put(known, new WeakReference<EntityPlayerMP>(player)));
         ON_GAME_THREAD.set(Boolean.TRUE);
         try {
             server().onMessage(connection, bytes);

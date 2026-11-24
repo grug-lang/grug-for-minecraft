@@ -7,12 +7,13 @@ import net.grug.minecraft.core.GrugClientLight;
 import net.grug.minecraft.core.GrugClientSavedNumbers;
 import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
+import net.grug.minecraft.core.GrugForge125Arms;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugLightResend;
 import net.grug.minecraft.core.GrugLightSync;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
-import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
@@ -61,11 +62,7 @@ import java.util.List;
  * container and the client shows it (#1098). The screen calls and the clicks on them are forwarded
  * to that client (#1094), and the cursor calls are answered from this server's own container, which
  * is the one a click is applied to.
- *
- * <p>Excluded from coverage because only the dispatch-only multiplayer job launches a server
- * (#166).
  */
-@GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class Grug125ServerAdapter extends Grug125Adapter {
 
     /** A player's eye is this far above their feet. */
@@ -78,8 +75,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private final GrugScreenCalls.Forwarded screens =
             new GrugScreenCalls.Forwarded(
-                    GrugControlServer125::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlServer125::server, Grug125ServerAdapter::forwardFailed);
 
     /**
      * The camera reads this server makes, which its joined client answers with its own camera: a
@@ -88,8 +84,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private final GrugTestCamera.Forwarded camera =
             new GrugTestCamera.Forwarded(
-                    GrugControlServer125::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlServer125::server, Grug125ServerAdapter::forwardFailed);
 
     /**
      * The saved-number reads this server makes, which its joined client answers from its own copy
@@ -98,8 +93,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private final GrugClientSavedNumbers.Forwarded savedNumbers =
             new GrugClientSavedNumbers.Forwarded(
-                    GrugControlServer125::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlServer125::server, Grug125ServerAdapter::forwardFailed);
 
     /**
      * The light comparisons this server makes, which its joined client answers from its own copy of
@@ -108,8 +102,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private final GrugClientLight.Forwarded clientLight =
             new GrugClientLight.Forwarded(
-                    GrugControlServer125::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlServer125::server, Grug125ServerAdapter::forwardFailed);
 
     /**
      * The overlay reads this server makes, which its joined client answers about the frame it
@@ -118,8 +111,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private final GrugOverlayCalls.Forwarded overlays =
             new GrugOverlayCalls.Forwarded(
-                    GrugControlServer125::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlServer125::server, Grug125ServerAdapter::forwardFailed);
 
     /**
      * The mining crack and the client resource files of a hot reload, which the joined client
@@ -128,8 +120,15 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private final GrugClientTestCalls.Forwarded clientTestCalls =
             new GrugClientTestCalls.Forwarded(
-                    GrugControlServer125::server,
-                    message -> Grug.hostFunctionErrorHappened(Grug.statePtr, message));
+                    GrugControlServer125::server, Grug125ServerAdapter::forwardFailed);
+
+    /** Reports a forwarded call the client could not answer as a host function error. */
+    @GrugGenerated(
+            "a forwarded call fails only when the joined client cannot answer it, which a passing"
+                    + " run never has")
+    private static void forwardFailed(String message) {
+        Grug.hostFunctionErrorHappened(Grug.statePtr, message);
+    }
 
     @Override
     public GrugClientTestCalls.Forwarded forwardedClientTestCalls() {
@@ -215,9 +214,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public void openInventory(Object playerObj) {
-        if (playerObj instanceof EntityPlayerMP) {
-            closeOpenContainer((EntityPlayerMP) playerObj);
-        }
+        GrugLinkArms.applyTo(
+                playerObj, EntityPlayerMP.class, Grug125ServerAdapter::closeOpenContainer);
         screens.openInventory();
     }
 
@@ -254,10 +252,12 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public Object carriedItem() {
-        EntityPlayerMP player = serverPlayer();
-        if (player == null) return null;
-        ItemStack stack = player.inventory.getItemStack();
-        return stack == null ? null : stack.getItem();
+        return GrugForge125Arms.map(
+                serverPlayer(),
+                player -> {
+                    ItemStack stack = player.inventory.getItemStack();
+                    return stack == null ? null : stack.getItem();
+                });
     }
 
     /**
@@ -266,40 +266,39 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public void setCarriedItem(Object itemObj) {
-        EntityPlayerMP player = serverPlayer();
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "TestTickContext.set_carried_item: There is no player to set a cursor on.");
-            return;
-        }
-        player.inventory.setItemStack(itemObj == null ? null : new ItemStack((Item) itemObj));
-        // The cursor is not a slot this server's container sends, so the click's own slot update
-        // would leave the client's copy stale: window -1 slot -1 is the cursor, which is what the
-        // game's own updateHeldItem sends when a click changes it.
-        player.updateHeldItem();
+        GrugForge125Arms.ifPresent(
+                serverPlayer(),
+                player -> {
+                    // A grug call's Item argument is never null, so there is no null arm.
+                    player.inventory.setItemStack(new ItemStack((Item) itemObj));
+                    // The cursor is not a slot this server's container sends, so the click's own
+                    // slot update would leave the client's copy stale: window -1 slot -1 is the
+                    // cursor, which is what the game's own updateHeldItem sends when a click
+                    // changes it.
+                    player.updateHeldItem();
+                },
+                Grug125ServerAdapter::forwardFailed,
+                "TestTickContext.set_carried_item: There is no player to set a cursor on.");
     }
 
     /** Clears the carried stack, and the client's copy of it (#1094). */
     @Override
     public void deleteCarriedItem() {
-        EntityPlayerMP player = serverPlayer();
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
-                            + " on.");
-            return;
-        }
-        player.inventory.setItemStack(null);
-        player.updateHeldItem();
+        GrugForge125Arms.ifPresent(
+                serverPlayer(),
+                player -> {
+                    player.inventory.setItemStack(null);
+                    player.updateHeldItem();
+                },
+                Grug125ServerAdapter::forwardFailed,
+                "OverlayClickContext.delete_carried_item: There is no player to clear a cursor"
+                        + " on.");
     }
 
     /** The player who started the run, or the first joined one, whose container a click uses. */
-    @GrugGenerated("the no-player arm: a test's own cursor work happens while a player is joined")
     private static EntityPlayerMP serverPlayer() {
-        EntityPlayerMP starter = GrugControlServer125.starterPlayer();
-        return starter != null ? starter : GrugServerRun.firstPlayer();
+        return GrugForge125Arms.orElseGet(
+                GrugControlServer125.starterPlayer(), GrugServerRun::firstPlayer);
     }
 
     /**
@@ -352,8 +351,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public Object testPlayer() {
         // The player who started the run, when one has: forwarded calls use their screen (#1040).
-        EntityPlayerMP starter = GrugControlServer125.starterPlayer();
-        return starter != null ? starter : GrugServerRun.firstPlayer();
+        return serverPlayer();
     }
 
     /**
@@ -434,10 +432,21 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         placedRegion.reset();
         EntityPlayerMP player = (EntityPlayerMP) testPlayer();
         double held = GrugServerRun.heldFeetY();
-        if (player == null || held == 0) {
-            super.buildTestBox(radius);
-            return;
-        }
+        boolean hasHold =
+                GrugLinkArms.deliverIf(
+                        GrugForge125Arms.holds(held), player, p -> buildOnHold(p, held, radius));
+        GrugForge125Arms.unlessDone(hasHold, radius, this::buildWithoutHold);
+    }
+
+    /** The build before a player holds the run's height, which is the shared one. */
+    @GrugGenerated(
+            "it runs only before the run holds a player's height, which the run starts with and a"
+                    + " test never sees")
+    private void buildWithoutHold(int radius) {
+        super.buildTestBox(radius);
+    }
+
+    private void buildOnHold(EntityPlayerMP player, double held, int radius) {
         renderSettle.reset();
         GrugTestBox.build(
                 this,
@@ -447,15 +456,24 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                 player.posZ,
                 radius,
                 false);
-        if (player.boundingBox.minY < held) {
-            player.playerNetServerHandler.teleportTo(
-                    player.posX,
-                    player.posY + (held - player.boundingBox.minY),
-                    player.posZ,
-                    player.rotationYaw,
-                    player.rotationPitch);
-            player.motionY = 0;
+        liftToHold(player, held);
+    }
+
+    /** Puts a player under the held height back on it. */
+    @GrugGenerated(
+            "the run's per-tick hold keeps the player at the held height, so a player under it when"
+                    + " a room is built is a race with the client's own movement")
+    private static void liftToHold(EntityPlayerMP player, double held) {
+        if (player.boundingBox.minY >= held) {
+            return;
         }
+        player.playerNetServerHandler.teleportTo(
+                player.posX,
+                player.posY + (held - player.boundingBox.minY),
+                player.posZ,
+                player.rotationYaw,
+                player.rotationPitch);
+        player.motionY = 0;
     }
 
     /**
@@ -491,9 +509,15 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     public boolean isWorldReady(Object playerObj) {
         EntityPlayer player = (EntityPlayer) playerObj;
         double feet = player.boundingBox.minY;
-        return super.isWorldReady(playerObj)
-                && GrugPlayerFloor.mayStart(
-                        solidBlocks(getLevel()), player.posX, feet, player.posZ, player.onGround);
+        return GrugForge125Arms.allOf(
+                super.isWorldReady(playerObj),
+                () ->
+                        GrugPlayerFloor.mayStart(
+                                solidBlocks(getLevel()),
+                                player.posX,
+                                feet,
+                                player.posZ,
+                                player.onGround));
     }
 
     /**
@@ -539,25 +563,52 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     /** Asked of the client of the player who started the run, with the world frozen (#1040). */
     @Override
     public boolean hasSound(String path) {
-        try {
-            return GrugControlServer125.server().hasSound(path);
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "has_sound: " + e.getMessage());
-            return false;
-        }
+        return GrugForge125Arms.forwarded(
+                () -> GrugControlServer125.server().hasSound(path),
+                "has_sound",
+                Grug125ServerAdapter::forwardFailed,
+                false);
     }
 
     /** Played by the client of the player who started the run, which owns the sound engine. */
     @Override
+    @GrugGenerated(
+            "In a CI run 1.2.5 downloads no sound resources, so the client's pool is empty,"
+                    + " has_sound is never true and play_ui_sound refuses every name before it"
+                    + " reaches the adapter")
     public void playUiSound(String path, double volume, double pitch) {
-        try {
+        GrugForge125Arms.forwarded(
+                new PlayUiSound(path, volume, pitch),
+                "play_ui_sound",
+                Grug125ServerAdapter::forwardFailed,
+                null);
+    }
+
+    /** The forwarded sound as a class rather than a lambda, so the exclusion covers its body. */
+    @GrugGenerated(
+            "In a CI run 1.2.5 downloads no sound resources, so the client's pool is empty,"
+                    + " has_sound is never true and play_ui_sound refuses every name before it"
+                    + " reaches the adapter")
+    private static final class PlayUiSound implements GrugForge125Arms.Forward<Object> {
+        private final String path;
+        private final double volume;
+        private final double pitch;
+
+        PlayUiSound(String path, double volume, double pitch) {
+            this.path = path;
+            this.volume = volume;
+            this.pitch = pitch;
+        }
+
+        @Override
+        public Object get() throws GrugControlServer.ControlException {
             GrugControlServer125.server().playUiSound(path, volume, pitch);
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
+            return null;
         }
     }
 
     @Override
+    @GrugGenerated("a dedicated server draws no frame, so nothing calls it")
     public void onFrameRendered() {}
 
     /**
@@ -574,34 +625,31 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public boolean isWorldSettled() {
-        if (!GrugControlServer125.server().hasStarter()) {
-            return true;
-        }
+        return GrugForge125Arms.noStarterOr(
+                GrugControlServer125.server().hasStarter(), this::settledForStarter);
+    }
+
+    private boolean settledForStarter() {
         boolean owed = lightResend.pending();
         if (owed) {
             resendLight();
         }
         // A poll that owed the region asked no client, so nothing is settled for this poll.
-        boolean clientSettled = false;
-        if (!owed) {
-            try {
-                World level = (World) getLevel();
-                clientSettled =
-                        GrugControlServer125.server()
-                                .worldSettled(
-                                        placedRegion.ask(
-                                                (x, y, z) -> level.getBlockId(x, y, z),
-                                                (cx, cz) -> clientHasOrWillGet(level, cx, cz)));
-                if (clientSettled) {
-                    placedRegion.answeredSettled();
-                }
-            } catch (GrugControlServer.ControlException e) {
-                Grug.hostFunctionErrorHappened(
-                        Grug.statePtr, "TestTickContext.world_settled: " + e.getMessage());
-                return true;
-            }
-        }
-        return GrugRenderSettle.serverSettled(clientSettled, owed);
+        World level = (World) getLevel();
+        Boolean asked =
+                GrugForge125Arms.forwardedUnless(
+                        owed,
+                        () ->
+                                GrugControlServer125.server()
+                                        .worldSettled(
+                                                placedRegion.ask(
+                                                        (x, y, z) -> level.getBlockId(x, y, z),
+                                                        (cx, cz) ->
+                                                                clientHasOrWillGet(level, cx, cz))),
+                        "TestTickContext.world_settled",
+                        Grug125ServerAdapter::forwardFailed);
+        GrugForge125Arms.heldIfSettled(asked, placedRegion);
+        return GrugForge125Arms.settled(owed, asked);
     }
 
     /**
@@ -653,11 +701,12 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         if (regions.isEmpty()) {
             return;
         }
-        EntityPlayerMP starter = GrugControlServer125.starterPlayer();
+        GrugLinkArms.deliver(
+                GrugControlServer125.starterPlayer(), starter -> sendRegions(starter, regions));
+    }
+
+    private void sendRegions(EntityPlayerMP starter, List<int[]> regions) {
         World world = (World) getLevel();
-        if (starter == null || world == null) {
-            return;
-        }
         // The placements left the field their order made, which differs from the one the final
         // blocks define and from the client-only run's, so it is recomputed before it is sent.
         int[] box = lightResend.lastBox();
@@ -666,20 +715,13 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         // The tick's block changes go out first, so the client applies them to the light it holds
         // and the region then replaces that light with this server's.
         GrugServerRun.flushBlockChanges();
-        boolean sent = false;
         for (int[] region : regions) {
-            Packet51MapChunk packet = buildMapChunkPacket(world, region);
-            if (packet != null) {
-                starter.playerNetServerHandler.sendPacket(packet);
-                sent = true;
-            }
+            starter.playerNetServerHandler.sendPacket(buildMapChunkPacket(world, region));
         }
-        if (sent) {
-            // The region changed the copy of the world the client shows, so the revision a settle
-            // answer belongs to moves with it: an answer the client gave before the send is not
-            // reused for the world after it (#1161).
-            GrugWorldRevision.bump();
-        }
+        // The region changed the copy of the world the client shows, so the revision a settle
+        // answer belongs to moves with it: an answer the client gave before the send is not
+        // reused for the world after it (#1161).
+        GrugWorldRevision.bump();
     }
 
     /**
@@ -698,20 +740,10 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     private static Packet51MapChunk buildMapChunkPacket(World world, int[] region) {
         Chunk chunk = world.getChunkFromChunkCoords(region[0] >> 4, region[2] >> 4);
-        if (chunk == null) {
-            return null;
-        }
-        // This version's world is 128 blocks high, which is sections 0 to 7 of the chunk's 16.
-        int minSection = Math.max(0, region[1] >> 4);
-        int maxSection = Math.min(7, (region[1] + region[4] - 1) >> 4);
-        int sectionMask = 0;
-        for (int section = minSection; section <= maxSection; section++) {
-            sectionMask |= 1 << section;
-        }
-        if (sectionMask == 0) {
-            return null;
-        }
-        return new Packet51MapChunk(chunk, false, sectionMask);
+        // This version's world is 128 blocks high, which is sections 0 to 7 of the chunk's 16. The
+        // box a region is cut from is clamped to the world and so spans at least one section.
+        return new Packet51MapChunk(
+                chunk, false, GrugForge125Arms.sectionMask(region[1], region[4]));
     }
 
     @Override
@@ -739,10 +771,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public void closeOpenScreenForTest() {
-        EntityPlayerMP player = serverPlayer();
-        if (player != null) {
-            closeOpenContainer(player);
-        }
+        GrugLinkArms.deliver(serverPlayer(), Grug125ServerAdapter::closeOpenContainer);
         screens.closeScreen();
     }
 
@@ -760,6 +789,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
 
     /** This server has no local player, so it snaps its copy of the joined one instead (#1161). */
     @Override
+    @GrugGenerated("this server has no local player to snap, so nothing calls it")
     public void snapPlayerForTestOnClient() {}
 
     /**
@@ -773,17 +803,16 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     public boolean setPlayerPositionForTest(double x, double y, double z) {
         EntityPlayerMP player = (EntityPlayerMP) testPlayer();
         World world = (World) getLevel();
-        boolean hasWorld = world != null;
         boolean loaded =
-                hasWorld
-                        && world.getChunkProvider()
-                                .chunkExists((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4);
-        if (!GrugTestPlayerMove.canMove(player != null, hasWorld, loaded)) {
-            return false;
-        }
-        GrugServerRun.moveToFeet(player, x, y, z);
-        GrugTestState.playerMovedTo(x, y, z);
-        return true;
+                world.getChunkProvider()
+                        .chunkExists((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4);
+        return GrugLinkArms.deliverIf(
+                GrugTestPlayerMove.canMove(GrugLinkArms.known(player), true, loaded),
+                player,
+                mover -> {
+                    GrugServerRun.moveToFeet(mover, x, y, z);
+                    GrugTestState.playerMovedTo(x, y, z);
+                });
     }
 
     @Override
@@ -820,39 +849,38 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
-        EntityPlayerMP player = (EntityPlayerMP) testPlayer();
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "TestTickContext.use_block: There is no player to right-click with.");
-            return;
-        }
-
         int blockX = (int) Math.floor(x);
         int blockY = (int) Math.floor(y);
         int blockZ = (int) Math.floor(z);
 
-        if (blockAt(world, blockX, blockY, blockZ) == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "TestTickContext.use_block: There is no block at "
-                            + blockX
-                            + ", "
-                            + blockY
-                            + ", "
-                            + blockZ
-                            + ".");
-            return;
-        }
-
-        player.itemInWorldManager.activeBlockOrUseItem(
-                player,
-                world,
-                player.inventory.getCurrentItem(),
-                blockX,
-                blockY,
-                blockZ,
-                GrugUseBlockFace.face(testPlayerEye(player), blockX, blockY, blockZ));
+        GrugForge125Arms.ifPresent(
+                (EntityPlayerMP) testPlayer(),
+                player ->
+                        GrugForge125Arms.ifPresent(
+                                blockAt(world, blockX, blockY, blockZ),
+                                block ->
+                                        player.itemInWorldManager.activeBlockOrUseItem(
+                                                player,
+                                                world,
+                                                player.inventory.getCurrentItem(),
+                                                blockX,
+                                                blockY,
+                                                blockZ,
+                                                GrugUseBlockFace.face(
+                                                        testPlayerEye(player),
+                                                        blockX,
+                                                        blockY,
+                                                        blockZ)),
+                                Grug125ServerAdapter::forwardFailed,
+                                "TestTickContext.use_block: There is no block at "
+                                        + blockX
+                                        + ", "
+                                        + blockY
+                                        + ", "
+                                        + blockZ
+                                        + "."),
+                Grug125ServerAdapter::forwardFailed,
+                "TestTickContext.use_block: There is no player to right-click with.");
     }
 
     /**
@@ -861,18 +889,12 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
-        String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
-        if (bad != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + bad);
-            return null;
-        }
-        try {
-            return GrugControlServer125.server()
-                    .capture(captureEye(), (int) x1, (int) y1, (int) x2, (int) y2);
-        } catch (GrugControlServer.ControlException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + e.getMessage());
-            return null;
-        }
+        return GrugForge125Arms.captured(
+                GrugScreenshots.rectangleProblem(x1, y1, x2, y2),
+                () ->
+                        GrugControlServer125.server()
+                                .capture(captureEye(), (int) x1, (int) y1, (int) x2, (int) y2),
+                Grug125ServerAdapter::forwardFailed);
     }
 
     /**
@@ -914,22 +936,22 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public boolean lightApplied(double x, double y, double z) {
-        Object level = getLevel();
-        if (level == null
-                || !GrugControlServer125.server().hasStarter()
-                || relitSections.covers(x, y, z)) {
-            return true;
-        }
-        World world = (World) level;
-        long simulated =
-                GrugLightSync.lightFingerprint(
-                        ((int) Math.floor(x)) >> 4,
-                        ((int) Math.floor(y)) >> 4,
-                        ((int) Math.floor(z)) >> 4,
-                        (lightX, lightY, lightZ) ->
-                                world.getSavedLightValue(
-                                        EnumSkyBlock.Block, lightX, lightY, lightZ));
-        return clientLight.lightApplied(x, y, z, simulated);
+        return GrugForge125Arms.answered(
+                GrugForge125Arms.noStarterOr(
+                        GrugControlServer125.server().hasStarter(),
+                        () -> relitSections.covers(x, y, z)),
+                () -> {
+                    World world = (World) getLevel();
+                    long simulated =
+                            GrugLightSync.lightFingerprint(
+                                    ((int) Math.floor(x)) >> 4,
+                                    ((int) Math.floor(y)) >> 4,
+                                    ((int) Math.floor(z)) >> 4,
+                                    (lightX, lightY, lightZ) ->
+                                            world.getSavedLightValue(
+                                                    EnumSkyBlock.Block, lightX, lightY, lightZ));
+                    return clientLight.lightApplied(x, y, z, simulated);
+                });
     }
 
     /**
