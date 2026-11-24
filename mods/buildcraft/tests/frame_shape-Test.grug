@@ -6,7 +6,7 @@ export tick(ctx: TestTickContext) {
     origin: Vec3 = ctx.get_origin()
     x: number = Math.floor(origin.x())
     y: number = Math.floor(origin.y()) + 10
-    z: number = Math.floor(origin.z()) + 60
+    z: number = Math.floor(origin.z()) + 12
 
     if ctx.current_tick() == 0 {
         level.place_block(x, y, z, "grug:frame")
