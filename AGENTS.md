@@ -419,7 +419,10 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
   `selftest` binary that never feeds it, with expected values from a real JDK where a number is
   checked. Once it can run a mod's logic tests
   (#1586), run them there before a port's first push instead of using CI to find out whether the
-  mod's shape works.
+  mod's shape works. Build the host at `-O0` while iterating (`make -C .github/smoketest OUT=/tmp/sm
+  CFLAGS="-O0 -g -Wall -Wextra -Wpedantic -Werror -std=gnu11"`): 0.86 s against 3.46 s at the
+  Makefile's `-O2`, and a test run costs the same either way because its time is inside the
+  prebuilt `libgruggers.a`, not the host's own code; `-O2` stays where a sanitizer build needs it.
 
 - Add to `mod_api.json` whenever grug code would otherwise need a workaround. grug code stays
   plain and the API grows, so a hack in a `.grug` file is a defect and the missing
@@ -554,6 +557,16 @@ use.
   known gap still to be closed, each with a tracking issue. A port is done when its `deviations` key
   is removed (the schema refuses an empty list), and from then on `Screenshot.tolerance` refuses any
   percentage above 0 in its tests (BuildCraft's checklist is #75).
+- **Porting a whole mod at once.** One background subagent ports an entire mod from this brief, filled
+  in: `(Port <mod> <version> completely: read AGENTS.md and work in <worktree> on branch <branch>
+  from origin/main; spawn a research subagent to map the reference's live features against its dead
+  code in an issue, and port only the live rows, because a class nothing registers, a config id
+  nothing reads, or a class that is another feature's part is not a feature; port the grug code and
+  the graphics, but add no capture test; add the `mod_api.json` entries and the per-loader host code
+  each feature needs; iterate on the smoketest at `-O0`; open a draft pull request from the first
+  slice, write the inventory into its body, name per slice whether it needs a CI run, and report.)`
+  The map is what stops a port building dead code: the reference's `addName` display names and its
+  registration sites are the features, and a class name is neither.
 - The one exception is precision: a reference's Java `float` becomes a grug `number`, a 64-bit
   double. Do not emulate float32 rounding, and derive tick counts from float64 arithmetic. A mod's
   configs are the defaults the reference ships with.
