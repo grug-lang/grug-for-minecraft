@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.server;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugPlayerFloor;
+import net.grug.minecraft.core.GrugRunOrigin;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugServerJoin;
 import net.grug.minecraft.core.GrugStarterPlacement;
@@ -41,9 +42,6 @@ public final class GrugServerRun {
     private static long lastReportMillis = 0;
     private static boolean done = false;
     private static boolean advancing = false;
-
-    /** Whether the run has printed the origin it builds its rooms around, so it prints it once. */
-    private static boolean originReported = false;
 
     /**
      * Where the test save's own player stands, as feet: the position a client-only run's room is
@@ -309,25 +307,10 @@ public final class GrugServerRun {
             // click.
             GrugControlBeta.server().applyClientWork();
             runner.tick(player);
-            reportOrigin();
+            GrugRunOrigin.reportOnce(GrugCore.getAdapter().getTestOrigin());
             if (runner.roomBuiltThisTick()) return;
             finishIfDone();
         }
-    }
-
-    /**
-     * Prints the origin the run builds its rooms around, once, after the run's first runner tick.
-     *
-     * <p>The first tick snaps the server's copy of the joined player to the centre of their block
-     * and builds the room there (#1161), so the answer here is the one every test and capture of
-     * the run works from. Read before that tick it named where the player joined, which on a save
-     * that starts off the centre is not the origin the rooms and tests used.
-     */
-    private static void reportOrigin() {
-        if (originReported) return;
-        originReported = true;
-        System.out.println(
-                "[GRUG CI] Test origin is " + GrugCore.getAdapter().getTestOrigin() + ".");
     }
 
     /** Ends the process once the runner has finished, with a status that says whether it passed. */
