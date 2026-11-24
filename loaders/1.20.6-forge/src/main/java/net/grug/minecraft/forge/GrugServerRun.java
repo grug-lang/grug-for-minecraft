@@ -87,16 +87,7 @@ public final class GrugServerRun {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        tickUnlessDone(event.getServer());
-    }
-
-    /** Ticks the run, unless it has ended and the server is only finishing its own shutdown. */
-    @GrugGenerated(
-            "its done arm is reached only while the process is already exiting, after the last"
-                    + " coverage segment is written; the tick it guards is measured on its own")
-    private void tickUnlessDone(MinecraftServer server) {
-        if (done) return;
-        tick(server);
+        GrugLinkArms.runUnless(done, () -> tick(event.getServer()));
     }
 
     private void tick(MinecraftServer server) {
@@ -154,17 +145,7 @@ public final class GrugServerRun {
         GrugControlForge.server().applyClientWork();
         runner.tick(testPlayer);
         followTheTestsView(server, testPlayer);
-        finishIfDone(server);
-    }
-
-    /** Ends the process once the runner has finished. */
-    @GrugGenerated(
-            "it ends the server process after the last coverage segment is written, so nothing in"
-                    + " it can be counted")
-    private void finishIfDone(MinecraftServer server) {
-        if (runner.isFinished()) {
-            stop(server);
-        }
+        GrugLinkArms.runOn(runner.isFinished(), server, this::stop);
     }
 
     /**
