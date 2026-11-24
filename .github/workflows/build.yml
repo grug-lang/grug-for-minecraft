@@ -612,40 +612,15 @@ jobs:
       # after another. parallel_test_runner.py puts each file in a process of its own and stops at
       # the first failure, and run_loader_test.py runs its 65 cases the same way, so the step costs
       # about a quarter of what the waits add up to.
-      - name: Test the native-abort reporter and the run script
-        run: |
-          python3 .github/scripts/parallel_test_runner.py \
-            .github/scripts/run_loader_test.py \
-            .github/scripts/run_multiplayer_test.py \
-            .github/scripts/report_native_abort_test.py \
-            .github/scripts/parallel_test_runner_test.py \
-            .github/scripts/ci_timing_test.py \
-            .github/scripts/combine_coverage_test.py \
-            .github/scripts/base_coverage_map_run_test.py \
-            .github/scripts/base_server_exec_artifacts_test.py \
-            .github/scripts/watch_run_test.py \
-            .github/scripts/affected_mods_test.py \
-            .github/scripts/affected_loaders_test.py \
-            .github/scripts/mod_loaders_test.py \
-            .github/scripts/main_selection_test.py \
-            .github/scripts/smoke_selection_test.py \
-            .github/scripts/main_dispatch_test.py \
-            .github/scripts/cancel_red_test.py \
-            .github/scripts/select_coverage_tests_test.py \
-            .github/scripts/added_loaders_test.py \
-            .github/scripts/reference_needed_test.py \
-            .github/scripts/reference_selection_test.py \
-            .github/scripts/no_tests_test.py \
-            .github/scripts/smoketest_needed_test.py \
-            .github/scripts/server_path_client_classes_test.py \
-            .github/scripts/drain_caches_test.py \
-            .github/scripts/sweep_caches_test.py \
-            .github/scripts/markdown_columns_test.py \
-            .github/scripts/windows_needed_test.py \
-            .github/scripts/dedicated_needed_test.py \
-            .github/scripts/dispatch_base_test.py \
-            .github/scripts/seed_ploceus_meta_test.py \
-            .github/scripts/smoke_launch_test.py
+      #
+      # It is given the directory rather than a list of paths: every *_test.py under .github/scripts,
+      # subdirectories included, runs, so a new one runs by existing. A test that needs its own step
+      # (its own if:, artifacts or budget) declares RUNS_ALONE with a reason in its own file, and
+      # the runner prints that reason and skips it, so the only way a test does not run here is a
+      # decision visible in the log; parallel_test_runner_test.py fails unless a run: step names
+      # every declaring file, so a declaration cannot silence one.
+      - name: Test every script test
+        run: python3 .github/scripts/parallel_test_runner.py .github/scripts
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory

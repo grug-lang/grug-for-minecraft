@@ -13,13 +13,41 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import parallel_test_runner  # noqa: E402
 
+SCRIPTS = Path(__file__).resolve().parent
+BUILD_YML = SCRIPTS.parent / "workflows" / "build.yml"
+
 
 def python(code: str, *args: str) -> list[str]:
     return [sys.executable, "-c", code, *args]
+
+
+def run_steps() -> str:
+    """Every run: command of build.yml, as one text."""
+    jobs = yaml.safe_load(BUILD_YML.read_text(encoding="utf-8"))["jobs"]
+    return "\n".join(
+        step["run"] for job in jobs.values() for step in job.get("steps", []) if "run" in step
+    )
+
+
+def runs_alone_files(directory: Path = SCRIPTS) -> list[Path]:
+    """Every discovered test under a directory that declares RUNS_ALONE."""
+    return [
+        path
+        for path in parallel_test_runner.tests_in(directory)
+        if path.is_file() and parallel_test_runner.runs_alone_reason(path) is not None
+    ]
+
+
+def unwired(directory: Path, workflow: str) -> list[str]:
+    """The declaring tests that no workflow run: command names, by their path under .github/scripts."""
+    relative = [path.relative_to(directory) for path in runs_alone_files(directory)]
+    return [str(path) for path in relative if f".github/scripts/{path.as_posix()}" not in workflow]
 
 
 class RunTest(unittest.TestCase):
@@ -171,6 +199,142 @@ class MainTest(unittest.TestCase):
 
     def test_no_script_is_a_usage_error(self):
         self.assertEqual(self.run_main([])[0], 2)
+
+
+class DirectoryTest(unittest.TestCase):
+    """A directory is expanded to its tests, and only a declaration keeps one out."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def script(self, name: str, body: str) -> str:
+        path = self.tmp / name
+        path.write_text(f"#!/usr/bin/env python3\n{body}\n")
+        return str(path)
+
+    def marker(self, name: str) -> Path:
+        return self.tmp / name
+
+    def touched(self, name: str) -> str:
+        return f"open({str(self.marker(name))!r}, 'w').close()"
+
+    def run_main(self, argv):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            status = parallel_test_runner.main(argv)
+        return status, out.getvalue()
+
+    def test_a_directory_runs_its_tests_sorted_and_ignores_other_files(self):
+        self.script("b_test.py", self.touched("b"))
+        self.script("a_test.py", self.touched("a"))
+        self.script("helper.py", self.touched("helper"))
+
+        status, out = self.run_main(["--jobs", "1", str(self.tmp)])
+
+        self.assertEqual(status, 0, out)
+        self.assertTrue(self.marker("a").exists())
+        self.assertTrue(self.marker("b").exists())
+        self.assertFalse(self.marker("helper").exists(), "only *_test.py runs")
+        self.assertLess(out.index("a_test.py"), out.index("b_test.py"), out)
+        self.assertIn("all 2 passed", out)
+
+    def test_a_test_that_runs_alone_is_skipped_with_its_reason(self):
+        reason = "push only: it reads the jar an earlier step builds"
+        self.script("alone_test.py", f"RUNS_ALONE = {reason!r}\n{self.touched('alone')}")
+        self.script("runs_test.py", self.touched("runs"))
+
+        status, out = self.run_main([str(self.tmp)])
+
+        self.assertEqual(status, 0, out)
+        self.assertFalse(self.marker("alone").exists())
+        self.assertTrue(self.marker("runs").exists())
+        self.assertIn(f"alone_test.py: skipped, runs alone: {reason}", out)
+        self.assertIn("all 1 passed", out)
+
+    def test_a_named_script_runs_even_when_it_declares_runs_alone(self):
+        alone = self.script("alone_test.py", f'RUNS_ALONE = "push only"\n{self.touched("alone")}')
+
+        status, out = self.run_main([alone])
+
+        self.assertEqual(status, 0, out)
+        self.assertTrue(self.marker("alone").exists())
+
+    def test_a_runs_alone_without_a_reason_is_refused(self):
+        for value in ('""', "''", "None", "0"):
+            with self.subTest(value=value):
+                self.script("hollow_test.py", f"RUNS_ALONE = {value}")
+                with self.assertRaises(SystemExit) as raised:
+                    self.run_main([str(self.tmp)])
+                self.assertIn("RUNS_ALONE", str(raised.exception))
+
+    def test_a_directory_with_no_test_is_a_usage_error(self):
+        self.script("helper.py", "pass")
+
+        self.assertEqual(self.run_main([str(self.tmp)])[0], 2)
+
+    def test_the_scripts_directory_skips_the_tests_with_their_own_steps(self):
+        out = io.StringIO()
+        scripts = parallel_test_runner.expand(str(Path(__file__).resolve().parent), stream=out)
+        names = {Path(script).name for script in scripts}
+
+        # The two steps of build.yml that a pull request skips; each declares its reason.
+        self.assertNotIn("grug_core_handoff_test.py", names)
+        self.assertNotIn("universal_jar_test.py", names)
+        self.assertIn("grug_core_handoff_test.py", out.getvalue())
+        self.assertIn("universal_jar_test.py", out.getvalue())
+        # The files this discovery exists for.
+        self.assertIn("layer_selection_test.py", names)
+        self.assertIn("maven_mirror_order_test.py", names)
+
+    def test_a_test_in_a_subdirectory_runs(self):
+        package = self.tmp / "pkg"
+        package.mkdir()
+        (package / "nested_test.py").write_text(
+            f"#!/usr/bin/env python3\n{self.touched('nested')}\n"
+        )
+
+        status, out = self.run_main([str(self.tmp)])
+
+        self.assertEqual(status, 0, out)
+        self.assertTrue(self.marker("nested").exists())
+        self.assertIn("pkg/nested_test.py: started", out)
+
+    def test_a_directory_named_like_a_test_is_skipped_and_the_rest_run(self):
+        (self.tmp / "odd_test.py").mkdir()
+        self.script("real_test.py", self.touched("real"))
+
+        status, out = self.run_main([str(self.tmp)])
+
+        self.assertEqual(status, 0, out)
+        self.assertTrue(self.marker("real").exists())
+        self.assertIn("odd_test.py: skipped, not a file", out)
+        self.assertIn("all 1 passed", out)
+
+
+class RunsAloneWiringTest(unittest.TestCase):
+    """A declaration must never silence a test: a run: step has to name the file that declares it."""
+
+    def test_every_declared_test_is_named_by_a_workflow_run_step(self):
+        missing = unwired(SCRIPTS, run_steps())
+        self.assertEqual(
+            [],
+            missing,
+            "these declare RUNS_ALONE but no run: step of build.yml names them, so nothing runs "
+            f"them: {', '.join(missing)}",
+        )
+
+    def test_the_two_tests_with_their_own_steps_declare_it(self):
+        declared = {path.name for path in runs_alone_files()}
+        self.assertIn("grug_core_handoff_test.py", declared)
+        self.assertIn("universal_jar_test.py", declared)
+
+    def test_a_declaration_no_step_names_is_reported(self):
+        scripts = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, scripts)
+        (scripts / "orphan_test.py").write_text('RUNS_ALONE = "needs its own step"\n')
+
+        self.assertEqual(["orphan_test.py"], unwired(scripts, run_steps()))
 
 
 class JobsOptionTest(unittest.TestCase):

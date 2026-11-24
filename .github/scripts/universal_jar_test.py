@@ -32,6 +32,10 @@ from universal_jar import (  # noqa: E402
     maven_range_matches,
 )
 
+# The core tests job runs this in its own step, which a pull request skips: it needs the jar an
+# earlier step builds, so it cannot run before that jar exists for the review's own run.
+RUNS_ALONE = "push only: it reads the jar an earlier step of the job builds"
+
 
 def klass(version=universal_jar.JAVA_8, *descriptors):
     """A class file as far as the checks read one: its major version and its constant pool's
