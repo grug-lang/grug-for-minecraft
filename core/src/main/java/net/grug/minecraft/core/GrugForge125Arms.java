@@ -167,7 +167,8 @@ public final class GrugForge125Arms {
     }
 
     /** Whether a chunk is loaded and the starter, when there is one, listens to it. */
-    public static boolean chunkReaches(java.util.List<?> listening, boolean loaded, Object chunk) {
+    public static boolean chunkReaches(
+            java.util.Collection<?> listening, boolean loaded, Object chunk) {
         return listening != null && loaded && listening.contains(chunk);
     }
 
