@@ -763,8 +763,8 @@ while :; do
         fi
         ;;
     esac
-    # The remote GUI test (#168), the GUI capture tests and the two container-click tests run on the
-    # servers that can open a container for their player, 1.20.6, 1.2.5, b1.7.3-ornithe,
+    # The remote GUI test (#168), the GUI capture tests and the three container-click tests run on
+    # the servers that can open a container for their player, 1.20.6, 1.2.5, b1.7.3-ornithe,
     # b1.7.3-stationapi and a1.1.2_01 (#1098). a1.1.2_01's arm leaves out the two
     # autocrafting-table tests, whose server has no recipe manager; every other test here must show
     # it ran on every leg. A capture compares against the unchanged client-only golden, so a leg
@@ -779,10 +779,11 @@ while :; do
     # server tick's own task queue would apply the click before the runner's next tick anyway. On
     # 1.20.6 the pair also splits the click's two halves, gui_click taking the release path (the
     # cursor carries a stack) and gui_click_empty the press path (the cursor is empty), so a leg that
-    # runs both proves both.
+    # runs both proves both. gui_click_twice makes two presses in one tick, so a leg that does not
+    # run it is the leg where #1666's double-click defect could come back unseen (#1703).
     case "$LOADER" in
       1.20.6-forge|1.2.5-forge|b1.7.3-ornithe|b1.7.3-stationapi)
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty coverage/tests/gui_click_twice buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
         ;;
       a1.1.2_01-ornithe)
         # Its server has no recipe manager, so the two autocrafting-table tests stay unsupported
@@ -790,7 +791,7 @@ while :; do
         # cannot compute. The two container-click tests run there since #1402 stopped the client's
         # copy of the block entity from erasing the server's slot (#1393; proofs 44412261265 and
         # 44414059306 passed them).
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty"
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty coverage/tests/gui_click_twice"
         ;;
       *)
         gui_tests=""
