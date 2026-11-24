@@ -332,18 +332,12 @@ public class Grug125ClientAdapter extends Grug125Adapter {
      * until its world has them (#1664). A level that is not there yet holds nothing.
      */
     @Override
+    @net.grug.minecraft.grug.GrugGenerated(
+            "only a joined client answers a settle ask that carries a region (#1664), which no"
+                    + " test the coverage gate counts can reach")
     public boolean holdsBlockRegion(GrugBlockRegion.Expected expected) {
-        Minecraft minecraft = ModLoader.getMinecraftInstance();
         return GrugBlockRegion.holds(
-                expected,
-                (x, y, z) ->
-                        minecraft.theWorld != null
-                                        && Grug125ChunkReceived.received(
-                                                minecraft.theWorld.getChunkProvider(),
-                                                x >> 4,
-                                                z >> 4)
-                                ? minecraft.theWorld.getBlockId(x, y, z)
-                                : GrugBlockRegion.ABSENT);
+                expected, new Grug125ClientBlocks(ModLoader.getMinecraftInstance()));
     }
 
     @Override

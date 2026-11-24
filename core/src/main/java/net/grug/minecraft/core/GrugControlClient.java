@@ -74,12 +74,9 @@ public final class GrugControlClient {
 
         /**
          * Whether this client's own copy of the world holds the block ids the server's checksum
-         * describes in the box (#1664). A loader whose client shares the server's world, or that
-         * has not wired the check yet, holds them by construction.
+         * describes in the boxes (#1664).
          */
-        default boolean holdsBlocks(GrugBlockRegion.Expected expected) {
-            return true;
-        }
+        boolean holdsBlocks(GrugBlockRegion.Expected expected);
 
         /** Forgets the frames the settle answer counts, so it waits for frames drawn from now. */
         void forgetSettledFrames();
