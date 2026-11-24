@@ -114,11 +114,21 @@ local _repeats() bool {
 }
 
 # A pass that never delivers one of each is not the red this test reports, so it names itself
-# rather than ending at the tick budget with no explanation. The 6000 is the cap the whole test had
-# before the repeat, and a first delivery took 405 world ticks on the run that failed.
+# rather than ending at the tick budget with no explanation. The advance stops at exactly 6000 world
+# ticks into a pass at the a1 leg's step of 1, so the guard fires at the limit: a check for more than
+# the limit never sees that stall and lets the test spin to the budget instead. The 6000 is the cap
+# the whole test had before the repeat, and a first delivery took 405 world ticks on the run that
+# failed.
 local _check_round_ticks(ctx: TestTickContext) {
-    if _repeats() and advanced - round_started > 6000 {
-        ctx.assert(false, "A pass should deliver a diamond and an ingot within 6000 world ticks.")
+    ticks: number = advanced - round_started
+    if _repeats() and ticks >= 6000 {
+        message: string = String.concat("Pass ", String.from_number(round))
+        message = String.concat(message, " did not deliver a diamond and an ingot within 6000 world ticks, at ")
+        message = String.concat(message, String.from_number(advanced))
+        message = String.concat(message, " world ticks advanced and ")
+        message = String.concat(message, String.from_number(ticks))
+        message = String.concat(message, " in it.")
+        ctx.assert(false, message)
     }
 }
 
