@@ -102,7 +102,10 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   It opens the pull request in the same sitting and checks that its body opens with `Closes #<n>`
   (a draft if unfinished; the workflows trigger only on `pull_request`, so a branch without one is
   never verified), watches CI and fixes it until it is green. It reports in at most about 15 lines
-  (pull request link, head SHA, CI result, measurements, surprises) and never merges. A report and
+  (pull request link, head SHA, CI result, measurements, surprises) and never merges. A report ends
+  the subagent's turn, and the orchestrator resumes it with a follow-up, so a status request asks
+  for the report and stops; asking for a report and to carry on in the same message starves the
+  report, because the child never goes idle. A report and
   the pull request body name only a run that finished on the head they describe; a run still in
   flight is named as in flight. It never
   closes, reopens or marks an issue not planned either: whether a task is finished or should be
