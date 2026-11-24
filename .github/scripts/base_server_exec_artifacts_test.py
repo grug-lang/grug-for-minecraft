@@ -98,6 +98,25 @@ class PickTest(unittest.TestCase):
         mod.choose_runs([{"id": 1}], lambda i: {}, None, lambda i: asked.append(i) or {"jobs": []})
         self.assertEqual(asked, [])
 
+    def test_each_loaders_head_commit_comes_from_the_run_supplying_its_artifact(self):
+        # The discover job diffs these commits against the run's head (#1739), so each loader must
+        # name its own run's commit: a full run supplies several, and the older run supplies the rest.
+        runs = [{"id": 2, "head_sha": "b" * 40}, {"id": 1, "head_sha": "a" * 40}]
+        listings = {
+            2: {"artifacts": [art("server-exec-a"), art("server-layer-a")]},
+            1: {"artifacts": [art("server-exec-b")]},
+        }
+        chosen = mod.choose_runs(runs, listings.__getitem__)
+        self.assertEqual(mod.head_shas(chosen), {"a": "b" * 40, "b": "a" * 40})
+
+    def test_a_run_that_named_no_commit_answers_an_empty_one(self):
+        chosen = [({"id": 1}, [("server-exec-a", "https://x/a.zip")])]
+        self.assertEqual(mod.head_shas(chosen), {"a": ""})
+
+    def test_head_shas_read_no_layer_artifact(self):
+        chosen = [({"id": 1, "head_sha": "c" * 40}, [("server-layer-a", "https://x/a.jar")])]
+        self.assertEqual(mod.head_shas(chosen), {})
+
     def test_succeeded_loaders_reads_only_dedicated_leg_successes(self):
         jobs = {
             "jobs": [
