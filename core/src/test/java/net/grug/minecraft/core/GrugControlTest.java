@@ -127,6 +127,11 @@ class GrugControlTest {
                 }
 
                 @Override
+                public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+                    return true;
+                }
+
+                @Override
                 public boolean isWorldSettled() {
                     throw new AssertionError("no settle ask was expected");
                 }
@@ -262,6 +267,11 @@ class GrugControlTest {
         @Override
         public void playUiSound(String path, double volume, double pitch) {
             played.add(path + " " + volume + " " + pitch);
+        }
+
+        @Override
+        public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+            return true;
         }
 
         @Override
@@ -552,6 +562,11 @@ class GrugControlTest {
         @Override
         public void playUiSound(String path, double volume, double pitch) {
             throw new AssertionError("no sound call was expected");
+        }
+
+        @Override
+        public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+            return true;
         }
 
         @Override
@@ -1966,6 +1981,19 @@ class GrugControlTest {
     }
 
     @Test
+    void anAdapterThatWiresNoRegionCheckHoldsEveryRegion() throws Throwable {
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        java.lang.reflect.InvocationHandler.invokeDefault(
+                                                proxy, method, args));
+        assertTrue(adapter.holdsBlockRegion(null));
+    }
+
+    @Test
     void theAdapterCallerHandsTheCallsToTheAdapterItIsGiven() {
         List<String> seen = new ArrayList<>();
         ModLoaderAdapter adapter =
@@ -1999,6 +2027,7 @@ class GrugControlTest {
         assertTrue(caller.hasSound("a"));
         caller.playUiSound("b", 1, 1);
         assertTrue(caller.isWorldSettled());
+        assertTrue(caller.holdsBlocks(null));
         caller.forgetSettledFrames();
         assertEquals(0L, caller.screenIdentity());
         assertEquals(0.0, caller.screenRead(GrugScreenCalls.GUI_LEFT));
@@ -2038,6 +2067,7 @@ class GrugControlTest {
                         "hasSound a",
                         "playUiSound b",
                         "isWorldSettled",
+                        "holdsBlockRegion",
                         "forgetSettledFrames",
                         "screenIdentityForTest",
                         "guiLeftForTest",
@@ -3944,6 +3974,11 @@ class GrugControlTest {
                             @Override
                             public void playUiSound(String path, double volume, double pitch) {
                                 throw new AssertionError("a refused call must not be performed");
+                            }
+
+                            @Override
+                            public boolean holdsBlocks(GrugBlockRegion.Expected expected) {
+                                return true;
                             }
 
                             @Override
