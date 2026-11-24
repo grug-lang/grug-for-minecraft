@@ -555,7 +555,9 @@ start_client() {
 # One attempt and one retry, and only for a client build that failed fetching what it needs: a compile
 # error, a crash, a game that already started and an unrecognised failure all end the leg here, as
 # they end a loader job, because a retry would only delay the real report. The retry runs inside the
-# run's own deadline, which started at the client launch, so a leg cannot outlast the job by retrying.
+# run's own deadline, which started at the client launch, so a leg cannot outlast the job by retrying:
+# a build started past it would be killed by the next pass, and the leg would report the timeout
+# instead of the client failure this check just identified (#1702).
 client_attempt=1
 retry_client_build() {
   local reason
@@ -566,6 +568,10 @@ retry_client_build() {
     return 1
   fi
   if ! reason=$(retryable_failure "$CLIENT_LOG"); then
+    return 1
+  fi
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    echo "==> Not retrying the client: the run's ${GRUG_CI_RUN_TIMEOUT:-300}s deadline has passed." >&2
     return 1
   fi
   cp "$CLIENT_LOG" "${CLIENT_LOG}.attempt-${client_attempt}"

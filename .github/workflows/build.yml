@@ -999,6 +999,7 @@ jobs:
             loaders/${{ matrix.dir }}/run/logs
             loaders/${{ matrix.dir }}/run/crash-reports
             loaders/${{ matrix.dir }}/run/ci-run-loader.log
+            loaders/${{ matrix.dir }}/run/ci-*.log.attempt-*
             loaders/${{ matrix.dir }}/run/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
@@ -1198,6 +1199,7 @@ jobs:
             loaders/${{ matrix.loader }}/run/logs
             loaders/${{ matrix.loader }}/run/crash-reports
             loaders/${{ matrix.loader }}/run-client-ci.log
+            loaders/${{ matrix.loader }}/run-client-ci.log.attempt-*
             loaders/${{ matrix.loader }}/run-threads-ci.log
             loaders/${{ matrix.loader }}/run/control-captures
             loaders/${{ matrix.loader }}/run-server/hs_err_pid*.log
@@ -1527,6 +1529,7 @@ jobs:
             loaders/${{ steps.select.outputs.loader }}/run/logs
             loaders/${{ steps.select.outputs.loader }}/run/crash-reports
             loaders/${{ steps.select.outputs.loader }}/run/ci-run-loader.log
+            loaders/${{ steps.select.outputs.loader }}/run/ci-*.log.attempt-*
             loaders/${{ steps.select.outputs.loader }}/run/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
@@ -1679,6 +1682,7 @@ jobs:
             loaders/${{ matrix.dir }}/run/logs
             loaders/${{ matrix.dir }}/run/crash-reports
             loaders/${{ matrix.dir }}/run/ci-run-loader.log
+            loaders/${{ matrix.dir }}/run/ci-*.log.attempt-*
             loaders/${{ matrix.dir }}/run/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
