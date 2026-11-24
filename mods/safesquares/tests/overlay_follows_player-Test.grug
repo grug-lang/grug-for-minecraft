@@ -3,9 +3,12 @@
 # overlay is turned off and on again so the next frame is drawn after the step. The scan is centred on
 # the camera, so the crosses seen are the ones around the new position: the hole's yellow cluster
 # sits three blocks nearer the middle of the frame than in overlay_crosses, and the golden is the
-# check that every cross is drawn on its square from the new camera. The crop and the reasons for the
-# room are overlay_crosses', and so is the reason the crop stops at x 840 (#1550). So is the clock:
-# the test sets noon first, so the sky light that is drawn is the same at every hour of the run.
+# check that every cross is drawn on its square from the new camera. The step is named from the
+# room's eye rather than from the camera this side reads, because a dedicated leg's joined client is
+# pushed off it and the capture is drawn from the pose the test names (#1696). The crop and the
+# reasons for the room are overlay_crosses', and so is the reason the crop stops at x 840 (#1550). So
+# is the clock: the test sets noon first, so the sky light that is drawn is the same at every hour of
+# the run.
 state: number = 0
 moved: bool = false
 waited: number = 0
@@ -16,6 +19,9 @@ hz: number = 0
 px: number = 0
 py: number = 0
 pz: number = 0
+ox: number = 0
+oy: number = 0
+oz: number = 0
 clock_at: number = 0
 
 export tick(ctx: TestTickContext) {
@@ -30,10 +36,13 @@ export tick(ctx: TestTickContext) {
         level.set_time(6000)
         ctx.set_box_radius(6)
         origin: Vec3 = ctx.get_origin()
-        px = Math.floor(origin.x())
-        # The origin is the camera plus 3, and the eye is 1.62 above the feet the room is built around.
-        py = Math.floor(origin.y() - 4.12)
-        pz = Math.floor(origin.z())
+        ox = origin.x()
+        oy = origin.y()
+        oz = origin.z()
+        px = Math.floor(ox)
+        # The origin is the room's eye plus 3, and the eye is 1.62 above the feet.
+        py = Math.floor(oy - 4.12)
+        pz = Math.floor(oz)
         # The squares are on a flat-coloured platform the test lays over the room at the block the player stands
         # on, so they are 1.62 below the eye: the room's own floor is four blocks lower, which a level
         # camera cannot see at this distance, and its torches would light them from below.
@@ -124,9 +133,13 @@ export tick(ctx: TestTickContext) {
 
     if not moved {
         moved = true
-        before: Vec3 = ctx.camera()
-        # The feet are 1.62 under the eye; the platform is 13 wide, so three blocks along x stay over it.
-        ctx.set_player_position(before.x() + 3.0, before.y() - 1.62, before.z())
+        # The step is named from the room's eye and not from the camera this side reads: on a
+        # dedicated leg whatever crowds the joined client pushes its own camera off the room's eye,
+        # and the capture is drawn from the pose the test names, so a step measured from the camera
+        # would photograph the pose a push left behind (#1696). The origin is the eye three blocks
+        # up, the feet are an eye height under it, and the platform is 13 wide, so three blocks
+        # along x stay over it.
+        ctx.set_player_position(ox + 3.0, oy - 4.62, oz)
         # Off and on again, so world_overlay_drawn is cleared and the capture is of a frame drawn
         # from the new position.
         ctx.press_world_key(76, false)
