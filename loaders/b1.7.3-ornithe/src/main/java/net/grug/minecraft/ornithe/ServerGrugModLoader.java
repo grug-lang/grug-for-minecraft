@@ -14,7 +14,8 @@ import net.ornithemc.osl.resource.loader.api.server.ServerResourceLoaderEvents;
 /**
  * The entrypoint of a b1.7.3 dedicated server. Besides the resource pack and the recipes, it hands
  * the server's tick to {@link GrugServerRun}, which runs the test suite when {@code GRUG_CI} is set
- * (#163).
+ * (#163). The dedicated leg uploads the layer jar this class is in, so a later run that carries its
+ * exec data over analyses the same bytes (#1674).
  */
 @GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class ServerGrugModLoader implements DedicatedServerModInitializer {
