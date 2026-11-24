@@ -115,8 +115,11 @@ class GrugForge125ArmsTest {
                         () -> {
                             throw new AssertionError("no player yet");
                         }));
+        // Written out here rather than subtracted through heldFeet, so the value is pinned: a
+        // constant that drifts back to the decimal 1.62 makes this 68.5 against the 68.499999995
+        // the game's own float height gives, where the old 68.5 literal passed either way.
         assertEquals(
-                70.12 - GrugTestOrigin.EYE_HEIGHT,
+                70.12 - 1.6200000047683716,
                 GrugForge125Arms.heldFeet(70.12, () -> GrugTestOrigin.EYE_HEIGHT),
                 0.0);
     }
