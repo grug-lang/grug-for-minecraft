@@ -1,0 +1,58 @@
+# Covers the frame's item form, which BuildCraft 2.2.14 does not draw as the placed frame: BlockFrame.d
+# answers BuildCraftCore.pipeModel, so mod_BuildCraftCore.renderInvBlock draws the item as the column
+# the pipe model draws, (0.25, 0, 0.25) to (0.75, 1, 0.75), in the frame's own texture. The frame
+# cannot be obtained in the game (idDropped is -1, #1625), so the fixture hands it over with a host
+# call: the item goes in the middle slot of an autocrafting table's grid and the table's GUI is
+# opened, which is the smallest way to get an item drawn in a slot on every loader. See #195.
+# A capture pins the column, so a port that draws the placed frame's shape, a cube, or nothing fails
+# here on every loader; the 1.2.5-forge golden is also what the reference job compares its own draw
+# against. The test closes the GUI it opens, so the next test starts clean.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+    } else if not ctx.screen_open() {
+        # On a server the screen is opened by a packet from the server, so it is not open yet when
+        # use_block returns. See #418.
+        ctx.not_done()
+    } else if not ctx.world_settled() {
+        # The panel is only on screen once a frame holding it has been drawn, which is also the
+        # frame that draws the slot's item.
+        ctx.not_done()
+    } else {
+        # The item in the middle slot of the crafting grid, at the panel's 1280x720 scale of 3: the
+        # slot's item is drawn at (48, 35) in the panel, whose top left is at (376, 111). See
+        # autocrafting_table-Test.grug for how the panel's position was found.
+        ctx.screenshot().equals(r"screenshots/frame_item", 520, 216, 568, 264)
+        ctx.close_screen()
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The reference's table names itself autoWorkbenchBlock, and the frame's block item is named
+    # frameBlock there. Its grid is the same nine slots, so the middle one is 4 there too.
+    if me.is_reference() {
+        level.place_block(x, y, z, "buildcraft:autoWorkbenchBlock")
+    } else {
+        level.place_block(x, y, z, "grug:autocrafting_table")
+    }
+    table_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(table_opt.has(), "The autocrafting table should have a block entity.")
+    table: BlockEntity = table_opt.unwrap()
+
+    if me.is_reference() {
+        reference_item: Item = item(resource_location("buildcraft:frameBlock"))
+        table.set_item_in_slot(4, reference_item, 1)
+    } else {
+        port_item: Item = item(resource_location("grug:frame"))
+        table.set_item_in_slot(4, port_item, 1)
+    }
+
+    ctx.use_block(level, x, y, z)
+}
