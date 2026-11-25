@@ -4463,9 +4463,18 @@ public class HostFunctions {
         return Math.sqrt(value);
     }
 
-    /** The same angle in degrees, from {@code StrictMath} so every platform agrees. */
+    /**
+     * The same angle in degrees, as one multiplication by 180/pi. {@code StrictMath.toDegrees} is
+     * not bit-stable across JVM versions: Java 8 multiplies by 180 and then divides by pi, which
+     * rounds twice, while Java 9 and later multiply by 180/pi once. The {@code 1.2.5-forge} loader
+     * runs Java 8, so delegating answered by a last bit differently there than on every other
+     * loader, on about a quarter of all inputs, and the helix compares that angle against cell
+     * boundaries. The entry therefore does the multiply itself: it is the Java 9 form, which is
+     * also the reference's own runtime, and the form the smoketest's C host computes, so every
+     * loader and the smoketest agree.
+     */
     public static double Math_toDegrees(double radians) {
-        return StrictMath.toDegrees(radians);
+        return radians * (180.0 / StrictMath.PI);
     }
 
     /**
