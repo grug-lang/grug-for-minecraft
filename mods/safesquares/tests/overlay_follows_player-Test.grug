@@ -8,7 +8,8 @@
 # pushed off it and the capture is drawn from the pose the test names (#1696). The crop and the
 # reasons for the room are overlay_crosses', including its vanilla stone platform and the crop's stop
 # at x 840 for the held item (#1550). So is the clock: the test sets noon first, so the sky light that
-# is drawn is the same at every hour of the run.
+# is drawn is the same at every hour of the run, and so is the budget: the platform's light settles
+# slowly on 1.2.5's incremental light, so this test takes the 3000 ticks overlay_crosses explains.
 state: number = 0
 moved: bool = false
 waited: number = 0
@@ -26,10 +27,16 @@ clock_at: number = 0
 rd: number = 0
 safe: number = 0
 
+# The room build, the light settle and the scan waits are longer than the default budget, so it is
+# raised rather than a wait shortened.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(3000)
+}
+
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     waited = waited + 1
-    late: bool = waited >= 1500
+    late: bool = waited >= 3000
 
     if state == 0 {
         if not me.world_overlay_supported() {
