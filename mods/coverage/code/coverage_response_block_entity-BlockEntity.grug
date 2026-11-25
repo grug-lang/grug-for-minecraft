@@ -11,11 +11,13 @@
 #   7 answers the first time it is asked and errors on every later ask (add_item only)
 # liquid_mode behaves the same way for offer_liquid: 2 and 3 answer twice, 4 says nothing, 5 keeps the
 # response for on_neighbor_change, 9 answers a liquid where an amount was asked for, 10 answers a
-# negative amount, and any other mode answers the amount it was offered. It also tells get_liquid to
+# negative amount, 16 a NaN and 17 an infinity, and any other mode answers the amount it was offered.
+# It also tells get_liquid to
 # answer that it holds nothing (8), an amount where a liquid was asked for (11), a name that is no
 # liquid (12), nothing at all (13), flowing lava (14), or a liquid and then nothing (15), which is
 # what a response class's answer_none has to refuse once it was answered.
-# take_mode makes take_liquid answer a liquid (1), a negative amount (2) or nothing (3).
+# take_mode makes take_liquid answer a liquid (1), a negative amount (2), nothing (3), a NaN (4) or
+# an infinity (5).
 # amount_mode and capacity_mode make those two exports answer a liquid (1) or nothing (2).
 # The default offer saves the liquid name it was handed under "offered_liquid", so a test can see
 # what the host normalised a flowing name to.
@@ -125,6 +127,12 @@ export offer_liquid(liquid: string, amount: number, from_side: number, fill: boo
         response.answer_liquid("minecraft:water")
     } else if mode == 10 {
         response.answer_amount(-1)
+    } else if mode == 16 {
+        nan: number = Math.sqrt(-1)
+        response.answer_amount(nan)
+    } else if mode == 17 {
+        infinity: number = Math.cosh(1000)
+        response.answer_amount(infinity)
     } else {
         me.set_saved_string("offered_liquid", liquid)
         response.answer_amount(amount)
@@ -139,6 +147,12 @@ export take_liquid(amount: number, take: bool, response: LiquidResponse) {
         response.answer_amount(-1)
     } else if mode == 3 {
         # Deliberately says nothing.
+    } else if mode == 4 {
+        nan: number = Math.sqrt(-1)
+        response.answer_amount(nan)
+    } else if mode == 5 {
+        infinity: number = Math.cosh(1000)
+        response.answer_amount(infinity)
     } else {
         response.answer_amount(500)
     }

@@ -1,0 +1,20 @@
+# An offer_liquid export that answers a NaN or an infinity is an err: neither is an amount the
+# host can use, and NaN would pass a plain "0 or more" check into set_saved_number.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_response_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    be.set_saved_number("liquid_mode", 16)
+    ctx.expect_error("a finite amount of 0 or more")
+    taken: number = be.offer_liquid("minecraft:water", 1000, 0, true)
+
+    be.set_saved_number("liquid_mode", 17)
+    ctx.expect_error("a finite amount of 0 or more")
+    taken_again: number = be.offer_liquid("minecraft:water", 1000, 0, true)
+}

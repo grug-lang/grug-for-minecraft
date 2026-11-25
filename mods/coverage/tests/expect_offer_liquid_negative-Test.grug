@@ -11,6 +11,6 @@ export tick(ctx: TestTickContext) {
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
     be.set_saved_number("liquid_mode", 10)
 
-    ctx.expect_error("an amount of 0 or more")
+    ctx.expect_error("a finite amount of 0 or more")
     taken: number = be.offer_liquid("minecraft:water", 1000, 0, true)
 }

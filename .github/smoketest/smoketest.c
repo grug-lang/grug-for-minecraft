@@ -2256,11 +2256,16 @@ static union grug_value BE_offer_liquid(ARGS) {
     if (!b) return fail("BlockEntity.offer_liquid: not a live block entity");  // SMOKETEST_EXCL: no committed test
     const char* liquid = canonical_liquid(a[1]._string);
     if (!liquid) return fail("BlockEntity.offer_liquid: %s is not a liquid. A liquid is named by its still block, such as minecraft:water or minecraft:lava.", a[1]._string);
+    if (!isfinite(a[2]._number)) {
+        char amount_text[40];
+        number_text(a[2]._number, amount_text, sizeof amount_text);
+        return fail("BlockEntity.offer_liquid: The amount has to be a finite number, and was %s.", amount_text);
+    }
     union grug_value args[4] = {str(liquid), a[2], a[3], a[4]};
     struct obj r; bool errored;
     if (!ask_response(b, G.be_offer_liquid, K_LIQUID_RESPONSE, args, 4, &r, &errored, "offer_liquid")) return num(-1);
     if (errored) return none();
-    if (r.z != LIQ_AMOUNT || r.x < 0) return fail("offer_liquid: The export answered with the wrong kind of answer, and this question wants an amount of 0 or more.");
+    if (r.z != LIQ_AMOUNT || !isfinite(r.x) || r.x < 0) return fail("offer_liquid: The export answered with the wrong kind of answer, and this question wants a finite amount of 0 or more.");
     return num(r.x);
 }
 REGISTER("BlockEntity", "offer_liquid", BE_offer_liquid);
@@ -2268,11 +2273,16 @@ static union grug_value BE_take_liquid(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
     if (!b) return fail("BlockEntity.take_liquid: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!isfinite(a[1]._number)) {
+        char amount_text[40];
+        number_text(a[1]._number, amount_text, sizeof amount_text);
+        return fail("BlockEntity.take_liquid: The amount has to be a finite number, and was %s.", amount_text);
+    }
     union grug_value args[2] = {a[1], a[2]};
     struct obj r; bool errored;
     if (!ask_response(b, G.be_take_liquid, K_LIQUID_RESPONSE, args, 2, &r, &errored, "take_liquid")) return num(-1);
     if (errored) return none();
-    if (r.z != LIQ_AMOUNT || r.x < 0) return fail("take_liquid: The export answered with the wrong kind of answer, and this question wants an amount of 0 or more.");
+    if (r.z != LIQ_AMOUNT || !isfinite(r.x) || r.x < 0) return fail("take_liquid: The export answered with the wrong kind of answer, and this question wants a finite amount of 0 or more.");
     return num(r.x);
 }
 REGISTER("BlockEntity", "take_liquid", BE_take_liquid);

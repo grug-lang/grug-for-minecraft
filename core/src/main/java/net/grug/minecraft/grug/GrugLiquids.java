@@ -52,8 +52,8 @@ public final class GrugLiquids {
             return 0;
         }
         double taken = response.amount();
-        if (taken < 0) {
-            reportWrongAnswer("offer_liquid", "an amount of 0 or more");
+        if (!Double.isFinite(taken) || taken < 0) {
+            reportWrongAnswer("offer_liquid", "a finite amount of 0 or more");
             return 0;
         }
         return taken;
@@ -74,8 +74,8 @@ public final class GrugLiquids {
             return 0;
         }
         double given = response.amount();
-        if (given < 0) {
-            reportWrongAnswer("take_liquid", "an amount of 0 or more");
+        if (!Double.isFinite(given) || given < 0) {
+            reportWrongAnswer("take_liquid", "a finite amount of 0 or more");
             return 0;
         }
         return given;

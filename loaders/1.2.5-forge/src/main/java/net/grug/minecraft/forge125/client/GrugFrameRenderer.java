@@ -86,7 +86,8 @@ public class GrugFrameRenderer extends TileEntitySpecialRenderer {
                 GL11.GL_ENABLE_BIT
                         | GL11.GL_CURRENT_BIT
                         | GL11.GL_TEXTURE_BIT
-                        | GL11.GL_LIGHTING_BIT);
+                        | GL11.GL_LIGHTING_BIT
+                        | GL11.GL_COLOR_BUFFER_BIT);
         GL11.glDisable(GL11.GL_LIGHTING);
         try {
             for (GrugFrameDraw draw : geometry.draws()) {
