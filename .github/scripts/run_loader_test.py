@@ -122,6 +122,15 @@ Execution failed for task ':fogPatch'.
        - https://libraries.minecraft.net/org/ow2/asm/asm/9.10.1/asm-9.10.1.pom
 """
 
+# A metadata fetch of the production launch's installer answered 503 and the launch stopped at once,
+# 0.25 s in, on run 45581181035's `b1.7.3-ornithe installed` job. `curl --fail` prints its status on
+# stderr, which the launch writes into the log the retry decision reads, but the pattern knew only
+# Gradle's and portablemc's own wordings, so a transient server error cost the job instead of one
+# retry.
+CURL_SERVER_ERROR_LOG = """\
+curl: (22) The requested URL returned error: 503
+"""
+
 # A build script that names a method that does not exist also says "Could not find", and that is the
 # code failing: the artifact pattern must not match it.
 MISSING_METHOD_LOG = """\
@@ -803,6 +812,68 @@ class RunLoaderTest(unittest.TestCase):
         self.assertIn("client-1.12.xml", result.stderr)
         self.assertIn("I/O error: connection reset", result.stderr)
         self.assertIn("Retrying fake-loader, attempt 2 of 2", result.stderr)
+
+    def test_a_production_install_whose_metadata_fetch_answered_503_is_retried_once(self):
+        # The launch stopped before the game existed, so the attempt repeated nothing the game did.
+        # Only a server error is retried: a 404 is the host's final answer.
+        launcher = self.tmp / ".github" / "scripts" / "launch-production.sh"
+        launcher.write_text(
+            "#!/usr/bin/env bash\n"
+            'echo launch >> "$FAKE_PRODUCTION_LAUNCHES"\n'
+            'if [ "$(wc -l < "$FAKE_PRODUCTION_LAUNCHES")" -eq 1 ]; then\n'
+            f"  printf %s {shlex.quote(CURL_SERVER_ERROR_LOG)}\n"
+            "  exit 22\n"
+            "fi\n"
+            "echo '         [  OK  ] Launched'\n"
+            f"printf %s {shlex.quote(PASSING_LOG)}\n"
+            "sleep 1\n"
+        )
+        launcher.chmod(0o755)
+        universal = self.tmp / "universal.jar"
+        universal.write_text("jar\n")
+        launches = self.tmp / "production-launches.txt"
+
+        result = self.run_script(
+            phase="production",
+            extra_env={
+                "GRUG_UNIVERSAL_JAR": str(universal),
+                "FAKE_PRODUCTION_LAUNCHES": str(launches),
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+        self.assertEqual(len(launches.read_text().splitlines()), 2)
+        self.assertIn("The launcher failed fetching what it needs", result.stderr)
+        self.assertIn("error: 503", result.stderr)
+        self.assertIn("Retrying fake-loader, attempt 2 of 2", result.stderr)
+
+    def test_a_production_metadata_fetch_that_answered_404_is_not_retried(self):
+        # A 404 is the host's final answer: the retry exists for a hiccup, so the pattern must not
+        # match every curl failure.
+        launcher = self.tmp / ".github" / "scripts" / "launch-production.sh"
+        launcher.write_text(
+            "#!/usr/bin/env bash\n"
+            'echo launch >> "$FAKE_PRODUCTION_LAUNCHES"\n'
+            "echo 'curl: (22) The requested URL returned error: 404'\n"
+            "exit 22\n"
+        )
+        launcher.chmod(0o755)
+        universal = self.tmp / "universal.jar"
+        universal.write_text("jar\n")
+        launches = self.tmp / "production-launches.txt"
+
+        result = self.run_script(
+            phase="production",
+            extra_env={
+                "GRUG_UNIVERSAL_JAR": str(universal),
+                "FAKE_PRODUCTION_LAUNCHES": str(launches),
+            },
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len(launches.read_text().splitlines()), 1)
+        self.assertNotIn("Retrying fake-loader", result.stderr)
 
     def test_a_production_install_that_fails_again_reports_the_launcher_lines(self):
         # A retry that fails the same way is the job's failure: one more attempt is all the script
