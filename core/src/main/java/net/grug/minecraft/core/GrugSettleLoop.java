@@ -5,11 +5,10 @@ package net.grug.minecraft.core;
  * (#1695).
  *
  * <p>A joined client answers {@link GrugControlWire#SETTLE_NO} while it is still busy, which is
- * normal for a tick or two, and a legitimate wait can take a hundred asks while the client draws
- * the frames a room needs: one run's {@code wooden_pipe_corner_items} asked 84 times at one world
- * revision and passed on the next one. A test's wait asks once per tick for up to 2000 ticks, and
- * the server is frozen for every ask, so a client stuck in one state answers no forever while
- * nothing changes.
+ * normal for a tick or two, and a legitimate wait can take hundreds of asks while the client draws
+ * the frames a room needs: one green a1.1.2_01 leg asked 357 times at one world revision before it
+ * passed. A test's wait asks once per tick for up to 2000 ticks, and the server is frozen for every
+ * ask, so a client stuck in one state answers no forever while nothing changes.
  *
  * <p>The rule is taken from what the client itself reports, not from one fixed count. A client
  * whose frames keep advancing is making progress however long the wait looks, so it is left to
@@ -23,11 +22,17 @@ package net.grug.minecraft.core;
  */
 public final class GrugSettleLoop {
     /**
-     * How many unanswered asks one world revision may take before the wait reports. Above the
-     * 84-ask wait a loaded run passed by a wide margin, and a fifth of the 2000-tick budget, so a
-     * wait that never ends fails long before the test's own budget runs out.
+     * How many unanswered asks one world revision may take before the wait reports.
+     *
+     * <p>A loaded a1.1.2_01 leg passed {@code wooden_pipe_corner_items} on its 357th ask at one
+     * revision, and the same test needed more than 400 on the next run, which reported it as stuck;
+     * that leg's software renderer rebuilds a room's chunks over hundreds of frames, so a bound
+     * near 400 fails a wait that is only slow. This sits at 2.8 times the slowest ask count a green
+     * leg has shown and at half the 2000-tick budget a test gets at the runner's speed, so a wait
+     * that never ends still reports before the test's own budget is gone. A client that stops
+     * drawing is caught much earlier, by {@link #STALL_LIMIT}.
      */
-    static final int LIMIT = 400;
+    static final int LIMIT = 1000;
 
     /**
      * How many asks at one revision may pass with no frame drawn in between before the wait
