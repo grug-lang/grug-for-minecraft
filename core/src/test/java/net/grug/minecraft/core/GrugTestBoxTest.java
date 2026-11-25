@@ -159,9 +159,10 @@ class GrugTestBoxTest {
         world.build(3);
 
         // The room's box: the walls one block outside the radius, from the lowest wall (the torch
-        // floor four below the feet, or lower when the room is wider) to the ceiling. The feet
-        // block is (10, 64, -21), so the walls reach x 6 to 14 and z -25 to -17.
-        assertEquals(List.of("[level, 6, 60, -25, 14, 71, -17]"), world.relights);
+        // floor four below the feet, or lower when the room is wider, and one below the cube a
+        // radius + 1 scan around the feet reaches) to the ceiling. The feet block is (10, 64, -21),
+        // so the walls reach x 6 to 14 and z -25 to -17.
+        assertEquals(List.of("[level, 6, 59, -25, 14, 71, -17]"), world.relights);
 
         world.build(3);
 
@@ -171,7 +172,7 @@ class GrugTestBoxTest {
         world.build(5);
 
         assertEquals(2, world.relights.size());
-        assertEquals("[level, 4, 58, -27, 16, 75, -15]", world.relights.get(1));
+        assertEquals("[level, 4, 57, -27, 16, 75, -15]", world.relights.get(1));
     }
 
     @Test
