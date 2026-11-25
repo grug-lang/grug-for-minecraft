@@ -11,10 +11,19 @@ started: bool = false
 opened: bool = false
 waited: number = 0
 step: number = 0
+attempts: number = 0
+retry_at: number = 0
+before: Option[Screenshot] = Option.new()
 
 # The window is 1280 by 720 at a GUI scale of 3, which the crop below assumes; both a 426 and a
 # 427 scaled width are that scale, as the item list's own capture test explains.
 frame_scale: number = 3
+
+export init(ctx: TestInitContext) {
+    # A loader that reads the back buffer can serve a capture a frame drawn several ticks ago, so
+    # the look is waited for in captures taken 30 ticks apart, up to eight times.
+    ctx.set_max_ticks(600)
+}
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -62,6 +71,16 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 0 {
+        # The frame without the look, to tell the frame that has it: nothing on the cursor and the
+        # cursor where a run leaves it, so this capture is the grid with no message.
+        ctx.clear_carried_item()
+        before.set(ctx.screenshot().capture(_left(ctx), _top(), _right(ctx), _bottom()))
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
         ctx.assert(ctx.screen_width() == 426 or ctx.screen_width() == 427, "The CI window should be 1280x720 at a GUI scale of 3.")
         ctx.assert(_columns(ctx) >= 2, "The display area should hold at least two columns.")
         # The first cell's item is put on the cursor and another cell is hovered, so the click the
@@ -86,22 +105,32 @@ export tick(ctx: TestTickContext) {
         # The screen turns a window pixel into a scaled one with the GUI scale, so the cell's middle
         # in scaled pixels is multiplied back up.
         ctx.set_mouse_position(_cell_x(ctx, column) * frame_scale, _cell_y(row) * frame_scale)
-        step = 1
+        retry_at = ctx.current_tick()
+        step = 2
         ctx.not_done()
         return
     }
 
-    # The capture is read from the first frame drawn after it asks, so this frame has the parked
-    # cursor and the overlay's frame has already drawn. The crop keeps the cell from the grid's
-    # first row to the right edge of the window, which is where the message is drawn on the older
-    # versions, and back to 200 scaled pixels, where 1.20.6's own positioner flips it when it would
-    # run off the window. Both are in the crop, as is the hovered cell, so a highlight left there
-    # fails the comparison.
-    left: number = 200 * frame_scale
-    top: number = (_grid_y() - 20) * frame_scale
-    right: number = (ctx.screen_width() - 1) * frame_scale
-    bottom: number = (_grid_y() + 32) * frame_scale
-    ctx.screenshot().equals(r"screenshots/jei_delete_hover", left, top, right, bottom)
+    # A frame is not drawn between every two ticks, and the older loaders read the back buffer
+    # rather than waiting for a frame of their own, so the look is waited for instead of assumed:
+    # a capture that still matches the frame before the cursor moved is taken again after a pause.
+    if ctx.current_tick() < retry_at + 30 {
+        ctx.not_done()
+        return
+    }
+    after: Screenshot = ctx.screenshot().capture(_left(ctx), _top(), _right(ctx), _bottom())
+    if after.change_from(before.unwrap()) < 1 {
+        attempts = attempts + 1
+        ctx.assert(attempts < 8, "The delete look never reached the frame.")
+        retry_at = ctx.current_tick()
+        ctx.not_done()
+        return
+    }
+    # The crop keeps the cell from the grid's first row to the right edge of the window, which is
+    # where the message is drawn on the older versions, and back to 200 scaled pixels, where
+    # 1.20.6's own positioner flips it when it would run off the window. Both are in the crop, as
+    # is the hovered cell, so a highlight left there fails the comparison.
+    ctx.screenshot().equals(r"screenshots/jei_delete_hover", _left(ctx), _top(), _right(ctx), _bottom())
     ctx.clear_carried_item()
     ctx.close_screen()
 }
@@ -141,4 +170,23 @@ local _rows(ctx: TestTickContext) number {
         rows = 16
     }
     return rows
+}
+
+# The capture's rectangle in window pixels: from 200 scaled pixels across to the window's right
+# edge, and from above the grid's first row to below it, so the message and the hovered cell are in
+# it.
+local _left(ctx: TestTickContext) number {
+    return 200 * frame_scale
+}
+
+local _top() number {
+    return (_grid_y() - 20) * frame_scale
+}
+
+local _right(ctx: TestTickContext) number {
+    return (ctx.screen_width() - 1) * frame_scale
+}
+
+local _bottom() number {
+    return (_grid_y() + 32) * frame_scale
 }
