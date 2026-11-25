@@ -9,6 +9,7 @@ import net.grug.minecraft.grug.GrugOverlayScripts;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugScreenText;
+import net.grug.minecraft.grug.GrugScreenTooltip;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.GrugWorldKeys;
 import net.grug.minecraft.grug.GrugWorldOverlay;
@@ -25,6 +26,7 @@ import net.minecraft.src.ModLoader;
 import net.minecraft.src.RenderHelper;
 import net.minecraft.src.RenderItem;
 import net.minecraft.src.ScaledResolution;
+import net.minecraft.src.Tessellator;
 
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -159,7 +161,8 @@ public final class GrugOverlayHost {
 
             if (!geometry.items().isEmpty()
                     || !geometry.boxes().isEmpty()
-                    || !geometry.texts().isEmpty()) {
+                    || !geometry.texts().isEmpty()
+                    || !geometry.tooltips().isEmpty()) {
                 if (overlay.mod.equals(testMod)) {
                     GrugOverlay.noteDrawn();
                 }
@@ -212,7 +215,91 @@ public final class GrugOverlayHost {
                 Gui.drawRect(
                         (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);
             }
+            drawTooltips(minecraft, geometry.tooltips());
         }
+    }
+
+    /**
+     * Draws an overlay's tooltips the way this version's own item tooltip is drawn: a nine-rect
+     * panel around the text, the border in one colour and the inner fill a vertical gradient, with
+     * the line at the anchor moved 12 pixels right and 12 up. That is {@code
+     * GuiContainer.drawScreen}'s own tooltip, copied because the game draws it inside a matrix the
+     * overlay is not under.
+     *
+     * <p>The panel and the text need the same state the game's tooltip has: textures and blending
+     * on, lighting and the depth test off, so a panel is not hidden by the item under it. The state
+     * the frame had goes back afterwards.
+     */
+    private static void drawTooltips(Minecraft minecraft, List<GrugScreenTooltip> tooltips) {
+        if (tooltips.isEmpty()) return;
+        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_CURRENT_BIT);
+        int shade = GL11.glGetInteger(GL11.GL_SHADE_MODEL);
+        try {
+            GL11.glDisable(GL11.GL_LIGHTING);
+            GL11.glDisable(GL11.GL_DEPTH_TEST);
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+            for (GrugScreenTooltip tooltip : tooltips) {
+                drawTooltip(minecraft, tooltip);
+            }
+        } finally {
+            GL11.glShadeModel(shade);
+            GL11.glPopAttrib();
+        }
+    }
+
+    /** One tooltip's panel and text, in the shape {@code GuiContainer.drawScreen} draws. */
+    private static void drawTooltip(Minecraft minecraft, GrugScreenTooltip tooltip) {
+        int x = (int) tooltip.x() + 12;
+        int y = (int) tooltip.y() - 12;
+        int width = minecraft.fontRenderer.getStringWidth(tooltip.text());
+        int border = 0xF0100010;
+        int innerTop = 0x505000FF;
+        int innerBottom = (innerTop & 0xFEFEFE) >> 1 | innerTop & 0xFF000000;
+        gradientRect(x - 3, y - 4, x + width + 3, y - 3, border, border);
+        gradientRect(x - 3, y + 8 + 3, x + width + 3, y + 8 + 4, border, border);
+        gradientRect(x - 3, y - 3, x + width + 3, y + 8 + 3, border, border);
+        gradientRect(x - 4, y - 3, x - 3, y + 8 + 3, border, border);
+        gradientRect(x + width + 3, y - 3, x + width + 4, y + 8 + 3, border, border);
+        gradientRect(x - 3, y - 2, x - 2, y + 8 + 2, innerTop, innerBottom);
+        gradientRect(x + width + 2, y - 2, x + width + 3, y + 8 + 2, innerTop, innerBottom);
+        gradientRect(x - 3, y - 3, x + width + 3, y - 2, innerTop, innerTop);
+        gradientRect(x - 3, y + 8 + 2, x + width + 3, y + 8 + 3, innerBottom, innerBottom);
+        minecraft.fontRenderer.drawStringWithShadow(tooltip.text(), x, y, -1);
+    }
+
+    /**
+     * A rectangle between two colours, top to bottom, as {@code Gui.drawGradientRect} draws one.
+     */
+    private static void gradientRect(int x1, int y1, int x2, int y2, int color1, int color2) {
+        float a1 = (color1 >> 24 & 0xFF) / 255.0F;
+        float r1 = (color1 >> 16 & 0xFF) / 255.0F;
+        float g1 = (color1 >> 8 & 0xFF) / 255.0F;
+        float b1 = (color1 & 0xFF) / 255.0F;
+        float a2 = (color2 >> 24 & 0xFF) / 255.0F;
+        float r2 = (color2 >> 16 & 0xFF) / 255.0F;
+        float g2 = (color2 >> 8 & 0xFF) / 255.0F;
+        float b2 = (color2 & 0xFF) / 255.0F;
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glDisable(GL11.GL_ALPHA_TEST);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glShadeModel(GL11.GL_SMOOTH);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
+        tessellator.setColorRGBA_F(r1, g1, b1, a1);
+        tessellator.addVertex(x2, y1, 0.0D);
+        tessellator.addVertex(x1, y1, 0.0D);
+        tessellator.setColorRGBA_F(r2, g2, b2, a2);
+        tessellator.addVertex(x1, y2, 0.0D);
+        tessellator.addVertex(x2, y2, 0.0D);
+        tessellator.draw();
+        GL11.glShadeModel(GL11.GL_FLAT);
+        GL11.glDisable(GL11.GL_BLEND);
+        GL11.glEnable(GL11.GL_ALPHA_TEST);
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
 
     /**

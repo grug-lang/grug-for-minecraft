@@ -32,6 +32,9 @@ class HostFunctionsOverlayContextTest {
 
     private Object savedAdapter;
 
+    /** What the fake adapter answers for the item on the cursor, or null for an empty cursor. */
+    private Object carriedItem = null;
+
     /**
      * The identity the fake adapter says the screen open now has, so a first-frame read names a
      * screen and a record from another one cannot answer for it.
@@ -57,6 +60,9 @@ class HostFunctionsOverlayContextTest {
                         (proxy, method, args) -> {
                             if (method.getName().equals("screenIdentityForTest")) {
                                 return testScreenIdentity;
+                            }
+                            if (method.getName().equals("carriedItem")) {
+                                return carriedItem;
                             }
                             if (method.isDefault()) {
                                 return InvocationHandler.invokeDefault(proxy, method, args);
@@ -137,9 +143,14 @@ class HostFunctionsOverlayContextTest {
 
         HostFunctions.OverlayRenderContext_draw_item(context, item, 319, 1);
         HostFunctions.OverlayRenderContext_draw_box(context, 318, 0, 336, 18);
+        HostFunctions.OverlayRenderContext_draw_tooltip(context, "Click to delete.", 310, 12);
 
         assertTrue(drain().isEmpty(), "A legal pass reports nothing.");
         GrugOverlayGeometry geometry = GrugOverlay.closeRender();
+        assertEquals(1, geometry.tooltips().size());
+        assertEquals("Click to delete.", geometry.tooltips().get(0).text());
+        assertEquals(310, geometry.tooltips().get(0).x());
+        assertEquals(12, geometry.tooltips().get(0).y());
         assertEquals(1, geometry.items().size());
         assertEquals(ITEM, geometry.items().get(0).item());
         assertEquals(319, geometry.items().get(0).x());
@@ -165,6 +176,58 @@ class HostFunctionsOverlayContextTest {
 
         openRender();
         assertTrue(GrugOverlay.closeRender().texts().isEmpty(), "The next pass starts empty.");
+    }
+
+    @Test
+    void aRenderPassRecordsItsTooltipsInOrderAndAClosedPassRecordsNone() {
+        openRender();
+        assertTrue(GrugOverlay.recordTooltip("first", 4, 5));
+        assertTrue(GrugOverlay.recordTooltip("second", 6, 7));
+        GrugOverlayGeometry geometry = GrugOverlay.closeRender();
+        assertEquals(2, geometry.tooltips().size());
+        assertEquals("first", geometry.tooltips().get(0).text());
+        assertEquals(4, geometry.tooltips().get(0).x());
+        assertEquals(5, geometry.tooltips().get(0).y());
+        assertEquals("second", geometry.tooltips().get(1).text());
+        assertFalse(GrugOverlay.recordTooltip("late", 0, 0));
+
+        openRender();
+        assertTrue(GrugOverlay.closeRender().tooltips().isEmpty(), "The next pass starts empty.");
+    }
+
+    @Test
+    void aTooltipNeedsAFinitePosition() {
+        openRender();
+        long context = renderContext();
+
+        HostFunctions.OverlayRenderContext_draw_tooltip(context, "nan", Double.NaN, 0);
+        HostFunctions.OverlayRenderContext_draw_tooltip(context, "inf", 0, Double.NaN);
+
+        List<String> reports = drain();
+        assertEquals(2, reports.size());
+        assertTrue(reports.get(0).contains("draw_tooltip"), reports.get(0));
+        assertTrue(reports.get(0).contains("finite"), reports.get(0));
+        assertTrue(GrugOverlay.closeRender().tooltips().isEmpty(), "Neither tooltip was drawn.");
+    }
+
+    @Test
+    void aRenderContextReadsTheItemOnTheCursor() {
+        openRender();
+        long context = renderContext();
+        GrugOption empty = optionOf(HostFunctions.OverlayRenderContext_carried_item(context));
+        assertFalse(empty.has(), "an empty cursor has no item");
+
+        carriedItem = ITEM;
+        GrugOption option = optionOf(HostFunctions.OverlayRenderContext_carried_item(context));
+        assertTrue(option.has());
+        long item = (Long) option.value();
+        assertEquals(ITEM, GrugEntities.entityData.get(item).object);
+        assertTrue(drain().isEmpty(), "A legal read reports nothing.");
+        GrugOverlay.closeRender();
+    }
+
+    private static GrugOption optionOf(long optionId) {
+        return (GrugOption) GrugEntities.entityData.get(optionId).object;
     }
 
     @Test
@@ -240,13 +303,17 @@ class HostFunctionsOverlayContextTest {
         HostFunctions.OverlayRenderContext_mouse_y(context);
         HostFunctions.OverlayRenderContext_draw_item(context, 1, 0, 0);
         HostFunctions.OverlayRenderContext_draw_box(context, 0, 0, 1, 1);
+        HostFunctions.OverlayRenderContext_draw_tooltip(context, "late", 0, 0);
+        HostFunctions.OverlayRenderContext_carried_item(context);
         HostFunctions.OverlayRenderContext_screen_serial(context);
 
         List<String> reports = drain();
-        assertEquals(11, reports.size(), "Every method names its own refusal.");
+        assertEquals(13, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("OverlayRenderContext.screen_width"), reports.get(0));
         assertTrue(reports.get(9).contains("OverlayRenderContext.draw_box"), reports.get(9));
-        assertTrue(reports.get(10).contains("OverlayRenderContext.screen_serial"), reports.get(10));
+        assertTrue(reports.get(10).contains("OverlayRenderContext.draw_tooltip"), reports.get(10));
+        assertTrue(reports.get(11).contains("OverlayRenderContext.carried_item"), reports.get(11));
+        assertTrue(reports.get(12).contains("OverlayRenderContext.screen_serial"), reports.get(12));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }

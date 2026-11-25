@@ -18,6 +18,7 @@ import net.grug.minecraft.grug.GrugOverlayScripts;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugScreenText;
+import net.grug.minecraft.grug.GrugScreenTooltip;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.GrugWorldKeys;
 import net.grug.minecraft.grug.GrugWorldOverlay;
@@ -29,6 +30,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
@@ -127,7 +129,8 @@ public final class GrugOverlayHost {
             // not a frame of the test's list.
             if (!geometry.items().isEmpty()
                     || !geometry.boxes().isEmpty()
-                    || !geometry.texts().isEmpty()) {
+                    || !geometry.texts().isEmpty()
+                    || !geometry.tooltips().isEmpty()) {
                 if (overlay.mod.equals(testMod)) {
                     GrugOverlay.noteDrawn();
                 }
@@ -148,6 +151,16 @@ public final class GrugOverlayHost {
             for (GrugScreenBox box : geometry.boxes()) {
                 graphics.fill(
                         (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);
+            }
+            // The tooltip goes last, so it lies over the screen and over the overlay's own drawing.
+            // This version's own tooltip is the look: its default positioner flips one that would
+            // run off the window, as vanilla's does.
+            for (GrugScreenTooltip tooltip : geometry.tooltips()) {
+                graphics.renderTooltip(
+                        Minecraft.getInstance().font,
+                        Component.literal(tooltip.text()),
+                        (int) tooltip.x(),
+                        (int) tooltip.y());
             }
         }
     }

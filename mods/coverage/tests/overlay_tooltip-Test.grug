@@ -1,0 +1,118 @@
+# Covers the overlay's delete look (#1763): OverlayRenderContext.carried_item and draw_tooltip, and
+# TestTickContext.set_mouse_position, which parks the cursor so a capture shows the look a player
+# sees. The coverage overlay draws the delete message while the cursor carries an item and the mouse
+# is over its own box, so the mouse is parked at the box's centre and the crop starts right of the
+# cursor's own stack, leaving the message as the only thing that can differ between the two captures.
+# The smoketest draws nothing, so it marks the capture STUBBED and the comparison is skipped there;
+# the jei golden proves the look itself.
+started: bool = false
+opened: bool = false
+waited: number = 0
+step: number = 0
+before: Option[Screenshot] = Option.new()
+
+# The window is 1280 by 720 at a GUI scale of 3, as the item list's own capture test explains.
+frame_scale: number = 3
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() {
+            # This loader draws no overlays; the deviation is in about.json.
+            return
+        }
+        if me.on_dedicated_server() {
+            # The parked cursor is a client's own pointer, and the server's test cannot move it.
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens (#1287).
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        ctx.clear_carried_item()
+        # The overlay keeps the message off every other mod's screen, so the cursor is parked at the
+        # centre of its own box, which is nine pixels either side of the screen's middle.
+        ctx.set_mouse_position(_middle_x(ctx) * frame_scale, _middle_y(ctx) * frame_scale)
+        before.set(ctx.screenshot().capture(_left(ctx), _top(ctx), _right(ctx), _bottom(ctx)))
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        ctx.set_carried_item(item_at(0))
+        ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item on the cursor.")
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    after: Screenshot = ctx.screenshot().capture(_left(ctx), _top(ctx), _right(ctx), _bottom(ctx))
+    # A loader's own frame is what a capture reads, so the smoketest cannot compare two of them; it
+    # marked the capture STUBBED, and the calls above are proved by a golden in mods/jei instead.
+    if me.loader_name() != "smoketest" {
+        after.differs_from(before.unwrap(), 1)
+    }
+    ctx.clear_carried_item()
+    ctx.close_screen()
+}
+
+# The box the overlay draws at the screen's middle, whose centre is where the mouse is parked.
+local _middle_x(ctx: TestTickContext) number {
+    return Math.floor(ctx.screen_width() / 2)
+}
+
+local _middle_y(ctx: TestTickContext) number {
+    screen_height: number = ctx.gui_top() * 2 + ctx.gui_height()
+    return Math.floor(screen_height / 2)
+}
+
+# The crop in scaled pixels: it starts nine pixels right of the mouse, where the message's panel
+# begins and past the sixteen-pixel stack the game draws around the cursor, and reaches far enough
+# right and down for the message's text on every version.
+local _left(ctx: TestTickContext) number {
+    return (_middle_x(ctx) + 9) * frame_scale
+}
+
+local _top(ctx: TestTickContext) number {
+    return (_middle_y(ctx) - 20) * frame_scale
+}
+
+local _right(ctx: TestTickContext) number {
+    return (_middle_x(ctx) + 140) * frame_scale
+}
+
+local _bottom(ctx: TestTickContext) number {
+    return (_middle_y(ctx) + 20) * frame_scale
+}

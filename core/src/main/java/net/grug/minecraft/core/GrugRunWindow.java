@@ -46,10 +46,15 @@ public final class GrugRunWindow {
         /** Switches GL dithering on or off. */
         void setDither(boolean on);
 
-        /** The cursor's x and y position, in window pixels. */
+        /**
+         * The cursor's x and y position, in window pixels from the window's top-left corner.
+         *
+         * <p>The versions whose own cursor API measures y from the bottom of the window flip it
+         * here, so a point means the same place on every loader and a test can name one.
+         */
         double[] cursorPos();
 
-        /** Moves the cursor to the given window-pixel position. */
+        /** Moves the cursor to the given window-pixel position, from the window's top-left. */
         void setCursor(double x, double y);
     }
 
@@ -120,6 +125,17 @@ public final class GrugRunWindow {
 
     private double savedCursorY = 0;
 
+    /**
+     * The window pixel a test asked the run to park the cursor at, or null for the window's corner.
+     *
+     * <p>A capture must not depend on where the invisible cursor happens to be, so a run parks it
+     * in a corner. A test that captures a look which depends on the hover, such as the reference's
+     * delete message in place of the hover highlight, names the point instead. It belongs to the
+     * test that asked, so the runner forgets it at both ends of a test: a later capture parks in
+     * the corner again.
+     */
+    private static double[] parkPoint = null;
+
     public GrugRunWindow(Display display) {
         this.display = display;
     }
@@ -184,6 +200,7 @@ public final class GrugRunWindow {
         runActive = true;
         particlesMinimised = true;
         particleClearPending = true;
+        parkPoint = null;
         return true;
     }
 
@@ -195,6 +212,7 @@ public final class GrugRunWindow {
         runActive = false;
         particlesMinimised = false;
         particleClearPending = false;
+        parkPoint = null;
 
         if (resolutionForcedByTestRun) {
             resolutionForced = false;
@@ -278,6 +296,8 @@ public final class GrugRunWindow {
      * <p>The saved position is captured on the first call, so a re-entry, or a window manager
      * moving the cursor back, does not overwrite the position to restore. The call still re-parks
      * while the cursor has left the corner, because the game re-reads the position for every frame.
+     * A test that asked for a point parks there instead, which is where a capture of a hover comes
+     * from.
      */
     public void parkCursor() {
         double[] cursor = display.cursorPos();
@@ -286,8 +306,25 @@ public final class GrugRunWindow {
             savedCursorY = cursor[1];
             cursorParked = true;
         }
-        if (cursor[0] != 0 || cursor[1] != 0) {
-            display.setCursor(0, 0);
+        double[] target = parkPoint == null ? new double[] {0.0, 0.0} : parkPoint;
+        if (cursor[0] != target[0] || cursor[1] != target[1]) {
+            display.setCursor(target[0], target[1]);
         }
+    }
+
+    /**
+     * Test only: parks the cursor at the given window pixel for the rest of the test, so a capture
+     * shows the hover a player would see there. See {@link #parkCursor()}.
+     */
+    public static void parkAt(double x, double y) {
+        parkPoint = new double[] {x, y};
+    }
+
+    /**
+     * Forgets the point a test asked for, so the cursor parks in the window's corner again. The
+     * runner calls it at both ends of a test, because the point belongs to the test that asked.
+     */
+    public static void forgetParkPoint() {
+        parkPoint = null;
     }
 }

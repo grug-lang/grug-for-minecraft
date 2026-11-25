@@ -253,9 +253,11 @@ Option.new() Option[$Value]
 .take()
 
 ## OverlayRenderContext
+.carried_item() Option[Item]
 .draw_box(x1: number, y1: number, x2: number, y2: number)
 .draw_item(item: Item, x: number, y: number)
 .draw_text(text: string, x: number, y: number, color: Color)
+.draw_tooltip(text: string, x: number, y: number)
 .gui_height() number
 .gui_left() number
 .gui_top() number
@@ -389,6 +391,7 @@ String.trim(text: string) string
 .set_daylight_cycle(level: Level, on: bool) bool
 .set_held_item(player: Player, item: Item)
 .set_mod_file_state(relative_path: string, state: string)
+.set_mouse_position(x: number, y: number)
 .set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
 .set_nbt_number(block_entity: BlockEntity, path: string, type: string, value: number)
 .set_player_position(x: number, y: number, z: number)

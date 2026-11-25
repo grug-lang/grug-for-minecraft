@@ -2991,6 +2991,17 @@
 		"OverlayRenderContext": {
 			"description": "The context of an overlay's render() call, passed to it once per frame while a screen the overlay may draw on is open. Everything drawn through it is drawn on top of that screen for that frame and is thrown away with it. A context is only valid while its render() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
+				"carried_item": {
+					"description": "The Item on the mouse cursor of the screen the frame is drawn on, if it carries one. The reference reads it while it draws, because a left click over its list deletes that stack instead of giving another item, and the frame shows that by hiding the hover highlight and drawing the delete tooltip. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
+					}
+				},
 				"draw_box": {
 					"description": "Draws the overlay's hover highlight, a translucent white box, from one screen pixel to the other, the reference's way of marking the slot the mouse is over. The corners have to be the right way round, the first of each pair no greater than the second, like a box. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
@@ -3068,6 +3079,29 @@
 							"name": "color",
 							"type": {
 								"name": "Color"
+							}
+						}
+					]
+				},
+				"draw_tooltip": {
+					"description": "Draws the game's own tooltip with the text given, anchored at the position in screen pixels from the top-left of the window, which is where the reference passes the mouse. The panel and the text are the loader's own version's tooltip, drawn after everything else the overlay drew, and the text is not clipped or wrapped: it runs on past the screen's edge, so a mod cuts it to the width it has. The position has to be finite, or it is reported and the tooltip is not drawn. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
 							}
 						}
 					]
@@ -4911,6 +4945,23 @@
 							"description": "One of \"normal\" (restores the bytes the file was first read with), \"invalid\" (fails to compile), \"no_trailing_newline\" (still valid JSON), \"deleted\" (the file is removed), or \"swapped\" (the bytes of the sibling file whose name carries \".swap\" before the extension, or after a .grug script's extension so the replacement is not compiled as a script itself, which is how a binary asset such as a texture or an overlay's source can be replaced with different content).",
 							"type": {
 								"name": "string"
+							}
+						}
+					]
+				},
+				"set_mouse_position": {
+					"description": "Test only: parks the cursor at a window pixel, so a capture shows the hover a player would see where the mouse is over a slot the overlay drew. A run parks the cursor in the window's corner otherwise, so no capture depends on where the invisible cursor happens to be; this asks for a look that does, such as the reference's delete tooltip, and the point holds until the test ends. The point is in window pixels from the window's top-left, the measure a screenshot's crop takes, which the loader's own GUI scale turns into the scaled pixels OverlayRenderContext.mouse_x reports. Only a client can move its cursor, so a dedicated server reports the call, and a test that captures a hover skips itself there. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
 							}
 						}
 					]

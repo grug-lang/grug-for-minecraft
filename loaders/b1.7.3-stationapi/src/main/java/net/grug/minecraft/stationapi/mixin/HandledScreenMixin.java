@@ -1,7 +1,6 @@
 package net.grug.minecraft.stationapi.mixin;
 
 import net.grug.minecraft.grug.GrugOverlay;
-import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.stationapi.client.GrugOverlayHost;
 import net.grug.minecraft.stationapi.client.GrugScreenGeometry;
 import net.minecraft.client.gui.screen.Screen;
@@ -13,8 +12,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import java.util.List;
 
 /**
  * Draws the overlay on the container screens and lets it take a press before the vanilla slot sees
@@ -47,17 +44,7 @@ public abstract class HandledScreenMixin implements GrugScreenGeometry {
 
     @Inject(method = "render", at = @At("TAIL"))
     private void grug$drawOverlay(int mouseX, int mouseY, float tickDelta, CallbackInfo ci) {
-        Screen screen = (Screen) (Object) this;
-        List<GrugScreenBox> boxes = GrugOverlayHost.render(screen, mouseX, mouseY);
-        for (GrugScreenBox box : boxes) {
-            ((GrugFillInvoker) (Object) this)
-                    .grug$fill(
-                            (int) box.x1(),
-                            (int) box.y1(),
-                            (int) box.x2(),
-                            (int) box.y2(),
-                            0x80FFFFFF);
-        }
+        GrugOverlayHost.render((Screen) (Object) this, mouseX, mouseY);
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)

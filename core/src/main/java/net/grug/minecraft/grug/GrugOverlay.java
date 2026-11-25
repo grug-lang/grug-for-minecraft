@@ -49,6 +49,7 @@ public final class GrugOverlay {
     private static final List<GrugScreenItemDraw> ITEMS = new ArrayList<>();
     private static final List<GrugScreenBox> BOXES = new ArrayList<>();
     private static final List<GrugScreenText> TEXTS = new ArrayList<>();
+    private static final List<GrugScreenTooltip> TOOLTIPS = new ArrayList<>();
 
     private static boolean open = false;
     private static boolean render = false;
@@ -670,6 +671,7 @@ public final class GrugOverlay {
         ITEMS.clear();
         BOXES.clear();
         TEXTS.clear();
+        TOOLTIPS.clear();
         render = !isClick;
         taken = false;
         context = new Context();
@@ -734,6 +736,19 @@ public final class GrugOverlay {
         return true;
     }
 
+    /**
+     * Records one tooltip for the render pass to draw, anchored at the screen pixel given.
+     *
+     * @return false when no render pass is open. The caller reports that rather than this class.
+     */
+    public static boolean recordTooltip(String text, double x, double y) {
+        if (!isRender()) {
+            return false;
+        }
+        TOOLTIPS.add(new GrugScreenTooltip(text, x, y));
+        return true;
+    }
+
     /** Called by the {@code take} functions of the click, key and scroll contexts. */
     public static void take() {
         if (open && !render) {
@@ -754,7 +769,10 @@ public final class GrugOverlay {
         }
         GrugOverlayGeometry geometry =
                 new GrugOverlayGeometry(
-                        new ArrayList<>(ITEMS), new ArrayList<>(BOXES), new ArrayList<>(TEXTS));
+                        new ArrayList<>(ITEMS),
+                        new ArrayList<>(BOXES),
+                        new ArrayList<>(TEXTS),
+                        new ArrayList<>(TOOLTIPS));
         finish();
         return geometry;
     }
@@ -812,6 +830,7 @@ public final class GrugOverlay {
         ITEMS.clear();
         BOXES.clear();
         TEXTS.clear();
+        TOOLTIPS.clear();
         open = false;
         render = false;
         taken = false;
