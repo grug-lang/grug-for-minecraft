@@ -162,7 +162,10 @@ public final class GrugLightRetry {
                 last = now;
                 return Verdict.PERSISTED;
             }
-            if (last != null && now != null && now.sameAs(last)) {
+            if (last != null && now != null && now.client >= 0 && now.sameAs(last)) {
+                // A client byte that could not be read is not a repeat: two unread bytes compare
+                // equal in sameAs, so an early report here would spend one of the three sends on
+                // evidence that the field did not move. It keeps the cap instead (#1695).
                 last = now;
                 return Verdict.PERSISTED;
             }

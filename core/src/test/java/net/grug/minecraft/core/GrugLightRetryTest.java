@@ -296,6 +296,33 @@ class GrugLightRetryTest {
     }
 
     @Test
+    void anUnreadClientByteDoesNotEndTheSendsEarly() throws Exception {
+        // Two unread bytes compare equal in Difference.sameAs, so a repeat of them is not evidence
+        // that the field stopped moving. The wait keeps its three re-sends and reports at the cap
+        // (#1695).
+        int[] box = {0, 64, 0, 0, 64, 0};
+        GrugLightSync.BlockLight serverBlock = (x, y, z) -> 7;
+        GrugLightRetry.Probe never = ask -> GrugControlWire.SETTLE_LIGHT_DIVERGED;
+        GrugLightRetry retry = new GrugLightRetry();
+
+        assertEquals(
+                GrugLightRetry.Verdict.DIVERGED,
+                diverged(retry, box, serverBlock, DARK, never, (x, y, z) -> GrugClientLight.CANNOT_VERIFY));
+        assertEquals(
+                GrugLightRetry.Verdict.DIVERGED,
+                diverged(retry, box, serverBlock, DARK, never, (x, y, z) -> GrugClientLight.CANNOT_VERIFY));
+        assertEquals(
+                GrugLightRetry.Verdict.DIVERGED,
+                diverged(retry, box, serverBlock, DARK, never, (x, y, z) -> GrugClientLight.CANNOT_VERIFY),
+                "an unread byte that repeats is not a field that stopped moving");
+        assertEquals(
+                GrugLightRetry.Verdict.PERSISTED,
+                diverged(retry, box, serverBlock, DARK, never, (x, y, z) -> GrugClientLight.CANNOT_VERIFY),
+                "the re-sends are spent, so the unread cell reports");
+        assertTrue(retry.report().contains("could not be read"), retry.report());
+    }
+
+    @Test
     void theCandidatesCoverEveryLevelByteWithTheServersOwnFirst() {
         int[] order = GrugLightRetry.candidates(0xF3);
         assertEquals(256, order.length);
