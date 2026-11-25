@@ -28,6 +28,8 @@ export tick(ctx: TestTickContext) {
     # A powered golden pipe: the same record, raised to 0.2 after the readjust.
     level.place_block(x + 2, y, z, "grug:stone_pipe")
     level.place_block(x + 3, y, z, "grug:golden_pipe")
+    # A standing torch needs a block under it, or b1.7.3-ornithe refuses the placement.
+    level.place_block(x + 3, y - 2, z, "minecraft:stone")
     level.place_block(x + 3, y - 1, z, "minecraft:redstone_torch")
     powered_source: BlockEntity = _entity(ctx, level, x + 2, y, z)
     powered_target: BlockEntity = _entity(ctx, level, x + 3, y, z)
@@ -41,6 +43,7 @@ export tick(ctx: TestTickContext) {
     # A stone pipe with the same torch gets its own rule, 0.005 off, and no boost.
     level.place_block(x + 4, y, z, "grug:cobblestone_pipe")
     level.place_block(x + 5, y, z, "grug:stone_pipe")
+    level.place_block(x + 5, y - 2, z, "minecraft:stone")
     level.place_block(x + 5, y - 1, z, "minecraft:redstone_torch")
     stone_source: BlockEntity = _entity(ctx, level, x + 4, y, z)
     stone_target: BlockEntity = _entity(ctx, level, x + 5, y, z)
