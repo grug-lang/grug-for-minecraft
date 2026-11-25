@@ -41,8 +41,12 @@ public final class GrugLightResend {
     private int[] bound;
 
     /**
-     * Limits the changes this resend compares to {@code box}, or removes the limit for null, and
-     * forgets the box it last sent.
+     * Limits the changes this resend compares to {@code box} and forgets the box it last sent.
+     *
+     * <p>The six coordinates are inclusive: a block at {@code minX} is inside the box and one at
+     * {@code minX - 1} is not, on every axis. There is no null that removes the limit, because the
+     * arguments are plain {@code int}s: {@link #forget} is what removes it, together with the box
+     * the last test sent and the work it still owed, at the start of the next test's room build.
      *
      * <p>The runner clears the whole test area before every room, which on a world that still holds
      * the previous test's fixtures changes blocks up to {@code GrugTestBox.areaRadius()} away.
