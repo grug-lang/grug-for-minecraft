@@ -877,6 +877,228 @@ static union grug_value Player_get_held_item(ARGS) {
 REGISTER("Player", "get_held_item", Player_get_held_item);
 
 // =============================================================================================
+// SECTION: Item list
+// =============================================================================================
+// The host's item list (#865): every Block and Item entity a compiled mod declares, in the grug
+// namespace, then a fixed set of the game's own items the committed tests name. A name is the
+// registry key, its display name the key without its namespace and with spaces for underscores, so
+// the reference's search finds "iron" and "ingot" in "iron ingot". The order is stable: the game's
+// items first, then the mods' in compile order, and the first item is not an iron one.
+#define TOY_ITEMS 512
+#define SEARCH_ALTERNATIVES 8
+#define SEARCH_TOKENS 8
+struct toy_item { char name[128], display[128], mod[32]; };
+static struct toy_item toy_items[TOY_ITEMS];
+static size_t ntoy_items;
+static struct grug_files_slice* toy_files;
+
+static void toy_item_add(const char* name, const char* display, const char* mod) {
+    if (ntoy_items == TOY_ITEMS) return;  // SMOKETEST_EXCL: the mods and the fixed list stay under the cap
+    for (size_t i = 0; i < ntoy_items; i++) if (!strcmp(toy_items[i].name, name)) return;
+    snprintf(toy_items[ntoy_items].name, sizeof toy_items[ntoy_items].name, "%s", name);
+    snprintf(toy_items[ntoy_items].display, sizeof toy_items[ntoy_items].display, "%s", display);
+    snprintf(toy_items[ntoy_items].mod, sizeof toy_items[ntoy_items].mod, "%s", mod);
+    ntoy_items++;
+}
+// A display name is a key's path with spaces for underscores: "minecraft:iron_ingot" is "iron ingot".
+static void toy_display(const char* name, char* out, size_t cap) {
+    const char* path = strchr(name, ':');
+    path = path ? path + 1 : name;
+    size_t n = 0;
+    for (; *path && n + 1 < cap; path++) out[n++] = *path == '_' ? ' ' : *path;
+    out[n] = 0;
+}
+static void build_toy_items(void) {
+    static const char* const vanilla[] = {
+        "minecraft:stone", "minecraft:dirt", "minecraft:apple", "minecraft:bucket",
+        "minecraft:iron_ingot", "minecraft:iron_ore", "minecraft:iron_block",
+        "minecraft:gold_ingot", "minecraft:copper_ingot", "minecraft:coal",
+        "minecraft:oak_log", "minecraft:cobblestone", "minecraft:diamond", "minecraft:stick",
+        "minecraft:glass", "minecraft:sand", "minecraft:gravel", "minecraft:clay_ball",
+    };
+    for (size_t i = 0; i < sizeof vanilla / sizeof vanilla[0]; i++) {
+        char display[128];
+        toy_display(vanilla[i], display, sizeof display);
+        toy_item_add(vanilla[i], display, "minecraft");
+    }
+    for (size_t i = 0; i < toy_files->len; i++) {
+        struct grug_file_info* fi = &toy_files->ptr[i];
+        if (fi->file_id == UINT64_MAX || !fi->entity_type) continue;
+        if (strcmp(fi->entity_type, "Block") && strcmp(fi->entity_type, "Item")) continue;
+        char name[128], display[128];
+        snprintf(name, sizeof name, "grug:%s_%s", fi->mod_name, fi->entity_name);
+        toy_display(name, display, sizeof display);
+        toy_item_add(name, display, "grug");
+    }
+}
+
+// GrugItemSearch's tokenizer: the text is lower cased and split on `|`, and an alternative is a run
+// of tokens of which the ones with a leading minus remove. A token is a quoted run or a run of
+// non-space characters, a lone prefix or a lone minus is no token, and an alternative with nothing
+// to keep is dropped. An item is listed when every keep token of an alternative matches and none of
+// its remove tokens does; a text with no alternative left lists every item.
+struct search_token { char text[128]; bool mod_id; };
+struct search_alternative { size_t nkeep, nremove; struct search_token keep[SEARCH_TOKENS], remove[SEARCH_TOKENS]; };
+
+static void search_token_add(struct search_alternative* alt, bool negated, const char* raw) {
+    char text[128];
+    size_t n = 0;
+    for (const char* p = raw; *p && n + 1 < sizeof text; p++) if (*p != '"') text[n++] = *p;
+    text[n] = 0;
+    if (!text[0]) return;
+    struct search_token token;
+    if (text[0] == '@') {
+        if (!text[1]) return;
+        snprintf(token.text, sizeof token.text, "%s", text + 1);
+        token.mod_id = true;
+    } else {
+        snprintf(token.text, sizeof token.text, "%s", text);
+        token.mod_id = false;
+    }
+    struct search_token* list = negated ? alt->remove : alt->keep;
+    size_t* count = negated ? &alt->nremove : &alt->nkeep;
+    if (*count == SEARCH_TOKENS) return;  // SMOKETEST_EXCL: no committed search text has this many tokens
+    list[(*count)++] = token;
+}
+
+static size_t search_parse(const char* text, struct search_alternative* alts) {
+    size_t n = strlen(text);
+    char* lower = xmalloc(n + 1);
+    for (size_t i = 0; i <= n; i++) lower[i] = text[i] >= 'A' && text[i] <= 'Z' ? text[i] + 32 : text[i];
+    size_t nalts = 0;
+    char* segment = lower;
+    for (;;) {
+        char* end = strchr(segment, '|');
+        char* stop = end ? end : segment + strlen(segment);
+        struct search_alternative alt;
+        memset(&alt, 0, sizeof alt);
+        char* p = segment;
+        while (p < stop) {
+            while (p < stop && isspace((unsigned char)*p)) p++;
+            if (p >= stop) break;
+            bool negated = false;
+            char raw[256];
+            size_t rn = 0;
+            if ((p[0] == '-' && p + 1 < stop && p[1] == '"') || p[0] == '"') {
+                if (p[0] == '-') { negated = true; p++; }
+                p++;  // the opening quote
+                while (p < stop && *p != '"') { if (rn + 1 < sizeof raw) raw[rn++] = *p; p++; }
+                if (p < stop) p++;  // the closing quote
+            } else {
+                while (p < stop && !isspace((unsigned char)*p)) { if (rn + 1 < sizeof raw) raw[rn++] = *p; p++; }
+            }
+            raw[rn] = 0;
+            if (raw[0] == '-') { negated = true; memmove(raw, raw + 1, strlen(raw)); }
+            search_token_add(&alt, negated, raw);
+        }
+        // An alternative with nothing to keep is no alternative: its minus words describe nothing.
+        if (alt.nkeep && nalts < SEARCH_ALTERNATIVES) alts[nalts++] = alt;
+        if (!end) break;
+        segment = end + 1;
+    }
+    free(lower);
+    return nalts;
+}
+
+static bool search_token_matches(size_t item, const struct search_token* token) {
+    const char* haystack = token->mod_id ? toy_items[item].mod : toy_items[item].display;
+    return strstr(haystack, token->text) != NULL;
+}
+
+static bool search_lists(size_t item, const struct search_alternative* alts, size_t nalts) {
+    if (!nalts) return true;
+    for (size_t a = 0; a < nalts; a++) {
+        bool all = true, any = false;
+        for (size_t t = 0; t < alts[a].nkeep && all; t++) all = search_token_matches(item, &alts[a].keep[t]);
+        for (size_t t = 0; t < alts[a].nremove && !any; t++) any = search_token_matches(item, &alts[a].remove[t]);
+        if (all && !any) return true;
+    }
+    return false;
+}
+
+// The indexes of the items the text lists, in list order, written to `out`; the answer is their
+// number, which is the whole list when the text holds no word to search.
+static size_t search_items(const char* text, size_t* out) {
+    struct search_alternative alts[SEARCH_ALTERNATIVES];
+    size_t nalts = search_parse(text, alts);
+    size_t n = 0;
+    for (size_t i = 0; i < ntoy_items; i++) if (search_lists(i, alts, nalts)) out[n++] = i;
+    return n;
+}
+
+// Why an index is not a whole number from 0 to Integer.MAX_VALUE, or false.
+static bool toy_index_problem(double index, char* out, size_t cap) {
+    if (index >= 0 && index <= 2147483647.0 && index == floor(index)) return false;
+    char t[400];
+    double_text(index, t, sizeof t);
+    snprintf(out, cap, "The index has to be a whole number from 0 to 2147483647, and was %s.", t);
+    return true;
+}
+
+static union grug_value hf_item_count(ARGS) {
+    UNUSED;
+    return num((double)ntoy_items);
+}
+REGISTER(NULL, "item_count", hf_item_count);
+static union grug_value hf_item_at(ARGS) {
+    UNUSED;
+    char problem[512];
+    if (toy_index_problem(a[0]._number, problem, sizeof problem)) return fail("item_at: %s", problem);
+    int index = (int)a[0]._number;
+    if ((size_t)index >= ntoy_items) return fail("item_at: There is no item at index %d, since item_count is %zu.", index, ntoy_items);
+    return id(item_named(toy_items[index].name));
+}
+REGISTER(NULL, "item_at", hf_item_at);
+static union grug_value hf_search_item_count(ARGS) {
+    UNUSED;
+    size_t* indexes = xmalloc(ntoy_items * sizeof *indexes);
+    size_t n = search_items(a[0]._string, indexes);
+    free(indexes);
+    return num((double)n);
+}
+REGISTER(NULL, "search_item_count", hf_search_item_count);
+static union grug_value hf_search_item_at(ARGS) {
+    UNUSED;
+    char problem[512];
+    if (toy_index_problem(a[1]._number, problem, sizeof problem)) return fail("search_item_at: %s", problem);
+    size_t* indexes = xmalloc(ntoy_items * sizeof *indexes);
+    size_t n = search_items(a[0]._string, indexes);
+    int index = (int)a[1]._number;
+    if ((size_t)index >= n) {
+        free(indexes);
+        return fail("search_item_at: There is no item at index %d, since search_item_count is %zu.", index, n);
+    }
+    uint64_t item = item_named(toy_items[indexes[index]].name);
+    free(indexes);
+    return id(item);
+}
+REGISTER(NULL, "search_item_at", hf_search_item_at);
+
+// A give puts the item in the player's hand, where the tests read it with Player.get_held_item and
+// TestTickContext.get_held_count: one item for give_item and the item's own maximum stack for
+// give_item_stack, the reference's cheat bindings. The game fills the first empty slot instead, and
+// drops the stack when the inventory is full, which no committed test has an inventory for.
+static union grug_value hf_give_item(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_ITEM)) return fail("give_item: not an Item");
+    held_has = true;
+    held_item_id = a[0]._id;
+    held_count = 1;
+    return none();
+}
+REGISTER(NULL, "give_item", hf_give_item);
+static union grug_value hf_give_item_stack(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_ITEM)) return fail("give_item_stack: not an Item");
+    struct obj* item = get_obj(a[0]._id, K_ITEM);
+    held_has = true;
+    held_item_id = a[0]._id;
+    held_count = strstr(item->str, "bucket") ? 1 : 64;
+    return none();
+}
+REGISTER(NULL, "give_item_stack", hf_give_item_stack);
+
+// =============================================================================================
 // SECTION: BlockEntity
 // =============================================================================================
 // Block entities. A block with a BlockEntity script gets a grug entity when it is placed, whose
@@ -2969,14 +3191,13 @@ static bool overlay_key_held;
 static double overlay_key_held_code;
 static uint64_t overlay_render_fn = UINT64_MAX;
 
-// The mod that owns a test is the directory above its tests/ directory: mods/jei/tests/x-Test.grug
-// belongs to jei, which is what the loader names when it asks whose overlay has drawn (#1099).
+// The mod that owns a test is the directory above its tests/ directory: jei/tests/x-Test.grug
+// belongs to jei, which is what the loader names when it asks whose overlay has drawn (#1099). The
+// paths run from the mods directory, so the mod is their first segment.
 static void note_test_mod(const char* label) {
-    const char* slash = strchr(label, '/');
-    const char* start = slash ? slash + 1 : label;
-    size_t n = strcspn(start, "/");
+    size_t n = strcspn(label, "/");
     if (n >= sizeof current_test_mod) n = sizeof current_test_mod - 1;
-    memcpy(current_test_mod, start, n);
+    memcpy(current_test_mod, label, n);
     current_test_mod[n] = 0;
 }
 
@@ -3529,6 +3750,8 @@ int main(int argc, char** argv) {
     int rc = 0;
     if (!strcmp(argv[2], "--compile-only")) { grug_deinit(g_state); return bad ? 1 : 0; }
     G.f = files;
+    toy_files = &G.f;
+    build_toy_items();
     G.block_init = grug_get_on_fn_id(g_state, "Block", "init");
     block_use_fn = grug_get_on_fn_id(g_state, "Block", "use");
     block_shape_fn = grug_get_on_fn_id(g_state, "Block", "shape");
