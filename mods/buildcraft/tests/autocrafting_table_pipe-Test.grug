@@ -44,9 +44,11 @@ stray_entities: number = 1
 
 # The item entities the per-tick sample expects to find. It starts at the stray diamond and follows
 # the level's own count down when an entity disappears, because Alpha despawns a dropped item after
-# 6000 game ticks and the a1 dedicated leg's hundred rounds at 10x outlive that diamond. A count that
-# rises above it is the pipe's drop, whatever kind the dropped item is.
+# 6000 game ticks and the a1 dedicated leg's hundred rounds at 10x outlive that diamond. It follows
+# nothing down until the diamond has been seen once, so an entity that reaches the client a tick late
+# is not read as a pipe that dropped one. A count that rises above it is the pipe's drop.
 expected_entities: number = 1
+stray_seen: bool = false
 
 # The tick the pipe was placed on, or -1 before that. The wait after it is for what the pipe does
 # with the result rather than for a tick count, and it also keeps the old floor of 25 ticks, which is
@@ -164,7 +166,12 @@ local _sample(ctx: TestTickContext) {
         _report(ctx, all, bread)
         ctx.assert(false, "The pipe should not have dropped an item.")
     }
-    expected_entities = all
+    if all >= stray_entities {
+        stray_seen = true
+    }
+    if stray_seen and all < expected_entities {
+        expected_entities = all
+    }
 }
 
 # #1205: a dropped item names the tick and where every item stood in it, because the failing run's
