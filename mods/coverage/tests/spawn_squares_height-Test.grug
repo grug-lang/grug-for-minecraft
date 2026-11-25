@@ -1,13 +1,18 @@
 # Covers the world height limit the scan applies before the spawn-space test (#1255): a square
 # below the world and a scan whose whole cube is above it are dropped, which is the branch a
 # loader's own height decides. The player is moved rather than the room, so the scan runs against
-# whichever level the loader has, and a client leg exercises that loader's own limit.
+# whichever level the loader has. The move is hundreds of blocks, which a dedicated server's own
+# anti-cheat refuses and then drops the joined client, so the dedicated legs skip it: the client
+# leg is the one that answers that loader's limit.
 started: bool = false
 low_done: bool = false
 x: number = 0.0
 z: number = 0.0
 
 export tick(ctx: TestTickContext) {
+    if me.on_dedicated_server() {
+        return
+    }
     if not started {
         started = true
         ctx.not_done()
