@@ -1,0 +1,5 @@
+# A positional one-shot's gain is 0 or more (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("play_sound_at: volume has to be 0 or more")
+    play_sound_at("resources/newsound/random/glass1.ogg", -1, 1, 0, 0, 0)
+}

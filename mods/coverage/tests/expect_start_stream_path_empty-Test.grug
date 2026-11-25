@@ -1,0 +1,5 @@
+# A sound path cannot be empty (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("start_stream: the path is empty")
+    start_stream("", 1, 1, 0, false)
+}

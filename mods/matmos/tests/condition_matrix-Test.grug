@@ -1,0 +1,80 @@
+# Every comparison symbol, both list symbols, a dynamic and a set that ANDs its parts, read from
+# the machine's truth through the commands the engine hands the loader. A clear sky makes only the
+# set whose conditions are all true of a zero rain instant (<= 0, < 1, != 1, !in {1}) fire; rain
+# makes the >= / > set, the in {1} set and the dynamic's set fire, the third after its 0.4 s delay;
+# and the condition that is never true (> 1) keeps its machine silent in both.
+started: bool = false
+pressed: bool = false
+phase: number = 0
+waited: number = 0
+last_seen: number = 0
+starts: number = 0
+next_start: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(600)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        files: File = File.open(r"files")
+        files.write_text("packs.txt", "fixture_conditions.xml")
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if not sound.has() or sound.unwrap().seq() <= last_seen {
+        waited = waited + 1
+        if phase == 2 {
+            ctx.assert(waited < 100, "The condition test should finish within 100 ticks of the last start.")
+            ctx.assert(starts == 4, "No more machine should start: four sets are true in all and the fifth never is.")
+            return
+        }
+        ctx.assert(waited < 300, "The condition test should see its next command within 300 ticks.")
+        ctx.not_done()
+        return
+    }
+    last_seen = sound.unwrap().seq()
+    waited = 0
+    if sound.unwrap().command() != "start" {
+        ctx.not_done()
+        return
+    }
+    starts = starts + 1
+    if phase == 0 {
+        ctx.assert(sound.unwrap().volume() == 0.12, "A clear sky should fire only the set that is all true of zero rain.")
+        ctx.set_weather(true, false)
+        phase = 1
+        next_start = 0
+        ctx.not_done()
+        return
+    }
+    if phase == 1 {
+        if next_start == 0 {
+            ctx.assert(sound.unwrap().volume() == 0.11, "Rain should first fire the >= and > set.")
+            next_start = 1
+            ctx.not_done()
+            return
+        }
+        if next_start == 1 {
+            ctx.assert(sound.unwrap().volume() == 0.13, "Rain should then fire the in {1} set after its delay.")
+            next_start = 2
+            ctx.not_done()
+            return
+        }
+        ctx.assert(sound.unwrap().volume() == 0.14, "Rain should then fire the set whose condition reads the dynamic.")
+        phase = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+    ctx.assert(sound.unwrap().volume() != 0.15, "The set whose condition is never true should keep its machine off.")
+    ctx.not_done()
+}

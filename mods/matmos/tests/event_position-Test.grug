@@ -1,0 +1,44 @@
+# A positional event: metasound 32 places the one-shot within that many blocks of the player, the
+# event's own gain and pitch ranges are scaled by the machine's modifiers, and the path is one of
+# the event's own recordings. The delay before the first play comes from delaystart.
+started: bool = false
+pressed: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        _use_fixture()
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 200, "The gust should play within 200 ticks.")
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if not sound.has() or sound.unwrap().command() != "play_at" {
+        ctx.not_done()
+        return
+    }
+    cmd: SoundCommand = sound.unwrap()
+    ctx.assert(cmd.volume() >= 0.25 and cmd.volume() <= 0.5, "The event's 0.5 to 1 gain scaled by its 0.5 modifier should be 0.25 to 0.5.")
+    ctx.assert(cmd.pitch() >= 0.9 and cmd.pitch() <= 1.1, "The event's pitch should be in its own range.")
+    ctx.assert(cmd.x() >= 8.5 - 32 and cmd.x() <= 8.5 + 32, "The one-shot should be within the metasound radius along x.")
+    ctx.assert(cmd.z() >= 8.5 - 32 and cmd.z() <= 8.5 + 32, "The one-shot should be within the metasound radius along z.")
+    ctx.assert(cmd.y() >= 70.5 - 32 * 0.2 - 0.01 and cmd.y() <= 70.5 + 32 * 0.2, "The one-shot's height should be within the radius's own fraction.")
+    known: bool = cmd.path() == "resources/newsound/random/glass1.ogg"
+    if not known {
+        known = cmd.path() == "resources/newsound/random/glass2.ogg"
+    }
+    ctx.assert(known, "The one-shot should be one of the event's recordings.")
+}
+
+local _use_fixture() {
+    files: File = File.open(r"files")
+    files.write_text("packs.txt", "fixture_event.xml")
+}

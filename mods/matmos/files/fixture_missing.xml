@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><contents>
+<!-- A pack whose only stream is a recording the game directory does not hold, which is the state
+     of an install whose 2012 pack never arrived. The stream is asked for once and names no token. -->
+<expansion>
+	<data>1</data>
+</expansion>
+<condition name="Raining">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>==</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<set name="Wet">
+	<truepart>Raining</truepart>
+</set>
+<machine name="Absent">
+	<allow>Wet</allow>
+	<stream>
+		<path>newsound/ambient/weather/not_installed.ogg</path>
+		<volume>0.5</volume>
+		<pitch>1.0</pitch>
+		<islooping>1</islooping>
+		<isusingpause>0</isusingpause>
+	</stream>
+</machine>
+</contents>

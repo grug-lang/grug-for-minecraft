@@ -103,6 +103,11 @@
 					"what": "A pack object whose numeric field is present but not a number is dropped, and an absent field keeps the object's default, where the reference throws NumberFormatException on an absent or empty field and loads no object of that pack at all.",
 					"why": "A serialized .xmlo always carries every field, so the difference only shows on a hand-written pack, where keeping the defaults and dropping the one bad object is the more forgiving reading.",
 					"tracking_issue": 1756
+				},
+				{
+					"what": "The volume slider's click is the game's interface click, heard at one loudness wherever the player stands, where the reference played its click through the mod's sound manager at the player's own position. The port's matmos_options.cfg holds only the generic volume, written when the slider closes, where the reference's file also holds the music volume and the two logger levels.",
+					"why": "The host has one interface sound call and no positional sound of the game's own pool, and only the volume is a setting this port has. Every other option the reference saved configures the reference's own debug logging or a music channel the port does not use.",
+					"tracking_issue": 1756
 				}
 			]
 		}

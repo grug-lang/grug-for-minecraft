@@ -1,0 +1,22 @@
+# Covers Level.count_blocks_in_box and BlockCounts.count (#1347), the snapshot by canonical name the
+# scan work is built on: air counts the empty spaces, and the answer stays put when the world moves.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x()) + 4
+    y: number = Math.floor(origin.y())
+    z: number = Math.floor(origin.z()) + 4
+    level.place_block(x, y, z, "minecraft:stone")
+    level.place_block(x + 1, y, z, "minecraft:dirt")
+    counts: BlockCounts = level.count_blocks_in_box(x, y, z, 2, 1, 1)
+    ctx.assert(counts.count("minecraft:stone") == 1, "The box should hold one stone.")
+    ctx.assert(counts.count("minecraft:dirt") == 1, "The box should hold one dirt.")
+    ctx.assert(counts.count("minecraft:air") == 0, "A full box should hold no air.")
+    ctx.assert(counts.count("minecraft:sand") == 0, "A name the box holds none of should answer 0.")
+    ctx.assert(counts.count("a name that is no block") == 0, "A name no block has should answer 0 rather than report.")
+    level.place_block(x + 1, y, z, "minecraft:stone")
+    ctx.assert(counts.count("minecraft:dirt") == 1, "The snapshot should not change when the world does.")
+    wider: BlockCounts = level.count_blocks_in_box(x, y, z, 3, 1, 1)
+    ctx.assert(wider.count("minecraft:air") == 1, "The wider box should hold one empty space.")
+    ctx.assert(wider.count("minecraft:stone") == 2, "The wider box should count the block that replaced the dirt.")
+}

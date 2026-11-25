@@ -1,0 +1,11 @@
+# Covers String.index_of (#1347), which a pack reader scans a file with: positions count characters
+# from 0, an empty search is found where it starts, and a missing occurrence is an empty Option.
+export tick(ctx: TestTickContext) {
+    ctx.assert(String.index_of("abab", "ab", 0).unwrap() == 0, "The first occurrence should be at 0.")
+    ctx.assert(String.index_of("abab", "ab", 1).unwrap() == 2, "Starting at 1 should find the second occurrence at 2.")
+    ctx.assert(not String.index_of("abab", "ba", 3).has(), "An occurrence before the start should not be found.")
+    ctx.assert(String.index_of("abab", "", 4).unwrap() == 4, "An empty search should be found at the start, the text's end included.")
+    ctx.assert(not String.index_of("abab", "abc", 0).has(), "A search longer than the text should answer no occurrence.")
+    ctx.assert(String.index_of("αβγ", "γ", 0).unwrap() == 2, "Characters, not bytes, should be counted.")
+    ctx.assert(String.index_of("one two two", "two", 5).unwrap() == 8, "A search should resume from the given start.")
+}

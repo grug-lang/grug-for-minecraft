@@ -1,0 +1,5 @@
+# A block count's box cannot be empty (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("Level.count_blocks_in_box: size_y has to be a whole number from 1 up")
+    ctx.get_client_level().count_blocks_in_box(0, 0, 0, 1, 0, 1)
+}

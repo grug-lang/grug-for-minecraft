@@ -1,0 +1,25 @@
+# Covers Memory (#1347): one number and one text per name, separate stores, 0 and an empty Option
+# for a name nothing wrote, and clear forgetting both.
+export tick(ctx: TestTickContext) {
+    ctx.assert(Memory.get("unwritten") == 0, "An unwritten name should read as 0.")
+    ctx.assert(not Memory.get_text("unwritten").has(), "An unwritten name should hold no text.")
+    Memory.set("count", -0.5)
+    ctx.assert(Memory.get("count") == -0.5, "A number should read back exactly as it was stored.")
+    Memory.set("count", 3)
+    ctx.assert(Memory.get("count") == 3, "Setting a name again should replace its number.")
+    ctx.assert(not Memory.get_text("count").has(), "A name holding a number should hold no text.")
+    Memory.set_text("name", "a text")
+    ctx.assert(Memory.get_text("name").unwrap() == "a text", "A text should read back.")
+    ctx.assert(Memory.get("name") == 0, "A name holding a text should read as 0.")
+    Memory.set_text("name", "")
+    ctx.assert(Memory.get_text("name").unwrap() == "", "An empty text should be stored and read back.")
+    Memory.set("mixed", 7)
+    Memory.set_text("mixed", "both")
+    ctx.assert(Memory.get("mixed") == 7, "Storing a text should leave the number under the same name alone.")
+    ctx.assert(Memory.get_text("mixed").unwrap() == "both", "Both stores under one name should answer their own value.")
+    Memory.set("a.long.name.with.dots", 1)
+    ctx.assert(Memory.get("a.long.name.with.dots") == 1, "A name is opaque, dots included.")
+    Memory.clear()
+    ctx.assert(Memory.get("count") == 0, "Clear should forget a number.")
+    ctx.assert(not Memory.get_text("name").has(), "Clear should forget a text.")
+}

@@ -1,0 +1,5 @@
+# A stream token is a whole number (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("stop_stream: the token has to be a whole number from 0 up")
+    stop_stream(0.5, 0)
+}

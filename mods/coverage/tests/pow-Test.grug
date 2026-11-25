@@ -1,0 +1,15 @@
+# Covers Math.pow (#1347), which a mod uses where grug has no exponent operator: the slider's
+# square, a pitch's doubling, and the IEEE answers for the edges.
+export tick(ctx: TestTickContext) {
+    ctx.assert(Math.pow(2, 10) == 1024, "Two to the tenth should be 1024.")
+    ctx.assert(Math.pow(9, 0.5) == 3, "Nine to a half should be its square root.")
+    ctx.assert(Math.pow(2, -1) == 0.5, "A negative exponent should be the reciprocal.")
+    ctx.assert(Math.pow(0.5, 2) == 0.25, "A fraction squared should be the square.")
+    ctx.assert(Math.pow(1, 12345) == 1, "One to any power should be one.")
+    ctx.assert(Math.pow(0, 0) == 1, "Zero to the zero should be one.")
+    ctx.assert(Math.pow(0, 2) == 0, "Zero squared should be zero.")
+    ctx.assert(Math.pow(10, 3) == 1000, "Ten cubed should be 1000.")
+    ctx.assert(Math.pow(-2, 2) == 4, "A negative base with a whole exponent should keep the sign out.")
+    ctx.assert(Math.pow(-2, 3) == -8, "A negative base with an odd exponent should stay negative.")
+    ctx.assert(Math.pow(2, 0.5) == Math.sqrt(2), "The power of a half should agree with the square root.")
+}

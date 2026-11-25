@@ -143,6 +143,14 @@ export render_hud(ctx: OverlayHudContext) {
     if mob_cap_on and ctx.get_level().count_mobs("hostile") >= 0 and ctx.get_level().get_mob_cap("hostile") >= 0 {
         ctx.add_text("mob cap read", 4, 124, Color.rgb(255, 255, 255))
     }
+    # OverlayHudContext.get_player and the player's own reads (#1347): the overlay records that the
+    # frame's player answered, which overlay_hud_player-Test reads back, and the port's engine reads
+    # the head and the state from the same pass.
+    player: Player = ctx.get_player()
+    state: PlayerState = player.state()
+    if player.pitch() >= -90 and player.pitch() <= 90 and state.health() >= 0 and state.food() >= 0 and state.air() >= 0 and state.on_ground() and state.fall_distance() >= 0 {
+        Memory.set("hud.player_ok", 1)
+    }
 }
 
 # Two crossing diagonals four blocks in front of the camera along +z, two blocks tall and wide and

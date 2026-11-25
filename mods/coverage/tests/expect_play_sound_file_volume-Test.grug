@@ -1,0 +1,5 @@
+# A one-shot's gain is 0 or more (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("play_sound_file: volume has to be 0 or more")
+    play_sound_file("resources/newsound/random/glass1.ogg", -0.1, 1)
+}

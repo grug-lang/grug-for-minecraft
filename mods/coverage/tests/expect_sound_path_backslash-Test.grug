@@ -1,0 +1,5 @@
+# A sound path uses forward slashes only (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("the path holds a backslash")
+    play_sound_file("resources\\newsound\\x.ogg", 1, 1)
+}

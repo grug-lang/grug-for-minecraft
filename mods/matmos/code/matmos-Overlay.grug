@@ -1,0 +1,1636 @@
+# MAtmos r12's ambient engine for 1.2.5-forge. It samples the world into the reference's integer
+# sheets, evaluates the conditions, sets and machines of the packs a player supplies, and starts,
+# pauses and stops the ambient streams and one-shot events those machines ask for. There is no
+# block and nothing drawn in the world: the only output is sound, plus the reference's volume
+# slider and status line on the HUD, which the reference puts in chat.
+
+# The reference is `eu/ha3/matmos/engine` from MAtmos r12. Its sampler (`MAtDataGatherer`,
+# `MAtProcessorFrequent`, `MAtProcessorRelaxed`, `MAtProcessorContact`, `MAtPipelineIDAccumulator`)
+# becomes `_sample`; its evaluator (`MAtmosKnowledge.evaluate` and the four object classes) becomes
+# `_evaluate`; and its frame routine (`MAtmosMachine.routine`, `MAtmosStream.routine`,
+# `MAtmosEventTimed.routine`) becomes `_sound`. The decision and its effect are separate: the
+# evaluation and the stream latches write numbers into `Memory`, and only `_sound` calls the sound
+# host functions, so a test reads the decision from Memory and from `ctx.last_sound()`.
+
+# The load keeps one record per object of every pack, because grug has no arrays: an index into
+# Memory's `c.<i>.…`, `s.<i>.…`, `m.<i>.…`, `t.<i>.…`, `st.<i>.…`, `d.<i>.…`, `l.<i>.…` and
+# `e.<i>.…` families. A sheet is `i.<n>` for Instants, `dl.<n>` for Deltas and `L.<id>`, `LP.<id>`,
+# `S.<id>`, `SP.<id>` and `C.<id>` for the scans, keyed by the 1.2.5 block id that the pack's
+# condition names. `blocks.txt` maps those ids to the canonical names the host counts by.
+
+# A pack is read from `packs.txt`, one path per line, and is the reference's own XML: a `.xmlo` is
+# the cached form of an `.xrl` and has the same objects. The recordings a pack names are looked up
+# under the game directory's `resources/` folder, where 1.2.5 keeps its own sounds, so a player who
+# installed the 2012 pack hears it unchanged; a missing recording plays nothing and is not an error.
+
+# The engine starts switched off because this port ships no pack: the first press of A reads
+# `packs.txt` and starts it, a second press stops it, and a third reads the packs again. Ctrl+A
+# opens the volume slider, which the player's pitch drives, and the next key press closes it.
+# about.json records every place this departs from the reference.
+
+# Whether the engine runs, whether its packs have been read, and how many packs and machines the
+# last read found, which is what the status line shows.
+enabled: bool = false
+loaded: bool = false
+pack_count: number = 0
+machine_count: number = 0
+
+# The game time of the last sampler pass, and the engine's own clock in ticks and milliseconds. The
+# clock runs on the game tick rather than on the reference's wall clock, which keeps a test's
+# timing reproducible and makes a paused game pause the engine.
+last_tick_time: number = -1
+clock_ticks: number = 0
+sampler_ticks: number = 0
+
+# Where the last large scan was taken, and how many of its checkpoints have passed without the
+# player moving far enough to need a new one: the reference's `lastLargeScanPassed`.
+scan_x: number = 0
+scan_y: number = 0
+scan_z: number = 0
+scan_passes: number = 10
+
+# The slider's gain, whether it is open, the pitch its last click was played at and the frames a
+# status line stays up.
+volume_setting: number = 1
+slider_open: bool = false
+slider_fresh: bool = false
+slider_prev_pitch: number = 0
+status_left: number = 0
+status_text: string = ""
+
+# The volume slider is driven by the player's head, the way the reference's `MAtScroller` is: the
+# gain is the square of 1 - pitch/90, snapped to full looking straight ahead and to a fifth at the
+# reference's own snap point. The click it plays per ten degrees is the reference's too.
+export render_hud(ctx: OverlayHudContext) {
+    level: Level = ctx.get_level()
+    player: Player = ctx.get_player()
+    now: number = clock_ticks * 50
+    time: number = level.get_time()
+    if loaded and enabled and time != last_tick_time {
+        last_tick_time = time
+        clock_ticks = clock_ticks + 1
+        sampler_ticks = sampler_ticks + 1
+        now = clock_ticks * 50
+        if Memory.get("rng.state") == 0 {
+            _seed_random(time)
+        }
+        _sample(level, player)
+        _evaluate(now)
+    }
+    # The routine still runs while the engine is stopped, because a stream told to stop on the way
+    # out finishes its fade here, as the reference's sound routine does for a stopped knowledge.
+    if loaded {
+        _sound(now, player)
+    }
+    _draw(ctx, player)
+}
+
+# A packs a key: A toggles the engine and reads its packs when it first starts, and Ctrl+A opens
+# the volume slider, whose next world key press closes it and saves the gain.
+export world_key(ctx: OverlayWorldKeyContext) {
+    if ctx.key() != 65 {
+        return
+    }
+    if slider_open {
+        slider_open = false
+        _save_options()
+        return
+    }
+    if ctx.ctrl() {
+        if loaded and enabled {
+            slider_open = true
+            slider_fresh = true
+            status_left = 0
+        } else {
+            _start_engine()
+        }
+        return
+    }
+    if loaded and enabled {
+        _stop_engine()
+        status_text = "MAtmos off"
+        status_left = 200
+        return
+    }
+    if loaded {
+        enabled = true
+        status_text = "MAtmos on"
+        status_left = 200
+        return
+    }
+    _start_engine()
+}
+
+# Reads `blocks.txt` and every pack `packs.txt` names, and resets the engine's state. Memory is
+# cleared first, so a reload starts from nothing rather than from the previous read's objects.
+local _start_engine() {
+    Memory.clear()
+    pack_count = 0
+    machine_count = 0
+    _load_blocks()
+    _load_packs()
+    _load_options()
+    clock_ticks = 0
+    last_tick_time = -1
+    sampler_ticks = 0
+    scan_passes = 10
+    scan_x = 0
+    scan_y = 0
+    scan_z = 0
+    loaded = true
+    enabled = true
+    slider_open = false
+    status_left = 200
+    if pack_count == 0 {
+        status_text = "MAtmos: no packs, see files/packs.txt"
+    } else {
+        status_text = String.concat(String.concat("MAtmos: ", String.from_number(pack_count)), " pack(s)")
+        status_text = String.concat(String.concat(status_text, ", "), String.from_number(machine_count))
+        status_text = String.concat(status_text, " machine(s)")
+    }
+}
+
+# Stops the engine the way the reference's turnOff does: every stream's token is given back and the
+# sound stops, without a fade, because the reference erases the token rather than signalling a stop,
+# and every machine goes off. The packs stay loaded, so a press that starts the engine again needs
+# no reload.
+local _stop_engine() {
+    total: number = Memory.get("n.st")
+    i: number = 0
+    while i < total {
+        token: number = Memory.get(_idx("st.tk", i))
+        if token > 0 {
+            stop_stream(token, 0)
+        }
+        Memory.set(_idx("st.tk", i), 0)
+        Memory.set(_idx("st.cs", i), 0)
+        Memory.set(_idx("st.pl", i), 0)
+        Memory.set(_idx("st.on", i), 0)
+        i = i + 1
+    }
+    total = Memory.get("n.mach")
+    i = 0
+    while i < total {
+        Memory.set(_idx("m.on", i), 0)
+        i = i + 1
+    }
+    enabled = false
+}
+
+# The block id to canonical name table, and the reverse: `bid.<i>` and `bnm.<i>` for the i-th row,
+# `bi.<name>` for the id a canonical name means. A block with no row is air, which is what a scan
+# counts it as.
+local _load_blocks() {
+    file: File = File.open(r"files")
+    text: Option[string] = file.read_text("blocks.txt")
+    if not text.has() {
+        return
+    }
+    body: string = text.unwrap()
+    total: number = String.length(body)
+    pos: number = 0
+    row: number = 0
+    while pos < total {
+        end: number = _find(body, String.from_character(10), pos)
+        if end < 0 {
+            end = total
+        }
+        line: string = _trim(String.substring(body, pos, end))
+        pos = end + 1
+        if String.length(line) > 0 and String.substring(line, 0, 1) != String.from_character(35) {
+            space: number = _find(line, " ", 0)
+            if space > 0 {
+                id: number = _int(String.substring(line, 0, space), -1)
+                name: string = _trim(String.substring(line, space + 1, String.length(line)))
+                if id >= 0 and String.length(name) > 0 {
+                    Memory.set(_idx("bid", row), id)
+                    Memory.set_text(_idx("bnm", row), name)
+                    Memory.set(String.concat("bi.", name), id)
+                    row = row + 1
+                }
+            }
+        }
+    }
+    Memory.set("n.block", row)
+}
+
+# Reads the manifest, then every pack it names. A line is a path relative to the mod's files
+# directory; `#` starts a comment and an empty line is skipped.
+local _load_packs() {
+    file: File = File.open(r"files")
+    manifest: Option[string] = file.read_text("packs.txt")
+    if not manifest.has() {
+        return
+    }
+    body: string = manifest.unwrap()
+    total: number = String.length(body)
+    pos: number = 0
+    while pos < total {
+        end: number = _find(body, String.from_character(10), pos)
+        if end < 0 {
+            end = total
+        }
+        path: string = _trim(String.substring(body, pos, end))
+        pos = end + 1
+        if String.length(path) > 0 and String.substring(path, 0, 1) != String.from_character(35) {
+            text: Option[string] = file.read_text(path)
+            if text.has() {
+                _parse_pack(text.unwrap())
+                pack_count = pack_count + 1
+            }
+        }
+    }
+}
+
+# One pack: the reference's `<expansion>` header if it has one, then every object in the order the
+# reference builds its knowledge, which is what lets a set name a condition of the same pack and a
+# machine name a set of it.
+local _parse_pack(text: string) {
+    total: number = String.length(text)
+    freq: number = 1
+    expansion: number = _open_tag(text, "expansion", 0, total)
+    if expansion >= 0 {
+        close: number = _close_tag(text, "expansion", expansion, total)
+        if close > expansion {
+            freq = _int(_nth_inner(text, "data", 0, expansion, close), 1)
+            if freq < 1 {
+                freq = 1
+            }
+        }
+    }
+    Memory.set("pack.freq", freq)
+    _parse_dynamics(text)
+    _parse_lists(text)
+    _parse_conditions(text)
+    _parse_sets(text)
+    _parse_events(text)
+    _parse_machines(text)
+}
+
+local _parse_dynamics(text: string) {
+    total: number = String.length(text)
+    pos: number = 0
+    while pos < total {
+        open: number = _open_tag(text, "dynamic", pos, total)
+        if open < 0 {
+            return
+        }
+        pos = _parse_dynamic(text, open)
+    }
+}
+
+local _parse_dynamic(text: string, open: number) number {
+    total: number = String.length(text)
+    tag_end: number = _gt(text, open, total)
+    close: number = _close_tag(text, "dynamic", tag_end, total)
+    if tag_end < 0 or close < 0 {
+        return total
+    }
+    index: number = Memory.get("n.dyn")
+    name: string = _attr(text, "name", open, tag_end)
+    count: number = _count(text, "entry", tag_end, close)
+    Memory.set(_idx("d.n", index), count)
+    j: number = 0
+    while j < count {
+        at: number = _nth_open(text, "entry", j, tag_end, close)
+        entry_end: number = _gt(text, at, close)
+        sheet: number = _sheet_index(_attr(text, "sheet", at, entry_end))
+        key: number = _int(String.substring(text, entry_end, _close_tag(text, "entry", entry_end, close)), 0)
+        Memory.set(_idx2("d.sh", index, j), sheet)
+        Memory.set(_idx2("d.k", index, j), key)
+        j = j + 1
+    }
+    Memory.set("n.dyn", index + 1)
+    Memory.set(String.concat("dname.", name), index + 1)
+    return close + String.length("</dynamic>")
+}
+
+local _parse_lists(text: string) {
+    total: number = String.length(text)
+    pos: number = 0
+    while pos < total {
+        open: number = _open_tag(text, "list", pos, total)
+        if open < 0 {
+            return
+        }
+        pos = _parse_list(text, open)
+    }
+}
+
+local _parse_list(text: string, open: number) number {
+    total: number = String.length(text)
+    tag_end: number = _gt(text, open, total)
+    close: number = _close_tag(text, "list", tag_end, total)
+    if tag_end < 0 or close < 0 {
+        return total
+    }
+    index: number = Memory.get("n.list")
+    name: string = _attr(text, "name", open, tag_end)
+    count: number = _count(text, "constant", tag_end, close)
+    Memory.set(_idx("l.n", index), count)
+    j: number = 0
+    while j < count {
+        value: number = _int(_nth_inner(text, "constant", j, tag_end, close), 0)
+        Memory.set(_idx2("l.c", index, j), value)
+        j = j + 1
+    }
+    Memory.set("n.list", index + 1)
+    Memory.set(String.concat("lname.", name), index + 1)
+    return close + String.length("</list>")
+}
+
+local _parse_conditions(text: string) {
+    total: number = String.length(text)
+    pos: number = 0
+    while pos < total {
+        open: number = _open_tag(text, "condition", pos, total)
+        if open < 0 {
+            return
+        }
+        pos = _parse_condition(text, open)
+    }
+}
+
+local _parse_condition(text: string, open: number) number {
+    total: number = String.length(text)
+    tag_end: number = _gt(text, open, total)
+    close: number = _close_tag(text, "condition", tag_end, total)
+    if tag_end < 0 or close < 0 {
+        return total
+    }
+    index: number = Memory.get("n.cond")
+    name: string = _attr(text, "name", open, tag_end)
+    sheet: number = _sheet_index(_nth_inner(text, "sheet", 0, tag_end, close))
+    key: number = _int(_nth_inner(text, "key", 0, tag_end, close), 0)
+    dynamic_name: string = _nth_inner(text, "dynamickey", 0, tag_end, close)
+    dynamic: number = -1
+    if String.length(dynamic_name) > 0 {
+        dynamic = _lookup("dname.", dynamic_name)
+        sheet = -1
+        key = -1
+    }
+    symbol: number = _symbol(_nth_inner(text, "symbol", 0, tag_end, close))
+    constant: number = _int(_nth_inner(text, "constant", 0, tag_end, close), 0)
+    list: number = _lookup("lname.", _nth_inner(text, "list", 0, tag_end, close))
+    Memory.set(_idx("c.sh", index), sheet)
+    Memory.set(_idx("c.k", index), key)
+    Memory.set(_idx("c.d", index), dynamic)
+    Memory.set(_idx("c.sy", index), symbol)
+    Memory.set(_idx("c.co", index), constant)
+    Memory.set(_idx("c.li", index), list)
+    valid: number = 0
+    if dynamic >= 0 {
+        valid = 1
+    } else if sheet >= 0 and key >= 0 and key < _sheet_size(sheet) {
+        valid = 1
+    }
+    Memory.set(_idx("c.ok", index), valid)
+    Memory.set("n.cond", index + 1)
+    Memory.set(String.concat("cname.", name), index + 1)
+    return close + String.length("</condition>")
+}
+
+# The reference's comparison symbol, as the number MAtmosCondition.setSymbol gives it: an unknown
+# symbol is -1, which `isTrue` always answers false for.
+local _symbol(text: string) number {
+    if text == "!=" {
+        return 0
+    }
+    if text == "==" {
+        return 1
+    }
+    if text == ">" {
+        return 2
+    }
+    if text == ">=" {
+        return 3
+    }
+    if text == "<" {
+        return 4
+    }
+    if text == "<=" {
+        return 5
+    }
+    if text == "in" {
+        return 6
+    }
+    if text == "!in" {
+        return 7
+    }
+    return -1
+}
+
+local _parse_sets(text: string) {
+    total: number = String.length(text)
+    pos: number = 0
+    while pos < total {
+        open: number = _open_tag(text, "set", pos, total)
+        if open < 0 {
+            return
+        }
+        pos = _parse_set(text, open)
+    }
+}
+
+local _parse_set(text: string, open: number) number {
+    total: number = String.length(text)
+    tag_end: number = _gt(text, open, total)
+    close: number = _close_tag(text, "set", tag_end, total)
+    if tag_end < 0 or close < 0 {
+        return total
+    }
+    index: number = Memory.get("n.set")
+    name: string = _attr(text, "name", open, tag_end)
+    yes: number = _count(text, "truepart", tag_end, close)
+    no: number = _count(text, "falsepart", tag_end, close)
+    total_parts: number = yes + no
+    Memory.set(_idx("s.n", index), total_parts)
+    valid: number = 1
+    if total_parts == 0 {
+        valid = 0
+    }
+    j: number = 0
+    while j < total_parts {
+        condition_name: string = ""
+        truth: number = 1
+        if j < yes {
+            condition_name = _nth_inner(text, "truepart", j, tag_end, close)
+        } else {
+            condition_name = _nth_inner(text, "falsepart", j - yes, tag_end, close)
+            truth = 0
+        }
+        condition: number = _lookup("cname.", condition_name)
+        if condition < 0 {
+            valid = 0
+        }
+        Memory.set(_idx2("s.c", index, j), condition)
+        Memory.set(_idx2("s.t", index, j), truth)
+        j = j + 1
+    }
+    Memory.set(_idx("s.ok", index), valid)
+    Memory.set("n.set", index + 1)
+    Memory.set(String.concat("sname.", name), index + 1)
+    return close + String.length("</set>")
+}
+
+local _parse_events(text: string) {
+    total: number = String.length(text)
+    pos: number = 0
+    while pos < total {
+        open: number = _open_tag(text, "event", pos, total)
+        if open < 0 {
+            return
+        }
+        pos = _parse_event(text, open)
+    }
+}
+
+local _parse_event(text: string, open: number) number {
+    total: number = String.length(text)
+    tag_end: number = _gt(text, open, total)
+    close: number = _close_tag(text, "event", tag_end, total)
+    if tag_end < 0 or close < 0 {
+        return total
+    }
+    index: number = Memory.get("n.ev")
+    name: string = _attr(text, "name", open, tag_end)
+    count: number = _count(text, "path", tag_end, close)
+    j: number = 0
+    while j < count {
+        path: string = _nth_inner(text, "path", j, tag_end, close)
+        Memory.set_text(_idx2("e.p", index, j), path)
+        j = j + 1
+    }
+    Memory.set(_idx("e.n", index), count)
+    Memory.set(_idx("e.vn", index), _number(_nth_inner(text, "volmin", 0, tag_end, close), 1))
+    Memory.set(_idx("e.vx", index), _number(_nth_inner(text, "volmax", 0, tag_end, close), 1))
+    Memory.set(_idx("e.pn", index), _number(_nth_inner(text, "pitchmin", 0, tag_end, close), 1))
+    Memory.set(_idx("e.px", index), _number(_nth_inner(text, "pitchmax", 0, tag_end, close), 1))
+    Memory.set(_idx("e.me", index), _int(_nth_inner(text, "metasound", 0, tag_end, close), 0))
+    Memory.set("n.ev", index + 1)
+    Memory.set(String.concat("ename.", name), index + 1)
+    return close + String.length("</event>")
+}
+
+local _parse_machines(text: string) {
+    total: number = String.length(text)
+    pos: number = 0
+    while pos < total {
+        open: number = _open_tag(text, "machine", pos, total)
+        if open < 0 {
+            return
+        }
+        pos = _parse_machine(text, open)
+    }
+}
+
+local _parse_machine(text: string, open: number) number {
+    total: number = String.length(text)
+    tag_end: number = _gt(text, open, total)
+    close: number = _close_tag(text, "machine", tag_end, total)
+    if tag_end < 0 or close < 0 {
+        return total
+    }
+    index: number = Memory.get("n.mach")
+    name: string = _attr(text, "name", open, tag_end)
+    freq: number = Memory.get("pack.freq")
+    Memory.set(_idx("m.fr", index), freq)
+    allows: number = _count(text, "allow", tag_end, close)
+    restricts: number = _count(text, "restrict", tag_end, close)
+    timed: number = _count(text, "eventtimed", tag_end, close)
+    streams: number = _count(text, "stream", tag_end, close)
+    Memory.set(_idx("m.na", index), allows)
+    Memory.set(_idx("m.nr", index), restricts)
+    Memory.set(_idx("m.nt", index), timed)
+    Memory.set(_idx("m.ns", index), streams)
+    valid: number = 1
+    if allows == 0 {
+        valid = 0
+    }
+    j: number = 0
+    while j < allows {
+        set: number = _lookup("sname.", _nth_inner(text, "allow", j, tag_end, close))
+        if set < 0 {
+            valid = 0
+        }
+        Memory.set(_idx2("m.a", index, j), set)
+        j = j + 1
+    }
+    j = 0
+    while j < restricts {
+        set: number = _lookup("sname.", _nth_inner(text, "restrict", j, tag_end, close))
+        if set < 0 {
+            valid = 0
+        }
+        Memory.set(_idx2("m.r", index, j), set)
+        j = j + 1
+    }
+    Memory.set(_idx("m.ok", index), valid)
+    j = 0
+    while j < timed {
+        at: number = _nth_open(text, "eventtimed", j, tag_end, close)
+        body: number = _gt(text, at, close)
+        timed_index: number = Memory.get("n.t")
+        end: number = _close_tag(text, "eventtimed", body, close)
+        if body < 0 or end < 0 {
+            end = close
+        }
+        Memory.set(_idx("t.ev", timed_index), _lookup("ename.", _nth_inner(text, "eventname", 0, body, end)))
+        Memory.set(_idx("t.vm", timed_index), _number(_nth_inner(text, "volmod", 0, body, end), 1))
+        Memory.set(_idx("t.pm", timed_index), _number(_nth_inner(text, "pitchmod", 0, body, end), 1))
+        Memory.set(_idx("t.ds", timed_index), _number(_nth_inner(text, "delaystart", 0, body, end), 0))
+        Memory.set(_idx("t.dn", timed_index), _number(_nth_inner(text, "delaymin", 0, body, end), 10))
+        Memory.set(_idx("t.dx", timed_index), _number(_nth_inner(text, "delaymax", 0, body, end), 10))
+        Memory.set(_idx2("m.t", index, j), timed_index)
+        Memory.set("n.t", timed_index + 1)
+        j = j + 1
+    }
+    j = 0
+    while j < streams {
+        at: number = _nth_open(text, "stream", j, tag_end, close)
+        body: number = _gt(text, at, close)
+        stream_index: number = Memory.get("n.st")
+        end: number = _close_tag(text, "stream", body, close)
+        if body < 0 or end < 0 {
+            end = close
+        }
+        Memory.set_text(_idx("st.p", stream_index), _nth_inner(text, "path", 0, body, end))
+        Memory.set(_idx("st.vo", stream_index), _number(_nth_inner(text, "volume", 0, body, end), 1))
+        Memory.set(_idx("st.pi", stream_index), _number(_nth_inner(text, "pitch", 0, body, end), 1))
+        Memory.set(_idx("st.fi", stream_index), _number(_nth_inner(text, "fadeintime", 0, body, end), 0))
+        Memory.set(_idx("st.fo", stream_index), _number(_nth_inner(text, "fadeouttime", 0, body, end), 0))
+        Memory.set(_idx("st.di", stream_index), _number(_nth_inner(text, "delaybeforefadein", 0, body, end), 0))
+        Memory.set(_idx("st.do", stream_index), _number(_nth_inner(text, "delaybeforefadeout", 0, body, end), 0))
+        Memory.set(_idx("st.lo", stream_index), _int(_nth_inner(text, "islooping", 0, body, end), 1))
+        Memory.set(_idx("st.pa", stream_index), _int(_nth_inner(text, "isusingpause", 0, body, end), 0))
+        Memory.set(_idx2("m.s", index, j), stream_index)
+        Memory.set("n.st", stream_index + 1)
+        j = j + 1
+    }
+    Memory.set("n.mach", index + 1)
+    Memory.set(String.concat("mname.", name), index + 1)
+    machine_count = machine_count + 1
+    return close + String.length("</machine>")
+}
+
+# The sampler: the twelve contact blocks and the frequent processor every tick, then the relaxed
+# processor and the two box scans on the reference's own cadence.
+local _sample(level: Level, player: Player) {
+    pos: Vec3 = player.position()
+    x: number = Math.floor(pos.x())
+    y: number = Math.floor(pos.y())
+    z: number = Math.floor(pos.z())
+    _sample_contact(level, x, y, z)
+    _sample_instants(level, player, x, y, z)
+    if Math.remainder(sampler_ticks, 64) == 0 {
+        _sample_relaxed(level, x, z)
+        _scan_small(level, x, y, z)
+        _scan_large(level, x, y, z)
+    }
+}
+
+# MAtProcessorContact: the twelve blocks the reference counts, which are the block below the player
+# and the eight around it, three layers at the feet.
+local _sample_contact(level: Level, x: number, y: number, z: number) {
+    base: number = y - 1
+    j: number = 0
+    while j < 12 {
+        old: number = Memory.get(_idx("cq", j))
+        if old >= 0 {
+            Memory.set(String.concat("C.", String.from_number(old)), 0)
+        }
+        j = j + 1
+    }
+    j = 0
+    while j < 12 {
+        dy: number = 0
+        if j > 7 {
+            dy = j - 9
+        } else {
+            dy = Math.remainder(j, 2)
+        }
+        dx: number = 0
+        if j < 4 {
+            if j < 2 {
+                dx = -1
+            } else {
+                dx = 1
+            }
+        }
+        dz: number = 0
+        if j > 3 and j < 8 {
+            if j < 6 {
+                dz = -1
+            } else {
+                dz = 1
+            }
+        }
+        id: number = _block_id(level.get_block(x + dx, base + dy, z + dz))
+        Memory.set(_idx("cq", j), id)
+        count: number = Memory.get(String.concat("C.", String.from_number(id)))
+        Memory.set(String.concat("C.", String.from_number(id)), count + 1)
+        j = j + 1
+    }
+}
+
+# MAtProcessorFrequent: about seventy Instants, with the constants the host cannot supply left at
+# the deviation's values. A block id no row of `blocks.txt` names is 0, which is air.
+local _sample_instants(level: Level, player: Player, x: number, y: number, z: number) {
+    state: PlayerState = player.state()
+    weather: Weather = level.get_weather()
+    sky: number = level.get_sky_light(x, y, z)
+    block_light: number = level.get_block_light(x, y, z)
+    subtracted: number = weather.skylight_subtracted()
+    current: number = sky - subtracted
+    if block_light > current {
+        current = block_light
+    }
+    if current < 0 {
+        current = 0
+    }
+    time: number = level.get_time()
+    day: number = Math.floor(time / 24000)
+    of_day: number = time - day * 24000
+    if of_day < 0 {
+        of_day = of_day + 24000
+    }
+    dimension: number = _dimension_number(level)
+    sky_visible: number = _yn(level.can_see_sky(x, y, z))
+    rain_height: number = weather.rain_height(x, z)
+    mx: number = _round(state.motion_x() * 1000)
+    my: number = _round(state.motion_y() * 1000)
+    mz: number = _round(state.motion_z() * 1000)
+    speed: number = Math.floor(Math.sqrt(mx * mx + mz * mz))
+    rx: number = _round(state.riding_motion_x() * 1000)
+    ry: number = _round(state.riding_motion_y() * 1000)
+    rz: number = _round(state.riding_motion_z() * 1000)
+    ride_speed: number = Math.floor(Math.sqrt(rx * rx + rz * rz))
+    _set_instant(0, sky)
+    _set_instant(1, block_light)
+    _set_instant(2, current)
+    _set_instant(3, of_day)
+    _set_instant(4, y)
+    _set_instant(6, _yn(state.is_in_water()))
+    _set_instant(7, _yn(weather.is_raining()))
+    _set_instant(8, _yn(weather.is_thundering()))
+    _set_instant(9, sky_visible)
+    _set_instant(10, _yn(dimension == -1))
+    _set_instant(11, subtracted)
+    _set_instant(19, _yn(state.is_wet()))
+    _set_instant(20, x)
+    _set_instant(21, z)
+    _set_instant(22, _yn(state.on_ground()))
+    _set_instant(23, state.air())
+    _set_instant(24, state.health())
+    _set_instant(25, dimension)
+    _set_instant(26, _yn(sky_visible == 1 and rain_height <= y))
+    _set_instant(27, rain_height)
+    _set_instant(28, rain_height - y)
+    _set_instant(33, mx)
+    _set_instant(34, my)
+    _set_instant(35, mz)
+    _set_instant(36, _block_id(level.get_block(x, y - 1, z)))
+    _set_instant(37, _block_id(level.get_block(x, y - 2, z)))
+    _set_instant(38, sampler_ticks)
+    _set_instant(43, Math.floor(state.fall_distance() * 1000))
+    _set_instant(45, speed)
+    _set_instant(51, state.food())
+    _set_instant(68, _yn(state.in_minecart()))
+    _set_instant(71, rx)
+    _set_instant(72, ry)
+    _set_instant(73, rz)
+    _set_instant(74, ride_speed)
+}
+
+# MAtProcessorRelaxed, every 64th pass, with the dice and the biome left at the deviation's values.
+local _sample_relaxed(level: Level, x: number, z: number) {
+    _set_instant(5, _dimension_number(level))
+    _set_instant(12, _yn(level.is_multiplayer()))
+    _set_instant(29, -1)
+    _set_instant(30, 0)
+    _set_instant(31, 0)
+}
+
+# One sheet entry, with the reference's Deltas entry beside it.
+local _set_instant(index: number, value: number) {
+    value = _trunc(value)
+    key: string = _idx("i", index)
+    old: number = Memory.get(key)
+    Memory.set(key, value)
+    Memory.set(_idx("dl", index), value - old)
+}
+
+# The small scan, 16 by 8 by 16 around the player, into SmallScan and SmallScanPerMil.
+local _scan_small(level: Level, x: number, y: number, z: number) {
+    _scan_box(level, x - 8, _clamp_y(y - 4, 8), z - 8, 16, 8, 16, "S", "SP")
+}
+
+# The large scan, 64 by 32 by 64, restarted only when the player moved more than 16, 8 or 16 blocks
+# since the last one or after ten checkpoints of not moving, as MAtDataGatherer.tickRoutine does.
+local _scan_large(level: Level, x: number, y: number, z: number) {
+    if Math.remainder(sampler_ticks, 256) != 0 {
+        return
+    }
+    if scan_passes < 10 and Math.abs(x - scan_x) <= 16 and Math.abs(y - scan_y) <= 8 and Math.abs(z - scan_z) <= 16 {
+        scan_passes = scan_passes + 1
+        return
+    }
+    scan_x = x
+    scan_y = y
+    scan_z = z
+    scan_passes = 0
+    _scan_box(level, x - 32, _clamp_y(y - 16, 32), z - 32, 64, 32, 64, "L", "LP")
+}
+
+# A histogram by block id into two sheets, the count and the reference's per-1000 share. The share
+# divides by the whole box, so a block no row names still counts in the divisor.
+local _scan_box(level: Level, x: number, y: number, z: number, sx: number, sy: number, sz: number, normal: string, per: string) {
+    counts: BlockCounts = level.count_blocks_in_box(x, y, z, sx, sy, sz)
+    volume: number = sx * sy * sz
+    total: number = Memory.get("n.block")
+    i: number = 0
+    while i < total {
+        id: number = Memory.get(_idx("bid", i))
+        name: Option[string] = Memory.get_text(_idx("bnm", i))
+        if name.has() {
+            count: number = counts.count(name.unwrap())
+            Memory.set(String.concat(String.concat(normal, "."), String.from_number(id)), count)
+            Memory.set(String.concat(String.concat(per, "."), String.from_number(id)), Math.floor(1000 * count / volume))
+        }
+        i = i + 1
+    }
+}
+
+# The reference's own clamp of a scan box's start, which keeps a box near the world's floor or
+# ceiling inside it: 1.2.5 is 128 blocks high.
+local _clamp_y(y: number, size: number) number {
+    if y < 0 {
+        return 0
+    }
+    if y > 128 - size {
+        return 128 - size
+    }
+    return y
+}
+
+# One evaluation pass, in the reference's order, gated per machine by its pack's tick rate.
+local _evaluate(now: number) {
+    _eval_dynamics()
+    _eval_conditions()
+    _eval_sets()
+    _eval_machines(now)
+}
+
+local _eval_dynamics() {
+    total: number = Memory.get("n.dyn")
+    i: number = 0
+    while i < total {
+        count: number = Memory.get(_idx("d.n", i))
+        sum: number = 0
+        j: number = 0
+        while j < count {
+            sheet: number = Memory.get(_idx2("d.sh", i, j))
+            key: number = Memory.get(_idx2("d.k", i, j))
+            sum = sum + _sheet_value(sheet, key)
+            j = j + 1
+        }
+        Memory.set(_idx("d.v", i), sum)
+        i = i + 1
+    }
+}
+
+local _eval_conditions() {
+    total: number = Memory.get("n.cond")
+    i: number = 0
+    while i < total {
+        value: number = 0
+        if Memory.get(_idx("c.ok", i)) == 1 {
+            dynamic: number = Memory.get(_idx("c.d", i))
+            got: number = 0
+            if dynamic >= 0 {
+                got = Memory.get(_idx("d.v", dynamic))
+            } else {
+                got = _sheet_value(Memory.get(_idx("c.sh", i)), Memory.get(_idx("c.k", i)))
+            }
+            symbol: number = Memory.get(_idx("c.sy", i))
+            constant: number = Memory.get(_idx("c.co", i))
+            list: number = Memory.get(_idx("c.li", i))
+            if symbol == 0 {
+                if got != constant {
+                    value = 1
+                }
+            } else if symbol == 1 {
+                if got == constant {
+                    value = 1
+                }
+            } else if symbol == 2 {
+                if got > constant {
+                    value = 1
+                }
+            } else if symbol == 3 {
+                if got >= constant {
+                    value = 1
+                }
+            } else if symbol == 4 {
+                if got < constant {
+                    value = 1
+                }
+            } else if symbol == 5 {
+                if got <= constant {
+                    value = 1
+                }
+            } else if symbol == 6 {
+                if _list_contains(list, got) {
+                    value = 1
+                }
+            } else if symbol == 7 {
+                if not _list_contains(list, got) {
+                    value = 1
+                }
+            }
+        }
+        Memory.set(_idx("c.v", i), value)
+        i = i + 1
+    }
+}
+
+local _eval_sets() {
+    total: number = Memory.get("n.set")
+    i: number = 0
+    while i < total {
+        value: number = 0
+        if Memory.get(_idx("s.ok", i)) == 1 {
+            value = 1
+            count: number = Memory.get(_idx("s.n", i))
+            j: number = 0
+            while j < count and value == 1 {
+                condition: number = Memory.get(_idx2("s.c", i, j))
+                truth: number = Memory.get(_idx2("s.t", i, j))
+                got: number = 0
+                if condition >= 0 {
+                    got = Memory.get(_idx("c.v", condition))
+                }
+                if got != truth {
+                    value = 0
+                }
+                j = j + 1
+            }
+        }
+        Memory.set(_idx("s.v", i), value)
+        i = i + 1
+    }
+}
+
+# MAtmosMachine.evaluate: any allow set true, then any restrict set true vetoes, and the on and off
+# edges restart the machine's timed events and signal its streams.
+local _eval_machines(now: number) {
+    total: number = Memory.get("n.mach")
+    i: number = 0
+    while i < total {
+        was: number = Memory.get(_idx("m.on", i))
+        on: number = was
+        freq: number = Memory.get(_idx("m.fr", i))
+        if Memory.get(_idx("m.ok", i)) == 1 and Math.remainder(sampler_ticks, freq) == 0 {
+            on = 0
+            allows: number = Memory.get(_idx("m.na", i))
+            j: number = 0
+            while j < allows and on == 0 {
+                set: number = Memory.get(_idx2("m.a", i, j))
+                if set >= 0 and Memory.get(_idx("s.v", set)) == 1 {
+                    on = 1
+                }
+                j = j + 1
+            }
+            restricts: number = Memory.get(_idx("m.nr", i))
+            j = 0
+            while j < restricts and on == 1 {
+                set: number = Memory.get(_idx2("m.r", i, j))
+                if set >= 0 and Memory.get(_idx("s.v", set)) == 1 {
+                    on = 0
+                }
+                j = j + 1
+            }
+        }
+        if on == 1 and was == 0 {
+            _machine_on(i, now)
+        } else if on == 0 and was == 1 {
+            _machine_off(i, now)
+        }
+        Memory.set(_idx("m.on", i), on)
+        i = i + 1
+    }
+}
+
+# MAtmosMachine.turnOn: each timed event restarts from delaystart, or from a random point of
+# delaymax when delaystart is 0, and each stream becomes playable after its fade-in delay.
+local _machine_on(index: number, now: number) {
+    count: number = Memory.get(_idx("m.nt", index))
+    j: number = 0
+    while j < count {
+        timed: number = Memory.get(_idx2("m.t", index, j))
+        if timed >= 0 {
+            start: number = Memory.get(_idx("t.ds", timed))
+            if start == 0 {
+                start = now + Math.floor(_random_float() * Memory.get(_idx("t.dx", timed)) * 1000)
+            } else {
+                start = now + Math.floor(start * 1000)
+            }
+            Memory.set(_idx("t.np", timed), start)
+        }
+        j = j + 1
+    }
+    count = Memory.get(_idx("m.ns", index))
+    j = 0
+    while j < count {
+        stream: number = Memory.get(_idx2("m.s", index, j))
+        if stream >= 0 and Memory.get(_idx("st.on", stream)) == 0 {
+            Memory.set(_idx("st.on", stream), 1)
+            Memory.set(_idx("st.st", stream), now + Math.floor(Memory.get(_idx("st.di", stream)) * 1000))
+        }
+        j = j + 1
+    }
+}
+
+local _machine_off(index: number, now: number) {
+    count: number = Memory.get(_idx("m.ns", index))
+    j: number = 0
+    while j < count {
+        stream: number = Memory.get(_idx2("m.s", index, j))
+        if stream >= 0 and Memory.get(_idx("st.on", stream)) == 1 {
+            Memory.set(_idx("st.on", stream), 0)
+            Memory.set(_idx("st.sp", stream), now + Math.floor(Memory.get(_idx("st.do", stream)) * 1000))
+        }
+        j = j + 1
+    }
+}
+
+# The frame routine: every stream's latch, then the timed events of every machine that is on.
+local _sound(now: number, player: Player) {
+    total: number = Memory.get("n.st")
+    i: number = 0
+    while i < total {
+        _stream_routine(i, now)
+        i = i + 1
+    }
+    total = Memory.get("n.mach")
+    i = 0
+    while i < total {
+        if Memory.get(_idx("m.on", i)) == 1 {
+            count: number = Memory.get(_idx("m.nt", i))
+            j: number = 0
+            while j < count {
+                timed: number = Memory.get(_idx2("m.t", i, j))
+                if timed >= 0 {
+                    _timed_routine(timed, now, player)
+                }
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+}
+
+# MAtmosStream.routine: a stream starts once `now` passes its start time, is stopped or paused once
+# it passes its stop time, and a stream that is not looping and uses pause does nothing at all,
+# which is the reference's own guard.
+local _stream_routine(index: number, now: number) {
+    looping: number = Memory.get(_idx("st.lo", index))
+    pausing: number = Memory.get(_idx("st.pa", index))
+    if looping == 0 and pausing == 1 {
+        return
+    }
+    on: number = Memory.get(_idx("st.on", index))
+    playing: number = Memory.get(_idx("st.pl", index))
+    if on == 1 and playing == 0 {
+        if now > Memory.get(_idx("st.st", index)) {
+            Memory.set(_idx("st.pl", index), 1)
+            _stream_start(index)
+        }
+    } else if on == 0 and playing == 1 {
+        if now > Memory.get(_idx("st.sp", index)) {
+            Memory.set(_idx("st.pl", index), 0)
+            _stream_stop(index)
+        }
+    }
+}
+
+local _stream_start(index: number) {
+    path: Option[string] = Memory.get_text(_idx("st.p", index))
+    if not path.has() {
+        return
+    }
+    pausing: number = Memory.get(_idx("st.pa", index))
+    state: number = Memory.get(_idx("st.cs", index))
+    token: number = Memory.get(_idx("st.tk", index))
+    if pausing == 1 and state == 2 and token > 0 {
+        resume_stream(token)
+        Memory.set(_idx("st.cs", index), 1)
+        return
+    }
+    volume: number = Memory.get(_idx("st.vo", index)) * volume_setting
+    if volume > 1 {
+        volume = 1
+    }
+    gain: Option[number] = start_stream(_sound_path(path.unwrap()), volume, Memory.get(_idx("st.pi", index)), Math.floor(1000 * Memory.get(_idx("st.fi", index))), Memory.get(_idx("st.lo", index)) == 1)
+    if gain.has() and gain.unwrap() > 0 {
+        Memory.set(_idx("st.tk", index), gain.unwrap())
+        Memory.set(_idx("st.cs", index), 1)
+    } else {
+        Memory.set(_idx("st.tk", index), 0)
+        Memory.set(_idx("st.cs", index), 0)
+    }
+}
+
+local _stream_stop(index: number) {
+    token: number = Memory.get(_idx("st.tk", index))
+    if token <= 0 {
+        return
+    }
+    if Memory.get(_idx("st.pa", index)) == 1 {
+        pause_stream(token)
+        Memory.set(_idx("st.cs", index), 2)
+        return
+    }
+    stop_stream(token, Math.floor(1000 * Memory.get(_idx("st.fo", index))))
+    Memory.set(_idx("st.tk", index), 0)
+    Memory.set(_idx("st.cs", index), 0)
+}
+
+# MAtmosEventTimed.routine: play now if the next play time has come, then wait delaymin plus a
+# random part of the rest of the range.
+local _timed_routine(index: number, now: number, player: Player) {
+    if now < Memory.get(_idx("t.np", index)) {
+        return
+    }
+    event: number = Memory.get(_idx("t.ev", index))
+    if event >= 0 {
+        _play_event(event, Memory.get(_idx("t.vm", index)), Memory.get(_idx("t.pm", index)), player)
+    }
+    low: number = Memory.get(_idx("t.dn", index))
+    high: number = Memory.get(_idx("t.dx", index))
+    delay: number = low + _random_float() * (high - low)
+    Memory.set(_idx("t.np", index), now + Math.floor(delay * 1000))
+}
+
+# MAtmosEvent.playSound: one path of the declared ones, a random gain and pitch inside their
+# ranges, scaled by the timed event's modifiers, and placed around the player when the event has a
+# metasound radius.
+local _play_event(index: number, volume_mod: number, pitch_mod: number, player: Player) {
+    paths: number = Memory.get(_idx("e.n", index))
+    if paths == 0 {
+        return
+    }
+    low: number = Memory.get(_idx("e.vn", index))
+    high: number = Memory.get(_idx("e.vx", index))
+    volume: number = low
+    if high - low > 0 {
+        volume = low + _random_float() * (high - low)
+    }
+    low = Memory.get(_idx("e.pn", index))
+    high = Memory.get(_idx("e.px", index))
+    pitch: number = low
+    if high - low > 0 {
+        pitch = low + _random_float() * (high - low)
+    }
+    chosen: Option[string] = Memory.get_text(_idx2("e.p", index, _random_int(paths)))
+    if not chosen.has() {
+        return
+    }
+    path: string = _sound_path(chosen.unwrap())
+    volume = volume * volume_mod * volume_setting
+    pitch = pitch * pitch_mod
+    radius: number = Memory.get(_idx("e.me", index))
+    if radius <= 0 {
+        play_sound_file(path, volume, pitch)
+        return
+    }
+    angle: number = _random_float() * 2 * Math.pi()
+    pos: Vec3 = player.position()
+    ex: number = pos.x() + Math.cos(angle) * radius
+    ey: number = pos.y() + _random_float() * radius * 0.2 - radius * 0.01
+    ez: number = pos.z() + Math.sin(angle) * radius
+    play_sound_at(path, volume, pitch, ex, ey, ez)
+}
+
+# Draws the status line and, while it is open, the volume slider.
+local _draw(ctx: OverlayHudContext, player: Player) {
+    if status_left > 0 {
+        ctx.add_text(status_text, 4, 4, Color.rgb(255, 210, 80))
+        status_left = status_left - 1
+    }
+    if slider_open and loaded and enabled {
+        _update_slider(player)
+        _draw_slider(ctx, player)
+    }
+}
+
+# The reference's MAtScroller.doRoutineBefore: every ten degrees of head turn plays the game's click
+# at the reference's gain and pitch, and the slider's value is the square of 1 - pitch/90 with the
+# two snaps applied. The first frame only takes the pitch as the place a turn is measured from.
+local _update_slider(player: Player) {
+    pitch: number = player.pitch()
+    if slider_fresh {
+        slider_fresh = false
+        slider_prev_pitch = pitch
+    }
+    if Math.floor((slider_prev_pitch + 90) / 10) != Math.floor((pitch + 90) / 10) {
+        click: number = Math.pow(1 - pitch / 90, 2)
+        tone: number = Math.pow(2, -Math.floor(pitch / 10) / 12)
+        if has_sound("minecraft:random.click") {
+            play_ui_sound("minecraft:random.click", click, tone)
+        }
+    }
+    slider_prev_pitch = pitch
+    volume_setting = _slider_value(pitch)
+}
+
+# Reads the gain the last session saved. The file is the port's own line-based form of the
+# reference's matmos_options.cfg, and a missing or unreadable one keeps the full gain.
+local _load_options() {
+    file: File = File.open(r"files")
+    text: Option[string] = file.read_text("matmos_options.cfg")
+    if not text.has() {
+        return
+    }
+    body: string = text.unwrap()
+    key: string = "volume.generic.value="
+    at: number = _find(body, key, 0)
+    if at < 0 {
+        return
+    }
+    from: number = at + String.length(key)
+    end: number = _find(body, String.from_character(10), from)
+    if end < 0 {
+        end = String.length(body)
+    }
+    value: Option[number] = String.to_number(String.substring(body, from, end))
+    if value.has() and value.unwrap() >= 0 {
+        volume_setting = value.unwrap()
+    }
+}
+
+# Writes the gain in the reference's own key, saved when the slider closes as the reference saves
+# its options when the scroller stops.
+local _save_options() {
+    file: File = File.open(r"files")
+    file.write_text("matmos_options.cfg", String.concat("volume.generic.value=", String.from_number(volume_setting)))
+}
+
+# The reference's MAtScroller: the gain is 1 - pitch/90, drawn as eight marks along a curve, with
+# the percentage above them. It is the same on every frame, so a player reads it while turning.
+local _draw_slider(ctx: OverlayHudContext, player: Player) {
+    width: number = ctx.screen_width()
+    height: number = ctx.screen_height()
+    left: number = Math.floor(width / 2) + 20
+    middle: number = Math.floor(height / 2)
+    percent: number = Math.floor(volume_setting * 100)
+    ctx.add_text("MAtmos Volume", left, middle, Color.rgb(255, 255, 255))
+    ctx.add_text(String.concat(String.from_number(percent), "%"), left, middle + 10, Color.rgb(255, 0, 0))
+    ctx.add_text("<Look up/down>", left, middle + 20, Color.rgb(160, 160, 160))
+    ctx.add_text("+", left, middle - Math.floor(height / 6) + 3, Color.rgb(255, 255, 0))
+    ctx.add_text("-", left, middle + Math.floor(height / 6) + 3, Color.rgb(255, 255, 0))
+    i: number = 0
+    while i < 8 {
+        per: number = (Math.remainder(player.pitch() + 90, 20) / 20 + i) / 8
+        row: number = middle + Math.floor(Math.cos(Math.pi() * per) * height / 6)
+        ctx.add_text("_", left, row, Color.rgb(255, 255, 0))
+        i = i + 1
+    }
+}
+
+local _slider_value(pitch: number) number {
+    value: number = Math.pow(1 - pitch / 90, 2)
+    if Math.abs(pitch) < 3 {
+        value = 1
+    }
+    if Math.abs(value - 0.2) < 0.05 {
+        value = 0.2
+    }
+    return value
+}
+
+# A pack's path is relative to the game directory's resources folder, where 1.2.5 keeps its own
+# sounds, so an installed 2012 pack plays without moving a file.
+local _sound_path(path: string) string {
+    return String.concat("resources/", path)
+}
+
+# The sheet index of a pack's sheet name, or -1 for a name this engine does not sample.
+local _sheet_index(name: string) number {
+    if name == "Instants" {
+        return 0
+    }
+    if name == "Deltas" {
+        return 1
+    }
+    if name == "LargeScan" {
+        return 2
+    }
+    if name == "LargeScanPerMil" {
+        return 3
+    }
+    if name == "SmallScan" {
+        return 4
+    }
+    if name == "SmallScanPerMil" {
+        return 5
+    }
+    if name == "ContactScan" {
+        return 6
+    }
+    if name == "SpecialLarge" {
+        return 7
+    }
+    if name == "SpecialSmall" {
+        return 8
+    }
+    return -1
+}
+
+local _sheet_size(sheet: number) number {
+    if sheet == 0 or sheet == 1 {
+        return 256
+    }
+    if sheet == 7 {
+        return 2
+    }
+    if sheet == 8 {
+        return 1
+    }
+    return 4096
+}
+
+local _sheet_value(sheet: number, key: number) number {
+    if sheet < 0 or key < 0 {
+        return 0
+    }
+    if sheet == 0 {
+        return Memory.get(_idx("i", key))
+    }
+    if sheet == 1 {
+        return Memory.get(_idx("dl", key))
+    }
+    if sheet == 2 {
+        return Memory.get(String.concat("L.", String.from_number(key)))
+    }
+    if sheet == 3 {
+        return Memory.get(String.concat("LP.", String.from_number(key)))
+    }
+    if sheet == 4 {
+        return Memory.get(String.concat("S.", String.from_number(key)))
+    }
+    if sheet == 5 {
+        return Memory.get(String.concat("SP.", String.from_number(key)))
+    }
+    if sheet == 6 {
+        return Memory.get(String.concat("C.", String.from_number(key)))
+    }
+    return 0
+}
+
+local _list_contains(list: number, value: number) bool {
+    if list < 0 {
+        return false
+    }
+    count: number = Memory.get(_idx("l.n", list))
+    i: number = 0
+    while i < count {
+        if Memory.get(_idx2("l.c", list, i)) == value {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+# The 1.2.5 dimension number the sheets carry: overworld 0, the Nether -1 and the End 1, which is
+# what WorldProvider's dimension ids are.
+local _dimension_number(level: Level) number {
+    name: string = level.dimension()
+    if name == "the_nether" {
+        return -1
+    }
+    if name == "the_end" {
+        return 1
+    }
+    return 0
+}
+
+# The id a block name means, from the `blocks.txt` table, or 0 for a name no row has, which is air.
+local _block_id(name: string) number {
+    return Memory.get(String.concat("bi.", name))
+}
+
+# The index a name was stored under, or -1: an index is stored plus one, because Memory.get reads an
+# unwritten name as 0.
+local _lookup(prefix: string, name: string) number {
+    if String.length(name) == 0 {
+        return -1
+    }
+    return Memory.get(String.concat(prefix, name)) - 1
+}
+
+local _yn(value: bool) number {
+    if value {
+        return 1
+    }
+    return 0
+}
+
+local _round(value: number) number {
+    return Math.floor(value + 0.5)
+}
+
+local _int(text: string, fallback: number) number {
+    number: Option[number] = String.to_number(text)
+    if not number.has() {
+        return fallback
+    }
+    return _trunc(number.unwrap())
+}
+
+# Java's (int) cast: toward zero.
+local _trunc(value: number) number {
+    if value < 0 {
+        return Math.ceil(value)
+    }
+    return Math.floor(value)
+}
+
+local _number(text: string, fallback: number) number {
+    number: Option[number] = String.to_number(text)
+    if not number.has() {
+        return fallback
+    }
+    return number.unwrap()
+}
+
+# The engine's own generator, a Lehmer generator over 2^31 - 1, which is exact in a double and so
+# reproducible. It is seeded from the game time when the engine starts, and the reference's own
+# Random is never used, because drawing from the game's would change its sequence.
+local _seed_random(time: number) {
+    seed: number = Math.floor(Math.remainder(time, 2000000000))
+    if seed < 1 {
+        seed = 1
+    }
+    Memory.set("rng.state", seed)
+}
+
+local _random_int(bound: number) number {
+    if bound <= 1 {
+        return 0
+    }
+    value: number = Math.floor(_random_float() * bound)
+    if value >= bound {
+        return bound - 1
+    }
+    return value
+}
+
+local _random_float() number {
+    return _rng_next() / 2147483647
+}
+
+local _rng_next() number {
+    state: number = Memory.get("rng.state")
+    if state <= 0 {
+        state = 1
+    }
+    state = state * 48271
+    quotient: number = Math.floor(state / 2147483647)
+    state = state - quotient * 2147483647
+    Memory.set("rng.state", state)
+    return state
+}
+
+local _idx2(prefix: string, index: number, second: number) string {
+    return _idx(_idx(prefix, index), second)
+}
+
+# Memory's record names: `prefix.i`, `prefix.i.j`, and a sheet entry's key.
+local _idx(prefix: string, index: number) string {
+    return String.concat(String.concat(prefix, "."), String.from_number(index))
+}
+
+local _count(text: string, tag: string, from: number, to: number) number {
+    count: number = 0
+    pos: number = from
+    while pos < to {
+        open: number = _open_tag(text, tag, pos, to)
+        if open < 0 {
+            return count
+        }
+        count = count + 1
+        pos = open + 1
+    }
+    return count
+}
+
+local _nth_inner(text: string, tag: string, n: number, from: number, to: number) string {
+    open: number = _nth_open(text, tag, n, from, to)
+    if open < 0 {
+        return ""
+    }
+    body: number = _gt(text, open, to)
+    if body < 0 {
+        return ""
+    }
+    close: number = _close_tag(text, tag, body, to)
+    if close < 0 {
+        return ""
+    }
+    return _unescape(String.substring(text, body, close))
+}
+
+local _gt(text: string, open: number, to: number) number {
+    at: number = _bounded(text, ">", open, to)
+    if at < 0 {
+        return -1
+    }
+    return at + 1
+}
+
+local _close_tag(text: string, tag: string, from: number, to: number) number {
+    needle: string = String.concat("</", tag)
+    length: number = String.length(needle)
+    pos: number = from
+    while pos < to {
+        at: number = _bounded(text, needle, pos, to)
+        if at < 0 {
+            return -1
+        }
+        after: number = at + length
+        if after >= String.length(text) {
+            return -1
+        }
+        if String.substring(text, after, after + 1) == ">" {
+            return at
+        }
+        pos = at + 1
+    }
+    return -1
+}
+
+local _nth_open(text: string, tag: string, n: number, from: number, to: number) number {
+    pos: number = from
+    i: number = 0
+    while i < n {
+        open: number = _open_tag(text, tag, pos, to)
+        if open < 0 {
+            return -1
+        }
+        pos = open + 1
+        i = i + 1
+    }
+    return _open_tag(text, tag, pos, to)
+}
+
+local _open_tag(text: string, tag: string, from: number, to: number) number {
+    needle: string = String.concat("<", tag)
+    length: number = String.length(needle)
+    pos: number = from
+    while pos < to {
+        at: number = _bounded(text, needle, pos, to)
+        if at < 0 {
+            return -1
+        }
+        after: number = at + length
+        if after >= String.length(text) {
+            return -1
+        }
+        next: string = String.substring(text, after, after + 1)
+        if next == " " or next == ">" {
+            return at
+        }
+        pos = at + 1
+    }
+    return -1
+}
+
+local _attr(text: string, name: string, from: number, to: number) string {
+    needle: string = String.concat(name, "=\"")
+    at: number = _bounded(text, needle, from, to)
+    if at < 0 {
+        return ""
+    }
+    start: number = at + String.length(needle)
+    end: number = _bounded(text, "\"", start, to)
+    if end < 0 {
+        return ""
+    }
+    return _unescape(String.substring(text, start, end))
+}
+
+local _bounded(text: string, needle: string, from: number, to: number) number {
+    at: number = _find(text, needle, from)
+    if at < 0 {
+        return -1
+    }
+    if at >= to or at + String.length(needle) > to {
+        return -1
+    }
+    return at
+}
+
+local _unescape(text: string) string {
+    text = _replace(text, "&lt;", "<")
+    text = _replace(text, "&gt;", ">")
+    text = _replace(text, "&quot;", "\"")
+    text = _replace(text, "&apos;", "'")
+    return _replace(text, "&amp;", "&")
+}
+
+local _replace(text: string, from: string, to: string) string {
+    out: string = ""
+    pos: number = 0
+    total: number = String.length(text)
+    while pos <= total {
+        at: number = _find(text, from, pos)
+        if at < 0 {
+            return String.concat(out, String.substring(text, pos, total))
+        }
+        out = String.concat(out, String.substring(text, pos, at))
+        out = String.concat(out, to)
+        pos = at + String.length(from)
+    }
+    return out
+}
+
+# The text tools the pack reader is built from: a bounded search, the open and close tags of an
+# element, its attributes and its inner text. `_inner`'s answer is XML-unescaped, because a pack
+# writes a `>` comparison as `&gt;`.
+local _find(text: string, needle: string, from: number) number {
+    if from < 0 {
+        return -1
+    }
+    if from > String.length(text) {
+        return -1
+    }
+    at: Option[number] = String.index_of(text, needle, from)
+    if not at.has() {
+        return -1
+    }
+    return at.unwrap()
+}
+
+# The text without the spaces, tabs and carriage returns around it.
+local _trim(text: string) string {
+    start: number = 0
+    total: number = String.length(text)
+    while start < total {
+        c: string = String.substring(text, start, start + 1)
+        if c != " " and c != String.from_character(9) and c != String.from_character(13) {
+            break
+        }
+        start = start + 1
+    }
+    end: number = total
+    while end > start {
+        c: string = String.substring(text, end - 1, end)
+        if c != " " and c != String.from_character(9) and c != String.from_character(13) {
+            break
+        }
+        end = end - 1
+    }
+    return String.substring(text, start, end)
+}

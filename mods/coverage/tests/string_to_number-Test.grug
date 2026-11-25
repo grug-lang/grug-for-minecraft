@@ -1,0 +1,18 @@
+# Covers String.to_number (#1347): the spellings a data file writes, with whitespace around them,
+# and an empty Option for everything else, including the spellings of infinity and NaN.
+export tick(ctx: TestTickContext) {
+    ctx.assert(String.to_number("12").unwrap() == 12, "Digits should read.")
+    ctx.assert(String.to_number("-0.5").unwrap() == -0.5, "A signed decimal should read.")
+    ctx.assert(String.to_number("1e3").unwrap() == 1000, "An exponent should read.")
+    ctx.assert(String.to_number(" 7 ").unwrap() == 7, "Whitespace around the number should be ignored.")
+    ctx.assert(String.to_number("1E-2").unwrap() == 0.01, "A capital exponent with a sign should read.")
+    ctx.assert(String.to_number("5.").unwrap() == 5, "A trailing decimal point should read.")
+    ctx.assert(String.to_number(".5").unwrap() == 0.5, "A leading decimal point should read.")
+    ctx.assert(not String.to_number("").has(), "An empty text should spell no number.")
+    ctx.assert(not String.to_number("12abc").has(), "Text after the number should refuse the whole value.")
+    ctx.assert(not String.to_number("inf").has(), "Infinity should spell no number.")
+    ctx.assert(not String.to_number("nan").has(), "NaN should spell no number.")
+    ctx.assert(not String.to_number("1e").has(), "An exponent with no digits should spell no number.")
+    ctx.assert(not String.to_number("0x10").has(), "A hexadecimal spelling should spell no number.")
+    ctx.assert(not String.to_number("1e999").has(), "A value beyond a double should spell no number.")
+}

@@ -1,0 +1,5 @@
+# A sound path resolves under the game directory, so a parent segment is reported (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("the path has an empty, . or .. segment")
+    play_sound_file("resources/../secret.ogg", 1, 1)
+}

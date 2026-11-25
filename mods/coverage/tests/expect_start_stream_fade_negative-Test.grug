@@ -1,0 +1,5 @@
+# A stream's fade cannot be negative (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("start_stream: fade_in_ms has to be a whole number from 0 up")
+    start_stream("resources/newsound/random/glass1.ogg", 1, 1, -1, false)
+}

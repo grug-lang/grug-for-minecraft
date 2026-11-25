@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><contents>
+<!-- The port's own fixture pack, written for the tests in tests/. It is not a MAtmos pack: the
+     shipped packs.txt names nothing, so a player never loads it. The recordings it names are
+     vanilla 1.2.5 files, and a test asserts what the engine asked for, not what the mixer played. -->
+<expansion>
+	<data>1</data>
+</expansion>
+<dynamic name="Lava (Small)">
+	<entry sheet="SmallScan">10</entry>
+	<entry sheet="SmallScan">11</entry>
+</dynamic>
+<list name="Ages">
+	<constant>1</constant>
+	<constant>3</constant>
+</list>
+<condition name="Raining">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>==</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<condition name="Underwater">
+	<sheet>Instants</sheet>
+	<key>6</key>
+	<symbol>==</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<condition name="Night">
+	<sheet>Instants</sheet>
+	<key>3</key>
+	<symbol>&gt;=</symbol>
+	<constant>13000</constant>
+	<list/>
+</condition>
+<condition name="Stone nearby">
+	<sheet>SmallScan</sheet>
+	<key>1</key>
+	<symbol>&gt;</symbol>
+	<constant>0</constant>
+	<list/>
+</condition>
+<condition name="Age in list">
+	<sheet>Instants</sheet>
+	<key>3</key>
+	<symbol>in</symbol>
+	<constant>0</constant>
+	<list>Ages</list>
+</condition>
+<set name="Wet">
+	<truepart>Raining</truepart>
+</set>
+<set name="Dry">
+	<falsepart>Raining</falsepart>
+</set>
+<set name="Damp">
+	<truepart>Underwater</truepart>
+</set>
+<set name="Stony">
+	<truepart>Stone nearby</truepart>
+</set>
+<set name="Nightfall">
+	<truepart>Night</truepart>
+</set>
+<set name="Dripstone">
+	<truepart>Stone nearby</truepart>
+</set>
+<set name="Night">
+	<truepart>Night</truepart>
+</set>
+<event name="Drip">
+	<path>newsound/random/glass1.ogg</path>
+	<path>newsound/random/glass2.ogg</path>
+	<volmin>0.2</volmin>
+	<volmax>0.2</volmax>
+	<pitchmin>1.0</pitchmin>
+	<pitchmax>1.0</pitchmax>
+	<metasound>0</metasound>
+</event>
+<machine name="Rain">
+	<allow>Wet</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.5</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.0</delaybeforefadein>
+		<delaybeforefadeout>0.0</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>1</isusingpause>
+	</stream>
+</machine>
+<machine name="Sea">
+	<allow>Damp</allow>
+	<stream>
+		<path>newsound/ambient/water/underwater.ogg</path>
+		<volume>0.5</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.0</delaybeforefadein>
+		<delaybeforefadeout>0.0</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>0</isusingpause>
+	</stream>
+</machine>
+<machine name="Cave">
+	<allow>Nightfall</allow>
+	<restrict>Wet</restrict>
+	<eventtimed>
+		<eventname>Drip</eventname>
+		<delaymin>1.0</delaymin>
+		<delaymax>1.0</delaymax>
+		<delaystart>0.0</delaystart>
+		<volmod>0.1</volmod>
+		<pitchmod>1.0</pitchmod>
+	</eventtimed>
+</machine>
+</contents>

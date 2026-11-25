@@ -1,0 +1,81 @@
+# The stream state machine over two machines, gated by rain and read through the commands the
+# engine hands the loader: with rain both start, when it clears the pausing stream keeps its token
+# and pauses while the other stops, and rain again resumes the first with the same token and starts
+# the second with a new one. The first stream fades 0.2 s after the second, so each command lands on
+# a tick of its own and none is missed.
+started: bool = false
+pressed: bool = false
+phase: number = 0
+waited: number = 0
+last_seen: number = 0
+pause_token: number = 0
+simple_token: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        files: File = File.open(r"files")
+        files.write_text("packs.txt", "fixture_stream.xml")
+        ctx.set_weather(true, false)
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if not sound.has() or sound.unwrap().seq() <= last_seen {
+        waited = waited + 1
+        ctx.assert(waited < 400, "The stream test should see its next command within 400 ticks.")
+        ctx.not_done()
+        return
+    }
+    cmd: SoundCommand = sound.unwrap()
+    last_seen = cmd.seq()
+    waited = 0
+    if phase == 0 {
+        ctx.assert(cmd.command() == "start", "With rain the second machine should start first, as its delay is shorter.")
+        ctx.assert(cmd.volume() == 0.4 and cmd.token() > 0, "The second machine's stream should start with its own gain and a token.")
+        simple_token = cmd.token()
+        phase = 1
+        ctx.not_done()
+        return
+    }
+    if phase == 1 {
+        ctx.assert(cmd.command() == "start", "The pausing stream should start after its 0.2 s delay.")
+        ctx.assert(cmd.volume() == 0.5 and cmd.token() > 0, "The pausing stream should start with its own gain and a token.")
+        ctx.assert(cmd.token() != simple_token, "Two streams should name two tokens.")
+        pause_token = cmd.token()
+        ctx.set_weather(false, false)
+        phase = 2
+        ctx.not_done()
+        return
+    }
+    if phase == 2 {
+        ctx.assert(cmd.command() == "stop", "When the rain clears the stream that does not pause should stop.")
+        ctx.assert(cmd.token() == simple_token, "The stop should name the stream that started first.")
+        phase = 3
+        ctx.not_done()
+        return
+    }
+    if phase == 3 {
+        ctx.assert(cmd.command() == "pause", "When the rain clears the pausing stream should pause, not stop.")
+        ctx.assert(cmd.token() == pause_token, "The pause should keep the stream's own token.")
+        ctx.set_weather(true, false)
+        phase = 4
+        ctx.not_done()
+        return
+    }
+    if phase == 4 {
+        ctx.assert(cmd.command() == "start", "Rain again should start the stream that stopped.")
+        ctx.assert(cmd.volume() == 0.4 and cmd.token() > simple_token, "A restarted stream should name a new token, above the one it gave back.")
+        phase = 5
+        ctx.not_done()
+        return
+    }
+    ctx.assert(cmd.command() == "resume", "Rain again should resume the paused stream.")
+    ctx.assert(cmd.token() == pause_token, "The resume should name the token the pause kept.")
+}

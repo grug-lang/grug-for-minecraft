@@ -1,0 +1,13 @@
+# Covers OverlayHudContext.get_player (#1347): the coverage overlay reads the frame's player and
+# their state every HUD pass and records that they answered, which this test waits for.
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    waited = waited + 1
+    ctx.assert(waited < 100, "The HUD pass should read the frame's player within 100 ticks.")
+    if Memory.get("hud.player_ok") == 0 {
+        ctx.not_done()
+        return
+    }
+    ctx.assert(Memory.get("hud.player_ok") == 1, "The HUD pass should read the frame's player and their state.")
+}

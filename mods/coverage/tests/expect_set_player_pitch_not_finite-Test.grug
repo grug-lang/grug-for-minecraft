@@ -1,0 +1,5 @@
+# A pitch is finite (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("TestTickContext.set_player_pitch: The pitch has to be finite and from -90 to 90")
+    ctx.set_player_pitch(1.0 / 0.0)
+}

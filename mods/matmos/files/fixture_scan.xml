@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><contents>
+<!-- A pack gated by the small box scan, for the histogram test: its only machine is allowed while
+     the 16 by 8 by 16 box around the player holds any stone (block id 1). -->
+<expansion>
+	<data>1</data>
+</expansion>
+<condition name="Stone nearby">
+	<sheet>SmallScan</sheet>
+	<key>1</key>
+	<symbol>&gt;</symbol>
+	<constant>0</constant>
+	<list/>
+</condition>
+<set name="Stony">
+	<truepart>Stone nearby</truepart>
+</set>
+<machine name="Stone">
+	<allow>Stony</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.5</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.0</delaybeforefadein>
+		<delaybeforefadeout>0.0</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>0</isusingpause>
+	</stream>
+</machine>
+</contents>

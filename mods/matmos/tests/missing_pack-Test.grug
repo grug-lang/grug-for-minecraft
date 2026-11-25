@@ -1,0 +1,29 @@
+# A pack that is not there is not an error: the engine loads nothing, every machine stays off, and
+# no sound is asked for. This is the state of an install that names a pack it never installed.
+started: bool = false
+pressed: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        files: File = File.open(r"files")
+        files.write_text("packs.txt", "not_installed.xml")
+        ctx.set_weather(true, false)
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 80, "The missing pack test should finish within 80 ticks.")
+    if waited < 79 {
+        ctx.assert(not ctx.last_sound().has(), "A pack that is not there should leave the engine silent.")
+        ctx.not_done()
+        return
+    }
+}

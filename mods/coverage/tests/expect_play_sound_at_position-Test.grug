@@ -1,0 +1,5 @@
+# A positional one-shot needs a finite position (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("play_sound_at: the position has to be finite")
+    play_sound_at("resources/newsound/random/glass1.ogg", 1, 1, 1.0 / 0.0, 0, 0)
+}

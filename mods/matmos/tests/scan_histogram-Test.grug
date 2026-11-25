@@ -1,0 +1,78 @@
+# The small box scan, which the engine rebuilds every 64 ticks, and the per-mil sheet beside it:
+# the box is 16 by 8 by 16, so its blocks divide the count. The test reads the room's own baseline
+# first, then adds a 4 by 4 layer of stone, waits for the next scan and asserts the count rose by
+# exactly those sixteen blocks and that the per-mil share is the count over the box's 2048 spaces.
+# The machine gated on "Stone nearby" then starts, which is the scan reaching a pack.
+waited: number = 0
+phase: number = 0
+base: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(400)
+}
+
+export tick(ctx: TestTickContext) {
+    if phase == 0 {
+        phase = 1
+        files: File = File.open(r"files")
+        files.write_text("packs.txt", "fixture_scan.xml")
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    if phase == 1 {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The first small scan should happen within 100 ticks.")
+        if waited < 70 {
+            ctx.not_done()
+            return
+        }
+        base = Memory.get("S.1")
+        _place_stone(ctx, 16)
+        waited = 0
+        phase = 2
+        ctx.not_done()
+        return
+    }
+    if phase == 2 {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The second small scan should happen within 100 ticks.")
+        if waited < 70 {
+            ctx.not_done()
+            return
+        }
+        count: number = Memory.get("S.1")
+        ctx.assert(count == base + 16, "The scan should count the sixteen stone blocks that were added.")
+        ctx.assert(Memory.get("SP.1") == Math.floor(1000 * count / 2048), "The per-mil sheet should be the count over the box's 2048 spaces.")
+        phase = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 200, "The stone gated machine should start within 200 ticks of the scan.")
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if not sound.has() {
+        ctx.not_done()
+        return
+    }
+    ctx.assert(sound.unwrap().command() == "start", "Stone in the small box should allow the machine's stream.")
+}
+
+# Sixteen stone blocks in a 4 by 4 layer one block up and to the near corner, inside the small box.
+local _place_stone(ctx: TestTickContext, count: number) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x()) + 1
+    y: number = Math.floor(origin.y()) + 1
+    z: number = Math.floor(origin.z()) + 1
+    dx: number = 0
+    while dx < 4 {
+        dz: number = 0
+        while dz < 4 {
+            level.place_block(x + dx, y, z + dz, "minecraft:stone")
+            dz = dz + 1
+        }
+        dx = dx + 1
+    }
+}

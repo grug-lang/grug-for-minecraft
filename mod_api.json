@@ -2472,6 +2472,26 @@
 						"name": "number"
 					}
 				},
+				"pow": {
+					"description": "The first number raised to the power of the second: Math.pow(2, 10) is 1024, Math.pow(9, 0.5) is 3 and Math.pow(2, -1) is 0.5. It is Java's `Math.pow`, so every loader and every machine answers the same number, a negative base with a fractional exponent is NaN, and 0 raised to 0 is 1. A mod uses it where grug has no exponent operator, such as a curve that squares a fraction or a pitch that doubles every twelve steps.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "base",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "exponent",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"remainder": {
 					"description": "What is left of the first number after dividing it by the second as many whole times as fit, with the sign of the first number: Math.remainder(7, 3) is 1, Math.remainder(-7, 3) is -1 and Math.remainder(7.5, 2) is 1.5. That is what Java's `%` gives on numbers with a fraction, and what C's `fmod` gives, so it is how a mod checks whether a tick count is a multiple of something: Math.remainder(time, 20) == 0. It is not the IEEE remainder that rounds to the nearest whole number, so Math.remainder(15, 20) is 15 and not -5. A divisor of 0 reports an error from Math.remainder, since the answer would be nothing but NaN.",
 					"return_type": {

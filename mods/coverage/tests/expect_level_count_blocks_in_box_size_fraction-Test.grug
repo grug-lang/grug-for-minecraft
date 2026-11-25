@@ -1,0 +1,5 @@
+# A block count's box has whole sizes (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("Level.count_blocks_in_box: size_x has to be a whole number from 1 up")
+    ctx.get_client_level().count_blocks_in_box(0, 0, 0, 1.5, 1, 1)
+}

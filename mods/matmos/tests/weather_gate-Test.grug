@@ -1,0 +1,50 @@
+# A machine's allow set is the gate: with no rain nothing is on and the engine asks for no sound,
+# and rain turns the machine on. The 40 quiet ticks are the proof that silence is the gate and not
+# a slow start, because the same engine then starts the stream within a few ticks of the weather
+# changing.
+started: bool = false
+pressed: bool = false
+quiet: number = 0
+rained: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        _use_fixture()
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    if quiet < 40 {
+        quiet = quiet + 1
+        ctx.assert(not ctx.last_sound().has(), "A clear sky should leave every machine off, so no sound is asked for.")
+        ctx.not_done()
+        return
+    }
+    if not rained {
+        rained = true
+        ctx.set_weather(true, false)
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 400, "The rain machine should start once it rains.")
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if not sound.has() {
+        ctx.not_done()
+        return
+    }
+    ctx.assert(sound.unwrap().command() == "start", "Rain should start the fixture's stream.")
+    ctx.assert(sound.unwrap().path() == "resources/newsound/ambient/weather/rain1.ogg", "The stream that starts should be the fixture's rain.")
+}
+
+local _use_fixture() {
+    files: File = File.open(r"files")
+    files.write_text("packs.txt", "fixture_pack.xml")
+}

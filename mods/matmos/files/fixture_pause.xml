@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><contents>
+<!-- The port's pause fixture: one looping stream that is paused when its machine goes off and
+     resumed when it comes back, with a delay before each edge. It is the reference's own shape for
+     an ambience bed, and it is not a MAtmos pack, so no player loads it. -->
+<expansion>
+	<data>1</data>
+</expansion>
+<condition name="Raining">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>==</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<set name="Wet">
+	<truepart>Raining</truepart>
+</set>
+<machine name="Pause rain">
+	<allow>Wet</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.7</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.5</fadeintime>
+		<fadeouttime>1.0</fadeouttime>
+		<delaybeforefadein>0.3</delaybeforefadein>
+		<delaybeforefadeout>0.2</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>1</isusingpause>
+	</stream>
+</machine>
+</contents>

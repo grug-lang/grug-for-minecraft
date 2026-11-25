@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><contents>
+<!-- The port's event fixture: a timed event with a positional radius, a gain and pitch range, and a
+     machine that scales both and starts it after its delaystart. The event's two recordings are the
+     ones a test can tell apart, and its expansion evaluates every tick so a test sees it soon. It is
+     not a MAtmos pack, so no player loads it. -->
+<expansion>
+	<data>1</data>
+</expansion>
+<condition name="Early">
+	<sheet>Instants</sheet>
+	<key>38</key>
+	<symbol>&lt;=</symbol>
+	<constant>100000</constant>
+	<list/>
+</condition>
+<set name="Gusty">
+	<truepart>Early</truepart>
+</set>
+<event name="Wind">
+	<path>newsound/random/glass1.ogg</path>
+	<path>newsound/random/glass2.ogg</path>
+	<volmin>0.5</volmin>
+	<volmax>1.0</volmax>
+	<pitchmin>0.9</pitchmin>
+	<pitchmax>1.1</pitchmax>
+	<metasound>32</metasound>
+</event>
+<machine name="Gust">
+	<allow>Gusty</allow>
+	<eventtimed>
+		<eventname>Wind</eventname>
+		<delaymin>1.0</delaymin>
+		<delaymax>1.0</delaymax>
+		<delaystart>0.05</delaystart>
+		<volmod>0.5</volmod>
+		<pitchmod>1.0</pitchmod>
+	</eventtimed>
+</machine>
+</contents>

@@ -194,6 +194,7 @@ Math.floor(value: number) number
 Math.max(a: number, b: number) number
 Math.min(a: number, b: number) number
 Math.pi() number
+Math.pow(base: number, exponent: number) number
 Math.remainder(value: number, divisor: number) number
 Math.signum(value: number) number
 Math.sin(angle: number) number

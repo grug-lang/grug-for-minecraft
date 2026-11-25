@@ -1,0 +1,5 @@
+# A stream's pitch is from 0.5 to 2 (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("start_stream: pitch has to be from 0.5 to 2")
+    start_stream("resources/newsound/random/glass1.ogg", 1, 0.4, 0, false)
+}

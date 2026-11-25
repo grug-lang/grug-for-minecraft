@@ -1,0 +1,5 @@
+# A stream token cannot be negative (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("resume_stream: the token has to be a whole number from 0 up")
+    resume_stream(-2)
+}

@@ -1,0 +1,5 @@
+# Memory.set keeps numbers only, so an infinite value is a defect of the mod's arithmetic rather than a state to keep (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("Memory.set: the value has to be finite")
+    Memory.set("x", 1.0 / 0.0)
+}

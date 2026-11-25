@@ -1,0 +1,116 @@
+# The volume slider reads the player's head, as the reference's scroller does: the gain is the
+# square of 1 - pitch/90, snapped to 1 looking straight ahead and to the reference's own 0.2 near a
+# fifth. At 45 degrees down that square is 0.25, which the reference's float comparison snaps to
+# 0.2, so the rain stream's 0.5 gain is 0.1. Ctrl+A opens the slider and A closes it, saving the
+# gain in matmos_options.cfg, which a reload reads back.
+started: bool = false
+phase: number = 0
+waited: number = 0
+first_seq: number = 0
+
+export tick(ctx: TestTickContext) {
+    if phase == 0 {
+        phase = 1
+        _use_fixture()
+        ctx.set_player_pitch(45)
+        ctx.not_done()
+        return
+    }
+    if phase == 1 {
+        phase = 2
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    if phase == 2 {
+        phase = 3
+        ctx.press_world_key(65, true)
+        ctx.not_done()
+        return
+    }
+    if phase == 3 {
+        phase = 4
+        ctx.set_weather(true, false)
+        ctx.not_done()
+        return
+    }
+    if phase == 4 {
+        waited = waited + 1
+        ctx.assert(waited < 400, "The rain stream should start with the slider open within 400 ticks.")
+        sound: Option[SoundCommand] = ctx.last_sound()
+        if not sound.has() or sound.unwrap().command() != "start" {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(sound.unwrap().volume() == 0.1, "The stream's 0.5 gain at a 45 degree head should be 0.1.")
+        first_seq = sound.unwrap().seq()
+        waited = 0
+        phase = 5
+        ctx.not_done()
+        return
+    }
+    if phase == 5 {
+        phase = 6
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    if phase == 6 {
+        phase = 7
+        _expect_saved(ctx, "volume.generic.value=0.2", "The saved gain at 45 degrees should be 0.2.")
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    if phase == 7 {
+        phase = 8
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    if phase == 8 {
+        waited = waited + 1
+        ctx.assert(waited < 400, "The reloaded engine should start its rain stream again within 400 ticks.")
+        sound: Option[SoundCommand] = ctx.last_sound()
+        if not sound.has() or sound.unwrap().seq() <= first_seq {
+            ctx.not_done()
+            return
+        }
+        if sound.unwrap().command() != "start" {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(sound.unwrap().volume() == 0.1, "The reloaded engine should read the saved 0.2 gain, so the stream is 0.1.")
+        phase = 9
+        ctx.set_player_pitch(0)
+        ctx.not_done()
+        return
+    }
+    if phase == 9 {
+        phase = 10
+        ctx.press_world_key(65, true)
+        ctx.not_done()
+        return
+    }
+    if phase == 10 {
+        phase = 11
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    _expect_saved(ctx, "volume.generic.value=1", "Looking straight ahead should snap the gain to 1.")
+}
+
+# A saved file is a prefix of the text that was written, which is how a test compares one without
+# depending on the exact digits a number prints with.
+local _expect_saved(ctx: TestTickContext, expected: string, why: string) {
+    files: File = File.open(r"files")
+    saved: string = files.read_text("matmos_options.cfg").unwrap()
+    ctx.assert(String.length(saved) >= String.length(expected), "Closing the slider should write the gain.")
+    ctx.assert(String.substring(saved, 0, String.length(expected)) == expected, why)
+}
+
+local _use_fixture() {
+    files: File = File.open(r"files")
+    files.write_text("packs.txt", "fixture_pack.xml")
+}

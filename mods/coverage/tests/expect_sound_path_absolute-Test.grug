@@ -1,0 +1,5 @@
+# A sound path is relative to the game directory, so an absolute one is reported (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("the path has an empty, . or .. segment")
+    play_sound_file("/etc/passwd", 1, 1)
+}

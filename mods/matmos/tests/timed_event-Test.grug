@@ -1,0 +1,44 @@
+# A timed event: the night machine allows the cave machine, whose eventtimed draws the drip event
+# after its delay and scales the event's own range by volmod and pitchmod. The gain is 0.2 * 0.1,
+# which a double cannot hold exactly, so it is compared with a tolerance.
+started: bool = false
+pressed: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        _use_fixture()
+        ctx.get_client_level().set_time(13000)
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 400, "The night machine should play its drip within 400 ticks.")
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if not sound.has() {
+        ctx.not_done()
+        return
+    }
+    cmd: SoundCommand = sound.unwrap()
+    ctx.assert(cmd.command() == "play", "An event with no metasound radius should be a 2D one-shot.")
+    known: bool = cmd.path() == "resources/newsound/random/glass1.ogg"
+    if not known {
+        known = cmd.path() == "resources/newsound/random/glass2.ogg"
+    }
+    ctx.assert(known, "The one-shot should be one of the events two recordings.")
+    ctx.assert(Math.abs(cmd.volume() - 0.02) < 0.000000001, "The event's 0.2 gain scaled by its 0.1 modifier should be 0.02.")
+    ctx.assert(cmd.pitch() == 1, "The event's pitch should be its range's 1 scaled by 1.")
+    ctx.assert(cmd.token() == 0, "A one-shot names no stream token.")
+}
+
+local _use_fixture() {
+    files: File = File.open(r"files")
+    files.write_text("packs.txt", "fixture_pack.xml")
+}

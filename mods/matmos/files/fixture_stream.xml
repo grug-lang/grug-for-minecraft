@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><contents>
+<!-- Two machines gated by rain, for the stream state machine: the first keeps its token across a
+     pause and resumes it, and the second stops and starts a new token. The first fades out 0.2 s
+     after the second stops, so a test sees each command on its own tick. -->
+<expansion>
+	<data>1</data>
+</expansion>
+<condition name="Raining">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>==</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<set name="Wet">
+	<truepart>Raining</truepart>
+</set>
+<machine name="Pauseable">
+	<allow>Wet</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.5</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.2</delaybeforefadein>
+		<delaybeforefadeout>0.2</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>1</isusingpause>
+	</stream>
+</machine>
+<machine name="Simple">
+	<allow>Wet</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.4</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.0</delaybeforefadein>
+		<delaybeforefadeout>0.0</delaybeforefadeout>
+		<islooping>0</islooping>
+		<isusingpause>0</isusingpause>
+	</stream>
+</machine>
+</contents>

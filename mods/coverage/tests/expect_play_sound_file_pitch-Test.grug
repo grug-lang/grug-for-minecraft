@@ -1,0 +1,5 @@
+# A one-shot's pitch is above 0 (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("play_sound_file: pitch has to be above 0")
+    play_sound_file("resources/newsound/random/glass1.ogg", 1, 0)
+}

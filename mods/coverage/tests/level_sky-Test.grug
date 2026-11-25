@@ -1,0 +1,22 @@
+# Covers Level.can_see_sky, the two light reads and Level.is_multiplayer (#1347) in the toy world,
+# whose sky gives 15 and whose blocks give no light.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x())
+    y: number = Math.floor(origin.y())
+    z: number = Math.floor(origin.z())
+    ctx.assert(level.can_see_sky(x, y, z), "An empty world should have open sky.")
+    ctx.assert(level.get_sky_light(x, y, z) == 15, "An open sky should give 15.")
+    ctx.assert(level.get_block_light(x, y, z) == 0, "A world with no light source should give no block light.")
+    ctx.assert(not level.is_multiplayer(), "The smoketest's level is the client's own.")
+    level.place_block(x, y + 4, z, "minecraft:stone")
+    ctx.assert(not level.can_see_sky(x, y, z), "A stone roof should hide the sky.")
+    ctx.assert(level.get_sky_light(x, y, z) == 0, "A stone roof should take the sky light away.")
+    level.place_block(x, y + 4, z, "minecraft:glass")
+    ctx.assert(level.can_see_sky(x, y, z), "Glass should let the sky through.")
+    level.place_block(x, y + 4, z, "minecraft:oak_leaves")
+    ctx.assert(level.can_see_sky(x, y, z), "Leaves should let the sky through, as the game's own rain test has it.")
+    level.place_block(x, y + 4, z, "minecraft:air")
+    ctx.assert(level.can_see_sky(x, y, z), "Removing the roof should open the sky again.")
+}

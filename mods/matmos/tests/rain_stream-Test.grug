@@ -1,0 +1,44 @@
+# The reference's most basic machine: a set that is true while it rains allows a stream, and the
+# stream asks for the recording at the gain and pitch the pack gives it. The fixture pack is the
+# port's own, and the test asserts the command the engine handed the loader, before the loader
+# applies any volume: which recording, which gain, which pitch, whether it loops, and that the
+# loader answered a token, which is the state of an install that has the 2012 pack.
+started: bool = false
+pressed: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        _use_fixture()
+        ctx.set_weather(true, false)
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 400, "The rain machine should start its stream within 400 ticks.")
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if not sound.has() {
+        ctx.not_done()
+        return
+    }
+    cmd: SoundCommand = sound.unwrap()
+    ctx.assert(cmd.command() == "start", "The rain machine should start a stream and ask for nothing else.")
+    ctx.assert(cmd.path() == "resources/newsound/ambient/weather/rain1.ogg", "The stream should be the fixture's rain, resolved under the game directory's resources folder.")
+    ctx.assert(cmd.volume() == 0.5, "The stream's gain should be the fixture's 0.5.")
+    ctx.assert(cmd.pitch() == 1, "The stream's pitch should be the fixture's 1.")
+    ctx.assert(cmd.looping(), "The fixture's rain stream loops.")
+    ctx.assert(cmd.token() >= 1, "A recording the game directory holds should name the stream with a token.")
+    ctx.assert(cmd.seq() >= 1, "The command should be numbered from 1 up.")
+}
+
+local _use_fixture() {
+    files: File = File.open(r"files")
+    files.write_text("packs.txt", "fixture_pack.xml")
+}

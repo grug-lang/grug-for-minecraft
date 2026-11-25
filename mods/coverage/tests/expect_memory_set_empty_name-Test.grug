@@ -1,0 +1,5 @@
+# Memory.set reports a name that is not a non-empty text (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("Memory.set: the name is empty")
+    Memory.set("", 1)
+}

@@ -1,0 +1,44 @@
+# A pack whose recording the game directory does not hold: the engine asks for the stream once, the
+# loader answers no token, and the engine keeps the stream playing on its own latch (the reference
+# sets `isPlaying` before it asks), so it does not ask again every tick. Tests assert the request and
+# its token, never that anything was heard.
+started: bool = false
+pressed: bool = false
+waited: number = 0
+asked_seq: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        files: File = File.open(r"files")
+        files.write_text("packs.txt", "fixture_missing.xml")
+        ctx.set_weather(true, false)
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 400, "The absent stream should be asked for within 400 ticks.")
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if asked_seq == 0 {
+        if not sound.has() {
+            ctx.not_done()
+            return
+        }
+        cmd: SoundCommand = sound.unwrap()
+        ctx.assert(cmd.command() == "start", "The machine should ask for its stream once.")
+        ctx.assert(cmd.path() == "resources/newsound/ambient/weather/not_installed.ogg", "The request should name the recording the pack names.")
+        ctx.assert(cmd.token() == 0, "A recording the game directory does not hold should answer no token.")
+        asked_seq = cmd.seq()
+        waited = 0
+        ctx.not_done()
+        return
+    }
+    ctx.assert(waited < 100, "A stream without a token should not be asked for again.")
+    ctx.assert(not sound.has() or sound.unwrap().seq() == asked_seq, "The engine should not retry a stream the loader could not give a token.")
+}

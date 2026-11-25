@@ -1,0 +1,5 @@
+# The packs this engine loads, one path per line, relative to this directory.
+# A path that starts with # and an empty line are skipped. A .xml file is read as the
+# reference's pack format; a .xmlo is the reference's cached form, which is the same format.
+# The recordings a pack names are looked up under the game directory's resources/ folder, where
+# Minecraft 1.2.5 keeps its own sounds, so an installed 2012 pack plays without moving a file.

@@ -1,0 +1,60 @@
+# A toggles the engine: the first press reads the packs and starts it, a second press stops it and
+# gives the stream's token back, and a third starts the same stream again without reloading. The
+# engine ships off because the port ships no pack, so nothing is asked for before the first press.
+started: bool = false
+pressed: bool = false
+first_seq: number = 0
+stop_seq: number = 0
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        _use_fixture()
+        ctx.set_weather(true, false)
+        ctx.assert(not ctx.last_sound().has(), "The engine starts off, so it asks for no sound before a press.")
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 600, "The toggle test should see all three commands within 600 ticks.")
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if first_seq == 0 {
+        if not sound.has() or sound.unwrap().command() != "start" {
+            ctx.not_done()
+            return
+        }
+        first_seq = sound.unwrap().seq()
+        ctx.assert(sound.unwrap().token() >= 1, "The first press should start the rain stream with a token.")
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    if stop_seq == 0 {
+        if not sound.has() or sound.unwrap().seq() <= first_seq {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(sound.unwrap().command() == "stop", "Stopping the engine should stop the stream it started.")
+        stop_seq = sound.unwrap().seq()
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    if sound.unwrap().seq() <= stop_seq or sound.unwrap().command() != "start" {
+        ctx.not_done()
+        return
+    }
+    ctx.assert(sound.unwrap().token() >= 1, "Starting again should name the new stream with a token.")
+}
+
+local _use_fixture() {
+    files: File = File.open(r"files")
+    files.write_text("packs.txt", "fixture_pack.xml")
+}

@@ -140,14 +140,23 @@ enum kind {
     K_OVERLAY_KEY,
     K_OVERLAY_SCROLL,
     K_FILE,
+    K_OVERLAY_HUD,
+    K_OVERLAY_WORLDKEY,
+    K_WEATHER,
+    K_PLAYERSTATE,
+    K_BLOCKCOUNTS,
+    K_SOUND,
 };
 struct obj {
     enum kind kind;
     double x, y, z;
+    double w, h, d;  // a box's size, for a block count's snapshot
     bool has;
     bool open;  // a response: valid until the call it was passed to returns
     union grug_value val;
     const char* str;
+    void* ptr;  // a snapshot's entries, for a block count
+    size_t len;
 };
 static struct obj* objs;
 static size_t nobjs, capobjs;
@@ -177,6 +186,9 @@ static union grug_value id(uint64_t i) { union grug_value v; v._id = i; return v
 static union grug_value none(void) { union grug_value v; memset(&v, 0, sizeof v); return v; }
 
 static void* g_state;
+
+// One entry of a block count's snapshot: a block's canonical name and how many the box held.
+struct block_count { const char* name; long count; };
 
 // A host function error: the script stops at the call, which is how the real game reports it.
 static union grug_value fail(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -214,6 +226,12 @@ static const char* keep(char* s) {
 static void free_test_state(void) {
     for (size_t i = 0; i < narena; i++) free(arena[i]);
     narena = 0;
+    for (size_t i = 0; i < nobjs; i++)
+        if (objs[i].kind == K_BLOCKCOUNTS) {
+            struct block_count* e = objs[i].ptr;
+            for (size_t j = 0; j < objs[i].len; j++) free((void*)e[j].name);
+            free(e);
+        }
     nobjs = 0;
 }
 
@@ -260,6 +278,7 @@ static bool not_done_called;
 static char* expected_error;
 static bool quiet;
 static bool stubbed;  // the running test called a graphics or capability stub, so a pass proves less
+static const char* caller_mod;  // the mod whose export is running, for the sound calls' own attribution
 
 struct impl { const char* cls; const char* name; host_fn fn; };
 // An implementation registers itself where it is defined, with REGISTER right after its function,
@@ -617,6 +636,10 @@ static union grug_value Math_pi(ARGS) { UNUSED; return num(3.1415926535897932384
 REGISTER("Math", "pi", Math_pi);
 static union grug_value Math_tau(ARGS) { UNUSED; return num(2 * 3.14159265358979323846); }
 REGISTER("Math", "tau", Math_tau);
+// Java's Math.pow, which grug has no operator for: a negative base with a fractional exponent is
+// NaN, 0 to the 0 is 1, and the infinities follow IEEE 754 through the C library's pow.
+static union grug_value Math_pow(ARGS) { UNUSED; return num(pow(a[0]._number, a[1]._number)); }
+REGISTER("Math", "pow", Math_pow);
 // The entries Build Guide's shape generators need (#1752). Each mirrors Java's Math: a NaN
 // argument stays NaN, min and max prefer the zero that keeps their side's sign, and signum gives
 // the number itself for both zeros and for NaN.
@@ -3368,13 +3391,16 @@ static void make_overlays(void) {
 // Runs one overlay export with its pass's context. A grug mod err is contained, as the game's JNI
 // layer contains it, so an overlay whose script hits an entry the host lacks draws nothing instead
 // of failing the running test; the run is STUBBED, because that export did not finish.
-static void call_overlay_export(void* entity, uint64_t fn, const union grug_value* args, size_t n) {
+static void call_overlay_export(void* entity, const char* mod, uint64_t fn, const union grug_value* args, size_t n) {
     if (fn == UINT64_MAX) return;  // SMOKETEST_EXCL_BRANCH: every committed overlay declares render, click, key and scroll
     char saved[sizeof last_error], saved_msg[sizeof last_msg];
     memcpy(saved, last_error, sizeof saved);
     memcpy(saved_msg, last_msg, sizeof saved_msg);
     last_error[0] = 0;
+    const char* saved_mod = caller_mod;
+    caller_mod = mod;
     if (!grug_call_export_fn(g_state, entity, fn, args, n) && last_error[0]) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed overlay's export reports an error
+    caller_mod = saved_mod;
     memcpy(last_error, saved, sizeof saved);
     memcpy(last_msg, saved_msg, sizeof saved_msg);
 }
@@ -3401,7 +3427,7 @@ static void render_overlays(void) {
         overlay_pass_drew = false;
         uint64_t context = new_obj(K_OVERLAY_RENDER);
         union grug_value arg = id(context);
-        call_overlay_export(overlays[i].entity, overlay_render_fn, &arg, 1);
+        call_overlay_export(overlays[i].entity, overlays[i].mod, overlay_render_fn, &arg, 1);
         if (overlay_pass_drew && !strcmp(overlays[i].mod, current_test_mod)) overlay_drawn = true;
     }
 }
@@ -3560,7 +3586,7 @@ static bool overlay_click_taken(double x, double y, double button) {
         overlay_pass_taken = false;
         uint64_t c = new_obj(K_OVERLAY_CLICK);
         union grug_value arg = id(c);
-        call_overlay_export(overlays[i].entity, overlay_click_fn, &arg, 1);
+        call_overlay_export(overlays[i].entity, overlays[i].mod, overlay_click_fn, &arg, 1);
         if (overlay_pass_taken) return true;
     }
     return false;
@@ -3604,7 +3630,7 @@ static union grug_value TTC_press_screen_key(ARGS) {
             overlay_pass_taken = false;
             uint64_t c = new_obj(K_OVERLAY_KEY);
             union grug_value arg = id(c);
-            call_overlay_export(overlays[i].entity, overlay_key_fn, &arg, 1);
+            call_overlay_export(overlays[i].entity, overlays[i].mod, overlay_key_fn, &arg, 1);
             if (overlay_pass_taken) { taken = true; break; }
         }
     }
@@ -3632,7 +3658,7 @@ static union grug_value TTC_scroll_screen(ARGS) {
         overlay_pass_taken = false;
         uint64_t c = new_obj(K_OVERLAY_SCROLL);
         union grug_value arg = id(c);
-        call_overlay_export(overlays[i].entity, overlay_scroll_fn, &arg, 1);
+        call_overlay_export(overlays[i].entity, overlays[i].mod, overlay_scroll_fn, &arg, 1);
         if (overlay_pass_taken) return boolean(true);
     }
     return boolean(false);
@@ -4137,11 +4163,578 @@ static void remove_tree(const char* path) {
     closedir(d);
     rmdir(path);
 }
+// A few of vanilla 1.2.5's sounds as empty files, so a stream names a recording the game directory
+// holds. A test that wants a missing one asks for a path this does not stage.
+static void stage_recording(const char* path) {
+    char full[4200], dir[4200];
+    snprintf(full, sizeof full, "%s/%s", g_game_dir, path);
+    snprintf(dir, sizeof dir, "%s", full);
+    for (char* c = dir + strlen(g_game_dir) + 1; *c; c++) {
+        if (*c != '/') continue;
+        *c = 0;
+        if (mkdir(dir, 0700) && errno != EEXIST) return;
+        *c = '/';
+    }
+    FILE* f = fopen(full, "wb");
+    if (f) fclose(f);
+}
+static void stage_recordings(void) {
+    stage_recording("resources/newsound/ambient/weather/rain1.ogg");
+    stage_recording("resources/newsound/ambient/water/underwater.ogg");
+    stage_recording("resources/newsound/random/glass1.ogg");
+    stage_recording("resources/newsound/random/glass2.ogg");
+}
+
 static void remove_game_dir(void) {
     remove_tree(g_game_dir);
     free(g_game_dir);
     g_game_dir = NULL;
 }
+
+// =============================================================================================
+// SECTION: Ambient engine host entries
+// =============================================================================================
+// The entries MAtmos r12's port needs (#1347 and #1756): a mod's own Memory, the weather and the
+// player's state, a box of block counts, the six sound calls and the HUD and world-key passes they
+// run from. The toy world is one overworld of 256 blocks of height, its sky light 15 under open sky
+// and 0 under a solid roof, and no light source, so block light is always 0. The toy sound engine
+// holds no recordings, so a sound call is recorded as the decision it is and no file has to exist:
+// what a test asserts is what the mod asked for, and a missing recording's silence is the loader's
+// own rule, which this host cannot hear.
+
+// Memory: one number and one text per name, which is how a port keeps a record per object of a data
+// file without arrays. The store is emptied before every test, as a game starts with an empty one.
+struct mem_entry { char* name; double number; char* text; bool has_text; };
+static struct mem_entry* mems;
+static size_t nmems, capmems;
+static struct mem_entry* mem_find(const char* name, bool create) {
+    for (size_t i = 0; i < nmems; i++) if (!strcmp(mems[i].name, name)) return &mems[i];
+    if (!create) return NULL;
+    if (nmems == capmems) { capmems = capmems ? capmems * 2 : 64; mems = xrealloc(mems, capmems * sizeof *mems); }
+    struct mem_entry* e = &mems[nmems++];
+    e->name = xstrdup(name); e->number = 0; e->text = NULL; e->has_text = false;
+    return e;
+}
+static void memory_reset(void) {
+    for (size_t i = 0; i < nmems; i++) { free(mems[i].name); free(mems[i].text); }
+    nmems = 0;
+}
+static union grug_value Memory_get(ARGS) {
+    UNUSED;
+    struct mem_entry* e = mem_find(a[0]._string, false);
+    return num(e ? e->number : 0);
+}
+REGISTER("Memory", "get", Memory_get);
+static union grug_value Memory_set(ARGS) {
+    UNUSED;
+    if (!a[0]._string[0]) return fail("Memory.set: the name is empty");
+    if (!isfinite(a[1]._number)) return fail("Memory.set: the value has to be finite");
+    mem_find(a[0]._string, true)->number = a[1]._number;
+    return none();
+}
+REGISTER("Memory", "set", Memory_set);
+static union grug_value Memory_get_text(ARGS) {
+    UNUSED;
+    uint64_t o = new_obj(K_OPTION);
+    struct mem_entry* e = mem_find(a[0]._string, false);
+    if (e && e->has_text) { objs[o - 1].has = true; objs[o - 1].val = str(e->text); }
+    return id(o);
+}
+REGISTER("Memory", "get_text", Memory_get_text);
+static union grug_value Memory_set_text(ARGS) {
+    UNUSED;
+    if (!a[0]._string[0]) return fail("Memory.set_text: the name is empty");
+    struct mem_entry* e = mem_find(a[0]._string, true);
+    free(e->text);
+    e->text = xstrdup(a[1]._string);
+    e->has_text = true;
+    return none();
+}
+REGISTER("Memory", "set_text", Memory_set_text);
+static union grug_value Memory_clear(ARGS) { UNUSED; memory_reset(); return none(); }
+REGISTER("Memory", "clear", Memory_clear);
+
+// The weather and the player's head, which TestTickContext.set_weather and set_player_pitch drive.
+static bool weather_raining, weather_thundering;
+static double player_pitch;
+static union grug_value TTC_set_weather(ARGS) {
+    UNUSED;
+    weather_thundering = a[2]._bool;
+    weather_raining = a[1]._bool || weather_thundering;
+    return none();
+}
+REGISTER("TestTickContext", "set_weather", TTC_set_weather);
+static union grug_value TTC_set_player_pitch(ARGS) {
+    UNUSED;
+    double p = a[1]._number;
+    if (!isfinite(p) || p < -90 || p > 90) {
+        char t[400];
+        double_text(p, t, sizeof t);
+        return fail("TestTickContext.set_player_pitch: The pitch has to be finite and from -90 to 90, and was %s.", t);
+    }
+    player_pitch = p;
+    return none();
+}
+REGISTER("TestTickContext", "set_player_pitch", TTC_set_player_pitch);
+
+// A block that blocks the sky: air is not a block, and glass, leaves and water let the sky through.
+static bool sky_blocking(const char* name) {
+    return strcmp(name, "minecraft:air") && !strstr(name, "glass") && !strstr(name, "leaves") && strcmp(name, "minecraft:water");
+}
+static bool column_open(long x, long y, long z) {
+    for (long yy = y + 1; yy < world_height; yy++) {
+        struct block* b = find_block(x, yy, z);
+        if (b && sky_blocking(b->name)) return false;
+    }
+    return true;
+}
+static union grug_value Level_can_see_sky(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.can_see_sky")) return none();
+    return boolean(column_open(p[0], p[1], p[2]));
+}
+REGISTER("Level", "can_see_sky", Level_can_see_sky);
+static union grug_value Level_get_sky_light(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.get_sky_light")) return none();
+    return num(column_open(p[0], p[1], p[2]) ? 15 : 0);
+}
+REGISTER("Level", "get_sky_light", Level_get_sky_light);
+static union grug_value Level_get_block_light(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.get_block_light")) return none();
+    return num(0);
+}
+REGISTER("Level", "get_block_light", Level_get_block_light);
+static union grug_value Level_is_multiplayer(ARGS) { UNUSED; return boolean(false); }
+REGISTER("Level", "is_multiplayer", Level_is_multiplayer);
+
+// One snapshot of a box by block name, taken when the box is asked for: every name the box holds,
+// air included, so the counts sum to the box's volume.
+static union grug_value Level_count_blocks_in_box(ARGS) {
+    UNUSED;
+    static const char* const names[6] = {"x", "y", "z", "size_x", "size_y", "size_z"};
+    for (int i = 0; i < 6; i++) {
+        double d = a[1 + i]._number;
+        if (!is_whole(d) || d < (i < 3 ? -1e9 : 1.0) || d > 1e6) {
+            char t[400];
+            double_text(d, t, sizeof t);
+            return fail("Level.count_blocks_in_box: %s has to be a whole number from %s, and was %s.", names[i], i < 3 ? "the world's range" : "1 up", t);
+        }
+    }
+    long x = (long)a[1]._number, y = (long)a[2]._number, z = (long)a[3]._number;
+    long sx = (long)a[4]._number, sy = (long)a[5]._number, sz = (long)a[6]._number;
+    uint64_t h = new_obj(K_BLOCKCOUNTS);
+    struct obj* o = &objs[h - 1];
+    struct block_count* entries = xmalloc((nworld + 1) * sizeof *entries);
+    size_t n = 0;
+    long named = 0;
+    for (size_t i = 0; i < nworld; i++) {
+        struct block* b = &world[i];
+        if (!strcmp(b->name, "minecraft:air")) continue;
+        if (b->x < x || b->x >= x + sx || b->y < y || b->y >= y + sy || b->z < z || b->z >= z + sz) continue;
+        size_t k = 0;
+        while (k < n && strcmp(entries[k].name, b->name)) k++;
+        if (k == n) { entries[n].name = xstrdup(b->name); entries[n].count = 0; n++; }
+        entries[k].count++;
+        named++;
+    }
+    entries[n].name = xstrdup("minecraft:air");
+    entries[n].count = sx * sy * sz - named;
+    n++;
+    o->ptr = entries;
+    o->len = n;
+    return id(h);
+}
+REGISTER("Level", "count_blocks_in_box", Level_count_blocks_in_box);
+static union grug_value BC_count(ARGS) {
+    UNUSED;
+    struct obj* o = get_obj(a[0]._id, K_BLOCKCOUNTS);
+    if (!o) return fail("BlockCounts.count: not a block count");
+    struct block_count* e = o->ptr;
+    for (size_t i = 0; i < o->len; i++) if (!strcmp(e[i].name, a[1]._string)) return num((double)e[i].count);
+    return num(0);
+}
+REGISTER("BlockCounts", "count", BC_count);
+
+// Weather: the level's own flags, the rain height of a column and the sky's light subtracted by the
+// time of day and the weather, which is the game's own formula with a storm at full strength.
+static union grug_value Level_get_weather(ARGS) { UNUSED; return id(new_obj(K_WEATHER)); }
+REGISTER("Level", "get_weather", Level_get_weather);
+static union grug_value Weather_is_raining(ARGS) { UNUSED; if (!get_obj(a[0]._id, K_WEATHER)) return fail("Weather.is_raining: not the weather"); return boolean(weather_raining); }
+REGISTER("Weather", "is_raining", Weather_is_raining);
+static union grug_value Weather_is_thundering(ARGS) { UNUSED; if (!get_obj(a[0]._id, K_WEATHER)) return fail("Weather.is_thundering: not the weather"); return boolean(weather_thundering); }
+REGISTER("Weather", "is_thundering", Weather_is_thundering);
+// The y of the highest block rain reaches in the column, and 0 for a column with none.
+static union grug_value Weather_rain_height(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_WEATHER)) return fail("Weather.rain_height: not the weather");
+    for (int i = 1; i <= 2; i++)
+        if (!isfinite(a[i]._number)) return fail("Weather.rain_height: the position has to be finite");
+    long x = (long)floor(a[1]._number), z = (long)floor(a[2]._number);
+    for (long yy = world_height - 1; yy >= 0; yy--) {
+        struct block* b = find_block(x, yy, z);
+        if (b && sky_blocking(b->name)) return num((double)yy);
+    }
+    return num(0);
+}
+REGISTER("Weather", "rain_height", Weather_rain_height);
+static union grug_value Weather_skylight_subtracted(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_WEATHER)) return fail("Weather.skylight_subtracted: not the weather");
+    double tod = fmod((double)cur_tick + time_offset, 24000.0);
+    if (tod < 0) tod += 24000;
+    double angle = tod / 24000.0 - 0.25;
+    if (angle < 0) angle += 1;
+    if (angle > 1) angle -= 1;
+    double turned = 1.0 - (cos(angle * M_PI) + 1.0) / 2.0;
+    angle = angle + (turned - angle) / 3.0;
+    double v = 1.0 - (cos(angle * 2 * M_PI) * 2.0 + 0.5);
+    if (v < 0) v = 0;
+    if (v > 1) v = 1;
+    v = 1.0 - v;
+    if (weather_raining) v *= 1.0 - 5.0 / 16.0;
+    if (weather_thundering) v *= 1.0 - 5.0 / 16.0;
+    v = 1.0 - v;
+    return num((double)(int)(v * 11.0));
+}
+REGISTER("Weather", "skylight_subtracted", Weather_skylight_subtracted);
+
+// The player's head and state. The toy player stands at the origin, on the ground, full and dry.
+static union grug_value Player_position(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.position: not a Player");
+    uint64_t v = new_obj(K_VEC3);
+    objs[v - 1].x = origin_x; objs[v - 1].y = origin_y; objs[v - 1].z = origin_z;
+    return id(v);
+}
+REGISTER("Player", "position", Player_position);
+static union grug_value Player_pitch(ARGS) { UNUSED; if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.pitch: not a Player"); return num(player_pitch); }
+REGISTER("Player", "pitch", Player_pitch);
+static union grug_value Player_state(ARGS) { UNUSED; if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.state: not a Player"); return id(new_obj(K_PLAYERSTATE)); }
+REGISTER("Player", "state", Player_state);
+static bool state_of(uint64_t handle) { return get_obj(handle, K_PLAYERSTATE) != NULL; }
+static union grug_value PS_air(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.air: not a player state"); return num(300); }
+REGISTER("PlayerState", "air", PS_air);
+static union grug_value PS_fall_distance(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.fall_distance: not a player state"); return num(0); }
+REGISTER("PlayerState", "fall_distance", PS_fall_distance);
+static union grug_value PS_food(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.food: not a player state"); return num(20); }
+REGISTER("PlayerState", "food", PS_food);
+static union grug_value PS_health(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.health: not a player state"); return num(20); }
+REGISTER("PlayerState", "health", PS_health);
+static union grug_value PS_in_minecart(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.in_minecart: not a player state"); return boolean(false); }
+REGISTER("PlayerState", "in_minecart", PS_in_minecart);
+static union grug_value PS_is_in_water(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.is_in_water: not a player state"); return boolean(false); }
+REGISTER("PlayerState", "is_in_water", PS_is_in_water);
+static union grug_value PS_is_wet(ARGS) {
+    UNUSED;
+    if (!state_of(a[0]._id)) return fail("PlayerState.is_wet: not a player state");
+    long p[3] = {(long)floor(origin_x), (long)floor(origin_y), (long)floor(origin_z)};
+    return boolean(weather_raining && column_open(p[0], p[1], p[2]));
+}
+REGISTER("PlayerState", "is_wet", PS_is_wet);
+static union grug_value PS_motion_x(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.motion_x: not a player state"); return num(0); }
+REGISTER("PlayerState", "motion_x", PS_motion_x);
+static union grug_value PS_motion_y(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.motion_y: not a player state"); return num(0); }
+REGISTER("PlayerState", "motion_y", PS_motion_y);
+static union grug_value PS_motion_z(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.motion_z: not a player state"); return num(0); }
+REGISTER("PlayerState", "motion_z", PS_motion_z);
+static union grug_value PS_on_ground(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.on_ground: not a player state"); return boolean(true); }
+REGISTER("PlayerState", "on_ground", PS_on_ground);
+static union grug_value PS_riding_motion_x(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.riding_motion_x: not a player state"); return num(0); }
+REGISTER("PlayerState", "riding_motion_x", PS_riding_motion_x);
+static union grug_value PS_riding_motion_y(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.riding_motion_y: not a player state"); return num(0); }
+REGISTER("PlayerState", "riding_motion_y", PS_riding_motion_y);
+static union grug_value PS_riding_motion_z(ARGS) { UNUSED; if (!state_of(a[0]._id)) return fail("PlayerState.riding_motion_z: not a player state"); return num(0); }
+REGISTER("PlayerState", "riding_motion_z", PS_riding_motion_z);
+
+// String.index_of and String.to_number, which the pack reader scans a file with.
+static union grug_value String_index_of(ARGS) {
+    UNUSED;
+    const char* text = a[0]._string;
+    const char* search = a[1]._string;
+    double start = a[2]._number;
+    size_t len = cp_count(text);
+    if (!is_whole(start) || start < 0 || start > (double)len)
+        return fail("String.index_of: The start has to be a whole number from 0 to %zu, the length of the text, and was %g.", len, start);
+    uint64_t o = new_obj(K_OPTION);
+    if (!search[0]) {
+        objs[o - 1].has = true;
+        objs[o - 1].val = num(start);
+        return id(o);
+    }
+    const char* from = cp_offset(text, (size_t)start);
+    const char* at = strstr(from, search);
+    if (at) {
+        objs[o - 1].has = true;
+        objs[o - 1].val = num((double)(cp_count(text) - cp_count(at)));
+    }
+    return id(o);
+}
+REGISTER("String", "index_of", String_index_of);
+// A number as a data file writes it: an optional sign, digits, a decimal point and an exponent,
+// with whitespace around it. Anything else, infinity and NaN included, answers an empty Option.
+static union grug_value String_to_number(ARGS) {
+    UNUSED;
+    const char* t = a[0]._string;
+    while (*t == ' ' || *t == '\t' || *t == '\r' || *t == '\n') t++;
+    const char* e = t + strlen(t);
+    while (e > t && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r' || e[-1] == '\n')) e--;
+    uint64_t o = new_obj(K_OPTION);
+    const char* c = t;
+    if (c < e && (*c == '+' || *c == '-')) c++;
+    size_t digits = 0;
+    while (c < e && isdigit((unsigned char)*c)) { c++; digits++; }
+    if (c < e && *c == '.') {
+        c++;
+        while (c < e && isdigit((unsigned char)*c)) { c++; digits++; }
+    }
+    if (digits && c < e && (*c == 'e' || *c == 'E')) {
+        c++;
+        if (c < e && (*c == '+' || *c == '-')) c++;
+        size_t exp = 0;
+        while (c < e && isdigit((unsigned char)*c)) { c++; exp++; }
+        if (!exp) c = t;
+    }
+    if (digits && c == e && e - t < 400) {
+        char buf[400];
+        memcpy(buf, t, (size_t)(e - t)); buf[e - t] = 0;
+        double v = strtod(buf, NULL);
+        if (isfinite(v)) { objs[o - 1].has = true; objs[o - 1].val = num(v); }
+    }
+    return id(o);
+}
+REGISTER("String", "to_number", String_to_number);
+
+// The sound calls: each one records what the mod asked for, which is what last_sound answers, and a
+// stream answers a token only when the path names a file in the game directory, as a loader that
+// cannot find a recording does. This host stages zero-byte placeholder recordings for a few of
+// vanilla 1.2.5's sounds, because the repository ships no audio.
+struct sound_command {
+    const char* command;
+    const char* path;
+    const char* mod;
+    double volume, pitch, token, fade_ms, x, y, z, seq;
+    bool looping;
+};
+static struct sound_command* snds;
+static size_t nsnds, capsnds;
+static double next_stream_token = 1, sound_seq;
+static void sounds_reset(void) { nsnds = 0; next_stream_token = 1; sound_seq = 0; }
+static const char* sound_caller(void) { return caller_mod ? caller_mod : current_test_mod; }
+static struct sound_command* record_sound(const char* command) {
+    if (nsnds == capsnds) { capsnds = capsnds ? capsnds * 2 : 16; snds = xrealloc(snds, capsnds * sizeof *snds); }
+    struct sound_command* c = &snds[nsnds++];
+    memset(c, 0, sizeof *c);
+    c->command = command;
+    c->path = "";
+    c->mod = sound_caller();
+    if (!strcmp(c->mod, current_test_mod)) c->seq = ++sound_seq;
+    return c;
+}
+static bool sound_file_there(const char* path) {
+    char full[4200];
+    snprintf(full, sizeof full, "%s/%s", g_game_dir, path);
+    struct stat st;
+    return stat(full, &st) == 0 && S_ISREG(st.st_mode);
+}
+static bool sound_path_ok(const char* path, const char* who) {
+    if (!path[0]) { fail("%s: the path is empty", who); return false; }
+    if (strchr(path, '\\')) { fail("%s: the path holds a backslash", who); return false; }
+    const char* s = path;
+    for (;;) {
+        const char* e = strchr(s, '/');
+        size_t n = e ? (size_t)(e - s) : strlen(s);
+        if (n == 0 || (n == 1 && s[0] == '.') || (n == 2 && s[0] == '.' && s[1] == '.')) { fail("%s: the path has an empty, . or .. segment", who); return false; }
+        if (!e) break;
+        s = e + 1;
+    }
+    return true;
+}
+static union grug_value start_stream(ARGS) {
+    UNUSED;
+    const char* path = a[0]._string;
+    if (!sound_path_ok(path, "start_stream")) return none();
+    double volume = a[1]._number, pitch = a[2]._number, fade = a[3]._number;
+    if (!(volume >= 0 && volume <= 1)) return fail("start_stream: volume has to be from 0 to 1");
+    if (!(pitch >= 0.5 && pitch <= 2)) return fail("start_stream: pitch has to be from 0.5 to 2");
+    if (!is_whole(fade) || fade < 0) return fail("start_stream: fade_in_ms has to be a whole number from 0 up");
+    struct sound_command* c = record_sound("start");
+    c->path = keep(xstrdup(path));
+    c->volume = volume; c->pitch = pitch; c->fade_ms = fade; c->looping = a[4]._bool;
+    uint64_t o = new_obj(K_OPTION);
+    if (sound_file_there(path)) {
+        c->token = next_stream_token++;
+        objs[o - 1].has = true;
+        objs[o - 1].val = num(c->token);
+    }
+    return id(o);
+}
+REGISTER(NULL, "start_stream", start_stream);
+static union grug_value stop_stream_fn(ARGS) {
+    UNUSED;
+    double token = a[0]._number, fade = a[1]._number;
+    if (!is_whole(token) || token < 0) return fail("stop_stream: the token has to be a whole number from 0 up");
+    if (!is_whole(fade) || fade < 0) return fail("stop_stream: fade_out_ms has to be a whole number from 0 up");
+    struct sound_command* c = record_sound("stop");
+    c->token = token; c->fade_ms = fade;
+    return none();
+}
+REGISTER(NULL, "stop_stream", stop_stream_fn);
+static union grug_value pause_stream(ARGS) {
+    UNUSED;
+    double token = a[0]._number;
+    if (!is_whole(token) || token < 0) return fail("pause_stream: the token has to be a whole number from 0 up");
+    record_sound("pause")->token = token;
+    return none();
+}
+REGISTER(NULL, "pause_stream", pause_stream);
+static union grug_value resume_stream(ARGS) {
+    UNUSED;
+    double token = a[0]._number;
+    if (!is_whole(token) || token < 0) return fail("resume_stream: the token has to be a whole number from 0 up");
+    record_sound("resume")->token = token;
+    return none();
+}
+REGISTER(NULL, "resume_stream", resume_stream);
+static union grug_value play_sound_file(ARGS) {
+    UNUSED;
+    const char* path = a[0]._string;
+    if (!sound_path_ok(path, "play_sound_file")) return none();
+    double volume = a[1]._number, pitch = a[2]._number;
+    if (!(volume >= 0)) return fail("play_sound_file: volume has to be 0 or more");
+    if (!(pitch > 0)) return fail("play_sound_file: pitch has to be above 0");
+    struct sound_command* c = record_sound("play");
+    c->path = keep(xstrdup(path)); c->volume = volume; c->pitch = pitch;
+    return none();
+}
+REGISTER(NULL, "play_sound_file", play_sound_file);
+static union grug_value play_sound_at(ARGS) {
+    UNUSED;
+    const char* path = a[0]._string;
+    if (!sound_path_ok(path, "play_sound_at")) return none();
+    double volume = a[1]._number, pitch = a[2]._number;
+    if (!(volume >= 0)) return fail("play_sound_at: volume has to be 0 or more");
+    if (!(pitch > 0)) return fail("play_sound_at: pitch has to be above 0");
+    for (int i = 3; i <= 5; i++)
+        if (!isfinite(a[i]._number)) return fail("play_sound_at: the position has to be finite");
+    struct sound_command* c = record_sound("play_at");
+    c->path = keep(xstrdup(path)); c->volume = volume; c->pitch = pitch;
+    c->x = a[3]._number; c->y = a[4]._number; c->z = a[5]._number;
+    return none();
+}
+REGISTER(NULL, "play_sound_at", play_sound_at);
+static union grug_value TTC_last_sound(ARGS) {
+    UNUSED;
+    uint64_t o = new_obj(K_OPTION);
+    size_t found = nsnds;
+    for (size_t i = nsnds; i > 0; i--)
+        if (!strcmp(snds[i - 1].mod, current_test_mod)) { found = i - 1; break; }
+    if (found != nsnds) {
+        uint64_t s = new_obj(K_SOUND);
+        objs[s - 1].x = (double)found;
+        objs[o - 1].has = true;
+        objs[o - 1].val = id(s);
+    }
+    return id(o);
+}
+REGISTER("TestTickContext", "last_sound", TTC_last_sound);
+static struct sound_command* sound_of(uint64_t handle) {
+    struct obj* o = get_obj(handle, K_SOUND);
+    if (!o || o->x < 0 || (size_t)o->x >= nsnds) return NULL;
+    return &snds[(size_t)o->x];
+}
+static union grug_value SC_command(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return str(c ? c->command : ""); }
+REGISTER("SoundCommand", "command", SC_command);
+static union grug_value SC_path(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return str(c ? c->path : ""); }
+REGISTER("SoundCommand", "path", SC_path);
+static union grug_value SC_volume(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return num(c ? c->volume : 0); }
+REGISTER("SoundCommand", "volume", SC_volume);
+static union grug_value SC_pitch(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return num(c ? c->pitch : 0); }
+REGISTER("SoundCommand", "pitch", SC_pitch);
+static union grug_value SC_fade_ms(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return num(c ? c->fade_ms : 0); }
+REGISTER("SoundCommand", "fade_ms", SC_fade_ms);
+static union grug_value SC_looping(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return boolean(c && c->looping); }
+REGISTER("SoundCommand", "looping", SC_looping);
+static union grug_value SC_token(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return num(c ? c->token : 0); }
+REGISTER("SoundCommand", "token", SC_token);
+static union grug_value SC_seq(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return num(c ? c->seq : 0); }
+REGISTER("SoundCommand", "seq", SC_seq);
+static union grug_value SC_x(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return num(c ? c->x : 0); }
+REGISTER("SoundCommand", "x", SC_x);
+static union grug_value SC_y(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return num(c ? c->y : 0); }
+REGISTER("SoundCommand", "y", SC_y);
+static union grug_value SC_z(ARGS) { UNUSED; struct sound_command* c = sound_of(a[0]._id); return num(c ? c->z : 0); }
+REGISTER("SoundCommand", "z", SC_z);
+
+// The HUD pass and the world-key pass. The HUD is drawn while no screen is open, as the loader does,
+// and the drawn mark is the running test's own mod's, as overlay_drawn is.
+static uint64_t overlay_hud_fn = UINT64_MAX, overlay_world_key_fn = UINT64_MAX;
+static bool world_overlay_drawn_mark;
+static bool hud_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_HUD) != NULL; }
+static union grug_value OHC_get_level(ARGS) { UNUSED; if (!hud_context(a[0]._id)) return fail("OverlayHudContext.get_level: not a HUD pass"); return id(new_obj(K_LEVEL)); }
+REGISTER("OverlayHudContext", "get_level", OHC_get_level);
+static union grug_value OHC_get_player(ARGS) { UNUSED; if (!hud_context(a[0]._id)) return fail("OverlayHudContext.get_player: not a HUD pass"); return id(new_obj(K_PLAYER)); }
+REGISTER("OverlayHudContext", "get_player", OHC_get_player);
+static union grug_value OHC_add_text(ARGS) {
+    UNUSED;
+    if (!hud_context(a[0]._id)) return fail("OverlayHudContext.add_text: not a HUD pass");
+    for (int i = 2; i <= 3; i++)
+        if (!isfinite(a[i]._number)) return fail("OverlayHudContext.add_text: the position has to be finite");
+    if (a[1]._string[0]) overlay_pass_drew = true;
+    return none();
+}
+REGISTER("OverlayHudContext", "add_text", OHC_add_text);
+static union grug_value OHC_screen_width(ARGS) { UNUSED; if (!hud_context(a[0]._id)) return fail("OverlayHudContext.screen_width: not a HUD pass"); return num(WINDOW_W); }
+REGISTER("OverlayHudContext", "screen_width", OHC_screen_width);
+static union grug_value OHC_screen_height(ARGS) { UNUSED; if (!hud_context(a[0]._id)) return fail("OverlayHudContext.screen_height: not a HUD pass"); return num(WINDOW_H); }
+REGISTER("OverlayHudContext", "screen_height", OHC_screen_height);
+static union grug_value OHC_top_inset(ARGS) { UNUSED; if (!hud_context(a[0]._id)) return fail("OverlayHudContext.top_inset: not a HUD pass"); return num(0); }
+REGISTER("OverlayHudContext", "top_inset", OHC_top_inset);
+static void render_huds(void) {
+    for (size_t i = 0; i < noverlays; i++) {
+        if (overlay_disabled(overlays[i].path)) continue;
+        overlay_pass_drew = false;
+        uint64_t c = new_obj(K_OVERLAY_HUD);
+        union grug_value arg = id(c);
+        call_overlay_export(overlays[i].entity, overlays[i].mod, overlay_hud_fn, &arg, 1);
+        if (overlay_pass_drew && !strcmp(overlays[i].mod, current_test_mod)) world_overlay_drawn_mark = true;
+    }
+}
+static union grug_value TTC_world_overlay_drawn(ARGS) { UNUSED; return boolean(world_overlay_drawn_mark); }
+REGISTER("TestTickContext", "world_overlay_drawn", TTC_world_overlay_drawn);
+static double overlay_world_key_code;
+static bool overlay_world_key_ctrl;
+static bool world_key_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_WORLDKEY) != NULL; }
+static union grug_value OWKC_key(ARGS) { UNUSED; if (!world_key_context(a[0]._id)) return fail("OverlayWorldKeyContext.key: not a world key pass"); return num(overlay_world_key_code); }
+REGISTER("OverlayWorldKeyContext", "key", OWKC_key);
+static union grug_value OWKC_ctrl(ARGS) { UNUSED; if (!world_key_context(a[0]._id)) return fail("OverlayWorldKeyContext.ctrl: not a world key pass"); return boolean(overlay_world_key_ctrl); }
+REGISTER("OverlayWorldKeyContext", "ctrl", OWKC_ctrl);
+static union grug_value TTC_press_world_key(ARGS) {
+    UNUSED;
+    double k = a[1]._number;
+    int key = is_whole(k) ? (int)k : -1;
+    bool letter = (unsigned)(key - 'A') <= 25, digit = (unsigned)(key - '0') <= 9;
+    if (!(letter || digit)) {
+        char t[400];
+        double_text(k, t, sizeof t);
+        return fail("TestTickContext.press_world_key: The key has to be the upper case character code of a letter or a digit, and was %s.", t);
+    }
+    overlay_world_key_code = (double)key;
+    overlay_world_key_ctrl = a[2]._bool;
+    world_overlay_drawn_mark = false;
+    for (size_t i = 0; i < noverlays; i++) {
+        if (overlay_disabled(overlays[i].path)) continue;
+        uint64_t c = new_obj(K_OVERLAY_WORLDKEY);
+        union grug_value arg = id(c);
+        call_overlay_export(overlays[i].entity, overlays[i].mod, overlay_world_key_fn, &arg, 1);
+    }
+    return none();
+}
+REGISTER("TestTickContext", "press_world_key", TTC_press_world_key);
 
 // =============================================================================================
 // SECTION: Registry and contract
@@ -4248,11 +4841,17 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
+    memory_reset();
+    sounds_reset();
+    weather_raining = weather_thundering = false;
+    player_pitch = 0;
     memset(inv, 0, sizeof inv);
     time_offset = 0;
     operator_status = true;
     bg_missing[0] = 0;
     stubbed = false;
+    caller_mod = NULL;
+    world_overlay_drawn_mark = false;
     cur_tick = 0;
     free(expected_error);
     expected_error = NULL;
@@ -4267,7 +4866,10 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         uint64_t ictx = new_obj(K_CTX);
         union grug_value iarg = id(ictx);
         // A false with no error recorded is a file that has no init, which most tests do not.
-        if (!grug_call_export_fn(g_state, entity, init_fn, &iarg, 1) && last_error[0]) {  // SMOKETEST_EXCL_BRANCH: no committed test's init() reports an error, so this branch is never taken
+        caller_mod = current_test_mod;
+        bool init_ok = grug_call_export_fn(g_state, entity, init_fn, &iarg, 1);
+        caller_mod = NULL;
+        if (!init_ok && last_error[0]) {  // SMOKETEST_EXCL_BRANCH: no committed test's init() reports an error, so this branch is never taken
             // SMOKETEST_EXCL_START: no committed test's init() reports an error. runner_first_tick-Test was the only init that failed, on TestInitContext.stall, which the host now implements, and a test that asserted this path would itself be the failing init.
             report("FAIL", label, "init stopped: %s", last_error);
             rc = 1;
@@ -4278,7 +4880,10 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         last_error[0] = 0;
         last_msg[0] = 0;
         not_done_called = false;
+        caller_mod = current_test_mod;
         bool completed = grug_call_export_fn(g_state, entity, tick_fn, &arg, 1);
+        caller_mod = NULL;
+        if (!bg_missing[0] && (completed || not_done_called) && !screen_is_open) render_huds();
         if (completed && !bg_missing[0]) render_overlays();
         if (bg_missing[0]) { report("FAIL", label, "%s", bg_missing); rc = 1; }
         else if (!completed) {
@@ -4403,6 +5008,17 @@ int main(int argc, char** argv) {
         // SMOKETEST_EXCL_STOP
     }
     g_game_dir = xstrdup(game_dir);
+    // The toy game directory ships one recording, the fixture pack's rain, under resources/, as a
+    // 1.2.5 install ships its own sounds, so a test can start a stream; a pack that names any other
+    // file plays nothing, which is an install without the 2012 pack.
+    char rain_dir[4096], rain_file[4200];
+    snprintf(rain_dir, sizeof rain_dir, "%s/resources/newsound/ambient/weather", game_dir);
+    snprintf(rain_file, sizeof rain_file, "%s/rain1.ogg", rain_dir);
+    if (make_dirs(rain_dir)) {
+        FILE* f = fopen(rain_file, "wb");
+        if (f) fclose(f);
+    }
+    stage_recordings();
     G.f = files;
     toy_files = &G.f;
     build_toy_items();
@@ -4421,6 +5037,8 @@ int main(int argc, char** argv) {
     overlay_click_fn = grug_get_on_fn_id(g_state, "Overlay", "click");
     overlay_key_fn = grug_get_on_fn_id(g_state, "Overlay", "key");
     overlay_scroll_fn = grug_get_on_fn_id(g_state, "Overlay", "scroll");
+    overlay_hud_fn = grug_get_on_fn_id(g_state, "Overlay", "render_hud");
+    overlay_world_key_fn = grug_get_on_fn_id(g_state, "Overlay", "world_key");
     uint64_t tick_fn = grug_get_on_fn_id(g_state, "Test", "tick");
     uint64_t init_fn = grug_get_on_fn_id(g_state, "Test", "init");
     if (!strcmp(argv[2], "--all")) { rc = run_all(files, tick_fn, init_fn); goto done; }

@@ -1,0 +1,64 @@
+# A pausing stream: the machine's stream starts after its delay before fade-in, is paused (not
+# stopped) when the machine goes off after its delay before fade-out, and resumed with the same
+# token when the machine comes back. This is the reference's ambience bed, where leaving a place and
+# coming back carries the sound on instead of starting it over.
+started: bool = false
+pressed: bool = false
+token: number = 0
+phase: number = 0
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        _use_fixture()
+        ctx.set_weather(true, false)
+        ctx.not_done()
+        return
+    }
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(65, false)
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 400, "The pause and resume should both arrive within 400 ticks.")
+    sound: Option[SoundCommand] = ctx.last_sound()
+    if phase == 0 {
+        if not sound.has() or sound.unwrap().command() != "start" {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(sound.unwrap().volume() == 0.7, "The stream should start at the pack's gain.")
+        ctx.assert(sound.unwrap().fade_ms() == 500, "The stream should fade in over the pack's half second.")
+        token = sound.unwrap().token()
+        ctx.assert(token >= 1, "The stream should have a token.")
+        ctx.set_weather(false, false)
+        phase = 1
+        ctx.not_done()
+        return
+    }
+    if phase == 1 {
+        if not sound.has() or sound.unwrap().command() != "pause" {
+            ctx.not_done()
+            return
+        }
+        ctx.assert(sound.unwrap().token() == token, "A pausing stream should be paused by the token it started with.")
+        ctx.assert(sound.unwrap().path() == "", "A pause names a token, not a path.")
+        ctx.set_weather(true, false)
+        phase = 2
+        ctx.not_done()
+        return
+    }
+    if not sound.has() or sound.unwrap().command() != "resume" {
+        ctx.not_done()
+        return
+    }
+    ctx.assert(sound.unwrap().token() == token, "The resumed stream should be the same token, so it carries on from where it paused.")
+}
+
+local _use_fixture() {
+    files: File = File.open(r"files")
+    files.write_text("packs.txt", "fixture_pause.xml")
+}

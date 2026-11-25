@@ -1,0 +1,5 @@
+# A stop's fade cannot be negative (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("stop_stream: fade_out_ms has to be a whole number from 0 up")
+    stop_stream(1, -1)
+}

@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><contents>
+<!-- Every comparison symbol and both list symbols, a dynamic, a set that ANDs its parts, and a
+     condition that is false in both weathers. Each machine's stream has its own gain and its own
+     delay, so a test reads which set was true from the commands the engine hands the loader. -->
+<expansion>
+	<data>1</data>
+</expansion>
+<dynamic name="Rain dynamic">
+	<entry sheet="Instants">7</entry>
+</dynamic>
+<list name="Wet values">
+	<constant>1</constant>
+</list>
+<condition name="Not equal">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>!=</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<condition name="At most zero">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>&lt;=</symbol>
+	<constant>0</constant>
+	<list/>
+</condition>
+<condition name="Below one">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>&lt;</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<condition name="At least one">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>&gt;=</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<condition name="Above zero">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>&gt;</symbol>
+	<constant>0</constant>
+	<list/>
+</condition>
+<condition name="In wet">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>in</symbol>
+	<constant>0</constant>
+	<list>Wet values</list>
+</condition>
+<condition name="Not in wet">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>!in</symbol>
+	<constant>0</constant>
+	<list>Wet values</list>
+</condition>
+<condition name="From dynamic">
+	<dynamickey>Rain dynamic</dynamickey>
+	<symbol>==</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<condition name="Impossible">
+	<sheet>Instants</sheet>
+	<key>7</key>
+	<symbol>&gt;</symbol>
+	<constant>1</constant>
+	<list/>
+</condition>
+<set name="Red set">
+	<truepart>At most zero</truepart>
+	<truepart>Below one</truepart>
+	<truepart>Not equal</truepart>
+	<truepart>Not in wet</truepart>
+</set>
+<set name="Green set">
+	<truepart>At least one</truepart>
+	<truepart>Above zero</truepart>
+</set>
+<set name="In set">
+	<truepart>In wet</truepart>
+</set>
+<set name="Dynamic set">
+	<truepart>From dynamic</truepart>
+</set>
+<set name="Never set">
+	<truepart>Impossible</truepart>
+</set>
+<machine name="Red">
+	<allow>Red set</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.12</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.0</delaybeforefadein>
+		<delaybeforefadeout>0.0</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>0</isusingpause>
+	</stream>
+</machine>
+<machine name="Green">
+	<allow>Green set</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.11</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.0</delaybeforefadein>
+		<delaybeforefadeout>0.0</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>0</isusingpause>
+	</stream>
+</machine>
+<machine name="In">
+	<allow>In set</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.13</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.4</delaybeforefadein>
+		<delaybeforefadeout>0.0</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>0</isusingpause>
+	</stream>
+</machine>
+<machine name="Dynamic">
+	<allow>Dynamic set</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.14</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.6</delaybeforefadein>
+		<delaybeforefadeout>0.0</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>0</isusingpause>
+	</stream>
+</machine>
+<machine name="Never">
+	<allow>Never set</allow>
+	<stream>
+		<path>newsound/ambient/weather/rain1.ogg</path>
+		<volume>0.15</volume>
+		<pitch>1.0</pitch>
+		<fadeintime>0.0</fadeintime>
+		<fadeouttime>0.0</fadeouttime>
+		<delaybeforefadein>0.8</delaybeforefadein>
+		<delaybeforefadeout>0.0</delaybeforefadeout>
+		<islooping>1</islooping>
+		<isusingpause>0</isusingpause>
+	</stream>
+</machine>
+</contents>

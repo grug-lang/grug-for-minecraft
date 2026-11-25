@@ -1,0 +1,5 @@
+# A stream's gain cannot be negative (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("start_stream: volume has to be from 0 to 1")
+    start_stream("resources/newsound/random/glass1.ogg", -0.5, 1, 0, false)
+}

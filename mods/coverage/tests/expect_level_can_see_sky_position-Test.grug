@@ -1,0 +1,5 @@
+# The sky read needs a finite position (#1347).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("Level.can_see_sky: a coordinate is not a finite number within 1e15")
+    ctx.get_client_level().can_see_sky(1.0 / 0.0, 0, 0)
+}
