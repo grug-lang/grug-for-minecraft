@@ -1607,6 +1607,29 @@ public class StationApiAdapter implements ModLoaderAdapter {
                     return ((PlayerEntity) player).prevPitch;
                 }
 
+                // Beta's hand renderer, StationAPI's Arsenic overlay renderer, draws the hand at
+                // the camera angles themselves, so this generation has no eased arm for a capture
+                // to depend on (#1785).
+                @Override
+                public float armYaw(Object player) {
+                    return 0.0F;
+                }
+
+                @Override
+                public float armPitch(Object player) {
+                    return 0.0F;
+                }
+
+                @Override
+                public float previousArmYaw(Object player) {
+                    return 0.0F;
+                }
+
+                @Override
+                public float previousArmPitch(Object player) {
+                    return 0.0F;
+                }
+
                 @Override
                 public void level(Object player) {
                     PlayerEntity target = (PlayerEntity) player;

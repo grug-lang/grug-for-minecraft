@@ -29,6 +29,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.Direction;
@@ -473,12 +474,39 @@ public class ClientForgeAdapter extends ForgeAdapter {
                 }
 
                 @Override
+                public float armYaw(Object player) {
+                    return ((LocalPlayer) player).yBob;
+                }
+
+                @Override
+                public float armPitch(Object player) {
+                    return ((LocalPlayer) player).xBob;
+                }
+
+                @Override
+                public float previousArmYaw(Object player) {
+                    return ((LocalPlayer) player).yBobO;
+                }
+
+                @Override
+                public float previousArmPitch(Object player) {
+                    return ((LocalPlayer) player).xBobO;
+                }
+
+                @Override
                 public void level(Object player) {
-                    Player target = (Player) player;
+                    LocalPlayer target = (LocalPlayer) player;
                     target.setYRot(0.0F);
                     target.setXRot(0.0F);
                     target.yRotO = 0.0F;
                     target.xRotO = 0.0F;
+                    // The hand is drawn at the bob angles, which the game eases toward the view by
+                    // halving the gap every tick, so the lag they still have is what #1785's
+                    // capture varies by. Nothing else levels them.
+                    target.yBob = 0.0F;
+                    target.xBob = 0.0F;
+                    target.yBobO = 0.0F;
+                    target.xBobO = 0.0F;
                 }
             };
 
