@@ -1,0 +1,17 @@
+# Math.atan2 is the angle of a point, with y first as in Java's Math.atan2. The signs of the
+# arguments decide which side of the circle the answer is on, and Math.atan2(0, 0) is the one input
+# with no direction at all, which Java answers with 0.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.atan2(0, 1) == 0, "Math.atan2(0, 1) should be 0.")
+        ctx.assert(Math.atan2(1, 0) == Math.pi() / 2, "Math.atan2(1, 0) should be half pi.")
+        ctx.assert(Math.atan2(0, -1) == Math.pi(), "Math.atan2(0, -1) should be pi.")
+        ctx.assert(Math.atan2(-1, 0) == -Math.pi() / 2, "Math.atan2(-1, 0) should be minus half pi.")
+        ctx.assert(Math.atan2(1, 1) > 0.785, "Math.atan2(1, 1) should be a quarter turn.")
+        ctx.assert(Math.atan2(1, 1) < 0.786, "Math.atan2(1, 1) should be a quarter turn.")
+        ctx.assert(Math.atan2(0, 0) == 0, "Math.atan2(0, 0) should be 0, as Java answers it.")
+        ctx.assert(Math.atan2(-0.0, -1) == -Math.pi(), "A negative zero y should keep the -pi side.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.atan2(nan, 1) <= Math.atan2(nan, 1)), "A NaN argument should stay NaN.")
+    }
+}

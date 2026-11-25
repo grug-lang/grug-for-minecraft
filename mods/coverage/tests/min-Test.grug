@@ -1,0 +1,16 @@
+# Math.min is the smaller of two numbers. NaN in either argument wins, and of the two zeros the
+# negative one wins, so dividing by the answer tells them apart. A loop stepping towards a bound
+# takes the smaller of the step and the bound.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.min(2, 3) == 2, "Math.min(2, 3) should be 2.")
+        ctx.assert(Math.min(3, 2) == 2, "Math.min(3, 2) should be 2.")
+        ctx.assert(Math.min(3, 3) == 3, "Math.min(3, 3) should be 3.")
+        ctx.assert(Math.min(-1, -2) == -2, "Math.min(-1, -2) should be -2.")
+        ctx.assert(1 / Math.min(-0.0, 0.0) < 0, "Math.min(-0.0, 0.0) should be negative zero.")
+        ctx.assert(1 / Math.min(0.0, -0.0) < 0, "Math.min(0.0, -0.0) should be negative zero.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.min(nan, 1) <= Math.min(nan, 1)), "Math.min(NaN, 1) should be NaN.")
+        ctx.assert(not (Math.min(1, nan) <= Math.min(1, nan)), "Math.min(1, NaN) should be NaN.")
+    }
+}

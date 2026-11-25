@@ -1,0 +1,20 @@
+# Math.floorMod is a modulo that answers on the divisor's side, where Math.remainder answers on the
+# value's side. The negative cases are the ones a plain remainder gets wrong, and a divisor of 0
+# has an answer of nothing but NaN, so it reports an error instead.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.floorMod(7, 3) == 1, "Math.floorMod(7, 3) should be 1.")
+        ctx.assert(Math.floorMod(6, 3) == 0, "Math.floorMod(6, 3) should be 0.")
+        ctx.assert(Math.floorMod(0, 3) == 0, "Math.floorMod(0, 3) should be 0.")
+        ctx.assert(Math.floorMod(-7, 3) == 2, "Math.floorMod(-7, 3) should be 2, on the divisor's side.")
+        ctx.assert(Math.floorMod(7, -3) == -2, "Math.floorMod(7, -3) should be -2.")
+        ctx.assert(Math.floorMod(-7, -3) == -1, "Math.floorMod(-7, -3) should be -1.")
+        ctx.assert(Math.floorMod(15, 20) == 15, "Math.floorMod(15, 20) should be 15.")
+        ctx.assert(Math.floorMod(-15, 20) == 5, "Math.floorMod(-15, 20) should be 5.")
+        ctx.assert(Math.floorMod(7.5, 2) == 1.5, "Math.floorMod(7.5, 2) should be 1.5.")
+        ctx.assert(Math.floorMod(-7.5, 2) == 0.5, "Math.floorMod(-7.5, 2) should be 0.5.")
+        ctx.assert(Math.floorMod(7.5, -2) == -0.5, "Math.floorMod(7.5, -2) should be -0.5.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.floorMod(nan, 3) <= Math.floorMod(nan, 3)), "A NaN value should stay NaN.")
+    }
+}

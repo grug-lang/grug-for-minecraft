@@ -1,0 +1,16 @@
+# Math.max is the larger of two numbers. NaN in either argument wins, and of the two zeros the
+# positive one wins, so dividing by the answer tells them apart. A loop stepping towards a bound
+# takes the larger of the step and the bound.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.max(2, 3) == 3, "Math.max(2, 3) should be 3.")
+        ctx.assert(Math.max(3, 2) == 3, "Math.max(3, 2) should be 3.")
+        ctx.assert(Math.max(3, 3) == 3, "Math.max(3, 3) should be 3.")
+        ctx.assert(Math.max(-1, -2) == -1, "Math.max(-1, -2) should be -1.")
+        ctx.assert(1 / Math.max(-0.0, 0.0) > 0, "Math.max(-0.0, 0.0) should be positive zero.")
+        ctx.assert(1 / Math.max(0.0, -0.0) > 0, "Math.max(0.0, -0.0) should be positive zero.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.max(nan, 1) <= Math.max(nan, 1)), "Math.max(NaN, 1) should be NaN.")
+        ctx.assert(not (Math.max(1, nan) <= Math.max(1, nan)), "Math.max(1, NaN) should be NaN.")
+    }
+}

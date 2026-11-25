@@ -1,0 +1,18 @@
+# Math.signum is 1 for a positive number and -1 for a negative one, and the number itself for both
+# zeros and for NaN. Dividing by it tells negative zero from positive zero, and a shape rounds a
+# fraction to the side it points to with it.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.signum(2) == 1, "Math.signum(2) should be 1.")
+        ctx.assert(Math.signum(-2) == -1, "Math.signum(-2) should be -1.")
+        ctx.assert(Math.signum(0) == 0, "Math.signum(0) should be 0.")
+        ctx.assert(1 / Math.signum(-0.0) < 0, "Math.signum(-0.0) should be negative zero.")
+        ctx.assert(Math.signum(0.5) == 1, "Math.signum(0.5) should be 1.")
+        ctx.assert(Math.signum(-0.5) == -1, "Math.signum(-0.5) should be -1.")
+        inf: number = Math.sinh(1000)
+        ctx.assert(Math.signum(inf) == 1, "Math.signum(Infinity) should be 1.")
+        ctx.assert(Math.signum(-inf) == -1, "Math.signum(-Infinity) should be -1.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.signum(nan) <= Math.signum(nan)), "Math.signum(NaN) should stay NaN.")
+    }
+}

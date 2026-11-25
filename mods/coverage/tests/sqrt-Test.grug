@@ -1,0 +1,16 @@
+# Math.sqrt is the square root of a number. A negative number has none, so it answers NaN, negative
+# zero stays negative zero, and IEEE 754 fixes the answer, so no two loaders disagree.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.sqrt(4) == 2, "Math.sqrt(4) should be 2.")
+        ctx.assert(Math.sqrt(0) == 0, "Math.sqrt(0) should be 0.")
+        ctx.assert(1 / Math.sqrt(-0.0) < 0, "Math.sqrt(-0.0) should be negative zero.")
+        ctx.assert(Math.sqrt(2) > 1.414213562373094, "Math.sqrt(2) should be about 1.414.")
+        ctx.assert(Math.sqrt(2) < 1.414213562373096, "Math.sqrt(2) should be about 1.414.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (nan <= nan), "Math.sqrt(-1) should be NaN.")
+        inf: number = Math.sinh(1000)
+        ctx.assert(Math.sqrt(inf) == inf, "Math.sqrt(Infinity) should stay Infinity.")
+        ctx.assert(not (Math.sqrt(-inf) <= Math.sqrt(-inf)), "Math.sqrt(-Infinity) should be NaN.")
+    }
+}

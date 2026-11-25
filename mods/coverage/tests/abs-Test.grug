@@ -1,0 +1,16 @@
+# Math.abs is the magnitude of a number, and the hand-written `if value < 0 { return -value }` that
+# grug code used before it got negative zero and NaN wrong (#1680). Dividing by an answer tells the
+# two zeros apart, because == cannot.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.abs(2.5) == 2.5, "Math.abs(2.5) should be 2.5.")
+        ctx.assert(Math.abs(-2.5) == 2.5, "Math.abs(-2.5) should be 2.5.")
+        ctx.assert(Math.abs(0) == 0, "Math.abs(0) should be 0.")
+        ctx.assert(1 / Math.abs(-0.0) > 0, "Math.abs(-0.0) should be positive zero.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.abs(nan) <= Math.abs(nan)), "Math.abs(NaN) should stay NaN.")
+        inf: number = Math.sinh(1000)
+        ctx.assert(Math.abs(inf) == inf, "Math.abs(Infinity) should stay Infinity.")
+        ctx.assert(Math.abs(-inf) == inf, "Math.abs(-Infinity) should be Infinity.")
+    }
+}

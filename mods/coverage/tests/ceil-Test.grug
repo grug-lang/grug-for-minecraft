@@ -1,0 +1,18 @@
+# Math.ceil rounds up, where Math.floor rounds down, and a number between -1 and 0 rounds to
+# negative zero. The shapes walk from the floor of a bound to its ceiling, so the pair decides the
+# cells a shape considers.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.ceil(2.5) == 3, "Math.ceil(2.5) should be 3.")
+        ctx.assert(Math.ceil(2) == 2, "Math.ceil(2) should be 2.")
+        ctx.assert(Math.ceil(0) == 0, "Math.ceil(0) should be 0.")
+        ctx.assert(Math.ceil(-2.5) == -2, "Math.ceil(-2.5) should be -2.")
+        ctx.assert(Math.ceil(-2) == -2, "Math.ceil(-2) should be -2.")
+        ctx.assert(1 / Math.ceil(-0.5) < 0, "Math.ceil(-0.5) should be negative zero, as in Java.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.ceil(nan) <= Math.ceil(nan)), "Math.ceil(NaN) should stay NaN.")
+        inf: number = Math.sinh(1000)
+        ctx.assert(Math.ceil(inf) == inf, "Math.ceil(Infinity) should stay Infinity.")
+        ctx.assert(Math.ceil(-inf) == -inf, "Math.ceil(-Infinity) should stay -Infinity.")
+    }
+}
