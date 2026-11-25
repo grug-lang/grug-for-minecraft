@@ -458,6 +458,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
         lightRow(clientLightText, clientWorld, "engine block", LightType.BLOCK, -56);
         lightRow(clientLightText, clientWorld, "face sky", LightType.SKY, -57);
         lightRow(clientLightText, clientWorld, "face block", LightType.BLOCK, -57);
+        // Diagnostic only (#1765): the float the frame renderer reads at the engine row.
+        clientLightText.append(" engine frame");
+        for (int i = 0; i < 6; i++) {
+            clientLightText.append(' ').append(clientWorld.method_1782(-22 + i, 74, -56));
+        }
         System.out.println(clientLightText);
         ClientBlockLight blockLight = new ClientBlockLight(clientWorld, LightType.BLOCK);
         ClientBlockLight skyLight = new ClientBlockLight(clientWorld, LightType.SKY);

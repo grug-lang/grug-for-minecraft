@@ -908,6 +908,14 @@ public class ServerStationApiAdapter extends StationApiAdapter {
             // A chunk this server never loaded is an empty one with no block array, which a region
             // packet cannot be made of, and the client holds no light for it either.
             boolean loaded = world.getChunk(region[0] >> 4, region[2] >> 4).blocks != null;
+            // Diagnostic only (#1765): whether this piece of the resend reaches the engine row.
+            boolean coversEngines =
+                    region[0] <= -22
+                            && region[0] + region[3] - 1 >= -17
+                            && region[1] <= 74
+                            && region[1] + region[4] - 1 >= 74
+                            && region[2] <= -56
+                            && region[2] + region[5] - 1 >= -56;
             // Diagnostic only (#1765): what the resend actually puts on the wire.
             System.out.println(
                     "[GRUG RELIGHT] region "
@@ -923,7 +931,9 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                             + ","
                             + region[5]
                             + " loaded="
-                            + loaded);
+                            + loaded
+                            + " engines="
+                            + coversEngines);
             if (!loaded) {
                 continue;
             }

@@ -370,6 +370,16 @@ public final class GrugControlStationClient {
                             .append(captureWorld.getBrightness(type, -22 + i, 74, -57));
                 }
             }
+            // Diagnostic only (#1765): the float the frame renderer actually passes to the engine,
+            // and the block each cell holds, so the row is never guessed.
+            engineLight.append(" frame");
+            for (int i = 0; i < 6; i++) {
+                engineLight.append(' ').append(captureWorld.method_1782(-22 + i, 74, -56));
+            }
+            engineLight.append(" ids");
+            for (int i = 0; i < 6; i++) {
+                engineLight.append(' ').append(captureWorld.getBlockId(-22 + i, 74, -56));
+            }
             System.out.println(engineLight.toString());
         }
         done.accept(
