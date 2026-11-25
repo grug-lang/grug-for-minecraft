@@ -27,9 +27,10 @@
 
 # The scan is taken again every update_rate ticks of the level's time, so each case waits two rates
 # and a margin after its change before it reads a frame, which is long enough for a scan to have
-# seen it even when a joined client learns the level's time from a packet every 20 ticks. The light
-# is waited for through light_applied, since a joined client's copy carries the section's light and
-# the overlay draws from that copy.
+# seen it even when a joined client learns the level's time from a packet every 20 ticks. The wait
+# does not read the overlay, because a dedicated server freezes its world on every such read and
+# the client draws and scans on its own frames. The light is waited for through light_applied, since
+# a joined client's copy carries the section's light and the overlay draws from that copy.
 state: number = 0
 waited: number = 0
 rate: number = 0
@@ -146,7 +147,6 @@ export tick(ctx: TestTickContext) {
             return
         }
         if ctx.current_tick() - change_at < 2 * rate + 40 {
-            ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
@@ -185,7 +185,6 @@ export tick(ctx: TestTickContext) {
             return
         }
         if ctx.current_tick() - change_at < 2 * rate + 40 {
-            ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
@@ -230,7 +229,6 @@ export tick(ctx: TestTickContext) {
             return
         }
         if ctx.current_tick() - change_at < 2 * rate + 40 {
-            ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
@@ -271,7 +269,6 @@ export tick(ctx: TestTickContext) {
             return
         }
         if ctx.current_tick() - change_at < 2 * rate + 40 {
-            ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
