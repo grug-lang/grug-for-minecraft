@@ -217,6 +217,15 @@ class GrugMetadataTest {
         assertEquals("second", declared.get(2).key().id());
     }
 
+    @Test
+    void aModsDirectoryThatCannotBeListedDeclaresNoKeys() throws Exception {
+        installAdapter(new File(mods.toFile(), "absent"));
+
+        assertTrue(
+                GrugMetadata.declaredKeys().isEmpty(),
+                "A mods directory that is not there declares no key.");
+    }
+
     private void installAdapter(File grugMods) throws Exception {
         Field field = GrugCore.class.getDeclaredField("adapter");
         field.setAccessible(true);

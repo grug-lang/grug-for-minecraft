@@ -284,6 +284,54 @@ class HostFunctionsConfigAndScanTest {
         assertFalse(drain().isEmpty(), "An undeclared option reports.");
     }
 
+    @Test
+    void aWorldPassRefusesABadRadiusAndScansNothingWithoutALevel() {
+        GrugWorldOverlay.openWorld(0.5, 100, 70, 50, 5.7, 4.2, 6.9, "coverage");
+        long context =
+                GrugEntities.addEntity(
+                        GrugEntityType.OverlayWorldContext, GrugWorldOverlay.context());
+
+        assertEquals(0, HostFunctions.OverlayWorldContext_get_spawn_squares(context, -1));
+        assertEquals(0, HostFunctions.OverlayWorldContext_get_spawn_squares(context, 0.5));
+        assertEquals(0, HostFunctions.OverlayWorldContext_get_spawn_squares(context, 33));
+        assertEquals(0, HostFunctions.OverlayWorldContext_get_spawn_squares(context, Double.NaN));
+
+        level = null;
+        assertEquals(0, HostFunctions.OverlayWorldContext_get_spawn_squares(context, 1));
+
+        List<String> reports = drain();
+        assertEquals(5, reports.size(), reports.toString());
+        for (int i = 0; i < 4; i++) {
+            assertTrue(reports.get(i).contains("whole number"), reports.get(i));
+        }
+        assertTrue(reports.get(4).contains("no level"), reports.get(4));
+        GrugWorldOverlay.closeWorld();
+    }
+
+    @Test
+    void aScanReadOfNoScanOrABadIndexAnswersZeroAndReports() {
+        GrugTestState.currentTestMod = "coverage";
+        long context = GrugTestContexts.tick();
+        long squares = HostFunctions.TestTickContext_get_spawn_squares(context, 0);
+        assertEquals(1.0, HostFunctions.SpawnSquares_count(squares));
+
+        assertEquals(0.0, HostFunctions.SpawnSquares_count(0));
+        assertEquals(0.0, HostFunctions.SpawnSquares_x(0, 0));
+        assertEquals(0.0, HostFunctions.SpawnSquares_y(0, 0));
+        assertEquals(0.0, HostFunctions.SpawnSquares_z(0, 0));
+        assertEquals(0.0, HostFunctions.SpawnSquares_block_light(0, 0));
+        assertEquals(0.0, HostFunctions.SpawnSquares_sky_light(0, 0));
+
+        assertEquals(0.0, HostFunctions.SpawnSquares_x(squares, -1));
+        assertEquals(0.0, HostFunctions.SpawnSquares_y(squares, 0.5));
+        assertEquals(0.0, HostFunctions.SpawnSquares_z(squares, Double.NaN));
+        assertEquals(0.0, HostFunctions.SpawnSquares_block_light(squares, 1));
+        assertEquals(0.0, HostFunctions.SpawnSquares_sky_light(squares, 1));
+
+        List<String> reports = drain();
+        assertEquals(11, reports.size(), reports.toString());
+    }
+
     private static int colorOf(long id) {
         return ((Color) GrugEntities.entityData.get(id).object).getARGB();
     }
