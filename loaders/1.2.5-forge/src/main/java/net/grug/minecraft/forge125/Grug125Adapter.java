@@ -875,6 +875,28 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void breakBlockForTest(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        int posX = (int) Math.floor(x);
+        int posY = (int) Math.floor(y);
+        int posZ = (int) Math.floor(z);
+
+        int blockId = world.getBlockId(posX, posY, posZ);
+        if (blockId <= 0) return;
+
+        // The game's own break indexes the table the same way, without a null check: a positive id
+        // the world holds always names a block.
+        Block block = Block.blocksList[blockId];
+        int metadata = world.getBlockMetadata(posX, posY, posZ);
+
+        // PlayerControllerSP's own order: the write removes the block, which runs its removal and
+        // its on_break, and the harvest that drops what it yields comes after.
+        world.setBlockWithNotify(posX, posY, posZ, 0);
+        block.dropBlockAsItem(world, posX, posY, posZ, metadata, 0);
+        blockSync.owe(posX, posY, posZ, getBlock(world, posX, posY, posZ));
+    }
+
+    @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         GrugBlocks.init();
 

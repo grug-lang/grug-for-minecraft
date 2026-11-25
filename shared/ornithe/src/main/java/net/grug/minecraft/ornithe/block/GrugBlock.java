@@ -89,6 +89,19 @@ public class GrugBlock extends BlockWithBlockEntity {
     }
 
     /**
+     * The item the block yields when it breaks: its own item, unless set_drops_nothing declared
+     * that it leaves none. Both Ornithe generations skip an id of 0 in their drop loop, which is
+     * what a block that drops nothing answers here.
+     */
+    @Override
+    public int getDropItem(int metadata, Random random) {
+        if (blockData().dropsNothing) {
+            return 0;
+        }
+        return super.getDropItem(metadata, random);
+    }
+
+    /**
      * The data for this block.
      *
      * <p>A {@code GrugBlock} is only ever built from a declared block, so the lookup always has an

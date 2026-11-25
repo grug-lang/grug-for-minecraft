@@ -114,6 +114,19 @@ public class GrugBlock extends TemplateBlockWithEntity {
     }
 
     /**
+     * The item the block yields when it breaks: its own item, unless set_drops_nothing declared
+     * that it leaves none. b1.7.3's drop loop skips an id of 0, which is what a block that drops
+     * nothing answers here.
+     */
+    @Override
+    public int getDroppedItemId(int metadata, Random random) {
+        if (blockData().dropsNothing) {
+            return 0;
+        }
+        return super.getDroppedItemId(metadata, random);
+    }
+
+    /**
      * A block that draws its own geometry is not a full cube, so it does not hide its neighbours'
      * faces. The game culls a face by asking the world, which asks this method, and the {@code
      * BLOCKS_OPAQUE} table the init listener clears is not what it reads (#577).

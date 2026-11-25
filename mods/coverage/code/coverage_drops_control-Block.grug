@@ -1,0 +1,7 @@
+# The control for coverage_drops: a block that does not call set_drops_nothing, so breaking it
+# leaves its own item. It takes a quiet block entity, the same one coverage_block uses, because the
+# smoketest records nothing for most BlockInitContext setters and a test that calls one passes
+# STUBBED, while set_block_entity is one it records. See drops_nothing-Test.
+export init(ctx: BlockInitContext) {
+    ctx.set_block_entity(e"coverage_block_entity")
+}

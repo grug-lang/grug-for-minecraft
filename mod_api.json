@@ -1242,6 +1242,9 @@
 				"set_display_tick": {
 					"description": "Declares that this block gives off particles from its display_tick export, which the game then calls for blocks it samples at random around the player. A block that does not call this is never asked, since the game samples every block near the player and only a block that declared one is worth entering the VM for. A block that declares it and exports no display_tick function reports an error. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
 				},
+				"set_drops_nothing": {
+					"description": "Declares that breaking this block leaves nothing in the world: neither the block's own item nor any other drop. That is how a block that exists only as part of a structure behaves, such as a frame a machine builds, whose reference drops nothing. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+				},
 				"set_flat_lighting": {
 					"description": "Declares that this block's own geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point, and it is what its item form is drawn with too. The light at the block's own position is real light because a block that draws its own geometry is not opaque, which set_custom_render and set_frame_render declare. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. It is also only legal after one of those two calls: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
 				},
@@ -3812,6 +3815,35 @@
 						},
 						{
 							"name": "point_z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"break_block": {
+					"description": "Test only: breaks the block at the given coordinates the way a player whose tool always succeeds does, so the block's own break runs and whatever its drop rules say lands in the world. A block that declared set_drops_nothing leaves nothing; one that did not leaves its item. The game's own player-break path removes the block and then drops what it yields, and each loader keeps the order of its own path. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
 							"type": {
 								"name": "number"
 							}

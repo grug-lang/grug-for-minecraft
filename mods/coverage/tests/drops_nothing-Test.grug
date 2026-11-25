@@ -1,0 +1,31 @@
+# Covers BlockInitContext.set_drops_nothing and TestTickContext.break_block: a block that declares
+# the entry leaves nothing when it breaks, a block that does not leaves its own item, and a position
+# with no block at all is air that break_block leaves alone.
+# Placing air removes a block without dropping anything, so break_block is the only way a test
+# reaches a block's own drop.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_drops")
+    level.place_block(x + 4, y, z, "grug:coverage_drops_control")
+    ctx.assert(level.get_block(x, y, z) == "grug:coverage_drops", "The block that drops nothing should be placed.")
+    ctx.assert(level.get_block(x + 4, y, z) == "grug:coverage_drops_control", "The control block should be placed.")
+
+    ctx.break_block(level, x, y, z)
+    ctx.break_block(level, x + 4, y, z)
+
+    ctx.assert(level.is_air(x, y, z), "The block that declares set_drops_nothing should be broken.")
+    ctx.assert(level.is_air(x + 4, y, z), "The control block should be broken.")
+    ctx.assert(level.count_item_entities(x, y, z, 2) == 0, "A block that declares set_drops_nothing should leave no item entity.")
+
+    control_item: Item = item(resource_location("grug:coverage_drops_control"))
+    ctx.assert(level.count_item_entities_of(x + 4, y, z, 2, control_item) == 1, "The control block should leave its own item.")
+
+    ctx.break_block(level, x + 8, y, z)
+    ctx.assert(level.is_air(x + 8, y, z), "Breaking a position with no block should leave it air.")
+    ctx.assert(level.count_item_entities(x + 8, y, z, 2) == 0, "Breaking a position with no block should leave no item entity.")
+}
