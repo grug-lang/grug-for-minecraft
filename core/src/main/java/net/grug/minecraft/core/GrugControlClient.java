@@ -679,6 +679,13 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_CLICK_SCREEN) {
                 boolean taken =
                         caller.clickScreen(message.volume, message.pitch, (int) message.third);
+                // The press has written the game's own click packet on this client's connection,
+                // so this barrier follows it on the same stream and the server holds its next
+                // runner tick until the barrier's own queue has handled both (#1393). It goes
+                // before the answer for the same reason: the answer completes the call on the
+                // server's reader thread, and only the barrier says the game thread applied the
+                // click.
+                link.send(GrugControlWire.clickWritten());
                 link.send(GrugControlWire.answerValue(message.id, (byte) (taken ? 1 : 0)));
             } else if (message.call == GrugControlWire.CALL_OPEN_INVENTORY) {
                 caller.openInventory();

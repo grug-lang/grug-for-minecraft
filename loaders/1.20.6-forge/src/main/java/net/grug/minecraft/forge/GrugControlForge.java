@@ -78,8 +78,11 @@ public final class GrugControlForge {
                         // forced normalization, #1449 took 9 with the call code 21, #1441 took 10
                         // with the call code 22 and the world overlay calls took 11 with the call
                         // code 23, so this sits at 11. A pair built either side of this refuses
-                        // each other: the older build does not know call 23.
-                        .networkProtocolVersion(11)
+                        // each other: the older build does not know call 23. #1393 took 13 for the
+                        // click barrier the client sends behind the game's own click packet, so
+                        // this sits at 13 and an older build would read the barrier as an unknown
+                        // message.
+                        .networkProtocolVersion(13)
                         .optional()
                         .simpleChannel()
                         .messageBuilder(Packet.class, NetworkProtocol.PLAY)
