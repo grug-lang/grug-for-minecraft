@@ -25,6 +25,9 @@ import java.util.List;
  */
 public final class GrugRelitSections {
 
+    /** The 16-high sections the loaders that call this keep in a fixed grid: a 128-high world. */
+    private static final int WORLD_SECTIONS = 8;
+
     /** Whether a sweep has been recorded, so the box below describes the last room relit. */
     private boolean recorded;
 
@@ -73,7 +76,8 @@ public final class GrugRelitSections {
 
     /**
      * The sections a relit box covers, each as its own whole box in blocks: minX, minY, minZ, maxX,
-     * maxY, maxZ, with both corners inclusive.
+     * maxY, maxZ, with both corners inclusive. A box that reaches past the top or the bottom of the
+     * world is cut to the world, and one entirely outside it covers nothing.
      *
      * <p>A loader that applies light itself has to rebuild the mesh of every section whose baked
      * brightness can change, and its renderer's rebuild request is per section or per block range
@@ -84,16 +88,23 @@ public final class GrugRelitSections {
      * one of these marks that section and, through the one block it reaches into each neighbour,
      * the sections beside it.
      *
+     * <p>The y section index is clamped to the world's own sections, because the loaders that call
+     * this keep the sections of their 128-high world in a fixed grid indexed by that number: an
+     * index past the grid wraps, and a box above the world would mark the sections at its bottom
+     * instead of none. x and z need no clamp, since a section outside the loaded chunks is one
+     * their renderer does not hold.
+     *
      * <p>Pure, so its unit test covers a box inside one section, one that spans several, negative
-     * coordinates and a box whose corners sit on section boundaries.
+     * coordinates, a box whose corners sit on section boundaries, one that spans more than one
+     * section in y, and one outside the world.
      */
     public static List<int[]> sectionBoxes(
             int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         int fromX = minX >> 4;
-        int fromY = minY >> 4;
+        int fromY = Math.max(0, minY >> 4);
         int fromZ = minZ >> 4;
         int toX = maxX >> 4;
-        int toY = maxY >> 4;
+        int toY = Math.min(WORLD_SECTIONS - 1, maxY >> 4);
         int toZ = maxZ >> 4;
         List<int[]> boxes = new ArrayList<>();
         for (int sectionY = fromY; sectionY <= toY; sectionY++) {

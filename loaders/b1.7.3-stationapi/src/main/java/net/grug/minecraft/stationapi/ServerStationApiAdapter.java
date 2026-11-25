@@ -212,6 +212,22 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     }
 
     /**
+     * The room's light as a dedicated server owes it: both fields settled to the one the blocks
+     * define, with no renderer here to rebuild, since a server's frames are none. Its joined client
+     * marks the light the region packets carry.
+     *
+     * <p>This override is also what keeps this server off {@link StationApiRoomRemeshClient}: the
+     * client adapter's {@code relightRoom} is the only caller of that class, which names the
+     * client's own {@code Minecraft}, and a call from here reaches this method instead, so Fabric
+     * Loader's refusal to define a client class in a server process (#1246) never comes up.
+     */
+    @Override
+    public void relightRoom(
+            Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        StationApiAdapter.settleRoom(levelObj, minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    /**
      * Right-clicks a block on this server's own world, so a server-run test's click lands in the
      * world the test reads (#1090).
      *
