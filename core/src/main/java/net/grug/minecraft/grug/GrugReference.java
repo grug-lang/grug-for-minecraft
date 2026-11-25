@@ -70,9 +70,16 @@ public final class GrugReference {
      * every capture, which single-player never showed (#1092).
      */
     public static boolean isCiChatSilenced() {
-        if (isCiRun()) {
-            return true;
-        }
+        return isCiRun() || isCiJoinedClient();
+    }
+
+    /**
+     * Whether this client joins a dedicated server that holds a CI test run. The joined client runs
+     * without {@code GRUG_CI}, because the server owns the run, but its screen is what a
+     * multiplayer capture crops, so everything a CI client does to its own rendering has to happen
+     * here too.
+     */
+    private static boolean isCiJoinedClient() {
         String connect = System.getProperty(CI_CONNECT_PROPERTY, System.getenv(CI_CONNECT_ENV_VAR));
         return connect != null && !connect.isEmpty();
     }
@@ -98,11 +105,12 @@ public final class GrugReference {
      * from the reference run's even when both drew the same thing; freezing makes the pixels a
      * property of the scene instead of of the tick the capture landed on.
      *
-     * <p>Every loader freezes for such a run, at its own texture tick. A local run keeps the
-     * animation a player sees.
+     * <p>Every loader freezes for such a run, at its own texture tick, and a client that joins a
+     * dedicated server holding a CI run freezes too: it has {@code GRUG_CI} unset but its screen is
+     * the one a multiplayer capture crops. A local run keeps the animation a player sees.
      */
     public static boolean isAnimationFrozen() {
-        return isCiRun() || isUpdateGoldens();
+        return isCiRun() || isUpdateGoldens() || isCiJoinedClient();
     }
 
     /**
