@@ -51,8 +51,8 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    ctx.assert(ctx.press_screen_key(75, true, true), "Ctrl+K should be taken by the coverage overlay.")
-    ctx.assert(not ctx.press_screen_key(75, false, true), "K without control should be left to the screen.")
-    ctx.assert(not ctx.press_screen_key(76, true, true), "Ctrl+L should be left to the screen.")
+    ctx.assert(ctx.press_screen_key(75, true, false, true), "Ctrl+K should be taken by the coverage overlay.")
+    ctx.assert(not ctx.press_screen_key(75, false, false, true), "K without control should be left to the screen.")
+    ctx.assert(not ctx.press_screen_key(76, true, false, true), "Ctrl+L should be left to the screen.")
     ctx.close_screen()
 }

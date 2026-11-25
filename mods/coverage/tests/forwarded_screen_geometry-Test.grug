@@ -45,7 +45,7 @@ export tick(ctx: TestTickContext) {
     # there the close is asked for directly (#1094), and the Java test of the control channel proves
     # the press's own invalidation.
     if loader == "1.20.6-forge" {
-        ctx.assert(not ctx.press_screen_key(256, false, true), "Escape should be left to the client's screen.")
+        ctx.assert(not ctx.press_screen_key(256, false, false, true), "Escape should be left to the client's screen.")
     } else {
         ctx.close_screen()
     }

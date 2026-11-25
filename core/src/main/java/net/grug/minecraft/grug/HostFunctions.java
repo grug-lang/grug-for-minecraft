@@ -881,14 +881,14 @@ public class HostFunctions {
     @GrugGenerated(
             "asks the adapter to press a key on the game's own screen: a unit test has no game")
     public static boolean TestTickContext_press_screen_key(
-            long contextId, double key, boolean ctrl, boolean release) {
+            long contextId, double key, boolean ctrl, boolean shift, boolean release) {
         if (!requireTickContext("TestTickContext.press_screen_key", contextId)) return false;
         String problem = screenKeyProblem(key);
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
             return false;
         }
-        return GrugCore.getAdapter().pressScreenKey((int) key, ctrl, release);
+        return GrugCore.getAdapter().pressScreenKey((int) key, ctrl, shift, release);
     }
 
     /** Why TestTickContext.press_screen_key refuses this key, or null when it can drive it. */
@@ -3977,6 +3977,11 @@ public class HostFunctions {
     public static boolean OverlayKeyContext_ctrl(long contextId) {
         if (!requireOverlayKeyContext("OverlayKeyContext.ctrl", contextId)) return false;
         return GrugOverlay.ctrl();
+    }
+
+    public static boolean OverlayKeyContext_shift(long contextId) {
+        if (!requireOverlayKeyContext("OverlayKeyContext.shift", contextId)) return false;
+        return GrugOverlay.shift();
     }
 
     public static boolean OverlayKeyContext_repeat(long contextId) {

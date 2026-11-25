@@ -154,8 +154,8 @@ public final class GrugControlWire {
 
     /**
      * The call: press a key on the open screen. The numbers are the key, then whether control was
-     * held, then whether the key is released again, each of the two flags as 0 or 1. The answer is
-     * 1 when an overlay took the key and 0 when it was left to the screen.
+     * held, then whether the key is released again, then whether shift was held, each flag as 0 or
+     * 1. The answer is 1 when an overlay took the key and 0 when it was left to the screen.
      */
     public static final byte CALL_PRESS_SCREEN_KEY = 6;
 
@@ -434,14 +434,15 @@ public final class GrugControlWire {
          * The volume and pitch of a {@link #CALL_PLAY_UI_SOUND}, or the numbers a screen call
          * carries. The slot's name is the sound's because it held that first: {@link
          * #CALL_WORLD_SETTLED} puts its world revision in the volume slot, {@link
-         * #CALL_PRESS_SCREEN_KEY} puts its key there, its control flag in the pitch slot and its
-         * release flag in the third, and {@link #CALL_SCROLL_SCREEN} puts its x, y and delta there
-         * in that order. {@link #CALL_BLOCK_SELECTION} puts the block's position there and the
-         * block-local point in {@link #fourth}, {@link #fifth} and {@link #sixth}. A {@link
-         * #CAPTURE_REQUEST} puts the eye it must be taken from there, x, y and z in that order
-         * (#1161). A {@link #DROP_INVENTORY_REQUEST} puts the block's position there, and a {@link
-         * #SET_ITEM_IN_SLOT_REQUEST} puts the position there too, its slot in {@link #fourth} and
-         * its count in {@link #fifth}. The name is in {@link #text}.
+         * #CALL_PRESS_SCREEN_KEY} puts its key there, its control flag in the pitch slot, its
+         * release flag in the third and its shift flag in {@link #fourth} (an older client ignores
+         * that slot, so its presses read as unshifted), and {@link #CALL_SCROLL_SCREEN} puts its x,
+         * y and delta there in that order. {@link #CALL_BLOCK_SELECTION} puts the block's position
+         * there and the block-local point in {@link #fourth}, {@link #fifth} and {@link #sixth}. A
+         * {@link #CAPTURE_REQUEST} puts the eye it must be taken from there, x, y and z in that
+         * order (#1161). A {@link #DROP_INVENTORY_REQUEST} puts the block's position there, and a
+         * {@link #SET_ITEM_IN_SLOT_REQUEST} puts the position there too, its slot in {@link
+         * #fourth} and its count in {@link #fifth}. The name is in {@link #text}.
          */
         public final double volume;
 

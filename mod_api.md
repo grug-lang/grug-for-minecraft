@@ -230,6 +230,7 @@ Option.new() Option[$Value]
 .ctrl() bool
 .key() number
 .repeat() bool
+.shift() bool
 .take()
 
 ## OverlayRenderContext
@@ -354,7 +355,7 @@ String.trim(text: string) string
 .overlay_drawn() bool
 .overlay_first_frame_cleared() bool
 .particle_position(index: number) Vec3
-.press_screen_key(key: number, ctrl: bool, release: bool) bool
+.press_screen_key(key: number, ctrl: bool, shift: bool, release: bool) bool
 .press_world_key(key: number, ctrl: bool)
 .reload_count(relative_path: string) number
 .remove_entities(level: Level, kind: string)

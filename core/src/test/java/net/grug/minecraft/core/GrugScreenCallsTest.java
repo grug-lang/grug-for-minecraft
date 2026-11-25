@@ -227,7 +227,7 @@ class GrugScreenCallsTest {
 
         assertFalse(forwarded.screenOpen());
         assertEquals(0.0, forwarded.read(GrugScreenCalls.SCREEN_WIDTH));
-        assertFalse(forwarded.pressScreenKey(1, false, true));
+        assertFalse(forwarded.pressScreenKey(1, false, false, true));
         assertFalse(forwarded.scrollScreen(0, 0, 1));
         forwarded.closeScreen();
         assertFalse(forwarded.clickScreen(12, 34, 0));

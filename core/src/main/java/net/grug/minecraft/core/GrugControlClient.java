@@ -104,7 +104,7 @@ public final class GrugControlClient {
         }
 
         /** Presses a key on the screen that is open, and answers whether an overlay took it. */
-        boolean pressScreenKey(int key, boolean ctrl, boolean release);
+        boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release);
 
         /** Turns the wheel at a screen position, and answers whether an overlay took it. */
         boolean scrollScreen(double x, double y, double delta);
@@ -266,8 +266,8 @@ public final class GrugControlClient {
             }
 
             @Override
-            public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
-                return adapter.get().pressScreenKey(key, ctrl, release);
+            public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
+                return adapter.get().pressScreenKey(key, ctrl, shift, release);
             }
 
             @Override
@@ -695,7 +695,10 @@ public final class GrugControlClient {
             } else if (message.call == GrugControlWire.CALL_PRESS_SCREEN_KEY) {
                 boolean taken =
                         caller.pressScreenKey(
-                                (int) message.volume, message.pitch != 0, message.third != 0);
+                                (int) message.volume,
+                                message.pitch != 0,
+                                message.fourth != 0,
+                                message.third != 0);
                 link.send(GrugControlWire.answerValue(message.id, (byte) (taken ? 1 : 0)));
             } else if (message.call == GrugControlWire.CALL_SCROLL_SCREEN) {
                 boolean taken = caller.scrollScreen(message.volume, message.pitch, message.third);

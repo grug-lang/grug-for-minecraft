@@ -193,6 +193,13 @@ class HostFunctionsOverlayContextTest {
         assertEquals("7", GrugOverlay.keyNameForCode('7'));
         assertEquals("SPACE", GrugOverlay.keyNameForCode(32));
         assertEquals("BACK", GrugOverlay.keyNameForCode(8));
+        assertEquals("LEFT", GrugOverlay.keyNameForCode(263));
+        assertEquals("HOME", GrugOverlay.keyNameForCode(268));
+        assertEquals("DELETE", GrugOverlay.keyNameForCode(261));
+        assertEquals(263, GrugOverlay.keyCodeForName("LEFT"));
+        assertEquals(268, GrugOverlay.keyCodeForName("HOME"));
+        assertEquals(261, GrugOverlay.keyCodeForName("DELETE"));
+        assertEquals(-1, GrugOverlay.keyCodeForName("LSHIFT"), "A modifier is not asked.");
     }
 
     @Test
@@ -379,13 +386,14 @@ class HostFunctionsOverlayContextTest {
 
     @Test
     void aKeyContextAnswersItsKeyAndTakesIt() {
-        GrugOverlay.openKey(79, 0, true, false);
+        GrugOverlay.openKey(79, 0, true, false, false);
         long context = keyContext();
 
         assertTrue(GrugOverlay.isKey());
         assertFalse(GrugOverlay.isClick(), "A key pass is not a click pass.");
         assertEquals(79, HostFunctions.OverlayKeyContext_key(context));
         assertTrue(HostFunctions.OverlayKeyContext_ctrl(context));
+        assertFalse(HostFunctions.OverlayKeyContext_shift(context));
         HostFunctions.OverlayKeyContext_take(context);
 
         assertTrue(drain().isEmpty(), "A legal key pass reports nothing.");
@@ -394,15 +402,25 @@ class HostFunctionsOverlayContextTest {
     }
 
     @Test
+    void aKeyContextSaysWhetherShiftWasHeld() {
+        GrugOverlay.openKey(263, 0, false, true, false);
+        long context = keyContext();
+
+        assertTrue(HostFunctions.OverlayKeyContext_shift(context));
+        assertFalse(HostFunctions.OverlayKeyContext_ctrl(context));
+        assertFalse(GrugOverlay.closeKey());
+    }
+
+    @Test
     void aKeyThatIsNotTakenIsNotReportedTaken() {
-        GrugOverlay.openKey(80, 0, false, false);
+        GrugOverlay.openKey(80, 0, false, false, false);
         assertFalse(HostFunctions.OverlayKeyContext_ctrl(keyContext()));
         assertFalse(GrugOverlay.closeKey());
     }
 
     @Test
     void aKeyContextAnswersTheCharacterItTypedAndWhetherItIsARepeat() {
-        GrugOverlay.openKey(0, 59, false, true);
+        GrugOverlay.openKey(0, 59, false, false, true);
         long context = keyContext();
 
         assertEquals(0, HostFunctions.OverlayKeyContext_key(context), "A ; has no key number.");
@@ -462,28 +480,54 @@ class HostFunctionsOverlayContextTest {
     }
 
     @Test
+    void aShiftedTestsPressTypesTheCharacterShiftPutsOnTheKey() {
+        // Shift changes the character as a real shift press does: a letter becomes its upper case
+        // letter, and a digit or punctuation key becomes the symbol above it on a US keyboard. A
+        // press of M with shift must not deliver the pair key 77 and character m, which no keyboard
+        // produces (#1748).
+        assertEquals('M', GrugOverlay.typedCharacterFor('M', true));
+        assertEquals('m', GrugOverlay.typedCharacterFor('M', false));
+        assertEquals('!', GrugOverlay.typedCharacterFor('1', true));
+        assertEquals('@', GrugOverlay.typedCharacterFor('2', true));
+        assertEquals(':', GrugOverlay.typedCharacterFor(';', true));
+        assertEquals('~', GrugOverlay.typedCharacterFor('`', true));
+        assertEquals('|', GrugOverlay.typedCharacterFor('\\', true));
+        assertEquals('"', GrugOverlay.typedCharacterFor('\'', true));
+        assertEquals(
+                '!', GrugOverlay.typedCharacterFor('!', true), "A shifted character stays itself.");
+        assertEquals(
+                ' ',
+                GrugOverlay.typedCharacterFor(' ', true),
+                "Shift keeps the space bar's space.");
+        assertEquals(0, GrugOverlay.typedCharacterFor(8, true));
+        assertEquals(0, GrugOverlay.typedCharacterFor(259, true));
+    }
+
+    @Test
     void aKeyMethodOutsideAKeyPassIsRefused() {
-        GrugOverlay.openKey(79, 0, true, false);
+        GrugOverlay.openKey(79, 0, true, false, false);
         long context = keyContext();
         GrugOverlay.closeKey();
 
         HostFunctions.OverlayKeyContext_key(context);
         HostFunctions.OverlayKeyContext_character(context);
         HostFunctions.OverlayKeyContext_ctrl(context);
+        HostFunctions.OverlayKeyContext_shift(context);
         HostFunctions.OverlayKeyContext_repeat(context);
         HostFunctions.OverlayKeyContext_take(context);
 
         List<String> reports = drain();
-        assertEquals(5, reports.size());
+        assertEquals(6, reports.size());
         assertTrue(reports.get(0).contains("OverlayKeyContext.key"), reports.get(0));
         assertTrue(reports.get(1).contains("OverlayKeyContext.character"), reports.get(1));
-        assertTrue(reports.get(3).contains("OverlayKeyContext.repeat"), reports.get(3));
-        assertTrue(reports.get(4).contains("OverlayKeyContext.take"), reports.get(4));
+        assertTrue(reports.get(3).contains("OverlayKeyContext.shift"), reports.get(3));
+        assertTrue(reports.get(4).contains("OverlayKeyContext.repeat"), reports.get(4));
+        assertTrue(reports.get(5).contains("OverlayKeyContext.take"), reports.get(5));
     }
 
     @Test
     void aKeyContextIsRefusedByAClickMethodAndTheOtherWayRound() {
-        GrugOverlay.openKey(79, 0, false, false);
+        GrugOverlay.openKey(79, 0, false, false, false);
         long context = keyContext();
         HostFunctions.OverlayClickContext_take(context);
         assertEquals(1, drain().size());
@@ -497,7 +541,7 @@ class HostFunctionsOverlayContextTest {
 
     @Test
     void passesCannotBeClosedAsAnotherKind() {
-        GrugOverlay.openKey(79, 0, false, false);
+        GrugOverlay.openKey(79, 0, false, false, false);
         org.junit.jupiter.api.Assertions.assertThrows(
                 RuntimeException.class, GrugOverlay::closeClick);
         org.junit.jupiter.api.Assertions.assertThrows(
@@ -523,6 +567,46 @@ class HostFunctionsOverlayContextTest {
         assertEquals(-1, GrugOverlay.keyCodeForName("["));
         assertEquals(-1, GrugOverlay.keyCodeForName("/"));
         assertEquals(-1, GrugOverlay.keyCodeForName(":"));
+
+        assertEquals(256, GrugOverlay.keyCodeForName("ESCAPE"));
+        assertEquals(257, GrugOverlay.keyCodeForName("RETURN"));
+        assertEquals(260, GrugOverlay.keyCodeForName("INSERT"));
+        assertEquals(261, GrugOverlay.keyCodeForName("DELETE"));
+        assertEquals(262, GrugOverlay.keyCodeForName("RIGHT"));
+        assertEquals(263, GrugOverlay.keyCodeForName("LEFT"));
+        assertEquals(264, GrugOverlay.keyCodeForName("DOWN"));
+        assertEquals(265, GrugOverlay.keyCodeForName("UP"));
+        assertEquals(266, GrugOverlay.keyCodeForName("PRIOR"));
+        assertEquals(267, GrugOverlay.keyCodeForName("NEXT"));
+        assertEquals(268, GrugOverlay.keyCodeForName("HOME"));
+        assertEquals(269, GrugOverlay.keyCodeForName("END"));
+
+        // Every key the API names round-trips through the name a loader that numbers its keys looks
+        // up, so the gate covers all twelve without a game run. 258 and 259 are the two GLFW codes
+        // in that range that the API does not name (#1748).
+        for (int code = 256; code <= 269; code++) {
+            if (code == 258 || code == 259) {
+                assertFalse(GrugOverlay.isNamedKey(code), "Key " + code + " is not named.");
+                continue;
+            }
+            assertEquals(
+                    code,
+                    GrugOverlay.keyCodeForName(GrugOverlay.keyNameForCode(code)),
+                    "Key " + code + ".");
+        }
+    }
+
+    @Test
+    void onlyAKeyWithNoCharacterOfItsOwnIsANamedKey() {
+        for (int code = 256; code <= 269; code++) {
+            // Tab and backspace are the two GLFW codes in that range that no overlay is given:
+            // backspace is 8 in the API and tab is not a key a text field reads.
+            boolean expected = code != 258 && code != 259;
+            assertEquals(expected, GrugOverlay.isNamedKey(code), "Key " + code + ".");
+        }
+        assertFalse(GrugOverlay.isNamedKey(8));
+        assertFalse(GrugOverlay.isNamedKey(76));
+        assertFalse(GrugOverlay.isNamedKey(270));
     }
 
     @Test

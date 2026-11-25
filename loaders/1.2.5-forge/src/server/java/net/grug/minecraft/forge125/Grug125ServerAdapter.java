@@ -217,8 +217,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     }
 
     @Override
-    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
-        return screens.pressScreenKey(key, ctrl, release);
+    public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
+        return screens.pressScreenKey(key, ctrl, shift, release);
     }
 
     @Override

@@ -622,8 +622,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
 
     /** Pressed on the client's screen, by the client of the player who started the run (#1094). */
     @Override
-    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
-        return screens.pressScreenKey(key, ctrl, release);
+    public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
+        return screens.pressScreenKey(key, ctrl, shift, release);
     }
 
     /** Turned on the client's screen, by the client of the player who started the run (#1094). */

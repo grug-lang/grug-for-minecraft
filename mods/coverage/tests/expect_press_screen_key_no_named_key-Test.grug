@@ -1,0 +1,55 @@
+# A number from 128 up that the API does not name presses nothing on any loader. 259 is GLFW's own
+# backspace code, and 1.20.6 used to pass it through, so a press of it pressed GLFW's backspace and
+# the overlay saw 8, while the four loaders before 1.20.6 had no key for 259 and reported an error.
+# Every loader reports that error now (#1748). On a dedicated server the press is forwarded to the
+# joined client, and the error the client raises there cannot reach the server's test, so the test
+# leaves the dedicated leg alone.
+started: bool = false
+opened: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # The press needs a screen open, as a real key press does; the inventory is the one every loader
+    # shows, and a world frame has to be drawn before it opens (#1287).
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    # 258, Tab, is unnamed too. On 1.20.6 the check that 259 names no key runs before the screen is
+    # looked at, so the screen is closed first and this test leaves none for the next one to capture.
+    # The four loaders before 1.20.6 refuse a press with no screen open before they reach that check,
+    # so they keep the screen, as expect_press_screen_key_no_key leaves theirs.
+    if me.loader_name() == "1.20.6-forge" {
+        ctx.close_screen()
+        ctx.assert(not ctx.screen_open(), "The inventory should close before the press.")
+    }
+    ctx.expect_error("TestTickContext.press_screen_key: The game has no key for character code 259.")
+    ctx.press_screen_key(259, false, false, true)
+}

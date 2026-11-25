@@ -252,7 +252,8 @@ public final class GrugOverlayHost {
         heldKey = event.getKeyCode();
 
         boolean ctrl = (event.getModifiers() & controlModifier()) != 0;
-        if (deliverKey(event.getScreen(), 0, key, ctrl, repeat)) {
+        boolean shift = (event.getModifiers() & shiftModifier()) != 0;
+        if (deliverKey(event.getScreen(), 0, key, ctrl, shift, repeat)) {
             event.setCanceled(true);
         }
     }
@@ -281,20 +282,27 @@ public final class GrugOverlayHost {
         boolean ctrl = (event.getModifiers() & controlModifier()) != 0;
         boolean alt = (event.getModifiers() & altModifier()) != 0;
         boolean chord = GrugOverlay.characterEventIsChord(ctrl, alt);
-        if (deliverKey(event.getScreen(), character, 0, chord, false)) {
+        boolean shift = (event.getModifiers() & shiftModifier()) != 0;
+        if (deliverKey(event.getScreen(), character, 0, chord, shift, false)) {
             event.setCanceled(true);
         }
     }
 
     /**
      * Asks every overlay about one key press or typed character and answers whether one took it,
-     * recording the answer for {@code TestTickContext.press_screen_key}.
+     * recording the answer for {@code TestTickContext.press_screen_key}. Shift is the event's own
+     * flag, which a text field extends its selection with.
      */
     private static boolean deliverKey(
-            Screen screen, double character, double key, boolean ctrl, boolean repeat) {
+            Screen screen,
+            double character,
+            double key,
+            boolean ctrl,
+            boolean shift,
+            boolean repeat) {
         for (GrugOverlayScripts.Script overlay : overlays()) {
             if (GrugOverlay.key(
-                    overlay.entityHandle, overlay.keyFnId, key, character, ctrl, repeat)) {
+                    overlay.entityHandle, overlay.keyFnId, key, character, ctrl, shift, repeat)) {
                 GrugOverlay.noteTestPressTaken();
                 return true;
             }
@@ -304,12 +312,15 @@ public final class GrugOverlayHost {
 
     /**
      * The number an overlay's key() is given for a GLFW key code, or -1 for a key that is not
-     * asked: the upper case character code of a letter or a digit key, and the ASCII codes of the
-     * space bar and of backspace, so every loader gives the same number.
+     * asked: the upper case character code of a letter or a digit key, the ASCII codes of the space
+     * bar and of backspace, and GLFW's own codes of the keys with no character of their own, which
+     * are the API's numbers from 256 up, so every loader gives the same number.
      */
     static int overlayKey(int glfwKey) {
         if (glfwKey == GLFW_KEY_BACKSPACE) return GrugOverlay.KEY_BACKSPACE;
         if (glfwKey == GLFW_KEY_SPACE) return GrugOverlay.KEY_SPACE;
+        // GLFW's own codes for the keys with no character are the API's, so they pass through.
+        if (GrugOverlay.isNamedKey(glfwKey)) return glfwKey;
         boolean letter = glfwKey >= 'A' && glfwKey <= 'Z';
         boolean digit = glfwKey >= '0' && glfwKey <= '9';
         return letter || digit ? glfwKey : -1;
@@ -318,18 +329,22 @@ public final class GrugOverlayHost {
     /**
      * The GLFW key code the number a test presses stands for, or -1 when the number is not a key
      * the test presses: a letter, a digit, the space bar and backspace are pressed as their key,
-     * and a number above the printable ASCII range is one of GLFW's own codes and is pressed as it
-     * is (256 is Escape, which the screen acts on). A printable number that names no key is not a
-     * key at all, and {@code press_screen_key} types it instead; a number that names neither is a
-     * press that presses nothing, which {@code press_screen_key} reports as a host function error.
+     * and a number the API names from 256 up is one of GLFW's own codes and is pressed as it is
+     * (256 is Escape, which the screen acts on). A printable number that names no key is not a key
+     * at all, and {@code press_screen_key} types it instead; a number that names neither is a press
+     * that presses nothing, which {@code press_screen_key} reports as a host function error. That
+     * last arm includes 258 and 259, Tab and GLFW's own backspace code, the two GLFW codes between
+     * the API's named keys that no overlay is given: the API's backspace is 8 (#1748).
      */
     static int glfwKey(int overlayKey) {
         if (overlayKey == GrugOverlay.KEY_BACKSPACE) return GLFW_KEY_BACKSPACE;
         if (overlayKey == GrugOverlay.KEY_SPACE) return GLFW_KEY_SPACE;
+        // GLFW's own codes for the keys with no character are the API's, so the named ones pass
+        // through and nothing else above the printable range does.
+        if (GrugOverlay.isNamedKey(overlayKey)) return overlayKey;
         boolean letter = overlayKey >= 'A' && overlayKey <= 'Z';
         boolean digit = overlayKey >= '0' && overlayKey <= '9';
-        if (letter || digit) return overlayKey;
-        return overlayKey > 126 ? overlayKey : -1;
+        return letter || digit ? overlayKey : -1;
     }
 
     /**
@@ -369,6 +384,15 @@ public final class GrugOverlayHost {
         return GLFW_MOD_ALT;
     }
 
+    /**
+     * The GLFW modifier bit for shift, which a text field extends its selection with and which a
+     * control chord reads beside control.
+     */
+    static int shiftModifier() {
+        return GLFW_MOD_SHIFT;
+    }
+
+    private static final int GLFW_MOD_SHIFT = 1;
     private static final int GLFW_MOD_CONTROL = 2;
     private static final int GLFW_MOD_ALT = 4;
     private static final int GLFW_MOD_SUPER = 8;

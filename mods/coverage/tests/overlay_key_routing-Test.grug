@@ -53,30 +53,30 @@ export tick(ctx: TestTickContext) {
 
     # Every key the loader routes reaches an overlay, and the coverage overlay takes the three it
     # binds: Ctrl+K, Ctrl+space and Ctrl+backspace.
-    ctx.assert(ctx.press_screen_key(75, true, true), "Ctrl+K should be taken by the coverage overlay.")
-    ctx.assert(ctx.press_screen_key(32, true, true), "Ctrl+space should be taken by the coverage overlay.")
-    ctx.assert(ctx.press_screen_key(8, true, true), "Ctrl+backspace should be taken by the coverage overlay.")
+    ctx.assert(ctx.press_screen_key(75, true, false, true), "Ctrl+K should be taken by the coverage overlay.")
+    ctx.assert(ctx.press_screen_key(32, true, false, true), "Ctrl+space should be taken by the coverage overlay.")
+    ctx.assert(ctx.press_screen_key(8, true, false, true), "Ctrl+backspace should be taken by the coverage overlay.")
 
     # A routed key that no overlay binds is left to the screen.
-    ctx.assert(not ctx.press_screen_key(76, true, true), "Ctrl+L should be left to the screen.")
-    ctx.assert(not ctx.press_screen_key(65, true, true), "Ctrl+A should be left to the screen.")
-    ctx.assert(not ctx.press_screen_key(48, true, true), "Ctrl+0 should be left to the screen.")
+    ctx.assert(not ctx.press_screen_key(76, true, false, true), "Ctrl+L should be left to the screen.")
+    ctx.assert(not ctx.press_screen_key(65, true, false, true), "Ctrl+A should be left to the screen.")
+    ctx.assert(not ctx.press_screen_key(48, true, false, true), "Ctrl+0 should be left to the screen.")
 
     # A key still down is asked again as a repeat, which the overlay reads through repeat(): the
     # coverage overlay takes the repeat of Ctrl+A and leaves its first press, so the flag is told
     # apart from the press. The press carrying the release is still a repeat of the key still down,
     # and the press after it is a new press.
-    ctx.assert(not ctx.press_screen_key(65, true, false), "The first press of a held key should be asked and left to the screen.")
-    ctx.assert(ctx.press_screen_key(65, true, false), "A repeat of a key still down should be asked with repeat() true and taken.")
-    ctx.assert(ctx.press_screen_key(65, true, true), "The release of a held key is still its repeat and is taken.")
-    ctx.assert(not ctx.press_screen_key(65, true, true), "A press after the release is a new press and is left to the screen.")
+    ctx.assert(not ctx.press_screen_key(65, true, false, false), "The first press of a held key should be asked and left to the screen.")
+    ctx.assert(ctx.press_screen_key(65, true, false, false), "A repeat of a key still down should be asked with repeat() true and taken.")
+    ctx.assert(ctx.press_screen_key(65, true, false, true), "The release of a held key is still its repeat and is taken.")
+    ctx.assert(not ctx.press_screen_key(65, true, false, true), "A press after the release is a new press and is left to the screen.")
 
     # Another key is asked while one is held, and is the key held afterwards, so pressing it does
     # not release the first. The coverage overlay takes Ctrl+Z once per screen, so its second press
     # is left, and that release does not let go of the key still down.
-    ctx.assert(ctx.press_screen_key(90, true, false), "The first Ctrl+Z on a screen should be taken.")
-    ctx.assert(not ctx.press_screen_key(76, true, false), "Ctrl+L should be asked while Ctrl+Z is held.")
-    ctx.assert(ctx.press_screen_key(75, true, false), "Ctrl+K should be asked while Ctrl+L is held.")
-    ctx.assert(not ctx.press_screen_key(90, true, true), "A second Ctrl+Z on the same screen should be left.")
+    ctx.assert(ctx.press_screen_key(90, true, false, false), "The first Ctrl+Z on a screen should be taken.")
+    ctx.assert(not ctx.press_screen_key(76, true, false, false), "Ctrl+L should be asked while Ctrl+Z is held.")
+    ctx.assert(ctx.press_screen_key(75, true, false, false), "Ctrl+K should be asked while Ctrl+L is held.")
+    ctx.assert(not ctx.press_screen_key(90, true, false, true), "A second Ctrl+Z on the same screen should be left.")
     ctx.close_screen()
 }

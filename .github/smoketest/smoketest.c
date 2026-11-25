@@ -1493,7 +1493,7 @@ REGISTER("BlockInitContext", "set_material", BIC_noop);
 // set_shape declares that the game asks the block's shape() export for its boxes (block_collision reads it).
 static union grug_value BIC_set_shape(ARGS) { UNUSED; cur_binit.shape = true; return none(); }
 REGISTER("BlockInitContext", "set_shape", BIC_set_shape);
-// set_drops_nothing declares that breaking the block leaves no item (drops_block-Test).
+// set_drops_nothing declares that breaking the block leaves no item (drops_nothing-Test).
 static union grug_value BIC_set_drops_nothing(ARGS) { UNUSED; cur_binit.drops_nothing = true; return none(); }
 REGISTER("BlockInitContext", "set_drops_nothing", BIC_set_drops_nothing);
 REGISTER("BlockInitContext", "set_display_tick", BIC_noop);
@@ -2823,7 +2823,7 @@ static union grug_value hf_drop_inventory(ARGS) {
 REGISTER(NULL, "drop_inventory", hf_drop_inventory);
 
 // break_block breaks the block's own block and leaves its item unless its init() called
-// set_drops_nothing (drops_block-Test, frame_break-Test). The toy world has no player, no tool and no
+// set_drops_nothing (drops_nothing-Test, frame_break-Test). The toy world has no player, no tool and no
 // drop chance, so the drop is always the block's own item, which is what the game's own break yields
 // for a grug block. The drop lands at the block's centre; the game scatters it a little within the
 // block, which no committed test reads. Air does nothing, as it does in the game.
@@ -3676,7 +3676,10 @@ static uint64_t overlay_click_fn = UINT64_MAX, overlay_key_fn = UINT64_MAX, over
 static bool overlay_pass_taken;
 static double overlay_click_x, overlay_click_y, overlay_click_button;
 static double overlay_key_code;
+static double overlay_key_character;
 static bool overlay_key_ctrl;
+static bool overlay_key_shift;
+static bool overlay_key_repeat;
 static double overlay_scroll_x, overlay_scroll_y, overlay_scroll_delta;
 
 static union grug_value option_of_carried(void) {
@@ -3721,8 +3724,14 @@ REGISTER("OverlayClickContext", "take", OCC_take);
 static bool key_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_KEY) != NULL; }
 static union grug_value OKC_key(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.key: not a key pass"); return num(overlay_key_code); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayKeyContext", "key", OKC_key);
+static union grug_value OKC_character(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.character: not a key pass"); return num(overlay_key_character); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+REGISTER("OverlayKeyContext", "character", OKC_character);
+static union grug_value OKC_repeat(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.repeat: not a key pass"); return boolean(overlay_key_repeat); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+REGISTER("OverlayKeyContext", "repeat", OKC_repeat);
 static union grug_value OKC_ctrl(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.ctrl: not a key pass"); return boolean(overlay_key_ctrl); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayKeyContext", "ctrl", OKC_ctrl);
+static union grug_value OKC_shift(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.shift: not a key pass"); return boolean(overlay_key_shift); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+REGISTER("OverlayKeyContext", "shift", OKC_shift);
 static union grug_value OKC_take(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.take: not a key pass"); overlay_pass_taken = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayKeyContext", "take", OKC_take);
 
@@ -3767,14 +3776,39 @@ static bool overlay_click_taken(double x, double y, double button) {
     return false;
 }
 
-// TestTickContext.press_screen_key: a key down through the screen's own key path, with the release
-// the test asks for. Only a letter, a digit, space and backspace reach an overlay, as the loader
-// routes them; a key still held repeats without asking, so a toggle flips once per press. The four
-// loaders before 1.20.6 ask LWJGL's keyboard for the name GrugOverlay.keyNameForCode gives a
-// character code and have no key for any other, which is the host error below; 1.20.6 hands the
-// code to GLFW, where a code with no binding is simply left to the screen. The smoketest has no
-// loader's keyboard, so it answers as the older ones do, the branch its own name takes in a test
-// (sound-Test branches on loader_name the same way).
+// TestTickContext.press_screen_key: a key down through the screen's own key path, with the shift
+// and release the test asks for. A letter, a digit, space, backspace and a key with no character of
+// its own reach an overlay as that key, and any other printable number reaches it as the character
+// it types, as the loader routes them; shift types the character a US keyboard puts on the key, so
+// 77 types M and 49 types !; a press of a key still held is its repeat, so a toggle flips once per
+// press and a text field types its character again. The four loaders before 1.20.6 ask LWJGL's
+// keyboard for the name GrugOverlay.keyNameForCode gives a character code and have no key for any
+// other, and a number from 128 up that is not one of the API's named keys presses nothing on any
+// loader, which is the host error below. The smoketest has no loader's keyboard, so it answers as
+// the older ones do, the branch its own name takes in a test (sound-Test branches on loader_name
+// the same way). It fuses the key pass and the character pass into one call, which a field that
+// types on both would double-type on 1.20.6 without failing here: only the loader's own run can
+// catch that.
+
+// The characters a US keyboard gives an unshifted key, in GrugOverlay.UNSHIFTED_CHARACTERS order,
+// and what the same key gives while shift is held.
+static const char *const unshifted_characters = "`1234567890-=[]\\;',./";
+static const char *const shifted_characters = "~!@#$%^&*()_+{}|:\"<>?";
+
+// The character a key number types, as GrugOverlay.typedCharacterFor gives it: a letter types lower
+// case, or its upper case letter with shift, a digit or a punctuation key types itself, or the
+// symbol above it with shift, the space bar types a space either way, and a key with no character of
+// its own, or a control character, types none.
+static double typed_character(int key, bool shift) {
+    if (key >= 'A' && key <= 'Z') return shift ? key : key + 32;
+    if (key < 32 || key > 126) return 0;
+    if (shift) {
+        const char *at = strchr(unshifted_characters, (char) key);
+        if (at != NULL) return (double) shifted_characters[at - unshifted_characters];
+    }
+    return key;
+}
+
 static union grug_value TTC_press_screen_key(ARGS) {
     UNUSED;
     double k = a[1]._number;
@@ -3787,27 +3821,38 @@ static union grug_value TTC_press_screen_key(ARGS) {
     // SMOKETEST_EXCL_STOP
     if (!screen_is_open) return fail("TestTickContext.press_screen_key: There is no screen open to press.");  // SMOKETEST_EXCL: every committed press has a screen open
     int key = (int)k;
-    // The keys a loader routes to an overlay are backspace, space, a digit and a letter. Each range
-    // is one unsigned comparison, so every arm below is a key a test can press.
+    bool ctrl = a[2]._bool, shift = a[3]._bool, release = a[4]._bool;
+    // The keys a loader routes to an overlay are backspace, space, a digit, a letter and the keys
+    // with no character of their own. Each range is one unsigned comparison, so every arm below is
+    // a key a test can press. Any other printable number is no key, and a press of it types the
+    // character it names, or presses nothing at all when control is held.
     bool digit = (unsigned) (key - '0') <= 9;
     bool letter = (unsigned) (key - 'A') <= 25;
-    if (!(key == 8 || key == 32 || digit || letter))
+    bool named = key == 256 || key == 257 || (key >= 260 && key <= 269);
+    bool has_key = key == 8 || key == 32 || digit || letter || named;
+    bool types = !ctrl && key >= 32 && key <= 126;
+    if (!has_key && !types)
         return fail("TestTickContext.press_screen_key: The game has no key for character code %d.", key);
-    bool ctrl = a[2]._bool, release = a[3]._bool;
+    // A press of the key that is already down is the game's repeat of it, which every loader asks
+    // again with repeat() true, and a press of another key is a new press even while one is held.
+    bool repeat = overlay_key_held && overlay_key_held_code == key;
+    overlay_key_held = true;
+    overlay_key_held_code = key;
+    overlay_key_code = has_key ? key : 0;
+    // The character that number produces, with the shift the test asked for, as a real press types
+    // it, and none for a chord or for a key with no character of its own.
+    overlay_key_character = ctrl ? 0 : typed_character(key, shift);
+    overlay_key_ctrl = ctrl;
+    overlay_key_shift = shift;
+    overlay_key_repeat = repeat;
     bool taken = false;
-    if (!(overlay_key_held && overlay_key_held_code == key)) {
-        overlay_key_held = true;
-        overlay_key_held_code = key;
-        overlay_key_code = key;
-        overlay_key_ctrl = ctrl;
-        for (size_t i = 0; i < noverlays; i++) {
-            if (overlay_disabled(overlays[i].path)) continue;
-            overlay_pass_taken = false;
-            uint64_t c = new_obj(K_OVERLAY_KEY);
-            union grug_value arg = id(c);
-            call_overlay_export(overlays[i].entity, overlay_key_fn, &arg, 1);
-            if (overlay_pass_taken) { taken = true; break; }
-        }
+    for (size_t i = 0; i < noverlays; i++) {
+        if (overlay_disabled(overlays[i].path)) continue;
+        overlay_pass_taken = false;
+        uint64_t c = new_obj(K_OVERLAY_KEY);
+        union grug_value arg = id(c);
+        call_overlay_export(overlays[i].entity, overlay_key_fn, &arg, 1);
+        if (overlay_pass_taken) { taken = true; break; }
     }
     // A press with release lets go of whatever was held, as the loader sets its held key to none.
     if (release) overlay_key_held = false;

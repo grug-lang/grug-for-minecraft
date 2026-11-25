@@ -84,24 +84,24 @@ export tick(ctx: TestTickContext) {
         return
     }
     ctx.assert(ctx.get_held_count(ctx.get_player()) == 0, "A page-button press should give the player nothing.")
-    ctx.assert(not ctx.press_screen_key(79, false, true), "O without control should not be taken.")
-    ctx.assert(not ctx.press_screen_key(80, true, true), "Ctrl+P should not be taken.")
+    ctx.assert(not ctx.press_screen_key(79, false, false, true), "O without control should not be taken.")
+    ctx.assert(not ctx.press_screen_key(80, true, false, true), "Ctrl+P should not be taken.")
     ctx.assert(_press_taken(ctx), "The list should still be shown after keys that are not its hotkey.")
-    ctx.assert(ctx.press_screen_key(79, true, true), "Ctrl+O should be taken by the overlay.")
+    ctx.assert(ctx.press_screen_key(79, true, false, true), "Ctrl+O should be taken by the overlay.")
     ctx.assert(not _press_taken(ctx), "The list should be hidden after Ctrl+O.")
     # A held Ctrl+O repeats the key event, which must not toggle again: the first press shows the
     # list, the repeat leaves it shown, and letting go ends the hold. The repeat is still taken, or
     # the screen's own handler would see the key, so the answer says taken and the list says whether
     # it toggled (#1741).
-    ctx.assert(ctx.press_screen_key(79, true, false), "Ctrl+O should be taken by the overlay.")
+    ctx.assert(ctx.press_screen_key(79, true, false, false), "Ctrl+O should be taken by the overlay.")
     ctx.assert(_press_taken(ctx), "The list should be shown after the first press of a held Ctrl+O.")
-    ctx.assert(ctx.press_screen_key(79, true, false), "A repeat of a held key should be taken by the overlay.")
+    ctx.assert(ctx.press_screen_key(79, true, false, false), "A repeat of a held key should be taken by the overlay.")
     ctx.assert(_press_taken(ctx), "A repeat of Ctrl+O should not hide the list again.")
-    ctx.assert(ctx.press_screen_key(79, true, true), "The last repeat before the release should be taken as well.")
+    ctx.assert(ctx.press_screen_key(79, true, false, true), "The last repeat before the release should be taken as well.")
     ctx.assert(_press_taken(ctx), "The release of a held Ctrl+O should not hide the list.")
-    ctx.assert(ctx.press_screen_key(79, true, true), "Ctrl+O should be taken again once it was released.")
+    ctx.assert(ctx.press_screen_key(79, true, false, true), "Ctrl+O should be taken again once it was released.")
     ctx.assert(not _press_taken(ctx), "The list should be hidden after a second full press.")
-    ctx.assert(ctx.press_screen_key(79, true, true), "Ctrl+O should be taken again while the list is hidden.")
+    ctx.assert(ctx.press_screen_key(79, true, false, true), "Ctrl+O should be taken again while the list is hidden.")
     ctx.assert(_press_taken(ctx), "The list should be shown again after a second Ctrl+O.")
     ctx.close_screen()
 }

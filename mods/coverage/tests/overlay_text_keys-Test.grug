@@ -52,19 +52,19 @@ export tick(ctx: TestTickContext) {
     }
 
     screens = screens + 1
-    ctx.assert(ctx.press_screen_key(32, true, true), "The overlay should take Ctrl and the space bar.")
-    ctx.assert(ctx.press_screen_key(8, true, true), "The overlay should take Ctrl and backspace.")
-    ctx.assert(not ctx.press_screen_key(8, false, true), "The overlay should leave a plain backspace alone.")
-    ctx.assert(ctx.press_screen_key(90, true, true), "The first Ctrl+Z on a new screen should be taken.")
-    ctx.assert(not ctx.press_screen_key(90, true, true), "A second Ctrl+Z on the same screen should not be taken.")
+    ctx.assert(ctx.press_screen_key(32, true, false, true), "The overlay should take Ctrl and the space bar.")
+    ctx.assert(ctx.press_screen_key(8, true, false, true), "The overlay should take Ctrl and backspace.")
+    ctx.assert(not ctx.press_screen_key(8, false, false, true), "The overlay should leave a plain backspace alone.")
+    ctx.assert(ctx.press_screen_key(90, true, false, true), "The first Ctrl+Z on a new screen should be taken.")
+    ctx.assert(not ctx.press_screen_key(90, true, false, true), "A second Ctrl+Z on the same screen should not be taken.")
     # A punctuation key with no number of its own reaches the overlay as the character it types, and
     # a key held with `release` false makes the next press of it a repeat, which the overlay reads
     # through repeat(): the first Ctrl+A is left alone, the repeat is taken, and the press after the
     # release is a new press and is left alone again.
-    ctx.assert(ctx.press_screen_key(126, false, true), "The overlay should take a typed ~, which has no key number of its own.")
-    ctx.assert(not ctx.press_screen_key(65, true, false), "The first Ctrl+A of a held key should not be taken.")
-    ctx.assert(ctx.press_screen_key(65, true, true), "A repeat of Ctrl+A should be taken.")
-    ctx.assert(not ctx.press_screen_key(65, true, true), "Ctrl+A after a release is a new press and should not be taken.")
+    ctx.assert(ctx.press_screen_key(126, false, false, true), "The overlay should take a typed ~, which has no key number of its own.")
+    ctx.assert(not ctx.press_screen_key(65, true, false, false), "The first Ctrl+A of a held key should not be taken.")
+    ctx.assert(ctx.press_screen_key(65, true, false, true), "A repeat of Ctrl+A should be taken.")
+    ctx.assert(not ctx.press_screen_key(65, true, false, true), "Ctrl+A after a release is a new press and should not be taken.")
     if screens == 1 {
         # Another screen has another serial, so the key is taken once more.
         ctx.close_screen()

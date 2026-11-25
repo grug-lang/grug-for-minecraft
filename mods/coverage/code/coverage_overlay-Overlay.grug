@@ -155,10 +155,32 @@ export key(ctx: OverlayKeyContext) {
     if ctx.key() == 65 and ctx.ctrl() and ctx.repeat() {
         ctx.take()
     }
+    # A key with no character of its own arrives as its number from 256 up, and shift is the event's
+    # own flag, so one of those keys is taken only while shift is held: the test presses every one of
+    # them with shift and two of them without, which tells the flag from the number (#1748).
+    pressed: number = ctx.key()
+    if pressed >= 256 and pressed <= 269 and ctx.shift() {
+        ctx.take()
+    }
+    # The letter M is taken with control, which covers a test press of an API key code that is not
+    # this loader's key index: LWJGL 2 numbers the M key 50 and 77 is numpad 6, so a press that
+    # reached the overlay as 77 was translated by name rather than taken as an index. It proves the
+    # test press's translation only, not a mod's key code, which #1749's finding needs.
+    if ctx.key() == 77 and ctx.ctrl() {
+        ctx.take()
+    }
     # A typed character arrives on its own, with key() 0, and ~ (126) is a character no other mod's
     # test types, so taking it cannot hide a character a field needs. It is the smallest proof that
     # a punctuation key with no number of its own reaches an overlay as a character.
     if ctx.character() == 126 {
+        ctx.take()
+    }
+    # A shifted letter or digit reaches an overlay as the character shift types, M (77) for the M
+    # key and ! (33) for the 1 key. Taking those two only while shift is held proves that a test
+    # press carries the shifted character, not the unshifted one no keyboard pairs with that key
+    # (#1748).
+    typed: number = ctx.character()
+    if (typed == 77 or typed == 33) and ctx.shift() {
         ctx.take()
     }
 }
