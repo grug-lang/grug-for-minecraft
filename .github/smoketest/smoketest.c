@@ -132,6 +132,9 @@ enum kind {
     K_DISPLAY_CTX,
     K_SHAPE_CTX,
     K_OVERLAY_RENDER,
+    K_OVERLAY_CLICK,
+    K_OVERLAY_KEY,
+    K_OVERLAY_SCROLL,
 };
 struct obj {
     enum kind kind;
@@ -2564,9 +2567,13 @@ static bool click_problem(double x, double y, double button, char* out, size_t c
 // SMOKETEST_EXCL_START: the committed presses all land on the centre of a slot; selftest.c checks the square's edges
 static bool slot_hovered(double mx, double my, double sx, double sy) { return mx >= sx - 1 && mx < sx + 17 && my >= sy - 1 && my < sy + 17; }
 // SMOKETEST_EXCL_STOP
-// A press on the open container screen. No overlay exists here, so the press always answers false, as it does on a
-// mod's own GrugScreen with no overlay asked. The slot under the press takes a left click the way vanilla's
-// pickup does for the two cases the committed tests assert: an empty cursor picks the slot's stack up, and a
+// A press the open screen's overlays were asked for, and whether one took it (#615, #863). The
+// overlay section below owns the pass; this is only its entry from the screen's own press path.
+static bool overlay_click_taken(double x, double y, double button);
+// A press on the open container screen. The open screen's overlays are asked first, and a press one
+// took answers true and never reaches the screen. A press no overlay took is the screen's own: on a
+// chest or a GUI it reaches the slot model below, which takes a left click the way vanilla's pickup
+// does for the two cases the committed tests assert: an empty cursor picks the slot's stack up, and a
 // carried stack goes whole into an empty slot. Every other click (a right or middle button, a slot that already
 // holds something while the cursor carries, the result slot, a press outside every grid slot) is not modelled and
 // marks the run stubbed. A slot answers a press from one pixel left of and above its 16 by 16 square to one pixel
@@ -2575,6 +2582,7 @@ static union grug_value TTC_click_screen(ARGS) {
     UNUSED;
     char msg[600];
     if (click_problem(a[1]._number, a[2]._number, a[3]._number, msg, sizeof msg)) return fail("TestTickContext.click_screen: %s", msg);  // SMOKETEST_EXCL: see click_problem
+    if (overlay_click_taken(a[1]._number, a[2]._number, a[3]._number)) return boolean(true);
     if (!screen_is_open) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL: every committed click that passes has a screen open
     struct be* b = be_of(screen_be);
     if (!b) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL: the block entity of an open screen is live in every committed test
@@ -2957,6 +2965,8 @@ static bool overlay_first_frame_recorded, overlay_first_frame_cleared;
 static double overlay_screen_serial;
 static double overlay_mouse_x, overlay_mouse_y;
 static bool overlay_pass_drew;
+static bool overlay_key_held;
+static double overlay_key_held_code;
 static uint64_t overlay_render_fn = UINT64_MAX;
 
 // The mod that owns a test is the directory above its tests/ directory: mods/jei/tests/x-Test.grug
@@ -3042,12 +3052,14 @@ static void render_overlays(void) {
     }
 }
 
-// A new screen forgets the drawn mark and starts a new first-frame record (#863).
+// A new screen forgets the drawn mark and starts a new first-frame record (#863). The loader's
+// screen init also forgets the key that was down, so the first press on the new screen is asked.
 static void note_screen_opened(void) {
     overlay_screen_serial += 1;
     overlay_drawn = false;
     overlay_first_frame_recorded = false;
     overlay_first_frame_cleared = false;
+    overlay_key_held = false;
 }
 static union grug_value TTC_open_inventory(ARGS) {
     UNUSED;
@@ -3105,6 +3117,166 @@ static union grug_value ORC_draw_text(ARGS) { UNUSED; if (!render_context(a[0]._
 REGISTER("OverlayRenderContext", "draw_text", ORC_draw_text);
 static union grug_value ORC_draw_box(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_box: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }
 REGISTER("OverlayRenderContext", "draw_box", ORC_draw_box);
+
+// =============================================================================================
+// SECTION: Overlay input
+// =============================================================================================
+// A press, key or wheel an overlay sees (#615, #866, #986), asked in the same mod order as the
+// render pass and only while a screen is open. Asking stops at the first overlay that takes it, so
+// two overlays over the same pixel cannot both act on one press. The key hold is the loader's: a
+// repeat of a key that is still down is not a new press, and a release lets the key be pressed
+// again.
+static uint64_t overlay_click_fn = UINT64_MAX, overlay_key_fn = UINT64_MAX, overlay_scroll_fn = UINT64_MAX;
+static bool overlay_pass_taken;
+static double overlay_click_x, overlay_click_y, overlay_click_button;
+static double overlay_key_code;
+static bool overlay_key_ctrl;
+static double overlay_scroll_x, overlay_scroll_y, overlay_scroll_delta;
+
+static union grug_value option_of_carried(void) {
+    uint64_t o = new_obj(K_OPTION);
+    if (carried_has) { objs[o - 1].has = true; objs[o - 1].val = id(carried_item); }
+    return id(o);
+}
+
+static bool click_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_CLICK) != NULL; }
+static union grug_value OCC_button(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.button: not a click pass"); return num(overlay_click_button); }
+REGISTER("OverlayClickContext", "button", OCC_button);
+static union grug_value OCC_shift(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.shift: not a click pass"); return boolean(false); }
+REGISTER("OverlayClickContext", "shift", OCC_shift);
+static union grug_value OCC_mouse_x(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.mouse_x: not a click pass"); return num(overlay_click_x); }
+REGISTER("OverlayClickContext", "mouse_x", OCC_mouse_x);
+static union grug_value OCC_mouse_y(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.mouse_y: not a click pass"); return num(overlay_click_y); }
+REGISTER("OverlayClickContext", "mouse_y", OCC_mouse_y);
+static union grug_value OCC_screen_width(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.screen_width: not a click pass"); return num(gui_geometry(4)); }
+REGISTER("OverlayClickContext", "screen_width", OCC_screen_width);
+static union grug_value OCC_screen_height(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.screen_height: not a click pass"); return num(screen_is_open ? WINDOW_H : 0); }
+REGISTER("OverlayClickContext", "screen_height", OCC_screen_height);
+static union grug_value OCC_gui_left(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_left: not a click pass"); return num(gui_geometry(0)); }
+REGISTER("OverlayClickContext", "gui_left", OCC_gui_left);
+static union grug_value OCC_gui_top(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_top: not a click pass"); return num(gui_geometry(1)); }
+REGISTER("OverlayClickContext", "gui_top", OCC_gui_top);
+static union grug_value OCC_gui_width(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_width: not a click pass"); return num(gui_geometry(2)); }
+REGISTER("OverlayClickContext", "gui_width", OCC_gui_width);
+static union grug_value OCC_gui_height(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_height: not a click pass"); return num(gui_geometry(3)); }
+REGISTER("OverlayClickContext", "gui_height", OCC_gui_height);
+static union grug_value OCC_carried_item(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.carried_item: not a click pass"); return option_of_carried(); }
+REGISTER("OverlayClickContext", "carried_item", OCC_carried_item);
+static union grug_value OCC_delete_carried_item(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.delete_carried_item: not a click pass"); carried_has = false; return none(); }
+REGISTER("OverlayClickContext", "delete_carried_item", OCC_delete_carried_item);
+static union grug_value OCC_close_screen(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.close_screen: not a click pass"); screen_is_open = false; carried_has = false; return none(); }
+REGISTER("OverlayClickContext", "close_screen", OCC_close_screen);
+static union grug_value OCC_take(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.take: not a click pass"); overlay_pass_taken = true; return none(); }
+REGISTER("OverlayClickContext", "take", OCC_take);
+
+static bool key_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_KEY) != NULL; }
+static union grug_value OKC_key(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.key: not a key pass"); return num(overlay_key_code); }
+REGISTER("OverlayKeyContext", "key", OKC_key);
+static union grug_value OKC_ctrl(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.ctrl: not a key pass"); return boolean(overlay_key_ctrl); }
+REGISTER("OverlayKeyContext", "ctrl", OKC_ctrl);
+static union grug_value OKC_take(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.take: not a key pass"); overlay_pass_taken = true; return none(); }
+REGISTER("OverlayKeyContext", "take", OKC_take);
+
+static bool scroll_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_SCROLL) != NULL; }
+static union grug_value OSC_delta(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.delta: not a scroll pass"); return num(overlay_scroll_delta); }
+REGISTER("OverlayScrollContext", "delta", OSC_delta);
+static union grug_value OSC_mouse_x(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.mouse_x: not a scroll pass"); return num(overlay_scroll_x); }
+REGISTER("OverlayScrollContext", "mouse_x", OSC_mouse_x);
+static union grug_value OSC_mouse_y(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.mouse_y: not a scroll pass"); return num(overlay_scroll_y); }
+REGISTER("OverlayScrollContext", "mouse_y", OSC_mouse_y);
+static union grug_value OSC_screen_width(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.screen_width: not a scroll pass"); return num(gui_geometry(4)); }
+REGISTER("OverlayScrollContext", "screen_width", OSC_screen_width);
+static union grug_value OSC_screen_height(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.screen_height: not a scroll pass"); return num(screen_is_open ? WINDOW_H : 0); }
+REGISTER("OverlayScrollContext", "screen_height", OSC_screen_height);
+static union grug_value OSC_gui_left(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_left: not a scroll pass"); return num(gui_geometry(0)); }
+REGISTER("OverlayScrollContext", "gui_left", OSC_gui_left);
+static union grug_value OSC_gui_top(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_top: not a scroll pass"); return num(gui_geometry(1)); }
+REGISTER("OverlayScrollContext", "gui_top", OSC_gui_top);
+static union grug_value OSC_gui_width(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_width: not a scroll pass"); return num(gui_geometry(2)); }
+REGISTER("OverlayScrollContext", "gui_width", OSC_gui_width);
+static union grug_value OSC_gui_height(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_height: not a scroll pass"); return num(gui_geometry(3)); }
+REGISTER("OverlayScrollContext", "gui_height", OSC_gui_height);
+static union grug_value OSC_take(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.take: not a scroll pass"); overlay_pass_taken = true; return none(); }
+REGISTER("OverlayScrollContext", "take", OSC_take);
+
+// The open screen's overlays are asked for one press, in mod order, until one takes it.
+static bool overlay_click_taken(double x, double y, double button) {
+    if (!screen_is_open) return false;
+    overlay_click_x = x;
+    overlay_click_y = y;
+    overlay_click_button = button;
+    overlay_mouse_x = x;
+    overlay_mouse_y = y;
+    for (size_t i = 0; i < noverlays; i++) {
+        if (overlay_disabled(overlays[i].path)) continue;
+        overlay_pass_taken = false;
+        uint64_t c = new_obj(K_OVERLAY_CLICK);
+        union grug_value arg = id(c);
+        call_overlay_export(overlays[i].entity, overlay_click_fn, &arg, 1);
+        if (overlay_pass_taken) return true;
+    }
+    return false;
+}
+
+// TestTickContext.press_screen_key: a key down through the screen's own key path, with the release
+// the test asks for. Only a letter, a digit, space and backspace reach an overlay, as the loader
+// routes them; a key still held repeats without asking, so a toggle flips once per press.
+static union grug_value TTC_press_screen_key(ARGS) {
+    UNUSED;
+    double k = a[1]._number;
+    if (!isfinite(k) || k != floor(k) || k < 0) {  // SMOKETEST_EXCL: no committed test presses a bad key
+        char t[400];
+        double_text(k, t, sizeof t);
+        return fail("TestTickContext.press_screen_key: The key has to be a whole number from 0 up, and was %s.", t);
+    }
+    if (!screen_is_open) return fail("TestTickContext.press_screen_key: There is no screen open to press.");  // SMOKETEST_EXCL: every committed press has a screen open
+    int key = (int)k;
+    bool ctrl = a[2]._bool, release = a[3]._bool;
+    bool routable = key == 8 || key == 32 || (key >= 'A' && key <= 'Z') || (key >= '0' && key <= '9');
+    bool taken = false;
+    if (routable && !(overlay_key_held && overlay_key_held_code == key)) {
+        overlay_key_held = true;
+        overlay_key_held_code = key;
+        overlay_key_code = key;
+        overlay_key_ctrl = ctrl;
+        for (size_t i = 0; i < noverlays; i++) {
+            if (overlay_disabled(overlays[i].path)) continue;
+            overlay_pass_taken = false;
+            uint64_t c = new_obj(K_OVERLAY_KEY);
+            union grug_value arg = id(c);
+            call_overlay_export(overlays[i].entity, overlay_key_fn, &arg, 1);
+            if (overlay_pass_taken) { taken = true; break; }
+        }
+    }
+    if (release && overlay_key_held && overlay_key_held_code == key) overlay_key_held = false;
+    return boolean(taken);
+}
+REGISTER("TestTickContext", "press_screen_key", TTC_press_screen_key);
+
+// TestTickContext.scroll_screen: one wheel movement through the screen's own wheel path. The answer
+// is whether an overlay took it; the screen's own handling is never an overlay's take.
+static union grug_value TTC_scroll_screen(ARGS) {
+    UNUSED;
+    for (int i = 1; i <= 2; i++)
+        if (!isfinite(a[i]._number)) return fail("TestTickContext.scroll_screen: The position has to be finite.");  // SMOKETEST_EXCL: no committed test passes a bad position
+    if (!isfinite(a[3]._number)) return fail("TestTickContext.scroll_screen: The delta has to be finite.");  // SMOKETEST_EXCL: no committed test passes a bad delta
+    if (!screen_is_open) return fail("TestTickContext.scroll_screen: There is no screen open to scroll.");  // SMOKETEST_EXCL: every committed wheel has a screen open
+    overlay_scroll_x = a[1]._number;
+    overlay_scroll_y = a[2]._number;
+    overlay_scroll_delta = a[3]._number;
+    overlay_mouse_x = overlay_scroll_x;
+    overlay_mouse_y = overlay_scroll_y;
+    for (size_t i = 0; i < noverlays; i++) {
+        if (overlay_disabled(overlays[i].path)) continue;
+        overlay_pass_taken = false;
+        uint64_t c = new_obj(K_OVERLAY_SCROLL);
+        union grug_value arg = id(c);
+        call_overlay_export(overlays[i].entity, overlay_scroll_fn, &arg, 1);
+        if (overlay_pass_taken) return boolean(true);
+    }
+    return boolean(false);
+}
+REGISTER("TestTickContext", "scroll_screen", TTC_scroll_screen);
 
 // =============================================================================================
 // SECTION: Registry and contract
@@ -3369,6 +3541,9 @@ int main(int argc, char** argv) {
     G.be_extract_item = grug_get_on_fn_id(g_state, "BlockEntity", "extract_item");
     G.be_add_item = grug_get_on_fn_id(g_state, "BlockEntity", "add_item");
     overlay_render_fn = grug_get_on_fn_id(g_state, "Overlay", "render");
+    overlay_click_fn = grug_get_on_fn_id(g_state, "Overlay", "click");
+    overlay_key_fn = grug_get_on_fn_id(g_state, "Overlay", "key");
+    overlay_scroll_fn = grug_get_on_fn_id(g_state, "Overlay", "scroll");
     uint64_t tick_fn = grug_get_on_fn_id(g_state, "Test", "tick");
     uint64_t init_fn = grug_get_on_fn_id(g_state, "Test", "init");
     if (!strcmp(argv[2], "--all")) { rc = run_all(files, tick_fn, init_fn); goto done; }
