@@ -41,15 +41,26 @@ import java.util.stream.Stream;
  * one mod cannot address another. A path is a portable file name: it is rejected when it is
  * absolute, when it has a parent, empty or dot segment, when it holds a character Windows refuses
  * or a device name Windows keeps for itself, when a segment ends in a dot or a space, when it
- * differs only in case from an existing entry, or when any component is a symbolic link (a leading
- * {@code "./"} is accepted, so a listing's own name can be appended to {@code "."}); a link is
- * refused rather than followed, because its target could be outside the directory. Writes are
- * atomic (a temporary file outside the mod's tree and a rename), and the new bytes are flushed to
- * the disk before the rename and the directory after it where the platform can flush one, so even a
- * power loss leaves either the old content or the new one. Every entry is charged at least one
- * filesystem block of {@link #BLOCK} bytes against {@link #CAP}: a file costs its size or one block
- * when smaller, a directory one block, and a link nothing, so at most 4096 entries fit whatever
- * their sizes and no collection of tiny files can fill the disk while the count says otherwise.
+ * differs only in case from an existing entry, or when any component below the game directory or
+ * the mods directory is a symbolic link or a Windows junction (a leading {@code "./"} is accepted,
+ * so a listing's own name can be appended to {@code "."}); a link is refused rather than followed,
+ * because its target could be outside the directory.
+ *
+ * <p>The case rule holds for every call, not only a write: a path that differs only in case from an
+ * entry the call would answer from is refused rather than answered, because Windows and macOS keep
+ * one file where this system keeps two, so answering it would make one path mean different files on
+ * different loaders. A listing names only entries a read accepts, so a name it returns can always
+ * be appended to its directory and read. The written copy decides what a name is: a written file
+ * wins over a shipped file of that name and a written directory over a shipped file, so a read and
+ * a listing agree on a name written as a directory and shipped as a file.
+ *
+ * <p>Writes are atomic (a temporary file outside the mod's tree and a rename), and the new bytes
+ * are flushed to the disk before the rename and the directory after it where the platform can flush
+ * one, so even a power loss leaves either the old content or the new one. Every entry is charged at
+ * least one filesystem block of {@link #BLOCK} bytes against {@link #CAP}: a file costs its size or
+ * one block when smaller, a directory one block, a directory the write itself creates included, and
+ * a link nothing, so at most 4096 entries fit whatever their sizes and no collection of tiny files
+ * can fill the disk while the count says otherwise.
  */
 public final class GrugModData {
 
@@ -250,22 +261,34 @@ public final class GrugModData {
     }
 
     /**
-     * The file {@code path} names under {@code root}, proven to stay inside it.
+     * The file {@code path} names under {@code root}, proven to stay inside it and to pass no link.
      *
+     * @param anchor the tree the walk starts at, the game directory for the writable copy and the
+     *     mods directory for the shipped one, so a link above the mod's own directory is caught too
+     * @param root the mod's {@code files} directory, which must sit under {@code anchor}
      * @param allowRoot whether {@code "."} names {@code root} itself, which only a listing asks
-     * @throws IllegalArgumentException when the path leaves the directory by its segments, or when
-     *     any existing component, {@code root} included, is a symbolic link
+     * @throws IllegalArgumentException when the path leaves the directory by its segments, when
+     *     {@code root} is not under {@code anchor}, or when any existing component below {@code
+     *     anchor} is a symbolic link or a junction
      * @throws IOException when an existing component cannot be read
      */
-    static Path resolve(Path root, String path, boolean allowRoot) throws IOException {
+    static Path resolve(Path anchor, Path root, String path, boolean allowRoot) throws IOException {
         String problem = pathProblem(path, allowRoot);
         if (problem != null) {
             throw new IllegalArgumentException("The path " + quote(path) + " " + problem);
         }
+        Path start = anchor.toAbsolutePath().normalize();
         Path base = root.toAbsolutePath().normalize();
+        if (!base.startsWith(start)) {
+            throw new IllegalArgumentException(
+                    "The directory " + base + " is not inside " + start + ".");
+        }
         Path target = base.resolve(path).normalize();
-        Path component = base;
-        refuseLink(component, path);
+        Path component = start;
+        for (Path part : start.relativize(base)) {
+            component = component.resolve(part);
+            refuseLink(component, path);
+        }
         for (Path part : base.relativize(target)) {
             component = component.resolve(part);
             refuseLink(component, path);
@@ -274,9 +297,11 @@ public final class GrugModData {
     }
 
     /**
-     * Refuses a component that is a symbolic link rather than following it: a link is made outside
-     * a script, and its target could be outside the mod's directory or feed the cap a byte count
-     * nothing in the directory holds.
+     * Refuses a component that is a symbolic link or a junction rather than following it: either is
+     * made outside a script, and its target could be outside the mod's directory or feed the cap a
+     * byte count nothing in the directory holds. Windows reports a directory junction as neither a
+     * symbolic link nor a regular file or directory, so {@link BasicFileAttributes#isOther()} is
+     * the only arm that catches it.
      */
     private static void refuseLink(Path component, String path) throws IOException {
         BasicFileAttributes attrs;
@@ -287,11 +312,12 @@ public final class GrugModData {
         } catch (NoSuchFileException e) {
             return; // nothing is there yet, and a write creates it
         }
-        if (attrs.isSymbolicLink()) {
+        if (attrs.isSymbolicLink() || attrs.isOther()) {
             throw new IllegalArgumentException(
                     "The path "
                             + quote(path)
-                            + " goes through a symbolic link, and a link could leave the mod's "
+                            + " goes through a symbolic link or a junction, and either could"
+                            + " leave the mod's "
                             + DIRECTORY
                             + " directory.");
         }
@@ -299,20 +325,27 @@ public final class GrugModData {
 
     /**
      * The text of {@code path}, or null when neither the writable copy nor the shipped one exists.
-     * A file that exists but whose bytes are not UTF-8 is reported instead.
+     * A file that exists but whose bytes are not UTF-8 is reported instead, and so is a written
+     * directory, which wins over a shipped file of that name.
      */
     static String read(File modsDir, File gameDir, String modName, String path) throws IOException {
         requireMod(modName);
-        Path file = resolve(writableRoot(gameDir, modName), path, false);
+        Path writableRoot = writableRoot(gameDir, modName);
+        Path shippedRoot = shippedRoot(modsDir, modName);
+        Path file = resolve(gameDir.toPath(), writableRoot, path, false);
+        Path shipped = resolve(modsDir.toPath(), shippedRoot, path, false);
+        requirePortableCase(writableRoot, shippedRoot, file, path);
         if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
             return text(file, path);
         }
-        Path shipped = resolve(shippedRoot(modsDir, modName), path, false);
+        if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IllegalArgumentException(
+                    "The path " + quote(path) + " names a directory, not a file.");
+        }
         if (Files.isRegularFile(shipped, LinkOption.NOFOLLOW_LINKS)) {
             return text(shipped, path);
         }
-        if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)
-                || Files.exists(shipped, LinkOption.NOFOLLOW_LINKS)) {
+        if (Files.exists(shipped, LinkOption.NOFOLLOW_LINKS)) {
             throw new IllegalArgumentException(
                     "The path " + quote(path) + " names a directory, not a file.");
         }
@@ -335,17 +368,19 @@ public final class GrugModData {
     }
 
     /**
-     * Whether a file or a directory of that name exists, in the writable copy or the shipped one.
+     * Whether a file or a directory of that name exists, in the writable copy or the shipped one. A
+     * path that differs only in case from an existing entry is reported rather than answered.
      */
     static boolean exists(File modsDir, File gameDir, String modName, String path)
             throws IOException {
         requireMod(modName);
-        return Files.exists(
-                        resolve(writableRoot(gameDir, modName), path, false),
-                        LinkOption.NOFOLLOW_LINKS)
-                || Files.exists(
-                        resolve(shippedRoot(modsDir, modName), path, false),
-                        LinkOption.NOFOLLOW_LINKS);
+        Path writableRoot = writableRoot(gameDir, modName);
+        Path shippedRoot = shippedRoot(modsDir, modName);
+        Path writable = resolve(gameDir.toPath(), writableRoot, path, false);
+        Path shipped = resolve(modsDir.toPath(), shippedRoot, path, false);
+        requirePortableCase(writableRoot, shippedRoot, writable, path);
+        return Files.exists(writable, LinkOption.NOFOLLOW_LINKS)
+                || Files.exists(shipped, LinkOption.NOFOLLOW_LINKS);
     }
 
     /** How many entries the directory of that name holds in both trees, or 0 for a missing one. */
@@ -388,44 +423,68 @@ public final class GrugModData {
     }
 
     /**
-     * The names under the directory {@code path}, from both trees, sorted and with a name in both
-     * listed once. An entry that exists but is not a directory is reported.
+     * The names under the directory {@code path}, from both trees, sorted, with a name in both
+     * listed once and only names a read accepts. An entry that exists but is not a directory is
+     * reported, and the written copy decides: a written file makes the path a file whatever the
+     * shipped tree holds, and a written directory hides a shipped file of that name.
      */
     private static List<String> entryNames(File modsDir, File gameDir, String modName, String path)
             throws IOException {
         requireMod(modName);
-        Path writable = resolve(writableRoot(gameDir, modName), path, true);
-        Path shipped = resolve(shippedRoot(modsDir, modName), path, true);
-        boolean directories =
-                Files.isDirectory(writable, LinkOption.NOFOLLOW_LINKS)
-                        || Files.isDirectory(shipped, LinkOption.NOFOLLOW_LINKS);
-        if (!directories
-                && (Files.exists(writable, LinkOption.NOFOLLOW_LINKS)
-                        || Files.exists(shipped, LinkOption.NOFOLLOW_LINKS))) {
-            throw new IllegalArgumentException(
-                    "The path " + quote(path) + " names a file, not a directory.");
+        Path writableRoot = writableRoot(gameDir, modName);
+        Path shippedRoot = shippedRoot(modsDir, modName);
+        Path writable = resolve(gameDir.toPath(), writableRoot, path, true);
+        Path shipped = resolve(modsDir.toPath(), shippedRoot, path, true);
+        requirePortableCase(writableRoot, shippedRoot, writable, path);
+        boolean writableThere = Files.exists(writable, LinkOption.NOFOLLOW_LINKS);
+        Path shown = writableThere ? writable : shipped;
+        if (!Files.isDirectory(shown, LinkOption.NOFOLLOW_LINKS)) {
+            if (Files.exists(shown, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IllegalArgumentException(
+                        "The path " + quote(path) + " names a file, not a directory.");
+            }
+            return new ArrayList<>();
         }
         Set<String> names = new TreeSet<>();
-        addNames(writable, names);
-        addNames(shipped, names);
+        Set<String> folded = new TreeSet<>();
+        addNames(writable, names, folded);
+        addNames(shipped, names, folded);
         return new ArrayList<>(names);
     }
 
     /**
      * Adds the names of the entries of {@code directory} when it is one. A link is left out because
-     * {@link #resolve} refuses one, so a listing must not name an entry no read can open.
+     * {@link #resolve} refuses one, and so is a name {@link #pathProblem} refuses and a name that
+     * differs only in case from one already added, since a read of either would be refused, and a
+     * listing must never name an entry a read cannot open. {@code folded} carries the names added
+     * so far in lower case, so the written copy, added first, wins over a shipped name it
+     * case-folds onto.
      */
-    private static void addNames(Path directory, Set<String> names) throws IOException {
+    private static void addNames(Path directory, Set<String> names, Set<String> folded)
+            throws IOException {
         if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
             return;
         }
+        List<String> children = new ArrayList<>();
         try (Stream<Path> stream = Files.list(directory)) {
             stream.forEach(
                     entry -> {
-                        if (!Files.isSymbolicLink(entry)) {
-                            names.add(entry.getFileName().toString());
+                        String name = entry.getFileName().toString();
+                        boolean plain =
+                                Files.isRegularFile(entry, LinkOption.NOFOLLOW_LINKS)
+                                        || Files.isDirectory(entry, LinkOption.NOFOLLOW_LINKS);
+                        if (plain && pathProblem(name, false) == null) {
+                            children.add(name);
                         }
                     });
+        }
+        // Sorted, because Files.list reports a directory's entries in no order and the name that
+        // survives a case fold must be the same on every run.
+        children.sort(null);
+        for (String name : children) {
+            if (folded.add(name.toLowerCase(Locale.ROOT))) {
+                names.add(name);
+            }
         }
     }
 
@@ -450,15 +509,18 @@ public final class GrugModData {
             throws IOException {
         requireMod(modName);
         Path root = writableRoot(gameDir, modName);
-        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        Path shipped = shippedRoot(modsDir, modName);
         synchronized (WRITE_LOCK) {
-            Path target = resolve(root, path, false);
-            requirePortableCase(shippedRoot(modsDir, modName), root, target, path);
+            Path target = resolve(gameDir.toPath(), root, path, false);
+            requirePortableCase(root, shipped, target, path);
+            // The encoded length is counted rather than encoded, so a text over the cap is refused
+            // without a second array of its own size ever existing.
+            long encoded = utf8Length(text);
             long previous = chargeOf(target);
             long after =
                     totalBytes(root)
                             - previous
-                            + charge(bytes.length)
+                            + charge(encoded)
                             + pendingDirectories(root, target);
             if (after > CAP) {
                 throw new IllegalArgumentException(
@@ -473,6 +535,7 @@ public final class GrugModData {
                                 + "-byte cap.");
             }
 
+            byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
             Files.createDirectories(target.getParent());
             Path tempDir = tempRoot(gameDir);
             Files.createDirectories(tempDir);
@@ -519,24 +582,51 @@ public final class GrugModData {
     }
 
     /**
-     * The block charge of the directories a write of {@code target} must create below {@code root},
-     * so the cap counts them before they exist. The root itself is not an entry of the cap.
+     * The block charge of every directory a write of {@code target} must create below {@code root},
+     * so the cap counts them before they exist. Every missing component is charged, not only those
+     * above the first one that exists, because a directory a write creates costs a block whatever
+     * sits above it. The root itself is not an entry of the cap.
      */
     private static long pendingDirectories(Path root, Path target) {
-        Path parent = target.getParent();
-        if (parent.equals(root)) {
-            return 0;
-        }
         long pending = 0;
         Path here = root;
-        for (Path part : root.relativize(parent)) {
-            here = here.resolve(part);
-            if (Files.exists(here, LinkOption.NOFOLLOW_LINKS)) {
-                break;
+        for (Path part : root.relativize(target.getParent())) {
+            if (part.toString().isEmpty()) {
+                continue; // the target sits in the root itself, whose own block is not charged
             }
-            pending += BLOCK;
+            here = here.resolve(part);
+            if (!Files.exists(here, LinkOption.NOFOLLOW_LINKS)) {
+                pending += BLOCK;
+            }
         }
         return pending;
+    }
+
+    /**
+     * The bytes {@code text} takes as UTF-8, counted without encoding it, so the cap can refuse a
+     * text before a byte array of its own size exists. It matches {@link String#getBytes} including
+     * its one-byte replacement of an unpaired surrogate.
+     */
+    static long utf8Length(String text) {
+        long length = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c < 0x80) {
+                length += 1;
+            } else if (c < 0x800) {
+                length += 2;
+            } else if (Character.isHighSurrogate(c)
+                    && i + 1 < text.length()
+                    && Character.isLowSurrogate(text.charAt(i + 1))) {
+                length += 4;
+                i++;
+            } else if (Character.isSurrogate(c)) {
+                length += 1; // an unpaired surrogate is encoded as "?"
+            } else {
+                length += 3;
+            }
+        }
+        return length;
     }
 
     /** Flushes the temporary file's bytes to the disk before the rename can put it in place. */
@@ -564,31 +654,52 @@ public final class GrugModData {
     }
 
     /**
-     * Refuses a write whose path, or whose directory, differs only in case from an existing entry
-     * of either tree: on Windows that is one file and on this system two, so a refused write is
-     * what makes a path mean the same on every loader.
+     * Refuses a path whose segment differs only in case from an entry the call would answer from,
+     * on a write, a read, an exists or a listing alike: on Windows that entry is the file the path
+     * names and on this system it is another one, so refusing is what makes one path mean the same
+     * thing on every loader.
+     *
+     * <p>At each level the written copy decides: when it already holds an entry of exactly that
+     * name, the path is that entry and a shipped name differing only in case is shadowed by it.
+     * Otherwise a name differing only in case from an entry of either tree is refused, and a tree
+     * with no entry of that name takes no further part in the walk.
      */
-    private static void requirePortableCase(Path shipped, Path writable, Path target, String path)
+    private static void requirePortableCase(Path writable, Path shipped, Path target, String path)
             throws IOException {
-        Path written = writable;
+        Path writtenHere = writable;
         Path shippedHere = shipped;
+        boolean writtenLive = true;
+        boolean shippedLive = true;
         for (Path part : writable.relativize(target)) {
             String name = part.toString();
-            String clash = caseClash(written, name);
-            if (clash == null) {
-                clash = caseClash(shippedHere, name);
+            if (name.isEmpty()) {
+                continue;
             }
-            if (clash != null) {
-                throw new IllegalArgumentException(
-                        "The path "
-                                + quote(path)
-                                + " differs only in case from \""
-                                + clash
-                                + "\", which is one file on Windows and two on this system, so it"
-                                + " is not a portable file name.");
+            Path writtenChild = writtenHere.resolve(name);
+            Path shippedChild = shippedHere.resolve(name);
+            boolean writtenExact =
+                    writtenLive && Files.exists(writtenChild, LinkOption.NOFOLLOW_LINKS);
+            boolean shippedExact =
+                    shippedLive && Files.exists(shippedChild, LinkOption.NOFOLLOW_LINKS);
+            if (!writtenExact) {
+                String clash = writtenLive ? caseClash(writtenHere, name) : null;
+                if (clash == null && shippedLive) {
+                    clash = caseClash(shippedHere, name);
+                }
+                if (clash != null) {
+                    throw new IllegalArgumentException(
+                            "The path "
+                                    + quote(path)
+                                    + " differs only in case from \""
+                                    + clash
+                                    + "\", which is one file on Windows and two on this"
+                                    + " system, so it is not a portable file name.");
+                }
             }
-            written = written.resolve(name);
-            shippedHere = shippedHere.resolve(name);
+            writtenHere = writtenChild;
+            writtenLive = writtenExact;
+            shippedHere = shippedChild;
+            shippedLive = shippedExact;
         }
     }
 

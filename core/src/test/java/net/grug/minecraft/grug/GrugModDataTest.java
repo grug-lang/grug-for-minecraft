@@ -169,11 +169,17 @@ class GrugModDataTest {
     void aResolvedPathStaysInsideItsOwnDirectoryAndNeverFollowsALink() throws IOException {
         Path root = writable("coverage");
         Files.createDirectories(root);
+        Path anchor = gameDir().toPath();
         Path inside = Files.writeString(root.resolve("inside.txt"), "in");
-        assertEquals(root.resolve("inside.txt"), GrugModData.resolve(root, "inside.txt", false));
-        assertEquals(root.resolve("not/yet.txt"), GrugModData.resolve(root, "not/yet.txt", false));
-        assertEquals(root, GrugModData.resolve(root, ".", true));
-        assertEquals(root.resolve("inside.txt"), GrugModData.resolve(root, "./inside.txt", false));
+        assertEquals(
+                root.resolve("inside.txt"), GrugModData.resolve(anchor, root, "inside.txt", false));
+        assertEquals(
+                root.resolve("not/yet.txt"),
+                GrugModData.resolve(anchor, root, "not/yet.txt", false));
+        assertEquals(root, GrugModData.resolve(anchor, root, ".", true));
+        assertEquals(
+                root.resolve("inside.txt"),
+                GrugModData.resolve(anchor, root, "./inside.txt", false));
 
         Path outside = Files.createDirectories(tmp.resolve("outside"));
         Files.writeString(outside.resolve("secret.txt"), "secret");
@@ -182,7 +188,7 @@ class GrugModDataTest {
             IllegalArgumentException e =
                     assertThrows(
                             IllegalArgumentException.class,
-                            () -> GrugModData.resolve(root, path, false),
+                            () -> GrugModData.resolve(anchor, root, path, false),
                             path);
             assertTrue(e.getMessage().contains("symbolic link"), e.getMessage());
         }
@@ -190,32 +196,84 @@ class GrugModDataTest {
         Files.createSymbolicLink(root.resolve("inside-link.txt"), inside);
         assertThrows(
                 IllegalArgumentException.class,
-                () -> GrugModData.resolve(root, "inside-link.txt", false));
+                () -> GrugModData.resolve(anchor, root, "inside-link.txt", false));
 
         Files.createSymbolicLink(root.resolve("dangling"), outside.resolve("missing"));
         assertThrows(
-                IllegalArgumentException.class, () -> GrugModData.resolve(root, "dangling", false));
+                IllegalArgumentException.class,
+                () -> GrugModData.resolve(anchor, root, "dangling", false));
 
         Path linkedRoot = writable("linked");
         Files.createDirectories(linkedRoot.getParent());
         Files.createSymbolicLink(linkedRoot, root);
         assertThrows(
                 IllegalArgumentException.class,
-                () -> GrugModData.resolve(linkedRoot, "a.txt", false));
+                () -> GrugModData.resolve(anchor, linkedRoot, "a.txt", false));
+
+        Path notUnder = Files.createDirectories(tmp.resolve("elsewhere"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugModData.resolve(anchor, notUnder, "a.txt", false));
+    }
+
+    @Test
+    void aLinkAboveTheModsDirectoryIsRefusedToo() throws IOException {
+        Path outside = Files.createDirectories(tmp.resolve("outside"));
+        Path tree = gameDir().toPath().resolve(GrugModData.WRITABLE_DIRECTORY);
+        Files.createSymbolicLink(tree, outside);
+        IllegalArgumentException e =
+                assertThrows(IllegalArgumentException.class, () -> write("coverage", "a.txt", "x"));
+        assertTrue(e.getMessage().contains("symbolic link"), e.getMessage());
+        assertFalse(Files.exists(outside.resolve("coverage")));
+        assertThrows(IllegalArgumentException.class, () -> read("coverage", "a.txt"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugModData.exists(modsDir(), gameDir(), "coverage", "a.txt"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugModData.entryCount(modsDir(), gameDir(), "coverage", "."));
+    }
+
+    @Test
+    void aLinkAtTheModsDirectoryIsRefused() throws IOException {
+        Path outside = Files.createDirectories(tmp.resolve("outside"));
+        Path mod = gameDir().toPath().resolve(GrugModData.WRITABLE_DIRECTORY).resolve("coverage");
+        Files.createDirectories(mod.getParent());
+        Files.createSymbolicLink(mod, outside);
+        IllegalArgumentException e =
+                assertThrows(IllegalArgumentException.class, () -> write("coverage", "a.txt", "x"));
+        assertTrue(e.getMessage().contains("symbolic link"), e.getMessage());
+        assertFalse(Files.exists(outside.resolve("files")));
+        assertThrows(IllegalArgumentException.class, () -> read("coverage", "a.txt"));
+
+        // A mod with no writable tree at all, so the shipped walk is the one that meets the link:
+        // the writable side of the mod above would otherwise refuse the path first.
+        Path shippedMod = modsDir().toPath().resolve("shippedlink");
+        Files.createSymbolicLink(shippedMod, outside);
+        IllegalArgumentException shipped =
+                assertThrows(IllegalArgumentException.class, () -> read("shippedlink", "a.txt"));
+        assertTrue(shipped.getMessage().contains("symbolic link"), shipped.getMessage());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugModData.exists(modsDir(), gameDir(), "shippedlink", "a.txt"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugModData.entryCount(modsDir(), gameDir(), "shippedlink", "."));
     }
 
     @Test
     void aBrokenPathIsReportedWithItsName() throws IOException {
+        Path anchor = gameDir().toPath();
         Path root = writable("coverage");
         IllegalArgumentException e =
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> GrugModData.resolve(root, null, false));
+                        () -> GrugModData.resolve(anchor, root, null, false));
         assertTrue(e.getMessage().contains("(no path)"), e.getMessage());
         e =
                 assertThrows(
                         IllegalArgumentException.class,
-                        () -> GrugModData.resolve(root, "a:b", false));
+                        () -> GrugModData.resolve(anchor, root, "a:b", false));
         assertTrue(e.getMessage().contains("\"a:b\""), e.getMessage());
     }
 
@@ -246,7 +304,22 @@ class GrugModDataTest {
 
         Files.createDirectories(writable.resolve("blocked.txt"));
         Files.writeString(shipped.resolve("blocked.txt"), "shipped");
-        assertEquals("shipped", read("coverage", "blocked.txt"));
+        IllegalArgumentException blocked =
+                assertThrows(IllegalArgumentException.class, () -> read("coverage", "blocked.txt"));
+        assertTrue(blocked.getMessage().contains("names a directory"), blocked.getMessage());
+        assertEquals(0, GrugModData.entryCount(modsDir(), gameDir(), "coverage", "blocked.txt"));
+
+        // The written copy decides the other way too: a written file wins over a shipped directory.
+        Files.createDirectories(shipped.resolve("shippeddir"));
+        Files.writeString(writable.resolve("shippeddir"), "written file");
+        assertEquals("written file", read("coverage", "shippeddir"));
+        e =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () ->
+                                GrugModData.entryCount(
+                                        modsDir(), gameDir(), "coverage", "shippeddir"));
+        assertTrue(e.getMessage().contains("names a file"), e.getMessage());
 
         Files.createDirectories(writable.resolve("bad"));
         Files.write(writable.resolve("bad/text.txt"), new byte[] {(byte) 0xC3, (byte) 0x28});
@@ -350,14 +423,22 @@ class GrugModDataTest {
     }
 
     @Test
-    void aWriteThatDiffersOnlyInCaseFromAnEntryIsRefused() throws IOException {
+    void aPathThatDiffersOnlyInCaseFromAnEntryIsRefusedByEveryCall() throws IOException {
         write("coverage", "Case.txt", "first");
         IllegalArgumentException e =
                 assertThrows(
                         IllegalArgumentException.class, () -> write("coverage", "case.txt", "s"));
         assertTrue(e.getMessage().contains("differs only in case"), e.getMessage());
         assertEquals("first", read("coverage", "Case.txt"));
-        assertNull(read("coverage", "case.txt"));
+        // A read and an exists refuse the name as well: the write contract would be worthless if
+        // one system answered the case-folded name and another did not.
+        e = assertThrows(IllegalArgumentException.class, () -> read("coverage", "case.txt"));
+        assertTrue(e.getMessage().contains("differs only in case"), e.getMessage());
+        e =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> GrugModData.exists(modsDir(), gameDir(), "coverage", "CASE.TXT"));
+        assertTrue(e.getMessage().contains("differs only in case"), e.getMessage());
 
         Files.createDirectories(shipped("coverage"));
         Files.writeString(shipped("coverage").resolve("Shipped.txt"), "s");
@@ -366,6 +447,11 @@ class GrugModDataTest {
                         IllegalArgumentException.class,
                         () -> write("coverage", "shipped.txt", "w"));
         assertTrue(e.getMessage().contains("differs only in case"), e.getMessage());
+        e = assertThrows(IllegalArgumentException.class, () -> read("coverage", "shipped.txt"));
+        assertTrue(e.getMessage().contains("differs only in case"), e.getMessage());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugModData.exists(modsDir(), gameDir(), "coverage", "SHIPPED.TXT"));
 
         write("coverage", "Sub/one.txt", "x");
         e =
@@ -374,6 +460,10 @@ class GrugModDataTest {
                         () -> write("coverage", "sub/two.txt", "y"));
         assertTrue(e.getMessage().contains("differs only in case"), e.getMessage());
         assertFalse(Files.exists(writable("coverage").resolve("sub")));
+        assertThrows(IllegalArgumentException.class, () -> read("coverage", "sub/two.txt"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugModData.entryCount(modsDir(), gameDir(), "coverage", "SUB"));
     }
 
     @Test
@@ -415,6 +505,143 @@ class GrugModDataTest {
                 e.getMessage().contains(String.valueOf(GrugModData.CAP + GrugModData.BLOCK)),
                 e.getMessage());
         assertFalse(Files.exists(root.resolve("overflow.txt")));
+    }
+
+    @Test
+    void aListingNamesOnlyEntriesAReadAccepts() throws IOException {
+        Path writable = Files.createDirectories(writable("coverage"));
+        Path shipped = Files.createDirectories(shipped("coverage"));
+        Files.writeString(shipped.resolve("ok.txt"), "s");
+        // A name the host refuses is legal on the Linux runner, so only the listing's own filter
+        // keeps it out: it must never return a name that read_text refuses.
+        Files.writeString(shipped.resolve("space.txt "), "s");
+
+        assertEquals(1, GrugModData.entryCount(modsDir(), gameDir(), "coverage", "."));
+        assertEquals("ok.txt", GrugModData.entryName(modsDir(), gameDir(), "coverage", ".", 0));
+        assertThrows(IllegalArgumentException.class, () -> read("coverage", "space.txt "));
+
+        // A written name hides a shipped name it differs from only in case, so the one the listing
+        // names is the one a read answers.
+        Files.writeString(writable.resolve("Dup.txt"), "written");
+        Files.writeString(shipped.resolve("dup.txt"), "shipped");
+        Files.writeString(shipped.resolve("DUP.txt"), "shipped");
+        Files.createDirectories(writable.resolve("folder"));
+        assertEquals(3, GrugModData.entryCount(modsDir(), gameDir(), "coverage", "."));
+        assertEquals("Dup.txt", GrugModData.entryName(modsDir(), gameDir(), "coverage", ".", 0));
+        assertEquals("folder", GrugModData.entryName(modsDir(), gameDir(), "coverage", ".", 1));
+        assertEquals("written", read("coverage", "Dup.txt"));
+        assertThrows(IllegalArgumentException.class, () -> read("coverage", "dup.txt"));
+    }
+
+    @Test
+    void directoriesBelowAnExistingOneAreChargedToo() throws IOException {
+        write("coverage", "a/x.txt", "kept");
+        Path root = writable("coverage");
+        Files.write(root.resolve("fill.bin"), new byte[12 * 1024 * 1024]);
+
+        StringBuilder path = new StringBuilder("a");
+        for (int i = 0; i < 1500; i++) {
+            path.append("/b");
+        }
+        path.append("/c.txt");
+        IllegalArgumentException e =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> write("coverage", path.toString(), "x"));
+        assertTrue(e.getMessage().contains("over the " + GrugModData.CAP), e.getMessage());
+        assertFalse(
+                Files.exists(root.resolve("a").resolve("b")),
+                "a refused write should create no directory");
+
+        assertEquals("kept", read("coverage", "a/x.txt"));
+        // Nothing was created, so the mod is not charged for the refused attempt and still writes.
+        write("coverage", "later.txt", "fine");
+        assertEquals("fine", read("coverage", "later.txt"));
+    }
+
+    @Test
+    void theUtf8LengthIsCountedWithoutEncodingTheText() {
+        for (String text :
+                new String[] {
+                    "",
+                    "a",
+                    "caf\u00e9",
+                    "\u20ac",
+                    "\ud83d\ude00",
+                    "a\ud83d\ude00b",
+                    "\ud800",
+                    "\ud800a",
+                    "trailing\udc00",
+                    "mixed \u00e9\u20ac\ud83d\ude00"
+                }) {
+            assertEquals(
+                    text.getBytes(StandardCharsets.UTF_8).length,
+                    GrugModData.utf8Length(text),
+                    text);
+        }
+    }
+
+    @Test
+    void theCapCountsBytesNotCharactersSoTextOverItIsRefusedBeforeItIsEncoded() throws IOException {
+        // Three bytes per character: the text is under the cap in characters and over it in bytes.
+        long characters = GrugModData.CAP / 3 + 1;
+        IllegalArgumentException e =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> write("coverage", "euro.txt", "\u20ac".repeat((int) characters)));
+        assertTrue(e.getMessage().contains(String.valueOf(characters * 3)), e.getMessage());
+        assertFalse(Files.exists(writable("coverage").resolve("euro.txt")));
+
+        write("coverage", "euro.txt", "\u20ac".repeat((int) characters - 1));
+        assertEquals(characters * 3 - 3, GrugModData.utf8Length(read("coverage", "euro.txt")));
+    }
+
+    @Test
+    void theRefusedSizeIsCountedWithoutEncodingTheText() throws IOException {
+        // The cap must refuse an over-cap text without a byte array of its own size: the check
+        // counts
+        // the bytes, and only a write that passes the cap encodes them.
+        String big = "x".repeat(17 * 1024 * 1024);
+        com.sun.management.ThreadMXBean bean =
+                (com.sun.management.ThreadMXBean)
+                        java.lang.management.ManagementFactory.getThreadMXBean();
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                bean.isThreadAllocatedMemorySupported() && bean.isThreadAllocatedMemoryEnabled(),
+                "this JVM does not count a thread's own allocations");
+        long before = bean.getCurrentThreadAllocatedBytes();
+        IllegalArgumentException e =
+                assertThrows(
+                        IllegalArgumentException.class, () -> write("coverage", "big.txt", big));
+        long allocated = bean.getCurrentThreadAllocatedBytes() - before;
+        assertTrue(e.getMessage().contains("over the " + GrugModData.CAP), e.getMessage());
+        assertTrue(
+                allocated < big.length() / 2,
+                "the refusal allocated "
+                        + allocated
+                        + " bytes for a "
+                        + big.length()
+                        + "-byte text, so it encoded the text before checking the cap");
+    }
+
+    @Test
+    void anEntryThatIsNeitherFileNorDirectoryIsRefusedAndNeverListed() throws IOException {
+        // A Windows directory junction is reported as neither a link nor a regular file but as
+        // "other", which is the arm that catches it there; a Unix domain socket is that same kind
+        // of
+        // entry here, so this test covers the arm a Linux run can reach.
+        Path root = Files.createDirectories(writable("coverage"));
+        Path special = root.resolve("special");
+        try (java.nio.channels.ServerSocketChannel server =
+                java.nio.channels.ServerSocketChannel.open(java.net.StandardProtocolFamily.UNIX)) {
+            server.bind(java.net.UnixDomainSocketAddress.of(special));
+            IllegalArgumentException e =
+                    assertThrows(IllegalArgumentException.class, () -> read("coverage", "special"));
+            assertTrue(e.getMessage().contains("symbolic link or a junction"), e.getMessage());
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> GrugModData.exists(modsDir(), gameDir(), "coverage", "special"));
+            assertEquals(0, GrugModData.entryCount(modsDir(), gameDir(), "coverage", "."));
+        }
     }
 
     @Test

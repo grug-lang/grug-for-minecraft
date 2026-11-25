@@ -1,0 +1,9 @@
+# A name that differs only in case from a written entry is refused by exists as well (#1757): the
+# write, read and exists calls promise one answer on every loader, so all three refuse the same name.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    files.write_text("Case_Exists.txt", "first")
+    ctx.assert(files.exists("Case_Exists.txt"), "The exact name should exist.")
+    ctx.expect_error("differs only in case")
+    files.exists("CASE_EXISTS.TXT")
+}

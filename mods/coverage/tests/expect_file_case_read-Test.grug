@@ -1,0 +1,10 @@
+# A name that differs only in case from an entry the read would answer from is refused (#1757), not
+# only on a write: Windows keeps one file where this host keeps two, so answering it would make one
+# path mean a different file on another loader.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    files.write_text("Case_Read.txt", "first")
+    ctx.assert(files.read_text("Case_Read.txt").unwrap() == "first", "The exact name should read what the write put there.")
+    ctx.expect_error("differs only in case")
+    files.read_text("case_read.txt")
+}

@@ -1,0 +1,11 @@
+# The written copy decides what a name is (#1757): a written directory hides the file the mod ships
+# under that name, so a listing of it names the written entries and a read of it reports a directory
+# rather than answering the shipped file.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    files.write_text("dir_shadow.txt/child.txt", "written child")
+    ctx.assert(files.entry_count("dir_shadow.txt") == 1, "The written directory should list its one entry.")
+    ctx.assert(files.entry_name("dir_shadow.txt", 0) == "child.txt", "The written directory should name its written child.")
+    ctx.expect_error("names a directory")
+    files.read_text("dir_shadow.txt")
+}

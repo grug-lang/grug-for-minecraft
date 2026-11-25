@@ -1,0 +1,10 @@
+# A written file hides a directory the mod ships under that name (#1757), so read_text answers the
+# written text and a listing reports the name as a file rather than listing the shipped directory.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    files.write_text("file_shadow", "written file")
+    ctx.assert(files.read_text("file_shadow").unwrap() == "written file", "A written file should win over a shipped directory of that name.")
+    ctx.assert(files.exists("file_shadow"), "The written file should exist.")
+    ctx.expect_error("names a file")
+    files.entry_count("file_shadow")
+}

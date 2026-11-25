@@ -1,0 +1,9 @@
+# A directory whose name differs only in case from a written one is refused by a listing (#1757),
+# because a listing and a read must answer the same path the same way on every loader.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    files.write_text("Case_Dir/child.txt", "x")
+    ctx.assert(files.entry_count("Case_Dir") == 1, "The exact name should list the written directory.")
+    ctx.expect_error("differs only in case")
+    files.entry_count("case_dir")
+}
