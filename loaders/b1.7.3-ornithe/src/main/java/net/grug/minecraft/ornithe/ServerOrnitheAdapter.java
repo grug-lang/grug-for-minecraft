@@ -10,7 +10,6 @@ import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugOverlayCalls;
 import net.grug.minecraft.core.GrugPlayerFloor;
-import net.grug.minecraft.core.GrugRelight;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSide;
@@ -831,41 +830,25 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         }
     }
 
-    /** Sweeps of the room's cells the light may take before it is called not settling. */
-    private static final int RELIGHT_SWEEP_LIMIT = 16;
-
     /**
-     * Brings the room's block light to the one field its blocks define, whatever rooms were built
-     * before it.
+     * The room's light as a dedicated server owes it: both fields swept to the one the blocks
+     * define, with no renderer to rebuild, since this server's own frames are none. The joined
+     * client's copy is made from the region packets this sweep's light is sent in, which the client
+     * applies by marking the sections they cover. See {@link OrnitheRoomLight}.
      */
-    private static void relightRoom(
-            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        GrugRelight.settleImmediately(
-                new ImmediateLight(world), minX, minY, minZ, maxX, maxY, maxZ, RELIGHT_SWEEP_LIMIT);
+    @Override
+    public void relightRoom(
+            Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        OrnitheRoomLight.settle((World) levelObj, minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     /**
-     * This version's engine as {@link GrugRelight.ImmediateRoom} drives it. {@code updateLight}
-     * recomputes the box there and then, so each {@link GrugRelight} piece is drained before the
-     * next is handed over, and the hashed field is the one the resend will send.
+     * Brings the room's light to the one field its blocks define, whatever rooms were built before
+     * it, before the light is sent to the joined client.
      */
-    private static final class ImmediateLight implements GrugRelight.ImmediateRoom {
-        private final World world;
-
-        ImmediateLight(World world) {
-            this.world = world;
-        }
-
-        @Override
-        public void update(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-            this.world.updateLight(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
-            GrugLinkArms.drain(this.world, this.world::doLightUpdates);
-        }
-
-        @Override
-        public int block(int x, int y, int z) {
-            return this.world.getLight(LightType.BLOCK, x, y, z);
-        }
+    private static void relightRoom(
+            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        OrnitheRoomLight.settle(world, minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     /** The server has no frames, so there is nothing to forget. */

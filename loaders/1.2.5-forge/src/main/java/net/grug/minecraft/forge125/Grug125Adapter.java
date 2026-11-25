@@ -1022,6 +1022,26 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         relitSections.record(minX, minY, minZ, maxX, maxY, maxZ);
         GrugRelight.sweepUntilStable(
                 () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), RELIGHT_SWEEP_LIMIT);
+        markSweptSections(world, minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    /**
+     * Marks the sections a sweep changed for a rebuild.
+     *
+     * <p>This version's light engine writes the field with {@code setLightValue}, which notifies no
+     * renderer at all, so a section whose light the sweep changed keeps the mesh it was baked with
+     * until something else happens to mark it: the wall of a room then draws at the brightness it
+     * had before the sweep, which is the scatter a capture reads (#1580). The range request is the
+     * game's own, and it grows the box by one block, so every section the box touches and the
+     * sections beside it are rebuilt. A dedicated server has no renderer to tell, and its joined
+     * client sweeps its own copy through {@code relightClientRoom}, which marks there.
+     */
+    static void markSweptSections(
+            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        if (!world.isRemote) {
+            return;
+        }
+        world.markBlocksDirty(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     /**
