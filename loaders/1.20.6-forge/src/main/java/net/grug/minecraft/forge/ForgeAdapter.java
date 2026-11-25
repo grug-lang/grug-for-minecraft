@@ -57,6 +57,7 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.Block;
@@ -67,6 +68,7 @@ import net.minecraft.world.level.chunk.DataLayer;
 import net.minecraft.world.level.lighting.LayerLightEventListener;
 import net.minecraft.world.level.lighting.LayerLightSectionStorage;
 import net.minecraft.world.level.lighting.LightEngine;
+import net.minecraft.world.level.storage.ServerLevelData;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -1172,17 +1174,52 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public long getWorldTime(Object levelObj) {
+        // The game time, not the day time: the day time advances only while the daylight cycle is
+        // on, so every duration a port measures with Level.get_time would freeze with it off
+        // (#1762). The day time is what getDayTime reads.
+        return ((Level) levelObj).getGameTime();
+    }
+
+    /**
+     * Sets the day time of the level the game simulates, as {@code /time set} does, and the level
+     * data's game time the same, so that {@code Level.get_time} reads back the time that was set
+     * while the sky moves to it: the two counters a version has are both set, so the read-back and
+     * the sky a test asks for can both hold (#1762). The day time is what {@code /time set} and the
+     * sky use; the game time is the counter that keeps counting, which is not moved by the command.
+     * A client's mirror of either is not set: the server's time packet would overwrite it, and the
+     * mirror follows the server's within 20 ticks.
+     */
+    @Override
+    public void setWorldTime(Object levelObj, long time) {
+        ServerLevel level = (ServerLevel) levelObj;
+        level.setDayTime(time);
+        // The level's own level data, which is the server's for a level the game simulates: the
+        // setter lives on ServerLevelData, and a dimension the server derives it for ignores it,
+        // exactly as its own tick does not advance it.
+        ((ServerLevelData) level.getLevelData()).setGameTime(time);
+    }
+
+    /**
+     * Test only: the day time, the clock the sky follows, which stops counting while the daylight
+     * cycle is off. Level.get_time reads the game time instead, so a test can tell the two apart
+     * (#1762).
+     */
+    @Override
+    public double getDayTime(Object levelObj) {
         return ((Level) levelObj).getDayTime();
     }
 
     /**
-     * Sets the day time of the level the game simulates, as {@code /time set} does. A client's
-     * mirror of it is not set: the server's time packet would overwrite it, and the mirror follows
-     * the server's within 20 ticks.
+     * Test only: turns {@code doDaylightCycle} on or off, so a test can prove the game time keeps
+     * counting while the day time stands still (#1762). Answers true, since this version has the
+     * rule: the loaders without one keep the interface's false. The cast is the level a test gets,
+     * which is always the one the game simulates, as {@code setWorldTime} casts it.
      */
     @Override
-    public void setWorldTime(Object levelObj, long time) {
-        ((ServerLevel) levelObj).setDayTime(time);
+    public boolean setDaylightCycle(Object levelObj, boolean on) {
+        ServerLevel level = (ServerLevel) levelObj;
+        level.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(on, level.getServer());
+        return true;
     }
 
     @Override

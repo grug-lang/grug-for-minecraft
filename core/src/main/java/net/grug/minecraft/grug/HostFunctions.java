@@ -439,6 +439,43 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: the day time, the level's clock the sky follows, which on 1.20.6 is the counter
+     * that stops while the daylight cycle is off. {@code Level.get_time} reads the counter that
+     * keeps counting instead, so a test can prove the two apart: with the cycle off, the game time
+     * moves and the day time does not. The answer is -1 on a loader with one clock and no separate
+     * day time to read, a documented no-op rather than an err, so a test that gets -1 knows the day
+     * time is not there and does not assert on it. See #1762.
+     */
+    public static double TestTickContext_get_day_time(long contextId, long levelId) {
+        if (!requireTickContext("TestTickContext.get_day_time", contextId)) return -1;
+        return withEntity(
+                "TestTickContext.get_day_time",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().getDayTime(level),
+                -1.0);
+    }
+
+    /**
+     * Test only: turns the level's daylight cycle on or off and answers whether this loader did so,
+     * so a test can prove that {@code Level.get_time} keeps counting while the sky stands still.
+     * False on a loader with no such rule (Alpha, Beta and 1.2.5) is a documented no-op and not an
+     * err, like {@code set_game_speed}'s answer: a test that gets false skips that arm rather than
+     * passing without it. See #1762.
+     */
+    public static boolean TestTickContext_set_daylight_cycle(
+            long contextId, long levelId, boolean on) {
+        if (!requireTickContext("TestTickContext.set_daylight_cycle", contextId)) return false;
+        worldChanged();
+        return withEntity(
+                "TestTickContext.set_daylight_cycle",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().setDaylightCycle(level, on),
+                false);
+    }
+
+    /**
      * The forwarding end of a mod file call, or null when the call is this process's own. A
      * dedicated server forwards the files only a client reads, a resource under {@code assets/} or
      * an overlay script (#1500), because its own copy reloads nothing a client draws and counts

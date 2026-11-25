@@ -389,15 +389,46 @@ public interface ModLoaderAdapter {
 
     boolean hasNeighborSignal(Object levelObj, double x, double y, double z);
 
-    /** The world's time in ticks, which {@code World.getWorldTime()} is in BuildCraft 2.2.14. */
+    /**
+     * The counter that keeps counting up, which every script measuring a duration reads: {@code
+     * Level.getGameTime()} on 1.20.6, and the one world clock of Alpha, Beta and 1.2.5 ({@code
+     * World.getWorldTime()}, {@code World.getTime()} or the {@code ticks} field), which no daylight
+     * rule stops. The day time the sky follows is a different counter on 1.20.6, and it stops while
+     * the daylight cycle is off: {@link #getDayTime} reads it. See #1762.
+     */
     long getWorldTime(Object levelObj);
 
     /**
-     * Sets the world's time to {@code time} ticks, the way {@code /time set} does, so the sky is
-     * where the clock says from the next tick on. A version that lights what it draws with the sky
-     * light less the darkness the clock gives (Alpha, Beta and 1.2.5) has that darkness follow it.
+     * Sets the world's time to {@code time} ticks, the way {@code /time set} does, so {@link
+     * #getWorldTime} reads it back at once and the sky is where the clock says from the next tick
+     * on. Where a version has two counters, it sets both: on 1.20.6 that is the day time, which
+     * moves the sky, and the level data's game time, which makes the read-back hold. Alpha, Beta
+     * and 1.2.5 have one clock, which the darkness they light what they draw with follows.
      */
     void setWorldTime(Object levelObj, long time);
+
+    /**
+     * Test only: the day time, the clock the sky follows, which on 1.20.6 is the counter that stops
+     * while the daylight cycle is off. Alpha, Beta and 1.2.5 keep this default answer of -1: they
+     * have one clock that serves both roles and no second one to read. -1 is a documented no-op and
+     * not an err, so a test that reads it knows there is no separate day time there and does not
+     * assert on it. See #1762.
+     */
+    default double getDayTime(Object levelObj) {
+        return -1;
+    }
+
+    /**
+     * Test only: turns the level's daylight cycle on or off, and answers whether this loader has
+     * the rule, so a test can prove that {@link #getWorldTime} keeps counting while {@link
+     * #getDayTime} stands still. False is a documented no-op and not an err, like {@link
+     * #setGameSpeed}'s answer: a test that reads false knows the rule is not there to turn off and
+     * skips that arm rather than passing without it. 1.20.6 implements it; Alpha, Beta and 1.2.5
+     * have no such rule and keep this default. See #1762.
+     */
+    default boolean setDaylightCycle(Object levelObj, boolean on) {
+        return false;
+    }
 
     /**
      * The level's own random's next whole number below {@code bound}, which is {@code

@@ -1948,7 +1948,7 @@
 					]
 				},
 				"get_time": {
-					"description": "The world's time in ticks, which keeps counting up. In a test, the ticks TestTickContext.tick_block_entity has run are added to it, because they pass within one game tick.",
+					"description": "The counter that keeps counting up, in ticks, which a machine reads to pace itself: on 1.20.6 it is the level's game time, which advances whether or not the daylight cycle is on, and on Alpha, Beta and Release 1.2.5 it is the one clock each of those versions has (the World.ticks field, World.getTime() and World.getWorldTime() respectively), which no rule stops. The day time the sky follows is a different counter on 1.20.6, and Level.set_time sets both. In a test, a TestTickContext.tick_level advance moves it by the number of ticks that ran, because those are the game's own ticks.",
 					"return_type": {
 						"name": "number"
 					}
@@ -2101,7 +2101,7 @@
 					]
 				},
 				"set_time": {
-					"description": "Sets the world's time to the given number of ticks, which Level.get_time then reads, as the commands of the games do: a day is 24000 ticks and noon is 6000 (Forge's /time set 6000 and Fabric's the same). The sky follows it from the next tick on in the world the game simulates, but a client that joined a server, and the client of 1.20.6's integrated server, learns the new time from the server's time packet, sent every 20 ticks, so a test that captures waits 40 ticks after the call before it places the blocks it captures. On Alpha, Beta and Release 1.2.5 the light a scene is drawn with is the sky light less a darkness that follows the clock, and the stored sky light that Level.get_sky_light reads does not change with it, so a test that captures a scene lit by the sky sets the time first: a mesh that the game built earlier keeps the light it was built with, so it also places the blocks it captures after that wait. It does not stop the clock, which keeps counting up: around noon the darkness stays 0 for about 5000 ticks either side. The time has to be a whole number from 0 to 9007199254740991, or it is reported and the clock is left alone.",
+					"description": "Sets the world's time to the given number of ticks, which Level.get_time then reads back at once, as the commands of the games do: a day is 24000 ticks and noon is 6000 (Forge's /time set 6000 and Fabric's the same). Where a version has two counters it sets both, so the read-back and the sky both hold: on 1.20.6 that is the day time, which the sky follows, and the level data's game time, which Level.get_time reads. Alpha, Beta and Release 1.2.5 have one clock that both counters share, so the time set is the hour a capture is lit by: the light a scene is drawn with is the sky light less a darkness that follows the clock, and the stored sky light that Level.get_sky_light reads does not change with it, so a test that captures a scene lit by the sky sets the time first, because a mesh that the game built earlier keeps the light it was built with. The sky follows the time from the next tick on in the world the game simulates, but a client that joined a server, and the client of 1.20.6's integrated server, learns the new time from the server's time packet, sent every 20 ticks, so a test that captures waits 40 ticks after the call before it places the blocks it captures. Nothing here stops the clock, which keeps counting up: around noon the darkness stays 0 for about 5000 ticks either side. The time has to be a whole number from 0 to 9007199254740991, or it is reported and the clock is left alone.",
 					"parameters": [
 						{
 							"name": "ticks",
@@ -3673,6 +3673,20 @@
 						"name": "Level"
 					}
 				},
+				"get_day_time": {
+					"description": "Test only: the level's day time, the clock the sky follows, which on 1.20.6 is the counter that stops while the daylight cycle is off, where Level.get_time keeps counting. Alpha, Beta and Release 1.2.5 have one clock that serves both roles and no second one to read, so they answer -1, as does any loader that cannot read a separate day time. That is a documented no-op rather than an err, so a test that gets -1 knows there is no separate day time there and does not assert on it. See #1762. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"get_held_count": {
 					"description": "Test only: how many items the player's selected hotbar slot holds, so a test can tell one item from a full stack. The item itself is what `Player.get_held_item` answers. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
@@ -4051,6 +4065,26 @@
 							}
 						}
 					]
+				},
+				"set_daylight_cycle": {
+					"description": "Test only: turns the level's daylight cycle on or off, so a test can prove that Level.get_time keeps counting while the sky stands still. The answer is whether this loader has such a rule: true on 1.20.6, and false on Alpha, Beta and Release 1.2.5, which have none. False is a documented no-op rather than an err, so a test that gets false skips the arm rather than passing without it, as TestTickContext.tick_level's 0 is read. See #1762. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "on",
+							"type": {
+								"name": "bool"
+							}
+						}
+					],
+					"return_type": {
+						"name": "bool"
+					}
 				},
 				"set_held_item": {
 					"description": "Test only: puts one of the item in the player's selected hotbar slot, replacing what was there. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
