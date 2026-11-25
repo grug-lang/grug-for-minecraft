@@ -63,6 +63,9 @@ export tick(ctx: TestTickContext) {
     if step == 1 {
         waited = waited + 1
         ctx.assert(waited < 200, "A frame after the press should draw the overlay and the chest.")
+        # The K press arms the world pass, which draws a line at the chest only while armed, and
+        # the press cleared the drawn mark, so a frame that has drawn since proves the press
+        # reached the joined client and captured the origin the click names.
         if not ctx.world_overlay_drawn() or not ctx.world_settled() {
             ctx.not_done()
             return

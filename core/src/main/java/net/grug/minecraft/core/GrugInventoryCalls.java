@@ -22,7 +22,9 @@ import net.grug.minecraft.grug.Vec3;
  * else's block, and the server refuses it with a line the player is shown, the way it refuses a
  * give from a player who is not an operator. Unlike a give, the check is not about permission but
  * about whose block it is, so a client that placed a block only in its own copy cannot change the
- * server's world with it.
+ * server's world with it. A block entity the position holds but that has no inventory, such as a
+ * sign, and a slot outside the inventory it does have, are refused the same way rather than left to
+ * the cast or the array access that would throw on the server thread.
  */
 public final class GrugInventoryCalls {
     /**
@@ -107,8 +109,12 @@ public final class GrugInventoryCalls {
         String refusal = checkOwnership(adapter, player, x, y, z);
         if (refusal != null) return refusal;
         Object level = adapter.getLevel();
-        if (adapter.getBlockEntity(level, x, y, z) == null) {
+        Object blockEntity = adapter.getBlockEntity(level, x, y, z);
+        if (blockEntity == null) {
             return "The server has no block entity at that position to drop the contents of.";
+        }
+        if (inventorySize(adapter, blockEntity) < 0) {
+            return "The block entity at that position has no inventory to drop the contents of.";
         }
         GrugWorldRevision.bump();
         adapter.dropInventory(level, x, y, z);
@@ -138,13 +144,40 @@ public final class GrugInventoryCalls {
         if (blockEntity == null) {
             return "The server has no block entity at that position to write into.";
         }
+        double size = inventorySize(adapter, blockEntity);
+        if (size < 0) {
+            return "The block entity at that position has no inventory to write into.";
+        }
+        // The slot the adapter writes is the whole part of the number, the way every adapter's own
+        // write casts it, so the range is checked against that same slot.
+        int slotIndex = (int) slot;
+        if (slotIndex < 0 || slotIndex >= size) {
+            // The write goes to a slot the inventory has to have, checked here rather than left to
+            // the adapter's own array access: the client may name any slot up to the wire's own
+            // cap, and an index the inventory does not have would throw on the server thread.
+            return "The block entity's inventory has no slot " + slotIndex + ".";
+        }
         Object item = GrugGiveCalls.itemNamed(adapter, itemName);
         if (item == null) {
             return "The server has no item named " + itemName + ".";
         }
         GrugWorldRevision.bump();
-        adapter.setItemInSlot(blockEntity, slot, item, count);
+        adapter.setItemInSlot(blockEntity, slotIndex, item, count);
         return null;
+    }
+
+    /**
+     * How many slots the block entity's inventory has, or -1 when it has none. Every loader's own
+     * inventory access casts the block entity to its game's container type, so a block entity that
+     * is not one answers with that cast's exception rather than a size: a chest and a sign are both
+     * block entities, and the sign has no inventory a drop or a write could change.
+     */
+    static double inventorySize(ModLoaderAdapter adapter, Object blockEntity) {
+        try {
+            return adapter.getInventorySize(blockEntity);
+        } catch (ClassCastException e) {
+            return -1;
+        }
     }
 
     /**
