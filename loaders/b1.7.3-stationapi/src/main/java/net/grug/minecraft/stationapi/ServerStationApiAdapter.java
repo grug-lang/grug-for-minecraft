@@ -468,6 +468,24 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                                 world.getBrightness(LightType.BLOCK, lightX, lightY, lightZ),
                         (lightX, lightY, lightZ) ->
                                 world.getBrightness(LightType.SKY, lightX, lightY, lightZ));
+        // Diagnostic only (#1765): the simulated side's own levels at the cell the wait asked
+        // about.
+        int cellX = (int) Math.floor(x);
+        int cellY = (int) Math.floor(y);
+        int cellZ = (int) Math.floor(z);
+        System.out.println(
+                "[GRUG RELIGHT] server light at "
+                        + cellX
+                        + ","
+                        + cellY
+                        + ","
+                        + cellZ
+                        + " sky="
+                        + world.getBrightness(LightType.SKY, cellX, cellY, cellZ)
+                        + " block="
+                        + world.getBrightness(LightType.BLOCK, cellX, cellY, cellZ)
+                        + " fingerprint="
+                        + simulated);
         return clientLight.lightApplied(x, y, z, simulated);
     }
 

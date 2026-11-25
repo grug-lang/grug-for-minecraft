@@ -45,6 +45,25 @@ public abstract class ChunkDataRelightMixin {
             byte[] chunkData,
             CallbackInfo ci) {
         World world = (World) (Object) this;
+        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        // Diagnostic only (#1765): the branch is a throwaway and none of these prints may land.
+        System.out.println(
+                "[GRUG RELIGHT] hook x="
+                        + x
+                        + " y="
+                        + y
+                        + " z="
+                        + z
+                        + " size="
+                        + sizeX
+                        + ","
+                        + sizeY
+                        + ","
+                        + sizeZ
+                        + " remote="
+                        + world.isRemote
+                        + " adapter="
+                        + (adapter != null));
         if (!world.isRemote) {
             return;
         }
@@ -54,7 +73,19 @@ public abstract class ChunkDataRelightMixin {
         if (maxY < minY) {
             return;
         }
-        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        System.out.println(
+                "[GRUG RELIGHT] box "
+                        + x
+                        + ","
+                        + minY
+                        + ","
+                        + z
+                        + " .. "
+                        + (x + sizeX - 1)
+                        + ","
+                        + maxY
+                        + ","
+                        + (z + sizeZ - 1));
         if (adapter != null) {
             adapter.relightRoom(world, x, minY, z, x + sizeX - 1, maxY, z + sizeZ - 1);
         }

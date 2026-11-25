@@ -437,8 +437,24 @@ public class StationApiAdapter implements ModLoaderAdapter {
         if (level == null) {
             return -1;
         }
-        ClientBlockLight blockLight = new ClientBlockLight((World) level, LightType.BLOCK);
-        ClientBlockLight skyLight = new ClientBlockLight((World) level, LightType.SKY);
+        // Diagnostic only (#1765): the client's own levels at the cell the wait asked about.
+        World clientWorld = (World) level;
+        int cellX = (int) Math.floor(x);
+        int cellY = (int) Math.floor(y);
+        int cellZ = (int) Math.floor(z);
+        System.out.println(
+                "[GRUG RELIGHT] client light at "
+                        + cellX
+                        + ","
+                        + cellY
+                        + ","
+                        + cellZ
+                        + " sky="
+                        + clientWorld.getBrightness(LightType.SKY, cellX, cellY, cellZ)
+                        + " block="
+                        + clientWorld.getBrightness(LightType.BLOCK, cellX, cellY, cellZ));
+        ClientBlockLight blockLight = new ClientBlockLight(clientWorld, LightType.BLOCK);
+        ClientBlockLight skyLight = new ClientBlockLight(clientWorld, LightType.SKY);
         return GrugLightSync.lightFingerprint(
                 ((int) Math.floor(x)) >> 4,
                 ((int) Math.floor(y)) >> 4,
@@ -1004,15 +1020,112 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        GrugRelight.settle(
-                new QueuedLight((World) levelObj),
-                minX,
-                minY,
-                minZ,
-                maxX,
-                maxY,
-                maxZ,
-                RELIGHT_SWEEP_LIMIT);
+        QueuedLight room = new QueuedLight((World) levelObj);
+        // Diagnostic only (#1765): a throwaway branch measures what the settle moved.
+        int[] before = snapshot(room, minX, minY, minZ, maxX, maxY, maxZ);
+        int[] enginesBefore = engineLight(room);
+        int sweeps =
+                GrugRelight.settle(room, minX, minY, minZ, maxX, maxY, maxZ, RELIGHT_SWEEP_LIMIT);
+        int changed = changed(before, room, minX, minY, minZ, maxX, maxY, maxZ);
+        System.out.println(
+                "[GRUG RELIGHT] settle box "
+                        + minX
+                        + ","
+                        + minY
+                        + ","
+                        + minZ
+                        + " .. "
+                        + maxX
+                        + ","
+                        + maxY
+                        + ","
+                        + maxZ
+                        + " cells="
+                        + ((long) maxX - minX + 1)
+                                * ((long) maxY - minY + 1)
+                                * ((long) maxZ - minZ + 1)
+                        + " changed="
+                        + changed
+                        + " sweeps="
+                        + sweeps
+                        + " drains="
+                        + room.drains);
+        System.out.println(
+                "[GRUG RELIGHT] engines before "
+                        + engineText(enginesBefore)
+                        + " after "
+                        + engineText(engineLight(room)));
+    }
+
+    /**
+     * Diagnostic only (#1765): the redstone_engine_facing_stages test's six engines in this run's
+     * test save, at {@code -22..-17, 71, -56}.
+     */
+    private static final int[] ENGINE_CELLS = {-22, 71, -56};
+
+    /** Diagnostic only (#1765): the sky and block light of two light fields, as pairs. */
+    private static int[] snapshot(
+            QueuedLight room, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        int[] light = new int[(maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1) * 2];
+        int at = 0;
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    light[at++] = room.sky(x, y, z);
+                    light[at++] = room.block(x, y, z);
+                }
+            }
+        }
+        return light;
+    }
+
+    /** Diagnostic only (#1765): how many cells of the box the settle changed. */
+    private static int changed(
+            int[] before,
+            QueuedLight room,
+            int minX,
+            int minY,
+            int minZ,
+            int maxX,
+            int maxY,
+            int maxZ) {
+        int at = 0;
+        int changed = 0;
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    int sky = room.sky(x, y, z);
+                    int block = room.block(x, y, z);
+                    if (before[at] != sky || before[at + 1] != block) {
+                        changed++;
+                    }
+                    at += 2;
+                }
+            }
+        }
+        return changed;
+    }
+
+    /** Diagnostic only (#1765): the sky and block light of the six engine cells. */
+    private static int[] engineLight(QueuedLight room) {
+        int[] light = new int[12];
+        for (int i = 0; i < 6; i++) {
+            light[i] = room.sky(ENGINE_CELLS[0] + i, ENGINE_CELLS[1], ENGINE_CELLS[2]);
+            light[6 + i] = room.block(ENGINE_CELLS[0] + i, ENGINE_CELLS[1], ENGINE_CELLS[2]);
+        }
+        return light;
+    }
+
+    /** Diagnostic only (#1765): six sky levels then six block levels, space separated. */
+    private static String engineText(int[] light) {
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < light.length; i++) {
+            if (i > 0) {
+                text.append(' ');
+            }
+            text.append(light[i]);
+        }
+        return text.toString();
     }
 
     /**
@@ -1023,6 +1136,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
      */
     private static final class QueuedLight implements GrugRelight.Room {
         private final World world;
+
+        /** Diagnostic only (#1765): how many queued light updates the drain processed. */
+        private int drains;
 
         QueuedLight(World world) {
             this.world = world;
@@ -1040,7 +1156,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
         @Override
         public void drain() {
-            while (this.world.doLightingUpdates()) {}
+            while (this.world.doLightingUpdates()) {
+                this.drains++;
+            }
         }
 
         @Override

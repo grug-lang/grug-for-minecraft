@@ -20,6 +20,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.Connection;
+import net.minecraft.world.LightType;
+import net.minecraft.world.World;
 
 import java.awt.image.BufferedImage;
 import java.util.function.Consumer;
@@ -345,6 +347,24 @@ public final class GrugControlStationClient {
                         + ", camera at the room's eye: "
                         + cameraHere
                         + ")");
+        // Diagnostic only (#1765): the client's own light at the engine row's six cells when the
+        // frame is read, which is what the redstone_engine captures draw them from.
+        World captureWorld = mc.world;
+        if (captureWorld != null) {
+            StringBuilder engineLight = new StringBuilder("[GRUG RELIGHT] capture engines sky");
+            for (int i = 0; i < 6; i++) {
+                engineLight
+                        .append(' ')
+                        .append(captureWorld.getBrightness(LightType.SKY, -22 + i, 71, -56));
+            }
+            engineLight.append(" block");
+            for (int i = 0; i < 6; i++) {
+                engineLight
+                        .append(' ')
+                        .append(captureWorld.getBrightness(LightType.BLOCK, -22 + i, 71, -56));
+            }
+            System.out.println(engineLight.toString());
+        }
         done.accept(
                 ((StationApiAdapter) GrugCore.getAdapter()).captureForControl(x1, y1, x2, y2, mc));
     }
