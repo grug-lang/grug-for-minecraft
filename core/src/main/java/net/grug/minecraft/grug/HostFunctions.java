@@ -3819,9 +3819,19 @@ public class HostFunctions {
         return GrugOverlay.keyCode();
     }
 
+    public static double OverlayKeyContext_character(long contextId) {
+        if (!requireOverlayKeyContext("OverlayKeyContext.character", contextId)) return 0.0;
+        return GrugOverlay.character();
+    }
+
     public static boolean OverlayKeyContext_ctrl(long contextId) {
         if (!requireOverlayKeyContext("OverlayKeyContext.ctrl", contextId)) return false;
         return GrugOverlay.ctrl();
+    }
+
+    public static boolean OverlayKeyContext_repeat(long contextId) {
+        if (!requireOverlayKeyContext("OverlayKeyContext.repeat", contextId)) return false;
+        return GrugOverlay.repeat();
     }
 
     public static void OverlayKeyContext_take(long contextId) {

@@ -113,6 +113,19 @@ export key(ctx: OverlayKeyContext) {
         fresh_screen = false
         ctx.take()
     }
+    # A held key is delivered again with repeat() true, which a toggle reads so it flips once per
+    # press (#1741). Only the repeat of Control+A is taken: its first press and the press after a
+    # release are left alone, and a plain letter's repeat is left alone because taking it would hide
+    # a held letter from the item list's search field.
+    if ctx.key() == 65 and ctx.ctrl() and ctx.repeat() {
+        ctx.take()
+    }
+    # A typed character arrives on its own, with key() 0, and ~ (126) is a character no other mod's
+    # test types, so taking it cannot hide a character a field needs. It is the smallest proof that
+    # a punctuation key with no number of its own reaches an overlay as a character.
+    if ctx.character() == 126 {
+        ctx.take()
+    }
 }
 
 # A wheel turned down over the box is taken, and so is one turned up by three notches or more, so a

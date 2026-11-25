@@ -1005,11 +1005,22 @@ public class ClientForgeAdapter extends ForgeAdapter {
         GrugOverlay.beginTestPress();
         int modifiers = ctrl ? GrugOverlayHost.controlModifier() : 0;
         int glfwKey = GrugOverlayHost.glfwKey(key);
-        if (!ForgeEventFactoryClient.onScreenKeyPressedPre(screen, glfwKey, 0, modifiers)) {
-            screen.keyPressed(glfwKey, 0, modifiers);
+        if (glfwKey >= 0) {
+            if (!ForgeEventFactoryClient.onScreenKeyPressedPre(screen, glfwKey, 0, modifiers)) {
+                screen.keyPressed(glfwKey, 0, modifiers);
+            }
+        }
+        // A real press types its character as a second event on this version, so the test does too;
+        // control held types none.
+        int character = ctrl ? 0 : GrugOverlay.typedCharacterFor(key);
+        if (character > 0) {
+            if (!ForgeEventFactoryClient.onScreenCharTypedPre(
+                    screen, (char) character, modifiers)) {
+                screen.charTyped((char) character, modifiers);
+            }
         }
         outcome[1] = GrugOverlay.testPressTaken();
-        if (release) {
+        if (release && glfwKey >= 0) {
             ForgeEventFactoryClient.onScreenKeyReleasedPre(screen, glfwKey, 0, modifiers);
         }
     }

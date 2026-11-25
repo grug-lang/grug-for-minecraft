@@ -234,9 +234,12 @@ public final class GrugOverlayHost {
     /**
      * Lets an overlay take a key press before the screen's own handler sees it.
      *
-     * <p>Only a letter or a digit key is asked, given as its upper case character code, which is
-     * the same number on every loader; the key is cancelled when an overlay took it, and asking
-     * stops at the first overlay that does.
+     * <p>Only a letter or a digit key, the space bar and backspace are asked, given as the numbers
+     * {@code OverlayKeyContext.key} documents, which are the same on every loader; the key is
+     * cancelled when an overlay took it, and asking stops at the first overlay that does. A press
+     * the game reports again while its key is still held is delivered too, with {@code
+     * OverlayKeyContext.repeat} true, so a toggle flips once per press and a text field types its
+     * character again.
      */
     @SubscribeEvent
     public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
@@ -245,18 +248,51 @@ public final class GrugOverlayHost {
         int key = overlayKey(event.getKeyCode());
         if (key < 0) return;
 
-        // A held key repeats the press event, and a toggle must flip once per press.
-        if (event.getKeyCode() == heldKey) return;
+        boolean repeat = event.getKeyCode() == heldKey;
         heldKey = event.getKeyCode();
 
         boolean ctrl = (event.getModifiers() & controlModifier()) != 0;
+        if (deliverKey(event.getScreen(), 0, key, ctrl, repeat)) {
+            event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Lets an overlay take a typed character before the screen's own handler sees it, which is the
+     * event Forge fires beside the key press (#1741). The character is the one the game produced,
+     * so shift and the keyboard layout are already applied, and a punctuation key arrives here with
+     * no key number of its own.
+     *
+     * <p>The event carries no repeat bit, so the character of a held key's repeat is delivered with
+     * {@code OverlayKeyContext.repeat} false while the key press beside it carries the answer. A
+     * held printable key still types its character again for every repeat.
+     */
+    @SubscribeEvent
+    public static void onScreenCharTyped(ScreenEvent.CharacterTyped.Pre event) {
+        AbstractContainerScreen<?> container = eligible(event.getScreen());
+        if (container == null) return;
+        int character = GrugOverlay.characterCode(event.getCodePoint());
+        if (character == 0) return;
+        boolean ctrl = (event.getModifiers() & controlModifier()) != 0;
+        if (deliverKey(event.getScreen(), character, 0, ctrl, false)) {
+            event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Asks every overlay about one key press or typed character and answers whether one took it,
+     * recording the answer for {@code TestTickContext.press_screen_key}.
+     */
+    private static boolean deliverKey(
+            Screen screen, double character, double key, boolean ctrl, boolean repeat) {
         for (GrugOverlayScripts.Script overlay : overlays()) {
-            if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, key, ctrl)) {
+            if (GrugOverlay.key(
+                    overlay.entityHandle, overlay.keyFnId, key, character, ctrl, repeat)) {
                 GrugOverlay.noteTestPressTaken();
-                event.setCanceled(true);
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     /**
@@ -272,9 +308,13 @@ public final class GrugOverlayHost {
         return letter || digit ? glfwKey : -1;
     }
 
-    /** The GLFW key code of the key an overlay's key() number stands for. */
+    /** The GLFW key code of the number a test presses, or -1 when the number names no such key. */
     static int glfwKey(int overlayKey) {
-        return overlayKey == GrugOverlay.KEY_BACKSPACE ? GLFW_KEY_BACKSPACE : overlayKey;
+        if (overlayKey == GrugOverlay.KEY_BACKSPACE) return GLFW_KEY_BACKSPACE;
+        if (overlayKey == GrugOverlay.KEY_SPACE) return GLFW_KEY_SPACE;
+        boolean letter = overlayKey >= 'A' && overlayKey <= 'Z';
+        boolean digit = overlayKey >= '0' && overlayKey <= '9';
+        return letter || digit ? overlayKey : -1;
     }
 
     /** The key held since its first press, or -1: a second press event for it is a key repeat. */
