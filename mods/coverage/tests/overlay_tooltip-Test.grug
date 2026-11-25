@@ -3,16 +3,23 @@
 # sees. The coverage overlay draws the delete message while the cursor carries an item and the mouse
 # is over its own box, so the mouse is parked at the box's centre and the crop starts right of the
 # cursor's own stack, leaving the message as the only thing that can differ between the two captures.
-# The smoketest draws nothing, so it marks the capture STUBBED and the comparison is skipped there;
-# the jei golden proves the look itself.
+# The smoketest draws nothing, so it skips the captures; the jei golden proves the look itself.
 started: bool = false
 opened: bool = false
 waited: number = 0
 step: number = 0
+attempts: number = 0
+retry_at: number = 0
 before: Option[Screenshot] = Option.new()
 
 # The window is 1280 by 720 at a GUI scale of 3, as the item list's own capture test explains.
 frame_scale: number = 3
+
+export init(ctx: TestInitContext) {
+    # A loader that reads the back buffer can serve a capture a frame drawn several ticks ago, so
+    # the message is waited for in captures taken 30 ticks apart, up to eight times.
+    ctx.set_max_ticks(600)
+}
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -60,6 +67,8 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 0 {
+        # The frame without the message: an empty cursor parks the mouse over the box, so this
+        # capture holds the box and the stack the game draws around the cursor, and no message.
         ctx.clear_carried_item()
         # The overlay keeps the message off every other mod's screen, so the cursor is parked at the
         # centre of its own box, which is nine pixels either side of the screen's middle.
@@ -73,17 +82,34 @@ export tick(ctx: TestTickContext) {
     if step == 1 {
         ctx.set_carried_item(item_at(0))
         ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item on the cursor.")
+        if me.loader_name() == "smoketest" {
+            # Nothing is drawn there, so no capture can show the message; the host marks the calls
+            # above STUBBED and the jei golden proves the look itself.
+            ctx.close_screen()
+            return
+        }
+        retry_at = ctx.current_tick()
         step = 2
         ctx.not_done()
         return
     }
 
-    after: Screenshot = ctx.screenshot().capture(_left(ctx), _top(ctx), _right(ctx), _bottom(ctx))
-    # A loader's own frame is what a capture reads, so the smoketest cannot compare two of them; it
-    # marked the capture STUBBED, and the calls above are proved by a golden in mods/jei instead.
-    if me.loader_name() != "smoketest" {
-        after.differs_from(before.unwrap(), 1)
+    # A frame is not drawn between every two ticks, and the older loaders read the back buffer
+    # rather than waiting for a frame of their own, so the message is waited for instead of
+    # assumed: a capture that still matches the frame with an empty cursor is taken again later.
+    if ctx.current_tick() < retry_at + 30 {
+        ctx.not_done()
+        return
     }
+    after: Screenshot = ctx.screenshot().capture(_left(ctx), _top(ctx), _right(ctx), _bottom(ctx))
+    if after.change_from(before.unwrap()) < 1 {
+        attempts = attempts + 1
+        ctx.assert(attempts < 8, "The delete message never reached the frame.")
+        retry_at = ctx.current_tick()
+        ctx.not_done()
+        return
+    }
+    after.differs_from(before.unwrap(), 1)
     ctx.clear_carried_item()
     ctx.close_screen()
 }
