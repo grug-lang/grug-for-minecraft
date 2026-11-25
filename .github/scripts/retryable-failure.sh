@@ -31,7 +31,13 @@
 # lines. It retries a timeout or a decode error but not a connection reset, so one reset anywhere in
 # the batch ends the install. The line is the retryable part; the exited case prints the URL beside
 # it (#1149).
-RETRYABLE_FAILURE_RE='\[ ERRO \] Failed to download|net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate|Could not find [^ :]+:[^ :]+:[^ :]+\.|Could not resolve all (files|artifacts) for configuration|Could not resolve dependency: [^ :]+:[^ :]+:[^ :]+|Could not (GET|HEAD) .https?://'
+#
+# The production launch also fetches metadata itself, with `curl --fail`, for the Ornithe, Babric and
+# Modrinth versions and profiles, and curl prints "curl: (22) The requested URL returned error: 503"
+# on stderr when such a host answers badly. That fetch fails before the game exists, so it earns the
+# same one retry. Only a 5xx is matched: a 404 is the host's final answer, and repeating it would
+# only delay the job.
+RETRYABLE_FAILURE_RE='\[ ERRO \] Failed to download|curl: .*The requested URL returned error: 5[0-9][0-9]|net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate|Could not find [^ :]+:[^ :]+:[^ :]+\.|Could not resolve all (files|artifacts) for configuration|Could not resolve dependency: [^ :]+:[^ :]+:[^ :]+|Could not (GET|HEAD) .https?://'
 retryable_failure() {
   grep -m1 -E "$RETRYABLE_FAILURE_RE" "$1" 2>/dev/null
 }
