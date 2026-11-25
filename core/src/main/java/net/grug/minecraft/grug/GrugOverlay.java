@@ -150,10 +150,34 @@ public final class GrugOverlay {
      * The typed character a key() call carries for a character a loader reports, or 0 for one an
      * overlay is not given: a printable character from 32 up, except 127, which is delete. Every
      * other value is a control character or the code of a key with no text of its own.
+     *
+     * <p>A UTF-16 surrogate (0xD800 to 0xDFFF) is not given either. It is half of a code point
+     * above the Basic Multilingual Plane, and the game reports such a code point as two surrogate
+     * events (1.20.6 splits it itself, LWJGL 2 delivers one). Neither half is the character the
+     * player typed, and {@code String.from_character} refuses a surrogate, so such a character
+     * cannot be typed through this call at all: the event is dropped rather than sending half of
+     * it.
      */
     public static int characterCode(int reported) {
         if (reported < KEY_SPACE || reported == 127) return 0;
+        if (reported >= 0xD800 && reported <= 0xDFFF) return 0;
         return reported;
+    }
+
+    /**
+     * Whether an event that carries a printable character is a key chord, which a text field leaves
+     * to the screen, rather than a character of its own: control is held and alt is not.
+     *
+     * <p>An AltGr press, which is how a German or French layout types an at sign, a bar, a tilde, a
+     * backslash or a brace, reaches the game on Windows as control and alt together: Windows sends
+     * a spurious left control down beside the right alt, which is what Ctrl+Alt means there, and
+     * GLFW keeps those bits on the character event. Its printable character belongs to the keyboard
+     * layout and is typed, so it must not be mistaken for a chord. A real control chord (Ctrl and a
+     * letter) has control without alt, and on X11 or macOS AltGr sets no control bit at all, so the
+     * character is typed there either way. See #1741.
+     */
+    public static boolean characterEventIsChord(boolean ctrl, boolean alt) {
+        return ctrl && !alt;
     }
 
     /**

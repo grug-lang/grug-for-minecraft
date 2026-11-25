@@ -216,6 +216,9 @@ export key(ctx: OverlayKeyContext) {
         ctx.take()
         return
     }
+    # A control chord is the screen's to handle, while a character the keyboard layout produces with
+    # AltGr is not one: the loader tells the two apart, so such a character arrives with ctrl() false
+    # and is typed here (#1741).
     if not shown or not field_visible or not focused or ctx.ctrl() {
         return
     }

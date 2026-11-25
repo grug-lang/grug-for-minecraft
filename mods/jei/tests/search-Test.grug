@@ -12,8 +12,9 @@ opened: bool = false
 waited: number = 0
 step: number = 0
 # Which query step 4 types: 0 is an @ before a mod id, 1 a bar between two words, 2 a minus before
-# a word, 3 two words in the reverse of the name they find, and 4 that pair quoted, whose quoted run
-# is no item name and whose list is therefore empty, which is how the test sees the quote arrive.
+# a word, 3 two words in the reverse of the name they find, 4 those words quoted in the name's order,
+# whose one quoted run is that name, and 5 them quoted the other way, whose quoted run is no item
+# name and whose list is therefore empty.
 round: number = 0
 
 export tick(ctx: TestTickContext) {
@@ -120,10 +121,12 @@ export tick(ctx: TestTickContext) {
     }
 
     # Steps 4 and 5 type one punctuation query, give its first item and check it is the item the
-    # query's own search names. The last round is the same two words quoted, whose quoted run is no
-    # item name and whose list is therefore empty, so its first cell takes no press: the words
-    # unquoted were proved to list items just before, so an empty list there can only mean the
-    # quotes reached the field.
+    # query's own search names. Round 4 quotes the two words in the order the item's name holds them,
+    # so its one quoted run is that name and its list is the iron ores; a quote that arrived as any
+    # other character would leave a run no item name holds, an empty list and no press to take.
+    # Round 5 quotes them the other way, whose quoted run is no item name and whose list is therefore
+    # empty, so its first cell takes no press: the words unquoted were proved to list items just
+    # before, so an empty list there can only mean the quotes reached the field.
     if step == 4 {
         if ctx.get_player().get_held_item().has() {
             waited = waited + 1
@@ -133,7 +136,7 @@ export tick(ctx: TestTickContext) {
         }
         # A right click on the field clears it and focuses it again.
         ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 1), "A right click on the field should clear it.")
-        if round == 4 {
+        if round == 5 {
             _type_quoted_ore_iron(ctx)
             ctx.assert(not ctx.click_screen(_cell_x(ctx), _cell_y(), 1), "A quoted pair of words should leave the list empty, so its first cell takes no press.")
             # The search text outlives the screen, so the field is emptied before the screen closes.
@@ -165,6 +168,11 @@ export tick(ctx: TestTickContext) {
                 ctx.not_done()
                 return
             }
+        } else if round == 4 {
+            if not _arrived(ctx, search_item_at("\"iron ore\"", 0), "A quoted run in the name's order should list the items whose name holds it.") {
+                ctx.not_done()
+                return
+            }
         } else if not _arrived(ctx, search_item_at("ore iron", 0), "Two words should list the items whose name holds both.") {
             ctx.not_done()
             return
@@ -191,11 +199,16 @@ local _type(ctx: TestTickContext, word: string) {
 }
 
 # Types the query of a round: an @ before a mod id, a bar between two words, a minus before a word,
-# or two words whose order is the reverse of the name they find.
+# two words whose order is the reverse of the name they find, or those words quoted in the name's
+# order.
 local _type_query(ctx: TestTickContext, which: number) {
     if which == 0 {
         ctx.assert(ctx.press_screen_key(64, false, true), "An @ should be taken while the field is focused.")
         _type(ctx, "minecraft")
+        return
+    }
+    if which == 4 {
+        _type_quoted_iron_ore(ctx)
         return
     }
     if which == 3 {
@@ -213,6 +226,17 @@ local _type_query(ctx: TestTickContext, which: number) {
     ctx.assert(ctx.press_screen_key(32, false, true), "The space bar should be taken while the field is focused.")
     ctx.assert(ctx.press_screen_key(45, false, true), "A minus should be taken while the field is focused.")
     _type(ctx, "ore")
+}
+
+# Types `"iron ore"`, whose one quoted run is the name the iron ore items hold, while a quote that
+# arrived as any other character would leave a run no item name holds and an empty list. The quote
+# (34) is a key with no number of its own.
+local _type_quoted_iron_ore(ctx: TestTickContext) {
+    ctx.assert(ctx.press_screen_key(34, false, true), "An opening quote should be taken while the field is focused.")
+    _type(ctx, "iron")
+    ctx.assert(ctx.press_screen_key(32, false, true), "The space bar should be taken inside a quoted run.")
+    _type(ctx, "ore")
+    ctx.assert(ctx.press_screen_key(34, false, true), "A closing quote should be taken while the field is focused.")
 }
 
 # Types `"ore iron"`, whose quoted run of five characters and a space is no item name, while the

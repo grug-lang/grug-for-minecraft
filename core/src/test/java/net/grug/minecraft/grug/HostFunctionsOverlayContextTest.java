@@ -425,6 +425,32 @@ class HostFunctionsOverlayContextTest {
     }
 
     @Test
+    void aSurrogateIsHalfACodePointAndIsNotTypedText() {
+        // A character above the Basic Multilingual Plane arrives as two surrogate events on every
+        // loader (1.20.6 splits the code point itself, LWJGL 2 delivers one), and the grug function
+        // from_character refuses a surrogate, so neither half is delivered. The character either
+        // side of the range is a whole character and stays (#1741).
+        assertEquals(0xD7FF, GrugOverlay.characterCode(0xD7FF));
+        assertEquals(0, GrugOverlay.characterCode(0xD800));
+        assertEquals(0, GrugOverlay.characterCode(0xDBFF));
+        assertEquals(0, GrugOverlay.characterCode(0xDC00));
+        assertEquals(0, GrugOverlay.characterCode(0xDFFF));
+        assertEquals(0xE000, GrugOverlay.characterCode(0xE000));
+    }
+
+    @Test
+    void aCharacterThatAltGrProducesIsNotAChord() {
+        // Windows reports an AltGr press as control and alt together (it sends a spurious left
+        // control down beside the right alt, and GLFW keeps both bits on the character event), so a
+        // German @ or a French ~ reaches an overlay with control held. It is the character of the
+        // layout and is typed, not a chord (#1741).
+        assertFalse(GrugOverlay.characterEventIsChord(false, false));
+        assertFalse(GrugOverlay.characterEventIsChord(false, true));
+        assertTrue(GrugOverlay.characterEventIsChord(true, false));
+        assertFalse(GrugOverlay.characterEventIsChord(true, true));
+    }
+
+    @Test
     void aTestsPressTypesTheCharacterItsKeyProducesWithoutShift() {
         assertEquals('a', GrugOverlay.typedCharacterFor('A'));
         assertEquals('z', GrugOverlay.typedCharacterFor('Z'));

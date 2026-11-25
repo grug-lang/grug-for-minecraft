@@ -224,6 +224,11 @@ public final class GrugOverlayHost {
      * character only. A press the game reports again while its key is held is delivered with {@code
      * OverlayKeyContext.repeat} true, so a toggle flips once per press and a text field types its
      * character again.
+     *
+     * <p>An event that types a printable character is delivered as a control chord only when
+     * control is held without alt: on Windows an AltGr press carries both bits, and the character
+     * it types is the keyboard layout's own, which a text field types instead of leaving it to the
+     * screen (#1741).
      */
     public static boolean key(Screen screen, char character, int key) {
         if (geometry(screen) == null) return false;
@@ -234,8 +239,10 @@ public final class GrugOverlayHost {
 
         boolean ctrl = isControlDown();
         boolean repeat = isRepeat();
+        boolean chord = typed > 0 ? GrugOverlay.characterEventIsChord(ctrl, isAltDown()) : ctrl;
         for (GrugOverlayScripts.Script overlay : overlays()) {
-            if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, code, typed, ctrl, repeat)) {
+            if (GrugOverlay.key(
+                    overlay.entityHandle, overlay.keyFnId, code, typed, chord, repeat)) {
                 GrugOverlay.noteTestPressTaken();
                 return true;
             }
@@ -248,6 +255,15 @@ public final class GrugOverlayHost {
         if (testPress) return testCtrl;
         return Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
                 || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
+    }
+
+    /**
+     * Whether alt is held, which with control on Windows is how an AltGr press is reported, as the
+     * spurious left control it sends beside the right alt.
+     */
+    private static boolean isAltDown() {
+        if (testPress) return false;
+        return Keyboard.isKeyDown(Keyboard.KEY_LMENU) || Keyboard.isKeyDown(Keyboard.KEY_RMENU);
     }
 
     /** Whether the key event is the game repeating a held key, or the test press says it is. */
