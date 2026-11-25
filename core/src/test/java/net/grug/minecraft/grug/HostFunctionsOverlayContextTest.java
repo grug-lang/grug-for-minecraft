@@ -379,7 +379,7 @@ class HostFunctionsOverlayContextTest {
 
     @Test
     void aKeyContextAnswersItsKeyAndTakesIt() {
-        GrugOverlay.openKey(79, true);
+        GrugOverlay.openKey(79, 0, true, false);
         long context = keyContext();
 
         assertTrue(GrugOverlay.isKey());
@@ -395,30 +395,69 @@ class HostFunctionsOverlayContextTest {
 
     @Test
     void aKeyThatIsNotTakenIsNotReportedTaken() {
-        GrugOverlay.openKey(80, false);
+        GrugOverlay.openKey(80, 0, false, false);
         assertFalse(HostFunctions.OverlayKeyContext_ctrl(keyContext()));
         assertFalse(GrugOverlay.closeKey());
     }
 
     @Test
+    void aKeyContextAnswersTheCharacterItTypedAndWhetherItIsARepeat() {
+        GrugOverlay.openKey(0, 59, false, true);
+        long context = keyContext();
+
+        assertEquals(0, HostFunctions.OverlayKeyContext_key(context), "A ; has no key number.");
+        assertEquals(59, HostFunctions.OverlayKeyContext_character(context));
+        assertTrue(HostFunctions.OverlayKeyContext_repeat(context));
+        assertFalse(HostFunctions.OverlayKeyContext_ctrl(context));
+        assertFalse(GrugOverlay.closeKey(), "Reading the context did not take it.");
+    }
+
+    @Test
+    void onlyAPrintableCharacterIsTypedText() {
+        assertEquals(59, GrugOverlay.characterCode(';'));
+        assertEquals(64, GrugOverlay.characterCode('@'));
+        assertEquals(32, GrugOverlay.characterCode(' '));
+        assertEquals('a', GrugOverlay.characterCode('a'));
+        assertEquals(0, GrugOverlay.characterCode(0));
+        assertEquals(0, GrugOverlay.characterCode(8));
+        assertEquals(0, GrugOverlay.characterCode(31));
+        assertEquals(0, GrugOverlay.characterCode(127));
+    }
+
+    @Test
+    void aTestsPressTypesTheCharacterItsKeyProducesWithoutShift() {
+        assertEquals('a', GrugOverlay.typedCharacterFor('A'));
+        assertEquals('z', GrugOverlay.typedCharacterFor('Z'));
+        assertEquals('7', GrugOverlay.typedCharacterFor('7'));
+        assertEquals(32, GrugOverlay.typedCharacterFor(32));
+        assertEquals(59, GrugOverlay.typedCharacterFor(59));
+        assertEquals(64, GrugOverlay.typedCharacterFor(64));
+        assertEquals(0, GrugOverlay.typedCharacterFor(8));
+    }
+
+    @Test
     void aKeyMethodOutsideAKeyPassIsRefused() {
-        GrugOverlay.openKey(79, true);
+        GrugOverlay.openKey(79, 0, true, false);
         long context = keyContext();
         GrugOverlay.closeKey();
 
         HostFunctions.OverlayKeyContext_key(context);
+        HostFunctions.OverlayKeyContext_character(context);
         HostFunctions.OverlayKeyContext_ctrl(context);
+        HostFunctions.OverlayKeyContext_repeat(context);
         HostFunctions.OverlayKeyContext_take(context);
 
         List<String> reports = drain();
-        assertEquals(3, reports.size());
+        assertEquals(5, reports.size());
         assertTrue(reports.get(0).contains("OverlayKeyContext.key"), reports.get(0));
-        assertTrue(reports.get(2).contains("OverlayKeyContext.take"), reports.get(2));
+        assertTrue(reports.get(1).contains("OverlayKeyContext.character"), reports.get(1));
+        assertTrue(reports.get(3).contains("OverlayKeyContext.repeat"), reports.get(3));
+        assertTrue(reports.get(4).contains("OverlayKeyContext.take"), reports.get(4));
     }
 
     @Test
     void aKeyContextIsRefusedByAClickMethodAndTheOtherWayRound() {
-        GrugOverlay.openKey(79, false);
+        GrugOverlay.openKey(79, 0, false, false);
         long context = keyContext();
         HostFunctions.OverlayClickContext_take(context);
         assertEquals(1, drain().size());
@@ -432,7 +471,7 @@ class HostFunctionsOverlayContextTest {
 
     @Test
     void passesCannotBeClosedAsAnotherKind() {
-        GrugOverlay.openKey(79, false);
+        GrugOverlay.openKey(79, 0, false, false);
         org.junit.jupiter.api.Assertions.assertThrows(
                 RuntimeException.class, GrugOverlay::closeClick);
         org.junit.jupiter.api.Assertions.assertThrows(

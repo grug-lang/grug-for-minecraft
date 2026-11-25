@@ -68,9 +68,9 @@
 					"tracking_issue": 870
 				},
 				{
-					"what": "The search field takes only letters, digits and the space bar, with backspace to delete, so a quote, a minus, a bar or an @ cannot be typed, and a held key does not repeat. It has no cursor movement, selection, paste or history, and no blinking cursor. Its box is an outline and not the reference's nine-slice texture, and it has no config button beside it.",
-					"why": "The overlay's key pass carries letters, digits, space and backspace only; a character input callback on every loader is a separate piece.",
-					"tracking_issue": 865
+					"what": "The search field has no caret movement with the arrows, Home or End, no selection, select-all, cut, copy or paste, no delete key, no undo and no search history, and its caret does not blink. Its box is an outline and not the reference's nine-slice texture, and it has no config button beside it.",
+					"why": "The overlay's key pass names the arrows, Home, End and Delete as keys an overlay is not given, and the host has no call for the field's selection or the clipboard.",
+					"tracking_issue": 1748
 				},
 				{
 					"what": "A search matches the item's name, and a word that starts with @ matches the mod id. The reference's tooltip search (its # prefix, on by default), tag search ($) and the other modes are not there: a # or $ is searched as part of the name. A mod's name is not searched, only its id, and Alpha has no item names, so its words match the registry name.",
