@@ -21,6 +21,11 @@
 # The sky light that is drawn depends on the clock (1.2.5 draws the stored sky light less a darkness
 # that follows the time of day; Alpha and Beta do the same), so the test sets noon before it places
 # the platform, and every capture is at the same hour whatever the run's clock was (#1550).
+# The platform's light is a change of 169 blocks, and 1.2.5's incremental light keeps propagating it
+# long after the two probe squares read right, so the waits take the 3000-tick budget its siblings
+# overlay_unmarked and overlay_scan_clock take for the same settle: that is 375 of the scan's own
+# intervals at the file's default update_rate of 8 ticks. The settle itself is waited on through
+# world_settled; the budget only bounds a settle that never comes.
 state: number = 0
 waited: number = 0
 settled_ticks: number = 0
@@ -34,10 +39,16 @@ clock_at: number = 0
 rd: number = 0
 safe: number = 0
 
+# The room build, the light settle and the scan waits are longer than the default budget, so it is
+# raised rather than a wait shortened.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(3000)
+}
+
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     waited = waited + 1
-    late: bool = waited >= 1500
+    late: bool = waited >= 3000
 
     if state == 0 {
         if not me.world_overlay_supported() {
