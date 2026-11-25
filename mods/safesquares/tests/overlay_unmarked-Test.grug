@@ -25,17 +25,19 @@
 # 5. The square is empty and at the safe level again: marked again.
 # 6. L a second time turns the overlay off: not marked.
 
-# The scan is taken again every update_rate ticks of the level's time, so each case waits two rates
-# and a margin after its change before it reads a frame, which is long enough for a scan to have
-# seen it even when a joined client learns the level's time from a packet every 20 ticks. The wait
-# does not read the overlay, because a dedicated server freezes its world on every such read and
-# the client draws and scans on its own frames. The light is waited for through light_applied, since
-# a joined client's copy carries the section's light and the overlay draws from that copy.
+# The scan is taken again every update_rate ticks of the level's time, so a change needs a scan and
+# then a frame before the marks show it. Each case waits for its own answer instead of for a fixed
+# number of ticks: it clears the mark with a key the overlay does not take and then reads a frame per
+# tick until a frame draws what the change says, which is long enough on a joined client that learns
+# the level's time from a packet every 20 ticks and no longer than it has to be. A read freezes a
+# dedicated server for a control round trip, so a wait that ended at a tick count spent most of it on
+# frames that had nothing left to show, and one that read nothing at all could end before the client
+# had scanned. The light is waited for through light_applied, since a joined client's copy carries
+# the section's light and the overlay draws from that copy.
 state: number = 0
 waited: number = 0
 rate: number = 0
 safe: number = 0
-change_at: number = 0
 cleared_at: number = 0
 drawn_waited: number = 0
 px: number = 0
@@ -111,7 +113,6 @@ export tick(ctx: TestTickContext) {
         }
         # L turns the overlay on, and an active overlay scans at once.
         ctx.press_world_key(76, false)
-        change_at = ctx.current_tick()
         state = 3
         ctx.not_done()
         return
@@ -131,7 +132,6 @@ export tick(ctx: TestTickContext) {
         # square is a torch, not a solid block, and its own light is 14, above the safe level.
         level.place_block(px + 1, py - 1, pz, "minecraft:stone")
         level.place_block(px + 1, py, pz, "minecraft:torch")
-        change_at = ctx.current_tick()
         state = 4
         ctx.not_done()
         return
@@ -146,30 +146,34 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        if ctx.current_tick() - change_at < 2 * rate + 40 {
-            ctx.not_done()
-            return
-        }
-        # K is a key the overlay does not take, so the press only clears the frame flag. The read
-        # after a frame's worth of ticks is the batch the next frame draws.
+        # K is a key the overlay does not take, so the press only clears the mark, and the frames
+        # after it are the ones the change decides.
         ctx.press_world_key(75, false)
-        cleared_at = ctx.current_tick()
+        drawn_waited = 0
         state = 5
         ctx.not_done()
         return
     }
 
     if state == 5 {
-        if ctx.current_tick() - cleared_at < 12 {
+        # A read answers the frame before the one it asks for, so the first two answers after the
+        # press cannot tell a drawn frame from the cleared mark. From the third on they can, and the
+        # wait ends at the first frame whose scan found the square lit above the safe level: that
+        # scan marks nothing and the frame draws nothing.
+        drawn_waited = drawn_waited + 1
+        ctx.assert(drawn_waited < 10 * rate + 120, "A square lit above the safe level should not be marked.")
+        if drawn_waited <= 2 {
             ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
-        ctx.assert(not ctx.world_overlay_drawn(), "A square lit above the safe level should not be marked.")
+        if ctx.world_overlay_drawn() {
+            ctx.not_done()
+            return
+        }
         # A redstone torch in the torch's place lights the square to 6: above 1.20.6's own spawn
         # limit of 0 and at or below the file's 7, so the reference's rule marks the square there.
         level.place_block(px + 1, py, pz, "minecraft:redstone_torch")
-        change_at = ctx.current_tick()
         state = 6
         ctx.not_done()
         return
@@ -181,10 +185,6 @@ export tick(ctx: TestTickContext) {
             return
         }
         if not ctx.light_applied(px, py, pz) {
-            ctx.not_done()
-            return
-        }
-        if ctx.current_tick() - change_at < 2 * rate + 40 {
             ctx.not_done()
             return
         }
@@ -213,7 +213,6 @@ export tick(ctx: TestTickContext) {
         level.place_block(px + 1, py, pz, "minecraft:air")
         level.place_block(px + 1, py - 1, pz, "minecraft:air")
         level.place_block(px, py, pz, "minecraft:torch")
-        change_at = ctx.current_tick()
         state = 8
         ctx.not_done()
         return
@@ -228,28 +227,30 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        if ctx.current_tick() - change_at < 2 * rate + 40 {
-            ctx.not_done()
-            return
-        }
         ctx.press_world_key(75, false)
-        cleared_at = ctx.current_tick()
+        drawn_waited = 0
         state = 9
         ctx.not_done()
         return
     }
 
     if state == 9 {
-        if ctx.current_tick() - cleared_at < 12 {
+        # The same wait as the torch beside the square: the frame that shows the square unmarked,
+        # after the two answers that cannot tell it from the cleared mark.
+        drawn_waited = drawn_waited + 1
+        ctx.assert(drawn_waited < 10 * rate + 120, "A square lit to 14 in the square itself should not be marked.")
+        if drawn_waited <= 2 {
             ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
-        ctx.assert(not ctx.world_overlay_drawn(), "A square lit to 14 in the square itself should not be marked.")
+        if ctx.world_overlay_drawn() {
+            ctx.not_done()
+            return
+        }
         # The square is empty again and the torches near the column are still gone, so it is at the
         # safe level and a spawn space: a mark again.
         level.place_block(px, py, pz, "minecraft:air")
-        change_at = ctx.current_tick()
         state = 10
         ctx.not_done()
         return
@@ -265,10 +266,6 @@ export tick(ctx: TestTickContext) {
             return
         }
         if not ctx.light_applied(px, py, pz) {
-            ctx.not_done()
-            return
-        }
-        if ctx.current_tick() - change_at < 2 * rate + 40 {
             ctx.not_done()
             return
         }
