@@ -19,9 +19,11 @@
 # safe level and marked, as overlay_unmarked explains. The key pressed to clear the drawn flag is
 # one the overlay does not take, so the state it checks is the same one its own scan decides.
 
-# A joined client's level is the server's mirror, so the time and the block reach it in packets: the
-# test waits out both before it clears the mark, so the only thing that decides the last frame is
-# whether the overlay scanned on the backwards clock.
+# A joined client's level is the server's mirror, so the time and the block reach it in packets. The
+# block is waited for with the world settle, and the time with a press whose frame draws nothing:
+# the test's own level is the server's on a dedicated run, so the client's clock has no read here.
+# The press is bounded, so a scan that did not run on the backwards clock cannot pass the test: the
+# forward batch it would hold is 100000 ticks away from being due again.
 state: number = 0
 waited: number = 0
 rate: number = 0
@@ -30,7 +32,8 @@ original_time: number = 0
 jump_to: number = 0
 forward_at: number = 0
 forward_waited: number = 0
-back_at: number = 0
+settled: number = 0
+presses: number = 0
 cleared_at: number = 0
 drawn_waited: number = 0
 px: number = 0
@@ -159,22 +162,26 @@ export tick(ctx: TestTickContext) {
     }
 
     if state == 6 {
-        # The torch's light and the backwards time reach a joined client in packets; the frames run
-        # for long enough that the scans on the backwards clock have certainly seen both, whichever
-        # way the overlay decided.
+        # The torch and the backwards time reach a joined client in packets. The light wait is the
+        # one the client can compare, which inside this room it cannot on 1.2.5 (it answers true
+        # without comparing, #1207), so the world settle waits for the client's copy to hold the
+        # placed torch before anything is read. The settle covers the block and its light, not the
+        # clock: that is waited for through the presses below, because the client's clock has no
+        # read on the server side.
         if not ctx.light_applied(px, py, pz) {
             ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
-        if back_at == 0 {
-            back_at = ctx.current_tick()
-        }
-        if ctx.current_tick() - back_at < 100 {
-            ctx.not_done()
-            return
+        if settled == 0 {
+            if not ctx.world_settled() {
+                ctx.not_done()
+                return
+            }
+            settled = 1
         }
         ctx.press_world_key(75, false)
+        presses = presses + 1
         cleared_at = ctx.current_tick()
         state = 7
         ctx.not_done()
@@ -187,7 +194,18 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        ctx.assert(not ctx.world_overlay_drawn(), "A backwards clock should scan at once and drop the removed square.")
+        if ctx.world_overlay_drawn() {
+            # The client's own clock has not gone back yet, so its batch is still the forward one
+            # and this frame redrew it. Another press asks for a newer frame once it has, and the
+            # bound keeps a scan that never took the backwards branch from passing: its batch is
+            # 100000 ticks from being due again, so every press would draw it.
+            ctx.assert(presses < 8, "A backwards clock should scan at once and drop the removed square.")
+            ctx.press_world_key(75, false)
+            presses = presses + 1
+            cleared_at = ctx.current_tick()
+            ctx.not_done()
+            return
+        }
         # L again turns the overlay off, so no later test draws its marks.
         ctx.press_world_key(76, false)
         cleared_at = ctx.current_tick()
