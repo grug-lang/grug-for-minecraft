@@ -228,10 +228,16 @@ def newest_loader(repo: Path, loaders: list[str]) -> str:
     semver = sibling("universal_jar").compare_semver
     current = set(loaders)
     # The same shares affected-loaders.py's own representative choice uses: a loader that shares
-    # code with another ranks below one that does not, at the same Minecraft.
+    # code with another ranks below one that does not, at the same Minecraft. A shared directory
+    # reaches every loader whose build compiles it, so the directory is inverted first.
+    compiling: dict[str, set[str]] = {}
+    for loader, dirs in affected.shared_dirs(repo, "HEAD").items():
+        if loader in current:
+            for directory in dirs:
+                compiling.setdefault(directory, set()).add(loader)
     shares: dict[str, set[str]] = {loader: set() for loader in loaders}
-    for users in affected.shared_dirs(repo, "HEAD").values():
-        for loader in users & current:
+    for users in compiling.values():
+        for loader in users:
             shares[loader].update(users - {loader})
     games = affected.game_of(loaders)
     best = ""
