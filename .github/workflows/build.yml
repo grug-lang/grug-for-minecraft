@@ -2216,18 +2216,10 @@ jobs:
           GRUG_UPDATE_GOLDENS: ${{ inputs.update-goldens && '1' || '' }}
 
       # JEI builds its ingredient list from every registered item before it logs this line, so an item
-      # of grug's that JEI cannot read shows up here as an error or as JEI never starting.
+      # of grug's that JEI cannot read shows up here as an error or as JEI never starting. The check
+      # reads the run's whole log set, because the game rolls latest.log when the date changes (#1775).
       - name: Require JEI to have started without an error
-        run: |
-          log=loaders/1.20.6-forge/build/production-game/logs/latest.log
-          if ! grep -q 'Starting JEI GUI' "$log"; then
-            echo "==> ERROR: JEI never logged 'Starting JEI GUI' in $log"
-            exit 1
-          fi
-          if grep -E '/(ERROR|FATAL)\] \[mezz\.jei' "$log"; then
-            echo "==> ERROR: JEI logged the errors above"
-            exit 1
-          fi
+        run: .github/scripts/require-jei-log.sh loaders/1.20.6-forge/build/production-game/logs
 
       - name: Upload logs and crash reports
         if: always()
