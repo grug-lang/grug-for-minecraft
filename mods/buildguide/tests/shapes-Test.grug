@@ -7,6 +7,11 @@
 # order with duplicates kept, because both the state file and the drawing follow that order. A
 # caller walks a shape by asking for index 0, 1, 2 and so on and stopping at the first `none`, which
 # costs O(n^2) over a whole shape; that is a known stage 3 gap for large shapes.
+# The goldens are the cells the reference's own loops emit, replayed by a throwaway Java driver that
+# stayed outside the tree, with the reference's float properties widened to double. A golden read off
+# the loop can only show a generator agrees with itself, so cells are also derived by hand from each
+# shape's definition (a circle's axis points, a sphere's six neighbours, a torus's inner and outer
+# ring at the same angle), and those tell a faithful shape apart from a consistently wrong one.
 # Properties are passed in the reference class's declaration order, which is also the persisted
 # comma order, with an enum as its ordinal in that enum's declaration order: direction X, Y, Z =
 # 0, 1, 2; walls ALL, X, Y, Z, XY, XZ, YZ, NONE = 0..7; dome NO, POSITIVE_X, POSITIVE_Y, POSITIVE_Z,
@@ -34,6 +39,8 @@ export tick(ctx: TestTickContext) {
         _assert_catenary_dy2dz3(ctx)
         _assert_catenary_invert(ctx)
         _assert_catenary_vertical(ctx)
+        _assert_catenary_non_finite(ctx)
+        _assert_catenary_no_progress(ctx)
         _assert_circle_x_r3_d1(ctx)
         _assert_circle_x_r3_d2_even(ctx)
         _assert_circle_y_r4(ctx)
@@ -51,7 +58,7 @@ export tick(ctx: TestTickContext) {
         _assert_ellipsoid_4_2_3_domeY_even(ctx)
         _assert_grid(ctx)
         _assert_grid_2_3_1(ctx)
-        _assert_grid_empty(ctx)
+        _assert_grid_one_cell(ctx)
         _assert_helix_default(ctx)
         _assert_helix_neg_even(ctx)
         _assert_helix_x_720(ctx)
@@ -72,6 +79,7 @@ export tick(ctx: TestTickContext) {
         _assert_sphere_one_cell(ctx)
         _assert_torus_x(ctx)
         _assert_torus_z_even(ctx)
+        _assert_known_cells(ctx)
     }
 }
 
@@ -188,6 +196,22 @@ local _assert_catenary_vertical(ctx: TestTickContext) {
     ctx.assert(Math.abs(cell_1.unwrap().x() - 0) == 0, "catenary_vertical cell 1 x should be 0.")
     ctx.assert(Math.abs(cell_1.unwrap().y() - 0) == 0, "catenary_vertical cell 1 y should be 0.")
     ctx.assert(Math.abs(cell_1.unwrap().z() - 0) == 0, "catenary_vertical cell 1 z should be 0.")
+}
+
+# The first arm of a non-convergent solve: the values leave the finite range, so the reference's
+# Double.isFinite check throws and its height cast of NaN turns into 0. That 0 would make the cell
+# loops walk 4,004,001 cells that all fail their check before answering nothing, which is a freeze,
+# so the port answers no cell the moment a step is not finite.
+local _assert_catenary_non_finite(ctx: TestTickContext) {
+    ctx.assert(not _cell_catenary(2000, 2000, 0, 1, false, 0).has(), "catenary_non_finite should have no cells.")
+}
+
+# The second arm: dx 1419 with no height leaves a at 1, because the Newton step divides by an
+# infinite derivative and lands back on 1, so the reference repeats that step forever (the shape
+# hangs until it is cancelled). A step that changes nothing is the same non-convergence, and the
+# port answers no cell instead of repeating it.
+local _assert_catenary_no_progress(ctx: TestTickContext) {
+    ctx.assert(not _cell_catenary(1419, 0, 0, 1, false, 0).has(), "catenary_no_progress should have no cells.")
 }
 
 # circle_x_r3_d1
@@ -660,8 +684,14 @@ local _assert_grid_2_3_1(ctx: TestTickContext) {
 }
 
 # grid_empty
-local _assert_grid_empty(ctx: TestTickContext) {
-    ctx.assert(not _cell_grid(0, 1, 1, 1, 1, 1, 0).has(), "grid_empty should have 0 cells.")
+# A grid's step counts are a PropertyPositiveInt with a minimum of 1, so a grid always emits at
+# least one cell and no empty case exists to test. The smallest reachable grid is one cell.
+local _assert_grid_one_cell(ctx: TestTickContext) {
+    ctx.assert(not _cell_grid(1, 1, 1, 1, 1, 1, 1).has(), "grid_one_cell should have 1 cell.")
+    cell_0: Option[Vec3] = _cell_grid(1, 1, 1, 1, 1, 1, 0)
+    ctx.assert(Math.abs(cell_0.unwrap().x() - 0) == 0, "grid_one_cell cell 0 x should be 0.")
+    ctx.assert(Math.abs(cell_0.unwrap().y() - 0) == 0, "grid_one_cell cell 0 y should be 0.")
+    ctx.assert(Math.abs(cell_0.unwrap().z() - 0) == 0, "grid_one_cell cell 0 z should be 0.")
 }
 
 # helix_default
@@ -1256,32 +1286,166 @@ local _assert_torus_z_even(ctx: TestTickContext) {
     ctx.assert(Math.abs(cell_567.unwrap().z() - 1) == 0, "torus_z_even cell 567 z should be 1.")
 }
 
-# ShapeCatenary: a hanging chain between the origin and (dx, dy, dz), lengthened by add_length.
+# Cells derived by hand from each shape's definition rather than read off its loop, so a faithful
+# shape is told apart from one that only agrees with itself. A circle of radius 4 is the ring of
+# points 4 from the centre, so it reaches the four axis points; a sphere of radius 1 reaches each of
+# its six axis neighbours; and a torus with outer radius 2 and inner radius 1 has its tube centred on
+# (0,0,2) at angle 0, so the tube's outer and inner ends are (0,0,3) and (0,0,1), with its sides at
+# (1,0,2) and (-1,0,2). Each of them must appear exactly once, which one pass per shape counts.
+local _assert_known_cells(ctx: TestTickContext) {
+    circle_px: number = 0
+    circle_nx: number = 0
+    circle_pz: number = 0
+    circle_nz: number = 0
+    circle_index: number = 0
+    circle_cell: Option[Vec3] = _cell_circle(1, 4, 1, false, circle_index)
+    while circle_cell.has() {
+        cc: Vec3 = circle_cell.unwrap()
+        if cc.x() == 4 and cc.y() == 0 and cc.z() == 0 {
+            circle_px = circle_px + 1
+        }
+        if cc.x() == -4 and cc.y() == 0 and cc.z() == 0 {
+            circle_nx = circle_nx + 1
+        }
+        if cc.x() == 0 and cc.y() == 0 and cc.z() == 4 {
+            circle_pz = circle_pz + 1
+        }
+        if cc.x() == 0 and cc.y() == 0 and cc.z() == -4 {
+            circle_nz = circle_nz + 1
+        }
+        circle_index = circle_index + 1
+        circle_cell = _cell_circle(1, 4, 1, false, circle_index)
+    }
+    ctx.assert(circle_px == 1, "circle_y_r4 should contain (4,0,0) once.")
+    ctx.assert(circle_nx == 1, "circle_y_r4 should contain (-4,0,0) once.")
+    ctx.assert(circle_pz == 1, "circle_y_r4 should contain (0,0,4) once.")
+    ctx.assert(circle_nz == 1, "circle_y_r4 should contain (0,0,-4) once.")
+
+    sphere_px: number = 0
+    sphere_nx: number = 0
+    sphere_py: number = 0
+    sphere_ny: number = 0
+    sphere_pz: number = 0
+    sphere_nz: number = 0
+    sphere_index: number = 0
+    sphere_cell: Option[Vec3] = _cell_sphere(1, 0, false, sphere_index)
+    while sphere_cell.has() {
+        sc: Vec3 = sphere_cell.unwrap()
+        if sc.x() == 1 and sc.y() == 0 and sc.z() == 0 {
+            sphere_px = sphere_px + 1
+        }
+        if sc.x() == -1 and sc.y() == 0 and sc.z() == 0 {
+            sphere_nx = sphere_nx + 1
+        }
+        if sc.x() == 0 and sc.y() == 1 and sc.z() == 0 {
+            sphere_py = sphere_py + 1
+        }
+        if sc.x() == 0 and sc.y() == -1 and sc.z() == 0 {
+            sphere_ny = sphere_ny + 1
+        }
+        if sc.x() == 0 and sc.y() == 0 and sc.z() == 1 {
+            sphere_pz = sphere_pz + 1
+        }
+        if sc.x() == 0 and sc.y() == 0 and sc.z() == -1 {
+            sphere_nz = sphere_nz + 1
+        }
+        sphere_index = sphere_index + 1
+        sphere_cell = _cell_sphere(1, 0, false, sphere_index)
+    }
+    ctx.assert(sphere_px == 1, "sphere_r1 should contain (1,0,0) once.")
+    ctx.assert(sphere_nx == 1, "sphere_r1 should contain (-1,0,0) once.")
+    ctx.assert(sphere_py == 1, "sphere_r1 should contain (0,1,0) once.")
+    ctx.assert(sphere_ny == 1, "sphere_r1 should contain (0,-1,0) once.")
+    ctx.assert(sphere_pz == 1, "sphere_r1 should contain (0,0,1) once.")
+    ctx.assert(sphere_nz == 1, "sphere_r1 should contain (0,0,-1) once.")
+
+    torus_outer: number = 0
+    torus_inner: number = 0
+    torus_side_pos: number = 0
+    torus_side_neg: number = 0
+    torus_index: number = 0
+    torus_cell: Option[Vec3] = _cell_torus(0, 2, 1, false, false, torus_index)
+    while torus_cell.has() {
+        tc: Vec3 = torus_cell.unwrap()
+        if tc.x() == 0 and tc.y() == 0 and tc.z() == 3 {
+            torus_outer = torus_outer + 1
+        }
+        if tc.x() == 0 and tc.y() == 0 and tc.z() == 1 {
+            torus_inner = torus_inner + 1
+        }
+        if tc.x() == 1 and tc.y() == 0 and tc.z() == 2 {
+            torus_side_pos = torus_side_pos + 1
+        }
+        if tc.x() == -1 and tc.y() == 0 and tc.z() == 2 {
+            torus_side_neg = torus_side_neg + 1
+        }
+        torus_index = torus_index + 1
+        torus_cell = _cell_torus(0, 2, 1, false, false, torus_index)
+    }
+    ctx.assert(torus_outer == 1, "torus_x_2_1 should contain (0,0,3) once.")
+    ctx.assert(torus_inner == 1, "torus_x_2_1 should contain (0,0,1) once.")
+    ctx.assert(torus_side_pos == 1, "torus_x_2_1 should contain (1,0,2) once.")
+    ctx.assert(torus_side_neg == 1, "torus_x_2_1 should contain (-1,0,2) once.")
+}
+
 local _cell_catenary(dx: number, dy: number, dz: number, add_length: number, invert: bool, index: number) Option[Vec3] {
     result: Option[Vec3] = Option.new()
     found: number = 0
     dr: number = Math.sqrt(dx * dx + dz * dz)
     if dr >= 1 {
         s: number = Math.sqrt(dr * dr + dy * dy) + add_length
+        # The reference solves for the catenary parameter with Newton's method and has no iteration
+        # bound: a solve whose values leave the finite range makes its Double.isFinite check throw,
+        # and a solve whose step changes nothing repeats that step forever. grug cannot raise an
+        # error to the player and must not hang, so a step that is not finite, or that changes
+        # nothing, ends the solve and the shape answers no cells at once. The cell loops below keep
+        # the reference's own bounds (0 to d, and h to the height) rather than a cube cap of this
+        # port's own.
         a: number = 1
         chi: number = 2 * a * Math.sinh(dr / 2 / a) - Math.sqrt(s * s - dy * dy)
-        while Math.abs(chi) > 0.001 {
+        solved: bool = _finite(chi)
+        while solved and Math.abs(chi) > 0.001 {
             dchi: number = 2 * Math.sinh(dr / 2 / a) - dr / a * Math.cosh(dr / 2 / a)
-            a = Math.max(a - chi / dchi, a / 2)
-            chi = 2 * a * Math.sinh(dr / 2 / a) - Math.sqrt(s * s - dy * dy)
+            next: number = Math.max(a - chi / dchi, a / 2)
+            if not _finite(dchi) or not _finite(next) or next == a {
+                solved = false
+            } else {
+                a = next
+                chi = 2 * a * Math.sinh(dr / 2 / a) - Math.sqrt(s * s - dy * dy)
+                if not _finite(chi) {
+                    solved = false
+                }
+            }
         }
         rl: number = 0
-        chi = a * Math.cosh(rl / a) + dy - a * Math.cosh((rl + dr) / a)
-        while Math.abs(chi) > 0.001 {
-            dchi: number = Math.sinh(rl / a) - Math.sinh((rl + dr) / a)
-            rl = rl - chi / dchi
+        if solved {
             chi = a * Math.cosh(rl / a) + dy - a * Math.cosh((rl + dr) / a)
+            solved = _finite(chi)
+        }
+        while solved and Math.abs(chi) > 0.001 {
+            dchi: number = Math.sinh(rl / a) - Math.sinh((rl + dr) / a)
+            next: number = rl - chi / dchi
+            if not _finite(dchi) or not _finite(next) or next == rl {
+                solved = false
+            } else {
+                rl = next
+                chi = a * Math.cosh(rl / a) + dy - a * Math.cosh((rl + dr) / a)
+                if not _finite(chi) {
+                    solved = false
+                }
+            }
+        }
+        if not solved {
+            return result
         }
         d: number = _trunc(Math.max(Math.abs(dx), Math.abs(dz)))
         unit_x: number = dx / d
         unit_z: number = dz / d
         fac: number = Math.sqrt(unit_x * unit_x + unit_z * unit_z)
         base: number = a * Math.cosh(rl / a)
+        if not _finite(base) {
+            return result
+        }
         h: number = _trunc(Math.min(0, dy) - base)
         i: number = 0
         while i <= d {
@@ -2342,10 +2506,24 @@ local _trunc(value: number) number {
     if value < 0 {
         rounded = Math.ceil(value)
     }
+    # A Java (int) cast saturates at the int range, so a derived height or cell coordinate that
+    # leaves that range stays at the edge the reference would use.
+    if rounded > 2147483647 {
+        return 2147483647
+    }
+    if rounded < -2147483648 {
+        return -2147483648
+    }
     if rounded < 1 and rounded > -1 {
         return 0
     }
     return rounded
+}
+
+# x - x is 0 for every finite value and NaN for an infinity or a NaN, which is the isFinite test
+# the reference applies to its catenary solve.
+local _finite(value: number) bool {
+    return Math.abs(value) - Math.abs(value) == 0
 }
 
 local _origin_dir(direction: number, even_mode: bool) Vec3 {

@@ -4406,24 +4406,6 @@ public class HostFunctions {
         return Math.floor(value);
     }
 
-    /**
-     * What is left of {@code value} after dividing by {@code divisor}, with the sign of {@code
-     * divisor}, which is Java's {@code Math.floorMod} extended to numbers with a fraction: it
-     * answers on the divisor's side where {@link #Math_remainder} answers on the value's side.
-     */
-    public static double Math_floorMod(double value, double divisor) {
-        if (divisor == 0) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Math.floorMod: The divisor cannot be 0.");
-            return 0;
-        }
-        double remainder = value % divisor;
-        if (remainder != 0 && ((remainder < 0) != (divisor < 0))) {
-            remainder += divisor;
-        }
-        return remainder;
-    }
-
     /** The larger of two numbers, NaN propagating and -0.0 losing to 0.0, as in Java. */
     public static double Math_max(double a, double b) {
         return Math.max(a, b);

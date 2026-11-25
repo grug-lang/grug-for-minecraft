@@ -174,7 +174,6 @@ Math.ceil(value: number) number
 Math.cos(angle: number) number
 Math.cosh(value: number) number
 Math.floor(value: number) number
-Math.floorMod(value: number, divisor: number) number
 Math.max(a: number, b: number) number
 Math.min(a: number, b: number) number
 Math.pi() number

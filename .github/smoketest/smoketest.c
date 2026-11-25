@@ -623,14 +623,6 @@ static union grug_value Math_ceil(ARGS) { UNUSED; return num(ceil(a[0]._number))
 REGISTER("Math", "ceil", Math_ceil);
 static union grug_value Math_cosh(ARGS) { UNUSED; return num(cosh(a[0]._number)); }
 REGISTER("Math", "cosh", Math_cosh);
-static union grug_value Math_floorMod(ARGS) {
-    UNUSED;
-    if (a[1]._number == 0) return fail("Math.floorMod: the divisor is 0");
-    double remainder = fmod(a[0]._number, a[1]._number);
-    if (remainder != 0 && ((remainder < 0) != (a[1]._number < 0))) remainder += a[1]._number;
-    return num(remainder);
-}
-REGISTER("Math", "floorMod", Math_floorMod);
 // fmax and fmin answer the non-NaN argument, where Java answers NaN, so the pair is written out.
 static union grug_value Math_max(ARGS) {
     UNUSED;
@@ -664,7 +656,9 @@ static union grug_value Math_sqrt(ARGS) { UNUSED; return num(sqrt(a[0]._number))
 REGISTER("Math", "sqrt", Math_sqrt);
 static union grug_value Math_toDegrees(ARGS) {
     UNUSED;
-    return num(a[0]._number * 180.0 / 3.14159265358979323846);
+    // Java's toDegrees multiplies by 180/pi once; multiplying by 180 and then dividing by pi rounds
+    // twice and gives a different last bit for about a quarter of all inputs.
+    return num(a[0]._number * (180.0 / 3.14159265358979323846));
 }
 REGISTER("Math", "toDegrees", Math_toDegrees);
 
