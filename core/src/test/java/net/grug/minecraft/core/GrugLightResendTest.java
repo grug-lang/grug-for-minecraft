@@ -203,6 +203,10 @@ class GrugLightResendTest {
 
         resend.noteBlock(200, 70, 0);
         resend.noteBlock(0, 70, 200);
+        resend.noteBlock(-1, 64, 5);
+        resend.noteBlock(5, 59, 5);
+        resend.noteBlock(5, 81, 5);
+        resend.noteBlock(5, 64, -1);
 
         assertFalse(resend.pending(), "a change outside the bound owes the client nothing");
         assertTrue(resend.due().isEmpty());
