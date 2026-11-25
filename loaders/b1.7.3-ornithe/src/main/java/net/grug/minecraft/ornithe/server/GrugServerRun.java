@@ -5,16 +5,19 @@ import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugRunOrigin;
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.core.GrugSendBuffer;
 import net.grug.minecraft.core.GrugServerJoin;
 import net.grug.minecraft.core.GrugStarterPlacement;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.ornithe.GrugSendQueue;
 import net.grug.minecraft.ornithe.ServerOrnitheAdapter;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.menu.InventoryMenu;
+import net.minecraft.network.Connection;
 import net.minecraft.network.packet.InventoryMenuSlotContentPacket;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.server.MinecraftServer;
@@ -64,6 +67,15 @@ public final class GrugServerRun {
     private static final GrugStarterPlacement STARTER_PLACEMENT = new GrugStarterPlacement();
 
     private static int gameSpeed = 1;
+
+    /**
+     * The pace this harness runs the world at: it stops producing world ticks while the joined
+     * client's connection holds more than core's low-water mark (#1802).
+     */
+    private static final GrugSendBuffer SEND_BUFFER = new GrugSendBuffer();
+
+    /** How many world ticks the current wait for the joined client has taken, 0 when it is not. */
+    private static int waitTicks = 0;
 
     /** How many times the hold put the player back on the floor, and when it last said so. */
     private static final GrugPlayerFloor.HoldLog HOLD_LOG = new GrugPlayerFloor.HoldLog();
@@ -164,6 +176,12 @@ public final class GrugServerRun {
     }
 
     private static void tickOutsideAdvance(MinecraftServer server) {
+        if (waitForClient()) {
+            // #1802: this tick runs no world tick, no runner tick and no flush, and the server's
+            // own loop returns at once: the connection's write thread is what drains the backlog,
+            // and it needs the game thread out of the way, not idle work.
+            return;
+        }
         GrugLinkArms.runIfCi(
                 System::getenv, () -> GrugLinkArms.runUnless(done, () -> tickOrFail(server)));
         // Every tick, in a CI run or not: the server installs the deferring transport whenever it
@@ -201,15 +219,24 @@ public final class GrugServerRun {
     public static int advance(World target, int ticks) {
         advancing = true;
         try {
+            int ran = 0;
             for (int tick = 0; tick < ticks; tick++) {
+                // #1802: a batch of world ticks queues packets for the joined client faster than it
+                // applies them, and the game closes the player once its connection holds 1 MiB. The
+                // batch stops here and answers what it ran, so a test that asked for more waits for
+                // the client instead of losing it.
+                if (waitForClient()) {
+                    break;
+                }
                 target.tick();
                 while (target.doLightUpdates()) {}
                 target.tickEntities();
+                ran++;
             }
+            return ran;
         } finally {
             advancing = false;
         }
-        return ticks;
     }
 
     /**
@@ -503,5 +530,46 @@ public final class GrugServerRun {
         HOLD_LOG.printSummary(System.out);
         System.out.flush();
         System.exit(status);
+    }
+
+    /**
+     * Whether this tick waits for the joined client, whose connection still holds more of what the
+     * server queued than core's low-water mark (#1802).
+     *
+     * <p>The count is the game's own, so the wait starts well below the 1 MiB at which the game
+     * drops the player, and core's {@code GrugSendBuffer} bounds it, so a client that stopped
+     * reading reaches that drop rather than hanging the run. Only a CI run paces: a server that
+     * players join outside the harness drops a client that far behind, and freezing its world for
+     * the others would be worse.
+     *
+     * <p>The two lines are the only record that the harness chose to wait, which is what tells a
+     * slow tick apart from a client that fell behind.
+     */
+    private static boolean waitForClient() {
+        if (!"true".equals(System.getenv("GRUG_CI"))) {
+            return false;
+        }
+        Object starter = GrugControlBeta.server().starter();
+        int queued = GrugSendQueue.queuedBytes((Connection) starter);
+        if (!SEND_BUFFER.pause(queued)) {
+            if (waitTicks > 0) {
+                System.out.println(
+                        "[GRUG CI] The joined client caught up after "
+                                + waitTicks
+                                + " ticks, with "
+                                + queued
+                                + " bytes still to write.");
+                waitTicks = 0;
+            }
+            return false;
+        }
+        waitTicks++;
+        if (waitTicks == 1) {
+            System.out.println(
+                    "[GRUG CI] The joined client is behind: its connection holds "
+                            + queued
+                            + " bytes, so the world waits for it.");
+        }
+        return true;
     }
 }
