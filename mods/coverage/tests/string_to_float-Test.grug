@@ -18,8 +18,12 @@ export tick(ctx: TestTickContext) {
         long_text: string = "1.00000005960464477539062500000000000000000001"
         ctx.assert(String.to_float(long_text).unwrap() == 1.0000001192092896, "A long text should round once to 32 bits.")
         ctx.assert(not (String.to_number(long_text).unwrap() == String.to_float(long_text).unwrap()), "to_float and to_number should round a long text differently.")
-        nan: number = String.to_float("NaNf").unwrap()
-        ctx.assert(String.from_float(nan) == "NaN", "NaN with a float suffix should read as NaN.")
+        nan: number = String.to_float("NaN").unwrap()
+        ctx.assert(String.from_float(nan) == "NaN", "NaN should read as NaN.")
+        # Java's Float.parseFloat takes the f, F, d and D suffix only on a decimal or hexadecimal
+        # literal, never on NaN or Infinity, so those two spellings with a suffix are refused.
+        ctx.assert(not String.to_float("NaNf").has(), "A suffix after NaN writes no float, as Float.parseFloat refuses it.")
+        ctx.assert(not String.to_float("Infinityf").has(), "A suffix after Infinity writes no float either.")
         ctx.assert(String.to_float("-Infinity").unwrap() < -String.to_number("1e308").unwrap(), "-Infinity should read as a number below every finite one.")
         ctx.assert(not String.to_float("").has(), "An empty text writes no float.")
         ctx.assert(String.to_float(" 1").unwrap() == 1, "A leading space should be trimmed, as Java's parseFloat trims the text.")
