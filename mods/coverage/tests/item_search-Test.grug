@@ -1,6 +1,7 @@
 # search_item_count and search_item_at list the items a search text matches, in the reference JEI's
 # search syntax (#865): the host lists every item for a text that holds no word to search, a word
-# matches a name or, after an @, a mod id, and a minus removes what it matches. Alpha has no item
+# matches a name or, after an @, a mod id, and a minus removes what it matches. A word may be
+# quoted, which keeps its spaces, and a quote inside any word is dropped. Alpha has no item
 # names, so there a word is matched against the registry name, and the name words are only asserted
 # elsewhere.
 export tick(ctx: TestTickContext) {
@@ -34,6 +35,12 @@ export tick(ctx: TestTickContext) {
     ctx.assert(search_item_count("@minecraft|@zzzzqqqq") == search_item_count("@minecraft"), "An alternative that lists nothing should add nothing.")
     ctx.assert(search_item_count("@minecraft -@minecraft") == 0, "A minus word should remove what it matches.")
     ctx.assert(search_item_count("\"@minecraft\"") == search_item_count("@minecraft"), "A quoted word should be the same word.")
+    ctx.assert(search_item_count("\"@minecraft") == search_item_count("@minecraft"), "A quoted word with no closing quote should be the word.")
+    ctx.assert(search_item_count("@mi\"necraft") == search_item_count("@minecraft"), "A quote inside a word should be dropped.")
+    ctx.assert(search_item_count("\"\"") == total, "Empty quotes should be no word.")
+    ctx.assert(search_item_count("-") == total, "A lone minus should be no word.")
+    ctx.assert(search_item_count("@grug -\"@grug\"") == 0, "A quoted minus word should remove what it matches.")
+    ctx.assert(search_item_count("@grug -@grug -grug") == 0, "Every minus word should be checked.")
 
     if me.loader_name() != "a1.1.2_01-ornithe" {
         ctx.assert(search_item_count("iron") > 0, "A word in an item's name should list it.")

@@ -1,0 +1,10 @@
+# item_at must report an index below the first item, so a mod cannot read the list out of its own
+# bounds (#865).
+export tick(ctx: TestTickContext) {
+    if not me.overlay_supported() {
+        # This loader lists no items.
+        return
+    }
+    ctx.expect_error("item_at: The index has to be a whole number from 0 to 2147483647")
+    item_at(-1)
+}
