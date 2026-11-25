@@ -9,7 +9,10 @@
 # reasons for the room are overlay_crosses', including its vanilla stone platform and the crop's stop
 # at x 840 for the held item (#1550). So is the clock: the test sets noon first, so the sky light that
 # is drawn is the same at every hour of the run, and so are the waits: each phase is bounded by its
-# own phase, as overlay_crosses explains, and the budget is the sum of those bounds.
+# own phase, as overlay_crosses explains, and the budget is the sum of those bounds. The
+# 1.20.6-forge golden was captured again once the light phase was added: the golden accepted before
+# it came from a frame whose drain was not yet baked, one texel of the platform's stone one lightmap
+# step brighter (73 against 66 at 578,178 of the 740x210 capture, #1749).
 state: number = 0
 moved: bool = false
 waited: number = 0
@@ -177,10 +180,9 @@ export tick(ctx: TestTickContext) {
         # along x stay over it.
         ctx.set_player_position(ox + 3.0, oy - 4.62, oz)
         # The step is the test's last change to what the capture shows, so it starts the waits over:
-        # the capture is of a frame drawn after the step, and a frame that the client still owes a
-        # rebuild for can bake the platform's torch light one level down under a single texel, as
-        # the run of 2026-11-25 did (#1749). The settle is therefore asked again after the step,
-        # not only after the platform's own light.
+        # the capture has to be of a frame the step has reached and the overlay's drain has been
+        # baked into, not only of a frame drawn after the step (#1749). The settle is therefore
+        # asked again after the step, not only after the platform's own light.
         drawn_waited = 0
         settle_waited = 0
         settled_ticks = 0
