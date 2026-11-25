@@ -12,11 +12,15 @@
 # The crop is the head, the name tag and the body between the arms, not the whole model: vanilla
 # sways a player model's arms with its age, so consecutive frames of the arms never agree, while the
 # head, the tag and the torso did in every frame measured (#1298).
-# Nothing here waits a number of ticks. The test waits until the crop has changed from the empty
-# room and then held still for fifteen captures in a row: the client's light brightens the crop for
-# a few dozen ticks after the model arrives (its mean colour went from #372b20 to #413326), so a
-# shorter run of equal frames is a plateau and not the settled one. The tick bound only ends a wait
-# that cannot succeed.
+# Nothing here waits a number of ticks. The frame pass draws the other player's model with the
+# joined client's copy of the section's light, and on the dedicated leg that copy can still hold the
+# light the room had before its own build reached it: a light change arrives in a packet after the
+# block changes a capture settle counts, so the model draws brighter than the room really is. Both
+# that copy and the room's real light hold still for more than fifteen captures in a row, so a run
+# of equal frames cannot tell them apart, and #1765's dedicated leg held the brighter one for
+# sixteen captures (#1770). The wait therefore asks ctx.light_applied for the section both players'
+# eyes fall in, which compares the joined client's copy with the world the test edits, and counts no
+# frame before it holds. The tick bound only ends a wait that cannot succeed.
 # Only 1.20.6-forge's multiplayer leg has a second client, so the other loaders return at once, and
 # the runner runs a forwarded_ test on a dedicated server alone.
 
@@ -28,6 +32,15 @@ previous: Option[Screenshot] = Option.new()
 
 # How many captures in a row matched the one before them, with the model in the frame.
 steady: number = 0
+
+# The cell whose section holds both players' eyes, taken at the first tick for the light wait.
+light_x: number = 0
+light_y: number = 0
+light_z: number = 0
+
+# Whether the joined client's copy of that section's light has matched the world's. It cannot stop
+# matching once it has, so the ask runs only while this is false.
+lit: bool = false
 
 export init(ctx: TestInitContext) {
     ctx.set_max_ticks(500)
@@ -44,7 +57,21 @@ export tick(ctx: TestTickContext) {
         origin: Vec3 = ctx.get_origin()
         ctx.get_client_level().place_block(Math.floor(origin.x()), Math.floor(origin.y() - 4.12) - 1, Math.floor(origin.z()) + 3, "minecraft:stone")
         _wait_for_the_room(ctx)
+        # The starter's own eye cell stands for the other player's: the server puts that player three
+        # blocks ahead at the same height, so both eyes fall in one section, and the light the frame
+        # pass draws the model with is that section's.
+        light_x = Math.floor(origin.x())
+        light_y = Math.floor(origin.y())
+        light_z = Math.floor(origin.z())
         empty.set(ctx.screenshot().capture(624, 236, 656, 392))
+        ctx.not_done()
+        return
+    }
+    if not lit {
+        lit = ctx.light_applied(light_x, light_y, light_z)
+    }
+    if not lit {
+        ctx.assert(ctx.current_tick() < 400, "The client should have received the light of the section the other player stands in before the frame is captured, but the section's light never arrived.")
         ctx.not_done()
         return
     }
