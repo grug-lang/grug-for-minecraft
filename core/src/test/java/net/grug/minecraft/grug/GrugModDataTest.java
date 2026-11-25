@@ -299,6 +299,27 @@ class GrugModDataTest {
     }
 
     @Test
+    void aLinkIsNotListedBecauseNoReadCanOpenIt() throws IOException {
+        Path writable = Files.createDirectories(writable("coverage"));
+        Path shipped = Files.createDirectories(shipped("coverage"));
+        Files.writeString(writable.resolve("real.txt"), "real");
+        Files.writeString(shipped.resolve("shipped.txt"), "shipped");
+        Path outside = Files.writeString(tmp.resolve("outside.txt"), "secret");
+        Files.createSymbolicLink(writable.resolve("wlink"), outside);
+        Files.createSymbolicLink(shipped.resolve("slink"), outside);
+
+        assertEquals(2, GrugModData.entryCount(modsDir(), gameDir(), "coverage", "."));
+        assertEquals("real.txt", GrugModData.entryName(modsDir(), gameDir(), "coverage", ".", 0));
+        assertEquals(
+                "shipped.txt", GrugModData.entryName(modsDir(), gameDir(), "coverage", ".", 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugModData.exists(modsDir(), gameDir(), "coverage", "wlink"));
+        assertThrows(IllegalArgumentException.class, () -> read("coverage", "wlink"));
+        assertThrows(IllegalArgumentException.class, () -> read("coverage", "slink"));
+    }
+
+    @Test
     void aListingIndexIsAWholeNumberInsideTheList() throws IOException {
         Files.createDirectories(shipped("coverage"));
         Files.writeString(shipped("coverage").resolve("a.txt"), "s");
@@ -365,13 +386,42 @@ class GrugModDataTest {
         IllegalArgumentException e =
                 assertThrows(
                         IllegalArgumentException.class, () -> write("coverage", "small.txt", "ab"));
-        assertTrue(e.getMessage().contains(String.valueOf(GrugModData.CAP)), e.getMessage());
+        assertTrue(
+                e.getMessage().contains(String.valueOf(GrugModData.CAP - 1 + GrugModData.BLOCK)),
+                e.getMessage());
         assertTrue(e.getMessage().contains("\"small.txt\""), e.getMessage());
         assertFalse(Files.exists(root.resolve("small.txt")));
         assertEquals(GrugModData.CAP - 1, Files.size(big));
 
         write("coverage", "big.bin", "small");
         assertEquals("small", read("coverage", "big.bin"));
+    }
+
+    @Test
+    void tinyFilesAreChargedOneBlockEachSoTheCapBoundsTheEntryCount() throws IOException {
+        Path root = Files.createDirectories(writable("coverage"));
+        // The charge is the filesystem's own accounting, not a guess about the mod: it spends a
+        // block on every file whatever the file's size says, and one on every directory, so a mod
+        // cannot fill the disk with 10000 one-byte files while its byte count stays tiny.
+        for (int i = 0; i < GrugModData.CAP / GrugModData.BLOCK; i++) {
+            Files.writeString(root.resolve("f" + i + ".txt"), "x");
+        }
+
+        IllegalArgumentException e =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> write("coverage", "overflow.txt", "x"));
+        assertTrue(
+                e.getMessage().contains(String.valueOf(GrugModData.CAP + GrugModData.BLOCK)),
+                e.getMessage());
+        assertFalse(Files.exists(root.resolve("overflow.txt")));
+    }
+
+    @Test
+    void aDirectoryThatCannotBeOpenedForAFlushIsNotAWriteFailure() {
+        // A platform that refuses to open a directory takes the catch arm; a path that is not
+        // there takes the same one here, and the write itself has already flushed the file.
+        GrugModData.forceDirectory(tmp.resolve("no-such-directory"));
     }
 
     @Test

@@ -1,11 +1,22 @@
-# Level.name() names the world and Level.dimension() keys it as one path segment (#1757). A
-# dedicated server answers the save's own name, which for the test save is New World on 1.20.6 and
-# b1.7.3 and World1 on 1.2.5 and Alpha; a client joined to somebody else's server answers the address
-# it dialled instead (MpServer on Alpha and 1.2.5), so only a non-empty name is asserted. The test
-# world is the overworld on every loader, so the dimension pins the key a per-world path is built
-# from, and this file runs on the dedicated legs where a client-only call would show.
+# Level.name() names the world and Level.dimension() keys it as one path segment (#1757). Every leg
+# loads the committed test save, so the name is the save's own: 1.20.6 and b1.7.3 ship "New World"
+# and 1.2.5 and Alpha ship "World1", whether the test runs in singleplayer or on a dedicated server,
+# because a singleplayer client reads its integrated server's world data and a server reads its own.
+# Asserting that exact name, rather than only a non-empty one, is what fails on a loader that
+# answers the fallback "world". The smoketest host has no world and answers a stub name, so it is the
+# one place the save's own name is not knowable. The test world is the overworld on every loader, so
+# the dimension pins the key a per-world path is built from, and this file runs on the dedicated
+# legs where a client-only call would show.
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
-    ctx.assert(String.length(level.name()) > 0, "A world should answer a non-empty name.")
+    expected: string = "New World"
+    if me.loader_name() == "1.2.5-forge" or me.loader_name() == "a1.1.2_01-ornithe" {
+        expected = "World1"
+    }
+    if me.loader_name() == "smoketest" {
+        ctx.assert(String.length(level.name()) > 0, "A world should answer a non-empty name.")
+    } else {
+        ctx.assert(level.name() == expected, String.concat("The world should answer its save's own name, not ", level.name()))
+    }
     ctx.assert(level.dimension() == "overworld", "The test world should be the overworld.")
 }
