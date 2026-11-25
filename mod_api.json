@@ -1171,6 +1171,25 @@
 				}
 			}
 		},
+		"BlockCounts": {
+			"description": "The number of blocks of each name in a box, taken as one snapshot by Level.count_blocks_in_box. A mod reads the names it cares about, so one call answers a whole scan and a loop of get_block calls is not needed.",
+			"methods": {
+				"count": {
+					"description": "How many blocks in the snapshot have this canonical name, such as \"minecraft:stone\", or 0 for a name the box holds none of. The name is matched exactly, and a name that is no block's name answers 0 rather than reporting, because a data file written for another version may ask for a block this one lacks. `minecraft:air` counts the empty spaces, so the counts of every name sum to the box's volume. The answer does not change when the world does: it is the snapshot the call took.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "block_name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				}
+			}
+		},
 		"BlockEntityInitContext": {
 			"description": "The context of a block entity's init(), passed to it. What a block entity declares about itself once, when it is created, goes through it: whether it receives energy, and which of its slots another block may use. A declaration is not saved, so init() makes it again whenever the block entity is created. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
@@ -1775,6 +1794,76 @@
 		"Level": {
 			"description": "A dimension or world: always the one the game simulates, the same on every loader. On 1.20.6 that is the integrated server's level, never the client's mirror, which nothing ticks.",
 			"methods": {
+				"can_see_sky": {
+					"description": "Whether the sky is visible from this position, which is the game's own test for whether rain and daylight reach it: a block of glass or a leaf answers true, and a solid roof answers false. A position the level has no chunk at answers true, as an open sky. The position has to be finite, or it is reported.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"count_blocks_in_box": {
+					"description": "Counts the blocks in a box by name, as one snapshot, which is how a mod measures its surroundings without a host call per block: a box 64 blocks along X, 32 along Y and 64 along Z is 131072 blocks, and one call answers all of them at once. The box's corner is the block at the whole-number position, and it extends `size_x` blocks along +X, `size_y` along +Y and `size_z` along +Z, so a size of 1 counts that one block. The position and every size have to be whole numbers, and every size from 1 up, or it is reported. A position outside the world, or in a chunk the level does not have loaded, counts as minecraft:air, which is what the world holds there. The answer is a snapshot taken at the call: a block placed afterwards does not change it, and the same box asked again takes a new one.",
+					"return_type": {
+						"name": "BlockCounts"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "size_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "size_y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "size_z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"count_item_entities": {
 					"description": "The number of item entities within radius blocks of the specified coordinates.",
 					"return_type": {
@@ -2066,6 +2155,12 @@
 						"name": "number"
 					}
 				},
+				"get_weather": {
+					"description": "The weather of this level and the sky's light at this moment, as one snapshot. A dedicated server's level has weather too, but a mod that samples it runs on the client, which is the copy the player sees.",
+					"return_type": {
+						"name": "Weather"
+					}
+				},
 				"has_mob_category": {
 					"description": "Whether this version of the game has the mob category, one of \"hostile\", \"passive\" or \"water\", which Level.count_mobs and Level.get_mob_cap take. Every version has all three except Alpha, which has monsters and animals but no water mobs and so no cap for them, and a mod that lists the categories asks first so it shows only the ones that exist. Answers false for any other name.",
 					"return_type": {
@@ -2157,6 +2252,12 @@
 							}
 						}
 					]
+				},
+				"is_multiplayer": {
+					"description": "Whether this level is one a client joined over the network rather than one it owns, which is what a mod reads to behave differently for a player on a server. A dedicated server's own level answers true.",
+					"return_type": {
+						"name": "bool"
+					}
 				},
 				"name": {
 					"description": "The world's own name as the game stores it, or the address a client dialled when it joined somebody else's server and the loader exposes one. A dedicated server answers its save's name, the directory under saves/, which a client joined to it never learns; in singleplayer both sides answer the same name. On 1.20.6 a client joined to another server answers the address it dialled. Alpha, 1.2.5 and b1.7.3 expose no address there, so the call answers the name the game gives that client's own copy of the world (Alpha names it MpServer), which does not identify the server. A world whose name is empty answers world rather than an empty string. The answer can hold characters a filesystem refuses, so a mod that builds a path from it keeps only what it accepts; dimension is always path-safe.",
@@ -2469,6 +2570,81 @@
 				}
 			}
 		},
+		"Memory": {
+			"description": "A store of values a mod keeps between calls, each under a text name. grug has no arrays and no maps, so this is how a port keeps one record per object of a data file it read, such as one state per stream of a sound pack, without unrolling a fixed number of member variables. Every mod has its own store, and a mod never sees another's. The store is per game run: it is not saved to disk, and a mod that needs a value after a restart writes it with File.",
+			"static_methods": {
+				"clear": {
+					"description": "Forgets every value this mod stored, numbers and texts alike, which is how a mod starts from nothing: a mod that reloads its data clears the store first, so no entry of an earlier load is left to be read as if the new data had it."
+				},
+				"get": {
+					"description": "The number stored under `name`, or 0 when nothing has written it since the store was cleared. A name nothing wrote therefore reads as an off flag, which is why the store needs no separate has call for numbers: a number of 0 is the same as an unwritten name. A name a text was stored under reads as 0 rather than reporting, because the two are separate stores and a mod reads the one it wrote.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"get_text": {
+					"description": "The text stored under `name`, or an empty Option when nothing has written one. A name a number was stored under answers an empty Option rather than reporting, as Memory.get reads the numbers. This is how a port hands a sound path it read from a data file back to a call that takes a path, a text being no number.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "string"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"set": {
+					"description": "Stores `value` under `name`, replacing whatever number was there. The value is kept exactly as it is given, and one a mod compares with `==` reads back equal. `name` has to be a non-empty text and `value` a finite number, or it is reported: an infinite or NaN value is a defect of the mod's arithmetic and not a state to keep. A text stored under the same name is left alone, since the two stores are separate.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_text": {
+					"description": "Stores `text` under `name`, replacing whatever text was there, and answers nothing. The text may be empty. `name` has to be a non-empty text, or it is reported. A number stored under the same name is left alone.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				}
+			}
+		},
 		"Option": {
 			"description": "Indicates that a value may not be present.",
 			"used_generics": [
@@ -2636,6 +2812,12 @@
 					"description": "The Level the frame is drawn in: the world the game simulates, the same one on every loader and the one TestTickContext.get_client_level returns. It lets an overlay read the world to decide what text to draw. Reports an error and answers no Level when there is no world yet.",
 					"return_type": {
 						"name": "Level"
+					}
+				},
+				"get_player": {
+					"description": "The player the frame is drawn for, which is the client's own player. This is what a mod reads for state the level does not hold, such as the player's health, and Player.position for where the frame is being drawn from.",
+					"return_type": {
+						"name": "Player"
 					}
 				},
 				"screen_height": {
@@ -3058,10 +3240,111 @@
 						]
 					}
 				},
+				"pitch": {
+					"description": "The pitch the player's head is turned to, in degrees: 90 straight down, 0 level and -90 straight up. A mod that reads where the player looks takes it from here and Player.position, and a vertical slider driven by looking up and down is the usual use. The value is the one the player's own camera uses, so it is the same on every loader, and a player whose head cannot turn keeps the pitch it has.",
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"position": {
 					"description": "The player's position: the horizontal centre of the player and the height of their feet, the same on every loader whatever the game keeps (Alpha, Beta and 1.2.5 store the eye in their position fields, 1.20.6 stores the feet). It is the position a block's `placed` export reads to work out which way the player stood.",
 					"return_type": {
 						"name": "Vec3"
+					}
+				},
+				"state": {
+					"description": "What the player is doing and how they are, as one snapshot, which is how a mod that samples the player every tick reads several values from one moment rather than one call per value.",
+					"return_type": {
+						"name": "PlayerState"
+					}
+				}
+			}
+		},
+		"PlayerState": {
+			"description": "What the player is doing and how they are, which is the state a client-side mod samples every tick. Player.state answers one snapshot of it, so a mod that needs several values takes one snapshot rather than one call per value.",
+			"methods": {
+				"air": {
+					"description": "How many ticks of air the player has left before they start to drown, from 0 up, which the game refills to its maximum when the player's head is out of water.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"fall_distance": {
+					"description": "How far the player has fallen since they last stood on something, in blocks, which the game resets when they land or enter water.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"food": {
+					"description": "The player's food level, from 0 to 20, where 20 is full and 0 is starving.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"health": {
+					"description": "The player's health in half-hearts, so a full bar is 20, and 0 is dead.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"in_minecart": {
+					"description": "Whether the player is riding a minecart, which is a kind of riding and not the only one: a player on a boat, a pig or another player answers false here and true to is_riding.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"is_in_water": {
+					"description": "Whether the player's head is in water, which is the game's own test for swimming and drowning, so a player standing in a puddle one block deep answers false.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"is_wet": {
+					"description": "Whether the player is wet, which is the game's own test: their head is in water, or rain is falling on them where nothing covers them.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"motion_x": {
+					"description": "How far the player moves along X in one tick, in blocks, as the game has them moving: about 0.2 while walking and 0 while standing still.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"motion_y": {
+					"description": "How far the player moves along Y in one tick, in blocks, which is negative while falling and positive while jumping.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"motion_z": {
+					"description": "How far the player moves along Z in one tick, in blocks, as motion_x describes for X.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"on_ground": {
+					"description": "Whether the player is standing on something, which is false while falling or swimming.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"riding_motion_x": {
+					"description": "How far the entity the player is riding moves along X in one tick, in blocks, and 0 when the player rides nothing.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"riding_motion_y": {
+					"description": "How far the entity the player is riding moves along Y in one tick, in blocks, and 0 when the player rides nothing.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"riding_motion_z": {
+					"description": "How far the entity the player is riding moves along Z in one tick, in blocks, and 0 when the player rides nothing.",
+					"return_type": {
+						"name": "number"
 					}
 				}
 			}
@@ -3474,6 +3757,77 @@
 				}
 			}
 		},
+		"SoundCommand": {
+			"description": "One sound command a mod asked for, as TestTickContext.last_sound reports it. The values are the ones the mod passed, before the loader applied the game's own volume, so a test asserts what the mod decided and not what the machine's mixer did with it.",
+			"methods": {
+				"command": {
+					"description": "Which call asked for it: \"start\" for start_stream, \"stop\" for stop_stream, \"pause\" for pause_stream, \"resume\" for resume_stream, \"play\" for play_sound_file and \"play_at\" for play_sound_at.",
+					"return_type": {
+						"name": "string"
+					}
+				},
+				"fade_ms": {
+					"description": "The fade the call asked for in milliseconds, for a start or a stop, and 0 for every other command.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"looping": {
+					"description": "Whether a started stream was asked to loop, and false for every other command.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"path": {
+					"description": "The sound file's path as the mod passed it, and an empty text for a stop, a pause or a resume, which name a token instead.",
+					"return_type": {
+						"name": "string"
+					}
+				},
+				"pitch": {
+					"description": "The pitch the mod asked for, and 0 for a command that takes none.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"seq": {
+					"description": "Which command this is, counting from 1 up over the run of the test's mod. A test that polls every tick compares it with the number it saw last to tell a new command from the same one read again.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"token": {
+					"description": "The token a stream command names, and 0 for a one-shot, which has none.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"volume": {
+					"description": "The gain the mod asked for, and 0 for a command that takes none.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"x": {
+					"description": "The x of a positional one-shot, and 0 for every other command.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"y": {
+					"description": "The y of a positional one-shot, and 0 for every other command.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"z": {
+					"description": "The z of a positional one-shot, and 0 for every other command.",
+					"return_type": {
+						"name": "number"
+					}
+				}
+			}
+		},
 		"String": {
 			"description": "Functions on text that need no instance.",
 			"static_methods": {
@@ -3525,6 +3879,37 @@
 						}
 					]
 				},
+				"index_of": {
+					"description": "The position of the first occurrence of `search` in `text` at or after `start`, counted in characters from 0 the way String.substring counts them: String.index_of(\"abab\", \"ab\", 1) is 2. An empty `search` is found at `start`. The answer is an empty Option when the text has no such occurrence, which is what lets a reader scan a file for the next tag and stop at the end instead of reading a position that is not there. `start` has to be a whole number from 0 to String.length(text), or it is reported.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "number"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "search",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "start",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"length": {
 					"description": "How many characters the text has, a character outside the basic plane counting once: String.length(\"abc\") is 3 and String.length(\"\") is 0.",
 					"return_type": {
@@ -3561,6 +3946,25 @@
 							"name": "end",
 							"type": {
 								"name": "number"
+							}
+						}
+					]
+				},
+				"to_number": {
+					"description": "The number the text spells, or an empty Option when it does not spell one: String.to_number(\"12\") is 12, \"-0.5\" is -0.5 and \"1e3\" is 1000. The number is read the way a data file writes one, with an optional sign, digits, a decimal point and an optional exponent, and whitespace around it is ignored, so a value with a line break after it still reads. Any other text, including an empty one and the spellings of infinity and NaN, answers an empty Option rather than reporting, because a value read from a file is data and a bad one is the file's defect and not the mod's.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "number"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
 							}
 						}
 					]
@@ -4034,6 +4438,17 @@
 						"name": "number"
 					}
 				},
+				"last_sound": {
+					"description": "The last sound command the running test's own mod asked for, or an empty Option when it has asked for none since the test started. What a mod asks for is the mod's whole output when it is a client-side sound mod, and no headless run can hear it, so this is what lets such a mod have a test at all: the test drives the mod and asserts which sound, gain, pitch and fade it chose. The values are the ones the mod passed, before the loader applied the game's own volume, and seq counts the commands from 1 up so a poll can tell a new command from the same one read again. A command from another mod is not reported, so a test sees only its own mod's calls. Test only.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "SoundCommand"
+							}
+						]
+					}
+				},
 				"light_applied": {
 					"description": "Test only: whether the client's copy of the world holds the same light in the section this position falls in as the world the test edits, which is the light the client's frame pass draws that section with: its block light, and its sky light too on the loaders whose server compares both, because a renderer there draws a position with the larger of the two. A light change reaches a 1.20.6 client in a packet after the block changes a capture settle counts, so two frames of a room drawn from the light it had before the change can agree with each other, and a capture taken then lands a light step away from the room's real light. A test that captures a room whose light a change of its own touched waits for this before it captures, which is deterministic where a frame count is not. The answer is false while the world's own light engine still has work in its own queues, so the copies are not compared before the change has been worked out; a check still waiting in the chunk sorter's queue is not visible to that gate. The section is compared as a 53-bit fingerprint of its light, not one position's light, because a client-only run reads the client's copy from the server thread and only the section is published for another thread to read. The position has to be finite, because a coordinate that is not finite names no section at all, so a call with one is reported and answers false. A dedicated server asks the joined client for its own copy, and a client-only run of the four older loaders shares one world, so its answer is true there. A position in a chunk column the client was never sent is false, because that client cannot hold the world's light there, however empty the world's own section still is. 1.2.5's incremental light is history-dependent, so its server cannot verify the room's client copy and answers true for those sections. See #1207 and #1240. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
@@ -4436,6 +4851,17 @@
 						}
 					]
 				},
+				"set_player_pitch": {
+					"description": "Turns the running test's player head to this pitch, in degrees from 90 straight down to -90 straight up, which is what a test of a look-driven slider needs and what a player does with the mouse. The value has to be finite and within that range, or it is reported. Test only.",
+					"parameters": [
+						{
+							"name": "pitch",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"set_player_position": {
 					"description": "Moves the player so their feet are at the position, in blocks, which is how a test stands inside or outside a shape drawn around a point, or looks at the world from somewhere other than the room's middle. The chunk there has to be loaded on the client: a teleport into one it has not received crashes the game, so the call is refused and the player stays where they were, and the test moves in steps and waits for the world to settle between them. The runner puts the player back where it found them when the test ends, and get_origin keeps answering the room's middle. Every loader's client supports it: a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi, 1.2.5-forge and 1.20.6-forge; a dedicated server refuses it. The position has to be finite.",
 					"parameters": [
@@ -4455,6 +4881,23 @@
 							"name": "z",
 							"type": {
 								"name": "number"
+							}
+						}
+					]
+				},
+				"set_weather": {
+					"description": "Makes the running test's level rain, thunder, or neither, which is how a test reaches the machines a sound pack gates on the weather: Level.get_weather reports it from the next tick on, and Weather.rain_height answers as if the level were raining. A test that thunders also rains, as the game keeps the two together, so a thunderstorm is asked for as (true, true) and a clear sky as (false, false). Test only.",
+					"parameters": [
+						{
+							"name": "raining",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "thundering",
+							"type": {
+								"name": "bool"
 							}
 						}
 					]
@@ -4638,6 +5081,49 @@
 					"description": "Creates a new Vec3, initialized with all zeros.",
 					"return_type": {
 						"name": "Vec3"
+					}
+				}
+			}
+		},
+		"Weather": {
+			"description": "The weather of the level and the sky's light at this moment, which a mod reads to tell a rainy night from a clear noon. It is the level's own state, the same one its rain and its sky follow, so a mod never predicts the weather from the time.",
+			"methods": {
+				"is_raining": {
+					"description": "Whether rain is falling in the level. A level whose weather never changes, such as one in a dimension with no weather, answers false.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"is_thundering": {
+					"description": "Whether a thunderstorm is running in the level, which is true only while it is also raining: the game keeps the two together, so a level that answers true here answers true to is_raining.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"rain_height": {
+					"description": "The y of the highest block in the column at these coordinates that rain reaches, so rain reaches a block at or below it and not one above it: a mod tests its own y against it. The answer is the game's own rule for that column, which is 0 for a column rain cannot reach at all. The position has to be finite, or it is reported.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"skylight_subtracted": {
+					"description": "How much light the sky is missing at this moment, from 0 at noon to 11 at midnight, which is what the game subtracts from the sky light to get the light a space has: a space's light is max(Level.get_block_light, Level.get_sky_light - this). A thunderstorm raises it, and a level that never changes its time keeps the value its time gives.",
+					"return_type": {
+						"name": "number"
 					}
 				}
 			}
@@ -4867,6 +5353,81 @@
 				}
 			]
 		},
+		"pause_stream": {
+			"description": "Pauses a stream where it is and keeps its source, so resume_stream continues the same file from the same sample. There is no fade: the reference is given one and ignores it, and no loader fades a pause. A stream that has already stopped, or a token the loader never made, does nothing, and pausing a paused stream does nothing either. A pack's isusingpause stream is paused when its machine goes off and resumed when it comes back, which is how an ambience the player left carries on instead of starting over.",
+			"parameters": [
+				{
+					"name": "token",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"play_sound_at": {
+			"description": "Plays a supplied sound file once at a position in the world, which is how a pack places an ambience around the player: the position picks the side it is heard from, and the gain is the one asked for. It does not get quieter with distance, which is how the reference plays every one-shot: the position picks the side and not the loudness, so the volume the mod worked out is the volume heard. `path` is a path relative to the game directory, such as \"resources/newsound/matmos_hl/weather/rain_a.ogg\", with forward slashes, no empty, `.` or `..` segment and no backslash, or it is reported; a file that is not there plays nothing, so a pack without its recordings is silent rather than failing. `volume` has to be 0 or more and `pitch` above 0, or it is reported, and a volume of 0 plays nothing. A volume above 1 is allowed and reaches the machine's mixer, where the paulscode loaders let it clip and 1.20.6 clamps it. Pitch is unclamped on the paulscode loaders and held to 0.5 to 2 on 1.20.6. The position has to be finite.",
+			"parameters": [
+				{
+					"name": "path",
+					"type": {
+						"name": "string"
+					}
+				},
+				{
+					"name": "volume",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "pitch",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "x",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "y",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "z",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"play_sound_file": {
+			"description": "Plays a supplied sound file once with no position, so it is the same in both ears: the 2D one-shot of a pack, where a sound of the environment is not placed anywhere in it. The gain may be above 1, which the game's own play_ui_sound refuses and a pack's event volumes use. `path` resolves as play_sound_at's does, and a file that is not there or a volume of 0 plays nothing. `volume` has to be 0 or more and `pitch` above 0, or it is reported; how a gain above 1 and a pitch outside 0.5 to 2 come out is the loader's, as play_sound_at describes.",
+			"parameters": [
+				{
+					"name": "path",
+					"type": {
+						"name": "string"
+					}
+				},
+				{
+					"name": "volume",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "pitch",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"play_ui_sound": {
 			"description": "Plays one of the game's sounds to the player as a sound of the interface, the way a button plays its click: it has no position, so it is heard at the same loudness wherever the player stands. The sound is a name such as \"minecraft:ui.button.click\" (see has_sound for what a name is and for the names a version has), and a name the game does not have is reported, not played as silence. The volume is from 0 to 1 and the pitch from 0.5 to 2, and a value outside them is reported. The sound plays on the client that owns the sound engine, whichever thread the call came from.",
 			"parameters": [
@@ -4979,6 +5540,17 @@
 				}
 			]
 		},
+		"resume_stream": {
+			"description": "Continues a stream that pause_stream paused, from the sample it stopped at. A stream that was not paused does nothing, and a token whose stream has stopped does nothing, because a stop gives the source back: starting a sound again after a stop takes a new start_stream.",
+			"parameters": [
+				{
+					"name": "token",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"search_item_at": {
 			"description": "The item at index, from 0 up to search_item_count minus 1, among the items the search text lists, in the order item_at lists them. An index outside that range is reported and answers nothing, since there is no item there to hand back.",
 			"return_type": {
@@ -5020,6 +5592,66 @@
 					"name": "operator",
 					"type": {
 						"name": "bool"
+					}
+				}
+			]
+		},
+		"start_stream": {
+			"description": "Starts a supplied sound file as a stream, which plays the file from disk as it is needed instead of holding it in memory, and answers the token that names this stream for the stop, pause and resume calls. A stream is how an ambience bed runs for minutes: a pack's loops are all streams. It is 2D, so it is the same in both ears, and `looping` decides whether it repeats until it is stopped or plays once and stays silent afterwards. `volume` is the gain from 0 to 1, `pitch` the pitch from 0.5 to 2, and `fade_in_ms` a fade from silence in wall-clock milliseconds, with 0 starting at the gain at once; a value outside those ranges, or a negative or fractional fade, is reported. `path` resolves as play_sound_at's does. The answer is an empty Option when the file is missing, when the loader's sound engine is not up yet, or when every streaming source is busy, and nothing is reported: a pack without its recordings is a normal state, and a caller that needs the stream tries again on a later tick, since a stop gives a source back only when its fade has ended. A token is a number from 1 up and is never 0, so a mod can keep 0 as 'no stream'. Two streams started from the same file are independent sources with their own gain, position in the file and token.",
+			"return_type": {
+				"name": "Option",
+				"generics": [
+					{
+						"name": "number"
+					}
+				]
+			},
+			"parameters": [
+				{
+					"name": "path",
+					"type": {
+						"name": "string"
+					}
+				},
+				{
+					"name": "volume",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "pitch",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "fade_in_ms",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "looping",
+					"type": {
+						"name": "bool"
+					}
+				}
+			]
+		},
+		"stop_stream": {
+			"description": "Stops a stream and gives its source back once the fade has ended, so a later call with the token does nothing and starting the sound again takes a new start_stream. `fade_out_ms` is the fade to silence in wall-clock milliseconds, and 0 stops at once; a negative or fractional value is reported. The source is held until the fade is over, so a start in that window can find the pool full and answer an empty Option, which is why the source is given back rather than kept. A token that has already stopped, or one the loader never made, does nothing.",
+			"parameters": [
+				{
+					"name": "token",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "fade_out_ms",
+					"type": {
+						"name": "number"
 					}
 				}
 			]

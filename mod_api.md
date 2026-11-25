@@ -88,6 +88,9 @@ export tick(ctx: TestTickContext)
 .accept_into_slot(slot: number)
 .refuse()
 
+## BlockCounts
+.count(block_name: string) number
+
 ## BlockEntityInitContext
 .set_extractable_slots(first: number, last: number)
 .set_insertable_slots(first: number, last: number)
@@ -153,6 +156,8 @@ File.open(root: resource) File
 .set_pickup_delay(ticks: number)
 
 ## Level
+.can_see_sky(x: number, y: number, z: number) bool
+.count_blocks_in_box(x: number, y: number, z: number, size_x: number, size_y: number, size_z: number) BlockCounts
 .count_item_entities(x: number, y: number, z: number, radius: number) number
 .count_item_entities_of(x: number, y: number, z: number, radius: number, item: Item) number
 .count_mobs(category: string) number
@@ -166,10 +171,12 @@ File.open(root: resource) File
 .get_mob_cap(category: string) number
 .get_sky_light(x: number, y: number, z: number) number
 .get_time() number
+.get_weather() Weather
 .has_mob_category(category: string) bool
 .has_neighbor_signal(x: number, y: number, z: number) bool
 .is_air(x: number, y: number, z: number) bool
 .is_hostile_spawn_space(x: number, y: number, z: number) bool
+.is_multiplayer() bool
 .name() string
 .place_block(x: number, y: number, z: number, block_name: string)
 .random_float() number
@@ -194,6 +201,13 @@ Math.sinh(value: number) number
 Math.sqrt(value: number) number
 Math.tau() number
 Math.toDegrees(radians: number) number
+
+## Memory
+Memory.clear()
+Memory.get(name: string) number
+Memory.get_text(name: string) Option[string]
+Memory.set(name: string, value: number)
+Memory.set_text(name: string, text: string)
 
 ## Option
 .has() bool
@@ -220,6 +234,7 @@ Option.new() Option[$Value]
 ## OverlayHudContext
 .add_text(text: string, x: number, y: number, color: Color)
 .get_level() Level
+.get_player() Player
 .screen_height() number
 .screen_width() number
 .top_inset() number
@@ -270,7 +285,25 @@ Option.new() Option[$Value]
 
 ## Player
 .get_held_item() Option[Item]
+.pitch() number
 .position() Vec3
+.state() PlayerState
+
+## PlayerState
+.air() number
+.fall_distance() number
+.food() number
+.health() number
+.in_minecart() bool
+.is_in_water() bool
+.is_wet() bool
+.motion_x() number
+.motion_y() number
+.motion_z() number
+.on_ground() bool
+.riding_motion_x() number
+.riding_motion_y() number
+.riding_motion_z() number
 
 ## RenderContext
 .draw_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
@@ -293,12 +326,27 @@ Option.new() Option[$Value]
 .add_collision_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 .add_selection_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 
+## SoundCommand
+.command() string
+.fade_ms() number
+.looping() bool
+.path() string
+.pitch() number
+.seq() number
+.token() number
+.volume() number
+.x() number
+.y() number
+.z() number
+
 ## String
 String.concat(first: string, second: string) string
 String.from_character(code: number) string
 String.from_number(value: number) string
+String.index_of(text: string, search: string, start: number) Option[number]
 String.length(text: string) number
 String.substring(text: string, start: number, end: number) string
+String.to_number(text: string) Option[number]
 
 ## TestInitContext
 .get_origin() Vec3
@@ -332,6 +380,7 @@ String.substring(text: string, start: number, end: number) string
 .gui_width() number
 .high_block_round_trip() number
 .hot_reload_count(relative_path: string) number
+.last_sound() Option[SoundCommand]
 .light_applied(x: number, y: number, z: number) bool
 .load_nbt(block_entity: BlockEntity)
 .mining_crack(level: Level, x: number, y: number, z: number) bool
@@ -358,7 +407,9 @@ String.substring(text: string, start: number, end: number) string
 .set_mod_file_state(relative_path: string, state: string)
 .set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
 .set_nbt_number(block_entity: BlockEntity, path: string, type: string, value: number)
+.set_player_pitch(pitch: number)
 .set_player_position(x: number, y: number, z: number)
+.set_weather(raining: bool, thundering: bool)
 .spawn_mob(level: Level, id: string, x: number, y: number, z: number)
 .stall(milliseconds: number)
 .tick_block_entity(block_entity: BlockEntity, ticks: number)
@@ -373,6 +424,12 @@ String.substring(text: string, start: number, end: number) string
 .z() number
 Vec3.new(x: number, y: number, z: number) Vec3
 Vec3.zero() Vec3
+
+## Weather
+.is_raining() bool
+.is_thundering() bool
+.rain_height(x: number, z: number) number
+.skylight_subtracted() number
 
 # Host functions
 
@@ -389,11 +446,17 @@ item_count() number
 item_entity(level: Level, x: number, y: number, z: number, item_stack: ItemStack) ItemEntity
 item_max_stack(item: Item) number
 item_stack(item: Item, damage: number, count: number) ItemStack
+pause_stream(token: number)
+play_sound_at(path: string, volume: number, pitch: number, x: number, y: number, z: number)
+play_sound_file(path: string, volume: number, pitch: number)
 play_ui_sound(sound: string, volume: number, pitch: number)
 print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)
 resource_location(resource_location_string: string) ResourceLocation
+resume_stream(token: number)
 search_item_at(text: string, index: number) Item
 search_item_count(text: string) number
 set_operator(operator: bool)
+start_stream(path: string, volume: number, pitch: number, fade_in_ms: number, looping: bool) Option[number]
+stop_stream(token: number, fade_out_ms: number)
