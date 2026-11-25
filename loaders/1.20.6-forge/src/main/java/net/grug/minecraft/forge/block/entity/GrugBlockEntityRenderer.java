@@ -244,37 +244,60 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
         float y2 = (float) (draw.y2() - draw.y1());
         float z2 = (float) (draw.z2() - draw.z1());
 
+        // RenderEntityBlock maps the box's own extent onto the sprite's sub-rectangle rather
+        // than stretching the whole tile across it: a column 0.135 to 0.865 across shows the
+        // sprite's columns 2.16 to 13.84, with 0.01 of a texel off the larger edge the way
+        // RenderBlocks does, so every texel lands where the reference puts it.
+        float spanU = u1 - u0;
+        float spanV = v1 - v0;
+        float bx1 = (float) draw.x1();
+        float by1 = (float) draw.y1();
+        float bz1 = (float) draw.z1();
+        float bx2 = (float) draw.x2();
+        float by2 = (float) draw.y2();
+        float bz2 = (float) draw.z2();
+        float uX1 = u0 + bx1 * spanU;
+        float uX2 = u0 + (bx2 - 0.01F / 16.0F) * spanU;
+        float uZ1 = u0 + bz1 * spanU;
+        float uZ2 = u0 + (bz2 - 0.01F / 16.0F) * spanU;
+        float vY1 = v0 + by1 * spanV;
+        float vY2 = v0 + (by2 - 0.01F / 16.0F) * spanV;
+        float vZ1 = v0 + bz1 * spanV;
+        float vZ2 = v0 + (bz2 - 0.01F / 16.0F) * spanV;
+
         // Every face of the box is drawn, including the inward ones, because the column is seen
-        // through the tank's own glass faces and the reference's box renderer draws all six.
-        liquidVertex(vertices, pose, rgb, x1, y1, z1, u0, v0);
-        liquidVertex(vertices, pose, rgb, x1, y1, z2, u0, v1);
-        liquidVertex(vertices, pose, rgb, x2, y1, z2, u1, v1);
-        liquidVertex(vertices, pose, rgb, x2, y1, z1, u1, v0);
+        // through the tank's own glass faces and the reference's box renderer draws all six. The
+        // six faces keep RenderEntityBlock's own order and corner and UV mapping, including the
+        // faces that are mirrored against the world axes.
+        liquidVertex(vertices, pose, rgb, x1, y1, z2, uX1, vZ2);
+        liquidVertex(vertices, pose, rgb, x1, y1, z1, uX1, vZ1);
+        liquidVertex(vertices, pose, rgb, x2, y1, z1, uX2, vZ1);
+        liquidVertex(vertices, pose, rgb, x2, y1, z2, uX2, vZ2);
 
-        liquidVertex(vertices, pose, rgb, x1, y2, z1, u0, v0);
-        liquidVertex(vertices, pose, rgb, x2, y2, z1, u1, v0);
-        liquidVertex(vertices, pose, rgb, x2, y2, z2, u1, v1);
-        liquidVertex(vertices, pose, rgb, x1, y2, z2, u0, v1);
+        liquidVertex(vertices, pose, rgb, x2, y2, z2, uX2, vZ2);
+        liquidVertex(vertices, pose, rgb, x2, y2, z1, uX2, vZ1);
+        liquidVertex(vertices, pose, rgb, x1, y2, z1, uX1, vZ1);
+        liquidVertex(vertices, pose, rgb, x1, y2, z2, uX1, vZ2);
 
-        liquidVertex(vertices, pose, rgb, x1, y1, z1, u0, v0);
-        liquidVertex(vertices, pose, rgb, x2, y1, z1, u1, v0);
-        liquidVertex(vertices, pose, rgb, x2, y2, z1, u1, v1);
-        liquidVertex(vertices, pose, rgb, x1, y2, z1, u0, v1);
+        liquidVertex(vertices, pose, rgb, x1, y2, z1, uX2, vY1);
+        liquidVertex(vertices, pose, rgb, x2, y2, z1, uX1, vY1);
+        liquidVertex(vertices, pose, rgb, x2, y1, z1, uX1, vY2);
+        liquidVertex(vertices, pose, rgb, x1, y1, z1, uX2, vY2);
 
-        liquidVertex(vertices, pose, rgb, x1, y1, z2, u0, v0);
-        liquidVertex(vertices, pose, rgb, x1, y2, z2, u0, v1);
-        liquidVertex(vertices, pose, rgb, x2, y2, z2, u1, v1);
-        liquidVertex(vertices, pose, rgb, x2, y1, z2, u1, v0);
+        liquidVertex(vertices, pose, rgb, x1, y2, z2, uX1, vY1);
+        liquidVertex(vertices, pose, rgb, x1, y1, z2, uX1, vY2);
+        liquidVertex(vertices, pose, rgb, x2, y1, z2, uX2, vY2);
+        liquidVertex(vertices, pose, rgb, x2, y2, z2, uX2, vY1);
 
-        liquidVertex(vertices, pose, rgb, x1, y1, z1, u0, v0);
-        liquidVertex(vertices, pose, rgb, x1, y2, z1, u0, v1);
-        liquidVertex(vertices, pose, rgb, x1, y2, z2, u1, v1);
-        liquidVertex(vertices, pose, rgb, x1, y1, z2, u1, v0);
+        liquidVertex(vertices, pose, rgb, x1, y2, z2, uZ2, vY1);
+        liquidVertex(vertices, pose, rgb, x1, y2, z1, uZ1, vY1);
+        liquidVertex(vertices, pose, rgb, x1, y1, z1, uZ1, vY2);
+        liquidVertex(vertices, pose, rgb, x1, y1, z2, uZ2, vY2);
 
-        liquidVertex(vertices, pose, rgb, x2, y1, z1, u0, v0);
-        liquidVertex(vertices, pose, rgb, x2, y1, z2, u0, v1);
-        liquidVertex(vertices, pose, rgb, x2, y2, z2, u1, v1);
-        liquidVertex(vertices, pose, rgb, x2, y2, z1, u1, v0);
+        liquidVertex(vertices, pose, rgb, x2, y1, z2, uZ1, vY2);
+        liquidVertex(vertices, pose, rgb, x2, y1, z1, uZ2, vY2);
+        liquidVertex(vertices, pose, rgb, x2, y2, z1, uZ2, vY1);
+        liquidVertex(vertices, pose, rgb, x2, y2, z2, uZ1, vY1);
 
         poseStack.popPose();
     }

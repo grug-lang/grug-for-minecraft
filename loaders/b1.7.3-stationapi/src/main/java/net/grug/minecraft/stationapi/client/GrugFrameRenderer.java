@@ -337,53 +337,71 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
         float y2 = (float) draw.y2();
         float z2 = (float) draw.z2();
 
+        // RenderEntityBlock maps the box's own extent onto the sprite's sub-rectangle rather
+        // than stretching the whole tile across it: a column 0.135 to 0.865 across shows the
+        // sprite's columns 2.16 to 13.84, with 0.01 of a texel off the larger edge the way
+        // RenderBlocks does, so every texel lands where the reference puts it.
+        float spanU = u1 - u0;
+        float spanV = v1 - v0;
+        float uX1 = u0 + x1 * spanU;
+        float uX2 = u0 + (x2 - 0.01F / 16.0F) * spanU;
+        float uZ1 = u0 + z1 * spanU;
+        float uZ2 = u0 + (z2 - 0.01F / 16.0F) * spanU;
+        float vY1 = v0 + y1 * spanV;
+        float vY2 = v0 + (y2 - 0.01F / 16.0F) * spanV;
+        float vZ1 = v0 + z1 * spanV;
+        float vZ2 = v0 + (z2 - 0.01F / 16.0F) * spanV;
+
         GL11.glPushMatrix();
         GL11.glTranslatef((float) dx, (float) dy, (float) dz);
         // The column is seen through the tank's own glass faces, so both sides of the box are
         // drawn, as the reference's own box renderer draws every face of its box.
         GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        // RenderTank never turns blending on, so its column is opaque however transparent the
+        // liquid's sprite is.
+        GL11.glDisable(GL11.GL_BLEND);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
 
         Tessellator tessellator = Tessellator.INSTANCE;
         tessellator.startQuads();
 
+        // The six faces in RenderEntityBlock's own order and with its own corner and UV
+        // mapping, including the faces that are mirrored against the world axes.
         tessellator.normal(0.0F, -1.0F, 0.0F);
-        tessellator.vertex(x1, y1, z1, u0, v0);
-        tessellator.vertex(x1, y1, z2, u0, v1);
-        tessellator.vertex(x2, y1, z2, u1, v1);
-        tessellator.vertex(x2, y1, z1, u1, v0);
+        tessellator.vertex(x1, y1, z2, uX1, vZ2);
+        tessellator.vertex(x1, y1, z1, uX1, vZ1);
+        tessellator.vertex(x2, y1, z1, uX2, vZ1);
+        tessellator.vertex(x2, y1, z2, uX2, vZ2);
 
         tessellator.normal(0.0F, 1.0F, 0.0F);
-        tessellator.vertex(x1, y2, z1, u0, v0);
-        tessellator.vertex(x2, y2, z1, u1, v0);
-        tessellator.vertex(x2, y2, z2, u1, v1);
-        tessellator.vertex(x1, y2, z2, u0, v1);
+        tessellator.vertex(x2, y2, z2, uX2, vZ2);
+        tessellator.vertex(x2, y2, z1, uX2, vZ1);
+        tessellator.vertex(x1, y2, z1, uX1, vZ1);
+        tessellator.vertex(x1, y2, z2, uX1, vZ2);
 
         tessellator.normal(0.0F, 0.0F, -1.0F);
-        tessellator.vertex(x1, y1, z1, u0, v0);
-        tessellator.vertex(x2, y1, z1, u1, v0);
-        tessellator.vertex(x2, y2, z1, u1, v1);
-        tessellator.vertex(x1, y2, z1, u0, v1);
+        tessellator.vertex(x1, y2, z1, uX2, vY1);
+        tessellator.vertex(x2, y2, z1, uX1, vY1);
+        tessellator.vertex(x2, y1, z1, uX1, vY2);
+        tessellator.vertex(x1, y1, z1, uX2, vY2);
 
         tessellator.normal(0.0F, 0.0F, 1.0F);
-        tessellator.vertex(x1, y1, z2, u0, v0);
-        tessellator.vertex(x1, y2, z2, u0, v1);
-        tessellator.vertex(x2, y2, z2, u1, v1);
-        tessellator.vertex(x2, y1, z2, u1, v0);
+        tessellator.vertex(x1, y2, z2, uX1, vY1);
+        tessellator.vertex(x1, y1, z2, uX1, vY2);
+        tessellator.vertex(x2, y1, z2, uX2, vY2);
+        tessellator.vertex(x2, y2, z2, uX2, vY1);
 
         tessellator.normal(-1.0F, 0.0F, 0.0F);
-        tessellator.vertex(x1, y1, z1, u0, v0);
-        tessellator.vertex(x1, y2, z1, u0, v1);
-        tessellator.vertex(x1, y2, z2, u1, v1);
-        tessellator.vertex(x1, y1, z2, u1, v0);
+        tessellator.vertex(x1, y2, z2, uZ2, vY1);
+        tessellator.vertex(x1, y2, z1, uZ1, vY1);
+        tessellator.vertex(x1, y1, z1, uZ1, vY2);
+        tessellator.vertex(x1, y1, z2, uZ2, vY2);
 
         tessellator.normal(1.0F, 0.0F, 0.0F);
-        tessellator.vertex(x2, y1, z1, u0, v0);
-        tessellator.vertex(x2, y1, z2, u0, v1);
-        tessellator.vertex(x2, y2, z2, u1, v1);
-        tessellator.vertex(x2, y2, z1, u1, v0);
+        tessellator.vertex(x2, y1, z2, uZ1, vY2);
+        tessellator.vertex(x2, y1, z1, uZ2, vY2);
+        tessellator.vertex(x2, y2, z1, uZ2, vY1);
+        tessellator.vertex(x2, y2, z2, uZ1, vY1);
 
         tessellator.draw();
         GL11.glPopMatrix();
