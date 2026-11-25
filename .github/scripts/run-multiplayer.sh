@@ -990,22 +990,24 @@ while :; do
         # give_requires_operator is the permission-checked give's own proof (#882): it flips the
         # player's operator status on this server and presses the overlay's item from the joined
         # client, so it runs on the legs that have the operator-checked path.
-        overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        # inventory_forwarded is #1759's proof: the same joined client names a slot write and a drop
+        # to the server, which applies them to the chest the test placed.
+        overlay_tests="coverage/tests/give_requires_operator coverage/tests/inventory_forwarded coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
         excluded="jei/tests/item_list_forced_normalization"
         ;;
       1.2.5-forge)
-        overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        overlay_tests="coverage/tests/give_requires_operator coverage/tests/inventory_forwarded coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
         excluded="jei/tests/item_list_forced_normalization"
         ;;
       b1.7.3-stationapi)
-        overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        overlay_tests="coverage/tests/give_requires_operator coverage/tests/inventory_forwarded coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
         # The forced-normalization item list: a dedicated server cannot force that GL state, and
         # the joined client's capture differs from the golden in 5967, all 12672 and 11614 of 12672
         # pixels (1.20.6, 1.2.5, stationapi).
         excluded="jei/tests/item_list_forced_normalization"
         ;;
       a1.1.2_01-ornithe)
-        overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        overlay_tests="coverage/tests/give_requires_operator coverage/tests/inventory_forwarded coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
         # Three tests are client-only here: the forced-normalization item list, because a dedicated
         # server cannot force that GL state, and the overlay click and the JEI click, because this
         # server does not apply the container click the joined client presses (#1393; proof run
@@ -1014,7 +1016,7 @@ while :; do
         excluded="coverage/tests/overlay jei/tests/jei jei/tests/item_list_forced_normalization"
         ;;
       b1.7.3-ornithe)
-        overlay_tests="coverage/tests/give_requires_operator coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
+        overlay_tests="coverage/tests/give_requires_operator coverage/tests/inventory_forwarded coverage/tests/overlay coverage/tests/overlay_click_hook coverage/tests/overlay_key coverage/tests/overlay_probe_gives_nothing coverage/tests/overlay_screen_open coverage/tests/overlay_scroll jei/tests/jei jei/tests/hotkey jei/tests/paging jei/tests/scroll jei/tests/item_list_forced_normalization"
         # Only the forced-normalization item list is client-only here: a dedicated server cannot
         # force that GL state. paging and scroll are back after #1238 gave the coverage mod's two
         # fixtures drawable item models, and this leg runs both.

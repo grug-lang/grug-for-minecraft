@@ -1677,12 +1677,13 @@ public class HostFunctions {
                 "item",
                 itemId,
                 item ->
-                        GrugCore.getAdapter()
-                                .setItemInSlot(
-                                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                                        slot,
-                                        item,
-                                        count));
+                        net.grug.minecraft.core.GrugInventoryCalls.setItemInSlot(
+                                GrugCore.getAdapter(),
+                                HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                                slot,
+                                item,
+                                count,
+                                "BlockEntity.set_item_in_slot"));
     }
 
     public static void BlockEntityInitContext_set_extractable_slots(
@@ -2823,7 +2824,9 @@ public class HostFunctions {
                 "drop_inventory",
                 "level",
                 levelId,
-                level -> GrugCore.getAdapter().dropInventory(level, x, y, z));
+                level ->
+                        net.grug.minecraft.core.GrugInventoryCalls.dropInventory(
+                                GrugCore.getAdapter(), level, x, y, z));
     }
 
     public static boolean equals(Object a, Object b) {

@@ -56,12 +56,13 @@ def stage_scripts(scripts: Path, *names: str) -> None:
 # on every leg (#1161). Every fixture of a passing leg prints it, so a new one cannot forget it.
 SERVER_ORIGIN_LINE = "[GRUG CI] Test origin is Vec3[x=0.5, y=70.62, z=52.5]."
 
-# The eleven overlay and JEI tests every leg but a1.1.2_01 requires twice: its PASS line and the line
+# The twelve overlay and JEI tests every leg but a1.1.2_01 requires twice: its PASS line and the line
 # only a test whose overlay was drawn on the joined client writes. a1.1.2_01 does not require
 # overlay and jei/jei, because its server does not apply the container click the joined client
 # presses (#1393). The forced-normalization item list is left out here.
 OVERLAY_DRAWN_TESTS = [
     "coverage/tests/give_requires_operator",
+    "coverage/tests/inventory_forwarded",
     "coverage/tests/overlay",
     "coverage/tests/overlay_click_hook",
     "coverage/tests/overlay_key",
@@ -614,6 +615,7 @@ class TwoClientLegFixture(unittest.TestCase):
         "coverage/tests/forwarded_press_screen_key",
         "coverage/tests/forwarded_scroll_screen",
         "coverage/tests/give_requires_operator",
+        "coverage/tests/inventory_forwarded",
         "coverage/tests/overlay_click_hook",
         "coverage/tests/overlay_key",
         "coverage/tests/overlay_probe_gives_nothing",

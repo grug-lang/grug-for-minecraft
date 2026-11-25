@@ -90,6 +90,27 @@ class GrugControlTest {
             given.add("deleteCarried");
         }
 
+        /**
+         * The block entity changes the server applied (#1759), in order with the gives. A refusal
+         * is answered so a test can see what the sender was told.
+         */
+        String refusal;
+
+        @Override
+        public String applyDropInventory(Object player, double x, double y, double z) {
+            given.add("drop " + player + " " + x + "," + y + "," + z);
+            return refusal;
+        }
+
+        @Override
+        public String applySetItemInSlot(
+                Object player, double x, double y, double z, double slot, String item, int count) {
+            given.add(
+                    "slot " + player + " " + x + "," + y + "," + z + " " + slot + " " + item + "x"
+                            + count);
+            return refusal;
+        }
+
         @Override
         public boolean mayStartRun(Object sender) {
             return mayStart;
@@ -3196,6 +3217,122 @@ class GrugControlTest {
                 GrugControlWire.DELETE_CARRIED_REQUEST,
                 GrugControlWire.decode(loop.toServer.get(loop.toServer.size() - 1)).type);
         loop.client.endRun();
+    }
+
+    @Test
+    void aDropAndASlotWriteTheJoinedClientNamesAreAppliedOnTheNextDrain() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(new Object(), loop.given, java.util.Set.of("player of alice"));
+        byte[] drop = GrugControlWire.dropInventoryRequest(3, 64, -2);
+        byte[] slot = GrugControlWire.setItemInSlotRequest(3, 64, -2, 7, 4, "minecraft:stone");
+        GrugControlWire.Message dropped = GrugControlWire.decode(drop);
+        GrugControlWire.Message written = GrugControlWire.decode(slot);
+        assertEquals(GrugControlWire.DROP_INVENTORY_REQUEST, dropped.type);
+        assertEquals(
+                List.of(3.0, 64.0, -2.0), List.of(dropped.volume, dropped.pitch, dropped.third));
+        assertEquals(GrugControlWire.SET_ITEM_IN_SLOT_REQUEST, written.type);
+        assertEquals(
+                List.of(3.0, 64.0, -2.0), List.of(written.volume, written.pitch, written.third));
+        assertEquals(7.0, written.fourth, 0.0);
+        assertEquals(4.0, written.fifth, 0.0);
+        assertEquals("minecraft:stone", written.text);
+
+        // Both are handled on the reader thread only once a starter exists, like every other
+        // message that changes the world, and only from a connection whose player is known.
+        assertFalse(GrugControlWire.isAnswer(GrugControlWire.DROP_INVENTORY_REQUEST));
+        assertFalse(GrugControlWire.isAnswer(GrugControlWire.SET_ITEM_IN_SLOT_REQUEST));
+        assertTrue(GrugControlWire.handledOnRead(GrugControlWire.DROP_INVENTORY_REQUEST));
+        assertTrue(GrugControlWire.handledOnRead(GrugControlWire.SET_ITEM_IN_SLOT_REQUEST));
+        assertFalse(loop.server.onRead("alice", drop));
+        loop.server.onMessage("alice", GrugControlWire.runStart());
+        withAdapter(adapter, loop::runTasks);
+        assertTrue(loop.server.handlesOnRead(GrugControlWire.DROP_INVENTORY_REQUEST, "alice"));
+        // A connection whose player the loader knows is read on its own thread, like a give, and
+        // the starter check then drops what that read queued.
+        assertTrue(loop.server.handlesOnRead(GrugControlWire.DROP_INVENTORY_REQUEST, "bob"));
+        assertFalse(loop.server.handlesOnRead(GrugControlWire.DROP_INVENTORY_REQUEST, null));
+
+        // They join the give queue in the order the client sent them, so a slot write a click made
+        // before its drop applies first.
+        loop.server.onMessage("alice", GrugControlWire.giveRequest("grug:test", 1));
+        loop.server.onMessage("alice", slot);
+        loop.server.onMessage("alice", drop);
+        assertTrue(loop.given.isEmpty(), "the network thread applies nothing");
+        withAdapter(adapter, loop.server::applyClientWork);
+        assertEquals(
+                List.of(
+                        "player of alice x1",
+                        "slot player of alice 3.0,64.0,-2.0 7.0 minecraft:stonex4",
+                        "drop player of alice 3.0,64.0,-2.0"),
+                loop.given);
+
+        // Only the starter's requests count, like every other message.
+        loop.given.clear();
+        loop.server.onMessage("bob", drop);
+        loop.server.onMessage("bob", slot);
+        loop.server.applyClientWork();
+        assertTrue(loop.given.isEmpty());
+    }
+
+    @Test
+    void aDropOrASlotWriteIsSentOnlyWhileThisClientsOwnRunIsActive() {
+        Loopback loop = wireCalls(1000, new ScreenCalls());
+        assertThrows(
+                IllegalStateException.class,
+                () -> GrugControlClient.dropInventoryOnServer(0, 0, 0));
+        assertThrows(
+                IllegalStateException.class,
+                () -> GrugControlClient.setItemInSlotOnServer(0, 0, 0, 0, "minecraft:stone", 1));
+
+        loop.client.beginRun();
+        loop.toServer.clear();
+        GrugControlClient.dropInventoryOnServer(3, 64, -2);
+        GrugControlClient.setItemInSlotOnServer(3, 64, -2, 7, "minecraft:stone", 4);
+        GrugControlWire.Message clientDrop = GrugControlWire.decode(loop.toServer.get(0));
+        GrugControlWire.Message clientSlot = GrugControlWire.decode(loop.toServer.get(1));
+        assertEquals(GrugControlWire.DROP_INVENTORY_REQUEST, clientDrop.type);
+        assertEquals(
+                List.of(3.0, 64.0, -2.0),
+                List.of(clientDrop.volume, clientDrop.pitch, clientDrop.third));
+        assertEquals(GrugControlWire.SET_ITEM_IN_SLOT_REQUEST, clientSlot.type);
+        assertEquals(
+                List.of(3.0, 64.0, -2.0),
+                List.of(clientSlot.volume, clientSlot.pitch, clientSlot.third));
+        assertEquals("minecraft:stone", clientSlot.text);
+        assertEquals(7.0, clientSlot.fourth, 0.0);
+        assertEquals(4.0, clientSlot.fifth, 0.0);
+        loop.client.endRun();
+    }
+
+    @Test
+    void aRefusedInventoryChangeIsToldToTheSenderTheWayARefusedGiveIs() throws Exception {
+        PlayerGiveLink loop = new PlayerGiveLink();
+        loop.server = new GrugControlServer(loop, 1000);
+        ModLoaderAdapter adapter =
+                playerGiveAdapter(
+                        new Object(), new ArrayList<>(), java.util.Set.of("player of alice"));
+        loop.server.onMessage("alice", GrugControlWire.runStart());
+        withAdapter(adapter, loop::runTasks);
+        assertEquals("alice", loop.server.starter());
+
+        loop.refusal = "You can only change a block entity within 8 blocks of yourself.";
+        loop.server.onMessage("alice", GrugControlWire.dropInventoryRequest(3, 64, -2));
+        loop.server.onMessage(
+                "alice", GrugControlWire.setItemInSlotRequest(3, 64, -2, 7, 4, "minecraft:stone"));
+        withAdapter(adapter, loop.server::applyClientWork);
+
+        assertEquals(
+                List.of(
+                        "drop player of alice 3.0,64.0,-2.0",
+                        "slot player of alice 3.0,64.0,-2.0 7.0 minecraft:stonex4"),
+                loop.given,
+                "both changes reached the server with what the client named");
+        assertEquals(
+                List.of("alice: " + loop.refusal, "alice: " + loop.refusal),
+                loop.told,
+                "each refusal is shown to the player who asked");
     }
 
     @Test
