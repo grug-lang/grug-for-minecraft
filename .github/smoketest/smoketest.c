@@ -612,6 +612,61 @@ static union grug_value Math_pi(ARGS) { UNUSED; return num(3.1415926535897932384
 REGISTER("Math", "pi", Math_pi);
 static union grug_value Math_tau(ARGS) { UNUSED; return num(2 * 3.14159265358979323846); }
 REGISTER("Math", "tau", Math_tau);
+// The entries Build Guide's shape generators need (#1752). Each mirrors Java's Math: a NaN
+// argument stays NaN, min and max prefer the zero that keeps their side's sign, and signum gives
+// the number itself for both zeros and for NaN.
+static union grug_value Math_abs(ARGS) { UNUSED; return num(fabs(a[0]._number)); }
+REGISTER("Math", "abs", Math_abs);
+static union grug_value Math_atan2(ARGS) { UNUSED; return num(atan2(a[0]._number, a[1]._number)); }
+REGISTER("Math", "atan2", Math_atan2);
+static union grug_value Math_ceil(ARGS) { UNUSED; return num(ceil(a[0]._number)); }
+REGISTER("Math", "ceil", Math_ceil);
+static union grug_value Math_cosh(ARGS) { UNUSED; return num(cosh(a[0]._number)); }
+REGISTER("Math", "cosh", Math_cosh);
+static union grug_value Math_floorMod(ARGS) {
+    UNUSED;
+    if (a[1]._number == 0) return fail("Math.floorMod: the divisor is 0");
+    double remainder = fmod(a[0]._number, a[1]._number);
+    if (remainder != 0 && ((remainder < 0) != (a[1]._number < 0))) remainder += a[1]._number;
+    return num(remainder);
+}
+REGISTER("Math", "floorMod", Math_floorMod);
+// fmax and fmin answer the non-NaN argument, where Java answers NaN, so the pair is written out.
+static union grug_value Math_max(ARGS) {
+    UNUSED;
+    double x = a[0]._number, y = a[1]._number;
+    if (isnan(x) || isnan(y)) return num(NAN);
+    if (x > y) return num(x);
+    if (y > x) return num(y);
+    return num(signbit(x) ? y : x);
+}
+REGISTER("Math", "max", Math_max);
+static union grug_value Math_min(ARGS) {
+    UNUSED;
+    double x = a[0]._number, y = a[1]._number;
+    if (isnan(x) || isnan(y)) return num(NAN);
+    if (x < y) return num(x);
+    if (y < x) return num(y);
+    return num(signbit(x) ? x : y);
+}
+REGISTER("Math", "min", Math_min);
+static union grug_value Math_signum(ARGS) {
+    UNUSED;
+    double x = a[0]._number;
+    if (x > 0) return num(1.0);
+    if (x < 0) return num(-1.0);
+    return num(x);  // 0, negative zero and NaN answer themselves, as in Java.
+}
+REGISTER("Math", "signum", Math_signum);
+static union grug_value Math_sinh(ARGS) { UNUSED; return num(sinh(a[0]._number)); }
+REGISTER("Math", "sinh", Math_sinh);
+static union grug_value Math_sqrt(ARGS) { UNUSED; return num(sqrt(a[0]._number)); }
+REGISTER("Math", "sqrt", Math_sqrt);
+static union grug_value Math_toDegrees(ARGS) {
+    UNUSED;
+    return num(a[0]._number * 180.0 / 3.14159265358979323846);
+}
+REGISTER("Math", "toDegrees", Math_toDegrees);
 
 // =============================================================================================
 // SECTION: String

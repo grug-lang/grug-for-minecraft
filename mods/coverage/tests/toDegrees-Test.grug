@@ -1,0 +1,15 @@
+# Math.toDegrees turns radians into degrees, which is the unit a shape's angle properties are
+# written in while the game reports angles in radians.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.toDegrees(0) == 0, "Math.toDegrees(0) should be 0.")
+        ctx.assert(Math.toDegrees(Math.pi()) == 180, "Math.toDegrees(pi) should be 180.")
+        ctx.assert(Math.toDegrees(Math.tau()) == 360, "Math.toDegrees(tau) should be 360.")
+        ctx.assert(Math.toDegrees(Math.pi() / 2) == 90, "Math.toDegrees(half pi) should be 90.")
+        ctx.assert(Math.toDegrees(-Math.pi()) == -180, "Math.toDegrees(-pi) should be -180.")
+        inf: number = Math.sinh(1000)
+        ctx.assert(Math.toDegrees(inf) == inf, "Math.toDegrees(Infinity) should stay Infinity.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.toDegrees(nan) <= Math.toDegrees(nan)), "Math.toDegrees(NaN) should stay NaN.")
+    }
+}

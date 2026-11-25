@@ -1,0 +1,15 @@
+# Math.sinh is the hyperbolic sine, which a hanging chain's horizontal distance follows. It is odd,
+# so the sign of its argument carries through, and it grows past every bound.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.sinh(0) == 0, "Math.sinh(0) should be 0.")
+        ctx.assert(Math.sinh(1) > 1.175201193643801, "Math.sinh(1) should be about 1.175.")
+        ctx.assert(Math.sinh(1) < 1.175201193643802, "Math.sinh(1) should be about 1.175.")
+        ctx.assert(Math.sinh(-1) == -Math.sinh(1), "Math.sinh should be odd.")
+        inf: number = Math.sinh(1000)
+        ctx.assert(Math.sinh(inf) == inf, "Math.sinh(Infinity) should be Infinity.")
+        ctx.assert(Math.sinh(-inf) == -inf, "Math.sinh(-Infinity) should be -Infinity.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.sinh(nan) <= Math.sinh(nan)), "Math.sinh(NaN) should stay NaN.")
+    }
+}

@@ -1,0 +1,14 @@
+# Math.cosh is the hyperbolic cosine, which a hanging chain's height follows. It is even, so the
+# sign of its argument does not change the answer, and it grows past every bound.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(Math.cosh(0) == 1, "Math.cosh(0) should be 1.")
+        ctx.assert(Math.cosh(1) > 1.54308063481524, "Math.cosh(1) should be about 1.543.")
+        ctx.assert(Math.cosh(1) < 1.54308063481525, "Math.cosh(1) should be about 1.543.")
+        ctx.assert(Math.cosh(-1) == Math.cosh(1), "Math.cosh should be even.")
+        inf: number = Math.sinh(1000)
+        ctx.assert(Math.cosh(inf) == inf, "Math.cosh(Infinity) should be Infinity.")
+        nan: number = Math.sqrt(-1)
+        ctx.assert(not (Math.cosh(nan) <= Math.cosh(nan)), "Math.cosh(NaN) should stay NaN.")
+    }
+}
