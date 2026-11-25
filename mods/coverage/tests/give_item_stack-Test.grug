@@ -29,7 +29,7 @@ export tick(ctx: TestTickContext) {
             return
         }
         ctx.assert(equals(held.unwrap(), item_at(1)), "The give should put the item it was asked for in the hand.")
-        ctx.assert(ctx.get_held_count(ctx.get_player()) == ctx.get_item_max_stack(item_at(1)), "The give should put the item's maximum stack in the hand.")
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == item_max_stack(item_at(1)), "The give should put the item's maximum stack in the hand.")
         ctx.clear_held_item(ctx.get_player())
         give_item_stack(item_at(0))
         step = 2
@@ -45,6 +45,6 @@ export tick(ctx: TestTickContext) {
         return
     }
     ctx.assert(equals(held.unwrap(), item_at(0)), "The second give should put the item it was asked for in the hand.")
-    ctx.assert(ctx.get_held_count(ctx.get_player()) == ctx.get_item_max_stack(item_at(0)), "The second give should put that item's own maximum stack in the hand.")
+    ctx.assert(ctx.get_held_count(ctx.get_player()) == item_max_stack(item_at(0)), "The second give should put that item's own maximum stack in the hand.")
     ctx.clear_held_item(ctx.get_player())
 }

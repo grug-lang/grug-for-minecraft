@@ -1,11 +1,14 @@
 # The item list on the player's inventory screen: it is drawn while the screen is open, and its
 # clicks follow the reference's cheat-mode bindings. A left or right click gives one item, a middle
 # click or shift+left gives a stack, and a left click while the cursor carries an item deletes that
-# stack unless the clicked item is the one it carries, which is DeleteItemInputHandler's
-# shouldDeleteItemOnClick and ServerCommandUtil.canStack. A click on a cell with no item deletes too,
-# because the reference asks only whether the mouse is over the grid. JEI's own give sends the item
-# to the server, so the test waits for the client to receive it in the player's hand rather than
-# reading it back at once.
+# stack unless the clicked item is the one it carries and stacks, which is DeleteItemInputHandler's
+# shouldDeleteItemOnClick and ServerCommandUtil.canStack. An item that cannot stack, a tool or a
+# filled bucket, is deleted even when it is the carried one, because two of a stack of one never
+# merge. A click on a cell with no item deletes too, because the reference asks only whether the
+# mouse is over the grid. JEI's own give sends the item to the server, so the test waits for the
+# client to receive it in the player's hand rather than reading it back at once. A press that is not
+# on the search field unfocuses it, the page buttons included, which the test checks by paging with
+# the field focused and then typing a key that must reach the screen.
 
 # The overlay is drawn on every loader now; a loader that does not ask it still returns on its first
 # tick without opening a screen, so the test skips there instead of failing for a missing feature.
@@ -87,7 +90,7 @@ export tick(ctx: TestTickContext) {
         stack_index: number = -1
         search: number = 0
         while search < item_count() and stack_index < 0 {
-            if ctx.get_item_max_stack(item_at(search)) == 64 {
+            if item_max_stack(item_at(search)) == 64 {
                 stack_index = search
             }
             search = search + 1
@@ -124,7 +127,7 @@ export tick(ctx: TestTickContext) {
         # A middle click gives a full stack, which is the reference's cheatItemStack binding. The
         # item is the one the test found whose full stack is 64, so the count can tell it from a
         # single item.
-        ctx.assert(ctx.get_item_max_stack(expected_stack) == 64, "The stack item should be a 64 stack.")
+        ctx.assert(item_max_stack(expected_stack) == 64, "The stack item should be a 64 stack.")
         ctx.clear_held_item(ctx.get_player())
         waited = 0
         step = 3
@@ -248,12 +251,99 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 10 {
+        # A press that is not on the search field unfocuses it, and a page button is such a press:
+        # the page still changes, so the press reaches the list, and a key typed after it is left to
+        # the screen, which is how the test reads that the field lost the keyboard.
+        ctx.assert(_page_count(ctx) >= 2, "The item list should hold more than one page of items.")
+        ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 0), "The overlay should take a press on its search field.")
+        ctx.assert(ctx.click_screen(_next_x(ctx), _button_y(), 0), "The overlay should take a press on its next page button.")
+        ctx.assert(not ctx.press_screen_key(65, false, true), "A press on the next page button should unfocus the search field.")
+        waited = 0
+        step = 11
+        taken: bool = ctx.click_screen(_cell_x(ctx, 0), _cell_y(0), 1)
+        ctx.assert(taken, "The overlay should take a press on the first item of the page.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 11 {
+        waited = waited + 1
+        held: Option[Item] = ctx.get_player().get_held_item()
+        if not held.has() {
+            ctx.assert(waited < 200, "The first item of the page after the next button should reach the player's hand.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(equals(held.unwrap(), item_at(_per_page(ctx))), "The next button should show the page after the first one.")
+        ctx.clear_held_item(ctx.get_player())
+        # The back button returns the list to the page the rest of the test reads.
+        ctx.assert(ctx.click_screen(_back_x(ctx), _button_y(), 0), "The overlay should take a press on its back page button.")
+        waited = 0
+        step = 12
+        ctx.not_done()
+        return
+    }
+
+    if step == 12 {
+        # The reference's canStack copies both stacks to one item and asks whether they merge, and
+        # two do not fit an item that stacks to one: a tool, a piece of armour, a potion or a filled
+        # bucket cannot stack, so a left click on the one the cursor carries deletes it. The list
+        # order differs by version, so the test scans it for the first item that cannot stack.
+        ctx.assert(not ctx.get_carried_item().has(), "The cursor should be empty before the case that cannot stack.")
+        one_index: number = -1
+        search: number = 0
+        count: number = item_count()
+        while search < count and one_index < 0 {
+            if item_max_stack(item_at(search)) == 1 {
+                one_index = search
+            }
+            search = search + 1
+        }
+        ctx.assert(one_index >= 0, "The item list should hold an item that cannot stack.")
+        # The item can sit on a later page, so the next button is pressed once per page before the
+        # click, and the back button once per page after it.
+        per_page: number = _per_page(ctx)
+        one_page: number = Math.floor(one_index / per_page)
+        pressed: number = 0
+        while pressed < one_page {
+            ctx.assert(ctx.click_screen(_next_x(ctx), _button_y(), 0), "The overlay should take a press on its next page button.")
+            pressed = pressed + 1
+        }
+        one: Item = item_at(one_index)
+        ctx.set_carried_item(one)
+        ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item that cannot stack on the cursor.")
+        cell: number = Math.remainder(one_index, per_page)
+        column: number = Math.remainder(cell, _columns(ctx))
+        row: number = Math.floor(cell / _columns(ctx))
+        waited = 0
+        step = 13
+        taken: bool = ctx.click_screen(_cell_x(ctx, column), _cell_y(row), 0)
+        ctx.assert(taken, "The overlay should take a left click on an item that cannot stack while the cursor carries another of it.")
+        pressed = 0
+        while pressed < one_page {
+            ctx.assert(ctx.click_screen(_back_x(ctx), _button_y(), 0), "The overlay should take a press on its back page button.")
+            pressed = pressed + 1
+        }
+        ctx.not_done()
+        return
+    }
+
+    if step == 13 {
+        ctx.assert(not ctx.get_carried_item().has(), "A left click on an item that cannot stack should delete the item on the cursor.")
+        ctx.assert(not ctx.get_player().get_held_item().has(), "Deleting an item that cannot stack should not also give one.")
         if me.loader_name() == "a1.1.2_01-ornithe" {
             # Alpha has no item names, so its search matches the numeric registry name only and a
             # name like bedrock matches nothing there, which is why search-Test skips it too.
             ctx.close_screen()
             return
         }
+        waited = 0
+        step = 14
+        ctx.not_done()
+        return
+    }
+
+    if step == 14 {
         # An empty cell deletes the stack on the cursor too, and the press is consumed. The
         # reference's delete handler asks only whether the mouse is over the grid's area
         # (IngredientGrid.isMouseOver, IngredientGrid.java:163-165) and reads no ingredient under
@@ -274,7 +364,7 @@ export tick(ctx: TestTickContext) {
         ctx.assert(matches < _columns(ctx), "The search should leave an empty cell in the grid's first row.")
         ctx.set_carried_item(expected)
         ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item on the cursor.")
-        step = 11
+        step = 15
         taken: bool = ctx.click_screen(_cell_x(ctx, matches), _cell_y(0), 0)
         ctx.assert(taken, "The overlay should take a press on an empty cell while the cursor carries an item.")
         ctx.not_done()
@@ -288,8 +378,6 @@ export tick(ctx: TestTickContext) {
     ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 1), "The overlay should take a right click that empties the search field.")
     ctx.close_screen()
 }
-
-# The middle of a slot, in the scaled pixels a screen's mouse handlers take.
 
 # A typed letter, which the overlay takes while the search field has the keyboard.
 local _press_key(ctx: TestTickContext, key: number) {
@@ -309,6 +397,7 @@ local _field_y(ctx: TestTickContext) number {
 # the bottom for its search bar, and crops 22 at the top for its page buttons. The screen's size and
 # the GUI's position come from the open screen, because the window size and the recipe book can move
 # the GUI, so the test works out the same grid the overlay does instead of assuming a window size.
+# The cell helpers answer the middle of a slot, in the scaled pixels a screen's mouse handlers take.
 local _cell_x(ctx: TestTickContext, column: number) number {
     return _grid_x(ctx) + column * 18 + 9
 }
@@ -334,4 +423,41 @@ local _columns(ctx: TestTickContext) number {
         columns = 9
     }
     return columns
+}
+
+local _per_page(ctx: TestTickContext) number {
+    return _columns(ctx) * _rows(ctx)
+}
+
+# The screen's height is not a test value, so the row count is read back from the centered
+# container GUI, the way paging-Test does.
+local _rows(ctx: TestTickContext) number {
+    screen_height: number = ctx.gui_top() * 2 + ctx.gui_height()
+    rows: number = Math.floor((screen_height - 22 - 22 - 12) / 18)
+    if rows > 16 {
+        rows = 16
+    }
+    return rows
+}
+
+local _page_count(ctx: TestTickContext) number {
+    pages: number = Math.floor((item_count() + _per_page(ctx) - 1) / _per_page(ctx))
+    if pages < 1 {
+        return 1
+    }
+    return pages
+}
+
+# The page buttons are 20 pixel squares at the top of the 22 pixels above the grid, back at the
+# grid's left edge and next at its right edge; the test presses their middle.
+local _button_y() number {
+    return 6 + 10
+}
+
+local _next_x(ctx: TestTickContext) number {
+    return _grid_x(ctx) + _columns(ctx) * 18 - 10
+}
+
+local _back_x(ctx: TestTickContext) number {
+    return _grid_x(ctx) + 10
 }

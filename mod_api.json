@@ -3701,20 +3701,6 @@
 						"name": "number"
 					}
 				},
-				"get_item_max_stack": {
-					"description": "Test only: the largest stack the item can come in, so a test of an overlay can tell a full stack from one item without knowing which item this version's list puts first. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
 				"get_origin": {
 					"description": "Gets the origin coordinates for running isolated tests: the camera's position plus 3, the same on every loader. The runner snaps the player to the centre of their block and levels their view at the start of every test, so the first call in a test captures that position and every later call in the same test returns it, which is what keeps a fixture and its check on one row. On a side with no test player to measure from, as on a dedicated server nobody has joined, the call reports an error naming `TestTickContext.get_origin` rather than answering a position, the way `TestTickContext.get_client_level` and `TestTickContext.get_player` report without a level or a player. See #188. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"return_type": {
@@ -4563,6 +4549,20 @@
 					}
 				}
 			]
+		},
+		"item_max_stack": {
+			"description": "The largest stack the item can come in: 64 for a block, one for a tool, a piece of armour, a potion or a filled bucket. It is what a rule that asks whether two stacks merge needs, since two items that each stack to one never do. A loader with no item list answers 0.",
+			"parameters": [
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				}
+			],
+			"return_type": {
+				"name": "number"
+			}
 		},
 		"item_stack": {
 			"description": "Creates a new ItemStack with the given damage and count. The count is the number of items the stack holds, a whole number from 1 to the largest count this loader's save keeps: 2147483647 on 1.20.6, which saves the count as an int, and 127 on 1.2.5, Alpha and both b1.7.3 loaders, which save it as one byte. A count outside that range, a fraction included, is reported. Keep in mind that when two ItemStacks get close enough to each other, they merge, turning the original ItemStacks and entities into 'Air'. So if you call spawn_entity() to spawn an ItemStack, make sure that the ItemStack isn't reused later on to spawn more entities.",

@@ -936,19 +936,29 @@ static void build_toy_items(void) {
     }
 }
 
-// The largest stack a vanilla item comes in, as the game's own items answer it: a bucket arrives on
-// its own and every block and ingredient item in the fixture list stacks to 64, which are the two
-// values the committed tests ask about (overlay-Test asks item_at(0), a bucket, and give_item_stack
-// -Test asks item_at(1), a block). A name outside the table stacks to 64, and adding a 16-stack
-// item later is a row here rather than another branch at each caller (#865).
+// The largest stack a vanilla item comes in, as the game's own items answer it: a bucket and a
+// diamond sword arrive on their own and every block and ingredient item in the fixture list stacks
+// to 64, which are the values the committed tests ask about (overlay-Test asks item_at(0), a bucket,
+// give_item_stack-Test asks item_at(1), a block, and item_max_stack-Test asks a diamond sword). A
+// name outside the table stacks to 64, and adding a 16-stack item later is a row here rather than
+// another branch at each caller (#865).
 static double item_max_stack(const char* name) {
     static const struct { const char* name; double size; } sizes[] = {
         {"minecraft:bucket", 1},
+        {"minecraft:diamond_sword", 1},
     };
     for (size_t i = 0; i < sizeof sizes / sizeof sizes[0]; i++)
         if (!strcmp(name, sizes[i].name)) return sizes[i].size;
     return 64;
 }
+
+static union grug_value hf_item_max_stack(ARGS) {
+    UNUSED;
+    struct obj* item = get_obj(a[0]._id, K_ITEM);
+    if (!item) return fail("item_max_stack: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test asks the stack size of anything but an item
+    return num(item_max_stack(item->str));
+}
+REGISTER(NULL, "item_max_stack", hf_item_max_stack);
 
 // GrugItemSearch's tokenizer: the text is lower cased and split on `|`, and an alternative is a run
 // of tokens of which the ones with a leading minus remove. A token is a quoted run or a run of
@@ -3366,17 +3376,6 @@ static union grug_value TTC_overlay_drawn(ARGS) { UNUSED; return boolean(overlay
 REGISTER("TestTickContext", "overlay_drawn", TTC_overlay_drawn);
 static union grug_value TTC_overlay_first_frame_cleared(ARGS) { UNUSED; return boolean(overlay_first_frame_cleared); }
 REGISTER("TestTickContext", "overlay_first_frame_cleared", TTC_overlay_first_frame_cleared);
-
-// The largest stack an item comes in, asked of the table in the item list section: a bucket stacks to
-// one and a block to 64, which are the two the committed tests read (overlay-Test and
-// give_item_stack-Test).
-static union grug_value TTC_get_item_max_stack(ARGS) {
-    UNUSED;
-    struct obj* item = get_obj(a[1]._id, K_ITEM);
-    if (!item) return fail("TestTickContext.get_item_max_stack: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test asks the stack size of anything but an item
-    return num(item_max_stack(item->str));
-}
-REGISTER("TestTickContext", "get_item_max_stack", TTC_get_item_max_stack);
 
 // OverlayRenderContext: the open screen's geometry and mouse, and the screen serial, which changes
 // when a different screen is drawn on (#865). A draw records that this mod produced a frame, which
