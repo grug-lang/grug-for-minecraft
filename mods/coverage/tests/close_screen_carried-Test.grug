@@ -1,0 +1,17 @@
+# Closing a screen while the cursor carries a stack is STUBBED, because the game hands that stack
+# back to the player's inventory, which the smoketest does not model: the screen still closes, which
+# is the logic this test asserts, but the hand it leaves behind is not the game's (#1287).
+started: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() {
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        ctx.set_carried_item(item_at(0))
+        ctx.close_screen()
+        ctx.assert(not ctx.screen_open(), "The screen should close with a carried stack.")
+    }
+}

@@ -3137,7 +3137,11 @@ REGISTER("Test", "world_overlay_supported", Test_world_overlay_supported);
 // what a loader whose item draw inherits the state reports and marks the run STUBBED (#1137).
 static union grug_value TTC_normalization_forced(ARGS) { UNUSED; stubbed = true; return boolean(true); }
 REGISTER("TestTickContext", "normalization_forced", TTC_normalization_forced);
-static union grug_value TTC_world_settled(ARGS) { UNUSED; stubbed = true; return boolean(true); }
+// The smoketest has no renderer: it draws an overlay's geometry into no framebuffer, and a tick's
+// world work is finished when the tick returns, so no frame is ever left with work to read. The
+// answer is therefore an immediate yes, and only a capture is what this host cannot answer
+// (#1287); TestTickContext.screenshot is what says so.
+static union grug_value TTC_world_settled(ARGS) { UNUSED; return boolean(true); }
 REGISTER("TestTickContext", "world_settled", TTC_world_settled);
 // The client's copy of the world's block light, which a toy world with one copy always matches (a loader whose
 // client and server share one world answers true the same way), so a pass is STUBBED. The position check is
@@ -3167,9 +3171,12 @@ static union grug_value TTC_stall(ARGS) {
 }
 REGISTER("TestTickContext", "stall", TTC_stall);
 REGISTER("TestInitContext", "stall", TTC_stall);
+// Closing a screen with an empty cursor is only a close. The game also hands a stack the cursor
+// still carries back to the player's inventory, which this host does not model, so a close with a
+// carried stack marks the run STUBBED.
 static union grug_value TTC_close_screen(ARGS) {
     UNUSED;
-    stubbed = true;  // the game also hands a carried stack back to the player, which is not modelled
+    if (carried_has) stubbed = true;  // the carried stack is not handed back to the player
     screen_is_open = false;
     carried_has = false;
     return none();
@@ -3180,9 +3187,10 @@ REGISTER("TestTickContext", "close_screen", TTC_close_screen);
 // SECTION: Overlays
 // =============================================================================================
 // Overlay scripts (#1586, #1587): every mod's *-Overlay.grug entity, asked for one frame per runner
-// tick while a container screen is open, in mod-name order. The smoketest draws nothing, so an
-// overlay's draw_item, draw_text and draw_box only record that the mod drew and mark the run
-// STUBBED: a test that waits for the drawn mark runs, and never passes.
+// tick while a container screen is open, in mod-name order. The smoketest paints nothing, so an
+// overlay's draw_item, draw_text and draw_box only record that the mod asked to draw: that request
+// is the overlay's own logic, which a test may read through overlay_drawn, while TestTickContext
+// .screenshot is what marks the run STUBBED because a capture is what this host cannot answer.
 static char current_test_mod[128];
 static struct overlay {
     void* entity;
@@ -3317,8 +3325,9 @@ static union grug_value TTC_get_item_max_stack(ARGS) {
 REGISTER("TestTickContext", "get_item_max_stack", TTC_get_item_max_stack);
 
 // OverlayRenderContext: the open screen's geometry and mouse, and the screen serial, which changes
-// when a different screen is drawn on (#865). A draw records that this mod produced a frame and
-// marks the run STUBBED, since nothing is drawn.
+// when a different screen is drawn on (#865). A draw records that this mod produced a frame, which
+// is the overlay's own logic; the host paints nothing, and TestTickContext.screenshot is what
+// marks the run STUBBED because a capture is what it cannot answer.
 static bool render_context(uint64_t handle) {
     return get_obj(handle, K_OVERLAY_RENDER) != NULL;
 }
@@ -3340,11 +3349,11 @@ static union grug_value ORC_mouse_y(ARGS) { UNUSED; if (!render_context(a[0]._id
 REGISTER("OverlayRenderContext", "mouse_y", ORC_mouse_y);
 static union grug_value ORC_screen_serial(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_serial: not a render pass"); return num(overlay_screen_serial); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "screen_serial", ORC_screen_serial);
-static union grug_value ORC_draw_item(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_item: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+static union grug_value ORC_draw_item(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_item: not a render pass"); overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "draw_item", ORC_draw_item);
-static union grug_value ORC_draw_text(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_text: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+static union grug_value ORC_draw_text(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_text: not a render pass"); overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "draw_text", ORC_draw_text);
-static union grug_value ORC_draw_box(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_box: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+static union grug_value ORC_draw_box(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_box: not a render pass"); overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "draw_box", ORC_draw_box);
 
 // =============================================================================================
