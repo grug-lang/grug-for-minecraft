@@ -16,9 +16,14 @@
 # to keep reporting, and a drop the a1 player picks up therefore still fails.
 # #1205: a single pass gives that red one chance per run, so the a1 dedicated leg repeats the first
 # delivery. A pass is about 400 world ticks, and this leg advances one world tick a runner tick, so
-# the number of passes has to fit the 4000 runner tick budget: thirty passes of the eight-tick batch
-# below is about 1500 to 2250 runner ticks, well inside it, and a hundred would not fit at any batch
+# the number of passes has to fit the 4000 runner tick budget: ten passes of the eight-tick batch
+# below is about 500 to 750 runner ticks, well inside it, and a hundred would not fit at any batch
 # small enough to carry.
+# The joined client's catch-up is what decides the count, not the runner ticks. A pass queues the
+# saved-data packets its items' travels record and the client applies them before it answers the
+# wait below, which costs about 20 s of the leg per pass: thirty passes took 590 s in run
+# 45571296529 and carried the leg past its 1200 s game-run limit, while the whole suite takes 688 s
+# on this leg (run 45566075311). Ten passes cost about 200 s and leave a third of the limit spare.
 # #1735: the a1 server checks a connection's send queue once per server tick and closes a client
 # whose queue passed 1 MiB (Connection.tick, "Send buffer overflow"), and the queue grows by what a
 # burst sends before the joined client's reader drains it. At 200 world ticks in one runner tick the
@@ -53,8 +58,9 @@ round: number = 0
 round_started: number = 0
 
 # How many times the a1 dedicated leg runs the delivery. Every other leg runs it once, because the
-# red has only come from that one, and a pass costs about 400 world ticks of the runner's budget.
-rounds: number = 30
+# red has only come from that one, and a pass costs about 400 world ticks of the runner's budget
+# and about 20 s of the joined client's catch-up, which is what the count below is measured against.
+rounds: number = 10
 
 # Whether any tick_level call has run a world tick. A loader whose adapter leaves tick_level at
 # its default answers 0 every time, and the runner's own tick then carries the first pass; a leg
