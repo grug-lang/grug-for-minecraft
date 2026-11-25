@@ -3220,9 +3220,10 @@ public class HostFunctions {
     }
 
     /**
-     * The largest stack the item can come in: 64 for a block, one for a tool, a piece of armour, a
-     * potion or a filled bucket. A rule that asks whether two stacks would merge needs it, since
-     * two items that each stack to one never do. A loader with no item list answers 0.
+     * The largest stack the item can come in, as the item itself answers it: for example 64 for
+     * most blocks and ingredients, 16 for a snowball, and one for a cake, a tool, a piece of
+     * armour, a potion or a filled bucket. A rule that asks whether two stacks would merge needs
+     * it, since two items that each stack to one never do.
      */
     public static double item_max_stack(long itemId) {
         return withEntity(

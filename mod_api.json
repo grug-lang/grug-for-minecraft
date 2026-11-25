@@ -4517,7 +4517,7 @@
 			]
 		},
 		"item_max_stack": {
-			"description": "The largest stack the item can come in: 64 for a block, one for a tool, a piece of armour, a potion or a filled bucket. It is what a rule that asks whether two stacks merge needs, since two items that each stack to one never do. A loader with no item list answers 0.",
+			"description": "The largest stack the item can come in, as the item itself answers it: for example 64 for most blocks and ingredients, 16 for a snowball, and one for a cake, a tool, a piece of armour, a potion or a filled bucket. It is what a rule that asks whether two stacks merge needs, since two items that each stack to one never do.",
 			"parameters": [
 				{
 					"name": "item",
