@@ -45,7 +45,9 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
     } else {
         after: Screenshot = ctx.screenshot().capture(400, 120, 880, 600)
-        if after.change_from(before.unwrap()) < 30 {
+        # change_from is the share of the crop that differs, as a percentage, and the box is far
+        # wider than that share of it, while a crop where the liquid never arrived stays at 0.
+        if after.change_from(before.unwrap()) < 3 {
             attempts = attempts + 1
             ctx.assert(attempts < 8, "The liquid never reached the client's frame.")
             saved_tick = ctx.current_tick()
