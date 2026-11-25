@@ -239,9 +239,11 @@ CI. Light jobs stay local: Gradle builds,
   commit, so `release.yml` requires that dispatch and refuses a jar without the Windows native. A
   docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what
   keeps a full run of `main` from going missing.
-- **The four-hourly `main` check.** `.github/workflows/main-dispatch.yml` checks every 15 minutes and
-  dispatches `build.yml --ref main` when main's newest dispatch is at least four hours old, whatever
-  else is running, so it needs no live session: a due tick's jobs queue behind the runs in flight,
+- **The four-hourly `main` check.** `.github/workflows/main-dispatch.yml` checks every 15 minutes, and
+  again whenever a push to `main` finishes its `Build` run, because GitHub fires that cron about
+  every seven hours rather than every fifteen minutes (#1803), and dispatches `build.yml --ref main`
+  when main's newest dispatch is at least four hours old, whatever else is running, so it needs no
+  live session: a due tick's jobs queue behind the runs in flight,
   and waiting for an idle pool is what starved the check, for 106 hours and with a broken Windows
   adapter unseen under it (#1463, #1460). Before this, a day without a live session let the newest
   dispatch reach 25 hours (#1089). Its decision is `.github/scripts/main-dispatch.py`, whose test

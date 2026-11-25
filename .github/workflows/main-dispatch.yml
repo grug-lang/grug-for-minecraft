@@ -21,6 +21,15 @@ name: Main dispatch
 # one short job, and it dispatches only when the newest dispatch is at least four hours old, so one
 # that lands slightly late still keeps a full run of main close to the interval.
 #
+# A schedule is best effort, and GitHub fired this one far less often than it asks: over the first
+# three weeks, 72 scheduled runs where the cron was about 2,000, with a median gap of 6.9 h and a
+# longest of 12 h between two checks (#1803). The four hours therefore became about seven, and main
+# could sit with only the partial run of a push for half a day. So a Build run on main asks the same
+# question when it finishes, which is a trigger GitHub fires every time. That buys cadence, not a
+# reaction to redness: the run's conclusion plays no part, so a merge that makes main red an hour
+# after a dispatch still waits for the four hours like any other. The four-hour rule still decides
+# whether anything is dispatched, so this adds no runs of main.
+#
 # The manual trigger exists to exercise the check on a throwaway branch: dry_run defaults to true,
 # and interval_minutes can shorten the four hours so the due path runs without waiting. A scheduled
 # run sends neither input and so dispatches only when the real rule says so.
@@ -28,6 +37,13 @@ on:
   schedule:
     # Every 15 minutes, offset from the other schedules; the four-hour age decides the dispatch.
     - cron: '7,22,37,52 * * * *'
+  workflow_run:
+    # Any Build run on main, whether a push to it, a dispatch of it or the Monday schedule. The
+    # filter is on the branch alone because a conclusion cannot be tested here; the rule below
+    # ignores the conclusion anyway, and no other branch can change main.
+    workflows: [Build]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry_run:
