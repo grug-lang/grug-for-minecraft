@@ -18,8 +18,10 @@ shell_y: number = 0
 shell_z: number = 0
 # Whether the world box's right clicks ask the server to change the block entity the test placed at
 # its origin (#1759), and which change the next world frame asks for: 0 none, 1 writes item_at(0)
-# into slot 0, 2 drops the inventory. World key K turns it on, and it turns itself off after the
-# drop, so no other test's right click on the box changes anything. The origin is the camera plus
+# into slot 0, 2 drops the inventory. World key W (87) turns it on, and it turns itself off after the
+# drop, so no other test's right click on the box changes anything. W rather than K, because the
+# mobcap mod's overlay toggles on K and an overlay is one entity for the whole run: a K press here
+# would leave its lines in every later test's capture. The origin is the camera plus
 # three, the position TestTickContext.get_origin answers, captured in the world pass because the
 # click has no level or camera of its own.
 inventory_calls_on: bool = false
@@ -205,7 +207,7 @@ export render_world(ctx: OverlayWorldContext) {
         inventory_call = 0
         drop_inventory(ctx.get_level(), origin_x, origin_y, origin_z)
     }
-    # A line at the block entity while the forwarded writes are armed. Only the K press arms them,
+    # A line at the block entity while the forwarded writes are armed. Only the W press arms them,
     # so a world frame that draws this is the proof that the press reached this client, which is
     # what the test waits for before it opens the inventory (#1759).
     if inventory_calls_on {
@@ -268,7 +270,7 @@ export world_key(ctx: OverlayWorldKeyContext) {
         triangle_pending = triangle_on
         return
     }
-    if ctx.key() == 75 {
+    if ctx.key() == 87 {
         inventory_calls_on = true
         inventory_writes = 0
         return
