@@ -835,6 +835,11 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * define, with no renderer to rebuild, since this server's own frames are none. The joined
      * client's copy is made from the region packets this sweep's light is sent in, which the client
      * applies by marking the sections they cover. See {@link OrnitheRoomLight}.
+     *
+     * <p>This override is also what keeps this server off {@link OrnitheRoomRemeshClient}: the base
+     * class's {@code relightRoom} is the only caller of the client's rebuild, and a virtual call
+     * from this class reaches this method instead, so the client class is never loaded here and the
+     * loader's refusal to define it in a server process never comes up.
      */
     @Override
     public void relightRoom(

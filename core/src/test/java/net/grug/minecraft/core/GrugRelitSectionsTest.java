@@ -106,4 +106,33 @@ class GrugRelitSectionsTest {
         assertArrayEquals(new int[] {0, 0, 0, 15, 15, 15}, boxes.get(2));
         assertArrayEquals(new int[] {16, 0, 0, 31, 15, 15}, boxes.get(3));
     }
+
+    @Test
+    void aBoxAcrossSeveralSectionsInYOwedEachOfThem() {
+        // A room three sections tall is three marks, one per section, and the sections it does not
+        // reach are not owed: y is the loop the grid's own index comes from.
+        List<int[]> boxes = GrugRelitSections.sectionBoxes(0, 10, 0, 0, 40, 0);
+        assertEquals(3, boxes.size());
+        assertArrayEquals(new int[] {0, 0, 0, 15, 15, 15}, boxes.get(0));
+        assertArrayEquals(new int[] {0, 16, 0, 15, 31, 15}, boxes.get(1));
+        assertArrayEquals(new int[] {0, 32, 0, 15, 47, 15}, boxes.get(2));
+    }
+
+    @Test
+    void aBoxOutsideTheWorldOwedNothing() {
+        // The loaders that call this keep their sections in a fixed 128-high grid, so a section
+        // index taken from a y above or below the world wraps onto a real section and would mark
+        // the wrong one. A box entirely outside the world owes nothing at all.
+        assertTrue(GrugRelitSections.sectionBoxes(0, 200, 0, 15, 215, 15).isEmpty());
+        assertTrue(GrugRelitSections.sectionBoxes(0, -40, 0, 15, -20, 15).isEmpty());
+        // One that reaches past the world is cut to the world, not dropped and not wrapped: the
+        // last section is the highest one the grid holds.
+        List<int[]> above = GrugRelitSections.sectionBoxes(0, 120, 0, 15, 140, 15);
+        assertEquals(1, above.size());
+        assertArrayEquals(new int[] {0, 112, 0, 15, 127, 15}, above.get(0));
+        List<int[]> below = GrugRelitSections.sectionBoxes(0, -5, 0, 15, 20, 15);
+        assertEquals(2, below.size());
+        assertArrayEquals(new int[] {0, 0, 0, 15, 15, 15}, below.get(0));
+        assertArrayEquals(new int[] {0, 16, 0, 15, 31, 15}, below.get(1));
+    }
 }

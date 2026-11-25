@@ -1,17 +1,12 @@
 package net.grug.minecraft.ornithe;
 
 import net.grug.minecraft.core.GrugRelight;
-import net.grug.minecraft.core.GrugRelitSections;
-import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.render.world.WorldRenderer;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
-import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 
 /**
- * The light of a test's room on this version, brought to the one field its blocks define, and the
- * rebuild a client owes the sections that field changed.
+ * The light of a test's room on this version, brought to the one field its blocks define. A
+ * client's rebuild of the sections that field changed is {@link OrnitheRoomRemeshClient}.
  *
  * <p>This engine lights the world one change at a time, so the field a room ends with depends on
  * the order the changes that led to it arrived in, and on both a client and a server that order
@@ -25,12 +20,9 @@ import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
  * room put up where the sky was open keeps the sky's 15 inside its walls if only the block field is
  * swept, and every face of it draws at full brightness (#1368).
  *
- * <p>A client also owes the rebuild of the sections the sweep touched: the light of a section is
- * what its mesh was baked from, and a loader that writes light itself has to ask for the mesh again
- * rather than rely on every one of the engine's writes having notified the renderer. The request is
- * per section, so {@link GrugRelitSections#sectionBoxes} is what says which sections are owed, and
- * this version's own range request grows each of them by one block, which is the section and the
- * sections beside it.
+ * <p>A client also owes the rebuild of the sections the sweep touched, which is {@link
+ * OrnitheRoomRemeshClient}: it is a class of its own so that this one, which a dedicated server
+ * runs too, names nothing the server cannot load.
  */
 final class OrnitheRoomLight {
     /** Sweeps a room this size takes before it is not converging, which no test can work around. */
@@ -41,26 +33,6 @@ final class OrnitheRoomLight {
     /** Recomputes both light fields of the box until a whole sweep changes neither. */
     static void settle(World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         GrugRelight.settle(new QueuedLight(world), minX, minY, minZ, maxX, maxY, maxZ, SWEEP_LIMIT);
-    }
-
-    /**
-     * Marks every section the box touches, and the sections beside them, for compiling again. A
-     * client with no renderer, which is a dedicated server, owes nothing.
-     */
-    static void remesh(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        Minecraft minecraft = MinecraftInstance.get();
-        if (minecraft == null) {
-            return;
-        }
-        WorldRenderer renderer = minecraft.worldRenderer;
-        if (renderer == null) {
-            return;
-        }
-        for (int[] section : GrugRelitSections.sectionBoxes(minX, minY, minZ, maxX, maxY, maxZ)) {
-            ((WorldRendererAccess) renderer)
-                    .grug$notifyRegionChanged(
-                            section[0], section[1], section[2], section[3], section[4], section[5]);
-        }
     }
 
     /**

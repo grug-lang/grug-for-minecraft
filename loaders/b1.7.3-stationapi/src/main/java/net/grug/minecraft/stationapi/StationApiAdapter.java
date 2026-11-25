@@ -7,7 +7,6 @@ import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOperatorStatus;
 import net.grug.minecraft.core.GrugRelight;
-import net.grug.minecraft.core.GrugRelitSections;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
@@ -1024,6 +1023,18 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        settleRoom(levelObj, minX, minY, minZ, maxX, maxY, maxZ);
+        StationApiRoomRemeshClient.markSections(minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    /**
+     * Recomputes both light fields of the box until a whole sweep changes neither, which is all a
+     * dedicated server owes: its joined client marks the light its packets carry. Shared with
+     * {@link ServerStationApiAdapter}, whose {@code relightRoom} overrides the one above so that a
+     * server never reaches {@link StationApiRoomRemeshClient}.
+     */
+    static void settleRoom(
+            Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         GrugRelight.settle(
                 new QueuedLight((World) levelObj),
                 minX,
@@ -1033,34 +1044,6 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 maxY,
                 maxZ,
                 RELIGHT_SWEEP_LIMIT);
-        markSectionsForRebuild(minX, minY, minZ, maxX, maxY, maxZ);
-    }
-
-    /**
-     * Marks every section the box touches, and the sections beside them, for a rebuild.
-     *
-     * <p>This version's light engine writes the field itself and notifies no renderer, so a section
-     * whose light the settle changed keeps the mesh it was baked with, and the room draws at the
-     * brightness it had before the settle (#1580). The request is per section, so the whole of each
-     * section the box touches is marked, and the game's own range request grows that by one block,
-     * which reaches the sections beside it. A dedicated server, whose game instance is not a
-     * client, owes nothing: its joined client marks the light it applies.
-     */
-    private static void markSectionsForRebuild(
-            int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        Object game = FabricLoader.getInstance().getGameInstance();
-        if (!(game instanceof Minecraft)) {
-            return;
-        }
-        WorldRenderer renderer = ((Minecraft) game).worldRenderer;
-        if (renderer == null) {
-            return;
-        }
-        for (int[] section : GrugRelitSections.sectionBoxes(minX, minY, minZ, maxX, maxY, maxZ)) {
-            ((WorldRendererAccess) renderer)
-                    .grug$markDirty(
-                            section[0], section[1], section[2], section[3], section[4], section[5]);
-        }
     }
 
     /**

@@ -569,7 +569,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     /**
      * Brings the room's sky and block light to the one field its blocks define, and rebuilds the
-     * sections whose baked brightness that changed.
+     * sections whose baked brightness that changed. Only a client reaches this method: {@link
+     * ServerOrnitheAdapter#relightRoom} overrides it to settle the light alone, which is what keeps
+     * a server from loading the client's rebuild, {@link OrnitheRoomRemeshClient}.
      *
      * <p>A quiet write queues the light of the cell it changed and nothing else, so the field a
      * room ends with is the one the engine's cascade reached from the changes it saw in the order
@@ -582,7 +584,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         OrnitheRoomLight.settle((World) levelObj, minX, minY, minZ, maxX, maxY, maxZ);
-        OrnitheRoomLight.remesh(minX, minY, minZ, maxX, maxY, maxZ);
+        OrnitheRoomRemeshClient.remesh(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     /**

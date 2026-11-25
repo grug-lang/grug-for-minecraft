@@ -27,7 +27,7 @@ public interface WorldRendererAccess {
      *
      * <p>A loader that writes light itself calls this for the box it relit, because the rebuild a
      * changed light needs is the renderer's and not the light engine's. See {@code
-     * OrnitheRoomLight#remesh} and #1580.
+     * OrnitheRoomRemeshClient#remesh} and #1580.
      */
     @Invoker("notifyRegionChanged")
     void grug$notifyRegionChanged(int minX, int minY, int minZ, int maxX, int maxY, int maxZ);
