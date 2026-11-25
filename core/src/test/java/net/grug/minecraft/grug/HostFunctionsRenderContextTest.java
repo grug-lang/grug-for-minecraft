@@ -77,6 +77,22 @@ class HostFunctionsRenderContextTest {
     }
 
     @Test
+    void aFrameLiquidIsRefusedWhenItsNameOrBoxIsWrong() {
+        GrugRenderPass.openFrame(0.25, 270.0);
+        long context = contextId();
+
+        HostFunctions.RenderFrameContext_draw_liquid(context, "minecraft:stone", 0, 0, 0, 1, 1, 1);
+        HostFunctions.RenderFrameContext_draw_liquid(context, "minecraft:lava", 1, 0, 0, 0, 1, 1);
+
+        List<String> reports = drain();
+        assertEquals(2, reports.size(), "Both refusals are reported.");
+        assertTrue(reports.get(0).contains("is not a liquid"), reports.get(0));
+        assertTrue(reports.get(1).contains("right way round"), reports.get(1));
+        assertTrue(
+                GrugRenderPass.closeFrame().draws().isEmpty(), "A refused liquid draws nothing.");
+    }
+
+    @Test
     void aContextSavedAfterItsPassIsRefusedByEveryMethod() {
         GrugRenderPass.open();
         long context = contextId();
@@ -86,17 +102,19 @@ class HostFunctionsRenderContextTest {
         HostFunctions.RenderContext_draw_model(context, "ignored.json", 0, 0, 0, 0, 0, 0);
         HostFunctions.RenderFrameContext_draw_item(context, 1, 0, 1, 0, 0, 0);
         HostFunctions.RenderFrameContext_draw_model(context, "ignored.json", 0, 0, 0, 0, 0, 0);
+        HostFunctions.RenderFrameContext_draw_liquid(context, "minecraft:water", 0, 0, 0, 1, 1, 1);
         HostFunctions.RenderFrameContext_partial_tick(context);
         HostFunctions.RenderFrameContext_camera_yaw(context);
 
         List<String> reports = drain();
-        assertEquals(6, reports.size(), "Every method names its own refusal.");
+        assertEquals(7, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("RenderContext.draw_box"), reports.get(0));
         assertTrue(reports.get(1).contains("RenderContext.draw_model"), reports.get(1));
         assertTrue(reports.get(2).contains("RenderFrameContext.draw_item"), reports.get(2));
         assertTrue(reports.get(3).contains("RenderFrameContext.draw_model"), reports.get(3));
-        assertTrue(reports.get(4).contains("RenderFrameContext.partial_tick"), reports.get(4));
-        assertTrue(reports.get(5).contains("RenderFrameContext.camera_yaw"), reports.get(5));
+        assertTrue(reports.get(4).contains("RenderFrameContext.draw_liquid"), reports.get(4));
+        assertTrue(reports.get(5).contains("RenderFrameContext.partial_tick"), reports.get(5));
+        assertTrue(reports.get(6).contains("RenderFrameContext.camera_yaw"), reports.get(6));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }
