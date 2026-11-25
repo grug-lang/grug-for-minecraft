@@ -2618,6 +2618,22 @@ static union grug_value TTC_tick_level(ARGS) {
     return num(0);
 }
 REGISTER("TestTickContext", "tick_level", TTC_tick_level);
+// The daylight cycle a test can stop to prove the two clocks apart (#1762). The toy world has no such
+// rule, so the test's arm is skipped and the run is STUBBED, which is honest: it is never PASSED
+// without the rule having had an effect. The toy world has no sky either, so it has no separate day
+// time, and -1 is the API's answer for that.
+static union grug_value TTC_get_day_time(ARGS) {
+    UNUSED;
+    stubbed = true;
+    return num(-1);
+}
+REGISTER("TestTickContext", "get_day_time", TTC_get_day_time);
+static union grug_value TTC_set_daylight_cycle(ARGS) {
+    UNUSED;
+    stubbed = true;
+    return boolean(false);
+}
+REGISTER("TestTickContext", "set_daylight_cycle", TTC_set_daylight_cycle);
 // A block id above 255 surviving the game's own chunk save and load (high_block_round_trip-Test, #518).
 // The toy world hands blocks out as names with no numeric id and saves no chunk, so it has no such id
 // to round trip; -1 is the API's no-op answer for a loader whose block ids never reach there.

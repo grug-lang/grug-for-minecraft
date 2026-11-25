@@ -1,0 +1,49 @@
+# Covers the level's clock as a total that keeps counting (#1762). Level.get_time is the counter a
+# machine reads to pace itself, and Level.set_time sets it so the time reads back and a machine can be
+# placed at a chosen point in its cadence. On 1.20.6 the sky follows a different counter, the day time,
+# which stops while the daylight cycle is off, and that is the arm this test exists for: with the rule
+# off, Level.get_time keeps moving and the day time does not. Reading the day time instead would freeze
+# every duration in every port on that loader. Alpha, Beta and Release 1.2.5 have one clock and no
+# such rule, so there the arm is skipped rather than passed without it.
+
+# The time the test found, so it puts the clock back where it was for a later test's sky.
+original: number = 0
+# How many ticks an advance ran, which is 0 on a loader that cannot advance its level.
+ran: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    original = level.get_time()
+
+    level.set_time(6000)
+    ctx.assert(level.get_time() == 6000, "The time should read back as 6000 after set_time(6000).")
+
+    ran = ctx.tick_level(level, 1)
+    moved: number = level.get_time() - 6000
+    level.set_time(original)
+    ctx.assert(ran == 0 or ran == 1, "An advance of one tick should answer 1, or 0 where it cannot advance.")
+    ctx.assert(moved == ran, "The clock should have moved by exactly the ticks the advance ran.")
+
+    # The day time is a second counter only where the daylight rule is, and -1 says a loader has no
+    # separate day time to read. Asking on every loader keeps the entry honest and gives the
+    # smoketest its answer.
+    day: number = ctx.get_day_time(level)
+    ctx.assert(day == -1 or day >= 0, "The day time should be a whole number of ticks, or -1 where the loader has no separate day time.")
+
+    stopped: bool = ctx.set_daylight_cycle(level, false)
+    if stopped {
+        level.set_time(6000)
+        day_before: number = ctx.get_day_time(level)
+        before: number = level.get_time()
+
+        ran = ctx.tick_level(level, 20)
+        after: number = level.get_time()
+        day_after: number = ctx.get_day_time(level)
+        ctx.set_daylight_cycle(level, true)
+        level.set_time(original)
+
+        ctx.assert(ran == 20, "A loader whose daylight cycle can be stopped should advance its level by the 20 ticks asked for, so the clock is proven to move.")
+        ctx.assert(after - before == ran, "Level.get_time should keep counting with the daylight cycle off, and move by the ticks the advance ran.")
+        ctx.assert(day_after == day_before, "The sky's day time should stand still with the daylight cycle off.")
+    }
+}

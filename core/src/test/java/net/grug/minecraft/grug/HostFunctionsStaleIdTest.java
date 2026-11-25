@@ -108,6 +108,20 @@ class HostFunctionsStaleIdTest {
 
         reports.clear();
         assertEquals(
+                -1.0, HostFunctions.TestTickContext_get_day_time(GrugTestContexts.tick(), level));
+        assertEquals(
+                List.of(staleMessage("TestTickContext.get_day_time", "level", level)), reports);
+
+        reports.clear();
+        assertFalse(
+                HostFunctions.TestTickContext_set_daylight_cycle(
+                        GrugTestContexts.tick(), level, false));
+        assertEquals(
+                List.of(staleMessage("TestTickContext.set_daylight_cycle", "level", level)),
+                reports);
+
+        reports.clear();
+        assertEquals(
                 0.0,
                 HostFunctions.TestTickContext_display_tick(
                         GrugTestContexts.tick(), level, 1, 2, 3, 4));
@@ -533,6 +547,17 @@ class HostFunctionsStaleIdTest {
         HostFunctions.Level_set_time(level, 6000);
         assertEquals(List.of("setWorldTime[the level, 6000]"), adapterCalls);
         assertEquals(List.of(), reports);
+
+        adapterCalls.clear();
+        assertEquals(
+                42.0, HostFunctions.TestTickContext_get_day_time(GrugTestContexts.tick(), level));
+        assertEquals(List.of("getDayTime[the level]"), adapterCalls);
+
+        adapterCalls.clear();
+        assertTrue(
+                HostFunctions.TestTickContext_set_daylight_cycle(
+                        GrugTestContexts.tick(), level, false));
+        assertEquals(List.of("setDaylightCycle[the level, false]"), adapterCalls);
 
         adapterCalls.clear();
         HostFunctions.TestTickContext_set_held_item(

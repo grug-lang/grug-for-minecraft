@@ -302,6 +302,7 @@ String.substring(text: string, start: number, end: number) string
 .force_gc()
 .get_carried_item() Option[Item]
 .get_client_level() Level
+.get_day_time(level: Level) number
 .get_held_count(player: Player) number
 .get_item_max_stack(item: Item) number
 .get_origin() Vec3
@@ -333,6 +334,7 @@ String.substring(text: string, start: number, end: number) string
 .scroll_screen(x: number, y: number, delta: number) bool
 .set_box_radius(radius: number)
 .set_carried_item(item: Item)
+.set_daylight_cycle(level: Level, on: bool) bool
 .set_held_item(player: Player, item: Item)
 .set_mod_file_state(relative_path: string, state: string)
 .set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
