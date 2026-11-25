@@ -60,7 +60,8 @@ public final class GrugFrozenAnimations {
                             "net.modificationstation.stationapi.impl.client.arsenic.renderer.render"
                                     + ".binder.ArsenicPortal"));
 
-    private static final Set<String> ANIMATED = readAnimatedNames();
+    private static final Set<String> ANIMATED =
+            read(TABLE, GrugFrozenAnimations.class.getResourceAsStream("/" + TABLE));
 
     private GrugFrozenAnimations() {}
 
@@ -79,15 +80,22 @@ public final class GrugFrozenAnimations {
         return ANIMATED;
     }
 
-    private static Set<String> readAnimatedNames() {
-        InputStream in = GrugFrozenAnimations.class.getResourceAsStream("/" + TABLE);
+    /**
+     * Parses {@code table}'s sprite names. {@code in} is null when the jar holds no such table,
+     * which is a broken invariant like a table without a line for a sprite.
+     *
+     * <p>Takes the stream rather than fetching it, so a unit test can hand it a table of its own
+     * and reach every refusal: a missing resource, an empty file, one with only a header, and a
+     * read that fails.
+     */
+    static Set<String> read(String table, InputStream in) {
         if (in == null) {
-            throw Grug.fatal("The grug jar holds no " + TABLE);
+            throw Grug.fatal("The grug jar holds no " + table);
         }
         try (BufferedReader reader =
                 new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             if (reader.readLine() == null) {
-                throw Grug.fatal(TABLE + " is empty");
+                throw Grug.fatal(table + " is empty");
             }
             Set<String> names = new HashSet<>();
             String line;
@@ -98,11 +106,11 @@ public final class GrugFrozenAnimations {
                 }
             }
             if (names.isEmpty()) {
-                throw Grug.fatal(TABLE + " names no sprite");
+                throw Grug.fatal(table + " names no sprite");
             }
             return names;
         } catch (IOException e) {
-            throw Grug.fatal("Failed to read " + TABLE, e);
+            throw Grug.fatal("Failed to read " + table, e);
         }
     }
 }

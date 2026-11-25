@@ -39,4 +39,10 @@ export tick(ctx: TestTickContext) {
     held: Option[string] = container.get_liquid()
     ctx.assert(held.has(), "The block entity should hold a liquid.")
     ctx.assert(held.unwrap() == "minecraft:lava", "A flowing lava name should be read as still lava.")
+
+    # Lava is named by its still block as well, which is the name the host answers with.
+    ctx.assert(container.offer_liquid("minecraft:lava", 1000, 0, true) == 1000, "A still lava offer should reach the export.")
+    still_offered: Option[string] = container.get_saved_string("offered_liquid")
+    ctx.assert(still_offered.has(), "The export should have saved the liquid it was offered.")
+    ctx.assert(still_offered.unwrap() == "minecraft:lava", "A still lava name should stay still lava.")
 }
