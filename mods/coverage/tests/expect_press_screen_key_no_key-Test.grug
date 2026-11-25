@@ -2,7 +2,9 @@
 # loaders before 1.20.6 ask LWJGL's keyboard for the name GrugOverlay.keyNameForCode gives the code
 # and have no key for anything that is not a key code: a lowercase letter such as this 'a' is not
 # one, while space, backspace, the digits and the capital letters are. 1.20.6 hands the code to
-# GLFW instead, where it binds nothing and is left to the screen (#866).
+# GLFW instead, where it binds nothing and is left to the screen (#866). On a dedicated server the
+# press is forwarded to the joined client, and the error the client raises there cannot reach the
+# server's test, so the test leaves the dedicated leg alone.
 started: bool = false
 opened: bool = false
 waited: number = 0
@@ -10,7 +12,7 @@ waited: number = 0
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
-        if not me.overlay_supported() {
+        if not me.overlay_supported() or me.on_dedicated_server() {
             return
         }
         ctx.close_screen()
