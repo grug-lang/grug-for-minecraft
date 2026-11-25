@@ -1,0 +1,9 @@
+# A written name that differs only in case from an existing entry is refused (#1757): Windows keeps
+# one file where this host keeps two, so the write is reported rather than making a path that means
+# something different on another loader.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    files.write_text("Case_Clash.txt", "first")
+    ctx.expect_error("differs only in case")
+    files.write_text("case_clash.txt", "second")
+}

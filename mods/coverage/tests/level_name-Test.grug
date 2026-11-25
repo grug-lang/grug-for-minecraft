@@ -1,0 +1,11 @@
+# Level.name() names the world and Level.dimension() keys it as one path segment (#1757). A
+# dedicated server answers the save's own name, which for the test save is New World on 1.20.6 and
+# b1.7.3 and World1 on 1.2.5 and Alpha; a client joined to somebody else's server answers the address
+# it dialled instead (MpServer on Alpha and 1.2.5), so only a non-empty name is asserted. The test
+# world is the overworld on every loader, so the dimension pins the key a per-world path is built
+# from, and this file runs on the dedicated legs where a client-only call would show.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    ctx.assert(String.length(level.name()) > 0, "A world should answer a non-empty name.")
+    ctx.assert(level.dimension() == "overworld", "The test world should be the overworld.")
+}

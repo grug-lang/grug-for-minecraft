@@ -2988,6 +2988,7 @@ public class HostFunctions {
     private static void writeText(Object fileObj, String path, String text) {
         try {
             GrugModData.write(
+                    GrugCore.getAdapter().getGrugModsDirectory(),
                     GrugCore.getAdapter().getGameDirectory(),
                     ((GrugModFile) fileObj).modName(),
                     path,

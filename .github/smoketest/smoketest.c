@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -3643,7 +3644,9 @@ REGISTER("TestTickContext", "scroll_screen", TTC_scroll_screen);
 // The one directory a mod may write (#1757). The writable copy is this host's own temp game
 // directory, so a run never writes into the repository's mods; the shipped tree is the repository's
 // mods/<mod>/files, read only, exactly as a development run sees it. A path is checked segment by
-// segment, a missing file is an empty Option, and a write is a temporary file renamed into place.
+// segment as a portable file name, a missing file is an empty Option, and a write is a temporary file
+// under grug_mod_files/.tmp, outside every mod's files directory, renamed into place, so nothing a
+// mod lists or counts ever sees a temporary file and a crash leaves one where no call reads it.
 // A grug script has no call that creates a symbolic link, so the escape through one is covered by
 // GrugModDataTest.aResolvedPathStaysInsideItsOwnDirectory and not here. A read does not check that
 // the bytes are UTF-8: a grug string is UTF-8 by construction and no committed fixture is not.
@@ -3700,11 +3703,37 @@ static const char* file_mod(const union grug_value a[], const char* who) {
     return o->str;
 }
 
-// Why `path` is not a name this host accepts, or NULL: GrugModData.pathProblem's rules.
+// The characters Windows refuses in a file name, besides a control character and a slash.
+static const char* const illegal_name_chars = ":*?\"<>|\\";
+// The names Windows keeps for devices, with or without an extension and in any case.
+static const char* const reserved_names[] = {
+    "con", "prn", "aux", "nul",
+    "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+    "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+};
+// Whether a segment holds a control character or one of the characters Windows refuses.
+static bool segment_illegal(const char* s, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c < 0x20) return true;  // SMOKETEST_EXCL_BRANCH: grug has no escape for a control character, so no test can pass one
+        if (strchr(illegal_name_chars, c)) return true;
+    }
+    return false;
+}
+// Whether a segment is a device name Windows reserves, with or without an extension.
+static bool segment_reserved(const char* s, size_t n) {
+    size_t stem = 0;
+    while (stem < n && s[stem] != '.') stem++;
+    for (size_t i = 0; i < sizeof reserved_names / sizeof *reserved_names; i++) {
+        size_t len = strlen(reserved_names[i]);
+        if (len == stem && !strncasecmp(s, reserved_names[i], stem)) return true;
+    }
+    return false;
+}
+// Why `path` is not a name this host accepts, or NULL: GrugModData.pathProblem's rules, a path being
+// a portable file name rather than one this host's filesystem happens to accept.
 static const char* path_problem(const char* path, bool allow_root) {
     if (!path || !*path) return "names no file in files.";  // SMOKETEST_EXCL_BRANCH: a grug string is never null, so only the empty-path arm is reachable
-    if (strchr(path, '\\')) return "is not a plain relative path: use '/' between its segments.";  // SMOKETEST_EXCL_BRANCH: no committed test passes a backslash, which grug would have to escape
-    if (strchr(path, ':')) return "holds a colon, which names a drive on Windows and is refused everywhere so a path means the same on every loader.";  // SMOKETEST_EXCL_BRANCH: no committed test passes a colon
     if (path[0] == '/') return "is absolute, and a path is always relative to the mod's own files.";
     if (allow_root && !strcmp(path, ".")) return NULL;
     for (const char* s = path;;) {
@@ -3712,6 +3741,12 @@ static const char* path_problem(const char* path, bool allow_root) {
         size_t n = e ? (size_t)(e - s) : strlen(s);
         if (n == 0 || (n == 1 && s[0] == '.') || (n == 2 && s[0] == '.' && s[1] == '.'))  // SMOKETEST_EXCL_BRANCH: a committed test covers the .. segment; an empty or . segment has no grug test
             return "has an empty or relative segment, and no path may climb out of files.";
+        if (segment_illegal(s, n))
+            return "holds a character Windows refuses in a name, so it is not a portable file name.";
+        if (s[n - 1] == '.' || s[n - 1] == ' ')
+            return "has a segment that ends in a dot or a space, which Windows strips, so it is not a portable file name.";
+        if (segment_reserved(s, n))
+            return "names a device name Windows keeps for itself, so it is not a portable file name.";
         if (!e) break;
         s = e + 1;
     }
@@ -3907,6 +3942,49 @@ static bool make_dirs(const char* dir) {
         }
     return mkdir(full, 0755) == 0 || errno == EEXIST;  // SMOKETEST_EXCL_BRANCH: the only existing thing on a host-made path is a directory, which answers EEXIST
 }
+// The entry of `dir` that equals `name` ignoring case but not exactly, or NULL.
+static const char* case_clash(const char* dir, const char* name) {
+    DIR* d = opendir(dir);
+    if (!d) return NULL;
+    const char* clash = NULL;
+    struct dirent* e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        if (strcmp(e->d_name, name) && !strcasecmp(e->d_name, name)) {
+            clash = keep(xstrdup(e->d_name));
+            break;
+        }
+    }
+    closedir(d);
+    return clash;
+}
+// The existing entry that differs only in case from a component the write names, or NULL. Every
+// component is compared against both trees, because Windows is one directory where this host is two.
+static const char* case_clash_in_path(const char* mod, const char* path) {
+    char written[4096], shipped[4096];
+    snprintf(written, sizeof written, "%s/grug_mod_files/%s/files", g_game_dir, mod);
+    snprintf(shipped, sizeof shipped, "%s/%s/files", g_mods_dir, mod);
+    for (const char* s = path;;) {
+        const char* e = strchr(s, '/');
+        size_t n = e ? (size_t)(e - s) : strlen(s);
+        char* name = xmalloc(n + 1);
+        memcpy(name, s, n);
+        name[n] = 0;
+        const char* clash = case_clash(written, name);
+        if (!clash) clash = case_clash(shipped, name);
+        if (clash) {
+            free(name);
+            return clash;
+        }
+        size_t wl = strlen(written), sl = strlen(shipped);
+        snprintf(written + wl, sizeof written - wl, "/%s", name);
+        snprintf(shipped + sl, sizeof shipped - sl, "/%s", name);
+        free(name);
+        if (!e) break;
+        s = e + 1;
+    }
+    return NULL;
+}
 static union grug_value File_write_text(ARGS) {
     UNUSED;
     const char* mod = file_mod(a, "File.write_text");
@@ -3914,8 +3992,11 @@ static union grug_value File_write_text(ARGS) {
     const char* path = a[1]._string, *text = a[2]._string;
     char full[4096];
     if (!tree_path(mod, false, path, false, "File.write_text", full, sizeof full)) return none();  // SMOKETEST_EXCL_BRANCH: a refused path ends the test at the call
+    const char* clash = case_clash_in_path(mod, path);
+    if (clash)
+        return fail("File.write_text: The path \"%s\" differs only in case from \"%s\", which is one file on Windows and two on this system, so it is not a portable file name.", path, clash);
     struct stat st;
-    long previous = stat(full, &st) == 0 && S_ISREG(st.st_mode) ? (long)st.st_size : 0;  // SMOKETEST_EXCL_BRANCH: the only other existing kind a write names is a directory, whose refusal the rename reports with a platform message no cross-loader test can assert
+    long previous = lstat(full, &st) == 0 && S_ISREG(st.st_mode) ? (long)st.st_size : 0;  // SMOKETEST_EXCL_BRANCH: the only other existing kind a write names is a directory, whose refusal the rename reports with a platform message no cross-loader test can assert
     char root[4096];
     snprintf(root, sizeof root, "%s/grug_mod_files/%s/files", g_game_dir, mod);
     long total = 0, after;
@@ -3927,8 +4008,11 @@ static union grug_value File_write_text(ARGS) {
     snprintf(parent, sizeof parent, "%s", full);
     *strrchr(parent, '/') = 0;
     if (!make_dirs(parent)) return fail("File.write_text: cannot create %s", parent);  // SMOKETEST_EXCL_BRANCH: a directory of the host's own temp tree is always creatable
+    char temp_dir[4096];
+    snprintf(temp_dir, sizeof temp_dir, "%s/grug_mod_files/.tmp", g_game_dir);
+    if (!make_dirs(temp_dir)) return fail("File.write_text: cannot create %s", temp_dir);  // SMOKETEST_EXCL_BRANCH: a directory of the host's own temp tree is always creatable
     char temp[4200];
-    snprintf(temp, sizeof temp, "%s/.grug-write-XXXXXX", parent);
+    snprintf(temp, sizeof temp, "%s/.grug-write-XXXXXX", temp_dir);
     int fd = mkstemp(temp);
     if (fd < 0) return fail("File.write_text: cannot make a temporary file in %s", parent);  // SMOKETEST_EXCL_BRANCH: the host's own temp tree always accepts one
     size_t off = 0, size = strlen(text);

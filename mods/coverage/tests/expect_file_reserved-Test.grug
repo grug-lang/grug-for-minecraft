@@ -1,0 +1,7 @@
+# A path is a portable file name (#1757): a device name Windows keeps for itself is refused, with or
+# without an extension, so a mod cannot write a file one loader cannot then read.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("not a portable file name")
+    files.write_text("CON.txt", "x")
+}
