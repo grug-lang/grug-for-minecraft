@@ -1,18 +1,21 @@
 # Covers the overlay's two crosses in one capture: red where a hostile mob can spawn at any time
-# and yellow where one can spawn only at night. A flat-coloured platform (grug:safesquares_floor, #1550) over the room at the player's
-# block hides the torch floor, so the platform's squares are dark spawn spaces with no block light,
-# and they are low in a level camera's view (the camera cannot be pitched), where the room's own
-# floor, four blocks lower, is below the frame. One block of the roof is opened, so the sky lights
-# the platform under the hole and a few squares around it (Beta spreads sky light one less per block) while the far side of the room gets none. Squares
-# under the hole are yellow (the sky lights them by day only), and the rest are red. The test reads
-# one square of each kind from the light the client holds and waits for both before it turns the
-# overlay on, so a capture that cannot hold both crosses fails here rather than as a golden that
-# was accepted with only one. The golden is the position check: every cross in the crop is drawn
-# where the square is, from the camera, which looks towards +z, so the hole's side is on the left.
-# The crop stops at x 840: the player's held item is drawn at the bottom right and differs between
-# the client-only run and the installed jar's, which is not what this test is about. It stops short of
-# 852 and 877 because a1's flat floor showed two seam pixels there (screen y 589 and 616) whose red and
-# green values jittered between runs (#1550, cause not proven, a1 only); every cross stays inside it.
+# and yellow where one can spawn only at night. A platform of vanilla stone over the room at the
+# player's block hides the torch floor, so the platform's squares are dark spawn spaces with no
+# block light, and they are low in a level camera's view (the camera cannot be pitched), where the
+# room's own floor, four blocks lower, is below the frame. The platform is stone and not a block of
+# SafeSquares' own: a port ships no content its reference does not, and the #1550 flake the flat
+# block was added for was a joined client's camera within 1/1024 of a block of the singleplayer eye,
+# which #1720 snapped and levelled, so the camera is the loader's to settle and the fixture is
+# vanilla again. One block of the roof is opened, so the sky lights the platform under the hole and
+# a few squares around it (Beta spreads sky light one less per block) while the far side of the
+# room gets none. Squares under the hole are yellow (the sky lights them by day only), and the rest
+# are red. The test reads one square of each kind from the light the client holds and waits for both
+# before it turns the overlay on, so a capture that cannot hold both crosses fails here rather than
+# as a golden that was accepted with only one. The golden is the position check: every cross in the
+# crop is drawn where the square is, from the camera, which looks towards +z, so the hole's side is
+# on the left. The crop stops at x 840: the player's held item is drawn at the bottom right and
+# differs between the client-only run and the installed jar's, which is not what this test is about,
+# and every cross stays inside it.
 # The sky light that is drawn depends on the clock (1.2.5 draws the stored sky light less a darkness
 # that follows the time of day; Alpha and Beta do the same), so the test sets noon before it places
 # the platform, and every capture is at the same hour whatever the run's clock was (#1550).
@@ -43,9 +46,9 @@ export tick(ctx: TestTickContext) {
         # The origin is the camera plus 3, and the eye is 1.62 above the feet the room is built around.
         py = Math.floor(origin.y() - 4.12)
         pz = Math.floor(origin.z())
-        # The squares are on a flat-coloured platform the test lays over the room at the block the player stands
-        # on, so they are 1.62 below the eye: the room's own floor is four blocks lower, which a level
-        # camera cannot see at this distance, and its torches would light them from below.
+        # The squares are on a stone platform the test lays over the room at the block the player
+        # stands on, so they are 1.62 below the eye: the room's own floor is four blocks lower, which
+        # a level camera cannot see at this distance, and its torches would light them from below.
         fy = py
         hx = px + 5
         hz = pz + 5
@@ -68,7 +71,7 @@ export tick(ctx: TestTickContext) {
         while x <= px + 6 {
             z: number = pz - 6
             while z <= pz + 6 {
-                level.place_block(x, fy - 1, z, "grug:safesquares_floor")
+                level.place_block(x, fy - 1, z, "minecraft:stone")
                 z = z + 1
             }
             x = x + 1

@@ -1,8 +1,0 @@
-# The platform overlay_crosses lays under the squares. Its texture is one flat colour, because a
-# textured floor seen at a grazing angle has many texel boundaries and the rasterizer decides which
-# texel a pixel on a boundary shows, so an exact capture of stone flaked by one or two pixels
-# (#1550). The colour is grey blue, far from the crosses' red and yellow.
-export init(ctx: BlockInitContext) {
-    ctx.set_hardness(1)
-    ctx.set_material("stone")
-}

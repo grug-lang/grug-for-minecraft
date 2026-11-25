@@ -6,9 +6,9 @@
 # check that every cross is drawn on its square from the new camera. The step is named from the
 # room's eye rather than from the camera this side reads, because a dedicated leg's joined client is
 # pushed off it and the capture is drawn from the pose the test names (#1696). The crop and the
-# reasons for the room are overlay_crosses', and so is the reason the crop stops at x 840 (#1550). So
-# is the clock: the test sets noon first, so the sky light that is drawn is the same at every hour of
-# the run.
+# reasons for the room are overlay_crosses', including its vanilla stone platform and the crop's stop
+# at x 840 for the held item (#1550). So is the clock: the test sets noon first, so the sky light that
+# is drawn is the same at every hour of the run.
 state: number = 0
 moved: bool = false
 waited: number = 0
@@ -43,9 +43,9 @@ export tick(ctx: TestTickContext) {
         # The origin is the room's eye plus 3, and the eye is 1.62 above the feet.
         py = Math.floor(oy - 4.12)
         pz = Math.floor(oz)
-        # The squares are on a flat-coloured platform the test lays over the room at the block the player stands
-        # on, so they are 1.62 below the eye: the room's own floor is four blocks lower, which a level
-        # camera cannot see at this distance, and its torches would light them from below.
+        # The squares are on a stone platform the test lays over the room at the block the player
+        # stands on, so they are 1.62 below the eye: the room's own floor is four blocks lower, which
+        # a level camera cannot see at this distance, and its torches would light them from below.
         fy = py
         hx = px + 5
         hz = pz + 5
@@ -68,7 +68,7 @@ export tick(ctx: TestTickContext) {
         while x <= px + 6 {
             z: number = pz - 6
             while z <= pz + 6 {
-                level.place_block(x, fy - 1, z, "grug:safesquares_floor")
+                level.place_block(x, fy - 1, z, "minecraft:stone")
                 z = z + 1
             }
             x = x + 1
