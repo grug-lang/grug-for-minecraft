@@ -285,65 +285,13 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 12 {
-        # The reference's canStack copies both stacks to one item and asks whether they merge, and
-        # two do not fit an item that stacks to one: a tool, a piece of armour, a potion or a filled
-        # bucket cannot stack, so a left click on the one the cursor carries deletes it. The list
-        # order differs by version, so the test scans it for the first item that cannot stack.
-        ctx.assert(not ctx.get_carried_item().has(), "The cursor should be empty before the case that cannot stack.")
-        one_index: number = -1
-        search: number = 0
-        count: number = item_count()
-        while search < count and one_index < 0 {
-            if item_max_stack(item_at(search)) == 1 {
-                one_index = search
-            }
-            search = search + 1
-        }
-        ctx.assert(one_index >= 0, "The item list should hold an item that cannot stack.")
-        # The item can sit on a later page, so the next button is pressed once per page before the
-        # click, and the back button once per page after it.
-        per_page: number = _per_page(ctx)
-        one_page: number = Math.floor(one_index / per_page)
-        pressed: number = 0
-        while pressed < one_page {
-            ctx.assert(ctx.click_screen(_next_x(ctx), _button_y(), 0), "The overlay should take a press on its next page button.")
-            pressed = pressed + 1
-        }
-        one: Item = item_at(one_index)
-        ctx.set_carried_item(one)
-        ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item that cannot stack on the cursor.")
-        cell: number = Math.remainder(one_index, per_page)
-        column: number = Math.remainder(cell, _columns(ctx))
-        row: number = Math.floor(cell / _columns(ctx))
-        waited = 0
-        step = 13
-        taken: bool = ctx.click_screen(_cell_x(ctx, column), _cell_y(row), 0)
-        ctx.assert(taken, "The overlay should take a left click on an item that cannot stack while the cursor carries another of it.")
-        pressed = 0
-        while pressed < one_page {
-            ctx.assert(ctx.click_screen(_back_x(ctx), _button_y(), 0), "The overlay should take a press on its back page button.")
-            pressed = pressed + 1
-        }
-        ctx.not_done()
-        return
-    }
-
-    if step == 13 {
-        ctx.assert(not ctx.get_carried_item().has(), "A left click on an item that cannot stack should delete the item on the cursor.")
-        ctx.assert(not ctx.get_player().get_held_item().has(), "Deleting an item that cannot stack should not also give one.")
         if me.loader_name() == "a1.1.2_01-ornithe" {
             # Alpha has no item names, so its search matches the numeric registry name only and a
-            # name like bedrock matches nothing there, which is why search-Test skips it too.
+            # name like bedrock matches nothing there, which is why search-Test skips it too. The
+            # two cases below both find their item by name.
             ctx.close_screen()
             return
         }
-        waited = 0
-        step = 14
-        ctx.not_done()
-        return
-    }
-
-    if step == 14 {
         # An empty cell deletes the stack on the cursor too, and the press is consumed. The
         # reference's delete handler asks only whether the mouse is over the grid's area
         # (IngredientGrid.isMouseOver, IngredientGrid.java:163-165) and reads no ingredient under
@@ -364,14 +312,56 @@ export tick(ctx: TestTickContext) {
         ctx.assert(matches < _columns(ctx), "The search should leave an empty cell in the grid's first row.")
         ctx.set_carried_item(expected)
         ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item on the cursor.")
-        step = 15
+        step = 13
         taken: bool = ctx.click_screen(_cell_x(ctx, matches), _cell_y(0), 0)
         ctx.assert(taken, "The overlay should take a press on an empty cell while the cursor carries an item.")
         ctx.not_done()
         return
     }
 
-    ctx.assert(not ctx.get_carried_item().has(), "A left click on an empty cell should delete the stack on the cursor.")
+    if step == 13 {
+        ctx.assert(not ctx.get_carried_item().has(), "A left click on an empty cell should delete the stack on the cursor.")
+        step = 14
+        ctx.not_done()
+        return
+    }
+
+    if step == 14 {
+        # The reference's canStack copies both stacks to one item and asks whether they merge, and
+        # two do not fit an item that stacks to one, so a tool, a piece of armour, a potion or a
+        # filled bucket cannot stack and a left click on the one the cursor carries deletes it. The
+        # case searches for a sword instead of walking the list to the first such item: a page draws
+        # every item on it, so walking also reaches items the case does not need, and on 1.2.5 the
+        # frame's item form cannot be drawn yet (#1767).
+        ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 1), "The overlay should take a right click that empties the search field.")
+        _press_key(ctx, 68)
+        _press_key(ctx, 73)
+        _press_key(ctx, 65)
+        _press_key(ctx, 77)
+        _press_key(ctx, 79)
+        _press_key(ctx, 78)
+        _press_key(ctx, 68)
+        _press_key(ctx, 32)
+        _press_key(ctx, 83)
+        _press_key(ctx, 87)
+        _press_key(ctx, 79)
+        _press_key(ctx, 82)
+        _press_key(ctx, 68)
+        ctx.assert(search_item_count("diamond sword") == 1, "The search for diamond sword should find exactly one item.")
+        sword: Item = search_item_at("diamond sword", 0)
+        ctx.assert(equals(sword, item(resource_location("minecraft:diamond_sword"))), "The search for diamond sword should find the game's diamond sword.")
+        ctx.assert(item_max_stack(sword) == 1, "A diamond sword should not stack.")
+        ctx.set_carried_item(sword)
+        ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item that cannot stack on the cursor.")
+        step = 15
+        taken: bool = ctx.click_screen(_cell_x(ctx, 0), _cell_y(0), 0)
+        ctx.assert(taken, "The overlay should take a left click on an item that cannot stack while the cursor carries another of it.")
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(not ctx.get_carried_item().has(), "A left click on an item that cannot stack should delete the item on the cursor.")
+    ctx.assert(not ctx.get_player().get_held_item().has(), "Deleting an item that cannot stack should not also give one.")
     # The search text is the overlay's own state and outlives the screen, as the reference's field
     # does, so the test empties it before it closes the screen: a later test that opens the list
     # must start with the whole list, not with this test's search.
