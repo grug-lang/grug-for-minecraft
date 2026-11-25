@@ -345,6 +345,7 @@ static struct overlay* overlays;
 static size_t noverlays, capoverlays;
 // Java's (long) cast of a double, defined with the other converts below.
 static int64_t java_long(double d);
+static bool overlay_disabled(const char* path);
 static void overlay_render_world(void);
 static void overlay_press_world_key(double code, bool ctrl);
 static void clear_overlays(void);
@@ -1676,6 +1677,7 @@ static void clear_world_overlays(void) {
 static void ask_world_overlays(uint64_t fn, enum kind kind, const char* name) {
     for (size_t i = 0; i < noverlays; i++) {
         if (!cur_test_mod || strcmp(overlays[i].mod, cur_test_mod)) continue;
+        if (overlay_disabled(overlays[i].path)) continue;
         char err[sizeof last_msg];
         world_pass_serial = ++world_pass_count;
         uint64_t ctx = new_obj(kind);
@@ -1703,6 +1705,7 @@ static void overlay_press_world_key(double code, bool ctrl) {
     for (size_t i = 0; i < noverlays; i++) {
         const char* mod = overlays[i].mod;
         if (!cur_test_mod || strcmp(mod, cur_test_mod)) continue;
+        if (overlay_disabled(overlays[i].path)) continue;
         for (size_t k = 0; k < nmod_keys; k++) {
             if (strcmp(mod_keys[k].mod, mod) || mod_keys[k].def[0] != (char)code) continue;
             char err[sizeof last_msg];

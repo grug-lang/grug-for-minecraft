@@ -41,7 +41,7 @@ public class ClientInitListener {
         forceResolutionKey = new KeyBinding("key.grug.force_test_resolution", Keyboard.KEY_M);
         event.keyBindings.add(forceResolutionKey);
         for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
-            KeyBinding binding = new KeyBinding(declared.key().name(), declared.key().code());
+            KeyBinding binding = new KeyBinding(declared.label(), declared.key().code());
             event.keyBindings.add(binding);
             GrugClientHooks.declaredBindings()
                     .add(

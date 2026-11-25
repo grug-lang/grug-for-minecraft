@@ -459,6 +459,26 @@ public final class GrugOverlayHost {
     private static final List<DeclaredBinding> declaredBindings = new ArrayList<>();
 
     /**
+     * A declared binding's mapping. The game saves a rebound key under the mapping's name and keys
+     * its own map by it, so the name is the mod and binding id, which is unique across mods, while
+     * the Controls screen shows the name the mod declared: two mods may declare the same display
+     * text (#1749's review).
+     */
+    private static final class DeclaredKeyMapping extends KeyMapping {
+        private final String label;
+
+        DeclaredKeyMapping(String mod, String id, String label, int code) {
+            super("key.grug." + mod + "." + id, code, "key.categories.grug");
+            this.label = label;
+        }
+
+        @Override
+        public Component getTranslatedKeyMessage() {
+            return Component.literal(label);
+        }
+    }
+
+    /**
      * Registers one game binding per binding the mounted mods declare, so each is in the Controls
      * screen before a world is opened and a rebound key is the one that fires. Forge appends it to
      * the options the Controls screen reads and saves.
@@ -466,8 +486,11 @@ public final class GrugOverlayHost {
     public static void registerDeclaredBindings(RegisterKeyMappingsEvent event) {
         for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
             KeyMapping mapping =
-                    new KeyMapping(
-                            declared.key().name(), declared.key().code(), "key.categories.grug");
+                    new DeclaredKeyMapping(
+                            declared.mod(),
+                            declared.key().id(),
+                            declared.label(),
+                            declared.key().code());
             event.register(mapping);
             declaredBindings.add(new DeclaredBinding(declared.mod(), declared.key().id(), mapping));
         }

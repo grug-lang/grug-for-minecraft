@@ -188,9 +188,17 @@ public final class GrugConfig {
         }
         GrugMetadata.Mod metadata = GrugMetadata.forMod(modsDir, mod);
         Values values;
+        // The stamps the values are read at, taken before the parse: a file edited while it is
+        // parsed is read again next time rather than cached under a stamp its text never had
+        // (#1749's review). A file this call writes is read after the write, so it is cached under
+        // the stamps it has.
+        long readModified = modified;
+        boolean readExists = exists;
         try {
             if (!exists) {
                 writeDefaults(config, metadata);
+                readModified = config.lastModified();
+                readExists = config.isFile();
             }
             values = new Values(mod, metadata, parse(config));
         } catch (IOException | RuntimeException e) {
@@ -204,8 +212,7 @@ public final class GrugConfig {
                             + "), so every option answers its declared default.");
             values = new Values(mod, metadata, new HashMap<String, String>());
         }
-        cache.put(
-                key, new Cached(values, config.lastModified(), config.isFile(), metadataModified));
+        cache.put(key, new Cached(values, readModified, readExists, metadataModified));
         return values;
     }
 

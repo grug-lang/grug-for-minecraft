@@ -13,8 +13,10 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The parts of a mod's {@code about.json} the host acts on: the key bindings it declares and the
@@ -49,7 +51,7 @@ public final class GrugMetadata {
             return id;
         }
 
-        /** The name the Controls screen shows, which is the reference's key name as plain text. */
+        /** The name the mod declares for the binding, which is the reference's key name as text. */
         public String name() {
             return name;
         }
@@ -70,10 +72,12 @@ public final class GrugMetadata {
     public static final class DeclaredKey implements Comparable<DeclaredKey> {
         private final String mod;
         private final Key key;
+        private String label;
 
         DeclaredKey(String mod, Key key) {
             this.mod = mod;
             this.key = key;
+            this.label = key.name();
         }
 
         public String mod() {
@@ -82,6 +86,16 @@ public final class GrugMetadata {
 
         public Key key() {
             return key;
+        }
+
+        /**
+         * The name the Controls screen shows, which is the mod's own unless another declared
+         * binding already uses it. The loaders without a separate label identify a binding by this
+         * one string, so a repeated name would keep both bindings' saved keys in one entry (#1749's
+         * review).
+         */
+        public String label() {
+            return label;
         }
 
         /**
@@ -307,6 +321,16 @@ public final class GrugMetadata {
             }
         }
         Collections.sort(declared);
+        // A repeated display name carries its mod and id, in the same load order, so every binding
+        // keeps a label of its own (#1749's review).
+        Set<String> labels = new HashSet<>();
+        for (DeclaredKey declaredKey : declared) {
+            String label = declaredKey.label;
+            while (!labels.add(label)) {
+                label = label + " (" + declaredKey.mod + '.' + declaredKey.key.id() + ")";
+            }
+            declaredKey.label = label;
+        }
         return declared;
     }
 

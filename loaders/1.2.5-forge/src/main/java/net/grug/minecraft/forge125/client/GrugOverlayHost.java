@@ -689,7 +689,7 @@ public final class GrugOverlayHost {
                     new DeclaredBinding(
                             declared.mod(),
                             declared.key().id(),
-                            new KeyBinding(declared.key().name(), declared.key().code())));
+                            new KeyBinding(declared.label(), declared.key().code())));
         }
     }
 
