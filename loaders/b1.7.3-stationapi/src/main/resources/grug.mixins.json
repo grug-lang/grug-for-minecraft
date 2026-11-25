@@ -28,6 +28,7 @@
     "ScreenMixin",
     "SpriteContentsMixin",
     "SpriteMixin",
+    "SpriteAtlasTextureMixin",
     "TextureStitcherHolderMixin",
     "GrugFillInvoker"
   ],

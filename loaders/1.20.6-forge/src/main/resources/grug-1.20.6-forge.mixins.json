@@ -21,7 +21,8 @@
             "MinecraftTimerMixin",
             "ModelBlockRendererMixin",
             "MultiPlayerGameModeMixin",
-            "SectionBufferBuilderPoolMixin"
+            "SectionBufferBuilderPoolMixin",
+            "TextureAtlasMixin"
         ],
         "mixins": [
             "ChunkMapAccessor",
