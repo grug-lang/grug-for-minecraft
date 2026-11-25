@@ -925,10 +925,12 @@ while :; do
     # 1.20.6 the pair also splits the click's two halves, gui_click taking the release path (the
     # cursor carries a stack) and gui_click_empty the press path (the cursor is empty), so a leg that
     # runs both proves both. gui_click_twice makes two presses in one tick, so a leg that does not
-    # run it is the leg where #1666's double-click defect could come back unseen (#1703).
+    # run it is the leg where #1666's double-click defect could come back unseen (#1703), and
+    # gui_click_two_in_a_tick makes two presses in one tick whose two effects are read on the next
+    # tick, which is the count of click barriers a dedicated server owes (#1774).
     case "$LOADER" in
       1.20.6-forge|1.2.5-forge|b1.7.3-ornithe|b1.7.3-stationapi)
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty coverage/tests/gui_click_twice buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty coverage/tests/gui_click_twice coverage/tests/gui_click_two_in_a_tick buildcraft/tests/autocrafting_table buildcraft/tests/redstone_engine_item"
         ;;
       a1.1.2_01-ornithe)
         # Its server has no recipe manager, so the two autocrafting-table tests stay unsupported
@@ -936,7 +938,7 @@ while :; do
         # cannot compute. The two container-click tests run there since #1402 stopped the client's
         # copy of the block entity from erasing the server's slot (#1393; proofs 44412261265 and
         # 44414059306 passed them).
-        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty coverage/tests/gui_click_twice"
+        gui_tests="coverage/tests/remote_gui coverage/tests/item_icon coverage/tests/gui_builder coverage/tests/gui_click coverage/tests/gui_click_empty coverage/tests/gui_click_twice coverage/tests/gui_click_two_in_a_tick"
         ;;
       *)
         gui_tests=""
