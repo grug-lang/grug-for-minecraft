@@ -1240,7 +1240,9 @@ public final class GrugControlServer {
      *
      * <p>The divergent answer is the loader's cue to send the box again ({@link
      * GrugLightResend#rearm}); it is never recorded as settled, so the next ask is a fresh question
-     * rather than a remembered yes.
+     * rather than a remembered yes. A remembered yes covers the question it answered: a {@code
+     * held} that names a different box is asked even when the world revision has not moved, which a
+     * mod's game-tick placement can leave it (#1695).
      */
     public byte settle(String held) throws ControlException {
         Object to = starter.get();
@@ -1250,7 +1252,7 @@ public final class GrugControlServer {
                             + " settled. A client starts a run when its player starts one.");
         }
         long revision = GrugWorldRevision.current();
-        if (settled.answeredSettled(revision)) {
+        if (settled.answeredSettled(revision, held)) {
             return GrugControlWire.SETTLE_YES;
         }
         if (settled.needsFlush(revision)) {
@@ -1258,7 +1260,7 @@ public final class GrugControlServer {
             settled.flushed(revision);
         }
         byte result = askClient(held, revision);
-        settled.record(revision, result == GrugControlWire.SETTLE_YES);
+        settled.record(revision, result == GrugControlWire.SETTLE_YES, held);
         return result;
     }
 
