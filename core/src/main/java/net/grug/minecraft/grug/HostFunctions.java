@@ -4696,9 +4696,9 @@ public class HostFunctions {
      * text with more digits than a float holds differently.
      */
     public static long String_to_float(String text) {
-        Float value = null;
+        Double value = null;
         try {
-            value = Float.parseFloat(text);
+            value = (double) Float.parseFloat(text);
         } catch (NumberFormatException e) {
             // Not a float, which is what the empty Option says.
         }
