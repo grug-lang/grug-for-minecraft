@@ -9,11 +9,11 @@
 # second bread (#602).
 # #1205: the a1.1.2_01 dedicated leg once failed the dropped-item check right after the server
 # logged `Can't keep up`, and a rerun passed. A check that only runs at the end cannot say when the
-# pipe dropped one, so every runner tick counts the item entities at the fixture and fails when
-# another appears beside the fixture's own stray diamond, naming that tick, the round and what each
-# container held at it. Nothing is printed on a passing tick. That leg also repeats the delivery a
-# hundred times, so a red that needs an overloaded tick has a hundred chances per run instead of
-# one; every other leg checks once at the timing its captures were taken with (#262).
+# pipe dropped one, so every runner tick counts the item entities at the fixture and fails when the
+# count rises above what the fixture expects, naming that tick, the round and what each container
+# held at it. Nothing is printed on a passing tick. That leg also repeats the delivery a hundred
+# times, so a red that needs an overloaded tick has a hundred chances per run instead of one; every
+# other leg checks once at the timing its captures were taken with (#262).
 pipe_table_table: Option[BlockEntity] = Option.new()
 pipe_table_chest: Option[BlockEntity] = Option.new()
 pipe_table_pipe: Option[BlockEntity] = Option.new()
@@ -42,6 +42,12 @@ rounds: number = 100
 # _setup_pipe. A sample that finds another has seen a drop, whatever kind the dropped item is.
 stray_entities: number = 1
 
+# The item entities the per-tick sample expects to find. It starts at the stray diamond and follows
+# the level's own count down when an entity disappears, because Alpha despawns a dropped item after
+# 6000 game ticks and the a1 dedicated leg's hundred rounds at 10x outlive that diamond. A count that
+# rises above it is the pipe's drop, whatever kind the dropped item is.
+expected_entities: number = 1
+
 # The tick the pipe was placed on, or -1 before that. The wait after it is for what the pipe does
 # with the result rather than for a tick count, and it also keeps the old floor of 25 ticks, which is
 # where the suite's timing, and so the coverage_render references, were captured (#262).
@@ -53,9 +59,12 @@ pipe_placed_at: number = -1
 pipe_bread_at: number = -1
 
 # #1205: the a1 dedicated leg repeats the delivery, so the budget covers the hundred passes there.
-# Every other leg runs one pass at the timing it had before, which is where its captures were taken.
+# On that leg a pass takes about 160 world ticks, since the engine has to power the pipe again after
+# every extraction, so the hundred are about 16000 of the 40000 tick calls that 4000 allows at the
+# 10x speed CI runs at. Every other leg runs one pass at the timing it had before, which is where its
+# captures were taken.
 export init(ctx: TestInitContext) {
-    ctx.set_max_ticks(2000)
+    ctx.set_max_ticks(4000)
 }
 
 export tick(ctx: TestTickContext) {
@@ -89,12 +98,19 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
+    # #1205: only the first pass can check the fixture's own stray diamond, since Alpha's 6000-tick
+    # item despawn removes it long before the a1 leg's hundred rounds end. The repeat rounds assert
+    # what the pipe and the table hold, which a pass that lost or duplicated an item cannot satisfy.
+    if round == 0 {
+        _check(ctx)
+    } else {
+        _check_containers(ctx)
+    }
     if _repeats() and round + 1 < rounds {
         _reset(ctx)
         ctx.not_done()
         return
     }
-    _check(ctx)
 }
 
 # #1205: whether this leg repeats the delivery. The red has come from the a1 dedicated server, the
@@ -116,25 +132,26 @@ local _floor_waits(ctx: TestTickContext) bool {
 }
 
 # #1205: a pass that never delivers is not the red this test reports, so it names itself instead of
-# ending at the budget with no explanation. A normal pass delivers within a few ticks; 400 bounds a
-# stalled one without waiting the whole 2000, and no leg that runs one pass reaches it.
+# ending at the budget with no explanation. A pass takes about 160 ticks on the a1 leg; 1200 bounds a
+# stalled one without waiting the whole 4000, and no leg that runs one pass reaches it.
 local _check_round(ctx: TestTickContext) {
     if not _repeats() {
         return
     }
     ticks: number = ctx.current_tick() - round_started
-    if ticks >= 400 {
-        print2("A pass did not deliver the bread within 400 ticks: round", round)
+    if ticks >= 1200 {
+        print2("A pass did not deliver the bread within 1200 ticks: round", round)
         print2("runner tick", ctx.current_tick())
         print2("ticks into the pass", ticks)
-        ctx.assert(false, "A pass did not deliver the bread within 400 ticks.")
+        ctx.assert(false, "A pass did not deliver the bread within 1200 ticks.")
     }
 }
 
 # #1205: the tick a stack leaves the pipe is what a red has to name, so this runs on every runner
-# tick rather than at the check alone. Nothing in this fixture but the stray diamond puts an item on
-# the floor, so one other entity, of the bread or of anything else, fails the tick it appears, with
-# every container printed. A passing tick prints nothing.
+# tick rather than at the check alone. Nothing in this fixture puts an item on the floor but the
+# stray diamond, so a count above the one expected fails the tick it appears, with every container
+# printed. The expected count follows a disappearance down, so the stray's own despawn is not read
+# as the pipe's doing. A passing tick prints nothing.
 local _sample(ctx: TestTickContext) {
     level: Level = test_level.unwrap()
     all: number = level.count_item_entities(base_x, base_y, base_z, 5)
@@ -143,10 +160,11 @@ local _sample(ctx: TestTickContext) {
         _report(ctx, all, bread)
         ctx.assert(false, "The pipe should not have dropped the bread.")
     }
-    if all > stray_entities {
+    if all > expected_entities {
         _report(ctx, all, bread)
         ctx.assert(false, "The pipe should not have dropped an item.")
     }
+    expected_entities = all
 }
 
 # #1205: a dropped item names the tick and where every item stood in it, because the failing run's
@@ -159,7 +177,7 @@ local _report(ctx: TestTickContext, all: number, bread: number) {
     table: BlockEntity = pipe_table_table.unwrap()
     print2("Item entities at the fixture: count", all)
     print2("of which bread", bread)
-    print2("the fixture's own stray entities", stray_entities)
+    print2("the stray entities the fixture started with", stray_entities)
     print2("round", round)
     print2("runner tick", ctx.current_tick())
     print2("ticks since the round began", ctx.current_tick() - round_started)
@@ -340,6 +358,20 @@ local _setup_pipe(ctx: TestTickContext) {
 }
 
 local _check(ctx: TestTickContext) {
+    _check_containers(ctx)
+    level: Level = test_level.unwrap()
+    # The stray diamond is checked only on the first pass, which is the only one young enough that
+    # Alpha's 6000-tick item despawn cannot have removed it (#1205).
+    all: number = level.count_item_entities(base_x, base_y, base_z, 5)
+    dropped: number = level.count_item_entities_of(base_x, base_y, base_z, 5, bread_item.unwrap())
+    ctx.assert(all >= 1, "The stray item entity should still be in reach.")
+    if all != stray_entities {
+        _report(ctx, all, dropped)
+    }
+    ctx.assert(all == stray_entities, "The pipe should not have dropped an item.")
+}
+
+local _check_containers(ctx: TestTickContext) {
     level: Level = test_level.unwrap()
     x: number = base_x
     y: number = base_y
@@ -378,13 +410,11 @@ local _check(ctx: TestTickContext) {
     # per-tick sample above catches this first on every leg that runs it; this check keeps the
     # assertion for a drop that appears before the sample's first tick (#1205).
     all: number = level.count_item_entities(x, y, z, 5)
-    ctx.assert(all >= 1, "The stray item entity should still be in reach.")
     dropped: number = level.count_item_entities_of(x, y, z, 5, bread_item.unwrap())
-    if all != stray_entities or dropped > 0 {
+    if dropped > 0 {
         _report(ctx, all, dropped)
     }
     ctx.assert(dropped == 0, "The pipe should not have dropped the bread.")
-    ctx.assert(all == stray_entities, "The pipe should not have dropped an item.")
 }
 
 # The pipe moving the crafted bread into the chest is what this test observes, and the game's own tick
