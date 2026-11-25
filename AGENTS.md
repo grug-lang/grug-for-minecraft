@@ -368,7 +368,9 @@ with `NoClassDefFoundError` (#1246).
   The suite fails fast, so when many goldens change, push the commit to a throwaway branch whose
   loader jobs run `update-goldens` and upload `mods/*/screenshots`, and dispatch it once.
   `update-goldens` writes every unmatched capture under the running loader's name. Look at every
-  PNG before committing it.
+  PNG before committing it, and count them: a loader the test runs on with no PNG of its own fails
+  every later run of that leg (#1797), so the list must hold one per loader, not only the ones the
+  dispatch happened to reach.
 - Coverage stays at 100% on `core`, and comes from `mods/coverage/` alone: cover a host function
   with a grug test there first, then a Java test, and `@GrugGenerated` only as a last resort.
   The gate counts only the unit tests, each game run's boot and `mods/coverage/`'s tests, so
