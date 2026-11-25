@@ -1,0 +1,797 @@
+# The wooden conductive pipe, as PipePowerWood builds it: PipeTransportPower with PipeLogicWood and a
+# power provider of its own, so it is the one conductive pipe an engine pushes energy into. Every
+# tick it hands what it holds into each connected conductive pipe, in the reference's proportions,
+# and loses one energy every hundred ticks. Its source side, the metadata PipeLogicWood keeps, is the
+# side it would draw items from and the side whose arm is drawn in the plain texture; the reference's
+# doWork is empty, so a source moves no energy by itself.
+
+# A block and its block entity are separate grug entities and grug has no shared code, so this
+# transport is the wooden power pipe's and the golden one's, copied: keep the three in step.
+
+# PipeTransportPower keeps four arrays per side, this tick's power and queries and the next tick's,
+# and moves each next one over when the world's clock reaches a new tick. The host's inbox does the
+# same with each mail's own time: take_received_energy reads the mail handed in before the current
+# world time and leaves the rest, so a delivery that lands after this pipe's tick is taken on the
+# next one whichever order the two pipes ticked in. A pipe's own request poll and the requests it
+# forwards to its pipe neighbours go through the same inbox in the other direction. The arrays are
+# not saved by the reference and this port does not save them either: the inbox is memory-only, so
+# a chunk reload loses what was in flight, which is at most one tick's worth.
+
+level: Level = me.level()
+pos: BlockPos = me.block_pos()
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+# PipeTransportPower's powerResitance, 0.01, applied as the energy is taken.
+resistance: number = 0.01
+
+# PipePowerWood's provider is configured with a latency of 50, a delivery of 1 to 1000, an
+# activation of 1 and a store of 1000 (configure(50, 1, 1000, 1, 1000)), and loses one energy every
+# 100 ticks (configurePowerPerdition(1, 100)). Its doWork is empty, so the latency changes nothing.
+# SafeTimeTracker starts its mark at 0 and is not saved, so the first loss falls on the first tick
+# whose world time is at least 100, and a clock that went backwards moves the mark instead.
+loss_mark: number = 0
+
+# The side the pipe draws from is the pipe's block metadata in the reference, 0 to 5 for a side and 6
+# for none, and it is saved with the block entity as "source" plus one here, so that a pipe whose
+# number was never saved reads as the reference's fresh metadata of 0. See _meta.
+
+# A conductive pipe's transport saves nothing of its own, and the saved list holds only the values
+# this tick is working with, so a fresh entity only has to make its six records. Nothing in 2.2.14
+# calls PowerFramework.savePowerProvider for a pipe, so the energy a pipe holds is lost when its
+# chunk unloads, which the energy host functions reproduce by emptying the store here.
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_power_receiver(1000, 1, 1000)
+    me.extract_energy(1000)
+    if me.get_saved_list_size("power") == 0 {
+        side: number = 0
+        while side < 6 {
+            me.append_saved_list_record("power")
+            side = side + 1
+        }
+    }
+}
+
+# RenderPipe.renderWorldBlock: the quarter-block centre, then an arm toward every side the pipe
+# connects to. A conductive pipe is opaque in the reference and this shape is the block's, so the
+# chunk render draws it rather than the frame pass.
+export render(ctx: RenderContext) {
+    ctx.draw_box(0.25, 0.25, 0.25, 0.75, 0.75, 0.75)
+    _draw_arm(ctx, 0)
+    _draw_arm(ctx, 1)
+    _draw_arm(ctx, 2)
+    _draw_arm(ctx, 3)
+    _draw_arm(ctx, 4)
+    _draw_arm(ctx, 5)
+}
+
+# RenderPipe.renderPower: the beam on every side that carries at least one unit of display power,
+# drawn every frame because it follows this tick's distribution rather than the chunk's geometry.
+export render_frame(ctx: RenderFrameContext) {
+    side: number = 0
+    while side < 6 {
+        _draw_beam(ctx, side)
+        side = side + 1
+    }
+}
+
+# TileGenericPipe.tick: PipeLogicWood.blockActivated answers a right click with the wrench with
+# "rotate", and the source is checked again every tick as a neighbour change would check it.
+# PowerProvider.update's loss comes before the pipe's own tick, and PipePowerWood.updateEntity's
+# push comes after the transport's step, distribution, poll and forwarding.
+export tick() {
+    if me.get_saved_number("rotate") == 1 {
+        me.set_saved_number("rotate", 0)
+        _switch_source()
+    }
+    _switch_source_if_needed()
+    _provider_update()
+    if not _step() {
+        return
+    }
+    _distribute()
+    _poll_receptors()
+    _forward_queries()
+    _push()
+}
+
+# One arm of the centre-and-arms shape, if this side has a connection. The source side's arm is the
+# plain texture, which is prepareTextureFor switching away from the pipe's own texture while the
+# metadata names the side being drawn.
+local _draw_arm(ctx: RenderContext, side: number) {
+    if not _is_connected(side) {
+        return
+    }
+    if side == _meta() and _is_inventory(side) {
+        _draw_source_arm(ctx, side)
+        return
+    }
+    if side == 0 {
+        ctx.draw_box(0.25, 0.0, 0.25, 0.75, 0.25, 0.75)
+    } else if side == 1 {
+        ctx.draw_box(0.25, 0.75, 0.25, 0.75, 1.0, 0.75)
+    } else if side == 2 {
+        ctx.draw_box(0.25, 0.25, 0.0, 0.75, 0.75, 0.25)
+    } else if side == 3 {
+        ctx.draw_box(0.25, 0.25, 0.75, 0.75, 0.75, 1.0)
+    } else if side == 4 {
+        ctx.draw_box(0.0, 0.25, 0.25, 0.25, 0.75, 0.75)
+    } else if side == 5 {
+        ctx.draw_box(0.75, 0.25, 0.25, 1.0, 0.75, 0.75)
+    }
+}
+
+# The source side's arm, drawn from the plain-texture model for that side, which is the reference's
+# prepareTextureFor. Each side has its own model rather than one turned into place, because a face
+# takes its texture from where it sits before draw_model turns it, which mirrors the texture. The
+# models' uvs are the ones 1.2.5's RenderBlocks gives the reference's renderStandardBlock: each face's
+# texture clipped to the arm's bounds and measured from their low corner, where a block model's
+# default measures the north, east and down faces from the high one.
+local _draw_source_arm(ctx: RenderContext, side: number) {
+    if side == 0 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_down.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    } else if side == 1 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_up.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    } else if side == 2 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_north.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    } else if side == 3 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_south.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    } else if side == 4 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_west.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    } else if side == 5 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_east.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    }
+}
+
+# A beam on one side, when that side carries at least one unit. RenderPipe.renderPower turns the
+# beam with GL rotations that land it on the side opposite the one whose display power it is, and
+# this port keeps that bug: the angles below are the negated ones, which is how draw_model's
+# clockwise convention sends the model out along +x the way the reference's GL rotation does.
+local _draw_beam(ctx: RenderFrameContext, side: number) {
+    display: number = me.get_saved_list_number("power", side, "display")
+    if display < 1 {
+        return
+    }
+    stage: number = _stage(display)
+    if side == 0 {
+        _draw_stage(ctx, stage, 0.0, 270.0)
+    } else if side == 1 {
+        _draw_stage(ctx, stage, 0.0, 90.0)
+    } else if side == 2 {
+        _draw_stage(ctx, stage, 90.0, 0.0)
+    } else if side == 3 {
+        _draw_stage(ctx, stage, 270.0, 0.0)
+    } else if side == 4 {
+        _draw_stage(ctx, stage, 0.0, 0.0)
+    } else {
+        _draw_stage(ctx, stage, 180.0, 0.0)
+    }
+}
+
+# The stage the reference picks for a display power: the first of its eighty limits that the power
+# is below, where displayPowerLimits[80 - i - 1] = 1000 - sqrt(12658 * i). The limits rise with the
+# stage, so the stage is the count of limits the power reaches, which is 79 - floor((1000 - power)^2
+# / 12658) and avoids keeping eighty constants and a square root grug has no function for. The two
+# agree on every whole power the display can hold, because a limit equals a whole number only when
+# 12658 divides (1000 - power)^2, which cannot happen for a power from 1 to 999.
+local _stage(display: number) number {
+    if display >= 1000 {
+        return 79
+    }
+    remaining: number = 1000 - display
+    stage: number = 79 - Math.floor(remaining * remaining / 12658)
+    if stage < 0 {
+        return 0
+    }
+    return stage
+}
+
+# The beam model of a stage. A model is named by a resource literal, which grug cannot build from a
+# number, so all eighty are listed. Stage s is the reference's displayPowerList[s]: a box from the
+# block's centre to 0.5 + q along +x and q around the other two axes, with q = 0.0025 + 0.00309375
+# * s, which the rotations above turn into place.
+local _draw_stage(ctx: RenderFrameContext, stage: number, y_degrees: number, z_degrees: number) {
+    if stage == 0 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_0.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 1 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_1.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 2 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_2.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 3 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_3.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 4 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_4.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 5 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_5.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 6 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_6.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 7 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_7.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 8 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_8.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 9 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_9.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 10 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_10.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 11 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_11.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 12 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_12.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 13 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_13.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 14 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_14.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 15 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_15.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 16 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_16.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 17 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_17.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 18 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_18.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 19 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_19.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 20 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_20.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 21 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_21.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 22 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_22.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 23 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_23.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 24 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_24.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 25 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_25.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 26 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_26.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 27 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_27.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 28 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_28.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 29 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_29.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 30 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_30.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 31 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_31.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 32 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_32.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 33 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_33.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 34 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_34.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 35 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_35.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 36 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_36.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 37 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_37.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 38 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_38.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 39 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_39.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 40 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_40.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 41 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_41.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 42 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_42.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 43 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_43.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 44 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_44.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 45 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_45.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 46 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_46.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 47 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_47.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 48 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_48.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 49 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_49.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 50 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_50.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 51 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_51.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 52 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_52.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 53 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_53.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 54 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_54.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 55 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_55.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 56 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_56.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 57 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_57.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 58 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_58.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 59 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_59.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 60 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_60.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 61 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_61.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 62 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_62.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 63 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_63.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 64 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_64.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 65 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_65.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 66 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_66.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 67 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_67.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 68 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_68.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 69 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_69.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 70 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_70.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 71 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_71.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 72 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_72.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 73 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_73.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 74 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_74.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 75 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_75.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 76 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_76.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 77 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_77.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else if stage == 78 {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_78.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    } else {
+        ctx.draw_model(r"assets/grug/models/block/power_beam_79.json", 0.0, y_degrees, z_degrees, 0.0, 0.0, 0.0)
+    }
+}
+
+# PipeTransportPower.step, once the world's clock has moved on: this tick's power and queries are
+# what was handed in before now, and the next tick's arrays start empty, which the inbox's own
+# timestamp does by keeping the later mail. The reference checks every arrival for 1000 units and
+# explodes with power 2 at the block's corner; the inbox cannot see one arrival, so the check is on
+# the tick's total on a side, which explodes once where the reference could explode once per later
+# arrival.
+local _step() bool {
+    side: number = 0
+    while side < 6 {
+        power: number = me.take_received_energy(side) * (1 - resistance)
+        me.set_saved_list_number("power", side, "power", power)
+        me.set_saved_list_number("power", side, "query", me.take_requested_energy(side))
+        side = side + 1
+    }
+
+    side = 0
+    while side < 6 {
+        if me.get_saved_list_number("power", side, "power") >= 1000 {
+            level.explode(x - 0.5, y - 0.5, z - 0.5, 2)
+            if not _exists() {
+                return false
+            }
+        }
+        side = side + 1
+    }
+    return true
+}
+
+# The rest of PipeTransportPower.updateEntity on the server: each side's power is split between the
+# other sides that asked for it, by the share its request is of their sum. The energy that came in
+# on a side is never sent back out of it, which is the reference's j != ix test. A pipe neighbour is
+# handed the share as it is, because its transport splits it again, and a machine is handed the
+# whole units of it, as the reference casts the share to an int before receiveEnergy.
+local _distribute() {
+    side: number = 0
+    while side < 6 {
+        me.set_saved_list_number("power", side, "display", 0)
+        side = side + 1
+    }
+
+    side = 0
+    while side < 6 {
+        power: number = me.get_saved_list_number("power", side, "power")
+        if power > 0 {
+            divisor: number = _divisor(side)
+            # The reference divides by zero when a query sits on a side that no longer connects and
+            # no other side asked, which hands NaN to nothing; grug refuses the division, and the
+            # result is the same, so the distribution is skipped.
+            if divisor > 0 {
+                other: number = 0
+                while other < 6 {
+                    query: number = me.get_saved_list_number("power", other, "query")
+                    if other != side and query > 0 and _is_connected(other) {
+                        watts: number = power / divisor * query
+                        _hand(other, watts)
+                        _add_display(other, watts / 2)
+                        _add_display(side, watts / 2)
+                    }
+                    other = other + 1
+                }
+            }
+        }
+        side = side + 1
+    }
+}
+
+# The sum the reference divides a side's power by: the requests of every other side that connects
+# to a pipe or an energy receiver.
+local _divisor(side: number) number {
+    total: number = 0
+    other: number = 0
+    while other < 6 {
+        query: number = me.get_saved_list_number("power", other, "query")
+        if other != side and query > 0 and _is_connected(other) {
+            total = total + query
+        }
+        other = other + 1
+    }
+    return total
+}
+
+# Hands one share to the neighbour on a side: a pipe is handed it whole, because its transport
+# splits it again, and a machine is handed the whole units of it, as PowerProvider.receiveEnergy
+# takes an int.
+local _hand(side: number, watts: number) {
+    nx: number = _neighbor_x(side)
+    ny: number = _neighbor_y(side)
+    nz: number = _neighbor_z(side)
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return
+    }
+    if _pipe_kind(nx, ny, nz) != 0 {
+        neighbor_opt.unwrap().receive_energy_on(_reverse(side), watts)
+        return
+    }
+    neighbor_opt.unwrap().receive_energy(Math.floor(watts))
+}
+
+# The reference's request poll: every neighbour that is a machine rather than a pipe is asked what
+# energy it wants, and the answer goes into this pipe's request for that side, which the next tick
+# hands on. A machine that is not working asks for nothing and is skipped.
+local _poll_receptors() {
+    side: number = 0
+    while side < 6 {
+        if _is_connected(side) and _pipe_kind(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) == 0 {
+            receptor_opt: Option[BlockEntity] = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))
+            if receptor_opt.has() {
+                request: number = receptor_opt.unwrap().get_energy_request()
+                if request > 0 {
+                    me.request_energy_on(side, request)
+                }
+            }
+        }
+        side = side + 1
+    }
+}
+
+# The reference's second pass: each pipe neighbour is told the sum of this pipe's requests on its
+# other sides, so a line of pipes carries a distant machine's need back along it.
+local _forward_queries() {
+    side: number = 0
+    while side < 6 {
+        nx: number = _neighbor_x(side)
+        ny: number = _neighbor_y(side)
+        nz: number = _neighbor_z(side)
+        if _is_connected(side) and _pipe_kind(nx, ny, nz) != 0 {
+            total: number = 0
+            other: number = 0
+            while other < 6 {
+                if other != side {
+                    total = total + me.get_saved_list_number("power", other, "query")
+                }
+                other = other + 1
+            }
+            if total != 0 {
+                neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+                if neighbor_opt.has() {
+                    neighbor_opt.unwrap().request_energy_on(_reverse(side), total)
+                }
+            }
+        }
+        side = side + 1
+    }
+}
+
+# PipePowerWood.updateEntity: what the pipe holds is handed into every connected conductive pipe, in
+# the reference's proportions: a fortieth of the store plus four while it holds over 40, a tenth
+# while it holds over 10, and one otherwise. useEnergy spends nothing while the store is empty, so an
+# empty pipe pushes nothing. What is handed over is added to that side's display power, which is
+# what draws the beam there.
+local _push() {
+    side: number = 0
+    while side < 6 {
+        nx: number = _neighbor_x(side)
+        ny: number = _neighbor_y(side)
+        nz: number = _neighbor_z(side)
+        if _is_connected(side) and _is_conductive_pipe(_pipe_kind(nx, ny, nz)) {
+            stored: number = me.get_energy_stored()
+            amount: number = 1
+            if stored > 40 {
+                amount = Math.floor(stored / 40) + 4
+            } else if stored > 10 {
+                amount = Math.floor(stored / 10)
+            }
+            used: number = 0
+            if stored >= 1 {
+                used = me.extract_energy(amount)
+            }
+            if used > 0 {
+                neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+                if neighbor_opt.has() {
+                    neighbor_opt.unwrap().receive_energy_on(_reverse(side), used)
+                }
+                _add_display(side, used)
+            }
+        }
+        side = side + 1
+    }
+}
+
+# PowerProvider.update's energy loss: one energy every 100 ticks of the world's clock, taken whether
+# or not the pipe holds any, as SafeTimeTracker.markTimeIfDelay does.
+local _provider_update() {
+    now: number = level.get_time()
+    if now < loss_mark {
+        loss_mark = now
+        return
+    }
+    if loss_mark + 100 <= now {
+        loss_mark = now
+        me.extract_energy(1)
+    }
+}
+
+# PipeLogicWood.switchSourceIfNeeded: the saved side is dropped when it is none or when its neighbour
+# is no longer an inventory the pipe can draw from, and the next side that has one becomes the
+# source. The reference runs this when the pipe is placed and whenever a neighbour changes, which a
+# check every tick comes to the same as.
+local _switch_source_if_needed() {
+    meta: number = _meta()
+    if meta > 5 {
+        _switch_source()
+        return
+    }
+    if not _is_input(meta) {
+        _switch_source()
+    }
+}
+
+# PipeLogicWood.switchSource: take the six sides in turn from the one after the current one, wrapping
+# around, and keep the first that has an inventory to draw from; with none the metadata becomes 6,
+# which is no source.
+local _switch_source() {
+    meta: number = _meta()
+    last: number = meta + 6
+    i: number = meta + 1
+    while i <= last {
+        side: number = Math.remainder(i, 6)
+        if _is_input(side) {
+            _set_meta(side)
+            return
+        }
+        i = i + 1
+    }
+    _set_meta(6)
+}
+
+# PipeLogicWood.isInput: a neighbour that is not a pipe, is an inventory and passes the pipe's own
+# connection test. A conductive pipe connects only to a pipe or to a machine that declared itself an
+# energy receiver, so in practice a wooden conductive pipe has a source only beside a receiver with
+# slots, such as the quarry; a chest is an inventory but not a receiver, so it is no source.
+local _is_input(side: number) bool {
+    if not _is_inventory(side) {
+        return false
+    }
+    return _is_connected(side)
+}
+
+# The pipe's metadata as the reference reads it: 0 to 5 is the side it draws from and 6 is none.
+local _meta() number {
+    stored: number = me.get_saved_number("source")
+    if stored == 0 {
+        return 0
+    }
+    return stored - 1
+}
+
+local _set_meta(meta: number) {
+    me.set_saved_number("source", meta + 1)
+}
+
+# An inventory on a side, which excludes a pipe: a wooden pipe's own inbox slot does not make it one.
+local _is_inventory(side: number) bool {
+    nx: number = _neighbor_x(side)
+    ny: number = _neighbor_y(side)
+    nz: number = _neighbor_z(side)
+    if _pipe_kind(nx, ny, nz) != 0 {
+        return false
+    }
+    return level.is_inventory(nx, ny, nz)
+}
+
+# displayPower[side] + delta as the reference keeps it: a short, so the int cast truncates toward
+# zero and then the 16-bit cast wraps.
+local _add_display(side: number, delta: number) {
+    display: number = me.get_saved_list_number("power", side, "display")
+    me.set_saved_list_number("power", side, "display", _short(_truncate(display + delta)))
+}
+
+local _truncate(value: number) number {
+    if value < 0 {
+        return 0 - Math.floor(0 - value)
+    }
+    return Math.floor(value)
+}
+
+local _short(value: number) number {
+    wrapped: number = value
+    while wrapped > 32767 {
+        wrapped = wrapped - 65536
+    }
+    while wrapped < -32768 {
+        wrapped = wrapped + 65536
+    }
+    return wrapped
+}
+
+# Whether this pipe connects on a side: a pipe its own transport and logic accept, or a machine that
+# declared itself an energy receiver. PipeTransportPower.isPipeConnected accepts a pipe, an IMachine
+# or an IPowerReceptor; every IMachine the reference has is also an IPowerReceptor, so the receiver
+# declaration covers both. A chest is none of them, so a conductive pipe draws no arm toward one.
+local _is_connected(side: number) bool {
+    kind: number = _pipe_kind(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))
+    if kind != 0 {
+        return _pipes_connect(9, kind)
+    }
+    receptor_opt: Option[BlockEntity] = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))
+    if not receptor_opt.has() {
+        return false
+    }
+    return receptor_opt.unwrap().is_power_receiver()
+}
+
+# Which kind of pipe stands at a position: 0 for none, 1 to 7 for the item pipes in the order the
+# reference registers them (wooden, cobblestone, stone, iron, golden, diamond, obsidian), 9 to 11 for
+# the conductive pipes (wooden, stone, golden), and 8 for a pipe of another mod, which Level.is_pipe
+# names without the script knowing its block. The numbering is this port's, so every pipe's copy of
+# it has to agree.
+local _pipe_kind(nx: number, ny: number, nz: number) number {
+    if not level.is_pipe(nx, ny, nz) {
+        return 0
+    }
+    name: string = level.get_block(nx, ny, nz)
+    if name == "grug:wooden_pipe" {
+        return 1
+    }
+    if name == "grug:cobblestone_pipe" {
+        return 2
+    }
+    if name == "grug:stone_pipe" {
+        return 3
+    }
+    if name == "grug:iron_pipe" {
+        return 4
+    }
+    if name == "grug:golden_pipe" {
+        return 5
+    }
+    if name == "grug:diamond_pipe" {
+        return 6
+    }
+    if name == "grug:obsidian_pipe" {
+        return 7
+    }
+    if name == "grug:wooden_power_pipe" {
+        return 9
+    }
+    if name == "grug:stone_power_pipe" {
+        return 10
+    }
+    if name == "grug:golden_power_pipe" {
+        return 11
+    }
+    return 8
+}
+
+# Utils.checkPipesConnections asks both pipes, and BlockGenericPipe.isPipeConnected refuses two
+# pipes whose transport classes are not assignable to one another, so an item pipe and a conductive
+# pipe never connect in either direction. Among the conductive pipes PipeLogicWood refuses another
+# PipeLogicWood, so two wooden conductive pipes never connect; PipePowerStone's PipeLogicStone
+# refuses only the cobblestone pipe and PipePowerGold's PipeLogicGold only the golden pipe, neither
+# of which can meet a conductive pipe, so every other conductive pair connects. The transport of a
+# pipe of another mod is unknown here, so a conductive pipe draws no arm toward one.
+
+local _pipes_connect(own: number, other: number) bool {
+    if _is_item_pipe(own) and _is_conductive_pipe(other) {
+        return false
+    }
+    if _is_conductive_pipe(own) and _is_item_pipe(other) {
+        return false
+    }
+    if _is_conductive_pipe(own) and other == 8 {
+        return false
+    }
+    if own == 1 and other == 1 {
+        return false
+    }
+    if own == 5 and other == 5 {
+        return false
+    }
+    if own == 2 and other == 3 {
+        return false
+    }
+    if own == 3 and other == 2 {
+        return false
+    }
+    if own == 9 and other == 9 {
+        return false
+    }
+    return true
+}
+
+# The item pipes are 1 to 7 and the conductive pipes 9 to 11, in the order the reference registers
+# them; kind 8 is a pipe of another mod and 0 is not a pipe.
+local _is_item_pipe(kind: number) bool {
+    return kind >= 1 and kind <= 7
+}
+
+local _is_conductive_pipe(kind: number) bool {
+    return kind >= 9 and kind <= 11
+}
+
+# Whether this pipe's block is still in the world, which an explosion of 1000 units or more may have
+# taken with it.
+local _exists() bool {
+    return level.get_block(x, y, z) == "grug:wooden_power_pipe"
+}
+
+# The side of a neighbour that faces the pipe, given the side of the pipe the neighbour is on. The
+# sides pair up as 0 and 1, 2 and 3, 4 and 5, like Orientations.reverse.
+local _reverse(side: number) number {
+    if Math.remainder(side, 2) == 0 {
+        return side + 1
+    }
+    return side - 1
+}
+
+# A side of this block: 0 down, 1 up, 2 north, 3 south, 4 west and 5 east, as BuildCraft's
+# Orientations numbers them.
+local _neighbor_x(side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
+}

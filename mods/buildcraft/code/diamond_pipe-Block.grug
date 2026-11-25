@@ -162,8 +162,11 @@ local _is_inventory(world: Level, x: number, y: number, z: number, side: number)
     return world.is_inventory(_neighbor_x(x, side), _neighbor_y(y, side), _neighbor_z(z, side))
 }
 
-# Which kind of pipe stands at a position: 0 for none, the number of each of this mod's pipes, and 8
-# for a pipe of another mod, as the block entity's copy of this says.
+# Which kind of pipe stands at a position: 0 for none, 1 to 7 for the item pipes in the order the
+# reference registers them (wooden, cobblestone, stone, iron, golden, diamond, obsidian), 9 to 11 for
+# the conductive pipes (wooden, stone, golden), and 8 for a pipe of another mod, which Level.is_pipe
+# names without the script knowing its block. The numbering is this port's, so every pipe's copy of
+# it has to agree.
 local _pipe_kind(world: Level, nx: number, ny: number, nz: number) number {
     if not world.is_pipe(nx, ny, nz) {
         return 0
@@ -190,14 +193,39 @@ local _pipe_kind(world: Level, nx: number, ny: number, nz: number) number {
     if name == "grug:obsidian_pipe" {
         return 7
     }
+    if name == "grug:wooden_power_pipe" {
+        return 9
+    }
+    if name == "grug:stone_power_pipe" {
+        return 10
+    }
+    if name == "grug:golden_power_pipe" {
+        return 11
+    }
     return 8
 }
 
-# Utils.checkPipesConnections asks both pipes, so these rules are symmetric: two wooden pipes never
-# connect, two golden pipes never connect, and a cobblestone pipe and a stone pipe never connect
-# because each refuses the other. PipeLogicDiamond has no rule of its own, so a diamond pipe refuses
-# nothing. Every other pair connects, a pipe of another mod included.
+# Utils.checkPipesConnections asks both pipes, and BlockGenericPipe.isPipeConnected refuses two
+# pipes whose transport classes are not assignable to one another, so an item pipe and a conductive
+# pipe never connect in either direction. Among the item pipes the rules are symmetric: two wooden
+# pipes never connect, two golden pipes never connect, and a cobblestone pipe and a stone pipe never
+# connect because each refuses the other. Among the conductive pipes PipeLogicWood refuses another
+# PipeLogicWood, so two wooden conductive pipes never connect; PipePowerStone's PipeLogicStone
+# refuses only the cobblestone pipe and PipePowerGold's PipeLogicGold only the golden pipe, neither
+# of which can meet a conductive pipe, so every other conductive pair connects. The transport of a
+# pipe of another mod is unknown here, so a conductive pipe draws no arm toward one; an item pipe
+# keeps connecting to it.
+
 local _pipes_connect(own: number, other: number) bool {
+    if _is_item_pipe(own) and _is_conductive_pipe(other) {
+        return false
+    }
+    if _is_conductive_pipe(own) and _is_item_pipe(other) {
+        return false
+    }
+    if _is_conductive_pipe(own) and other == 8 {
+        return false
+    }
     if own == 1 and other == 1 {
         return false
     }
@@ -210,7 +238,20 @@ local _pipes_connect(own: number, other: number) bool {
     if own == 3 and other == 2 {
         return false
     }
+    if own == 9 and other == 9 {
+        return false
+    }
     return true
+}
+
+# The item pipes are 1 to 7 and the conductive pipes 9 to 11, in the order the reference registers
+# them; kind 8 is a pipe of another mod and 0 is not a pipe.
+local _is_item_pipe(kind: number) bool {
+    return kind >= 1 and kind <= 7
+}
+
+local _is_conductive_pipe(kind: number) bool {
+    return kind >= 9 and kind <= 11
 }
 
 local _neighbor_x(x: number, side: number) number {

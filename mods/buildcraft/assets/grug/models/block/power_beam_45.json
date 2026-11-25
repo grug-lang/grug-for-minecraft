@@ -1,0 +1,23 @@
+{
+    "parent": "minecraft:block/block",
+    "render_type": "minecraft:cutout",
+    "textures": {
+        "all": "grug:block/power_beam",
+        "particle": "grug:block/power_beam"
+    },
+    "elements": [
+        {
+            "name": "beam",
+            "from": [8, 5.7325, 5.7325],
+            "to": [18.2675, 10.2675, 10.2675],
+            "faces": {
+                "down": {"texture": "#all"},
+                "up": {"texture": "#all"},
+                "north": {"texture": "#all"},
+                "south": {"texture": "#all"},
+                "west": {"texture": "#all"},
+                "east": {"texture": "#all"}
+            }
+        }
+    ]
+}

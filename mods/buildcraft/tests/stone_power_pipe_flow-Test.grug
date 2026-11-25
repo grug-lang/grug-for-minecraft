@@ -1,0 +1,131 @@
+# Covers the stone conductive pipe's transport, as PipeTransportPower does it in BuildCraft 2.2.14:
+# what arrives on a side is taken on the pipe's next tick, a hundredth of it is lost to the stone
+# pipe's resistance, it is split between the other sides that asked for energy by the share of their
+# requests, a machine is handed the whole units and a pipe the fraction, and the transport draws a
+# beam on both the side that sent it and the side that got it. The request poll asks a machine
+# beside the pipe what it wants and the second pass carries the sum to the pipe neighbours. The last
+# two fixtures check the explosion: PipeTransportPower.receiveEnergy explodes at 1000 units after the
+# resistance, so 1005 units (994.95) leave the stone pipe standing and 1020 (1009.8) do not.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+    original: number = level.get_time()
+
+    # A stone conductive pipe is not itself an energy receiver: only the wooden one holds energy.
+    level.place_block(x, y, z, "grug:stone_power_pipe")
+    pipe: BlockEntity = _entity(ctx, level, x, y, z)
+    ctx.assert(not pipe.is_power_receiver(), "A stone conductive pipe should not be an energy receiver.")
+
+    # 5 energy from the east and a request of 10 from the west: 5 * 0.99 is 4.95, a machine takes the
+    # whole units, and both sides of the distribution show watts / 2 truncated.
+    level.place_block(x - 1, y, z, "grug:coverage_power_block")
+    receiver: BlockEntity = _entity(ctx, level, x - 1, y, z)
+    level.place_block(x + 1, y, z, "grug:stone_power_pipe")
+    level.set_time(original + 100)
+    pipe.receive_energy_on(5, 5)
+    pipe.request_energy_on(4, 10)
+    level.set_time(original + 101)
+    ctx.tick_block_entity(pipe, 1)
+    ctx.assert(receiver.get_energy_stored() == 4, "5 energy at a hundredth lost should hand the machine 4 whole units.")
+    ctx.assert(pipe.get_saved_list_number("power", 4, "display") == 2, "The side that was handed the share should show 2.")
+    ctx.assert(pipe.get_saved_list_number("power", 5, "display") == 2, "The side it came in on should show 2 as well.")
+
+    # 101 energy at the same request shows the resistance to a hundredth in the beam: 99.99 / 2 is
+    # 49.995, so each side shows 49, where the golden pipe's 100.899 shows 50.
+    receiver.extract_energy(10)
+    level.set_time(original + 110)
+    pipe.receive_energy_on(5, 101)
+    pipe.request_energy_on(4, 10)
+    level.set_time(original + 111)
+    ctx.tick_block_entity(pipe, 1)
+    ctx.assert(pipe.get_saved_list_number("power", 4, "display") == 49, "101 energy should show 49 on the side that got it.")
+    ctx.assert(pipe.get_saved_list_number("power", 5, "display") == 49, "And 49 on the side it came in on.")
+
+    # A pipe neighbour is handed the share as it is, fraction and all, because its own transport
+    # splits it again: 10 energy at a request of 3 leaves 9.9 in the neighbour's inbox.
+    level.place_block(x, y + 4, z, "grug:stone_power_pipe")
+    level.place_block(x - 1, y + 4, z, "grug:stone_power_pipe")
+    giver: BlockEntity = _entity(ctx, level, x, y + 4, z)
+    taker: BlockEntity = _entity(ctx, level, x - 1, y + 4, z)
+    level.set_time(original + 120)
+    giver.receive_energy_on(5, 10)
+    giver.request_energy_on(4, 3)
+    level.set_time(original + 121)
+    ctx.tick_block_entity(giver, 1)
+    level.set_time(original + 122)
+    ctx.assert(_hundredths(taker.take_received_energy(5)) == 990, "The pipe neighbour should be handed 9.9, the whole fraction.")
+
+    # A request from a machine beside the pipe is polled into the pipe's inbox on that side, for the
+    # next tick to take and hand on.
+    level.place_block(x, y + 8, z, "grug:stone_power_pipe")
+    level.place_block(x - 1, y + 8, z, "grug:coverage_power_block")
+    poller: BlockEntity = _entity(ctx, level, x, y + 8, z)
+    asking: BlockEntity = _entity(ctx, level, x - 1, y + 8, z)
+    asking.set_energy_request(7)
+    level.set_time(original + 130)
+    ctx.tick_block_entity(poller, 1)
+    level.set_time(original + 131)
+    ctx.assert(poller.take_requested_energy(4) == 7, "The pipe should poll the machine's request of 7 into its own inbox.")
+
+    # The sum of the pipe's requests on its other sides is forwarded to a pipe neighbour, so a distant
+    # machine's need travels along the line.
+    level.place_block(x, y + 12, z, "grug:stone_power_pipe")
+    level.place_block(x + 1, y + 12, z, "grug:stone_power_pipe")
+    forwarder: BlockEntity = _entity(ctx, level, x, y + 12, z)
+    next_pipe: BlockEntity = _entity(ctx, level, x + 1, y + 12, z)
+    level.set_time(original + 140)
+    forwarder.request_energy_on(4, 7)
+    level.set_time(original + 141)
+    ctx.tick_block_entity(forwarder, 1)
+    level.set_time(original + 142)
+    ctx.assert(next_pipe.take_requested_energy(4) == 7, "The pipe should forward its other sides' requests to the pipe east of it.")
+
+    # Energy that arrived on a side is never sent back out of it: a request on that same side leaves
+    # nothing to divide by, and nothing is handed over.
+    level.place_block(x, y + 16, z, "grug:stone_power_pipe")
+    level.place_block(x - 1, y + 16, z, "grug:coverage_power_block")
+    alone: BlockEntity = _entity(ctx, level, x, y + 16, z)
+    beside: BlockEntity = _entity(ctx, level, x - 1, y + 16, z)
+    level.set_time(original + 150)
+    alone.receive_energy_on(5, 5)
+    alone.request_energy_on(5, 10)
+    level.set_time(original + 151)
+    ctx.tick_block_entity(alone, 1)
+    ctx.assert(beside.get_energy_stored() == 0, "A request on the side the energy came in on should get nothing.")
+
+    # 1005 units at a hundredth lost is 994.95, below the explosion, so the pipe stands.
+    level.place_block(x, y + 20, z, "grug:stone_power_pipe")
+    below: BlockEntity = _entity(ctx, level, x, y + 20, z)
+    level.set_time(original + 160)
+    below.receive_energy_on(5, 1005)
+    level.set_time(original + 161)
+    ctx.tick_block_entity(below, 1)
+    ctx.assert(level.get_block(x, y + 20, z) == "grug:stone_power_pipe", "1005 units at a hundredth lost should not explode the stone pipe.")
+
+    # 1020 units at a hundredth lost is 1009.8, so it does, and the pipe is gone before it can hand
+    # anything on.
+    level.place_block(x + 16, y + 20, z, "grug:stone_power_pipe")
+    above: BlockEntity = _entity(ctx, level, x + 16, y + 20, z)
+    level.set_time(original + 170)
+    above.receive_energy_on(5, 1020)
+    level.set_time(original + 171)
+    ctx.tick_block_entity(above, 1)
+    ctx.assert(level.get_block(x + 16, y + 20, z) == "minecraft:air", "1020 units at a hundredth lost should explode the stone pipe.")
+
+    level.set_time(original)
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(found.has(), "The fixture should have a block entity.")
+    return found.unwrap()
+}
+
+# A fraction is compared at hundredths: 10 * (1 - 0.01) is a rounding error away from 9.9 in
+# float64.
+local _hundredths(value: number) number {
+    return Math.floor(value * 100 + 0.5)
+}

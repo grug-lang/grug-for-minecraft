@@ -1,0 +1,70 @@
+# Covers which neighbours the three conductive pipes grow an arm toward. BlockGenericPipe.isPipeConnected
+# asks both pipes and additionally refuses two pipes whose transports are not assignable to one another,
+# so an item pipe and a conductive pipe never connect in either direction, while a conductive pipe
+# connects to a conductive pipe the logic accepts and to a machine that declared itself an energy
+# receiver. Among the conductive pipes PipeLogicWood refuses another PipeLogicWood, so two wooden
+# conductive pipes never connect; PipeLogicStone refuses only the cobblestone pipe and PipeLogicGold
+# nothing, so every other conductive pair does. A chest is an inventory but not a receiver, so it gets
+# no arm. The rule is asked through the collision box, as stone_pipe_connections does.
+phase: number = 0
+
+export tick(ctx: TestTickContext) {
+    if phase == 0 {
+        phase = 1
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        x: number = origin.x()
+        y: number = origin.y() - 1.88
+        z: number = origin.z()
+
+        # A golden conductive pipe with a stone conductive pipe west, a wooden one east, another
+        # golden one north and a chest south.
+        level.place_block(x, y, z, "grug:golden_power_pipe")
+        level.place_block(x - 1, y, z, "grug:stone_power_pipe")
+        level.place_block(x + 1, y, z, "grug:wooden_power_pipe")
+        level.place_block(x, y, z - 1, "grug:golden_power_pipe")
+        level.place_block(x, y, z + 1, "minecraft:chest")
+
+        # Two wooden conductive pipes side by side.
+        level.place_block(x + 4, y, z, "grug:wooden_power_pipe")
+        level.place_block(x + 5, y, z, "grug:wooden_power_pipe")
+
+        # A stone item pipe with a golden conductive pipe east and a chest north.
+        level.place_block(x + 8, y, z, "grug:stone_pipe")
+        level.place_block(x + 9, y, z, "grug:golden_power_pipe")
+        level.place_block(x + 8, y, z - 1, "minecraft:chest")
+
+        # A stone conductive pipe with a coverage block that declared itself a receiver west.
+        level.place_block(x + 13, y, z, "grug:stone_power_pipe")
+        level.place_block(x + 12, y, z, "grug:coverage_power_block")
+        ctx.not_done()
+    } else if phase == 1 and not ctx.world_settled() {
+        ctx.not_done()
+    } else {
+        _check(ctx)
+    }
+}
+
+local _check(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() - 1.88
+    z: number = origin.z()
+
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "A conductive pipe's centre should collide.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A golden conductive pipe beside a stone one should have an arm toward it.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A golden conductive pipe beside a wooden one should have an arm toward it.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.02, 0.65, 0.65, 0.2), "A golden conductive pipe beside another golden one should have an arm toward it.")
+    ctx.assert(not ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.8, 0.65, 0.65, 0.98), "A conductive pipe beside a chest should have no arm toward it.")
+
+    ctx.assert(not ctx.block_collision(level, x + 4, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A wooden conductive pipe should have no arm toward another wooden one.")
+    ctx.assert(not ctx.block_collision(level, x + 5, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "And neither should the other one toward it.")
+    ctx.assert(ctx.block_collision(level, x + 4, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "A wooden conductive pipe beside a wooden one should still collide in its centre.")
+
+    ctx.assert(not ctx.block_collision(level, x + 8, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A stone item pipe beside a conductive pipe should have no arm toward it.")
+    ctx.assert(not ctx.block_collision(level, x + 9, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A conductive pipe beside an item pipe should have no arm toward it either.")
+    ctx.assert(ctx.block_collision(level, x + 8, y, z, 0.35, 0.35, 0.02, 0.65, 0.65, 0.2), "An item pipe beside a chest should still have an arm toward it.")
+
+    ctx.assert(ctx.block_collision(level, x + 13, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A conductive pipe beside an energy receiver should have an arm toward it.")
+}

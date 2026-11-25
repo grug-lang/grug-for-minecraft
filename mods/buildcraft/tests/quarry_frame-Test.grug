@@ -28,6 +28,14 @@ export tick(ctx: TestTickContext) {
     quarry: BlockEntity = placed.unwrap()
     quarry.set_saved_number("meta", 3)
 
+    # A conductive pipe beside the quarry, south of it and outside the box, asks the quarry what it
+    # wants on its tick: TileMachine.powerRequest answers the provider's 25 delivery while the
+    # quarry digs, which it is once its first tick has made the builder.
+    level.place_block(x, y, z + 1, "grug:stone_power_pipe")
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z + 1)
+    ctx.assert(pipe_opt.has(), "The conductive pipe should have a block entity.")
+    pipe: BlockEntity = pipe_opt.unwrap()
+
     level.place_block(box_x + 3, y, box_z + 3, "minecraft:stone")
     level.place_block(box_x + 10, y, box_z + 5, "minecraft:stone")
     level.place_block(box_x + 5, y + 4, box_z, "minecraft:bedrock")
@@ -43,6 +51,12 @@ export tick(ctx: TestTickContext) {
     ctx.assert(level.get_block(box_x, y, box_z + 1) == "minecraft:air", "The first step should place only one frame.")
     energy: number = quarry.get_energy_stored()
     ctx.assert(energy == 6974, "A step should cost 25 energy, and the first tick past 100 ticks of the clock loses 1.")
+
+    # The pipe's poll of the quarry's request, taken a tick later: a quarry with nothing left to do
+    # asks for nothing, so this is TileMachine.powerRequest's active branch.
+    ctx.tick_block_entity(pipe, 1)
+    level.set_time(time + 1)
+    ctx.assert(pipe.take_requested_energy(2) == 25, "The pipe should poll the digging quarry's request of 25.")
 
     # No step happens while the clock has moved less than 20 ticks.
     ctx.tick_block_entity(quarry, 1)

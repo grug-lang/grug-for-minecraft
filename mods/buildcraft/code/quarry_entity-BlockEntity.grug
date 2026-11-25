@@ -61,6 +61,16 @@ export tick() {
         _create_utils()
     }
 
+    # TileMachine.powerRequest: a machine that is not working asks for nothing, so a conductive pipe
+    # beside this quarry polls 25 while it digs, the provider's delivery, and 0 otherwise. The
+    # reconfiguration the reference makes for the arm and for the mining, 30 to 200 at a time, comes
+    # with those pieces of #1543.
+    if digging {
+        me.set_energy_request(25)
+    } else {
+        me.set_energy_request(0)
+    }
+
     # PowerProvider.update, which TileBuildCraft.n_ runs before the quarry's own tick: with at least
     # the minimum activation energy of 25, and once every latency of 20 ticks of the world's clock,
     # the receptor's doWork runs. SafeTimeTracker.markTimeIfDelay: a clock that went backwards moves

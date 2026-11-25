@@ -1,0 +1,141 @@
+# Covers the wooden conductive pipe, as PipePowerWood does it in BuildCraft 2.2.14: it is the one
+# conductive pipe that holds energy (its provider takes a delivery of 1 to 1000 into a store of
+# 1000), it loses one energy every hundred ticks of the world's clock before the transport runs, and
+# after the transport it hands what it holds into every connected conductive pipe in the reference's
+# proportions: a fortieth plus four above 40, a tenth above 10, and one otherwise. Its source side is
+# PipeLogicWood's metadata, which only an inventory the pipe also connects to can be, so a chest is
+# no source; a right click with the wrench takes the next such side. The push fixtures run the pipe's
+# tick by hand: the first tick sets the loss mark, so the second is a plain push.
+pipe: Option[BlockEntity] = Option.new()
+step: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+    original: number = level.get_time()
+
+    if step == 0 {
+        _setup(ctx, level, x, y, z, original)
+        pipe.set(_entity(ctx, level, x + 24, y + 20, z))
+        player: Player = ctx.get_player()
+        ctx.set_held_item(player, item(resource_location("grug:wrench")))
+        ctx.use_block(level, x + 24, y + 20, z)
+        step = 1
+        ctx.not_done()
+    } else if step == 1 {
+        ctx.tick_block_entity(pipe.unwrap(), 1)
+        if pipe.unwrap().get_saved_number("source") == 6 {
+            ctx.use_block(level, x + 24, y + 20, z)
+            step = 2
+        } else {
+            ctx.not_done()
+        }
+    } else if step == 2 {
+        ctx.tick_block_entity(pipe.unwrap(), 1)
+        if pipe.unwrap().get_saved_number("source") == 5 {
+            player: Player = ctx.get_player()
+            ctx.clear_held_item(player)
+            ctx.assert(level.get_block(x + 24, y + 20, z) == "grug:wooden_power_pipe", "The wrench should leave the pipe standing.")
+        } else {
+            ctx.not_done()
+        }
+    }
+}
+
+local _setup(ctx: TestTickContext, level: Level, x: number, y: number, z: number, original: number) {
+    # The provider takes a delivery of 1 to 1000 into a store of 1000, and a fresh pipe starts empty.
+    level.place_block(x, y, z, "grug:wooden_power_pipe")
+    wooden: BlockEntity = _entity(ctx, level, x, y, z)
+    ctx.assert(wooden.is_power_receiver(), "The wooden conductive pipe should be an energy receiver.")
+    ctx.assert(wooden.get_energy_stored() == 0, "A fresh wooden conductive pipe should be empty.")
+    ctx.assert(wooden.receive_energy(100) == 100, "Its store should take a hundred energy.")
+    ctx.assert(wooden.extract_energy(100) == 100, "And give it back.")
+
+    # The loss comes before the transport: one energy every hundred ticks, first at world time 100
+    # since the mark starts at 0, and moved by a clock that went backwards.
+    level.place_block(x, y + 4, z, "grug:wooden_power_pipe")
+    lonely: BlockEntity = _entity(ctx, level, x, y + 4, z)
+    lonely.receive_energy(5)
+    level.set_time(original + 50)
+    ctx.tick_block_entity(lonely, 1)
+    ctx.assert(lonely.get_energy_stored() == 5, "A pipe under world time 100 should lose nothing.")
+    level.set_time(original + 99)
+    ctx.tick_block_entity(lonely, 1)
+    ctx.assert(lonely.get_energy_stored() == 5, "World time 99 is still before the first mark.")
+    level.set_time(original + 100)
+    ctx.tick_block_entity(lonely, 1)
+    ctx.assert(lonely.get_energy_stored() == 4, "World time 100 should lose one energy.")
+    level.set_time(original + 199)
+    ctx.tick_block_entity(lonely, 1)
+    ctx.assert(lonely.get_energy_stored() == 4, "A loss falls every hundred ticks, not every tick.")
+    level.set_time(original + 200)
+    ctx.tick_block_entity(lonely, 1)
+    ctx.assert(lonely.get_energy_stored() == 3, "The next hundred ticks should lose one more.")
+    level.set_time(original + 150)
+    ctx.tick_block_entity(lonely, 1)
+    ctx.assert(lonely.get_energy_stored() == 3, "A clock that went backwards moves the mark and loses nothing.")
+    level.set_time(original + 249)
+    ctx.tick_block_entity(lonely, 1)
+    ctx.assert(lonely.get_energy_stored() == 3, "The moved mark is a hundred ticks on.")
+    level.set_time(original + 250)
+    ctx.tick_block_entity(lonely, 1)
+    ctx.assert(lonely.get_energy_stored() == 2, "And the loss falls again a hundred ticks after it.")
+
+    # The push proportions, into a stone conductive pipe east of each one: a fortieth plus four above
+    # 40, a tenth above 10, and one otherwise, still one when the store is empty but then nothing is
+    # spent and nothing is handed over.
+    _push(ctx, level, x, y + 8, z, original, 100, 6)
+    _push(ctx, level, x + 4, y + 8, z, original, 41, 5)
+    _push(ctx, level, x + 8, y + 8, z, original, 40, 4)
+    _push(ctx, level, x + 12, y + 8, z, original, 11, 1)
+    _push(ctx, level, x + 16, y + 8, z, original, 10, 1)
+    _push(ctx, level, x + 20, y + 8, z, original, 0, 0)
+
+    # The source side: a block that is both an inventory and an energy receiver is the one a wooden
+    # conductive pipe can draw from, and a chest is not one. With the same block west and east, a
+    # fresh pipe picks the west side (4, saved as 5), and each later tick keeps it.
+    level.place_block(x + 24, y + 20, z, "grug:wooden_power_pipe")
+    level.place_block(x + 23, y + 20, z, "grug:coverage_slots_range")
+    level.place_block(x + 25, y + 20, z, "grug:coverage_slots_range")
+    source_pipe: BlockEntity = _entity(ctx, level, x + 24, y + 20, z)
+    ctx.tick_block_entity(source_pipe, 1)
+    ctx.assert(source_pipe.get_saved_number("source") == 5, "A fresh wooden conductive pipe should draw from side 4 beside an inventory that is a receiver.")
+
+    # A chest on the side is no source: it is an inventory but not a receiver, so the pipe does not
+    # connect to it. A pipe with nothing to draw from saves the none side, 7.
+    level.place_block(x + 28, y + 20, z, "grug:wooden_power_pipe")
+    level.place_block(x + 27, y + 20, z, "minecraft:chest")
+    chest_pipe: BlockEntity = _entity(ctx, level, x + 28, y + 20, z)
+    ctx.tick_block_entity(chest_pipe, 1)
+    ctx.assert(chest_pipe.get_saved_number("source") == 7, "A pipe with only a chest beside it should have no source.")
+}
+
+# One push fixture at (x, y, z): a wooden conductive pipe with a stone one east of it. The first tick
+# sets the loss mark, the pipe then takes the given energy, and the second tick hands the expected
+# amount to the stone pipe's west inbox, which the test reads a tick later.
+local _push(ctx: TestTickContext, level: Level, x: number, y: number, z: number, original: number, stored: number, expected: number) {
+    level.place_block(x, y, z, "grug:wooden_power_pipe")
+    level.place_block(x + 1, y, z, "grug:stone_power_pipe")
+    wooden: BlockEntity = _entity(ctx, level, x, y, z)
+    stone: BlockEntity = _entity(ctx, level, x + 1, y, z)
+
+    level.set_time(original + 200)
+    ctx.tick_block_entity(wooden, 1)
+    wooden.receive_energy(stored)
+    level.set_time(original + 201)
+    ctx.tick_block_entity(wooden, 1)
+    level.set_time(original + 202)
+
+    ctx.assert(wooden.get_energy_stored() == stored - expected, String.concat("A push of ", String.concat(String.from_number(expected), String.concat(" should leave ", String.from_number(stored - expected)))))
+    ctx.assert(stone.take_received_energy(4) == expected, String.concat("The stone pipe should be handed ", String.from_number(expected)))
+    ctx.assert(wooden.get_saved_list_number("power", 5, "display") == expected, String.concat("The beam should show the push of ", String.from_number(expected)))
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(found.has(), "The fixture should have a block entity.")
+    return found.unwrap()
+}

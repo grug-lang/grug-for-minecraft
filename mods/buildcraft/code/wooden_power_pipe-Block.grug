@@ -1,0 +1,204 @@
+# The wooden conductive pipe, which is BlockGenericPipe with PipePowerWood: the same block as the
+# item pipes, with the conductive transport and a power provider of its own, so it is the one
+# conductive pipe an engine pushes energy into, and the only one with a source side to turn with the
+# wrench. See wooden_pipe-Block.grug for the reasoning behind each line, which a copy here would only
+# repeat.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(0.5)
+    ctx.set_material("wood")
+    ctx.set_block_entity(e"wooden_power_pipe_entity")
+    ctx.set_custom_render()
+    ctx.set_shape()
+    # The reference's pipes are one block and answer a neighbour's pipe test, so this one declares
+    # itself a pipe rather than leaving neighbours to compare block names.
+    ctx.set_pipe()
+}
+
+# The centre's box, reaching this block's face on every side the pipe connects to, as the item
+# pipes' shape does. A conductive pipe connects to a pipe and to a machine that declared itself an
+# energy receiver, and to nothing else, so a chest beside it neither gets an arm nor blocks a player.
+export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
+    min_x: number = 0.25
+    min_y: number = 0.25
+    min_z: number = 0.25
+    max_x: number = 0.75
+    max_y: number = 0.75
+    max_z: number = 0.75
+
+    if _is_connected(world, x, y, z, 4) {
+        min_x = 0.0
+    }
+    if _is_connected(world, x, y, z, 5) {
+        max_x = 1.0
+    }
+    if _is_connected(world, x, y, z, 0) {
+        min_y = 0.0
+    }
+    if _is_connected(world, x, y, z, 1) {
+        max_y = 1.0
+    }
+    if _is_connected(world, x, y, z, 2) {
+        min_z = 0.0
+    }
+    if _is_connected(world, x, y, z, 3) {
+        max_z = 1.0
+    }
+
+    ctx.add_collision_box(min_x, min_y, min_z, max_x, max_y, max_z)
+}
+
+# PipeLogicWood.blockActivated: a right click with the wrench makes the pipe take the next side that
+# has an inventory to draw from as its source. The block entity does it on its next tick, because
+# only it knows its own side. Any other click is declined, as the reference returns false for it, so
+# the held item is used or placed as usual.
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
+    held: Option[Item] = player.get_held_item()
+    if held.has() {
+        if equals(held.unwrap(), item(resource_location("grug:wrench"))) {
+            pipe: Option[BlockEntity] = world.get_block_entity(x, y, z)
+            if pipe.has() {
+                pipe.unwrap().set_saved_number("rotate", 1)
+            }
+            return
+        }
+    }
+    ctx.decline_use()
+}
+
+# The same connection test as the block entity's _is_connected: a pipe the reference's symmetric rule
+# connects, or a block entity that declared itself an energy receiver. A block and its block entity
+# are separate grug entities and cannot share a helper, so this copy has to stay in step with that
+# one.
+local _is_connected(world: Level, x: number, y: number, z: number, side: number) bool {
+    nx: number = _neighbor_x(x, side)
+    ny: number = _neighbor_y(y, side)
+    nz: number = _neighbor_z(z, side)
+    kind: number = _pipe_kind(world, nx, ny, nz)
+    if kind != 0 {
+        return _pipes_connect(9, kind)
+    }
+    neighbor_opt: Option[BlockEntity] = world.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+    return neighbor_opt.unwrap().is_power_receiver()
+}
+
+# Which kind of pipe stands at a position: 0 for none, 1 to 7 for the item pipes in the order the
+# reference registers them (wooden, cobblestone, stone, iron, golden, diamond, obsidian), 9 to 11 for
+# the conductive pipes (wooden, stone, golden), and 8 for a pipe of another mod, which Level.is_pipe
+# names without the script knowing its block. The numbering is this port's, so every pipe's copy of
+# it has to agree.
+local _pipe_kind(world: Level, nx: number, ny: number, nz: number) number {
+    if not world.is_pipe(nx, ny, nz) {
+        return 0
+    }
+    name: string = world.get_block(nx, ny, nz)
+    if name == "grug:wooden_pipe" {
+        return 1
+    }
+    if name == "grug:cobblestone_pipe" {
+        return 2
+    }
+    if name == "grug:stone_pipe" {
+        return 3
+    }
+    if name == "grug:iron_pipe" {
+        return 4
+    }
+    if name == "grug:golden_pipe" {
+        return 5
+    }
+    if name == "grug:diamond_pipe" {
+        return 6
+    }
+    if name == "grug:obsidian_pipe" {
+        return 7
+    }
+    if name == "grug:wooden_power_pipe" {
+        return 9
+    }
+    if name == "grug:stone_power_pipe" {
+        return 10
+    }
+    if name == "grug:golden_power_pipe" {
+        return 11
+    }
+    return 8
+}
+
+# Utils.checkPipesConnections asks both pipes, and BlockGenericPipe.isPipeConnected refuses two
+# pipes whose transport classes are not assignable to one another, so an item pipe and a conductive
+# pipe never connect in either direction. Among the conductive pipes PipeLogicWood refuses another
+# PipeLogicWood, so two wooden conductive pipes never connect; PipePowerStone's PipeLogicStone
+# refuses only the cobblestone pipe and PipePowerGold's PipeLogicGold only the golden pipe, neither
+# of which can meet a conductive pipe, so every other conductive pair connects. The transport of a
+# pipe of another mod is unknown here, so a conductive pipe draws no arm toward one.
+
+local _pipes_connect(own: number, other: number) bool {
+    if _is_item_pipe(own) and _is_conductive_pipe(other) {
+        return false
+    }
+    if _is_conductive_pipe(own) and _is_item_pipe(other) {
+        return false
+    }
+    if _is_conductive_pipe(own) and other == 8 {
+        return false
+    }
+    if own == 1 and other == 1 {
+        return false
+    }
+    if own == 5 and other == 5 {
+        return false
+    }
+    if own == 2 and other == 3 {
+        return false
+    }
+    if own == 3 and other == 2 {
+        return false
+    }
+    if own == 9 and other == 9 {
+        return false
+    }
+    return true
+}
+
+# The item pipes are 1 to 7 and the conductive pipes 9 to 11, in the order the reference registers
+# them; kind 8 is a pipe of another mod and 0 is not a pipe.
+local _is_item_pipe(kind: number) bool {
+    return kind >= 1 and kind <= 7
+}
+
+local _is_conductive_pipe(kind: number) bool {
+    return kind >= 9 and kind <= 11
+}
+
+local _neighbor_x(x: number, side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(y: number, side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(z: number, side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
+}
