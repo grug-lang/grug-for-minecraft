@@ -153,7 +153,9 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   every four hours, the orchestrator scans every pull request updated in the last 24 hours: a subagent lists
   each one's unresolved threads, drops CodeRabbit's quota and draft notices because they are not
   findings, validates every other finding against the current code, and the orchestrator fixes or
-  resolves the valid ones.
+  resolves the valid ones. A valid finding that no open pull request owns is filed as an issue in the
+  sweep itself, because a merged pull request's defect has no other home and a report that only names
+  one gets dropped.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
   request is never left blocked on an answer.
