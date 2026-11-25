@@ -78,10 +78,13 @@ public final class GrugControlForge {
                         // forced normalization, #1449 took 9 with the call code 21, #1441 took 10
                         // with the call code 22 and the world overlay calls took 11 with the call
                         // code 23, so this sits at 11. A pair built either side of this refuses
-                        // each other: the older build does not know call 23. #1393 took 13 for the
-                        // click barrier the client sends behind the game's own click packet, so
-                        // this sits at 13 and an older build would read the barrier as an unknown
-                        // message.
+                        // each other: the older build does not know call 23. #1705 took 12 for its
+                        // SETTLE_LIGHT_DIVERGED answer to the world-settled call, and #1393 took
+                        // 13 for the click barrier the client sends behind the game's own click
+                        // packet: past every open pull request's number, because two builds that
+                        // call themselves 12 while carrying different message sets silently
+                        // disagree, and a client that never sends the barrier would instead trip
+                        // the server's wait.
                         .networkProtocolVersion(13)
                         .optional()
                         .simpleChannel()
