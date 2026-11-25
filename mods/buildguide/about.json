@@ -1,0 +1,87 @@
+{
+	"name": "Build Guide",
+	"version": "1.0.0",
+	"game_version": "1.20.6",
+	"authors": [
+		"MyNameIsTrez"
+	],
+	"repository": {
+		"url": "https://github.com/grug-lang/grug-for-minecraft"
+	},
+	"loaders": [
+		"1.20.6-forge"
+	],
+	"licenses": [
+		{
+			"name": "Creative Commons Attribution-NonCommercial 3.0 Unported",
+			"url": "https://creativecommons.org/licenses/by-nc/3.0/",
+			"note": "The port recreates Build Guide 0.4.9, which brentmaas publishes under CC BY-NC 3.0, and the mod folder is BY-NC throughout. LICENSE carries the full licence text and the notice that this is a modified port, as section 4(b) requires."
+		}
+	],
+	"derived_from": [
+		{
+			"name": "Build Guide",
+			"repository": {
+				"url": "https://github.com/brentmaas/BuildGuide"
+			},
+			"revision": "17b541e2d29ef18833b9f9fe9b7addc4af2e5d46",
+			"licenses": [
+				{
+					"name": "Creative Commons Attribution-NonCommercial 3.0 Unported",
+					"url": "https://creativecommons.org/licenses/by-nc/3.0/",
+					"note": "The reference is Build Guide 0.4.9 at tag v0.4.9. Its repository, settings.gradle, mods.toml and fabric.mod.json all name CC BY-NC 3.0, and its top-level LICENSE is the only licence statement, so its icon and language files are covered by it too."
+				}
+			],
+			"credits": [
+				"brentmaas"
+			],
+			"sources": [
+				"https://modrinth.com/mod/build-guide",
+				"https://www.curseforge.com/minecraft/mc-mods/build-guide",
+				"https://github.com/brentmaas/BuildGuide"
+			],
+			"artifacts": [
+				{
+					"name": "BuildGuide-1.20.6-0.4.9.jar",
+					"url": "https://cdn.modrinth.com/data/XwBDibES/versions/CdoOeRDx/BuildGuide-1.20.6-0.4.9.jar",
+					"sha256": "3f21c3d8afa29bcedb336fd1c4e4e3cfa28ff27cb3cd7ba4ebec205e756091dd",
+					"size": 1650760
+				}
+			],
+			"runtime": {
+				"minecraft": "1.20.6",
+				"loader": "1.20.6-forge",
+				"loader_version": "50.1.0",
+				"java": "21"
+			},
+			"install": {
+				"type": "mods_folder",
+				"files": [
+					"BuildGuide-1.20.6-0.4.9.jar"
+				]
+			},
+			"deviations": [
+				{
+					"what": "The fifteen shape generators and their properties are ported and tested as pure logic; nothing is drawn yet, and the library sits in tests/shapes-Test.grug because a grug local function is visible only inside its own file, so code/ could not reach a test.",
+					"why": "Stage 1 lands the shapes with the host functions they need, so the rendering API can be designed against a real mod in stage 3, which moves the library into the overlay.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "The per-world state file and the three config options are not read or written.",
+					"why": "The file format is reproduced exactly, but a mod has no file access until the directory it may write is decided in #1757.",
+					"tracking_issue": 1757
+				},
+				{
+					"what": "The five screens, their widgets, the four key binds and the config file are not implemented.",
+					"why": "A mod cannot open a screen or draw a filled rectangle yet, and designing that API against more than this port is stage 3 of #1752.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "A catenary whose Newton solve does not converge draws no cells, where the reference reports an invalid value.",
+					"why": "grug cannot raise an error to the player yet, and every non-convergent solve ends in a NaN or infinite height whose comparisons are all false, so no cell passes the check.",
+					"tracking_issue": 1752
+				}
+			]
+		}
+	]
+}
