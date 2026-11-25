@@ -131,6 +131,7 @@ enum kind {
     K_GUI,
     K_DISPLAY_CTX,
     K_SHAPE_CTX,
+    K_OVERLAY_RENDER,
 };
 struct obj {
     enum kind kind;
@@ -2337,7 +2338,7 @@ REGISTER(NULL, "drop_inventory", hf_drop_inventory);
 // file on disk and the engine's watcher reports the change; the smoketest rewrites nothing (a test must
 // never disturb the repository's mods) and counts a change per call that would have disturbed a file, which is
 // all the tests' wait loops read. The reload itself is not run, so every test that calls it is STUBBED.
-struct modfile { const char* path; double changes; bool disturbed; };
+struct modfile { const char* path; const char* state; double changes; bool disturbed; };
 static struct modfile* modfiles;
 static size_t nmodfiles, capmodfiles;
 static void clear_mod_files(void) { nmodfiles = 0; }
@@ -2345,7 +2346,7 @@ static struct modfile* modfile_of(const char* path, bool create) {
     for (size_t i = 0; i < nmodfiles; i++) if (!strcmp(modfiles[i].path, path)) return &modfiles[i];
     if (!create) return NULL;
     if (nmodfiles == capmodfiles) { capmodfiles = capmodfiles ? capmodfiles * 2 : 8; modfiles = xrealloc(modfiles, capmodfiles * sizeof *modfiles); }
-    modfiles[nmodfiles] = (struct modfile){keep(xstrdup(path)), 0, false};
+    modfiles[nmodfiles] = (struct modfile){keep(xstrdup(path)), "normal", 0, false};
     return &modfiles[nmodfiles++];
 }
 static union grug_value TTC_set_mod_file_state(ARGS) {
@@ -2360,6 +2361,7 @@ static union grug_value TTC_set_mod_file_state(ARGS) {
     stubbed = true;
     struct modfile* m = modfile_of(path, true);
     if (normal && !m->disturbed) return none();  // nothing disturbed the file, so nothing is put back
+    m->state = keep(xstrdup(state));
     m->disturbed = !normal;
     m->changes++;
     return none();
@@ -2937,6 +2939,174 @@ static union grug_value TTC_close_screen(ARGS) {
 REGISTER("TestTickContext", "close_screen", TTC_close_screen);
 
 // =============================================================================================
+// SECTION: Overlays
+// =============================================================================================
+// Overlay scripts (#1586, #1587): every mod's *-Overlay.grug entity, asked for one frame per runner
+// tick while a container screen is open, in mod-name order. The smoketest draws nothing, so an
+// overlay's draw_item, draw_text and draw_box only record that the mod drew and mark the run
+// STUBBED: a test that waits for the drawn mark runs, and never passes.
+static char current_test_mod[128];
+static struct overlay {
+    void* entity;
+    const char* mod;
+    const char* path;
+} * overlays;
+static size_t noverlays, capoverlays;
+static bool overlay_drawn;
+static bool overlay_first_frame_recorded, overlay_first_frame_cleared;
+static double overlay_screen_serial;
+static double overlay_mouse_x, overlay_mouse_y;
+static bool overlay_pass_drew;
+static uint64_t overlay_render_fn = UINT64_MAX;
+
+// The mod that owns a test is the directory above its tests/ directory: mods/jei/tests/x-Test.grug
+// belongs to jei, which is what the loader names when it asks whose overlay has drawn (#1099).
+static void note_test_mod(const char* label) {
+    const char* slash = strchr(label, '/');
+    const char* start = slash ? slash + 1 : label;
+    size_t n = strcspn(start, "/");
+    if (n >= sizeof current_test_mod) n = sizeof current_test_mod - 1;
+    memcpy(current_test_mod, start, n);
+    current_test_mod[n] = 0;
+}
+
+static void clear_overlays(void) {
+    for (size_t i = 0; i < noverlays; i++)
+        if (overlays[i].entity) grug_deinit_entity(g_state, overlays[i].entity);
+    noverlays = 0;
+    overlay_drawn = false;
+    overlay_first_frame_recorded = false;
+    overlay_first_frame_cleared = false;
+}
+
+// One overlay entity per compiled Overlay file, fresh for each test so its member state starts as
+// the load leaves it. Sorted by mod name, which is the order the loader asks the scripts in: the
+// coverage mod's overlay runs before JEI's, and a key the coverage one takes never reaches JEI.
+static void make_overlays(void) {
+    for (size_t i = 0; i < G.f.len; i++) {
+        struct grug_file_info* fi = &G.f.ptr[i];
+        if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Overlay")) continue;
+        if (noverlays == capoverlays) {
+            capoverlays = capoverlays ? capoverlays * 2 : 8;
+            overlays = xrealloc(overlays, capoverlays * sizeof *overlays);
+        }
+        overlays[noverlays] = (struct overlay){grug_create_entity(g_state, fi->file_id), fi->mod_name, fi->path};
+        noverlays++;
+    }
+    for (size_t i = 1; i < noverlays; i++)
+        for (size_t j = i; j > 0 && strcmp(overlays[j].mod, overlays[j - 1].mod) < 0; j--) {
+            struct overlay t = overlays[j];
+            overlays[j] = overlays[j - 1];
+            overlays[j - 1] = t;
+        }
+}
+
+// Runs one overlay export with its pass's context. A grug mod err is contained, as the game's JNI
+// layer contains it, so an overlay whose script hits an entry the host lacks draws nothing instead
+// of failing the running test; the run is STUBBED, because that export did not finish.
+static void call_overlay_export(void* entity, uint64_t fn, const union grug_value* args, size_t n) {
+    if (fn == UINT64_MAX) return;
+    char saved[sizeof last_error], saved_msg[sizeof last_msg];
+    memcpy(saved, last_error, sizeof saved);
+    memcpy(saved_msg, last_msg, sizeof saved_msg);
+    last_error[0] = 0;
+    if (!grug_call_export_fn(g_state, entity, fn, args, n) && last_error[0]) stubbed = true;
+    memcpy(last_error, saved, sizeof saved);
+    memcpy(last_msg, saved_msg, sizeof saved_msg);
+}
+
+// Whether the file's own state leaves the overlay unable to draw: a swapped-in text that exports
+// nothing, or a deleted file, removes the overlay the game had until a load brings it back. An
+// invalid edit leaves the overlay that was already drawing in place, as the engine keeps it.
+static bool overlay_disabled(const char* path) {
+    struct modfile* m = modfile_of(path, false);
+    return m && (!strcmp(m->state, "swapped") || !strcmp(m->state, "deleted"));
+}
+
+// One frame of every overlay on the open screen, the way the loader's ScreenEvent.Render.Post asks
+// them. The first frame of a screen records whether the drawn mark was already clear when it began,
+// which is what overlay_first_frame_cleared answers (#1391).
+static void render_overlays(void) {
+    if (!screen_is_open) return;
+    if (!overlay_first_frame_recorded) {
+        overlay_first_frame_recorded = true;
+        overlay_first_frame_cleared = !overlay_drawn;
+    }
+    for (size_t i = 0; i < noverlays; i++) {
+        if (overlay_disabled(overlays[i].path)) continue;
+        overlay_pass_drew = false;
+        uint64_t context = new_obj(K_OVERLAY_RENDER);
+        union grug_value arg = id(context);
+        call_overlay_export(overlays[i].entity, overlay_render_fn, &arg, 1);
+        if (overlay_pass_drew && !strcmp(overlays[i].mod, current_test_mod)) overlay_drawn = true;
+    }
+}
+
+// A new screen forgets the drawn mark and starts a new first-frame record (#863).
+static void note_screen_opened(void) {
+    overlay_screen_serial += 1;
+    overlay_drawn = false;
+    overlay_first_frame_recorded = false;
+    overlay_first_frame_cleared = false;
+}
+static union grug_value TTC_open_inventory(ARGS) {
+    UNUSED;
+    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.open_inventory: not a Player");
+    screen_is_open = true;
+    screen_gui = 0;
+    screen_be = 0;
+    carried_has = false;
+    note_screen_opened();
+    return none();
+}
+REGISTER("TestTickContext", "open_inventory", TTC_open_inventory);
+static union grug_value TTC_overlay_drawn(ARGS) { UNUSED; return boolean(overlay_drawn); }
+REGISTER("TestTickContext", "overlay_drawn", TTC_overlay_drawn);
+static union grug_value TTC_overlay_first_frame_cleared(ARGS) { UNUSED; return boolean(overlay_first_frame_cleared); }
+REGISTER("TestTickContext", "overlay_first_frame_cleared", TTC_overlay_first_frame_cleared);
+
+// The largest stack an item comes in. The toy list's first item is a bucket, which stacks to one,
+// and every other name the committed tests read stacks to 64, which is what they assert.
+static union grug_value TTC_get_item_max_stack(ARGS) {
+    UNUSED;
+    struct obj* item = get_obj(a[1]._id, K_ITEM);
+    if (!item) return fail("TestTickContext.get_item_max_stack: not an Item");
+    return num(strstr(item->str, "bucket") ? 1 : 64);
+}
+REGISTER("TestTickContext", "get_item_max_stack", TTC_get_item_max_stack);
+
+// OverlayRenderContext: the open screen's geometry and mouse, and the screen serial, which changes
+// when a different screen is drawn on (#865). A draw records that this mod produced a frame and
+// marks the run STUBBED, since nothing is drawn.
+static bool render_context(uint64_t handle) {
+    return get_obj(handle, K_OVERLAY_RENDER) != NULL;
+}
+static union grug_value ORC_screen_width(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_width: not a render pass"); return num(gui_geometry(4)); }
+REGISTER("OverlayRenderContext", "screen_width", ORC_screen_width);
+static union grug_value ORC_screen_height(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_height: not a render pass"); return num(screen_is_open ? WINDOW_H : 0); }
+REGISTER("OverlayRenderContext", "screen_height", ORC_screen_height);
+static union grug_value ORC_gui_left(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_left: not a render pass"); return num(gui_geometry(0)); }
+REGISTER("OverlayRenderContext", "gui_left", ORC_gui_left);
+static union grug_value ORC_gui_top(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_top: not a render pass"); return num(gui_geometry(1)); }
+REGISTER("OverlayRenderContext", "gui_top", ORC_gui_top);
+static union grug_value ORC_gui_width(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_width: not a render pass"); return num(gui_geometry(2)); }
+REGISTER("OverlayRenderContext", "gui_width", ORC_gui_width);
+static union grug_value ORC_gui_height(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_height: not a render pass"); return num(gui_geometry(3)); }
+REGISTER("OverlayRenderContext", "gui_height", ORC_gui_height);
+static union grug_value ORC_mouse_x(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.mouse_x: not a render pass"); return num(overlay_mouse_x); }
+REGISTER("OverlayRenderContext", "mouse_x", ORC_mouse_x);
+static union grug_value ORC_mouse_y(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.mouse_y: not a render pass"); return num(overlay_mouse_y); }
+REGISTER("OverlayRenderContext", "mouse_y", ORC_mouse_y);
+static union grug_value ORC_screen_serial(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_serial: not a render pass"); return num(overlay_screen_serial); }
+REGISTER("OverlayRenderContext", "screen_serial", ORC_screen_serial);
+static union grug_value ORC_draw_item(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_item: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }
+REGISTER("OverlayRenderContext", "draw_item", ORC_draw_item);
+static union grug_value ORC_draw_text(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_text: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }
+REGISTER("OverlayRenderContext", "draw_text", ORC_draw_text);
+static union grug_value ORC_draw_box(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_box: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }
+REGISTER("OverlayRenderContext", "draw_box", ORC_draw_box);
+
+// =============================================================================================
 // SECTION: Registry and contract
 // =============================================================================================
 // The registry: every entry of mod_api.json, and which of them have an implementation.
@@ -3027,6 +3197,7 @@ static void clear_entities(void);
 static void clear_mod_files(void);
 static void clear_nbt(void);
 static void clear_guis(void);
+static void clear_overlays(void);
 static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn) {
     clear_bes();
     free_test_state();
@@ -3035,6 +3206,8 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     clear_mod_files();
     clear_nbt();
     clear_guis();
+    clear_overlays();
+    note_test_mod(label);
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
@@ -3048,6 +3221,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     expected_error = NULL;
     void* entity = grug_create_entity(g_state, file_id);
     if (!entity) { report("FAIL", label, "could not create the entity"); return OUT_FAIL; }
+    make_overlays();
     uint64_t ctx = new_obj(K_CTX);
     union grug_value arg = id(ctx);
     int rc = 0;
@@ -3068,6 +3242,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         last_msg[0] = 0;
         not_done_called = false;
         bool completed = grug_call_export_fn(g_state, entity, tick_fn, &arg, 1);
+        if (completed && !bg_missing[0]) render_overlays();
         if (bg_missing[0]) { report("FAIL", label, "%s", bg_missing); rc = 1; }
         else if (!completed) {
             if (expected_error && strstr(last_msg, expected_error)) { report(stubbed ? "STUBBED" : "PASS", label, "%s", ""); break; }
@@ -3084,6 +3259,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         }
     }
     grug_deinit_entity(g_state, entity);
+    clear_overlays();
     return rc ? OUT_FAIL : stubbed ? OUT_STUBBED : OUT_PASS;
 }
 
@@ -3192,6 +3368,7 @@ int main(int argc, char** argv) {
     be_neighbor_fn = grug_get_on_fn_id(g_state, "BlockEntity", "on_neighbor_change");
     G.be_extract_item = grug_get_on_fn_id(g_state, "BlockEntity", "extract_item");
     G.be_add_item = grug_get_on_fn_id(g_state, "BlockEntity", "add_item");
+    overlay_render_fn = grug_get_on_fn_id(g_state, "Overlay", "render");
     uint64_t tick_fn = grug_get_on_fn_id(g_state, "Test", "tick");
     uint64_t init_fn = grug_get_on_fn_id(g_state, "Test", "init");
     if (!strcmp(argv[2], "--all")) { rc = run_all(files, tick_fn, init_fn); goto done; }
@@ -3214,6 +3391,7 @@ done:
     clear_mod_files();
     clear_nbt();
     clear_guis();
+    clear_overlays();
     free(bes); free(blockdefs);
     free(world); free(objs); free(arena); free(expected_error);
     grug_deinit(g_state);
