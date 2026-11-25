@@ -1,0 +1,86 @@
+# A cursor set after a delete of the carried item has to survive (#1753). On 1.20.6 the delete used
+# to clear the integrated server's menu twice: once before the call returned, and once through a
+# task it left on that server's queue. The queued clear could land after a cursor a later call set,
+# which is the race that emptied the cursor of jei-Test between two of its ticks. Only 1.20.6 has a
+# server thread apart from the client's, so only there is there a second clear to arrive; the other
+# four loaders keep the cursor in one place.
+# The delete and the set that follows it are in one tick, and the cursor is read on the ticks after
+# it. A clear left on the server's queue cannot run inside the tick, which is one task of that
+# server's own queue, so it arrives before the reads that follow it and empties the cursor there.
+# How many reads that takes is bounded, not timed: the lockstep queues at most one runner tick per
+# client tick and lets the client run at most a frame's worth (ten) of ticks ahead of the server, so
+# the clear has that many runner ticks in front of it at most, and the forty reads below cover them
+# with room to spare. With one clear nothing is left to arrive, and every read sees the diamond.
+started: bool = false
+opened: bool = false
+waited: number = 0
+set_again: bool = false
+checked: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() {
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens: the inventory
+    # draws the player with the entity renderer, whose texture manager and camera the world's own
+    # entity pass fills in, and a `-f mods=coverage` dispatch can run this test first (#1287). The
+    # failure bound is what says the settle never came, not a wait.
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not set_again {
+        # The delete has to reach the menu this test reads before it returns, which is what makes
+        # the read below see an empty cursor on the same tick.
+        ctx.set_carried_item(item(resource_location("minecraft:diamond")))
+        ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item on the cursor.")
+        ctx.clear_carried_item()
+        ctx.assert(not ctx.get_carried_item().has(), "A delete should empty the cursor before it returns.")
+        # The cursor a delete is followed by in the same tick, which the clear the delete left on
+        # the server's queue would wipe before the reads below (#1753).
+        ctx.set_carried_item(item(resource_location("minecraft:diamond")))
+        put_back: Option[Item] = ctx.get_carried_item()
+        ctx.assert(put_back.has(), "A set after a delete should put an item on the cursor.")
+        set_again = true
+        ctx.not_done()
+        return
+    }
+
+    if checked < 40 {
+        checked = checked + 1
+        carried: Option[Item] = ctx.get_carried_item()
+        ctx.assert(carried.has(), "A delete should not empty a cursor a later set put back.")
+        if carried.has() {
+            ctx.assert(equals(carried.unwrap(), item(resource_location("minecraft:diamond"))), "The cursor should still carry the item the set after the delete put there.")
+        }
+        ctx.not_done()
+        return
+    }
+
+    ctx.clear_carried_item()
+    ctx.close_screen()
+}
