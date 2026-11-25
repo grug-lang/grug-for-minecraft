@@ -3653,6 +3653,13 @@ REGISTER("TestTickContext", "scroll_screen", TTC_scroll_screen);
 // the bytes are UTF-8: a grug string is UTF-8 by construction and no committed fixture is not.
 static char* g_game_dir;  // the temp game directory, made in main and removed with everything under it
 static const long mod_file_cap = 16L * 1024 * 1024;
+// GrugModData.BLOCK: the charge of one entry that holds less than a filesystem block, and of every
+// directory, so the cap counts entries as well as bytes and a mod cannot fill the disk with tiny
+// files while its byte count stays small.
+static const long mod_file_block = 4096;
+// Defined below beside case_clash: every File call refuses a path that differs only in case from an
+// entry it would answer from, not only a write.
+static const char* case_clash_in_path(const char* mod, const char* path);
 
 // The mod a resource names, from the <mod>/files the compiler rewrote it into, or NULL after fail().
 static const char* mod_of(const char* resource) {
@@ -3815,15 +3822,18 @@ static union grug_value File_read_text(ARGS) {
     const char* mod = file_mod(a, "File.read_text");
     if (!mod) return none();  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
     const char* path = a[1]._string;
+    const char* clash = case_clash_in_path(mod, path);
+    if (clash)
+        return fail("File.read_text: The path \"%s\" differs only in case from \"%s\", which is one file on Windows and two on this system, so it is not a portable file name.", path, clash);
     const char* text = NULL;
     int written = read_tree(mod, false, path, "File.read_text", &text);
     if (written == TREE_FILE) return some_text(text);
     if (written == TREE_FAILED) return none();  // SMOKETEST_EXCL_BRANCH: only a read the filesystem refuses, which no test makes
+    if (written == TREE_NOT_FILE) return fail("File.read_text: The path \"%s\" names a directory, not a file.", path);
     int shipped = read_tree(mod, true, path, "File.read_text", &text);
     if (shipped == TREE_FILE) return some_text(text);
     if (shipped == TREE_FAILED) return none();  // SMOKETEST_EXCL_BRANCH: as above, for the shipped tree
-    if (written == TREE_NOT_FILE || shipped == TREE_NOT_FILE)
-        return fail("File.read_text: The path \"%s\" names a directory, not a file.", path);
+    if (shipped == TREE_NOT_FILE) return fail("File.read_text: The path \"%s\" names a directory, not a file.", path);
     return id(new_obj(K_OPTION));
 }
 REGISTER("File", "read_text", File_read_text);
@@ -3832,6 +3842,9 @@ static union grug_value File_exists(ARGS) {
     UNUSED;
     const char* mod = file_mod(a, "File.exists");
     if (!mod) return boolean(false);  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
+    const char* clash = case_clash_in_path(mod, a[1]._string);
+    if (clash)
+        return fail("File.exists: The path \"%s\" differs only in case from \"%s\", which is one file on Windows and two on this system, so it is not a portable file name.", a[1]._string, clash);
     char full[4096];
     struct stat st;
     if (!tree_path(mod, false, a[1]._string, false, "File.exists", full, sizeof full)) return boolean(false);  // SMOKETEST_EXCL_BRANCH: a refused path ends the test at the call
@@ -3862,6 +3875,7 @@ static bool list_tree(const char* mod, bool shipped, const char* path, const cha
         return true;
     }
     *directory = true;
+    *something = true;
     struct dirent* e;
     while ((e = readdir(d))) {
         if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
@@ -3871,10 +3885,23 @@ static bool list_tree(const char* mod, bool shipped, const char* path, const cha
     return true;
 }
 static bool list_both(const char* mod, const char* path, const char* who, struct names* names) {
+    const char* clash = case_clash_in_path(mod, path);
+    if (clash) {
+        fail("%s: The path \"%s\" differs only in case from \"%s\", which is one file on Windows and two on this system, so it is not a portable file name.", who, path, clash);
+        return false;
+    }
     bool written_dir = false, written_any = false, shipped_dir = false, shipped_any = false;
     if (!list_tree(mod, false, path, who, names, &written_dir, &written_any)) return false;  // SMOKETEST_EXCL_BRANCH: a refused path ends the test before this answers, and expect_file_list_parent covers the refusal
     if (!list_tree(mod, true, path, who, names, &shipped_dir, &shipped_any)) return false;  // SMOKETEST_EXCL_BRANCH: the shipped root differs from the writable one only in its prefix, so a path the first call accepted cannot be refused here
-    if (!written_dir && !shipped_dir && (written_any || shipped_any)) {
+    // The written copy decides what the name is, as GrugModData.entryNames does: a written file makes
+    // the path a file whatever the shipped tree holds, and only a name nothing wrote is a shipped
+    // file's to refuse.
+    if (written_any ? !written_dir : (shipped_any && !shipped_dir)) {
+        // A tree that is a directory already added its names, so the caller's early return after
+        // this would leak the array; the names themselves are kept for the process, the array is not.
+        free(names->ptr);
+        names->ptr = NULL;
+        names->len = names->cap = 0;
         fail("%s: The path \"%s\" names a file, not a directory.", who, path);
         return false;
     }
@@ -3917,7 +3944,11 @@ static union grug_value File_entry_name(ARGS) {
 }
 REGISTER("File", "entry_name", File_entry_name);
 
-// The bytes every regular file under `dir` holds, which is what the cap counts.
+// What an entry of that size is charged against the cap: at least one filesystem block.
+static long mod_file_charge(long size) { return size > mod_file_block ? size : mod_file_block; }
+// The bytes every entry under `dir` is charged, which is what the cap counts: one block per file
+// that holds less, a larger file's own size, and one block per directory, as GrugModData.charge
+// does, so a run of tiny files costs what it costs in the game rather than nearly nothing.
 static void total_bytes_in(const char* dir, long* total) {
     DIR* d = opendir(dir);
     if (!d) return;
@@ -3928,10 +3959,37 @@ static void total_bytes_in(const char* dir, long* total) {
         snprintf(full, sizeof full, "%s/%s", dir, e->d_name);
         struct stat st;
         if (lstat(full, &st) != 0) continue;  // SMOKETEST_EXCL_BRANCH: an entry readdir just listed is stattable
-        if (S_ISREG(st.st_mode)) *total += (long)st.st_size;
-        else if (S_ISDIR(st.st_mode)) total_bytes_in(full, total);  // SMOKETEST_EXCL_BRANCH: no test leaves a link or a device in the writable directory
+        if (S_ISREG(st.st_mode)) *total += mod_file_charge((long)st.st_size);
+        else if (S_ISDIR(st.st_mode)) {  // SMOKETEST_EXCL_BRANCH: no test leaves a link or a device in the writable directory
+            *total += mod_file_block;
+            total_bytes_in(full, total);
+        }
     }
     closedir(d);
+}
+// The block charge of every directory a write of `full` will create below `root`, so the cap counts
+// them before they exist: every missing component counts, not only those above the first that
+// exists, because a write of a/deep/path creates and is charged all of them.
+static long pending_dirs(const char* root, const char* full) {
+    char parent[4096];
+    int n = snprintf(parent, sizeof parent, "%s", full);
+    if (n < 0 || (size_t)n >= sizeof parent) return 0;  // SMOKETEST_EXCL_BRANCH: a path this long cannot be built in a test
+    char* slash = strrchr(parent, '/');
+    if (!slash) return 0;  // SMOKETEST_EXCL_BRANCH: tree_path always puts the path under a root
+    *slash = 0;
+    size_t root_len = strlen(root);
+    if (strncmp(parent, root, root_len) || (parent[root_len] && parent[root_len] != '/')) return 0;  // SMOKETEST_EXCL_BRANCH: tree_path builds the path under this root
+    long pending = 0;
+    for (char* p = parent + root_len; *p; p++) {
+        if (*p != '/') continue;
+        *p = 0;
+        struct stat st;
+        if (lstat(parent, &st) != 0) pending += mod_file_block;
+        *p = '/';
+    }
+    struct stat st;
+    if (lstat(parent, &st) != 0) pending += mod_file_block;
+    return pending;
 }
 static bool make_dirs(const char* dir) {
     char full[4096];
@@ -3961,27 +4019,48 @@ static const char* case_clash(const char* dir, const char* name) {
     closedir(d);
     return clash;
 }
-// The existing entry that differs only in case from a component the write names, or NULL. Every
-// component is compared against both trees, because Windows is one directory where this host is two.
+// The existing entry that differs only in case from a component `path` names, or NULL. At each
+// level the written copy decides, as GrugModData.requirePortableCase does: an entry of exactly that
+// name there answers the segment, and only when it has none is a name differing only in case from
+// an entry of either tree refused, because Windows is one directory where this host is two.
 static const char* case_clash_in_path(const char* mod, const char* path) {
     char written[4096], shipped[4096];
     snprintf(written, sizeof written, "%s/grug_mod_files/%s/files", g_game_dir, mod);
     snprintf(shipped, sizeof shipped, "%s/%s/files", g_mods_dir, mod);
+    while (!strncmp(path, "./", 2)) path += 2;
+    bool written_live = true, shipped_live = true;
     for (const char* s = path;;) {
         const char* e = strchr(s, '/');
         size_t n = e ? (size_t)(e - s) : strlen(s);
+        size_t wl = strlen(written), sl = strlen(shipped);
+        // SMOKETEST_EXCL_START: no test builds a path long enough to fill either buffer
+        if (wl + n + 2 > sizeof written || sl + n + 2 > sizeof shipped) return NULL;
+        // SMOKETEST_EXCL_STOP
         char* name = xmalloc(n + 1);
         memcpy(name, s, n);
         name[n] = 0;
-        const char* clash = case_clash(written, name);
-        if (!clash) clash = case_clash(shipped, name);
-        if (clash) {
-            free(name);
-            return clash;
+        char probe[4096];
+        struct stat st;
+        memcpy(probe, written, wl);
+        probe[wl] = '/';
+        memcpy(probe + wl + 1, name, n + 1);
+        bool written_exact = written_live && lstat(probe, &st) == 0;
+        memcpy(probe, shipped, sl);
+        probe[sl] = '/';
+        memcpy(probe + sl + 1, name, n + 1);
+        bool shipped_exact = shipped_live && lstat(probe, &st) == 0;
+        if (!written_exact) {
+            const char* clash = written_live ? case_clash(written, name) : NULL;
+            if (!clash && shipped_live) clash = case_clash(shipped, name);
+            if (clash) {
+                free(name);
+                return clash;
+            }
         }
-        size_t wl = strlen(written), sl = strlen(shipped);
         snprintf(written + wl, sizeof written - wl, "/%s", name);
         snprintf(shipped + sl, sizeof shipped - sl, "/%s", name);
+        written_live = written_exact;
+        shipped_live = shipped_exact;
         free(name);
         if (!e) break;
         s = e + 1;
@@ -3999,12 +4078,12 @@ static union grug_value File_write_text(ARGS) {
     if (clash)
         return fail("File.write_text: The path \"%s\" differs only in case from \"%s\", which is one file on Windows and two on this system, so it is not a portable file name.", path, clash);
     struct stat st;
-    long previous = lstat(full, &st) == 0 && S_ISREG(st.st_mode) ? (long)st.st_size : 0;  // SMOKETEST_EXCL_BRANCH: the only other existing kind a write names is a directory, whose refusal the rename reports with a platform message no cross-loader test can assert
+    long previous = lstat(full, &st) == 0 && S_ISREG(st.st_mode) ? mod_file_charge((long)st.st_size) : 0;  // SMOKETEST_EXCL_BRANCH: the only other existing kind a write names is a directory, whose refusal the rename reports with a platform message no cross-loader test can assert
     char root[4096];
     snprintf(root, sizeof root, "%s/grug_mod_files/%s/files", g_game_dir, mod);
     long total = 0, after;
     total_bytes_in(root, &total);
-    after = total - previous + (long)strlen(text);
+    after = total - previous + mod_file_charge((long)strlen(text)) + pending_dirs(root, full);
     if (after > mod_file_cap)
         return fail("File.write_text: Writing \"%s\" would make the mod's files directory %ld bytes, over the %ld-byte cap.", path, after, mod_file_cap);
     char parent[4096];

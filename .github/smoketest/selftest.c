@@ -265,6 +265,37 @@ static void test_nbt_helpers(void) {
     CHECK(nbt_value_problem("int", NAN, m, sizeof m), "NaN is not whole");
 }
 
+static void test_file_charge(void) {
+    // The cap charges one block per entry, as GrugModData.charge does, so 4096 one-byte files fit and
+    // the 4097th goes over: a host that added only st_size, as this one did, would pass the single
+    // huge text expect_file_cap writes and still let 4096 tiny files through.
+    char dir[] = "/tmp/smoketest-charge-XXXXXX";
+    char* root = mkdtemp(dir);
+    CHECK(root != NULL, "mkdtemp");
+    if (!root) return;
+    long total = 0;
+    for (int i = 0; i < 4097; i++) {
+        char path[128];
+        int n = snprintf(path, sizeof path, "%s/f%d", root, i);
+        CHECK(n > 0 && (size_t)n < sizeof path, "path %d", i);
+        FILE* f = fopen(path, "wb");
+        CHECK(f != NULL, "create %s", path);
+        if (!f) break;
+        fputc('x', f);
+        fclose(f);
+        if (i == 4095) {
+            total_bytes_in(root, &total);
+            CHECK(total == 4096 * mod_file_block, "4096 one-byte files charge %ld, not %ld", total, 4096L * mod_file_block);
+        }
+    }
+    total = 0;
+    total_bytes_in(root, &total);
+    CHECK(total == 4097 * mod_file_block, "4097 one-byte files charge %ld, not %ld", total, 4097L * mod_file_block);
+    CHECK(total > mod_file_cap, "4097 one-byte files are over the cap: %ld", total);
+    remove_tree(root);
+    CHECK(access(root, F_OK) != 0, "the charge tree is removed");
+}
+
 int main(void) {
     test_random();
     test_strict_log();
@@ -275,6 +306,7 @@ int main(void) {
     test_use_face();
     test_double_text();
     test_nbt_helpers();
+    test_file_charge();
     test_argument_checks();
     printf("selftest: %d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;

@@ -1506,7 +1506,7 @@
 			}
 		},
 		"File": {
-			"description": "A mod's own writable directory, and the files it ships there. Every path is relative to the mod's directory beside `code/`, `tests/` and `assets/`, and no call takes a mod name, so one mod can never reach another's files. What the mod writes is kept under the game directory rather than in the mod's folder, so a development run never changes the repository and a player deletes that copy to get the shipped files back; a read asks the written copy first and then the shipped file, and a listing names both. Open it with File.open(r\"files\"): the compiler rewrites that literal to the calling mod, which is how the host knows whose directory this is, and any other literal is an error. A path is a portable file name: it is refused when it is absolute, when any segment is empty, `.` or `..`, when it holds a character Windows refuses in a name (`\\ : * ? \" < > |` or a control character), when a segment ends in a dot or a space, when it names a device Windows keeps for itself (`CON`, `NUL`, `COM1` and so on), when it differs only in case from an existing entry, which is one file on Windows and two on this system, or when any component is a symbolic link, which the host refuses rather than follows so no link can leave the directory. A leading `./` is accepted, so a name a listing returned can be appended to `.` and read back. A mod that only writes need not ship the directory; the first write creates it.",
+			"description": "A mod's own writable directory, and the files it ships there. Every path is relative to the mod's directory beside `code/`, `tests/` and `assets/`, and no call takes a mod name, so one mod can never reach another's files. What the mod writes is kept under the game directory rather than in the mod's folder, so a development run never changes the repository and a player deletes that copy to get the shipped files back; a read asks the written copy first and then the shipped file, and a listing names both. Open it with File.open(r\"files\"): the compiler rewrites that literal to the calling mod, which is how the host knows whose directory this is, and any other literal is an error. A path is a portable file name: it is refused when it is absolute, when any segment is empty, `.` or `..`, when it holds a character Windows refuses in a name (`\\ : * ? \" < > |` or a control character), when a segment ends in a dot or a space, when it names a device Windows keeps for itself (`CON`, `NUL`, `COM1` and so on), when it differs only in case from an entry the call would answer from, which is one file on Windows and two on this system, or when any component below the game directory or the mods directory is a symbolic link or a junction, which the host refuses rather than follows so no link can leave the directory. The case rule holds for every call, not only a write, so one path answers the same on every loader, and a listing names only entries a read accepts. A leading `./` is accepted, so a name a listing returned can be appended to `.` and read back. The written copy decides what a name is: a written file wins over a shipped file of that name, and a written directory over a shipped file. A mod that only writes need not ship the directory; the first write creates it.",
 			"static_methods": {
 				"open": {
 					"description": "The handle for the calling mod's own directory. Pass the literal r\"files\": the compiler rewrites it to <mod>/files, which is how the host learns which mod is calling, so no entry ever takes a mod name. Any other literal, such as r\"assets/x.png\", is reported, and so is every call on the handle it answers. The directory may not exist yet, because a mod that only writes creates it on its first write.",
@@ -1527,7 +1527,7 @@
 			},
 			"methods": {
 				"entry_count": {
-					"description": "How many entries the directory at `path` holds, counting the written copy and the files the mod ships together, with a name present in both listed once, or 0 when there is no such directory. A symbolic link is never counted or named, because a read refuses one. `path` may be `.` to name the mod's own directory. A path that names a file is reported. Together with entry_name this is the listing, since grug has no list type: entry_name(path, 0) is the first name in sorted order.",
+					"description": "How many entries the directory at `path` holds, counting the written copy and the files the mod ships together, with a name present in both listed once, or 0 when there is no such directory. A symbolic link is never counted or named, because a read refuses one, and neither is a name a read refuses for any other reason, so every name a listing returns can be read back. The written copy decides what the path is: a written file makes it a file rather than a directory, and a written directory hides a shipped file of that name. `path` may be `.` to name the mod's own directory. A path that names a file is reported. Together with entry_name this is the listing, since grug has no list type: entry_name(path, 0) is the first name in sorted order.",
 					"return_type": {
 						"name": "number"
 					},
@@ -1541,7 +1541,7 @@
 					]
 				},
 				"entry_name": {
-					"description": "The name of the entry at `index` in the directory at `path`, sorted by name, where entry_count(path) says how many there are and a symbolic link is never one of them. `path` may be `.` to name the mod's own directory. An index that is not a whole number from 0 up, or that is past the last entry, is reported, and so is a path that names a file. Append `/` and the name to the same path to read or list a child.",
+					"description": "The name of the entry at `index` in the directory at `path`, sorted by name, where entry_count(path) says how many there are and neither a symbolic link nor a name a read refuses is ever one of them. `path` may be `.` to name the mod's own directory. An index that is not a whole number from 0 up, or that is past the last entry, is reported, and so is a path that names a file. Append `/` and the name to the same path to read or list a child.",
 					"return_type": {
 						"name": "string"
 					},
@@ -1561,7 +1561,7 @@
 					]
 				},
 				"exists": {
-					"description": "Whether `path` exists in the written copy or among the files the mod ships, as a file or as a directory. A path that is refused is reported.",
+					"description": "Whether `path` exists in the written copy or among the files the mod ships, as a file or as a directory. A path that is refused is reported, including one that differs only in case from an existing entry.",
 					"return_type": {
 						"name": "bool"
 					},
@@ -1575,7 +1575,7 @@
 					]
 				},
 				"read_text": {
-					"description": "The text of the file at `path`, or an empty Option when neither the written copy nor the file the mod ships has it. A path that names a directory, or a file whose bytes are not UTF-8, is reported. The written copy wins when both exist, so a mod that changes a shipped default reads back what it wrote.",
+					"description": "The text of the file at `path`, or an empty Option when neither the written copy nor the file the mod ships has it. A path that names a directory, or a file whose bytes are not UTF-8, is reported. The written copy wins when both exist, so a mod that changes a shipped default reads back what it wrote, and a written directory wins over a shipped file of that name rather than falling back to it.",
 					"return_type": {
 						"name": "Option",
 						"generics": [
@@ -1594,7 +1594,7 @@
 					]
 				},
 				"write_text": {
-					"description": "Writes `text` to `path` as UTF-8, creating the directories it needs. The write is atomic: the bytes go to a temporary file in the game directory, outside every mod's files directory, and are renamed over the target. The bytes are flushed to the disk before the rename, and the target's directory after it where the platform can flush a directory, so a crash or a power loss leaves either the old text or the new one and never half of it, and a write that fails leaves what was there. A temporary file a crash leaves behind is in no mod's directory, so no read or listing sees it and no byte count includes it. The mod's whole written directory is charged one filesystem block of 4096 bytes per entry, a file's own size when larger and one block for a file smaller than that or for a directory, against a cap of 16 MiB (16777216 bytes), so at most 4096 entries fit whatever their sizes. A write that would pass the cap is reported with the charge it would reach, and nothing is written.",
+					"description": "Writes `text` to `path` as UTF-8, creating the directories it needs. The write is atomic: the bytes go to a temporary file in the game directory, outside every mod's files directory, and are renamed over the target. The bytes are flushed to the disk before the rename, and the target's directory after it where the platform can flush a directory, so a crash or a power loss leaves either the old text or the new one and never half of it, and a write that fails leaves what was there. A temporary file a crash leaves behind is in no mod's directory, so no read or listing sees it and no byte count includes it. The mod's whole written directory is charged one filesystem block of 4096 bytes per entry, a file's own size when larger and one block for a file smaller than that or for a directory, the directories the write creates included, against a cap of 16 MiB (16777216 bytes), so at most 4096 entries fit whatever their sizes. A write that would pass the cap is reported with the charge it would reach, and nothing is written.",
 					"parameters": [
 						{
 							"name": "path",
