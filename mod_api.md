@@ -205,8 +205,10 @@ Option.new() Option[$Value]
 .top_inset() number
 
 ## OverlayKeyContext
+.character() number
 .ctrl() bool
 .key() number
+.repeat() bool
 .take()
 
 ## OverlayRenderContext

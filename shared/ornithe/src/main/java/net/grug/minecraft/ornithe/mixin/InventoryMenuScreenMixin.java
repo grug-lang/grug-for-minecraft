@@ -72,15 +72,15 @@ public abstract class InventoryMenuScreenMixin implements GrugScreenGeometry {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void grug$takeKey(char character, int key, CallbackInfo ci) {
-        if (GrugOverlayHost.key((Screen) (Object) this, key)) {
+        if (GrugOverlayHost.key((Screen) (Object) this, character, key)) {
             ci.cancel();
         }
     }
 
     @Override
-    public boolean grug$pressKey(int key) {
+    public boolean grug$pressKey(char character, int key) {
         GrugOverlay.beginTestPress();
-        this.keyPressed((char) 0, key);
+        this.keyPressed(character, key);
         return GrugOverlay.testPressTaken();
     }
 

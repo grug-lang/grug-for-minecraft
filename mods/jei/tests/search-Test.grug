@@ -2,13 +2,19 @@
 # items that match, and a right click empties it. The test reads the list through what a right
 # click on the grid's first cell gives, because the overlay takes the press and the give reaches
 # the player's hand some frames later, which the test waits for rather than counting ticks. A key
-# typed while the field is not focused is not taken. See #865.
+# typed while the field is not focused is not taken. The search syntax's punctuation is typed the
+# way a player types it, as the character the key produces, so an @, a bar, a minus and a quote
+# each have to reach the field for the result to be the one asserted (#1741). See #865.
 # Alpha has no item names, so its list has nothing to search by and the test is not run there.
 
 started: bool = false
 opened: bool = false
 waited: number = 0
 step: number = 0
+# Which query step 4 types: 0 is an @ before a mod id, 1 a bar between two words, 2 a minus before
+# a word, 3 two words in the reverse of the name they find, and 4 that pair quoted, whose quoted run
+# is no item name and whose list is therefore empty, which is how the test sees the quote arrive.
+round: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -68,30 +74,21 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    if step == 5 {
-        # Handled below.
-    } else if step == 1 {
+    if step == 1 {
         if not _arrived(ctx, search_item_at("iron", 0), "A press on the first cell should give the first item that matches iron.") {
             ctx.not_done()
             return
         }
-    } else if not _arrived(ctx, item_at(0), "A press on the first cell of the emptied search should give the first item.") {
-        ctx.not_done()
-        return
-    }
-
-    if step == 1 {
-        # A press on an item unfocuses the field, so the field is pressed again, and a right
-        # click on it empties it.
+        # A press on an item unfocuses the field, so the field is pressed again below, and the hand
+        # is emptied first so the item that arrives is the one the next press gives.
         ctx.clear_held_item(ctx.get_player())
-        step = 5
+        step = 2
         waited = 0
         ctx.not_done()
         return
     }
 
-    if step == 5 {
-        # The hand is empty before the next press, so the item that arrives is the one it gives.
+    if step == 2 {
         if ctx.get_player().get_held_item().has() {
             waited = waited + 1
             ctx.assert(waited < 200, "The hand should be empty after it is cleared.")
@@ -103,7 +100,78 @@ export tick(ctx: TestTickContext) {
         ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 1), "The overlay should take a right click on its search field.")
         ctx.assert(ctx.press_screen_key(8, false, true), "Backspace on an empty field should still be taken.")
         ctx.assert(ctx.click_screen(_cell_x(ctx), _cell_y(), 1), "The overlay should take a press on its first item.")
-        step = 2
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        if not _arrived(ctx, item_at(0), "A press on the first cell of the emptied search should give the first item.") {
+            ctx.not_done()
+            return
+        }
+        round = 0
+        ctx.clear_held_item(ctx.get_player())
+        step = 4
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    # Steps 4 and 5 type one punctuation query, give its first item and check it is the item the
+    # query's own search names. The last round is the same two words quoted, whose quoted run is no
+    # item name and whose list is therefore empty, so its first cell takes no press: the words
+    # unquoted were proved to list items just before, so an empty list there can only mean the
+    # quotes reached the field.
+    if step == 4 {
+        if ctx.get_player().get_held_item().has() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The hand should be empty after it is cleared.")
+            ctx.not_done()
+            return
+        }
+        # A right click on the field clears it and focuses it again.
+        ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 1), "A right click on the field should clear it.")
+        if round == 4 {
+            _type_quoted_ore_iron(ctx)
+            ctx.assert(not ctx.click_screen(_cell_x(ctx), _cell_y(), 1), "A quoted pair of words should leave the list empty, so its first cell takes no press.")
+            # The search text outlives the screen, so the field is emptied before the screen closes.
+            ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 1), "A right click on the field should empty the search before the screen closes.")
+            ctx.close_screen()
+            return
+        }
+        _type_query(ctx, round)
+        ctx.assert(ctx.click_screen(_cell_x(ctx), _cell_y(), 1), "The overlay should take a press on its first cell.")
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        if round == 0 {
+            if not _arrived(ctx, search_item_at("@minecraft", 0), "An @ and a mod id should list the items of that mod.") {
+                ctx.not_done()
+                return
+            }
+        } else if round == 1 {
+            if not _arrived(ctx, search_item_at("iron|gold", 0), "A bar should list the items either side of it names.") {
+                ctx.not_done()
+                return
+            }
+        } else if round == 2 {
+            if not _arrived(ctx, search_item_at("iron -ore", 0), "A minus should leave out the items the word after it names.") {
+                ctx.not_done()
+                return
+            }
+        } else if not _arrived(ctx, search_item_at("ore iron", 0), "Two words should list the items whose name holds both.") {
+            ctx.not_done()
+            return
+        }
+        round = round + 1
+        ctx.clear_held_item(ctx.get_player())
+        step = 4
         waited = 0
         ctx.not_done()
         return
@@ -116,19 +184,125 @@ export tick(ctx: TestTickContext) {
 local _type(ctx: TestTickContext, word: string) {
     index: number = 0
     while index < String.length(word) {
-        letter: number = 0
-        if String.substring(word, index, index + 1) == "i" {
-            letter = 73
-        } else if String.substring(word, index, index + 1) == "r" {
-            letter = 82
-        } else if String.substring(word, index, index + 1) == "o" {
-            letter = 79
-        } else {
-            letter = 78
-        }
-        ctx.assert(ctx.press_screen_key(letter, false, true), "A letter should be taken while the field is focused.")
+        letter: string = String.substring(word, index, index + 1)
+        ctx.assert(ctx.press_screen_key(_letter_code(letter), false, true), "A character should be taken while the field is focused.")
         index = index + 1
     }
+}
+
+# Types the query of a round: an @ before a mod id, a bar between two words, a minus before a word,
+# or two words whose order is the reverse of the name they find.
+local _type_query(ctx: TestTickContext, which: number) {
+    if which == 0 {
+        ctx.assert(ctx.press_screen_key(64, false, true), "An @ should be taken while the field is focused.")
+        _type(ctx, "minecraft")
+        return
+    }
+    if which == 3 {
+        _type(ctx, "ore")
+        ctx.assert(ctx.press_screen_key(32, false, true), "The space bar should be taken while the field is focused.")
+        _type(ctx, "iron")
+        return
+    }
+    _type(ctx, "iron")
+    if which == 1 {
+        ctx.assert(ctx.press_screen_key(124, false, true), "A bar should be taken while the field is focused.")
+        _type(ctx, "gold")
+        return
+    }
+    ctx.assert(ctx.press_screen_key(32, false, true), "The space bar should be taken while the field is focused.")
+    ctx.assert(ctx.press_screen_key(45, false, true), "A minus should be taken while the field is focused.")
+    _type(ctx, "ore")
+}
+
+# Types `"ore iron"`, whose quoted run of five characters and a space is no item name, while the
+# same two words unquoted list the iron ores. The quote (34) is a key with no number of its own.
+local _type_quoted_ore_iron(ctx: TestTickContext) {
+    ctx.assert(ctx.press_screen_key(34, false, true), "A quote should be taken while the field is focused.")
+    _type(ctx, "ore")
+    ctx.assert(ctx.press_screen_key(32, false, true), "The space bar should be taken inside a quoted run.")
+    _type(ctx, "iron")
+    ctx.assert(ctx.press_screen_key(34, false, true), "A closing quote should be taken while the field is focused.")
+}
+
+# The code a press of the lower case letter answers, which is the upper case letter's character code.
+local _letter_code(letter: string) number {
+    if letter == "a" {
+        return 65
+    }
+    if letter == "b" {
+        return 66
+    }
+    if letter == "c" {
+        return 67
+    }
+    if letter == "d" {
+        return 68
+    }
+    if letter == "e" {
+        return 69
+    }
+    if letter == "f" {
+        return 70
+    }
+    if letter == "g" {
+        return 71
+    }
+    if letter == "h" {
+        return 72
+    }
+    if letter == "i" {
+        return 73
+    }
+    if letter == "j" {
+        return 74
+    }
+    if letter == "k" {
+        return 75
+    }
+    if letter == "l" {
+        return 76
+    }
+    if letter == "m" {
+        return 77
+    }
+    if letter == "n" {
+        return 78
+    }
+    if letter == "o" {
+        return 79
+    }
+    if letter == "p" {
+        return 80
+    }
+    if letter == "q" {
+        return 81
+    }
+    if letter == "r" {
+        return 82
+    }
+    if letter == "s" {
+        return 83
+    }
+    if letter == "t" {
+        return 84
+    }
+    if letter == "u" {
+        return 85
+    }
+    if letter == "v" {
+        return 86
+    }
+    if letter == "w" {
+        return 87
+    }
+    if letter == "x" {
+        return 88
+    }
+    if letter == "y" {
+        return 89
+    }
+    return 90
 }
 
 # Whether the item the last press gave has reached the player's hand, and is the expected one.

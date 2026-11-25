@@ -215,23 +215,26 @@ public final class GrugOverlayHost {
     }
 
     /**
-     * Asks the overlays about one key press and answers whether one took it, recording the answer
-     * for {@code TestTickContext.press_screen_key}.
+     * Asks the overlays about one key press or typed character and answers whether one took it,
+     * recording the answer for {@code TestTickContext.press_screen_key}.
      *
-     * <p>Only a letter, a digit, the space bar and backspace are asked, given as the upper case
-     * character code or the ASCII code, which is the same number on every loader. A key the game
-     * reports again while it is held is a repeat and is not asked, so a toggle flips once per
-     * press.
+     * <p>The key is the number {@code OverlayKeyContext.key} documents and the character is the one
+     * the game produced, with shift applied, so a letter arrives as both and a punctuation key as a
+     * character only. A press the game reports again while its key is held is delivered with {@code
+     * OverlayKeyContext.repeat} true, so a toggle flips once per press and a text field types its
+     * character again.
      */
-    public static boolean key(Screen screen, int key) {
+    public static boolean key(Screen screen, char character, int key) {
         if (geometry(screen) == null) return false;
         int code = GrugOverlay.keyCodeForName(Keyboard.getKeyName(key));
-        if (code < 0) return false;
-        if (isRepeat()) return false;
+        if (code < 0) code = 0;
+        int typed = GrugOverlay.characterCode(character);
+        if (code == 0 && typed == 0) return false;
 
         boolean ctrl = isControlDown();
+        boolean repeat = isRepeat();
         for (GrugOverlayScripts.Script overlay : overlays()) {
-            if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, code, ctrl)) {
+            if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, code, typed, ctrl, repeat)) {
                 GrugOverlay.noteTestPressTaken();
                 return true;
             }
@@ -262,13 +265,15 @@ public final class GrugOverlayHost {
     /**
      * Test only: delivers one press of the key whose character code is {@code charCode} through the
      * screen's own key path, so the hook that cancels the key is the one under test, and answers
-     * whether an overlay took it. A key held with {@code release} false makes the next press of it
-     * a repeat, as the game reports one.
+     * whether an overlay took it. The press types the character that number produces without shift,
+     * as a real press does, and a number that names no key is only a character. A number held with
+     * {@code release} false makes the next press of it a repeat, as the game reports one.
      */
     public static boolean pressKey(Object screen, int charCode, boolean ctrl, boolean release) {
         if (!(screen instanceof GrugScreenGeometry)) return false;
         int key = Keyboard.getKeyIndex(GrugOverlay.keyNameForCode(charCode));
-        if (key == Keyboard.KEY_NONE) {
+        int typed = ctrl ? 0 : GrugOverlay.typedCharacterFor(charCode);
+        if (key == Keyboard.KEY_NONE && typed == 0) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "TestTickContext.press_screen_key: The game has no key for character code "
@@ -278,10 +283,10 @@ public final class GrugOverlayHost {
         }
         testPress = true;
         testCtrl = ctrl;
-        testRepeat = key == testHeld;
-        testHeld = release ? -1 : key;
+        testRepeat = charCode == testHeld;
+        testHeld = release ? -1 : charCode;
         try {
-            return ((GrugScreenGeometry) screen).grug$pressKey(key);
+            return ((GrugScreenGeometry) screen).grug$pressKey((char) typed, key);
         } finally {
             testPress = false;
         }

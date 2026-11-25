@@ -204,8 +204,12 @@ export click(ctx: OverlayClickContext) {
 }
 
 export key(ctx: OverlayKeyContext) {
+    # A held key repeats the press, and the toggle flips once per press rather than once per repeat.
+    # The repeat is still taken, or the screen's own handler would see the key.
     if ctx.key() == toggle_key and ctx.ctrl() {
-        shown = not shown
+        if not ctx.repeat() {
+            shown = not shown
+        }
         ctx.take()
         return
     }
@@ -213,9 +217,24 @@ export key(ctx: OverlayKeyContext) {
         return
     }
 
+    # The field's text is the character the press typed, with shift and the keyboard layout already
+    # applied, which is how a quote, a minus, a bar or an @ gets in at all: those keys have no key
+    # number of their own (#1741). On a loader that sends the character as its own event, the key
+    # press of the same letter arrives first with no character, and the field takes it so the
+    # screen's own handler cannot close the inventory on it; the character event appends the letter.
+    character: number = ctx.character()
+    if character > 0 {
+        if String.length(query) < max_query {
+            query = String.concat(query, String.from_character(character))
+            page = 0
+        }
+        ctx.take()
+        return
+    }
+
     key: number = ctx.key()
-    length: number = String.length(query)
     if key == key_backspace {
+        length: number = String.length(query)
         if length > 0 {
             query = String.substring(query, 0, length - 1)
             page = 0
@@ -223,22 +242,12 @@ export key(ctx: OverlayKeyContext) {
         ctx.take()
         return
     }
-    # A letter arrives as its upper-case code and is typed in lower case, which the search does not
-    # tell apart anyway.
-    typed: number = -1
-    if key >= 65 and key <= 90 {
-        typed = key + 32
-    } else if key == key_space or (key >= 48 and key <= 57) {
-        typed = key
+    # A letter, a digit or the space bar with no character of its own is the first event of a press
+    # whose character arrives next, so it is taken here and typed by that event.
+    printable: bool = (key >= 48 and key <= 57) or (key >= 65 and key <= 90) or key == key_space
+    if printable {
+        ctx.take()
     }
-    if typed < 0 {
-        return
-    }
-    if length < max_query {
-        query = String.concat(query, String.from_character(typed))
-        page = 0
-    }
-    ctx.take()
 }
 
 export scroll(ctx: OverlayScrollContext) {

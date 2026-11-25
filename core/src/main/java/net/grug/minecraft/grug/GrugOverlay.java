@@ -69,7 +69,9 @@ public final class GrugOverlay {
     private static double button = 0.0;
     private static boolean shift = false;
     private static double keyCode = 0.0;
+    private static double character = 0.0;
     private static boolean ctrl = false;
+    private static boolean repeat = false;
     private static double scrollDelta = 0.0;
 
     /**
@@ -142,6 +144,32 @@ public final class GrugOverlay {
         if (code == KEY_SPACE) return "SPACE";
         if (code == KEY_BACKSPACE) return "BACK";
         return String.valueOf((char) code);
+    }
+
+    /**
+     * The typed character a key() call carries for a character a loader reports, or 0 for one an
+     * overlay is not given: a printable character from 32 up, except 127, which is delete. Every
+     * other value is a control character or the code of a key with no text of its own.
+     */
+    public static int characterCode(int reported) {
+        if (reported < KEY_SPACE || reported == 127) return 0;
+        return reported;
+    }
+
+    /**
+     * The character a test's press of the key() number {@code keyCode} types, or 0 for a key that
+     * types nothing. It is what the game produces without shift: a letter in lower case, the digit
+     * of a digit key, the space bar, and a printable number that names no key (punctuation) itself.
+     *
+     * <p>{@code TestTickContext.press_screen_key} cannot press shift, so this is the whole set a
+     * test can type. A real press carries the game's own character instead, shift included.
+     */
+    public static int typedCharacterFor(int keyCode) {
+        boolean letter = keyCode >= 'A' && keyCode <= 'Z';
+        boolean digit = keyCode >= '0' && keyCode <= '9';
+        if (letter) return keyCode + 32;
+        if (digit || keyCode == KEY_SPACE) return keyCode;
+        return characterCode(keyCode);
     }
 
     /** The code a key pass gives the space bar, the same on every loader. */
@@ -326,9 +354,19 @@ public final class GrugOverlay {
         return keyCode;
     }
 
+    /** The typed character the open key pass was given, see {@code OverlayKeyContext.character}. */
+    public static double character() {
+        return character;
+    }
+
     /** Whether control was held for the open key pass's key. */
     public static boolean ctrl() {
         return ctrl;
+    }
+
+    /** Whether the open key pass is a held key's repeat, see {@code OverlayKeyContext.repeat}. */
+    public static boolean repeat() {
+        return repeat;
     }
 
     /**
@@ -439,15 +477,19 @@ public final class GrugOverlay {
     }
 
     /**
-     * Opens a key pass for one key press, with nothing recorded in it, for the screen the geometry
-     * describes. The key is the printable key's upper case character code, or the platform's own
-     * code for a key with no character, and {@code ctrl} says whether control was held.
+     * Opens a key pass for one key press or one typed character, with nothing recorded in it, for
+     * the screen the geometry describes. The key is the numbers {@code OverlayKeyContext.key}
+     * answers (0 when the press carries no such key), the character is the printable character the
+     * press typed (0 when it typed none), {@code ctrl} says whether control was held and {@code
+     * repeat} whether the game reported the press as a repeat of a held key.
      */
-    public static void openKey(double keyCode, boolean ctrl) {
+    public static void openKey(double keyCode, double character, boolean ctrl, boolean repeat) {
         open(true, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, false);
         keyPass = true;
         GrugOverlay.keyCode = keyCode;
+        GrugOverlay.character = character;
         GrugOverlay.ctrl = ctrl;
+        GrugOverlay.repeat = repeat;
     }
 
     /**
@@ -635,7 +677,9 @@ public final class GrugOverlay {
         scrollDelta = 0.0;
         keyPass = false;
         keyCode = 0.0;
+        character = 0.0;
         ctrl = false;
+        repeat = false;
         ITEMS.clear();
         BOXES.clear();
         TEXTS.clear();
@@ -754,13 +798,20 @@ public final class GrugOverlay {
     }
 
     /**
-     * Runs an overlay's {@code key()} for one key press and answers whether it took the key. The
-     * loader calls this before its screen sees the key and cancels the key when the answer is true.
+     * Runs an overlay's {@code key()} for one key press or one typed character and answers whether
+     * it took it. The loader calls this before its screen sees the event and cancels the event when
+     * the answer is true.
      */
-    public static boolean key(long entityHandle, long keyFnId, double keyCode, boolean ctrl) {
+    public static boolean key(
+            long entityHandle,
+            long keyFnId,
+            double keyCode,
+            double character,
+            boolean ctrl,
+            boolean repeat) {
         GrugStateLock.lock();
         try {
-            openKey(keyCode, ctrl);
+            openKey(keyCode, character, ctrl, repeat);
             boolean wasTaken;
             try {
                 if (entityHandle != 0 && keyFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
