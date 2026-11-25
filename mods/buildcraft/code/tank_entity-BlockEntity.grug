@@ -93,8 +93,8 @@ export get_liquid_capacity(response: LiquidResponse) {
 }
 
 # BlockTank.d: a side draws 97 when the block below is a tank and 96 otherwise, which removes the
-# bottom rim so stacked tanks read as one tall tank. The texture draws the frame inside the block
-# face, so the model is the full block and the transparent part is the window.
+# bottom rim so stacked tanks read as one tall tank. The walls are the reference's 12 by 12 box, and
+# its texture's frame sits on the model's edge, so the transparent part is the window.
 export render(ctx: RenderContext) {
     if level.get_block(x, y - 1, z) == "grug:tank" {
         ctx.draw_model(r"assets/grug/models/block/tank_joined.json", 0, 0, 0, 0, 0, 0)

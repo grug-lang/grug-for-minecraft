@@ -265,65 +265,81 @@ public class GrugFrameRenderer extends TileEntitySpecialRenderer {
                 GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
         int tileWidth = atlasWidth / 16;
         int tileHeight = atlasHeight / 16;
-        float u0 = (float) (icon % 16 * tileWidth) / atlasWidth;
-        float u1 = (float) (icon % 16 * tileWidth + tileWidth) / atlasWidth;
-        float v0 = (float) (icon / 16 * tileHeight) / atlasHeight;
-        float v1 = (float) (icon / 16 * tileHeight + tileHeight) / atlasHeight;
 
-        float x1 = (float) draw.x1();
-        float y1 = (float) draw.y1();
-        float z1 = (float) draw.z1();
-        float x2 = (float) draw.x2();
-        float y2 = (float) draw.y2();
-        float z2 = (float) draw.z2();
+        double x1 = draw.x1();
+        double y1 = draw.y1();
+        double z1 = draw.z1();
+        double x2 = draw.x2();
+        double y2 = draw.y2();
+        double z2 = draw.z2();
+
+        // RenderEntityBlock maps the box's own extent onto the sprite's sub-rectangle rather
+        // than stretching the whole tile across it: a column 0.135 to 0.865 across shows the
+        // sprite's columns 2.16 to 13.84, with 0.01 of a texel off the larger edge the way
+        // RenderBlocks does, so every texel lands where the reference puts it.
+        double u0 = (double) (icon % 16 * tileWidth) / atlasWidth;
+        double v0 = (double) (icon / 16 * tileHeight) / atlasHeight;
+        double du = (double) tileWidth / 16.0 / atlasWidth;
+        double dv = (double) tileHeight / 16.0 / atlasHeight;
+        double uX1 = u0 + x1 * 16.0 * du;
+        double uX2 = u0 + (x2 * 16.0 - 0.01) * du;
+        double uZ1 = u0 + z1 * 16.0 * du;
+        double uZ2 = u0 + (z2 * 16.0 - 0.01) * du;
+        double vY1 = v0 + y1 * 16.0 * dv;
+        double vY2 = v0 + (y2 * 16.0 - 0.01) * dv;
+        double vZ1 = v0 + z1 * 16.0 * dv;
+        double vZ2 = v0 + (z2 * 16.0 - 0.01) * dv;
 
         GL11.glPushMatrix();
         GL11.glTranslatef((float) dx, (float) dy, (float) dz);
         // The column is seen through the tank's own glass faces, so both sides of the box are
         // drawn, as the reference's own box renderer draws every face of its box.
         GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        // RenderTank never turns blending on, so its column is opaque however transparent the
+        // liquid's sprite is.
+        GL11.glDisable(GL11.GL_BLEND);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
 
         Tessellator tessellator = Tessellator.instance;
         tessellator.startDrawingQuads();
 
+        // The six faces in RenderEntityBlock's own order and with its own corner and UV
+        // mapping, including the faces that are mirrored against the world axes.
         tessellator.setNormal(0.0F, -1.0F, 0.0F);
-        tessellator.addVertexWithUV(x1, y1, z1, u0, v0);
-        tessellator.addVertexWithUV(x1, y1, z2, u0, v1);
-        tessellator.addVertexWithUV(x2, y1, z2, u1, v1);
-        tessellator.addVertexWithUV(x2, y1, z1, u1, v0);
+        tessellator.addVertexWithUV(x1, y1, z2, uX1, vZ2);
+        tessellator.addVertexWithUV(x1, y1, z1, uX1, vZ1);
+        tessellator.addVertexWithUV(x2, y1, z1, uX2, vZ1);
+        tessellator.addVertexWithUV(x2, y1, z2, uX2, vZ2);
 
         tessellator.setNormal(0.0F, 1.0F, 0.0F);
-        tessellator.addVertexWithUV(x1, y2, z1, u0, v0);
-        tessellator.addVertexWithUV(x2, y2, z1, u1, v0);
-        tessellator.addVertexWithUV(x2, y2, z2, u1, v1);
-        tessellator.addVertexWithUV(x1, y2, z2, u0, v1);
+        tessellator.addVertexWithUV(x2, y2, z2, uX2, vZ2);
+        tessellator.addVertexWithUV(x2, y2, z1, uX2, vZ1);
+        tessellator.addVertexWithUV(x1, y2, z1, uX1, vZ1);
+        tessellator.addVertexWithUV(x1, y2, z2, uX1, vZ2);
 
         tessellator.setNormal(0.0F, 0.0F, -1.0F);
-        tessellator.addVertexWithUV(x1, y1, z1, u0, v0);
-        tessellator.addVertexWithUV(x2, y1, z1, u1, v0);
-        tessellator.addVertexWithUV(x2, y2, z1, u1, v1);
-        tessellator.addVertexWithUV(x1, y2, z1, u0, v1);
+        tessellator.addVertexWithUV(x1, y2, z1, uX2, vY1);
+        tessellator.addVertexWithUV(x2, y2, z1, uX1, vY1);
+        tessellator.addVertexWithUV(x2, y1, z1, uX1, vY2);
+        tessellator.addVertexWithUV(x1, y1, z1, uX2, vY2);
 
         tessellator.setNormal(0.0F, 0.0F, 1.0F);
-        tessellator.addVertexWithUV(x1, y1, z2, u0, v0);
-        tessellator.addVertexWithUV(x1, y2, z2, u0, v1);
-        tessellator.addVertexWithUV(x2, y2, z2, u1, v1);
-        tessellator.addVertexWithUV(x2, y1, z2, u1, v0);
+        tessellator.addVertexWithUV(x1, y2, z2, uX1, vY1);
+        tessellator.addVertexWithUV(x1, y1, z2, uX1, vY2);
+        tessellator.addVertexWithUV(x2, y1, z2, uX2, vY2);
+        tessellator.addVertexWithUV(x2, y2, z2, uX2, vY1);
 
         tessellator.setNormal(-1.0F, 0.0F, 0.0F);
-        tessellator.addVertexWithUV(x1, y1, z1, u0, v0);
-        tessellator.addVertexWithUV(x1, y2, z1, u0, v1);
-        tessellator.addVertexWithUV(x1, y2, z2, u1, v1);
-        tessellator.addVertexWithUV(x1, y1, z2, u1, v0);
+        tessellator.addVertexWithUV(x1, y2, z2, uZ2, vY1);
+        tessellator.addVertexWithUV(x1, y2, z1, uZ1, vY1);
+        tessellator.addVertexWithUV(x1, y1, z1, uZ1, vY2);
+        tessellator.addVertexWithUV(x1, y1, z2, uZ2, vY2);
 
         tessellator.setNormal(1.0F, 0.0F, 0.0F);
-        tessellator.addVertexWithUV(x2, y1, z1, u0, v0);
-        tessellator.addVertexWithUV(x2, y1, z2, u0, v1);
-        tessellator.addVertexWithUV(x2, y2, z2, u1, v1);
-        tessellator.addVertexWithUV(x2, y2, z1, u1, v0);
+        tessellator.addVertexWithUV(x2, y1, z2, uZ1, vY2);
+        tessellator.addVertexWithUV(x2, y1, z1, uZ2, vY2);
+        tessellator.addVertexWithUV(x2, y2, z1, uZ2, vY1);
+        tessellator.addVertexWithUV(x2, y2, z2, uZ1, vY1);
 
         tessellator.draw();
         GL11.glPopMatrix();

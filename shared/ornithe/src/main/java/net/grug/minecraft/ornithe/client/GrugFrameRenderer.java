@@ -282,10 +282,6 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
                 GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
         int tileWidth = atlasWidth / 16;
         int tileHeight = atlasHeight / 16;
-        float u0 = (float) (sprite % 16 * tileWidth) / atlasWidth;
-        float u1 = (float) (sprite % 16 * tileWidth + tileWidth) / atlasWidth;
-        float v0 = (float) (sprite / 16 * tileHeight) / atlasHeight;
-        float v1 = (float) (sprite / 16 * tileHeight + tileHeight) / atlasHeight;
 
         float x1 = (float) draw.x1();
         float y1 = (float) draw.y1();
@@ -294,53 +290,73 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
         float y2 = (float) draw.y2();
         float z2 = (float) draw.z2();
 
+        // RenderEntityBlock maps the box's own extent onto the sprite's sub-rectangle rather
+        // than stretching the whole tile across it: a column 0.135 to 0.865 across shows the
+        // sprite's columns 2.16 to 13.84, with 0.01 of a texel off the larger edge the way
+        // RenderBlocks does, so every texel lands where the reference puts it.
+        float u0 = (float) (sprite % 16 * tileWidth) / atlasWidth;
+        float v0 = (float) (sprite / 16 * tileHeight) / atlasHeight;
+        float du = (float) tileWidth / 16.0F / atlasWidth;
+        float dv = (float) tileHeight / 16.0F / atlasHeight;
+        float uX1 = u0 + x1 * 16.0F * du;
+        float uX2 = u0 + (x2 * 16.0F - 0.01F) * du;
+        float uZ1 = u0 + z1 * 16.0F * du;
+        float uZ2 = u0 + (z2 * 16.0F - 0.01F) * du;
+        float vY1 = v0 + y1 * 16.0F * dv;
+        float vY2 = v0 + (y2 * 16.0F - 0.01F) * dv;
+        float vZ1 = v0 + z1 * 16.0F * dv;
+        float vZ2 = v0 + (z2 * 16.0F - 0.01F) * dv;
+
         GL11.glPushMatrix();
         GL11.glTranslatef((float) dx, (float) dy, (float) dz);
         // The column is seen through the tank's own glass faces, so both sides of the box are
         // drawn, as the reference's own box renderer draws every face of its box.
         GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        // RenderTank never turns blending on, so its column is opaque however transparent the
+        // liquid's sprite is.
+        GL11.glDisable(GL11.GL_BLEND);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
 
         Tesselator tesselator = Tesselator.INSTANCE;
         tesselator.begin();
 
+        // The six faces in RenderEntityBlock's own order and with its own corner and UV
+        // mapping, including the faces that are mirrored against the world axes.
         tesselator.normal(0.0F, -1.0F, 0.0F);
-        tesselator.vertex(x1, y1, z1, u0, v0);
-        tesselator.vertex(x1, y1, z2, u0, v1);
-        tesselator.vertex(x2, y1, z2, u1, v1);
-        tesselator.vertex(x2, y1, z1, u1, v0);
+        tesselator.vertex(x1, y1, z2, uX1, vZ2);
+        tesselator.vertex(x1, y1, z1, uX1, vZ1);
+        tesselator.vertex(x2, y1, z1, uX2, vZ1);
+        tesselator.vertex(x2, y1, z2, uX2, vZ2);
 
         tesselator.normal(0.0F, 1.0F, 0.0F);
-        tesselator.vertex(x1, y2, z1, u0, v0);
-        tesselator.vertex(x2, y2, z1, u1, v0);
-        tesselator.vertex(x2, y2, z2, u1, v1);
-        tesselator.vertex(x1, y2, z2, u0, v1);
+        tesselator.vertex(x2, y2, z2, uX2, vZ2);
+        tesselator.vertex(x2, y2, z1, uX2, vZ1);
+        tesselator.vertex(x1, y2, z1, uX1, vZ1);
+        tesselator.vertex(x1, y2, z2, uX1, vZ2);
 
         tesselator.normal(0.0F, 0.0F, -1.0F);
-        tesselator.vertex(x1, y1, z1, u0, v0);
-        tesselator.vertex(x2, y1, z1, u1, v0);
-        tesselator.vertex(x2, y2, z1, u1, v1);
-        tesselator.vertex(x1, y2, z1, u0, v1);
+        tesselator.vertex(x1, y2, z1, uX2, vY1);
+        tesselator.vertex(x2, y2, z1, uX1, vY1);
+        tesselator.vertex(x2, y1, z1, uX1, vY2);
+        tesselator.vertex(x1, y1, z1, uX2, vY2);
 
         tesselator.normal(0.0F, 0.0F, 1.0F);
-        tesselator.vertex(x1, y1, z2, u0, v0);
-        tesselator.vertex(x1, y2, z2, u0, v1);
-        tesselator.vertex(x2, y2, z2, u1, v1);
-        tesselator.vertex(x2, y1, z2, u1, v0);
+        tesselator.vertex(x1, y2, z2, uX1, vY1);
+        tesselator.vertex(x1, y1, z2, uX1, vY2);
+        tesselator.vertex(x2, y1, z2, uX2, vY2);
+        tesselator.vertex(x2, y2, z2, uX2, vY1);
 
         tesselator.normal(-1.0F, 0.0F, 0.0F);
-        tesselator.vertex(x1, y1, z1, u0, v0);
-        tesselator.vertex(x1, y2, z1, u0, v1);
-        tesselator.vertex(x1, y2, z2, u1, v1);
-        tesselator.vertex(x1, y1, z2, u1, v0);
+        tesselator.vertex(x1, y2, z2, uZ2, vY1);
+        tesselator.vertex(x1, y2, z1, uZ1, vY1);
+        tesselator.vertex(x1, y1, z1, uZ1, vY2);
+        tesselator.vertex(x1, y1, z2, uZ2, vY2);
 
         tesselator.normal(1.0F, 0.0F, 0.0F);
-        tesselator.vertex(x2, y1, z1, u0, v0);
-        tesselator.vertex(x2, y1, z2, u0, v1);
-        tesselator.vertex(x2, y2, z2, u1, v1);
-        tesselator.vertex(x2, y2, z1, u1, v0);
+        tesselator.vertex(x2, y1, z2, uZ1, vY2);
+        tesselator.vertex(x2, y1, z1, uZ2, vY2);
+        tesselator.vertex(x2, y2, z1, uZ2, vY1);
+        tesselator.vertex(x2, y2, z2, uZ1, vY1);
 
         tesselator.end();
         GL11.glPopMatrix();

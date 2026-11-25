@@ -1,7 +1,8 @@
-# BuildCraft 2.2.14's BlockTank, which is a glass tank holding one liquid. Its texture draws the
-# frame two pixels inside a full block face, so the block renders over the whole block and the
-# transparent part of the texture is what you see the liquid through. The reference's bounds,
-# a(0.125, 0, 0.125, 0.875, 1, 0.875), are the walls' collision and selection shape.
+# BuildCraft 2.2.14's BlockTank, which is a glass tank holding one liquid. Its model is the
+# reference's bounds, a(0.125, 0, 0.125, 0.875, 1, 0.875): a 12 by 12 wall from the floor to the
+# top of the block, whose texture frame sits on the model's own edge, so the transparent part of
+# the texture is what you see the liquid through. The same bounds are the walls' collision and
+# selection shape.
 
 # The walls are the game's own block render, and only the liquid column is drawn per frame, as
 # RenderTank does in 2.2.14: the walls never move, so they belong in the chunk's mesh, and
