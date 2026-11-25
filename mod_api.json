@@ -2117,7 +2117,7 @@
 			"description": "Mathematical functions that need no instance.",
 			"static_methods": {
 				"abs": {
-					"description": "The absolute value of a number, which is the number without its sign: Math.abs(-2.5) is 2.5 and Math.abs(2.5) is 2.5. Negative zero gives 0, NaN stays NaN, and the two infinities stay themselves. A mod written before this entry arrived returned the negative of a negative value by hand, which is wrong for negative zero and for NaN.",
+					"description": "The absolute value of a number, which is the number without its sign: Math.abs(-2.5) is 2.5 and Math.abs(2.5) is 2.5. Negative zero gives 0, NaN stays NaN, and the two infinities stay themselves. A mod written before this entry arrived returned the negative of a negative value by hand, which gets the sign of negative zero wrong.",
 					"return_type": {
 						"name": "number"
 					},
@@ -2131,7 +2131,7 @@
 					]
 				},
 				"atan2": {
-					"description": "The angle in radians from the positive X axis to the point (x, y), with the first argument y and the second x: Math.atan2(0, 1) is 0, Math.atan2(1, 0) is half a turn, and Math.atan2(0, 0) is 0. Its answer is from -pi to pi and keeps the signs of its arguments, so Math.atan2(-0.0, -1.0) is -pi where Math.atan2(0.0, -1.0) is pi. It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
+					"description": "The angle in radians from the positive X axis to the point (x, y), with the first argument y and the second x: Math.atan2(0, 1) is 0, Math.atan2(1, 0) is half pi, a quarter turn, and Math.atan2(0, 0) is 0. Its answer is from -pi to pi and keeps the signs of its arguments, so Math.atan2(-0.0, -1.0) is -pi where Math.atan2(0.0, -1.0) is pi. It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
 					"return_type": {
 						"name": "number"
 					},
