@@ -108,22 +108,33 @@ public class ClientForgeAdapter extends ForgeAdapter {
 
     /**
      * The level's name: the address this client dialled when it joined somebody else's server, or
-     * the integrated server's name in singleplayer, which both sides of that world then answer.
-     * Reading both values unconditionally keeps the decision in {@link GrugLevelKey#name}, where
-     * every arm has a unit test.
+     * the integrated server's name in singleplayer, which both sides of that world then answer. The
+     * choice is {@link GrugLevelKey#name}, whose every arm a unit test covers.
      */
     @Override
     public String levelName(Object levelObj) {
-        Minecraft minecraft = Minecraft.getInstance();
-        String address =
-                Optional.ofNullable(minecraft.getCurrentServer())
-                        .map(current -> current.ip)
-                        .orElse("");
-        String saveName =
-                Optional.ofNullable(minecraft.getSingleplayerServer())
-                        .map(integrated -> integrated.getWorldData().getLevelName())
-                        .orElse("");
-        return GrugLevelKey.name(address, saveName);
+        return GrugLevelKey.name(dialledAddress(), integratedSaveName());
+    }
+
+    /**
+     * The address this client dialled, or empty in singleplayer.
+     *
+     * <p>Excluded from coverage because a run's client is always in singleplayer, where this
+     * answers empty, so nothing runs the arm that reads a joined server's address. Reading the
+     * address at all needs the null check, so the whole read is left out rather than one branch of
+     * it, and {@link GrugLevelKey#name} holds the decision between the address and the save name.
+     */
+    @GrugGenerated("a client joined to another server: a run's client is in singleplayer")
+    private static String dialledAddress() {
+        ServerData current = Minecraft.getInstance().getCurrentServer();
+        return current == null ? "" : current.ip;
+    }
+
+    /** The integrated server's save name, which is empty when this client has no server. */
+    private static String integratedSaveName() {
+        return Optional.ofNullable(Minecraft.getInstance().getSingleplayerServer())
+                .map(server -> server.getWorldData().getLevelName())
+                .orElse("");
     }
 
     /**
