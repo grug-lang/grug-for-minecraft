@@ -7,9 +7,40 @@
 # item from a neighbouring chest when a slot has only one, which the chest here cannot give. With one
 # wheat per slot the pipe could take nothing, and a pipe that took the last wheat too would move a
 # second bread (#602).
+# #1205: the a1.1.2_01 dedicated leg once failed the dropped-item check right after the server
+# logged `Can't keep up`, and a rerun passed. A check that only runs at the end cannot say when the
+# pipe dropped one, so every runner tick counts the item entities at the fixture and fails when
+# another appears beside the fixture's own stray diamond, naming that tick, the round and what each
+# container held at it. Nothing is printed on a passing tick. That leg also repeats the delivery a
+# hundred times, so a red that needs an overloaded tick has a hundred chances per run instead of
+# one; every other leg checks once at the timing its captures were taken with (#262).
 pipe_table_table: Option[BlockEntity] = Option.new()
 pipe_table_chest: Option[BlockEntity] = Option.new()
 pipe_table_pipe: Option[BlockEntity] = Option.new()
+
+# The level and the bread as host entities, fetched once: the sample asks for both on every tick of
+# every round, and each fetch would otherwise make a host entity that lives until the test ends.
+test_level: Option[Level] = Option.new()
+bread_item: Option[Item] = Option.new()
+
+# The fixture's block positions, so the sample can count the bread and a reset can look the three
+# block entities up again by position rather than by the handles _setup took.
+base_x: number = 0
+base_y: number = 0
+base_z: number = 0
+
+# The pass being repeated, 0 for the first, and the tick it began at. A failure names both, so the
+# log says whether the red came from the fresh fixture or from a later pass.
+round: number = 0
+round_started: number = 0
+
+# How many times the a1 dedicated leg repeats the delivery. A pass is a handful of ticks, so the
+# hundred cost a few hundred of the budget of 2000, against one chance at the red before.
+rounds: number = 100
+
+# How many item entities the fixture itself leaves at the pipe: the stray diamond spawned in
+# _setup_pipe. A sample that finds another has seen a drop, whatever kind the dropped item is.
+stray_entities: number = 1
 
 # The tick the pipe was placed on, or -1 before that. The wait after it is for what the pipe does
 # with the result rather than for a tick count, and it also keeps the old floor of 25 ticks, which is
@@ -21,29 +52,200 @@ pipe_placed_at: number = -1
 # an item entity to be swept, because the bread travels as a recorded item and never as one (#1692).
 pipe_bread_at: number = -1
 
+# #1205: the a1 dedicated leg repeats the delivery, so the budget covers the hundred passes there.
+# Every other leg runs one pass at the timing it had before, which is where its captures were taken.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup_table(ctx)
         ctx.not_done()
-    } else if pipe_placed_at < 0 {
+        return
+    }
+    if pipe_placed_at < 0 {
         _check_rule(ctx)
         _setup_pipe(ctx)
         pipe_placed_at = ctx.current_tick()
+        round_started = pipe_placed_at
         ctx.not_done()
-    } else if not _bread_has_moved() {
+        return
+    }
+    _sample(ctx)
+    _check_round(ctx)
+    if not _bread_has_moved() {
         ctx.not_done()
-    } else if pipe_bread_at < 0 {
+        return
+    }
+    if pipe_bread_at < 0 {
         # The chest first holds the bread on this tick, so record the arrival and check two ticks
         # later, which is where the captures were taken (#262).
         pipe_bread_at = ctx.current_tick()
         ctx.not_done()
-    } else if ctx.current_tick() < pipe_placed_at + 25 or ctx.current_tick() < pipe_bread_at + 2 {
-        # Same floor as wooden_pipe-Test.grug, for the same reason (#262). The two ticks after the
-        # arrival are kept for the captures: a dropped bread persists, so the check still fails on it.
-        ctx.not_done()
-    } else {
-        _check(ctx)
+        return
     }
+    if _floor_waits(ctx) {
+        ctx.not_done()
+        return
+    }
+    if _repeats() and round + 1 < rounds {
+        _reset(ctx)
+        ctx.not_done()
+        return
+    }
+    _check(ctx)
+}
+
+# #1205: whether this leg repeats the delivery. The red has come from the a1 dedicated server, the
+# one leg where an item's pickup is live, so the repeat is spent there and not on five other legs
+# whose captures a longer test would only disturb.
+local _repeats() bool {
+    return me.on_dedicated_server() and me.loader_name() == "a1.1.2_01-ornithe"
+}
+
+# #262: the first pass keeps the old floor of 25 ticks and the two ticks after the arrival, which is
+# where the suite's timing, and so the coverage_render references, were captured. The repeats run on
+# the a1 dedicated leg, which captures nothing, so they keep only the two ticks after the arrival: a
+# dropped bread persists, so the check still fails on it.
+local _floor_waits(ctx: TestTickContext) bool {
+    if ctx.current_tick() < pipe_bread_at + 2 {
+        return true
+    }
+    return round == 0 and ctx.current_tick() < pipe_placed_at + 25
+}
+
+# #1205: a pass that never delivers is not the red this test reports, so it names itself instead of
+# ending at the budget with no explanation. A normal pass delivers within a few ticks; 400 bounds a
+# stalled one without waiting the whole 2000, and no leg that runs one pass reaches it.
+local _check_round(ctx: TestTickContext) {
+    if not _repeats() {
+        return
+    }
+    ticks: number = ctx.current_tick() - round_started
+    if ticks >= 400 {
+        print2("A pass did not deliver the bread within 400 ticks: round", round)
+        print2("runner tick", ctx.current_tick())
+        print2("ticks into the pass", ticks)
+        ctx.assert(false, "A pass did not deliver the bread within 400 ticks.")
+    }
+}
+
+# #1205: the tick a stack leaves the pipe is what a red has to name, so this runs on every runner
+# tick rather than at the check alone. Nothing in this fixture but the stray diamond puts an item on
+# the floor, so one other entity, of the bread or of anything else, fails the tick it appears, with
+# every container printed. A passing tick prints nothing.
+local _sample(ctx: TestTickContext) {
+    level: Level = test_level.unwrap()
+    all: number = level.count_item_entities(base_x, base_y, base_z, 5)
+    bread: number = level.count_item_entities_of(base_x, base_y, base_z, 5, bread_item.unwrap())
+    if bread > 0 {
+        _report(ctx, all, bread)
+        ctx.assert(false, "The pipe should not have dropped the bread.")
+    }
+    if all > stray_entities {
+        _report(ctx, all, bread)
+        ctx.assert(false, "The pipe should not have dropped an item.")
+    }
+}
+
+# #1205: a dropped item names the tick and where every item stood in it, because the failing run's
+# log is the only evidence there is from the leg that fails. The pipe's travelling records are
+# printed too, since a recorded bread is the state it is in before a push, and the table's grid, so
+# a pipe that took a second result rather than the chest refusing the first is visible.
+local _report(ctx: TestTickContext, all: number, bread: number) {
+    chest: BlockEntity = pipe_table_chest.unwrap()
+    pipe: BlockEntity = pipe_table_pipe.unwrap()
+    table: BlockEntity = pipe_table_table.unwrap()
+    print2("Item entities at the fixture: count", all)
+    print2("of which bread", bread)
+    print2("the fixture's own stray entities", stray_entities)
+    print2("round", round)
+    print2("runner tick", ctx.current_tick())
+    print2("ticks since the round began", ctx.current_tick() - round_started)
+    print2("ticks since the pipe was placed", ctx.current_tick() - pipe_placed_at)
+    since_bread: number = -1
+    if pipe_bread_at >= 0 {
+        since_bread = ctx.current_tick() - pipe_bread_at
+    }
+    print2("ticks since the chest first held the bread", since_bread)
+    print2("chest slot 0 count", chest.get_item_count_in_slot(0))
+    print2("chest slot 0 is bread", _slot_is_bread(chest, 0))
+    print2("pipe slot 0 count", pipe.get_item_count_in_slot(0))
+    print2("pipe slot 0 is bread", _slot_is_bread(pipe, 0))
+    print2("pipe travelling records", pipe.get_saved_list_size("traveling"))
+    print2("table wheat in grid slot 0", table.get_item_count_in_slot(0))
+    print2("table wheat in grid slot 1", table.get_item_count_in_slot(1))
+    print2("table wheat in grid slot 2", table.get_item_count_in_slot(2))
+    result: number = 0
+    if table.get_crafting_result_item().has() {
+        result = 1
+    }
+    print2("table has a crafting result", result)
+}
+
+local _slot_is_bread(block: BlockEntity, slot: number) number {
+    held: Option[Item] = block.get_item_in_slot(slot)
+    if held.has() and equals(held.unwrap(), bread_item.unwrap()) {
+        return 1
+    }
+    return 0
+}
+
+# #1205: starts the next pass from the state the first one began in. The chest and the pipe are
+# emptied and the table's grid is refilled and crafted again, so the next delivery starts clean. The
+# three handles are looked up again first, since a chunk loaded again inside a pass would make new
+# objects, and clearing the pipe's records is what breaking it would do without dropping anything.
+local _reset(ctx: TestTickContext) {
+    _refetch()
+    _clear_chest(pipe_table_chest.unwrap())
+    _clear_pipe(pipe_table_pipe.unwrap())
+    _fill_grid(pipe_table_table.unwrap())
+    pipe_bread_at = -1
+    round = round + 1
+    round_started = ctx.current_tick()
+}
+
+local _refetch() {
+    level: Level = test_level.unwrap()
+    table_opt: Option[BlockEntity] = level.get_block_entity(base_x - 1, base_y, base_z)
+    if table_opt.has() {
+        pipe_table_table.set(table_opt.unwrap())
+    }
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(base_x, base_y, base_z)
+    if pipe_opt.has() {
+        pipe_table_pipe.set(pipe_opt.unwrap())
+    }
+    chest_opt: Option[BlockEntity] = level.get_block_entity(base_x + 1, base_y, base_z)
+    if chest_opt.has() {
+        pipe_table_chest.set(chest_opt.unwrap())
+    }
+}
+
+local _clear_chest(chest: BlockEntity) {
+    slot: number = 0
+    size: number = chest.get_inventory_size()
+    while slot < size {
+        chest.set_item_count_in_slot(slot, 0)
+        slot = slot + 1
+    }
+}
+
+local _clear_pipe(pipe: BlockEntity) {
+    while pipe.get_saved_list_size("traveling") > 0 {
+        pipe.remove_saved_list_record("traveling", 0)
+    }
+    pipe.set_item_count_in_slot(0, 0)
+}
+
+local _fill_grid(table: BlockEntity) {
+    wheat: Item = item(resource_location("minecraft:wheat"))
+    slot: number = 0
+    while slot < 3 {
+        table.set_item_in_slot(slot, wheat, 2)
+        slot = slot + 1
+    }
+    table.update_recipe_output(0)
 }
 
 # Three wheat in the top row craft one bread, and two of each leave one wheat in each slot behind.
@@ -51,11 +253,16 @@ export tick(ctx: TestTickContext) {
 # and compared, unlike a grid of diamonds, whose 3x3 recipe is the diamond block.
 local _setup_table(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
+    test_level.set(level)
+    bread_item.set(item(resource_location("minecraft:bread")))
     origin: Vec3 = ctx.get_origin()
     x: number = origin.x() + 12
     # Band 5, below the bands the pipe tests use, and the x offset keeps this clear of the origin.
     y: number = origin.y() + 5
     z: number = origin.z()
+    base_x = x
+    base_y = y
+    base_z = z
 
     level.place_block(x - 1, y, z, "grug:autocrafting_table")
     table_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
@@ -98,11 +305,10 @@ local _check_rule(ctx: TestTickContext) {
 # before the chest and the pipe pulls from the table rather than the other way round. The engine is
 # below the pipe, where a torch powers it.
 local _setup_pipe(ctx: TestTickContext) {
-    level: Level = ctx.get_client_level()
-    origin: Vec3 = ctx.get_origin()
-    x: number = origin.x() + 12
-    y: number = origin.y() + 5
-    z: number = origin.z()
+    level: Level = test_level.unwrap()
+    x: number = base_x
+    y: number = base_y
+    z: number = base_z
 
     level.place_block(x, y, z, "grug:wooden_pipe")
     level.place_block(x + 1, y, z, "minecraft:chest")
@@ -134,11 +340,10 @@ local _setup_pipe(ctx: TestTickContext) {
 }
 
 local _check(ctx: TestTickContext) {
-    level: Level = ctx.get_client_level()
-    origin: Vec3 = ctx.get_origin()
-    x: number = origin.x() + 12
-    y: number = origin.y() + 5
-    z: number = origin.z()
+    level: Level = test_level.unwrap()
+    x: number = base_x
+    y: number = base_y
+    z: number = base_z
 
     chest: BlockEntity = pipe_table_chest.unwrap()
     table: BlockEntity = pipe_table_table.unwrap()
@@ -169,10 +374,17 @@ local _check(ctx: TestTickContext) {
 
     # Nothing was dropped on the way: the chest took it, and an item entity of the bread here would
     # mean the pipe gave up on the push. The count asks for the bread alone, so the stray diamond on
-    # the chest, or any other item entity in reach, is not read as this pipe's drop (#1692).
-    ctx.assert(level.count_item_entities(x, y, z, 5) >= 1, "The stray item entity should still be in reach.")
-    dropped: Item = item(resource_location("minecraft:bread"))
-    ctx.assert(level.count_item_entities_of(x, y, z, 5, dropped) == 0, "The pipe should not have dropped the bread.")
+    # the chest, or any other item entity in reach, is not read as this pipe's drop (#1692). The
+    # per-tick sample above catches this first on every leg that runs it; this check keeps the
+    # assertion for a drop that appears before the sample's first tick (#1205).
+    all: number = level.count_item_entities(x, y, z, 5)
+    ctx.assert(all >= 1, "The stray item entity should still be in reach.")
+    dropped: number = level.count_item_entities_of(x, y, z, 5, bread_item.unwrap())
+    if all != stray_entities or dropped > 0 {
+        _report(ctx, all, dropped)
+    }
+    ctx.assert(dropped == 0, "The pipe should not have dropped the bread.")
+    ctx.assert(all == stray_entities, "The pipe should not have dropped an item.")
 }
 
 # The pipe moving the crafted bread into the chest is what this test observes, and the game's own tick
