@@ -16,7 +16,8 @@ retry_at: number = 0
 before: Option[Screenshot] = Option.new()
 
 # The window is 1280 by 720 at a GUI scale of 3, which the crop below assumes; both a 426 and a
-# 427 scaled width are that scale, as the item list's own capture test explains.
+# 427 scaled width are that scale, as the item list's own capture test explains, and the crop is
+# fixed at 225 scaled pixels wide from the right edge so both give the same image size.
 frame_scale: number = 3
 
 export init(ctx: TestInitContext) {
@@ -127,9 +128,12 @@ export tick(ctx: TestTickContext) {
         return
     }
     # The crop keeps the cell from the grid's first row to the right edge of the window, which is
-    # where the message is drawn on the older versions, and back to 200 scaled pixels, where
-    # 1.20.6's own positioner flips it when it would run off the window. Both are in the crop, as
-    # is the hovered cell, so a highlight left there fails the comparison.
+    # where the message is drawn on the older versions, and back 225 scaled pixels, where 1.20.6's
+    # own positioner flips it when it would run off the window. Both are in the crop, as is the
+    # hovered cell, so a highlight left there fails the comparison. It ends at the right edge and
+    # is that wide rather than starting at a fixed column, because Alpha's window is one scaled
+    # pixel narrower: every reference in one directory has to have the same size, and both widths
+    # give the same column count, so the cells sit at the same place from the right edge.
     ctx.screenshot().equals(r"screenshots/jei_delete_hover", _left(ctx), _top(), _right(ctx), _bottom())
     ctx.clear_carried_item()
     ctx.close_screen()
@@ -172,11 +176,12 @@ local _rows(ctx: TestTickContext) number {
     return rows
 }
 
-# The capture's rectangle in window pixels: from 200 scaled pixels across to the window's right
-# edge, and from above the grid's first row to below it, so the message and the hovered cell are in
-# it.
+# The capture's rectangle in window pixels: 225 scaled pixels across to the window's right edge,
+# and from above the grid's first row to below it, so the message and the hovered cell are in it.
+# The width is fixed so every loader's reference image has the same size, whatever its window's
+# scaled width is.
 local _left(ctx: TestTickContext) number {
-    return 200 * frame_scale
+    return _right(ctx) - 225 * frame_scale
 }
 
 local _top() number {
