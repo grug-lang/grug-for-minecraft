@@ -1,0 +1,110 @@
+{
+	"name": "MAtmos",
+	"version": "1.0.0",
+	"game_version": "1.2.5",
+	"loaders": [
+		"1.2.5-forge"
+	],
+	"authors": [
+		"MyNameIsTrez"
+	],
+	"repository": {
+		"url": "https://github.com/grug-lang/grug-for-minecraft"
+	},
+	"licenses": [
+		{
+			"name": "Do What The Fuck You Want To Public License 2.0",
+			"url": "https://spdx.org/licenses/WTFPL.html",
+			"note": "Required because this port recreates MAtmos r12, which Hurricaaane released under the WTFPLv2; the mod archive carries no licence file of its own and the same author's repository carries the text."
+		}
+	],
+	"derived_from": [
+		{
+			"name": "MAtmos",
+			"repository": {
+				"url": "https://github.com/Hurricaaane/MAtmos"
+			},
+			"revision": "r12",
+			"licenses": [
+				{
+					"name": "Do What The Fuck You Want To Public License 2.0",
+					"url": "https://spdx.org/licenses/WTFPL.html",
+					"note": "MAtmos r12 is WTFPLv2 (issue #1212); the mod archive ships no licence file, so this links the text in the same author's repository's lineage."
+				}
+			],
+			"credits": [
+				"Hurricaaane"
+			],
+			"sources": [
+				"https://github.com/Hurricaaane/MAtmos"
+			],
+			"artifacts": [
+				{
+					"name": "matmos-v12.zip",
+					"url": "https://mirror-mods.technicpack.net/mods/matmos/matmos-v12.zip",
+					"sha256": "c60e3aea453fc93dc4f98712d856736eaf1d7ff83f871140d3a4f8697919e4a8",
+					"size": 5927035
+				}
+			],
+			"runtime": {
+				"minecraft": "1.2.5",
+				"loader": "1.2.5-forge",
+				"loader_version": "2.2.106.176",
+				"java": "8"
+			},
+			"install": {
+				"type": "mods_folder",
+				"files": [
+					"matmos-v12.zip"
+				]
+			},
+			"deviations": [
+				{
+					"what": "The sampled sheets carry constants where the reference read a value the host has no entry for: biome id -1, both seed halves 0, the six dice 0, the held item's id -1 and damage -1, the selected slot 0, experience 0, armor 0, saturation 0, fire 0, the swing and jump state 0, web and ladder 0, the mouseover 0, burning and blocking 0, right-click hold 0 with sheet 61 held at 72000, and sprinting, sneaking, airborne, using-item, riding, boat and creative 0. The three shipped packs condition on none of these, so no machine of theirs changes.",
+					"why": "The host exposes the player, the level, the weather and the block histogram but not the rest of the reference's Instants, and a set of twenty more entries would be API added for values no committed pack reads.",
+					"tracking_issue": 1756
+				},
+				{
+					"what": "A block from another mod is sampled as air, and the scan's per-mil shares divide by the box's volume including those blocks, where the reference counted them under their own numeric id.",
+					"why": "The sheets are 1.2.5 numeric block ids and the port resolves them through a table of the vanilla blocks, so an id no vanilla block has cannot be counted; the alternative is an id-getting host entry beside the name-based histogram.",
+					"tracking_issue": 1756
+				},
+				{
+					"what": "All engine timing, including a timed event's delay, a stream's fade delay and its latches, runs on the game tick instead of System.currentTimeMillis, so a paused game pauses them and a tick is 50 ms however long the frame took. The fades handed to the loader are still the reference's truncated seconds in milliseconds.",
+					"why": "The host has no wall clock and its sound entries take a fade in milliseconds; keeping the engine on the game clock is what makes a test's decision reproducible.",
+					"tracking_issue": 1756
+				},
+				{
+					"what": "The engine takes one sampler and evaluation pass per frame at most, and only when the game tick has advanced since the last pass, so a frame slower than a tick skips ticks; the stream and timed-event routine runs in that same pass rather than once per frame.",
+					"why": "An overlay is asked to draw once per frame and the host has no client tick export, and the reference's own doFrame also runs onTick at most once per frame.",
+					"tracking_issue": 1756
+				},
+				{
+					"what": "The A key toggles the engine on a press, where the reference toggles on a short release and opens the volume slider on a hold from the seventh tick: Control+A opens the slider, the next world key press closes it, there is no music-volume mode, and the status lines are HUD text rather than chat.",
+					"why": "The host reports a world key press and its control flag but neither a release nor a hold's duration, and a client-only mod has no chat entry.",
+					"tracking_issue": 1756
+				},
+				{
+					"what": "Packs come from a player's matmos/packs.txt manifest and the .xrl.xmlo files it names, or a plain .xml beside them; the URL in an .xrl is never fetched, the folder is not listed for packs, and there is no update notice.",
+					"why": "The reference's fetch path answers 404 at both of its hosts and its update endpoint is gone, so the port reproduces the offline path that actually runs and adds no network code.",
+					"tracking_issue": 1756
+				},
+				{
+					"what": "There is no data_dump.xml written when the engine stops, and a recording that is missing plays silence with no warning line.",
+					"why": "The dump is a debugging aid for the reference's editor and the host has no log an author reads; the missing recording is the state every install without the 2012 pack is in, so it is not a defect to report.",
+					"tracking_issue": 1756
+				},
+				{
+					"what": "The per-event random draws (volume, pitch, which path, a positional one-shot's angle and height) come from a generator the port keeps in its own store and seeds from the game time, not from java.util.Random seeded from the wall clock, and a sound asked for at volume 0 is silent where the reference played it on the music group.",
+					"why": "Drawing from Level.random_float would change the game's own sequence, and the host has one volume per source and no music group.",
+					"tracking_issue": 1756
+				},
+				{
+					"what": "A pack object whose numeric field is present but not a number is dropped, and an absent field keeps the object's default, where the reference throws NumberFormatException on an absent or empty field and loads no object of that pack at all.",
+					"why": "A serialized .xmlo always carries every field, so the difference only shows on a hand-written pack, where keeping the defaults and dropping the one bad object is the more forgiving reading.",
+					"tracking_issue": 1756
+				}
+			]
+		}
+	]
+}
