@@ -192,12 +192,10 @@ CI. Light jobs stay local: Gradle builds,
   touching a mod's `screenshots/` or `assets/` runs every loader, because a golden is a capture per
   loader and an asset is rendered by every loader (#1088). An added or removed texture under a mod's
   `textures/` directory can rebuild a stitched atlas and move a texel of a capture (#1575), so it
-  runs every mod's tests. `.github/scripts/main-selection.py` narrows a pull request further when
-  its diff changes no class: a diff of only `.github/scripts/`, `.github/workflows/`,
-  `.github/actions/`, `.github/smoketest/` or `.pre-commit-config.yaml` runs `discover`,
-  `pre-commit`, `core tests` and one loader job, the newest mechanism, and a diff of only prose or
-  an editor's configuration runs no test job; neither runs the coverage gate, a dedicated leg, a
-  layer job or `reference` (#1815). `.github/scripts/reference-needed.py` and
+  runs every mod's tests. A diff no class can change runs no coverage gate, dedicated leg, layer job
+  or `reference`: `.github/scripts/main-selection.py` narrows the CI's own machinery to `discover`,
+  `pre-commit`, `core tests` and one loader job, and prose or an editor's configuration to
+  `discover` and `pre-commit` alone (#1815). `.github/scripts/reference-needed.py` and
   `.github/scripts/no-tests.py` skip the `reference` and the test jobs a diff cannot reach, each
   saying why in its log, and a golden also runs `reference`, which stages `screenshots/`, so a
   buildcraft golden pull request runs 11. A pull request also runs the dedicated-server leg of each
