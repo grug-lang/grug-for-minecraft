@@ -21,8 +21,8 @@ import java.util.zip.Inflater;
  * <p>A region that holds more noise than repetition compresses to more bytes than it holds. The
  * adapter used to fill a buffer the size of the raw region with one {@code deflate} call and
  * announce the returned length as the compressed size, so the client inflated a stream that stopped
- * before its end. These tests build the packet through the production path and check both the size
- * it announces and the bytes a client inflates.
+ * before its end. These tests build the packet through the production assembler and check both the
+ * size it announces and the bytes a client inflates.
  */
 class GrugDeflateTest {
 
@@ -37,7 +37,7 @@ class GrugDeflateTest {
             throws DataFormatException, ReflectiveOperationException {
         GrugChunkData.Source cells = noiseCells(1522L);
 
-        WorldChunkPacket packet = ServerOrnitheAdapter.buildWorldChunkPacket(TINY_REGION, cells);
+        WorldChunkPacket packet = GrugRegionPacket.build(TINY_REGION, cells);
         byte[] raw = GrugChunkData.pack(0, 0, 0, 1, 2, 1, cells);
 
         assertTrue(
@@ -55,8 +55,7 @@ class GrugDeflateTest {
             throws DataFormatException, ReflectiveOperationException {
         GrugChunkData.Source cells = noiseCells(1522L);
 
-        WorldChunkPacket packet =
-                ServerOrnitheAdapter.buildWorldChunkPacket(REGION_LARGER_THAN_ONE_WRITE, cells);
+        WorldChunkPacket packet = GrugRegionPacket.build(REGION_LARGER_THAN_ONE_WRITE, cells);
         byte[] raw = GrugChunkData.pack(0, 0, 0, 8, 32, 8, cells);
 
         assertTrue(raw.length > 4096, "the payload has to need more than one write of the loop");
