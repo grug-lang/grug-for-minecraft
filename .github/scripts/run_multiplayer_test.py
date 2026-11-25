@@ -52,6 +52,10 @@ def stage_scripts(scripts: Path, *names: str) -> None:
         shutil.copy(SCRIPTS / name, scripts / name)
 
 
+# The line a dedicated server prints after its first runner tick, which run-multiplayer.sh requires
+# on every leg (#1161). Every fixture of a passing leg prints it, so a new one cannot forget it.
+SERVER_ORIGIN_LINE = "[GRUG CI] Test origin is Vec3[x=0.5, y=70.62, z=52.5]."
+
 # The eleven overlay and JEI tests every leg but a1.1.2_01 requires twice: its PASS line and the line
 # only a test whose overlay was drawn on the joined client writes. a1.1.2_01 does not require
 # overlay and jei/jei, because its server does not apply the container click the joined client
@@ -631,12 +635,12 @@ class TwoClientLegFixture(unittest.TestCase):
     # was drawn on the joined client writes.
     OVERLAY_PASSES = OVERLAY_DRAWN_TESTS
 
-def passing_server_lines(
+    def passing_server_lines(
         self, ignored_start=True, moved_stranger=True, kept_players=True, slain=False, omit=()
     ):
         lines = [
             "[GRUG CONTROL] Dev started the run",
-            "[GRUG CI] Test origin is Vec3[x=0.5, y=70.62, z=52.5].",
+            SERVER_ORIGIN_LINE,
         ]
         if ignored_start:
             lines.append("[GRUG CONTROL] SecondPlayer sent a start, which was ignored")
@@ -1104,7 +1108,7 @@ class ServerUnlistedTest(unittest.TestCase):
     def server_lines(self, omit=(), origin=True, extra=()):
         lines = []
         if origin:
-            lines.append("[GRUG CI] Test origin is Vec3[x=0.5, y=70.62, z=52.5].")
+            lines.append(SERVER_ORIGIN_LINE)
         names = [path for path in (*self.REQUIRED_PASSES, *extra) if path not in omit]
         lines += [f"[GRUG CI] PASS {path}-Test.grug" for path in names]
         lines += [
@@ -1355,7 +1359,7 @@ Execution failed for task ':compileJava'.
 
     def server_lines(self):
         lines = [
-            "[GRUG CI] Test origin is Vec3[x=0.5, y=70.62, z=52.5].",
+            SERVER_ORIGIN_LINE,
         ]
         lines += [f"[GRUG CI] PASS {path}-Test.grug" for path in self.REQUIRED_PASSES]
         lines += [
@@ -1780,7 +1784,8 @@ Execution failed for task ':downloadAssets'.
         return int((self.failures / "count").read_text().strip())
 
     def server_lines(self):
-        lines = [f"[GRUG CI] PASS {path}-Test.grug" for path in self.REQUIRED_PASSES]
+        lines = [SERVER_ORIGIN_LINE]
+        lines += [f"[GRUG CI] PASS {path}-Test.grug" for path in self.REQUIRED_PASSES]
         lines += [
             f"[GRUG MULTIPLAYER] {path}-Test.grug drew the overlay" for path in OVERLAY_DRAWN_TESTS
         ]
