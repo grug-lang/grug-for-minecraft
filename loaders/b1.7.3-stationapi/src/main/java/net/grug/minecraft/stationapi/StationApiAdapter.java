@@ -1104,9 +1104,17 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return address == null || address.isEmpty() ? saveName((World) levelObj) : address;
     }
 
-    /** The save's own name, which the dedicated server reads without a client's address. */
+    /**
+     * The save's own name, which the dedicated server reads without a client's address.
+     *
+     * <p>The name comes from the properties' NBT because the dedicated server's {@code
+     * WorldProperties} has no name getter: only the client jar's class has one, so calling it would
+     * abort at run time on the server, as 1.2.5's did. The NBT entry is the one both jars write,
+     * and a properties object with no name yet answers {@code world} rather than an empty string.
+     */
     static String saveName(World world) {
-        return world.getProperties().getName();
+        String name = world.getProperties().asNbt().getString("LevelName");
+        return name.isEmpty() ? "world" : name;
     }
 
     /** The dimension as a path segment, from the dimension's own id (#1757). */
