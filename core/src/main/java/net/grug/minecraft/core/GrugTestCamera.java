@@ -20,6 +20,16 @@ import java.util.function.Supplier;
  * the sample calls moved, so the loader counts it as busy and the frame a capture reads is one
  * drawn after the view was level again.
  *
+ * <p>The first-person hand is drawn from its own eased copy of those angles on the generations that
+ * have one: the game halves the hand's arm angles toward the camera's on every tick, and the hand
+ * renderer draws the arm at the lag they have left. Nothing levels that copy, so the lag at a
+ * capture is a function of the ticks since the snap, which varies with the run's frame rate, and
+ * the hand's pose varies with it: on 1.2.5 a shift of a few thousandths of a pixel moved the
+ * flat-lit hand's silhouette across one pixel between runs (#1785). The arm angles are therefore
+ * part of the view the runner owns, and the level write zeroes them beside the camera's own. A
+ * generation whose hand renderer draws the hand at the camera angles themselves has no such copy to
+ * level, and its loader answers zero.
+ *
  * <p>The decision is a pure function of the values the loader reads, so its unit test covers every
  * combination. The loaders carry no branch whose arm a run only meets when a warp happens to land
  * inside the coverage tests, and the level write is made on every frame of a run rather than only
@@ -29,11 +39,12 @@ public final class GrugTestCamera {
     private GrugTestCamera() {}
 
     /**
-     * A loader's view of its local player: the four angles a frame's camera comes from, and the
-     * write that levels them.
+     * A loader's view of its local player: the angles a frame's camera comes from, the angles a
+     * first-person hand lags behind them by, and the write that levels them.
      *
-     * <p>The four are this generation's own fields or accessors, so a loader passes the player it
-     * already chose and reads and writes it here without carrying a branch of its own.
+     * <p>The eight are this generation's own fields or accessors, so a loader passes the player it
+     * already chose and reads and writes it here without carrying a branch of its own. A generation
+     * whose hand renderer draws the hand at the camera angles themselves answers zero for the arm.
      */
     public interface View {
         /** The player's yaw. */
@@ -48,6 +59,22 @@ public final class GrugTestCamera {
         /** The pitch a frame interpolates the camera from. */
         float previousPitch(Object player);
 
+        /**
+         * The yaw the first-person hand is drawn with, which the game eases toward the camera's.
+         */
+        float armYaw(Object player);
+
+        /**
+         * The pitch the first-person hand is drawn with, which the game eases toward the camera's.
+         */
+        float armPitch(Object player);
+
+        /** The yaw the last frame interpolated the hand from. */
+        float previousArmYaw(Object player);
+
+        /** The pitch the last frame interpolated the hand from. */
+        float previousArmPitch(Object player);
+
         /** Sets the view to the level one, so the next frame is drawn from it. */
         void level(Object player);
     }
@@ -55,6 +82,9 @@ public final class GrugTestCamera {
     /**
      * Whether the player's view is not the level one the runner snapped, given what the loader read
      * at the end of a frame. Pure, so its unit test covers every combination.
+     *
+     * <p>The hand's arm angles count as part of the view: a frame whose arm still lags the level
+     * angle draws a hand the level view does not, however level the camera itself is.
      *
      * @param viewOwned whether the runner holds the player's view, from a test's snap to its
      *     restore
@@ -66,10 +96,21 @@ public final class GrugTestCamera {
             float yaw,
             float pitch,
             float previousYaw,
-            float previousPitch) {
+            float previousPitch,
+            float armYaw,
+            float armPitch,
+            float previousArmYaw,
+            float previousArmPitch) {
         return viewOwned
                 && playerPresent
-                && (yaw != 0.0F || pitch != 0.0F || previousYaw != 0.0F || previousPitch != 0.0F);
+                && (yaw != 0.0F
+                        || pitch != 0.0F
+                        || previousYaw != 0.0F
+                        || previousPitch != 0.0F
+                        || armYaw != 0.0F
+                        || armPitch != 0.0F
+                        || previousArmYaw != 0.0F
+                        || previousArmPitch != 0.0F);
     }
 
     /**
@@ -90,7 +131,11 @@ public final class GrugTestCamera {
                         view.yaw(player),
                         view.pitch(player),
                         view.previousYaw(player),
-                        view.previousPitch(player));
+                        view.previousPitch(player),
+                        view.armYaw(player),
+                        view.armPitch(player),
+                        view.previousArmYaw(player),
+                        view.previousArmPitch(player));
         if (viewOwned) {
             view.level(player);
         }

@@ -26,6 +26,7 @@ import net.minecraft.src.Achievement;
 import net.minecraft.src.AchievementList;
 import net.minecraft.src.Block;
 import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.GuiAchievement;
 import net.minecraft.src.GuiContainer;
 import net.minecraft.src.GuiInventory;
@@ -390,12 +391,39 @@ public class Grug125ClientAdapter extends Grug125Adapter {
                 }
 
                 @Override
+                public float armYaw(Object player) {
+                    return ((EntityPlayerSP) player).renderArmYaw;
+                }
+
+                @Override
+                public float armPitch(Object player) {
+                    return ((EntityPlayerSP) player).renderArmPitch;
+                }
+
+                @Override
+                public float previousArmYaw(Object player) {
+                    return ((EntityPlayerSP) player).prevRenderArmYaw;
+                }
+
+                @Override
+                public float previousArmPitch(Object player) {
+                    return ((EntityPlayerSP) player).prevRenderArmPitch;
+                }
+
+                @Override
                 public void level(Object player) {
-                    EntityPlayer target = (EntityPlayer) player;
+                    EntityPlayerSP target = (EntityPlayerSP) player;
                     target.rotationYaw = 0.0F;
                     target.rotationPitch = 0.0F;
                     target.prevRotationYaw = 0.0F;
                     target.prevRotationPitch = 0.0F;
+                    // The hand is drawn at its own arm angles, which the game eases toward the
+                    // camera's by halving the gap every tick, so the lag they still have is what
+                    // #1785's capture varies by. Nothing else levels them.
+                    target.renderArmYaw = 0.0F;
+                    target.renderArmPitch = 0.0F;
+                    target.prevRenderArmYaw = 0.0F;
+                    target.prevRenderArmPitch = 0.0F;
                 }
             };
 

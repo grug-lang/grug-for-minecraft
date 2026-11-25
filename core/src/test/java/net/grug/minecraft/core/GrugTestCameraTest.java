@@ -18,6 +18,10 @@ class GrugTestCameraTest {
         private float pitch;
         private float previousYaw;
         private float previousPitch;
+        private float armYaw;
+        private float armPitch;
+        private float previousArmYaw;
+        private float previousArmPitch;
         private int levelCalls;
 
         @Override
@@ -41,34 +45,85 @@ class GrugTestCameraTest {
         }
 
         @Override
+        public float armYaw(Object player) {
+            return armYaw;
+        }
+
+        @Override
+        public float armPitch(Object player) {
+            return armPitch;
+        }
+
+        @Override
+        public float previousArmYaw(Object player) {
+            return previousArmYaw;
+        }
+
+        @Override
+        public float previousArmPitch(Object player) {
+            return previousArmPitch;
+        }
+
+        @Override
         public void level(Object player) {
             yaw = 0.0F;
             pitch = 0.0F;
             previousYaw = 0.0F;
             previousPitch = 0.0F;
+            armYaw = 0.0F;
+            armPitch = 0.0F;
+            previousArmYaw = 0.0F;
+            previousArmPitch = 0.0F;
             levelCalls++;
         }
     }
 
     @Test
     void aViewIsMovedOnlyWhileTheRunOwnsItAndAnAngleIsOffLevel() {
-        float[] offLevel = {3.0F, -7.0F, 180.0F, 45.0F};
-        for (int mask = 0; mask < 16; mask++) {
+        float[] offLevel = {3.0F, -7.0F, 180.0F, 45.0F, 0.06F, -0.13F, 0.25F, -90.0F};
+        for (int mask = 0; mask < 256; mask++) {
             float yaw = (mask & 1) == 0 ? 0.0F : offLevel[0];
             float pitch = (mask & 2) == 0 ? 0.0F : offLevel[1];
             float previousYaw = (mask & 4) == 0 ? 0.0F : offLevel[2];
             float previousPitch = (mask & 8) == 0 ? 0.0F : offLevel[3];
+            float armYaw = (mask & 16) == 0 ? 0.0F : offLevel[4];
+            float armPitch = (mask & 32) == 0 ? 0.0F : offLevel[5];
+            float previousArmYaw = (mask & 64) == 0 ? 0.0F : offLevel[6];
+            float previousArmPitch = (mask & 128) == 0 ? 0.0F : offLevel[7];
             boolean anyOffLevel = mask != 0;
             for (boolean owned : new boolean[] {false, true}) {
                 for (boolean present : new boolean[] {false, true}) {
                     assertEquals(
                             owned && present && anyOffLevel,
                             GrugTestCamera.viewMoved(
-                                    owned, present, yaw, pitch, previousYaw, previousPitch),
+                                    owned,
+                                    present,
+                                    yaw,
+                                    pitch,
+                                    previousYaw,
+                                    previousPitch,
+                                    armYaw,
+                                    armPitch,
+                                    previousArmYaw,
+                                    previousArmPitch),
                             "owned=" + owned + " present=" + present + " mask=" + mask);
                 }
             }
         }
+    }
+
+    @Test
+    void aHandStillLaggingTheViewCountsAsMovedAndIsLevelled() {
+        // A hand whose arm angles lag the level camera draws a different hand, so the frame is not
+        // one a capture may read, and the level write clears them beside the camera's own (#1785).
+        View view = new View();
+        view.armYaw = 0.06F;
+        view.previousArmPitch = -0.02F;
+
+        assertTrue(GrugTestCamera.levelForFrame(true, new Object(), view));
+        assertEquals(0.0F, view.armYaw);
+        assertEquals(0.0F, view.previousArmPitch);
+        assertEquals(1, view.levelCalls);
     }
 
     @Test
