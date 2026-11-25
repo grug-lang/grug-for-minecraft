@@ -31,11 +31,12 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
 import net.minecraft.server.entity.EntityTracker;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
+import net.modificationstation.stationapi.api.world.HeightLimitView;
+import net.modificationstation.stationapi.impl.packet.FlattenedChunkSectionDataS2CPacket;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -847,11 +848,13 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      * changed them has been flushed to it, and answers whether it did.
      *
      * <p>This version's client lights a block-change packet from that change alone, while a chunk
-     * region packet carries the server's own light, so a room that touches a chunk with few blocks
-     * left that chunk's light a level off the server's, which the client-only run's golden does not
-     * show. The region packet is the one carrier of light this version has, so the settle wait
-     * sends it: the answer is false for the poll that sent it, so the next one asks a client that
-     * has the light. See {@link GrugLightResend} and #1092.
+     * packet carries the server's own light, so a room that touches a chunk with few blocks left
+     * that chunk's light a level off the server's, which the client-only run's golden does not
+     * show. Stationapi's section packet is the carrier of that light here, because this loader's
+     * chunks keep their blocks and light in sections and the vanilla region packet is built from
+     * the block array they do not fill, so the settle wait sends it: the answer is false for the
+     * poll that sent it, so the next one asks a client that has the light. See {@link
+     * GrugLightResend}, #1092 and #1740.
      */
     private boolean resendLight() {
         List<int[]> regions = lightResend.due();
@@ -873,18 +876,40 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         relightRoom(
                 world, box[0], Math.max(box[1], 0), box[2], box[3], Math.min(box[4], 127), box[5]);
         for (int[] region : regions) {
-            // A chunk this server never loaded is an empty one with no block array, which a region
-            // packet cannot be made of, and the client holds no light for it either.
-            if (world.getChunk(region[0] >> 4, region[2] >> 4).blocks == null) {
+            int chunkX = region[0] >> 4;
+            int chunkZ = region[2] >> 4;
+            // The chunk source's own answer, which a block read goes through too. The chunk's
+            // block array cannot answer it: this loader keeps a chunk's blocks and light in
+            // sections, so the array is null for every chunk it read from the save, and the guard
+            // that asked it skipped the whole room (#1740). A chunk the source does not hold is
+            // the shared empty one, whose air is not the room's and which the client has no copy
+            // of, so it is the one skipped.
+            if (!world.getChunkSource().isChunkLoaded(chunkX, chunkZ)) {
                 continue;
             }
-            ((ServerPlayerEntity) starter)
-                    .networkHandler.sendPacket(
-                            new ChunkDataS2CPacket(
-                                    region[0], region[1], region[2], region[3], region[4],
-                                    region[5], world));
+            sendChunkLight(starter, world, chunkX, chunkZ, region);
         }
         return true;
+    }
+
+    /**
+     * Sends the joined client this server's blocks and light for every section the region spans,
+     * one packet per section, through stationapi's own carrier. The vanilla chunk packet cannot be
+     * built from a chunk this loader read: {@code Chunk.toPacket} copies the chunk's block array,
+     * which such a chunk does not fill, and the client's handler for it reads section bytes anyway.
+     * A section packet carries one 16-cube's blocks, metadata and both light arrays, which is the
+     * finest box this version offers and covers every cell of the region (#1740).
+     */
+    private static void sendChunkLight(
+            PlayerEntity starter, World world, int chunkX, int chunkZ, int[] region) {
+        HeightLimitView height = (HeightLimitView) world;
+        int firstSection = height.getSectionIndex(region[1]);
+        int lastSection = height.getSectionIndex(region[1] + region[4] - 1);
+        ServerPlayerEntity player = (ServerPlayerEntity) starter;
+        for (int section = firstSection; section <= lastSection; section++) {
+            player.networkHandler.sendPacket(
+                    new FlattenedChunkSectionDataS2CPacket(world, chunkX, chunkZ, section));
+        }
     }
 
     /** The server has no frames, so there is nothing to forget. */
