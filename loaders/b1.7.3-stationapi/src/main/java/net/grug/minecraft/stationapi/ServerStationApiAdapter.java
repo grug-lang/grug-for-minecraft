@@ -36,11 +36,14 @@ import net.minecraft.server.entity.EntityTracker;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.Chunk;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * The adapter for a b1.7.3 dedicated server, which is the same loader as {@link StationApiAdapter}
@@ -141,6 +144,9 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      * has to be non-zero so a box whose edge is exactly on the point still intersects it.
      */
     private static final double POINT_EDGE = 1e-9;
+
+    /** Diagnostic only (#1765): the chunks whose guard answer has already been printed. */
+    private static final Set<String> REPORTED_GUARD_CHUNKS = new HashSet<>();
 
     /**
      * The client keeps its own copy of a grug block entity, so a saved number the script writes on
@@ -907,7 +913,38 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         for (int[] region : regions) {
             // A chunk this server never loaded is an empty one with no block array, which a region
             // packet cannot be made of, and the client holds no light for it either.
-            boolean loaded = world.getChunk(region[0] >> 4, region[2] >> 4).blocks != null;
+            int guardChunkX = region[0] >> 4;
+            int guardChunkZ = region[2] >> 4;
+            Chunk guardChunk = world.getChunk(guardChunkX, guardChunkZ);
+            boolean loaded = guardChunk.blocks != null;
+            // Diagnostic only (#1765): the question the guard asks beside the one the game asks,
+            // and which world instance the adapter holds, printed once per chunk.
+            if (REPORTED_GUARD_CHUNKS.add(guardChunkX + "," + guardChunkZ)) {
+                Object serverWorldZero = GrugServerRun.serverWorldZero();
+                System.out.println(
+                        "[GRUG RELIGHT] guard chunk "
+                                + guardChunkX
+                                + ","
+                                + guardChunkZ
+                                + " class="
+                                + guardChunk.getClass().getName()
+                                + " blocksNull="
+                                + (guardChunk.blocks == null)
+                                + " sourceLoaded="
+                                + world.getChunkSource().isChunkLoaded(guardChunkX, guardChunkZ)
+                                + " isPosLoaded="
+                                + world.isPosLoaded(region[0], region[1], region[2])
+                                + " engineId="
+                                + world.getBlockId(-22, 74, -56)
+                                + " engineBlockLight="
+                                + world.getBrightness(LightType.BLOCK, -22, 74, -56)
+                                + " world="
+                                + System.identityHashCode(world)
+                                + " serverWorld0="
+                                + System.identityHashCode(serverWorldZero)
+                                + " same="
+                                + (serverWorldZero == world));
+            }
             // Diagnostic only (#1765): whether this piece of the resend reaches the engine row.
             boolean coversEngines =
                     region[0] <= -22

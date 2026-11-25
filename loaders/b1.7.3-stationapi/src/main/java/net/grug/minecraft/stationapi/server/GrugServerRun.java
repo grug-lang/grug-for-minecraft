@@ -110,6 +110,11 @@ public final class GrugServerRun {
         return GrugLinkArms.mapOrNull(server, joined -> joined.getWorld(0));
     }
 
+    /** Diagnostic only (#1765): the overworld the server's own world array holds, for identity. */
+    public static Object serverWorldZero() {
+        return GrugLinkArms.mapOrNull(server, joined -> joined.worlds[0]);
+    }
+
     /**
      * Sends the block changes the chunk maps have queued, which the server only does at the end of
      * its own tick: a frozen tick never reaches it (#1040).
