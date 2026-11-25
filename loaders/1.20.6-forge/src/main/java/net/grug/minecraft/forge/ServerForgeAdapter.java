@@ -89,6 +89,12 @@ public class ServerForgeAdapter extends ForgeAdapter {
         throw Grug.fatal("A dedicated server has no client level: the read is forwarded instead.");
     }
 
+    @Override
+    @GrugGenerated("a defect in the caller: a server reads its own world data, never the client's")
+    public String clientLevelName() {
+        throw Grug.fatal("A dedicated server has no client world name: it reads its own.");
+    }
+
     /** A server has no frame to sample: only a client's render thread reports one. */
     @Override
     @GrugGenerated("no frame exists on a dedicated server, so no render thread calls this")

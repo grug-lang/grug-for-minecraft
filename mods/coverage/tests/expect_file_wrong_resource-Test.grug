@@ -1,0 +1,6 @@
+# File.open names the mod's files directory and nothing else (#1757): a resource literal for another
+# directory of the mod is refused, rather than opening a directory with a different meaning.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("must name the mod's files directory")
+    handle: File = File.open(r"assets/crafting.png")
+}

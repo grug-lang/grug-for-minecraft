@@ -635,6 +635,38 @@ public interface ModLoaderAdapter {
     Object getLevel();
 
     /**
+     * The world's own name as the game stores it, or the address a client joined when the client
+     * does not know the name.
+     *
+     * <p>On a dedicated server this is the save's name, the directory under {@code saves/}, which
+     * its joined client never learns: a client joined to somebody else's server can only know the
+     * address it dialled, so the two sides of one world answer differently there and a mod must not
+     * key shared per-world state on this call. In singleplayer the client has the integrated
+     * server, so both sides answer the same name.
+     *
+     * <p>Alpha and 1.2.5 expose no address on a joined client, so there it answers whatever name
+     * the game gives the client's own world ({@code MpServer} on 1.2.5), which does not identify
+     * the server.
+     */
+    @GrugGenerated("no world name: a loader that has not added it keeps this default")
+    default String levelName(Object levelObj) {
+        throw Grug.fatal("Level.name is not supported on this loader");
+    }
+
+    /**
+     * The dimension's key as one path segment, so a mod composes a per-world path from it without a
+     * character its filesystem refuses: {@code overworld}, {@code the_nether}, {@code the_end}, and
+     * {@code dimension_<id>} for any other dimension of the versions that have one.
+     *
+     * <p>Every loader answers the same three names for the three dimensions the game ships, so a
+     * path a mod builds from this call is the same on every version.
+     */
+    @GrugGenerated("no dimension key: a loader that has not added it keeps this default")
+    default String levelDimension(Object levelObj) {
+        throw Grug.fatal("Level.dimension is not supported on this loader");
+    }
+
+    /**
      * The client's own copy of the world, which its frame pass draws, or null before one is joined
      * (#1162).
      *

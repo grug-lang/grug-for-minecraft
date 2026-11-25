@@ -1505,6 +1505,113 @@
 				}
 			}
 		},
+		"File": {
+			"description": "A mod's own writable directory, and the files it ships there. Every path is relative to the mod's directory beside `code/`, `tests/` and `assets/`, and no call takes a mod name, so one mod can never reach another's files. What the mod writes is kept under the game directory rather than in the mod's folder, so a development run never changes the repository and a player deletes that copy to get the shipped files back; a read asks the written copy first and then the shipped file, and a listing names both. Open it with File.open(r\"files\"): the compiler rewrites that literal to the calling mod, which is how the host knows whose directory this is, and any other literal is an error. A path is refused when it is absolute, when any segment is empty, `.` or `..`, when it holds a backslash, NUL or colon, when it resolves outside the directory, or when a symbolic link on the way leaves it. A mod that only writes need not ship the directory; the first write creates it.",
+			"static_methods": {
+				"open": {
+					"description": "The handle for the calling mod's own directory. Pass the literal r\"files\": the compiler rewrites it to <mod>/files, which is how the host learns which mod is calling, so no entry ever takes a mod name. Any other literal, such as r\"assets/x.png\", is reported, and so is every call on the handle it answers. The directory may not exist yet, because a mod that only writes creates it on its first write.",
+					"return_type": {
+						"name": "File"
+					},
+					"parameters": [
+						{
+							"name": "root",
+							"type": {
+								"name": "resource",
+								"resource_extension": "",
+								"optional": true
+							}
+						}
+					]
+				}
+			},
+			"methods": {
+				"entry_count": {
+					"description": "How many entries the directory at `path` holds, counting the written copy and the files the mod ships together, with a name present in both listed once, or 0 when there is no such directory. `path` may be `.` to name the mod's own directory. A path that names a file is reported. Together with entry_name this is the listing, since grug has no list type: entry_name(path, 0) is the first name in sorted order.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"entry_name": {
+					"description": "The name of the entry at `index` in the directory at `path`, sorted by name, where entry_count(path) says how many there are. `path` may be `.` to name the mod's own directory. An index that is not a whole number from 0 up, or that is past the last entry, is reported, and so is a path that names a file. Append `/` and the name to the same path to read or list a child.",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"exists": {
+					"description": "Whether `path` exists in the written copy or among the files the mod ships, as a file or as a directory. A path that is refused is reported.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"read_text": {
+					"description": "The text of the file at `path`, or an empty Option when neither the written copy nor the file the mod ships has it. A path that names a directory, or a file whose bytes are not UTF-8, is reported. The written copy wins when both exist, so a mod that changes a shipped default reads back what it wrote.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "string"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"write_text": {
+					"description": "Writes `text` to `path` as UTF-8, creating the directories it needs. The write is atomic: the bytes go to a temporary file in the same directory and are renamed over the target, so a crash leaves either the old text or the new one and never half of it, and a write that fails leaves what was there. The temporary file does not count against the cap, which is about what the mod keeps. The mod's whole written directory is capped at 16 MiB (16777216 bytes): a write that would pass the cap is reported with the size it would reach, and nothing is written.",
+					"parameters": [
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				}
+			}
+		},
 		"GUI": {
 			"description": "A dynamic GUI layout builder.",
 			"methods": {
@@ -1751,6 +1858,12 @@
 							}
 						}
 					]
+				},
+				"dimension": {
+					"description": "The dimension's key as one path segment, so a mod builds a per-world path without a character its filesystem refuses: overworld, the_nether, the_end, and for any other dimension of a version that has one, dimension_ followed by the dimension's own name with each `/` replaced by `_`. Every loader answers the same three names for the three dimensions the game ships, and the two sides of one world agree on this even where they do not agree on name.",
+					"return_type": {
+						"name": "string"
+					}
 				},
 				"explode": {
 					"description": "Creates an explosion at the given coordinates with the given power, which destroys blocks and damages entities as the game's own explosions do.",
@@ -2044,6 +2157,12 @@
 							}
 						}
 					]
+				},
+				"name": {
+					"description": "The world's own name as the game stores it, or the address a client dialled when it does not know the name. A dedicated server answers its save's name, the directory under saves/, which a client joined to it never learns; in singleplayer both sides answer the same name. Beta answers the address a client dialled when it joined a server. Alpha and 1.2.5 expose no address on such a client, so there the call answers the name the game gives that client's own world (MpServer), which does not identify the server. The answer can hold characters a filesystem refuses, so a mod that builds a path from it keeps only what it accepts; dimension is always path-safe.",
+					"return_type": {
+						"name": "string"
+					}
 				},
 				"place_block": {
 					"description": "Places a block in the world. A position in a chunk the client has not received is not shown by the client, and world_settled does not wait for it: on 1.20.6 the server's world keeps the block, and on a loader whose client and server share the world the write is discarded.",

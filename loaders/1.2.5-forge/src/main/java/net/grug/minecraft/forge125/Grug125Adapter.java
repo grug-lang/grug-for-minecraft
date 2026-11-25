@@ -1172,6 +1172,30 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         return ((World) levelObj).getWorldTime();
     }
 
+    /**
+     * The save's name, which a dedicated server and a singleplayer world both store. A client
+     * joined to another server has no way to learn it, so its own world is named {@code MpServer}
+     * and this call answers that: see {@link ModLoaderAdapter#levelName}.
+     */
+    @Override
+    public String levelName(Object levelObj) {
+        return ((World) levelObj).getWorldInfo().getWorldName();
+    }
+
+    /** The dimension as a path segment, from the provider's own type number (#1757). */
+    @Override
+    public String levelDimension(Object levelObj) {
+        return dimensionKey(((World) levelObj).worldProvider.worldType);
+    }
+
+    /** The key of one of the game's three dimensions, or of any other number a provider reports. */
+    static String dimensionKey(int type) {
+        if (type == 0) return "overworld";
+        if (type == -1) return "the_nether";
+        if (type == 1) return "the_end";
+        return "dimension_" + type;
+    }
+
     @Override
     public void setWorldTime(Object levelObj, long time) {
         World world = (World) levelObj;

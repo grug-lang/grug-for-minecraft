@@ -156,6 +156,12 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         return GrugServerRun.world();
     }
 
+    /** A dedicated server has no client address, so its world's own name is the answer. */
+    @Override
+    public String levelName(Object levelObj) {
+        return StationApiAdapter.saveName((World) levelObj);
+    }
+
     /**
      * The first player who joined.
      *

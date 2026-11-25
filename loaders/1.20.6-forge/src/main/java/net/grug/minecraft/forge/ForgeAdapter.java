@@ -425,6 +425,35 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
         return clientLevel();
     }
 
+    /**
+     * The save's own name when a server is running, which on a dedicated server is the only side
+     * that knows it, and the client's answer otherwise: an integrated server's name in singleplayer
+     * or the address the client dialled.
+     */
+    @Override
+    public String levelName(Object levelObj) {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        return server == null ? clientLevelName() : server.getWorldData().getLevelName();
+    }
+
+    /**
+     * The client's answer for {@link #levelName}, which the server side never needs: a dedicated
+     * server always has its own world data.
+     */
+    public abstract String clientLevelName();
+
+    @Override
+    public String levelDimension(Object levelObj) {
+        ResourceLocation id = ((Level) levelObj).dimension().location();
+        String path = id.getPath().replace('/', '_');
+        if (!"minecraft".equals(id.getNamespace())) {
+            return "dimension_" + id.getNamespace() + "_" + path;
+        }
+        return "overworld".equals(path) || "the_nether".equals(path) || "the_end".equals(path)
+                ? path
+                : "dimension_" + path;
+    }
+
     @Override
     @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
     public void buildTestBox(int radius) {
