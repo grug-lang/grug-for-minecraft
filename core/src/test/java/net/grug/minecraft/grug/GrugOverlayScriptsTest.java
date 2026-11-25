@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -79,10 +80,12 @@ class GrugOverlayScriptsTest {
         final List<Long> destroyed = new ArrayList<>();
         final List<String> exports = new ArrayList<>();
         private final long refusedFileId;
+        private final String refusedExport;
         private long nextHandle = 100;
 
-        Recorder(long refusedFileId) {
+        Recorder(long refusedFileId, String refusedExport) {
             this.refusedFileId = refusedFileId;
+            this.refusedExport = refusedExport;
         }
 
         @Override
@@ -100,6 +103,9 @@ class GrugOverlayScriptsTest {
         @Override
         public long exportFnId(String entityType, String fnName) {
             exports.add(entityType + "." + fnName);
+            if ((entityType + "." + fnName).equals(refusedExport)) {
+                return Grug.INVALID_GRUG_EXPORT_FN_ID;
+            }
             return exports.size();
         }
     }
@@ -109,7 +115,13 @@ class GrugOverlayScriptsTest {
     }
 
     private static Recorder record(long refusedFileId) {
-        Recorder recorder = new Recorder(refusedFileId);
+        Recorder recorder = new Recorder(refusedFileId, null);
+        GrugOverlayScripts.useEntities(recorder);
+        return recorder;
+    }
+
+    private static Recorder recordRefusingExport(String export) {
+        Recorder recorder = new Recorder(-1L, export);
         GrugOverlayScripts.useEntities(recorder);
         return recorder;
     }
@@ -148,7 +160,7 @@ class GrugOverlayScriptsTest {
         assertEquals(Arrays.asList(NAME, OTHER), namesOf(before));
         GrugOverlayScripts.Script other = before.get(1);
         // Every export of both files is looked up on its entity.
-        assertEquals(14, recorder.exports.size());
+        assertEquals(16, recorder.exports.size());
 
         GrugModsWatcher.applyReport(
                 new FileInfo[] {overlay(PATH, NAME, 7L)}, new String[0], errors::add);
@@ -164,7 +176,33 @@ class GrugOverlayScriptsTest {
         assertEquals(MOD, after.get(0).mod);
         assertSame(other, after.get(1), "another mod's overlay is not made again");
         assertEquals(
-                21, recorder.exports.size(), "the edited overlay's exports are looked up again");
+                24, recorder.exports.size(), "the edited overlay's exports are looked up again");
+    }
+
+    @Test
+    void aModsBindingIsAnsweredByItsFirstOverlay() {
+        Map<String, Long> files = twoOverlays();
+        Map<String, String> mods = new TreeMap<>();
+        mods.put(NAME, "a");
+        mods.put(OTHER, "a");
+        record();
+        init(files, mods);
+
+        GrugOverlayScripts.Script first = GrugOverlayScripts.bindingScript("a");
+        assertEquals(NAME, first.name);
+        List<GrugOverlayScripts.Script> answering = GrugOverlayScripts.bindingScripts();
+        assertEquals(1, answering.size(), "one overlay per mod answers its mod's bindings");
+        assertSame(first, answering.get(0));
+        assertNull(GrugOverlayScripts.bindingScript("b"));
+    }
+
+    @Test
+    void aModWithoutAWorldBindingExportAnswersNoBinding() {
+        recordRefusingExport("Overlay.world_binding");
+        init(twoOverlays(), twoMods());
+
+        assertTrue(GrugOverlayScripts.bindingScripts().isEmpty());
+        assertNull(GrugOverlayScripts.bindingScript("a"));
     }
 
     @Test
@@ -195,7 +233,7 @@ class GrugOverlayScriptsTest {
         assertEquals(Collections.singletonList(OTHER), namesOf(made));
         assertEquals(Arrays.asList(4L, 5L), recorder.created);
         assertEquals(
-                7,
+                8,
                 recorder.exports.size(),
                 "no export is looked up on an entity that was not made");
     }

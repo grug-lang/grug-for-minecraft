@@ -52,6 +52,22 @@
             "description": "Whether the mod asks to run its code in unsafe mode, which skips the checks for host function errors, the time limit and stack overflows. This is a request and not a setting: only the player's grant, stored outside the mod's files, makes the mod run unsafe, and a mod without the key runs safe. See grug-lang/grug-for-minecraft#334.",
             "type": "boolean"
         },
+        "keys": {
+            "description": "The key bindings the mod registers with the game, each the game's own rebindable binding so the player finds it in the Controls screen. A mod that declares none has no `keys` key. A loader that cannot register a binding polls the declared default key instead, and the mod's `world_binding` export is asked once per press either way.",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "$ref": "#/definitions/key_binding"
+            }
+        },
+        "config": {
+            "description": "The configuration options the mod declares, which the host writes to the mod's own file under the game directory's grug/ directory with these defaults and reads back on every read. A mod with no options has no `config` key. This is a declaration and not a screen: the reference's options and defaults are listed here so the file and the reference's config agree.",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "$ref": "#/definitions/config_option"
+            }
+        },
         "derived_from": {
             "type": "array",
             "items": {
@@ -447,6 +463,141 @@
                         "required": [
                             "config"
                         ]
+                    }
+                }
+            ]
+        },
+        "key_binding": {
+            "description": "One key binding a mod registers with the game: an id the mod's code names, the name the Controls screen shows, and the key it starts on.",
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "default_key"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "description": "The mod's own name for the binding, such as toggle. OverlayWorldBindingContext.id answers it.",
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "name": {
+                    "description": "The plain-text name the Controls screen shows, for example Toggle SafeSquares.",
+                    "type": "string",
+                    "minLength": 1
+                },
+                "default_key": {
+                    "description": "The key the binding starts on, as one letter or digit, such as L. A binding on any other key cannot be polled by a loader that has no registration, so it is refused.",
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9]$"
+                }
+            }
+        },
+        "config_option": {
+            "description": "One configuration option a mod declares. Its type decides the JSON type of default: a number for number, a string for color, which is written as #RRGGBB or #AARRGGBB, and a boolean for boolean.",
+            "type": "object",
+            "required": [
+                "key",
+                "type",
+                "title",
+                "description",
+                "default"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "key": {
+                    "description": "The option's key, which the mod names to Config and which the config file's line starts with.",
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "type": {
+                    "enum": [
+                        "boolean",
+                        "number",
+                        "color"
+                    ]
+                },
+                "title": {
+                    "description": "The one-line title a screen would show, and the config file's comment.",
+                    "type": "string",
+                    "minLength": 1
+                },
+                "description": {
+                    "description": "The sentence a screen would show under the title.",
+                    "type": "string",
+                    "minLength": 1
+                },
+                "default": {
+                    "type": [
+                        "boolean",
+                        "number",
+                        "string"
+                    ]
+                },
+                "min": {
+                    "description": "The lowest value a number option may hold, in the config file or as a default.",
+                    "type": "number"
+                },
+                "max": {
+                    "description": "The highest value a number option may hold, in the config file or as a default.",
+                    "type": "number"
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "boolean"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "default": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "number"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "default": {
+                                "type": "number"
+                            },
+                            "min": {
+                                "type": "number"
+                            },
+                            "max": {
+                                "type": "number"
+                            }
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "color"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "default": {
+                                "type": "string",
+                                "pattern": "^#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
+                            }
+                        }
                     }
                 }
             ]

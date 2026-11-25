@@ -141,6 +141,11 @@ enum kind {
     K_OVERLAY_SCROLL,
     K_FILE,
     K_LIQUID_RESPONSE,
+    K_WORLD_CTX,
+    K_WORLD_KEY_CTX,
+    K_BINDING_CTX,
+    K_CONFIG,
+    K_SQUARES,
 };
 struct obj {
     enum kind kind;
@@ -252,6 +257,89 @@ static void clear_world(void) {
     nworld = 0;
 }
 
+// The light and the spawn spaces of the toy world, which the scan and the light reads model
+// (#1255). They are a model and not Minecraft's own light: a torch gives 14 and falls off one per
+// block of distance, a solid block anywhere above a space takes its sky light to 0, and a space a
+// hostile mob may stand in is an air block with a solid block under it and air above it. That is
+// enough to place one square a mod marks and one it does not, which is all a logic test reads.
+static int toy_emission(const char* name) {
+    if (!name) return 0;
+    if (!strcmp(name, "minecraft:torch")) return 14;
+    if (!strcmp(name, "minecraft:redstone_torch")) return 7;
+    if (!strcmp(name, "minecraft:glowstone")) return 15;
+    if (!strcmp(name, "minecraft:lava")) return 15;
+    if (!strcmp(name, "minecraft:jack_o_lantern")) return 15;
+    return 0;
+}
+// Whether a block is one a mob cannot stand in or on: everything but air, the torches and the
+// liquids. Leaves count as solid, as they do before 1.20.6.
+static bool toy_solid(const char* name) {
+    if (!name || !strcmp(name, "minecraft:air")) return false;
+    if (!strcmp(name, "minecraft:torch")) return false;
+    if (!strcmp(name, "minecraft:redstone_torch")) return false;
+    if (!strcmp(name, "minecraft:lava")) return false;
+    if (!strcmp(name, "minecraft:water")) return false;
+    return true;
+}
+static bool toy_liquid(const char* name) {
+    return name && (!strcmp(name, "minecraft:lava") || !strcmp(name, "minecraft:water"));
+}
+static int toy_block_light(long x, long y, long z) {
+    struct block* here = find_block(x, y, z);
+    if (here && toy_solid(here->name)) return 0;
+    int best = 0;
+    for (size_t i = 0; i < nworld; i++) {
+        int emission = toy_emission(world[i].name);
+        if (!emission) continue;
+        long d = labs(world[i].x - x) + labs(world[i].y - y) + labs(world[i].z - z);
+        int light = emission - (int)d;
+        if (light > best) best = light;
+    }
+    return best;
+}
+static int toy_sky_light(long x, long y, long z) {
+    struct block* here = find_block(x, y, z);
+    if (here && toy_solid(here->name)) return 0;
+    for (size_t i = 0; i < nworld; i++)
+        if (world[i].x == x && world[i].z == z && world[i].y > y && toy_solid(world[i].name)) return 0;
+    return 15;
+}
+static bool toy_spawn_space(long x, long y, long z) {
+    if (y < 0 || y >= world_height) return false;
+    struct block* here = find_block(x, y, z);
+    if (here && toy_solid(here->name)) return false;
+    if (toy_liquid(here ? here->name : NULL)) return false;
+    struct block* above = find_block(x, y + 1, z);
+    if (above && toy_solid(above->name)) return false;
+    struct block* below = find_block(x, y - 1, z);
+    return below && toy_solid(below->name);
+}
+// One square a scan kept: its position and the two lights a mod's rule reads.
+struct square { long x, y, z; int block_light, sky_light; };
+struct square_scan { struct square* squares; size_t count; };
+static struct square_scan* scans;
+static size_t nscans, capscans;
+static void clear_scans(void) {
+    for (size_t i = 0; i < nscans; i++) free(scans[i].squares);
+    nscans = 0;
+}
+// The camera and the local player's feet a world frame draws from (#1255). A test moves the feet
+// with TestTickContext.set_player_position; run_test puts them back around the room before every
+// test, the way the room is put back.
+static double player_x = 8.5, player_y = 67.5, player_z = 8.5;
+// The overlay entities of the running test's mod, the drawn mark a frame sets, and the passes'
+// exports, which main() looks up once.
+struct overlay_entity { void* entity; char* mod; };
+static struct overlay_entity* world_overlay_entities;
+static size_t nworld_overlay_entities, capworld_overlay_entities;
+static uint64_t world_render_fn, world_key_fn, world_binding_fn;
+static bool world_overlay_drawn_flag;
+static const char* world_pass_mod;
+static void overlay_render_world(void);
+static void overlay_press_world_key(double code, bool ctrl);
+static void create_world_overlays(const char* mod);
+static void clear_overlays(void);
+
 // =============================================================================================
 // SECTION: Runner state
 // =============================================================================================
@@ -273,6 +361,40 @@ extern const struct impl __start_smoke_impls[], __stop_smoke_impls[];
 #define ARGS void* gst, const union grug_value a[], const struct grug_type g[]
 #define UNUSED (void)gst; (void)a; (void)g
 #include "api_table.inc"
+// One row per option and per key binding a mod declares in its about.json, which the host owns: the
+// smoketest has no config file, so a read answers the declared default.
+#include "mod_config.inc"
+
+// The scan GrugSpawnSquares.scan makes: z, then y, then x from the lowest, around the feet block.
+static uint64_t toy_scan(double radius) {
+    long r = (long)radius;
+    size_t count = 0, cap = 64;
+    struct square* squares = xmalloc(cap * sizeof *squares);
+    // Java floors the feet's block, as MathHelper.floor_double does: a feet x of -18.5 is in -19.
+    long cx = (long)floor(player_x), cy = (long)floor(player_y), cz = (long)floor(player_z);
+    for (long dz = -r; dz <= r; dz++)
+        for (long dy = -r; dy <= r; dy++)
+            for (long dx = -r; dx <= r; dx++) {
+                long x = cx + dx, y = cy + dy, z = cz + dz;
+                if (!toy_spawn_space(x, y, z)) continue;
+                if (count == cap) { cap *= 2; squares = xrealloc(squares, cap * sizeof *squares); }
+                squares[count].x = x; squares[count].y = y; squares[count].z = z;
+                squares[count].block_light = toy_block_light(x, y, z);
+                squares[count].sky_light = toy_sky_light(x, y, z);
+                count++;
+            }
+    if (nscans == capscans) { capscans = capscans ? capscans * 2 : 8; scans = xrealloc(scans, capscans * sizeof *scans); }
+    scans[nscans].squares = squares;
+    scans[nscans].count = count;
+    uint64_t o = new_obj(K_SQUARES);
+    objs[o - 1].x = (double)nscans++;
+    return o;
+}
+static const struct mod_option* find_option(const char* mod, const char* key) {
+    for (size_t i = 0; i < nmod_options; i++)
+        if (!strcmp(mod_options[i].mod, mod) && !strcmp(mod_options[i].key, key)) return &mod_options[i];
+    return NULL;
+}
 
 // Java's (int) cast of a double: NaN is 0 and a value out of range saturates.
 static int32_t java_int(double d) {
@@ -319,6 +441,55 @@ static union grug_value TTC_get_origin(ARGS) {
 }
 REGISTER("TestInitContext", "get_origin", TTC_get_origin);
 REGISTER("TestTickContext", "get_origin", TTC_get_origin);
+// The player's feet, which a world frame and a scan are centred on (#1255). A test moves them, and
+// run_test puts them back around the room before the next test.
+static const char* cur_test_mod;
+static union grug_value TTC_set_player_position(ARGS) {
+    UNUSED;
+    double x = a[1]._number, y = a[2]._number, z = a[3]._number;
+    if (!isfinite(x) || !isfinite(y) || !isfinite(z)) return fail("TestTickContext.set_player_position: The position has to be finite, and was %g, %g, %g.", x, y, z);
+    player_x = x; player_y = y; player_z = z;
+    return none();
+}
+REGISTER("TestTickContext", "set_player_position", TTC_set_player_position);
+// Whether a frame drew the mod's world overlay since the mark was last cleared, which the mark a
+// press clears and a frame sets. The smoketest draws a frame after every test tick.
+static union grug_value TTC_world_overlay_drawn(ARGS) { UNUSED; return boolean(world_overlay_drawn_flag); }
+REGISTER("TestTickContext", "world_overlay_drawn", TTC_world_overlay_drawn);
+// One press of a letter or digit key while no screen is open: world_key, then every declared binding
+// whose default key it is. The key is the upper case character code, as OverlayWorldKeyContext.key
+// answers it.
+static union grug_value TTC_press_world_key(ARGS) {
+    UNUSED;
+    double key = a[1]._number;
+    bool tracked = is_whole(key) && ((key >= 'A' && key <= 'Z') || (key >= '0' && key <= '9'));
+    if (!tracked) return fail("TestTickContext.press_world_key: The key has to be the upper case character code of a letter or a digit, and was %g.", key);
+    overlay_press_world_key(key, a[2]._bool);
+    return none();
+}
+REGISTER("TestTickContext", "press_world_key", TTC_press_world_key);
+// The running test's own mod configuration, which is the same one its overlay's world pass reads.
+static union grug_value TTC_get_config(ARGS) {
+    UNUSED;
+    if (!cur_test_mod) return fail("TestTickContext.get_config: The running test is not one of a mod, so it has no config.");
+    uint64_t o = new_obj(K_CONFIG);
+    objs[o - 1].str = keep(xstrdup(cur_test_mod));
+    return id(o);
+}
+REGISTER("TestTickContext", "get_config", TTC_get_config);
+static bool scan_radius_ok(const char* who, double radius) {
+    if (isfinite(radius) && radius == floor(radius) && radius >= 0 && radius <= 32) return true;
+    fail("%s: The radius has to be a whole number from 0 to 32, and was %g.", who, radius);
+    return false;
+}
+// The scan a world pass makes, around the test player's feet, which a test asserts directly because
+// a pass has no assert of its own.
+static union grug_value TTC_get_spawn_squares(ARGS) {
+    UNUSED;
+    if (!scan_radius_ok("TestTickContext.get_spawn_squares", a[1]._number)) return none();
+    return id(toy_scan(a[1]._number));
+}
+REGISTER("TestTickContext", "get_spawn_squares", TTC_get_spawn_squares);
 
 // =============================================================================================
 // SECTION: Test (the entity me)
@@ -364,6 +535,32 @@ static union grug_value Level_get_block(ARGS) {
     return str(b ? b->name : "minecraft:air");
 }
 REGISTER("Level", "get_block", Level_get_block);
+// The three light reads a scan's rule needs (#1255), from the toy model, and whether the game's
+// spawner accepts a space: the block below is solid, and the space and the one above are not.
+static union grug_value Level_get_block_light(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.get_block_light")) return none();
+    return num(toy_block_light(p[0], p[1], p[2]));
+}
+REGISTER("Level", "get_block_light", Level_get_block_light);
+static union grug_value Level_get_sky_light(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.get_sky_light")) return none();
+    return num(toy_sky_light(p[0], p[1], p[2]));
+}
+REGISTER("Level", "get_sky_light", Level_get_sky_light);
+// The limit every version before 1.20.6 has, which is the reference's own.
+static union grug_value Level_get_hostile_block_light_limit(ARGS) { UNUSED; return num(7); }
+REGISTER("Level", "get_hostile_block_light_limit", Level_get_hostile_block_light_limit);
+static union grug_value Level_is_hostile_spawn_space(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a, p, "Level.is_hostile_spawn_space")) return none();
+    return boolean(toy_spawn_space(p[0], p[1], p[2]));
+}
+REGISTER("Level", "is_hostile_spawn_space", Level_is_hostile_spawn_space);
 static void on_block_placed(long x, long y, long z, const char* name);
 static long resolve_block_fwd(const char* name);
 static union grug_value Level_place_block(ARGS) {
@@ -1091,6 +1288,17 @@ static union grug_value Player_get_held_item(ARGS) {
     return id(o);
 }
 REGISTER("Player", "get_held_item", Player_get_held_item);
+// The player's feet, which a scan is centred on and a test waits for after it moves them (#1255).
+// The toy world has one copy and applies the move at once, so this is the answer a real loader's
+// player gives on the tick the move is made.
+static union grug_value Player_position(ARGS) {
+    UNUSED;
+    if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.position: not a Player");  // SMOKETEST_EXCL: no committed test
+    uint64_t v = new_obj(K_VEC3);
+    objs[v - 1].x = player_x; objs[v - 1].y = player_y; objs[v - 1].z = player_z;
+    return id(v);
+}
+REGISTER("Player", "position", Player_position);
 
 // =============================================================================================
 // SECTION: Item list
@@ -1421,6 +1629,97 @@ static bool call_export(void* entity, uint64_t fn, const union grug_value* args,
     return ran;
 }
 static void call_contained(void* entity, uint64_t fn, const union grug_value* args, size_t n) { (void)call_export(entity, fn, args, n, NULL); }
+
+// =============================================================================================
+// SECTION: World overlay entities and frames
+// =============================================================================================
+// Every Overlay file of the running test's mod is an entity for the test, as the game has one for
+// the whole run. A frame asks each one's render_world after the test tick, with the camera and the
+// player's feet that frame draws from, and a key press asks world_key and then every binding whose
+// declared default key is the pressed one, which is how a loader without binding registration
+// delivers it. A pass is open only around its export call, so a context saved for a later call is
+// refused, as the game refuses it.
+static double world_pass_serial;  // 0 while no pass is open
+static double overlay_key_code;
+static bool overlay_ctrl;
+static const char* overlay_binding_id;
+static double camera_x, camera_y, camera_z;
+
+static void clear_world_overlays(void) {
+    for (size_t i = 0; i < nworld_overlay_entities; i++) {
+        grug_deinit_entity(g_state, world_overlay_entities[i].entity);
+        free(world_overlay_entities[i].mod);
+    }
+    nworld_overlay_entities = 0;
+    world_overlay_drawn_flag = false;
+    world_pass_mod = NULL;
+}
+static void create_world_overlays(const char* mod) {
+    for (size_t i = 0; i < G.f.len; i++) {
+        struct grug_file_info* fi = &G.f.ptr[i];
+        if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Overlay")) continue;
+        if (strcmp(fi->mod_name, mod)) continue;
+        void* entity = grug_create_entity(g_state, fi->file_id);
+        if (!entity) continue;  // SMOKETEST_EXCL: a mod file that fails to compile, which no committed mod has
+        if (nworld_overlay_entities == capworld_overlay_entities) {
+            capworld_overlay_entities = capworld_overlay_entities ? capworld_overlay_entities * 2 : 4;
+            world_overlay_entities = xrealloc(world_overlay_entities, capworld_overlay_entities * sizeof *world_overlay_entities);
+        }
+        world_overlay_entities[nworld_overlay_entities].entity = entity;
+        world_overlay_entities[nworld_overlay_entities].mod = xstrdup(mod);
+        nworld_overlay_entities++;
+    }
+}
+// Asks one export of every overlay, with a fresh context of the given kind. A file without the
+// export answers false and no error; an error the export raised is reported as the test's own,
+// because a contained err would leave an overlay that silently draws nothing.
+static void ask_world_overlays(uint64_t fn, enum kind kind, const char* name) {
+    for (size_t i = 0; i < nworld_overlay_entities; i++) {
+        char err[sizeof last_msg];
+        world_pass_serial += 1;
+        uint64_t ctx = new_obj(kind);
+        objs[ctx - 1].x = world_pass_serial;
+        union grug_value arg = id(ctx);
+        world_pass_mod = world_overlay_entities[i].mod;
+        bool ran = call_export(world_overlay_entities[i].entity, fn, &arg, 1, err);
+        world_pass_mod = NULL;
+        world_pass_serial = 0;
+        if (!ran) continue;
+        if (err[0] && !bg_missing[0]) snprintf(bg_missing, sizeof bg_missing, "an overlay's %.100s stopped: %.3900s", name, err);
+    }
+}
+static void overlay_render_world(void) {
+    camera_x = player_x;
+    camera_y = player_y + 1.62;  // the eye, as TestTickContext.camera answers it
+    camera_z = player_z;
+    if (world_render_fn != UINT64_MAX) ask_world_overlays(world_render_fn, K_WORLD_CTX, "render_world");
+}
+static void overlay_press_world_key(double code, bool ctrl) {
+    world_overlay_drawn_flag = false;
+    overlay_key_code = code;
+    overlay_ctrl = ctrl;
+    if (world_key_fn != UINT64_MAX) ask_world_overlays(world_key_fn, K_WORLD_KEY_CTX, "world_key");
+    for (size_t i = 0; i < nworld_overlay_entities; i++) {
+        const char* mod = world_overlay_entities[i].mod;
+        for (size_t k = 0; k < nmod_keys; k++) {
+            if (strcmp(mod_keys[k].mod, mod) || mod_keys[k].def[0] != (char)code) continue;
+            char err[sizeof last_msg];
+            overlay_binding_id = mod_keys[k].id;
+            world_pass_serial += 1;
+            uint64_t ctx = new_obj(K_BINDING_CTX);
+            objs[ctx - 1].x = world_pass_serial;
+            union grug_value arg = id(ctx);
+            world_pass_mod = mod;
+            bool ran = call_export(world_overlay_entities[i].entity, world_binding_fn, &arg, 1, err);
+            world_pass_mod = NULL;
+            world_pass_serial = 0;
+            overlay_binding_id = NULL;
+            if (ran && err[0] && !bg_missing[0]) snprintf(bg_missing, sizeof bg_missing, "an overlay's world_binding stopped: %.3900s", err);
+        }
+    }
+    overlay_key_code = 0;
+    overlay_ctrl = false;
+}
 
 static void free_list(struct list* l) {
     for (size_t i = 0; i < l->nr; i++) {
@@ -3122,6 +3421,151 @@ static union grug_value Color_rgba(ARGS) {
 }
 // SMOKETEST_EXCL_STOP
 REGISTER("Color", "rgba", Color_rgba);
+
+// =============================================================================================
+// SECTION: World overlay contexts, configuration and scans
+// =============================================================================================
+// The passes that run with no screen open, and the configuration and batch scan they hand out
+// (#1255). A context is legal only while the pass it was made for is running, so a script that
+// saves one and uses it later is refused, as the game refuses it.
+static struct obj* pass_ctx(const union grug_value a[], enum kind kind, const char* method, const char* pass) {
+    struct obj* o = get_obj(a[0]._id, kind);
+    if (!o) { fail("%s: The context is not one this host made.", method); return NULL; }
+    if (world_pass_serial == 0 || o->x != world_pass_serial) {
+        fail("%s: Only legal on the context %s() was passed, while that call is running: a context saved for later is refused.", method, pass);
+        return NULL;
+    }
+    return o;
+}
+static union grug_value OverlayWorldContext_camera_x(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.camera_x", "render_world") ? num(camera_x) : none(); }
+REGISTER("OverlayWorldContext", "camera_x", OverlayWorldContext_camera_x);
+static union grug_value OverlayWorldContext_camera_y(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.camera_y", "render_world") ? num(camera_y) : none(); }
+REGISTER("OverlayWorldContext", "camera_y", OverlayWorldContext_camera_y);
+static union grug_value OverlayWorldContext_camera_z(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.camera_z", "render_world") ? num(camera_z) : none(); }
+REGISTER("OverlayWorldContext", "camera_z", OverlayWorldContext_camera_z);
+static union grug_value OverlayWorldContext_partial_tick(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.partial_tick", "render_world") ? num(0) : none(); }
+REGISTER("OverlayWorldContext", "partial_tick", OverlayWorldContext_partial_tick);
+// The one client level the toy world has.
+static union grug_value OverlayWorldContext_get_level(ARGS) {
+    UNUSED;
+    return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.get_level", "render_world") ? id(new_obj(K_LEVEL)) : none();
+}
+REGISTER("OverlayWorldContext", "get_level", OverlayWorldContext_get_level);
+// The configuration of the mod whose export is running, which a test's own overlay reads.
+static union grug_value OverlayWorldContext_get_config(ARGS) {
+    UNUSED;
+    if (!pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.get_config", "render_world")) return none();
+    if (!world_pass_mod) return fail("OverlayWorldContext.get_config: The overlay is not one of a mod, so it has no config.");
+    uint64_t o = new_obj(K_CONFIG);
+    objs[o - 1].str = keep(xstrdup(world_pass_mod));
+    return id(o);
+}
+REGISTER("OverlayWorldContext", "get_config", OverlayWorldContext_get_config);
+static union grug_value OverlayWorldContext_get_spawn_squares(ARGS) {
+    UNUSED;
+    if (!pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.get_spawn_squares", "render_world")) return none();
+    if (!scan_radius_ok("OverlayWorldContext.get_spawn_squares", a[1]._number)) return none();
+    return id(toy_scan(a[1]._number));
+}
+REGISTER("OverlayWorldContext", "get_spawn_squares", OverlayWorldContext_get_spawn_squares);
+// A line or a triangle is a mark: the frame drew the mod's overlay, which world_overlay_drawn
+// answers. The color is a Color, and the positions have to be finite.
+static union grug_value OverlayWorldContext_draw_line(ARGS) {
+    UNUSED;
+    if (!pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.draw_line", "render_world")) return none();
+    if (!get_obj(a[7]._id, K_COLOR)) return fail("OverlayWorldContext.draw_line: The color is not one the host made.");
+    for (int i = 1; i <= 6; i++)
+        if (!isfinite(a[i]._number)) return fail("OverlayWorldContext.draw_line: The endpoints have to be finite, and one was not.");
+    world_overlay_drawn_flag = true;
+    return none();
+}
+REGISTER("OverlayWorldContext", "draw_line", OverlayWorldContext_draw_line);
+static union grug_value OverlayWorldContext_draw_triangle(ARGS) {
+    UNUSED;
+    if (!pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.draw_triangle", "render_world")) return none();
+    if (!get_obj(a[10]._id, K_COLOR)) return fail("OverlayWorldContext.draw_triangle: The color is not one the host made.");
+    for (int i = 1; i <= 9; i++)
+        if (!isfinite(a[i]._number)) return fail("OverlayWorldContext.draw_triangle: The corners have to be finite, and one was not.");
+    world_overlay_drawn_flag = true;
+    return none();
+}
+REGISTER("OverlayWorldContext", "draw_triangle", OverlayWorldContext_draw_triangle);
+static union grug_value OverlayWorldKeyContext_key(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_KEY_CTX, "OverlayWorldKeyContext.key", "world_key") ? num(overlay_key_code) : none(); }
+REGISTER("OverlayWorldKeyContext", "key", OverlayWorldKeyContext_key);
+static union grug_value OverlayWorldKeyContext_ctrl(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_KEY_CTX, "OverlayWorldKeyContext.ctrl", "world_key") ? boolean(overlay_ctrl) : none(); }
+REGISTER("OverlayWorldKeyContext", "ctrl", OverlayWorldKeyContext_ctrl);
+static union grug_value OverlayWorldBindingContext_id(ARGS) {
+    UNUSED;
+    if (!pass_ctx(a, K_BINDING_CTX, "OverlayWorldBindingContext.id", "world_binding")) return none();
+    return str(overlay_binding_id ? overlay_binding_id : "");
+}
+REGISTER("OverlayWorldBindingContext", "id", OverlayWorldBindingContext_id);
+static union grug_value OverlayWorldBindingContext_get_config(ARGS) {
+    UNUSED;
+    if (!pass_ctx(a, K_BINDING_CTX, "OverlayWorldBindingContext.get_config", "world_binding")) return none();
+    if (!world_pass_mod) return fail("OverlayWorldBindingContext.get_config: The overlay is not one of a mod, so it has no config.");
+    uint64_t o = new_obj(K_CONFIG);
+    objs[o - 1].str = keep(xstrdup(world_pass_mod));
+    return id(o);
+}
+REGISTER("OverlayWorldBindingContext", "get_config", OverlayWorldBindingContext_get_config);
+// A mod's configuration: the option its about.json declares, read from the declared default. The
+// smoketest has no config file, so every read is the default, and a key the mod does not declare is
+// reported and answers its type's empty value, as the host does.
+static const struct mod_option* config_option(const union grug_value a[], const char* method) {
+    struct obj* o = get_obj(a[0]._id, K_CONFIG);
+    if (!o) { fail("%s: not a Config", method); return NULL; }
+    const struct mod_option* option = find_option(o->str, a[1]._string);
+    if (!option) fail("%s: The mod %s declares no option named %s.", method, o->str, a[1]._string);
+    return option;
+}
+static union grug_value Config_bool(ARGS) {
+    UNUSED;
+    const struct mod_option* option = config_option(a, "Config.bool");
+    if (!option) return boolean(false);
+    return boolean(!strcmp(option->type, "boolean") && !strcmp(option->def, "true"));
+}
+REGISTER("Config", "bool", Config_bool);
+static union grug_value Config_number(ARGS) {
+    UNUSED;
+    const struct mod_option* option = config_option(a, "Config.number");
+    if (!option || strcmp(option->type, "number")) return num(0);
+    return num(strtod(option->def, NULL));
+}
+REGISTER("Config", "number", Config_number);
+// The smoketest draws nothing, so the color a read answers is a token; a colour option the mod does
+// not declare answers opaque magenta, which is still a Color.
+static union grug_value Config_color(ARGS) { UNUSED; (void)config_option(a, "Config.color"); return id(new_obj(K_COLOR)); }
+REGISTER("Config", "color", Config_color);
+static struct square_scan* scan_of(uint64_t id) {
+    struct obj* o = get_obj(id, K_SQUARES);
+    if (!o) { fail("SpawnSquares: not a scan"); return NULL; }
+    return &scans[(size_t)o->x];
+}
+static union grug_value SpawnSquares_count(ARGS) { UNUSED; struct square_scan* s = scan_of(a[0]._id); return num(s ? (double)s->count : 0); }
+REGISTER("SpawnSquares", "count", SpawnSquares_count);
+// An index into a scan, reported when it is not one, as every read of the batch is.
+static const struct square* square_at(const union grug_value a[], const char* method) {
+    struct square_scan* s = scan_of(a[0]._id);
+    if (!s) return NULL;
+    double index = a[1]._number;
+    if (!is_whole(index) || index < 0 || index >= (double)s->count) {
+        fail("%s: The index has to be a whole number from 0 to %g, and was %g.", method, (double)s->count - 1, index);
+        return NULL;
+    }
+    return &s->squares[(size_t)index];
+}
+static union grug_value SpawnSquares_x(ARGS) { UNUSED; const struct square* q = square_at(a, "SpawnSquares.x"); return num(q ? (double)q->x : 0); }
+REGISTER("SpawnSquares", "x", SpawnSquares_x);
+static union grug_value SpawnSquares_y(ARGS) { UNUSED; const struct square* q = square_at(a, "SpawnSquares.y"); return num(q ? (double)q->y : 0); }
+REGISTER("SpawnSquares", "y", SpawnSquares_y);
+static union grug_value SpawnSquares_z(ARGS) { UNUSED; const struct square* q = square_at(a, "SpawnSquares.z"); return num(q ? (double)q->z : 0); }
+REGISTER("SpawnSquares", "z", SpawnSquares_z);
+static union grug_value SpawnSquares_block_light(ARGS) { UNUSED; const struct square* q = square_at(a, "SpawnSquares.block_light"); return num(q ? (double)q->block_light : 0); }
+REGISTER("SpawnSquares", "block_light", SpawnSquares_block_light);
+static union grug_value SpawnSquares_sky_light(ARGS) { UNUSED; const struct square* q = square_at(a, "SpawnSquares.sky_light"); return num(q ? (double)q->sky_light : 0); }
+REGISTER("SpawnSquares", "sky_light", SpawnSquares_sky_light);
+
 static union grug_value hf_gui(ARGS) {
     UNUSED;
     if (nguis == capguis) { capguis = capguis ? capguis * 2 : 8; guis = xrealloc(guis, capguis * sizeof *guis); }
@@ -3621,14 +4065,14 @@ static union grug_value Shot_differs_from(ARGS) {
     return none();
 }
 REGISTER("Screenshot", "differs_from", Shot_differs_from);
-// A loader that draws no overlays and no world overlays is one a test returns early on, which is
-// what a test that asks has to handle. The smoketest asks every mod's overlay and routes a press,
-// key and wheel through it, so overlay_supported is true; it draws nothing, so a test that waits
-// for a frame is STUBBED, never PASS. The HUD and world passes are not modelled.
+// The smoketest asks every mod's overlay and routes a press, key and wheel through it, and it asks
+// the world exports and draws a frame after every test tick, so a screen overlay test and a world
+// overlay test both run for real here. It paints nothing, so a test that waits for a capture is
+// STUBBED, never PASS.
+static union grug_value Test_world_overlay_supported(ARGS) { UNUSED; return boolean(true); }
+REGISTER("Test", "world_overlay_supported", Test_world_overlay_supported);
 static union grug_value Test_overlay_supported(ARGS) { UNUSED; return boolean(true); }
 REGISTER("Test", "overlay_supported", Test_overlay_supported);
-static union grug_value Test_world_overlay_supported(ARGS) { UNUSED; stubbed = true; return boolean(false); }
-REGISTER("Test", "world_overlay_supported", Test_world_overlay_supported);
 // The forced-normalization hook is GL state for a capture. The smoketest draws nothing, so it answers
 // what a loader whose item draw inherits the state reports and marks the run STUBBED (#1137).
 static union grug_value TTC_normalization_forced(ARGS) { UNUSED; stubbed = true; return boolean(true); }
@@ -4670,7 +5114,13 @@ static void clear_entities(void);
 static void clear_mod_files(void);
 static void clear_nbt(void);
 static void clear_guis(void);
+static void clear_world_overlays(void);
 static void clear_overlays(void);
+static const char* mod_of_file(uint64_t file_id) {
+    for (size_t i = 0; i < G.f.len; i++)
+        if (G.f.ptr[i].file_id == file_id) return G.f.ptr[i].mod_name;
+    return NULL;
+}
 static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint64_t init_fn) {
     clear_bes();
     free_test_state();
@@ -4679,6 +5129,8 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     clear_mod_files();
     clear_nbt();
     clear_guis();
+    clear_scans();
+    clear_world_overlays();
     clear_overlays();
     note_test_mod(label);
     nblockdefs = 0;
@@ -4695,6 +5147,12 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     void* entity = grug_create_entity(g_state, file_id);
     if (!entity) { report("FAIL", label, "could not create the entity"); return OUT_FAIL; }
     make_overlays();
+    // The test's own mod: its world overlays are entities for this test, and a configuration it
+    // reads is its own. The feet start around the room, as TestTickContext.get_origin's eye is
+    // three up.
+    cur_test_mod = mod_of_file(file_id);
+    player_x = origin_x; player_y = origin_y - 3; player_z = origin_z;
+    create_world_overlays(cur_test_mod ? cur_test_mod : "");
     uint64_t ctx = new_obj(K_CTX);
     union grug_value arg = id(ctx);
     int rc = 0;
@@ -4723,6 +5181,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
             else report("FAIL", label, "%s", last_error);
             rc = 1;
         } else if (not_done_called) {
+            overlay_render_world();
             tick_bes();
             if (++cur_tick >= max_ticks) { report("FAIL", label, "exceeded %d ticks", max_ticks); rc = 1; }
         } else {
@@ -4731,6 +5190,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
             break;
         }
     }
+    clear_world_overlays();
     grug_deinit_entity(g_state, entity);
     clear_overlays();
     return rc ? OUT_FAIL : stubbed ? OUT_STUBBED : OUT_PASS;
@@ -4862,6 +5322,9 @@ int main(int argc, char** argv) {
     overlay_click_fn = grug_get_on_fn_id(g_state, "Overlay", "click");
     overlay_key_fn = grug_get_on_fn_id(g_state, "Overlay", "key");
     overlay_scroll_fn = grug_get_on_fn_id(g_state, "Overlay", "scroll");
+    world_render_fn = grug_get_on_fn_id(g_state, "Overlay", "render_world");
+    world_key_fn = grug_get_on_fn_id(g_state, "Overlay", "world_key");
+    world_binding_fn = grug_get_on_fn_id(g_state, "Overlay", "world_binding");
     uint64_t tick_fn = grug_get_on_fn_id(g_state, "Test", "tick");
     uint64_t init_fn = grug_get_on_fn_id(g_state, "Test", "init");
     if (!strcmp(argv[2], "--all")) { rc = run_all(files, tick_fn, init_fn); goto done; }
@@ -4886,6 +5349,10 @@ done:
     clear_guis();
     clear_overlays();
     free(bes); free(blockdefs);
+    clear_scans();
+    free(scans);
+    clear_world_overlays();
+    free(world_overlay_entities);
     free(world); free(objs); free(arena); free(expected_error);
     remove_game_dir();
     grug_deinit(g_state);

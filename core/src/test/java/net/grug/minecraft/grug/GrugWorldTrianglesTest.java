@@ -129,7 +129,7 @@ class GrugWorldTrianglesTest {
     void aTriangleIsRecordedWithItsCornersAndAlpha() {
         GrugWorldOverlay.noteTrianglesSupported();
         long color = HostFunctions.Color_rgba(0, 255, 0, 100);
-        GrugWorldOverlay.openWorld(0, 0, 0, 0);
+        GrugWorldOverlay.openWorld(0, 0, 0, 0, 0, 0, 0, null);
         long context =
                 GrugEntities.addEntity(
                         GrugEntityType.OverlayWorldContext, GrugWorldOverlay.context());
@@ -156,7 +156,7 @@ class GrugWorldTrianglesTest {
     @Test
     void aLoaderThatCannotDrawTrianglesStopsTheGameInsteadOfRecordingOne() {
         long color = HostFunctions.Color_rgba(0, 255, 0, 100);
-        GrugWorldOverlay.openWorld(0, 0, 0, 0);
+        GrugWorldOverlay.openWorld(0, 0, 0, 0, 0, 0, 0, null);
         long context =
                 GrugEntities.addEntity(
                         GrugEntityType.OverlayWorldContext, GrugWorldOverlay.context());

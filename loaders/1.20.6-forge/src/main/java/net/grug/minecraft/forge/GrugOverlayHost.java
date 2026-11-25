@@ -14,6 +14,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.forge.gui.GrugScreen;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugMetadata;
 import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugOverlayScripts;
@@ -25,6 +26,7 @@ import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.GrugWorldKeys;
 import net.grug.minecraft.grug.GrugWorldOverlay;
 import net.minecraft.client.Camera;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -36,11 +38,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -439,6 +443,36 @@ public final class GrugOverlayHost {
 
     private static final GrugWorldKeys worldKeys = new GrugWorldKeys();
 
+    /** One binding a mod declared, with the game binding registered for it. */
+    static final class DeclaredBinding {
+        final String mod;
+        final String id;
+        final KeyMapping mapping;
+
+        DeclaredBinding(String mod, String id, KeyMapping mapping) {
+            this.mod = mod;
+            this.id = id;
+            this.mapping = mapping;
+        }
+    }
+
+    private static final List<DeclaredBinding> declaredBindings = new ArrayList<>();
+
+    /**
+     * Registers one game binding per binding the mounted mods declare, so each is in the Controls
+     * screen before a world is opened and a rebound key is the one that fires. Forge appends it to
+     * the options the Controls screen reads and saves.
+     */
+    public static void registerDeclaredBindings(RegisterKeyMappingsEvent event) {
+        for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
+            KeyMapping mapping =
+                    new KeyMapping(
+                            declared.key().name(), declared.key().code(), "key.categories.grug");
+            event.register(mapping);
+            declaredBindings.add(new DeclaredBinding(declared.mod(), declared.key().id(), mapping));
+        }
+    }
+
     private static final int GLFW_KEY_SPACE = 32;
     private static final int GLFW_KEY_BACKSPACE = 259;
     private static final int GLFW_KEY_LEFT_CONTROL = 341;
@@ -487,9 +521,12 @@ public final class GrugOverlayHost {
     public static void onRenderLevel(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return;
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null) return;
+        if (minecraft.level == null || minecraft.player == null) return;
         Camera camera = event.getCamera();
         Vec3 position = camera.getPosition();
+        double feetX = minecraft.player.getX();
+        double feetY = minecraft.player.getY();
+        double feetZ = minecraft.player.getZ();
         String testMod = GrugTestState.currentTestMod;
         for (GrugOverlayScripts.Script overlay : overlays()) {
             List<GrugWorldOverlay.Line> lines =
@@ -499,7 +536,11 @@ public final class GrugOverlayHost {
                             event.getPartialTick(),
                             position.x,
                             position.y,
-                            position.z);
+                            position.z,
+                            feetX,
+                            feetY,
+                            feetZ,
+                            overlay.mod);
             List<GrugWorldOverlay.Triangle> triangles = GrugWorldOverlay.lastTriangles();
             if (lines.isEmpty() && triangles.isEmpty()) continue;
             if (overlay.mod.equals(testMod)) {
@@ -604,6 +645,17 @@ public final class GrugOverlayHost {
                 deliverWorldKey(code, controlDown(window));
             }
         }
+        for (DeclaredBinding declared : declaredBindings) {
+            GrugOverlayScripts.Script script = GrugOverlayScripts.bindingScript(declared.mod);
+            if (script == null) continue;
+            GrugWorldOverlay.binding(
+                    script.entityHandle,
+                    script.worldBindingFnId,
+                    declared.mod,
+                    declared.id,
+                    declared.mapping.isDown(),
+                    open);
+        }
     }
 
     private static boolean controlDown(long window) {
@@ -624,5 +676,9 @@ public final class GrugOverlayHost {
     static void pressWorldKey(int code, boolean ctrl) {
         GrugWorldOverlay.clearDrawn();
         deliverWorldKey(code, ctrl);
+        for (GrugOverlayScripts.Script script : GrugOverlayScripts.bindingScripts()) {
+            GrugWorldOverlay.bindingDefaultsFor(
+                    script.entityHandle, script.worldBindingFnId, script.mod, code);
+        }
     }
 }

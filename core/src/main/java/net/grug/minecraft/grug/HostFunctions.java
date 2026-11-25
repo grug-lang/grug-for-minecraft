@@ -352,6 +352,64 @@ public class HostFunctions {
         return addPlayer(GrugCore.getAdapter().testPlayer());
     }
 
+    /**
+     * Test only: the running test's own mod configuration, so a mod whose overlay reads its options
+     * from a world pass can assert the values it reads. The overlay's own context hands the same
+     * config, and has no assert to check one with.
+     */
+    public static long TestTickContext_get_config(long contextId) {
+        if (!requireTickContext("TestTickContext.get_config", contextId)) return 0;
+        String mod = GrugTestState.currentTestMod;
+        if (mod == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.get_config: The running test is not one of a mod, so it has"
+                            + " no config.");
+            return 0;
+        }
+        return GrugEntities.addEntity(GrugEntityType.Config, GrugConfig.forMod(mod));
+    }
+
+    /**
+     * Test only: the squares a hostile mob may stand in around the test player's feet, which is
+     * what an overlay's world pass answers for the camera's player. A test sets the player position
+     * and asserts the scan, since the world pass has no assert of its own.
+     *
+     * <p>It scans the same level {@link #TestTickContext_get_client_level} answers, the one a test
+     * places its fixture in, so the scan works on a client and on a dedicated server alike. An
+     * overlay's own pass scans its client's copy, which is the only side that draws.
+     */
+    public static long TestTickContext_get_spawn_squares(long contextId, double radius) {
+        if (!requireTickContext("TestTickContext.get_spawn_squares", contextId)) return 0;
+        if (!spawnRadiusOk("TestTickContext.get_spawn_squares", radius)) return 0;
+        Object level = GrugCore.getAdapter().getLevel();
+        if (level == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.get_spawn_squares: There is no level to scan yet.");
+            return 0;
+        }
+        Object player = GrugCore.getAdapter().testPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.get_spawn_squares: There is no player to scan around on "
+                            + GrugCore.getAdapter().getSide().description()
+                            + " yet.");
+            return 0;
+        }
+        Vec3 feet = GrugCore.getAdapter().playerPosition(player);
+        return GrugEntities.addEntity(
+                GrugEntityType.SpawnSquares,
+                GrugSpawnSquares.scan(
+                        GrugCore.getAdapter(),
+                        level,
+                        (int) Math.floor(feet.x()),
+                        (int) Math.floor(feet.y()),
+                        (int) Math.floor(feet.z()),
+                        (int) radius));
+    }
+
     private static long addPlayer(Object player) {
         if (player == null) {
             // Which side it is matters to whoever reads this: on a client there is a local player
@@ -4235,6 +4293,15 @@ public class HostFunctions {
         return requireContext(method, "world_key", contextId, GrugWorldOverlay.context());
     }
 
+    /** The same rule for the context an overlay's {@code world_binding()} was passed. */
+    private static boolean requireBindingContext(String method, long contextId) {
+        if (!GrugWorldOverlay.isBinding()) {
+            reportRefusedContext(method, "world_binding");
+            return false;
+        }
+        return requireContext(method, "world_binding", contextId, GrugWorldOverlay.context());
+    }
+
     public static double OverlayHudContext_screen_width(long contextId) {
         if (!requireHudContext("OverlayHudContext.screen_width", contextId)) return 0.0;
         return GrugWorldOverlay.screenWidth();
@@ -4299,6 +4366,188 @@ public class HostFunctions {
     public static double OverlayWorldContext_camera_z(long contextId) {
         if (!requireWorldContext("OverlayWorldContext.camera_z", contextId)) return 0.0;
         return GrugWorldOverlay.cameraZ();
+    }
+
+    /** The running pass's mod, which owns the configuration a context hands out. */
+    private static long addConfig(String method, String callerMod) {
+        if (callerMod == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method + ": The overlay is not one of a mod, so it has no config.");
+            return 0;
+        }
+        return GrugEntities.addEntity(GrugEntityType.Config, GrugConfig.forMod(callerMod));
+    }
+
+    public static long OverlayWorldContext_get_config(long contextId) {
+        if (!requireWorldContext("OverlayWorldContext.get_config", contextId)) return 0;
+        return addConfig("OverlayWorldContext.get_config", GrugWorldOverlay.mod());
+    }
+
+    public static long OverlayWorldBindingContext_get_config(long contextId) {
+        if (!requireBindingContext("OverlayWorldBindingContext.get_config", contextId)) return 0;
+        return addConfig("OverlayWorldBindingContext.get_config", GrugWorldOverlay.mod());
+    }
+
+    public static String OverlayWorldBindingContext_id(long contextId) {
+        if (!requireBindingContext("OverlayWorldBindingContext.id", contextId)) return "";
+        String id = GrugWorldOverlay.bindingId();
+        return id == null ? "" : id;
+    }
+
+    /**
+     * Scans the cube around the player's feet block for the squares a hostile mob may stand in.
+     *
+     * <p>The centre is the block the player's feet are in, floored as {@code
+     * MathHelper.floor_double} floors it, so a feet x of -18.5 scans from -19 (#1255).
+     */
+    public static long OverlayWorldContext_get_spawn_squares(long contextId, double radius) {
+        if (!requireWorldContext("OverlayWorldContext.get_spawn_squares", contextId)) return 0;
+        if (!spawnRadiusOk("OverlayWorldContext.get_spawn_squares", radius)) return 0;
+        Object level = GrugCore.getAdapter().clientLevel();
+        if (level == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "OverlayWorldContext.get_spawn_squares: There is no level to scan yet.");
+            return 0;
+        }
+        return GrugEntities.addEntity(
+                GrugEntityType.SpawnSquares,
+                GrugSpawnSquares.scan(
+                        GrugCore.getAdapter(),
+                        level,
+                        (int) Math.floor(GrugWorldOverlay.playerX()),
+                        (int) Math.floor(GrugWorldOverlay.playerY()),
+                        (int) Math.floor(GrugWorldOverlay.playerZ()),
+                        (int) radius));
+    }
+
+    /**
+     * Whether a scan radius is the whole number the host's limit allows, reported when it is not.
+     */
+    private static boolean spawnRadiusOk(String method, double radius) {
+        if (Double.isFinite(radius)
+                && radius == Math.floor(radius)
+                && radius >= 0
+                && radius <= GrugSpawnSquares.MAX_RADIUS) {
+            return true;
+        }
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                method
+                        + ": The radius has to be a whole number from 0 to "
+                        + GrugSpawnSquares.MAX_RADIUS
+                        + ", and was "
+                        + radius
+                        + ".");
+        return false;
+    }
+
+    public static boolean Config_bool(long configId, String key) {
+        GrugConfig.Values values =
+                withEntity(
+                        "Config.bool",
+                        "config",
+                        configId,
+                        object -> (GrugConfig.Values) object,
+                        null);
+        if (values == null) return false;
+        return values.bool(key);
+    }
+
+    public static double Config_number(long configId, String key) {
+        GrugConfig.Values values =
+                withEntity(
+                        "Config.number",
+                        "config",
+                        configId,
+                        object -> (GrugConfig.Values) object,
+                        null);
+        if (values == null) return 0.0;
+        return values.number(key);
+    }
+
+    public static long Config_color(long configId, String key) {
+        GrugConfig.Values values =
+                withEntity(
+                        "Config.color",
+                        "config",
+                        configId,
+                        object -> (GrugConfig.Values) object,
+                        null);
+        if (values == null) return 0;
+        int argb = values.color(key);
+        return GrugEntities.addEntity(
+                GrugEntityType.Color,
+                new Color(
+                        (argb >> 16) & 0xFF,
+                        (argb >> 8) & 0xFF,
+                        argb & 0xFF,
+                        (argb >>> 24) & 0xFF));
+    }
+
+    private static GrugSpawnSquares squares(String method, long squaresId) {
+        return withEntity(
+                method, "spawn squares", squaresId, object -> (GrugSpawnSquares) object, null);
+    }
+
+    public static double SpawnSquares_count(long squaresId) {
+        GrugSpawnSquares squares = squares("SpawnSquares.count", squaresId);
+        return squares == null ? 0.0 : squares.count();
+    }
+
+    public static double SpawnSquares_x(long squaresId, double index) {
+        GrugSpawnSquares squares = squares("SpawnSquares.x", squaresId);
+        if (squares == null) return 0.0;
+        int i = squareIndex("SpawnSquares.x", squares, index);
+        return i < 0 ? 0.0 : squares.x(i);
+    }
+
+    public static double SpawnSquares_y(long squaresId, double index) {
+        GrugSpawnSquares squares = squares("SpawnSquares.y", squaresId);
+        if (squares == null) return 0.0;
+        int i = squareIndex("SpawnSquares.y", squares, index);
+        return i < 0 ? 0.0 : squares.y(i);
+    }
+
+    public static double SpawnSquares_z(long squaresId, double index) {
+        GrugSpawnSquares squares = squares("SpawnSquares.z", squaresId);
+        if (squares == null) return 0.0;
+        int i = squareIndex("SpawnSquares.z", squares, index);
+        return i < 0 ? 0.0 : squares.z(i);
+    }
+
+    public static double SpawnSquares_block_light(long squaresId, double index) {
+        GrugSpawnSquares squares = squares("SpawnSquares.block_light", squaresId);
+        if (squares == null) return 0.0;
+        int i = squareIndex("SpawnSquares.block_light", squares, index);
+        return i < 0 ? 0.0 : squares.blockLight(i);
+    }
+
+    public static double SpawnSquares_sky_light(long squaresId, double index) {
+        GrugSpawnSquares squares = squares("SpawnSquares.sky_light", squaresId);
+        if (squares == null) return 0.0;
+        int i = squareIndex("SpawnSquares.sky_light", squares, index);
+        return i < 0 ? 0.0 : squares.skyLight(i);
+    }
+
+    /** An index into a scan, checked against what it holds and reported when it is not one. */
+    private static int squareIndex(String method, GrugSpawnSquares squares, double index) {
+        if (!Double.isFinite(index)
+                || index != Math.floor(index)
+                || index < 0
+                || index >= squares.count()) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": The index has to be a whole number from 0 to "
+                            + (squares.count() - 1)
+                            + ", and was "
+                            + index
+                            + ".");
+            return -1;
+        }
+        return (int) index;
     }
 
     @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")

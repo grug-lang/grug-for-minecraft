@@ -477,6 +477,15 @@ public interface ModLoaderAdapter {
     boolean isHostileSpawnSpace(Object levelObj, double x, double y, double z);
 
     /**
+     * Whether the level's own height limit puts the y coordinate outside the world, so the scan
+     * skips the position (#1255). A version without a height limit that a world can set keeps the
+     * default and scans every position.
+     */
+    default boolean isOutOfHeightLimit(Object levelObj, int y) {
+        return false;
+    }
+
+    /**
      * The number of living entities in the level that the game's spawner counts toward the cap of
      * the category, one of {@code GrugMobCap.CATEGORIES} (#1252).
      */

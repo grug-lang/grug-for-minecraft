@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.forge125.GrugGuiAccess;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugMetadata;
 import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugOverlayScripts;
@@ -23,6 +24,7 @@ import net.minecraft.src.GuiIngame;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
+import net.minecraft.src.KeyBinding;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.RenderHelper;
 import net.minecraft.src.RenderItem;
@@ -36,6 +38,7 @@ import org.lwjgl.opengl.GL12;
 
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -660,6 +663,58 @@ public final class GrugOverlayHost {
 
     private static final GrugWorldKeys worldKeys = new GrugWorldKeys();
 
+    /** One binding a mod declared, with the game binding registered for it. */
+    private static final class DeclaredBinding {
+        final String mod;
+        final String id;
+        final KeyBinding binding;
+
+        DeclaredBinding(String mod, String id, KeyBinding binding) {
+            this.mod = mod;
+            this.id = id;
+            this.binding = binding;
+        }
+    }
+
+    /**
+     * One game binding per binding the mounted mods declare. Constructing it adds it to the game's
+     * key list, so its press reaches {@link KeyBinding#isPressed()}; the class initializes after
+     * every mod is mounted, so its member scope is known here.
+     */
+    private static final List<DeclaredBinding> declaredBindings = new ArrayList<>();
+
+    static {
+        for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
+            declaredBindings.add(
+                    new DeclaredBinding(
+                            declared.mod(),
+                            declared.key().id(),
+                            new KeyBinding(declared.key().name(), declared.key().code())));
+        }
+    }
+
+    private static boolean declaredKeysInstalled = false;
+
+    /**
+     * Appends the declared bindings to the game's own key list, which the Controls screen reads its
+     * rows from and saves a rebind into, then reads the options file again so a key saved for one
+     * of them is applied and the game's press lookup includes it. The vanilla array is built when
+     * the game starts, after the mods load, so this waits for it and runs once.
+     */
+    private static void installDeclaredKeys(Minecraft minecraft) {
+        if (declaredKeysInstalled || minecraft.gameSettings == null) return;
+        declaredKeysInstalled = true;
+        List<KeyBinding> all = new ArrayList<>();
+        for (KeyBinding binding : minecraft.gameSettings.keyBindings) all.add(binding);
+        for (DeclaredBinding declared : declaredBindings) {
+            if (!all.contains(declared.binding)) all.add(declared.binding);
+        }
+        minecraft.gameSettings.keyBindings = all.toArray(new KeyBinding[all.size()]);
+        // GameSettings read the file when it was made, before these bindings were in its array, so
+        // a rebind saved for one was skipped and the press lookup was rebuilt without it.
+        minecraft.gameSettings.loadOptions();
+    }
+
     /**
      * Whether the player has no screen open. A headless client is never the active window, so this
      * loader keeps a {@link GrugEmptyScreen} up instead of null (see its comment), and it counts as
@@ -727,6 +782,10 @@ public final class GrugOverlayHost {
         double cameraX = view.lastTickPosX + (view.posX - view.lastTickPosX) * partialTick;
         double cameraY = view.lastTickPosY + (view.posY - view.lastTickPosY) * partialTick;
         double cameraZ = view.lastTickPosZ + (view.posZ - view.lastTickPosZ) * partialTick;
+        EntityLiving feet = minecraft.thePlayer == null ? view : minecraft.thePlayer;
+        double feetX = feet.posX;
+        double feetY = feet.boundingBox.minY;
+        double feetZ = feet.posZ;
         String testMod = GrugTestState.currentTestMod;
         for (GrugOverlayScripts.Script overlay : overlays()) {
             List<GrugWorldOverlay.Line> lines =
@@ -736,7 +795,11 @@ public final class GrugOverlayHost {
                             partialTick,
                             cameraX,
                             cameraY,
-                            cameraZ);
+                            cameraZ,
+                            feetX,
+                            feetY,
+                            feetZ,
+                            overlay.mod);
             List<GrugWorldOverlay.Triangle> triangles = GrugWorldOverlay.lastTriangles();
             if (lines.isEmpty() && triangles.isEmpty()) continue;
             if (overlay.mod.equals(testMod)) {
@@ -832,6 +895,7 @@ public final class GrugOverlayHost {
      * screen, fires once at most.
      */
     public static void pollWorldKeys(Minecraft minecraft) {
+        installDeclaredKeys(minecraft);
         // The state is recorded on every poll, with no world loaded too, so a key still held when a
         // world loads is not taken for a fresh press; only the delivery waits for a world.
         boolean open = noScreen(minecraft) && minecraft.theWorld != null;
@@ -846,6 +910,19 @@ public final class GrugOverlayHost {
                                 || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL));
             }
         }
+        for (DeclaredBinding declared : declaredBindings) {
+            // Consumed even when no overlay answers, so a press is never left to fire later.
+            boolean down = declared.binding.isPressed();
+            GrugOverlayScripts.Script script = GrugOverlayScripts.bindingScript(declared.mod);
+            if (script == null) continue;
+            GrugWorldOverlay.binding(
+                    script.entityHandle,
+                    script.worldBindingFnId,
+                    declared.mod,
+                    declared.id,
+                    down,
+                    open);
+        }
     }
 
     private static void deliverWorldKey(int code, boolean ctrl) {
@@ -858,5 +935,9 @@ public final class GrugOverlayHost {
     public static void pressWorldKey(int code, boolean ctrl) {
         GrugWorldOverlay.clearDrawn();
         deliverWorldKey(code, ctrl);
+        for (GrugOverlayScripts.Script script : GrugOverlayScripts.bindingScripts()) {
+            GrugWorldOverlay.bindingDefaultsFor(
+                    script.entityHandle, script.worldBindingFnId, script.mod, code);
+        }
     }
 }

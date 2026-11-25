@@ -1508,6 +1508,11 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isOutOfHeightLimit(Object levelObj, int y) {
+        return y < 0 || y >= ((World) levelObj).getHeight();
+    }
+
+    @Override
     public int getBlockLight(Object levelObj, double x, double y, double z) {
         return ((World) levelObj)
                 .getSavedLightValue(

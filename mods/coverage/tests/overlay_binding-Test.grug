@@ -1,0 +1,152 @@
+# Covers the binding half of the world overlay (#1255): the coverage mod declares one binding
+# (default B) and three config options in its about.json, and a binding press asks world_binding
+# with that id and the mod's config. The export flips a mark that render_world draws in the colour
+# the config declares, so the frame after the first press draws one and the frame after the second
+# draws nothing. The same test reads the config a test context hands out and the scan it makes,
+# which a world pass cannot assert itself.
+started: bool = false
+ready: bool = false
+pressed: bool = false
+checked_held: bool = false
+turned_off: bool = false
+drawn_waited: number = 0
+scan_waited: number = 0
+cleared_at: number = 0
+cx: number = 0
+cz: number = 0
+fy: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.world_overlay_supported() {
+            return
+        }
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        # The scan is a cube of radius zero around the block the player's feet are in, floored
+        # as the host floors it, so a negative side centres on the block the player stands in and
+        # not its neighbour toward zero.
+        feet: Vec3 = ctx.get_player().position()
+        cx = Math.floor(feet.x())
+        cz = Math.floor(feet.z())
+        fy = Math.floor(feet.y())
+
+        cfg: Config = ctx.get_config()
+        ctx.assert(cfg.bool("coverage_flag"), "The coverage flag defaults to true.")
+        ctx.assert(cfg.number("coverage_count") == 3, "The coverage count defaults to 3.")
+        ctx.assert(cfg.number("coverage_color") == 0, "A number read from a colour option answers 0.")
+        ctx.assert(not cfg.bool("coverage_count"), "A bool read from a number option answers false.")
+        ctx.not_done()
+        return
+    }
+
+    if not ready {
+        # The runner can still be moving the player into the test box for a tick after the world
+        # has settled, and a loader that snaps it to the block centre shifts it across a block
+        # boundary. The scan is taken only once the feet have held one block for a tick, and its
+        # centre is read from that same position.
+        feet: Vec3 = ctx.get_player().position()
+        nx: number = Math.floor(feet.x())
+        ny: number = Math.floor(feet.y())
+        nz: number = Math.floor(feet.z())
+        if nx != cx or ny != fy or nz != cz {
+            cx = nx
+            fy = ny
+            cz = nz
+            ctx.not_done()
+            return
+        }
+        level: Level = ctx.get_client_level()
+        # The stone under the feet is placed again rather than assumed, so the fixture does not
+        # depend on the room.
+        level.place_block(cx, fy - 1, cz, "minecraft:stone")
+        # A joined client's copy receives the stone a tick or more after the test places it, and
+        # the scan reads that copy, so the square is waited for before the count is asserted.
+        squares: SpawnSquares = ctx.get_spawn_squares(0)
+        if squares.count() != 1 {
+            scan_waited = scan_waited + 1
+            ctx.assert(scan_waited < 300, "The scan should reach the square above the floor.")
+            ctx.not_done()
+            return
+        }
+        if squares.x(0) != cx or squares.y(0) != fy or squares.z(0) != cz {
+            scan_waited = scan_waited + 1
+            ctx.assert(scan_waited < 300, "The scan should centre on the block the feet held.")
+            ctx.not_done()
+            return
+        }
+        # The stone can change the light of the section it sits in, and a joined client gets that
+        # light in a packet, so the two reads are compared only once the copies agree.
+        if not ctx.light_applied(cx, fy, cz) {
+            scan_waited = scan_waited + 1
+            ctx.assert(scan_waited < 300, "The client's light should reach the section the stone changed.")
+            ctx.not_done()
+            return
+        }
+
+        ctx.assert(squares.count() == 1, "The cube around the feet holds the one square above the floor.")
+        ctx.assert(squares.x(0) == cx, "The square's x is the block the scan centres on.")
+        ctx.assert(squares.y(0) == fy, "The square's y is the feet block's.")
+        ctx.assert(squares.z(0) == cz, "The square's z is the block the scan centres on.")
+        ctx.assert(squares.block_light(0) == level.get_block_light(cx, fy, cz), "The square's block light is the level's.")
+        ctx.assert(squares.sky_light(0) == level.get_sky_light(cx, fy, cz), "The square's sky light is the level's.")
+        ready = true
+        ctx.not_done()
+        return
+    }
+
+    if not pressed {
+        pressed = true
+        drawn_waited = 0
+        # B is the binding's declared default, so the first press turns the mark on.
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if not turned_off {
+        # A press clears the drawn mark, and the client draws fewer frames than it runs ticks at the
+        # game's maximum speed, so the frame is waited for rather than read on the next tick.
+        if not ctx.world_overlay_drawn() {
+            drawn_waited = drawn_waited + 1
+            ctx.assert(drawn_waited < 200, "The first binding press should draw the mark.")
+            ctx.not_done()
+            return
+        }
+        if not checked_held {
+            checked_held = true
+            drawn_waited = 0
+            # A is not the binding's key, so the marked frame stays marked.
+            ctx.press_world_key(65, false)
+            ctx.not_done()
+            return
+        }
+        if not ctx.world_overlay_drawn() {
+            drawn_waited = drawn_waited + 1
+            ctx.assert(drawn_waited < 200, "A key that is not the binding leaves the mark on.")
+            ctx.not_done()
+            return
+        }
+        turned_off = true
+        # The second press turns the mark off. The press clears the mark, so the absence is read
+        # after a frame's worth of ticks rather than on the next tick: at the game's maximum speed
+        # up to ten ticks pass in one frame, and a mark drawn by that frame would otherwise be read
+        # before the frame ran.
+        ctx.press_world_key(66, false)
+        cleared_at = ctx.current_tick()
+        ctx.not_done()
+        return
+    }
+
+    if ctx.current_tick() - cleared_at < 12 {
+        # Asking also asks the client for a frame, which a test that never captures does not get
+        # otherwise.
+        ctx.world_overlay_drawn()
+        ctx.not_done()
+        return
+    }
+    ctx.assert(not ctx.world_overlay_drawn(), "The second binding press turns the mark off.")
+}

@@ -3,84 +3,133 @@
 # port of SafeSquares 1.2.0 (see about.json), whose Checker draws the same two kinds from the same
 # three tests:
 # 1. The square passes the spawner's ground test (Level.is_hostile_spawn_space), which the
-#    reference asks of NaturalSpawner with the air material.
-# 2. The block light is at most the version's limit (Level.get_hostile_block_light_limit: the
-#    reference's 7, and 0 on 1.20.6, whose overworld allows no block light at all), the reference's
-#    chunk light read with the sky subtracted away. A square with more block light is never marked.
-# 3. Then the square is red when the sky light is at most the safe level as well, and yellow when
-#    the sky lights it, because the sky's light is gone at night.
+#    reference asks of the spawner with the air material.
+# 2. The block light is at most the configured safe_light_level (the reference's 7 by default, and
+#    the file's own value up to 16). The reference reads the chunk's light with the sky subtracted
+#    away, and a square with more block light is never marked. A version whose own spawner allows
+#    less block light than the file says is not a clamp on the rule: the reference's threshold is
+#    the file's, so raising it marks more squares there too.
+# 3. Then the square is red when the sky light is at most that limit as well, and yellow when the
+#    sky lights it above it, because the sky's light is gone at night.
 # Beta stores sky light as it is at full day and subtracts the time of day when it is read, which
 # is what makes the reference's plain light read tell the two apart, and Level.get_sky_light is the
 # stored value.
 
-# The reference's default config: the light level a mob can still spawn at, the half width of the
-# cross (its crossScale of 1.0 halved), and how high above the block it floats.
-safe_light_level: number = 7
-cross_half: number = 0.5
-cross_epsilon: number = 0.125
+# The squares come in one batch, OverlayWorldContext.get_spawn_squares, which is the reference's own
+# cube: render_distance blocks each way around the player's feet, every square the spawner accepts,
+# in the reference's z, y, x order. The batch is taken again every update_rate ticks of level time
+# and kept between frames, as the reference keeps its grid and its tick counter, so a frame draws
+# the squares it last found and the marks trail the player by up to update_rate ticks. The
+# reference also rescans a tick after a block is placed or broken; an overlay has no hook for that,
+# so the marks catch up at the next scan. Both are recorded in about.json.
 
-# How far from the camera's block the squares are found. The reference's is 16, which is too many
-# host calls for one frame, so this is a recorded deviation.
-radius: number = 8
+# Every option is the reference's own, with its own default, read from the mod's config file (see
+# about.json). cross_line_width is read nowhere: the host draws the world's lines at its own width,
+# which is the reference's default of two pixels, and the option is recorded in about.json.
 
+# The squares the last scan kept, in the order the scan keeps them. A batch is a host-made id, which
+# a member cannot hold and reassign directly, so it lives in an Option, as a kept response does.
+squares: Option[SpawnSquares] = Option.new()
+
+# The level time of the last scan, so the next one is update_rate ticks later. A level's time never
+# starts below 0, so this first value makes the first active frame scan.
+last_scan: number = -1000000
+
+# Whether L has been pressed an odd number of times. The reference calls this its active flag and
+# keeps it apart from the enabled option, so disabling and enabling the mod again does not lose it.
 active: bool = false
 
 export render_world(ctx: OverlayWorldContext) {
+    cfg: Config = ctx.get_config()
+    if not cfg.bool("enabled") {
+        return
+    }
     if not active {
         return
     }
-    level: Level = ctx.get_level()
-    cx: number = Math.floor(ctx.camera_x())
-    cy: number = Math.floor(ctx.camera_y())
-    cz: number = Math.floor(ctx.camera_z())
+    _scan_if_due(ctx, cfg)
+    if not squares.has() {
+        return
+    }
+    batch: SpawnSquares = squares.unwrap()
+    count: number = batch.count()
+    if count == 0 {
+        return
+    }
+    _draw_squares(ctx, cfg, batch, count)
+}
 
-    y: number = cy - radius
-    while y <= cy + radius {
-        x: number = cx - radius
-        while x <= cx + radius {
-            z: number = cz - radius
-            while z <= cz + radius {
-                _draw_square(level, ctx, x, y, z)
-                z = z + 1
+# The declared binding toggles the marks. It is the game's own key binding, so the player can rebind
+# it in the Controls menu, where the reference's "Toggle SafeSquares" is. The reference's key does
+# nothing while the mod is disabled, and turning it on checks at once, so the first frame after the
+# press has marks.
+export world_binding(ctx: OverlayWorldBindingContext) {
+    if ctx.id() != "toggle" {
+        return
+    }
+    cfg: Config = ctx.get_config()
+    if not cfg.bool("enabled") {
+        return
+    }
+    active = not active
+    if active {
+        last_scan = -1000000
+    }
+}
+
+# Takes the batch again when update_rate ticks of level time have passed since the last one, which
+# is what the reference's Checker.autoCheck does with its own tick counter. A level whose clock is
+# below the last scan's, as a new world's can be, scans at once: the reference's counter belongs to
+# the world, so its grid does not carry a wait over into one that starts at another time.
+local _scan_if_due(ctx: OverlayWorldContext, cfg: Config) {
+    now: number = ctx.get_level().get_time()
+    rate: number = cfg.number("update_rate")
+    if now >= last_scan and now - last_scan < rate {
+        return
+    }
+    last_scan = now
+    # The reference's config is an int, and the host takes a whole radius, so a file value such as
+    # 10.5 is floored rather than reported as a scan that draws nothing.
+    radius: number = Math.floor(cfg.number("render_distance"))
+    squares.set(ctx.get_spawn_squares(radius))
+}
+
+# Draws a cross on every kept square the rule marks, in the reference's order.
+local _draw_squares(ctx: OverlayWorldContext, cfg: Config, batch: SpawnSquares, count: number) {
+    safe: number = cfg.number("safe_light_level")
+    sky_enabled: bool = cfg.bool("safe_sky_enabled")
+    dark_enabled: bool = cfg.bool("safe_dark_enabled")
+    sky_color: Color = cfg.color("safe_sky_color")
+    dark_color: Color = cfg.color("safe_dark_color")
+    scale: number = cfg.number("cross_scale") / 2
+    epsilon: number = cfg.number("cross_epsilon")
+    i: number = 0
+    while i < count {
+        block_light: number = batch.block_light(i)
+        if block_light <= safe {
+            x: number = batch.x(i)
+            y: number = batch.y(i)
+            z: number = batch.z(i)
+            sky_light: number = batch.sky_light(i)
+            if sky_light > safe {
+                # Dark at night only: SafeSquares' yellow.
+                if sky_enabled {
+                    _cross(ctx, x, y, z, sky_color, scale, epsilon)
+                }
+            } else if dark_enabled {
+                # Dark at any time: SafeSquares' red.
+                _cross(ctx, x, y, z, dark_color, scale, epsilon)
             }
-            x = x + 1
         }
-        y = y + 1
+        i = i + 1
     }
 }
 
-export world_key(ctx: OverlayWorldKeyContext) {
-    if ctx.key() == 76 {
-        active = not active
-    }
-}
-
-# Draws the cross on the square at x, y, z when it is one a hostile mob can spawn in.
-local _draw_square(level: Level, ctx: OverlayWorldContext, x: number, y: number, z: number) {
-    if not level.is_hostile_spawn_space(x, y, z) {
-        return
-    }
-    block_light: number = level.get_block_light(x, y, z)
-    if block_light > level.get_hostile_block_light_limit() {
-        return
-    }
-    sky_light: number = level.get_sky_light(x, y, z)
-    if sky_light > safe_light_level {
-        # Dark at night only: SafeSquares' yellow, #DDDD00.
-        _cross(ctx, x, y, z, Color.rgb(221, 221, 0))
-    } else {
-        # Dark at any time: SafeSquares' red, #FF2222.
-        _cross(ctx, x, y, z, Color.rgb(255, 34, 34))
-    }
-}
-
-# Two crossing diagonals over the square, as the reference's GL_LINES pairs are.
-local _cross(ctx: OverlayWorldContext, x: number, y: number, z: number, color: Color) {
-    x1: number = x + 0.5 - cross_half
-    x2: number = x + 0.5 + cross_half
-    z1: number = z + 0.5 - cross_half
-    z2: number = z + 0.5 + cross_half
-    ly: number = y + cross_epsilon
-    ctx.draw_line(x1, ly, z1, x2, ly, z2, color)
-    ctx.draw_line(x1, ly, z2, x2, ly, z1, color)
+# Two crossing diagonals over the square's top face, as the reference's two GL_LINES pairs are.
+local _cross(ctx: OverlayWorldContext, x: number, y: number, z: number, color: Color, scale: number, epsilon: number) {
+    cx: number = x + 0.5
+    cy: number = y + epsilon
+    cz: number = z + 0.5
+    ctx.draw_line(cx - scale, cy, cz - scale, cx + scale, cy, cz + scale, color)
+    ctx.draw_line(cx - scale, cy, cz + scale, cx + scale, cy, cz - scale, color)
 }

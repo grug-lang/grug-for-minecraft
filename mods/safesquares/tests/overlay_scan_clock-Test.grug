@@ -1,0 +1,206 @@
+# Covers the overlay's scan when the level's clock goes backwards (#1255). The overlay keeps the
+# level time of its last scan and takes the next batch when update_rate ticks of level time have
+# passed. A world whose clock is below the last scan's, as a newly joined world's or one whose time
+# was set back can be, leaves the new time below that mark, and a scan that only asks whether enough
+# time has passed would hold the old batch off for hours of level time. The scan is therefore due
+# when the clock is at or past the last scan and the interval has passed, or when the clock is below
+# the last scan at all.
+
+# The test marks the player's own feet square, jumps the clock 100000 ticks forward and waits for the
+# scan that follows, so the last scan is far above the world's first time. It then puts a torch in
+# the square, sets the clock back to where it started in the same tick, and asks for frames. A scan
+# on the backwards clock sees the torch and draws nothing; a scan held off keeps drawing the batch
+# from the forward scan, which still holds the square dark and marked, and the mark stays.
+
+# The player is never moved: the scan is a cube of radius render_distance around the block the feet
+# are in, and a radius-15 room seals the cube of radius 16 around them, so a square of the open
+# world's ground under the sky is not marked yellow and cannot decide the check. The room's torches
+# within three blocks of the player's column are taken away, which leaves the feet block at the
+# safe level and marked, as overlay_unmarked explains. The key pressed to clear the drawn flag is
+# one the overlay does not take, so the state it checks is the same one its own scan decides.
+
+# A joined client's level is the server's mirror, so the time and the block reach it in packets: the
+# test waits out both before it clears the mark, so the only thing that decides the last frame is
+# whether the overlay scanned on the backwards clock.
+state: number = 0
+waited: number = 0
+rate: number = 0
+safe: number = 0
+original_time: number = 0
+jump_to: number = 0
+forward_at: number = 0
+forward_waited: number = 0
+back_at: number = 0
+cleared_at: number = 0
+drawn_waited: number = 0
+px: number = 0
+py: number = 0
+pz: number = 0
+
+# The room build, the light settles and the scan waits together are longer than the default
+# budget, so the budget is raised rather than a wait shortened. A radius-15 room seals the cube
+# the overlay scans, which is the room_sky_light test's radius-13 wait plus a wider shell.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(3000)
+}
+
+export tick(ctx: TestTickContext) {
+    waited = waited + 1
+    ctx.assert(waited < 3000, "The backwards clock test should finish.")
+    level: Level = ctx.get_client_level()
+
+    if state == 0 {
+        if not me.world_overlay_supported() {
+            return
+        }
+        ctx.set_box_radius(15)
+        state = 1
+        ctx.not_done()
+        return
+    }
+
+    if state == 1 {
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        cfg: Config = ctx.get_config()
+        rate = cfg.number("update_rate")
+        safe = cfg.number("safe_light_level")
+        feet: Vec3 = ctx.get_player().position()
+        px = Math.floor(feet.x())
+        py = Math.floor(feet.y())
+        pz = Math.floor(feet.z())
+        level.place_block(px, py - 1, pz, "minecraft:stone")
+        # The torches near the player's column go, leaving the feet block at the safe level and the
+        # floor spaces around it lit to at least 10, as overlay_unmarked explains.
+        a: number = -3
+        while a <= 3 {
+            b: number = -3
+            while b <= 3 {
+                level.place_block(px + a, py - 3, pz + b, "minecraft:air")
+                b = b + 1
+            }
+            a = a + 1
+        }
+        state = 2
+        ctx.not_done()
+        return
+    }
+
+    if state == 2 {
+        if not level.is_hostile_spawn_space(px, py, pz) {
+            ctx.not_done()
+            return
+        }
+        if level.get_block_light(px, py, pz) > safe {
+            ctx.not_done()
+            return
+        }
+        if not ctx.light_applied(px, py, pz) {
+            ctx.not_done()
+            return
+        }
+        original_time = level.get_time()
+        # L turns the overlay on, and its first scan is immediate.
+        ctx.press_world_key(76, false)
+        state = 3
+        ctx.not_done()
+        return
+    }
+
+    if state == 3 {
+        # The mark of the first scan, read from a frame the press asked for.
+        if not ctx.world_overlay_drawn() {
+            drawn_waited = drawn_waited + 1
+            ctx.assert(drawn_waited < 200, "The square at the safe level should be marked before the clock moves.")
+            ctx.not_done()
+            return
+        }
+        jump_to = level.get_time() + 100000
+        level.set_time(jump_to)
+        state = 4
+        ctx.not_done()
+        return
+    }
+
+    if state == 4 {
+        if level.get_time() < jump_to {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        forward_at = level.get_time()
+        state = 5
+        ctx.not_done()
+        return
+    }
+
+    if state == 5 {
+        # A joined client's mirror learns the new time from a packet every 20 ticks, and the scan
+        # that records it runs on a frame after that, so the forward scan is waited for with room to
+        # spare. Requesting the frames is what runs it.
+        forward_waited = forward_waited + 1
+        ctx.assert(forward_waited < 4 * rate + 120, "The forward scan should run.")
+        if level.get_time() - forward_at < 4 * rate + 60 {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        # The torch goes in the square and the clock goes back in the same tick, so no frame can
+        # scan the torch at the forward time: the batch the next frame holds is the forward one,
+        # which still has the square dark. A scan on the backwards clock drops it; one held off
+        # keeps it, which is what the check below reads.
+        level.place_block(px, py, pz, "minecraft:torch")
+        level.set_time(original_time)
+        state = 6
+        ctx.not_done()
+        return
+    }
+
+    if state == 6 {
+        # The torch's light and the backwards time reach a joined client in packets; the frames run
+        # for long enough that the scans on the backwards clock have certainly seen both, whichever
+        # way the overlay decided.
+        if not ctx.light_applied(px, py, pz) {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        if back_at == 0 {
+            back_at = ctx.current_tick()
+        }
+        if ctx.current_tick() - back_at < 100 {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        ctx.press_world_key(75, false)
+        cleared_at = ctx.current_tick()
+        state = 7
+        ctx.not_done()
+        return
+    }
+
+    if state == 7 {
+        if ctx.current_tick() - cleared_at < 12 {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        ctx.assert(not ctx.world_overlay_drawn(), "A backwards clock should scan at once and drop the removed square.")
+        # L again turns the overlay off, so no later test draws its marks.
+        ctx.press_world_key(76, false)
+        cleared_at = ctx.current_tick()
+        state = 8
+        ctx.not_done()
+        return
+    }
+
+    if ctx.current_tick() - cleared_at < 12 {
+        ctx.world_overlay_drawn()
+        ctx.not_done()
+        return
+    }
+    ctx.assert(not ctx.world_overlay_drawn(), "The overlay should be off after the second press of L.")
+}

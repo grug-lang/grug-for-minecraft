@@ -14,6 +14,7 @@ import net.grug.minecraft.grug.GrugScreenTooltip;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.GrugWorldKeys;
 import net.grug.minecraft.grug.GrugWorldOverlay;
+import net.grug.minecraft.stationapi.GrugClientHooks;
 import net.grug.minecraft.stationapi.gui.GrugScreen;
 import net.grug.minecraft.stationapi.mixin.GrugFillInvoker;
 import net.minecraft.client.Minecraft;
@@ -23,6 +24,7 @@ import net.minecraft.client.render.item.ItemRenderer;
 import net.minecraft.client.render.platform.Lighting;
 import net.minecraft.client.util.ScreenScaler;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.ClientPlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 
@@ -501,11 +503,24 @@ public final class GrugOverlayHost {
         double cx = camera.lastTickX + (camera.x - camera.lastTickX) * partialTick;
         double cy = camera.lastTickY + (camera.y - camera.lastTickY) * partialTick;
         double cz = camera.lastTickZ + (camera.z - camera.lastTickZ) * partialTick;
+        ClientPlayerEntity player = minecraft.player;
+        double feetX = player == null ? camera.x : player.x;
+        double feetY = player == null ? camera.boundingBox.minY : player.boundingBox.minY;
+        double feetZ = player == null ? camera.z : player.z;
         String testMod = GrugTestState.currentTestMod;
         for (GrugOverlayScripts.Script overlay : overlays()) {
             List<GrugWorldOverlay.Line> lines =
                     GrugWorldOverlay.world(
-                            overlay.entityHandle, overlay.worldFnId, partialTick, cx, cy, cz);
+                            overlay.entityHandle,
+                            overlay.worldFnId,
+                            partialTick,
+                            cx,
+                            cy,
+                            cz,
+                            feetX,
+                            feetY,
+                            feetZ,
+                            overlay.mod);
             List<GrugWorldOverlay.Triangle> triangles = GrugWorldOverlay.lastTriangles();
             if (lines.isEmpty() && triangles.isEmpty()) continue;
             if (overlay.mod.equals(testMod)) {
@@ -588,6 +603,18 @@ public final class GrugOverlayHost {
                 deliverWorldKey(code, isControlDown());
             }
         }
+        for (GrugClientHooks.DeclaredBinding declared : GrugClientHooks.declaredBindings()) {
+            boolean down = Keyboard.isKeyDown(declared.binding.code);
+            GrugOverlayScripts.Script script = GrugOverlayScripts.bindingScript(declared.mod);
+            if (script == null) continue;
+            GrugWorldOverlay.binding(
+                    script.entityHandle,
+                    script.worldBindingFnId,
+                    declared.mod,
+                    declared.id,
+                    down,
+                    open);
+        }
     }
 
     private static void deliverWorldKey(int code, boolean ctrl) {
@@ -600,6 +627,10 @@ public final class GrugOverlayHost {
     public static void pressWorldKey(int code, boolean ctrl) {
         GrugWorldOverlay.clearDrawn();
         deliverWorldKey(code, ctrl);
+        for (GrugOverlayScripts.Script script : GrugOverlayScripts.bindingScripts()) {
+            GrugWorldOverlay.bindingDefaultsFor(
+                    script.entityHandle, script.worldBindingFnId, script.mod, code);
+        }
     }
 
     /** Whether an overlay may draw on this screen, and the geometry it draws through. */

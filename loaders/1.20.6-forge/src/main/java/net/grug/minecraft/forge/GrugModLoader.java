@@ -502,6 +502,7 @@ public class GrugModLoader {
         public static void onKeyRegister(RegisterKeyMappingsEvent event) {
             event.register(ClientKeys.RUN_TESTS_KEY);
             event.register(ClientKeys.FORCE_RESOLUTION_KEY);
+            GrugOverlayHost.registerDeclaredBindings(event);
         }
 
         /**

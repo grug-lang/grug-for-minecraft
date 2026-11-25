@@ -8,7 +8,7 @@ OUT ?= smoketest
 SELFTEST ?= selftest
 ROOT := $(abspath $(CURDIR)/../..)
 
-$(OUT): smoketest.c api_table.inc recipes.inc $(GRUG_RS)/target/release/libgruggers.a
+$(OUT): smoketest.c api_table.inc recipes.inc mod_config.inc $(GRUG_RS)/target/release/libgruggers.a
 	$(CC) $(CFLAGS) $(SAN) -o $@ smoketest.c $(GRUG_RS)/target/release/libgruggers.a -lm -lpthread -ldl
 
 api_table.inc: gen_api_table.py $(ROOT)/mod_api.json
@@ -18,9 +18,14 @@ api_table.inc: gen_api_table.py $(ROOT)/mod_api.json
 recipes.inc: gen_recipes.py $(shell find $(ROOT)/mods -path '*/data/*/recipes/*' -name '*.json')
 	python3 gen_recipes.py $(ROOT)/mods $@
 
+# One row per option and per key binding a mod's about.json declares, which the host owns and the
+# smoketest serves as the declared default.
+mod_config.inc: gen_config.py $(shell find $(ROOT)/mods -name about.json)
+	python3 gen_config.py $(ROOT)/mods $@
+
 # C tests of the pure helpers (selftest.c), a separate binary that never feeds the coverage run.
-$(SELFTEST): selftest.c smoketest.c api_table.inc recipes.inc $(GRUG_RS)/target/release/libgruggers.a
+$(SELFTEST): selftest.c smoketest.c api_table.inc recipes.inc mod_config.inc $(GRUG_RS)/target/release/libgruggers.a
 	$(CC) $(CFLAGS) $(SAN) -o $@ selftest.c $(GRUG_RS)/target/release/libgruggers.a -lm -lpthread -ldl
 
 clean:
-	rm -f smoketest selftest api_table.inc recipes.inc
+	rm -f smoketest selftest api_table.inc recipes.inc mod_config.inc

@@ -1330,6 +1330,19 @@
 							}
 						}
 					]
+				},
+				{
+					"name": "world_binding",
+					"description": "Called by the game once for each press of a key binding the mod declares in its about.json, while a world is shown and no screen is open, so `ctx.id()` says which binding. A binding is registered with the game's Controls screen, where the player can change the key it is bound to, and the game remembers that choice with its own options; a loader whose Controls screen cannot list a modded binding still delivers a press of the default key the mod declared, so a mod works everywhere even where its key cannot be changed. A press is delivered once per press and not once per repeat, and a key held while a screen closes is not delivered as a fresh press. An overlay script without this export is declined without a report, and one that declares no bindings in its about.json is never asked. See `OverlayWorldBindingContext`.",
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "OverlayWorldBindingContext"
+							}
+						}
+					]
 				}
 			]
 		},
@@ -1638,6 +1651,53 @@
 							"name": "a",
 							"type": {
 								"name": "number"
+							}
+						}
+					]
+				}
+			}
+		},
+		"Config": {
+			"description": "The mod's configuration, as its about.json declares it and the game keeps it in the config directory, at `grug/<mod>.yml`, one `key: value` line per option. It is read through the context of one of the mod's exports, because a configuration belongs to the script that asks for it. The file is written with every declared option and its default the first time the mod reads it, so a player can edit it in any text editor: the host draws no screen, and the Mod Menu screen the reference gets from another mod is not the mod's own code. A value that is missing, is not of the declared type, or falls outside the declared minimum and maximum is answered as the declared default, because a file the game cannot read must not break the mod. The file is read again when its modification time changes, so an edit applies without a restart. A key the mod does not declare is reported once and answers false, 0 or opaque magenta, so a mistyped key names itself instead of answering a value nobody declared.",
+			"methods": {
+				"bool": {
+					"description": "The declared boolean option `key`, or false when the mod declares no such option or the file's value is not a boolean. Reports an error naming the key when the mod's about.json does not declare it.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "key",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"color": {
+					"description": "The declared colour option `key`, as a Color: its text is `#RRGGBB` or `#AARRGGBB`, as the reference's own configs spell one, and a value the file cannot supply (missing, not of that shape, or a bad hexadecimal digit) is answered as the declared default. A value written as `#AARRGGBB` keeps its alpha, which draw_triangle uses and every other draw treats as opaque. Reports an error naming the key when the mod's about.json does not declare it, and answers opaque magenta then. Only a declared `color` option reads here; any other type is the declared default.",
+					"return_type": {
+						"name": "Color"
+					},
+					"parameters": [
+						{
+							"name": "key",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"number": {
+					"description": "The declared number option `key`, as a whole number or a fraction, or the declared default when the file's value is not a number in the declared range. Reports an error naming the key when the mod's about.json does not declare it, and answers 0 then.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "key",
+							"type": {
+								"name": "string"
 							}
 						}
 					]
@@ -3224,6 +3284,23 @@
 				}
 			}
 		},
+		"OverlayWorldBindingContext": {
+			"description": "The context of an overlay's world_binding() call, passed to it once for each press of one of the key bindings the mod declares in its about.json. A binding is the game's own kind of key: it has a name the player can see in the Controls screen, and the key it is bound to can be changed there, so a mod asks for a binding rather than reading a raw key. The press is delivered once per press and not once per repeat, and only while a world is shown with no screen open, the same gate `world_key` has, because a binding is the game's key and not a screen's. A context is only valid while its world_binding() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"get_config": {
+					"description": "The mod's configuration, the same one its other exports read.",
+					"return_type": {
+						"name": "Config"
+					}
+				},
+				"id": {
+					"description": "The id the mod declared for the binding, as its about.json spells it, so a mod with several bindings tells them apart. The id is the mod's own name for it, such as `toggle`, and never the key's name: the key that is currently bound is the game's business and can change while the game runs.",
+					"return_type": {
+						"name": "string"
+					}
+				}
+			}
+		},
 		"OverlayWorldContext": {
 			"description": "The context of an overlay's render_world() call, passed to it once per frame while a world is shown. Everything drawn through it is drawn in the world for that frame and is thrown away with it. A context is only valid while its render_world() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
@@ -3357,10 +3434,30 @@
 						}
 					]
 				},
+				"get_config": {
+					"description": "The mod's configuration, which its about.json declares and the game keeps in the config directory as `grug/<mod>.yml`, one `key: value` line per option. A value the player edits there is read again when the file changes, so a change made outside the game applies without a restart. Only the mod that this pass belongs to reads its own configuration here.",
+					"return_type": {
+						"name": "Config"
+					}
+				},
 				"get_level": {
 					"description": "The Level the frame is drawn in: the world the game simulates, the same one on every loader and the one TestTickContext.get_client_level returns. It lets an overlay read the world around the camera to decide what to draw. Reports an error and answers no Level when there is no world yet.",
 					"return_type": {
 						"name": "Level"
+					}
+				},
+				"get_spawn_squares": {
+					"description": "Scans a cube of blocks around the player and answers the ones a hostile mob may stand on, with the light each holds, which is what an overlay that marks safe and unsafe ground draws from: one call instead of one `Level.is_hostile_spawn_space` and two light reads per block, which is thousands of calls per frame at the reference's radius of 16. The cube is `radius` blocks each way on every axis around the player's feet block, that is 2*radius+1 blocks a side, so a radius of 16 is the 33 a side of SafeSquares' Checker. A position outside the level's height limit is skipped, and so is one the game does not accept as a spawn space, so a square that fails the ground test is never in the answer and a mod needs to test only the light. The square the player stands in is the centre whatever the camera does, so a mod that marks ground marks the ground around the feet and not around the eyes. The answer's squares come in the order the reference's Checker walks them, z, then y, then x, each from the lowest coordinate, so a mod that keeps them in that order draws the same crosses from the same grid. The radius has to be a whole number from 0 to 32, which is the host's limit on a scan that runs while the game waits for it: a radius of 16 is 35937 blocks, and each one reads the world, so a larger cube would stall a frame. A radius outside that range, or one that is not a whole number, is reported and nothing is scanned. See `SpawnSquares` for the answer, which carries each square's block light and sky light and no version's limit, because the light rule is the mod's. The mod still applies its own light thresholds, because a port's rule for which square is marked at all is the mod's, not the host's. Only legal on the context render_world() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "radius",
+							"type": {
+								"name": "number"
+							}
+						}
+					],
+					"return_type": {
+						"name": "SpawnSquares"
 					}
 				},
 				"partial_tick": {
@@ -3857,6 +3954,87 @@
 						},
 						{
 							"name": "z2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			}
+		},
+		"SpawnSquares": {
+			"description": "The squares a scan of a cube around the player kept, each one a position a hostile mob may stand in, with the light the game stores there. It is the answer to OverlayWorldContext.get_spawn_squares, and it holds nothing else: a square that failed the ground test is not in it, and a mod applies its own light thresholds to the ones that are. The squares keep the order the scan found them in, which is the reference's, z, then y, then x, each from the lowest coordinate, so a mod that walks them in index order walks a grid the same way an overworld scan does. An index has to be a whole number from 0 to count() - 1: one outside that, or a fraction, is reported and answers 0.",
+			"methods": {
+				"block_light": {
+					"description": "The block light, from 0 to 15, the game stores for the square at `index`: the light its neighbours give it, without the sky's.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"count": {
+					"description": "How many squares the scan kept, which is 0 when nothing in the cube is dark enough to mark.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"sky_light": {
+					"description": "The sky light, from 0 to 15, the game stores for the square at `index` as if it were full day, which does not change with the time of day or the weather.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"x": {
+					"description": "The x of the square at `index`, in blocks, as the level's own world coordinate.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"y": {
+					"description": "The y of the square at `index`, in blocks.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"z": {
+					"description": "The z of the square at `index`, in blocks.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "index",
 							"type": {
 								"name": "number"
 							}
@@ -4509,6 +4687,13 @@
 						"name": "Level"
 					}
 				},
+				"get_config": {
+					"description": "The running test's own mod configuration, which is the same one the mod's overlay reads through OverlayWorldContext.get_config, so a mod whose overlay draws from its options can assert what it read. Test only, and the read has no side effect: a test that never asks costs nothing. A file that cannot supply a value answers the declared default, as every config read does. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "Config"
+					},
+					"parameters": []
+				},
 				"get_day_time": {
 					"description": "Test only: the level's day time, the clock the sky follows, which on 1.20.6 is the counter that stops while the daylight cycle is off, where Level.get_time keeps counting. Alpha, Beta and Release 1.2.5 have one clock that serves both roles and no second one to read, so they answer -1, as does any loader that cannot read a separate day time. That is a documented no-op rather than an err, so a test that gets -1 knows there is no separate day time there and does not assert on it. See #1762. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
@@ -4548,6 +4733,20 @@
 					"return_type": {
 						"name": "Player"
 					}
+				},
+				"get_spawn_squares": {
+					"description": "Scans the cube around the test player's feet for the squares a hostile mob may stand in, which is the same scan OverlayWorldContext.get_spawn_squares makes around the player a world pass draws for. A test moves the player with set_player_position and asserts the scan's squares, its order and its lights, because a world pass has no assert of its own and marks alone cannot say which square they are on. The radius has the same range OverlayWorldContext.get_spawn_squares has: a whole number from 0 to 32, or the call is reported and nothing is scanned. It scans the level TestTickContext.get_client_level answers, so on a dedicated server it is that server's own level and not a joined client's copy. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "SpawnSquares"
+					},
+					"parameters": [
+						{
+							"name": "radius",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				},
 				"gui_height": {
 					"description": "Test only: the height of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0. On a dedicated server it is forwarded to the joined client (#1094), so the measurement is that client's screen. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",

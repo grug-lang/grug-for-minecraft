@@ -83,6 +83,7 @@ export render(ctx: OverlayRenderContext)
 export render_hud(ctx: OverlayHudContext)
 export render_world(ctx: OverlayWorldContext)
 export scroll(ctx: OverlayScrollContext)
+export world_binding(ctx: OverlayWorldBindingContext)
 export world_key(ctx: OverlayWorldKeyContext)
 
 ## Test
@@ -129,6 +130,11 @@ export tick(ctx: TestTickContext)
 ## Color
 Color.rgb(r: number, g: number, b: number) Color
 Color.rgba(r: number, g: number, b: number, a: number) Color
+
+## Config
+.bool(key: string) bool
+.color(key: string) Color
+.number(key: string) number
 
 ## DisplayTickContext
 .add_particle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number)
@@ -280,13 +286,19 @@ Option.new() Option[$Value]
 .screen_width() number
 .take()
 
+## OverlayWorldBindingContext
+.get_config() Config
+.id() string
+
 ## OverlayWorldContext
 .camera_x() number
 .camera_y() number
 .camera_z() number
 .draw_line(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, color: Color)
 .draw_triangle(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, x3: number, y3: number, z3: number, color: Color)
+.get_config() Config
 .get_level() Level
+.get_spawn_squares(radius: number) SpawnSquares
 .partial_tick() number
 
 ## OverlayWorldKeyContext
@@ -318,6 +330,14 @@ Option.new() Option[$Value]
 ## ShapeContext
 .add_collision_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 .add_selection_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
+
+## SpawnSquares
+.block_light(index: number) number
+.count() number
+.sky_light(index: number) number
+.x(index: number) number
+.y(index: number) number
+.z(index: number) number
 
 ## String
 String.concat(first: string, second: string) string
@@ -357,10 +377,12 @@ String.trim(text: string) string
 .force_gc()
 .get_carried_item() Option[Item]
 .get_client_level() Level
+.get_config() Config
 .get_day_time(level: Level) number
 .get_held_count(player: Player) number
 .get_origin() Vec3
 .get_player() Player
+.get_spawn_squares(radius: number) SpawnSquares
 .gui_height() number
 .gui_left() number
 .gui_top() number
