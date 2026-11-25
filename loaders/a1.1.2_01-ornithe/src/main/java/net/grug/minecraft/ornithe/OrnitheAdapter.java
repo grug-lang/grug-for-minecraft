@@ -471,6 +471,24 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void breakBlockForTest(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        int posX = (int) Math.floor(x);
+        int posY = (int) Math.floor(y);
+        int posZ = (int) Math.floor(z);
+
+        Block block = blockAt(world, posX, posY, posZ);
+        if (block == null) return;
+        int metadata = GrugWorldAccess.metadata(world, posX, posY, posZ);
+
+        // SurvivalInteractionManager's own order: the mining removes the block, which runs its
+        // on_break, and afterMinedByPlayer drops what it yields after that.
+        world.setBlock(posX, posY, posZ, 0);
+        block.dropItems(world, posX, posY, posZ, metadata);
+        blockSync.owe(posX, posY, posZ, getBlock(world, posX, posY, posZ));
+    }
+
+    @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         World world = (World) levelObj;
         String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
@@ -2497,10 +2515,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     /**
      * The block at a position, or null for air or an id nothing was registered for.
      *
-     * <p>The only callers are the three test helpers above, and an id past the table cannot come
+     * <p>The only callers are the four test helpers above, and an id past the table cannot come
      * from a world, so the gate does not measure this lookup.
      */
-    @GrugGenerated("test helper: the block lookup the three test helpers above share")
+    @GrugGenerated("test helper: the block lookup the four test helpers above share")
     private static Block blockAt(World world, int x, int y, int z) {
         int blockId = GrugWorldAccess.blockId(world, x, y, z);
         if (blockId <= 0 || blockId >= Block.BY_ID.length) {

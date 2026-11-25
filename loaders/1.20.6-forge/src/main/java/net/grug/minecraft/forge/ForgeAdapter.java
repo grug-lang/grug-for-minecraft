@@ -1133,6 +1133,22 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void breakBlockForTest(Object levelObj, double x, double y, double z) {
+        Level level = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+
+        // Level.destroyBlock is vanilla's own break: it drops what the block's getDrops answers and
+        // then removes the block, which runs its on_break.
+        level.destroyBlock(pos, true);
+
+        if (clientHasChunk(pos.getX(), pos.getZ())) {
+            BLOCK_SYNC.owe(pos.getX(), pos.getY(), pos.getZ(), blockNameAt(level, pos));
+        }
+    }
+
+    @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         Level world = (Level) levelObj;
         ResourceLocation id =

@@ -97,6 +97,7 @@ export tick(ctx: TestTickContext)
 .set_block_entity(entity_string: entity)
 .set_custom_render()
 .set_display_tick()
+.set_drops_nothing()
 .set_flat_lighting()
 .set_frame_render()
 .set_hardness(value: number)
@@ -312,6 +313,7 @@ String.substring(text: string, start: number, end: number) string
 .block_collision(level: Level, x: number, y: number, z: number, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) bool
 .block_ray_trace(level: Level, x: number, y: number, z: number, start_x: number, start_y: number, start_z: number, end_x: number, end_y: number, end_z: number) bool
 .block_selection(level: Level, x: number, y: number, z: number, point_x: number, point_y: number, point_z: number) bool
+.break_block(level: Level, x: number, y: number, z: number)
 .camera() Vec3
 .clear_carried_item()
 .clear_held_item(player: Player)

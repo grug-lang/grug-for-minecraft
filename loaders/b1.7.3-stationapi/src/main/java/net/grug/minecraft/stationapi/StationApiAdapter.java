@@ -894,6 +894,24 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void breakBlockForTest(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        int posX = (int) Math.floor(x);
+        int posY = (int) Math.floor(y);
+        int posZ = (int) Math.floor(z);
+
+        Block block = blockAt(world, posX, posY, posZ);
+        if (block == null) return;
+        int metadata = world.getBlockMeta(posX, posY, posZ);
+
+        // SurvivalInteractionManager's own order: the mining removes the block, which runs its
+        // on_break, and afterMinedByPlayer drops what it yields after that.
+        world.setBlock(posX, posY, posZ, 0);
+        block.dropStacks(world, posX, posY, posZ, metadata);
+        blockSync.owe(posX, posY, posZ, getBlock(world, posX, posY, posZ));
+    }
+
+    @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         // A Level argument cannot be wrong because of a script, so cast directly.
         placeBlockIn((World) levelObj, x, y, z, blockName);
@@ -2371,10 +2389,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
     /**
      * The block at a position, or null for air or an id nothing was registered for.
      *
-     * <p>The only callers are the three test helpers above, and an id past the table cannot come
+     * <p>The only callers are the four test helpers above, and an id past the table cannot come
      * from a world, so the gate does not measure this lookup.
      */
-    @GrugGenerated("test helper: the block lookup the three test helpers above share")
+    @GrugGenerated("test helper: the block lookup the four test helpers above share")
     private static Block blockAt(World world, int x, int y, int z) {
         int blockId = world.getBlockId(x, y, z);
         if (blockId <= 0 || blockId >= Block.BLOCKS.length) {

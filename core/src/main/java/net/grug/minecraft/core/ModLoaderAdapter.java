@@ -1523,6 +1523,19 @@ public interface ModLoaderAdapter {
     void useBlockForTest(Object levelObj, double x, double y, double z);
 
     /**
+     * Test only: breaks the block at the given coordinates the way a player whose tool always
+     * succeeds does, running the block's own break and leaving whatever its drop rules say in the
+     * world.
+     *
+     * <p>A test needs this because the only break it can drive from grug is placing air, which
+     * removes the block without dropping anything, so no test could reach a block's own drop. The
+     * game's player-break path removes the block and then drops what it yields; a loader whose
+     * break drops before it removes follows the order of its own path. A block that declared {@code
+     * set_drops_nothing} leaves nothing, and a block without it leaves its item.
+     */
+    void breakBlockForTest(Object levelObj, double x, double y, double z);
+
+    /**
      * Whether the game draws the mining crack over the block's own geometry at the given
      * coordinates, and leaves the block's shape a full cube afterwards.
      *

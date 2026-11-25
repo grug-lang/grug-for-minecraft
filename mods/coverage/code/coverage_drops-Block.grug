@@ -1,0 +1,5 @@
+# A block that declares set_drops_nothing, so breaking it leaves nothing in the world. The control
+# for it is any block without the declaration, such as coverage_mat_cactus. See drops_nothing-Test.
+export init(ctx: BlockInitContext) {
+    ctx.set_drops_nothing()
+}

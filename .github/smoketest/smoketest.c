@@ -1288,15 +1288,16 @@ static void clear_bes(void) {
     nbes = 0;
 }
 
-// Per-block registry: Block.init runs once per test on first placement, with set_block_entity and
-// set_inventory_size the only BlockInitContext entries implemented. Any other setter a block calls
-// fails the placement naming the entry.
-struct blockdef { const char* name; long be_file; long slots; bool shape; };
+// Per-block registry: Block.init runs once per test on first placement, with set_block_entity,
+// set_inventory_size, set_shape and set_drops_nothing the only BlockInitContext entries the toy
+// world records. Any other setter a block calls leaves the test STUBBED, since nothing here reads
+// what it set.
+struct blockdef { const char* name; long be_file; long slots; bool shape; bool drops_nothing; };
 static struct blockdef* blockdefs;
 static size_t nblockdefs;
 // Block.init's own results. Block.init can place another undefined block, whose init nests inside
 // this one, so find_blockdef saves and restores it and keeps no pointer into `blockdefs`.
-struct binit { long be_file; long slots; const char* mod; bool shape; };
+struct binit { long be_file; long slots; const char* mod; bool shape; bool drops_nothing; };
 static struct binit cur_binit;
 
 // An entity string without a mod prefix names an entity of the mod the script is in (the grug
@@ -1335,6 +1336,9 @@ REGISTER("BlockInitContext", "set_material", BIC_noop);
 // set_shape declares that the game asks the block's shape() export for its boxes (block_collision reads it).
 static union grug_value BIC_set_shape(ARGS) { UNUSED; cur_binit.shape = true; return none(); }
 REGISTER("BlockInitContext", "set_shape", BIC_set_shape);
+// set_drops_nothing declares that breaking the block leaves no item (drops_block-Test).
+static union grug_value BIC_set_drops_nothing(ARGS) { UNUSED; cur_binit.drops_nothing = true; return none(); }
+REGISTER("BlockInitContext", "set_drops_nothing", BIC_set_drops_nothing);
 REGISTER("BlockInitContext", "set_display_tick", BIC_noop);
 REGISTER("BlockInitContext", "set_flat_lighting", BIC_noop);
 REGISTER("BlockInitContext", "set_frame_render", BIC_noop);
@@ -1363,15 +1367,18 @@ static long resolve_block(const char* name) {
         cur_binit.be_file = BLOCK_NO_ENTITY;
         cur_binit.slots = 0;
         cur_binit.shape = false;
+        cur_binit.drops_nothing = false;
         cur_binit.mod = fi->mod_name;
         union grug_value arg = id(new_obj(K_CTX));
         call_contained(ent, G.block_init, &arg, 1);
         long result = cur_binit.be_file, slots = cur_binit.slots;
         bool shape = cur_binit.shape;
+        bool drops_nothing = cur_binit.drops_nothing;
         cur_binit = outer;
         blockdefs[idx].be_file = result;
         blockdefs[idx].slots = slots;
         blockdefs[idx].shape = shape;
+        blockdefs[idx].drops_nothing = drops_nothing;
         resolved_slots = slots;
         grug_deinit_entity(g_state, ent);
         return result;
@@ -2657,6 +2664,43 @@ static union grug_value hf_drop_inventory(ARGS) {
     return none();
 }
 REGISTER(NULL, "drop_inventory", hf_drop_inventory);
+
+// break_block breaks the block's own block and leaves its item unless its init() called
+// set_drops_nothing (drops_block-Test, frame_break-Test). The toy world has no player, no tool and no
+// drop chance, so the drop is always the block's own item, which is what the game's own break yields
+// for a grug block. The drop lands at the block's centre; the game scatters it a little within the
+// block, which no committed test reads. Air does nothing, as it does in the game.
+static bool block_drops_nothing(const char* name) {
+    for (size_t i = 0; i < nblockdefs; i++)
+        if (!strcmp(blockdefs[i].name, name)) return blockdefs[i].drops_nothing;
+    return false;  // SMOKETEST_EXCL: every block a committed test breaks is a declared grug: block, so the lookup always finds one
+}
+static union grug_value TTC_break_block(ARGS) {
+    UNUSED;
+    long p[3];
+    if (!pos_arg(a + 1, p, "TestTickContext.break_block")) return none();
+    struct block* b = find_block(p[0], p[1], p[2]);
+    // A cell no test wrote reads as air, which is how Level.get_block and Level.is_air answer it.
+    const char* name = b ? b->name : "minecraft:air";
+    if (!strcmp(name, "minecraft:air")) return none();
+    bool drop = !block_drops_nothing(name);
+    // SMOKETEST_EXCL_START: no committed test breaks a vanilla block, and this host models no
+    // vanilla loot table, so what the game leaves there is not known here.
+    if (strncmp(name, "grug:", 5)) stubbed = true;
+    // SMOKETEST_EXCL_STOP
+    if (drop) {
+        // The item id must outlive the write below, which frees the name it is looked up by, so the
+        // name goes into the test's arena first.
+        uint64_t item = item_named(keep(xstrdup(name)));
+        struct ent* e = ent_new();
+        e->x = (double)p[0] + 0.5; e->y = (double)p[1] + 0.5; e->z = (double)p[2] + 0.5;
+        e->item = item; e->count = 1; e->spawned = true;
+    }
+    set_block(p[0], p[1], p[2], "minecraft:air");
+    on_block_placed(p[0], p[1], p[2], "minecraft:air");
+    return none();
+}
+REGISTER("TestTickContext", "break_block", TTC_break_block);
 
 // Mod file states (the hot_reload*-Test files, expect_set_mod_file_state_*-Test). The real call rewrites the
 // file on disk and the engine's watcher reports the change; the smoketest rewrites nothing (a test must

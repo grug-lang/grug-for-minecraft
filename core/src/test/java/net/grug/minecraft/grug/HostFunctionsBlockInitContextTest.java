@@ -56,9 +56,11 @@ class HostFunctionsBlockInitContextTest {
         HostFunctions.BlockInitContext_set_flat_lighting(context);
         HostFunctions.BlockInitContext_set_shape(context);
         HostFunctions.BlockInitContext_set_display_tick(context);
+        HostFunctions.BlockInitContext_set_drops_nothing(context);
 
         assertTrue(block.hasShape);
         assertTrue(block.hasDisplayTick);
+        assertTrue(block.dropsNothing);
         assertEquals(2.5f, block.hardness);
         assertEquals("stone", block.material);
         assertEquals(9, block.inventorySize);
@@ -138,13 +140,15 @@ class HostFunctionsBlockInitContextTest {
         HostFunctions.BlockInitContext_set_flat_lighting(context);
         HostFunctions.BlockInitContext_set_shape(context);
         HostFunctions.BlockInitContext_set_display_tick(context);
+        HostFunctions.BlockInitContext_set_drops_nothing(context);
 
-        assertEquals(9, drain().size(), "Each refused call is reported.");
+        assertEquals(10, drain().size(), "Each refused call is reported.");
         assertEquals(new GrugBlockData(BLOCK).hardness, block.hardness);
         assertEquals(new GrugBlockData(BLOCK).material, block.material);
         assertFalse(block.customRender);
         assertFalse(block.hasShape);
         assertFalse(block.hasDisplayTick);
+        assertFalse(block.dropsNothing);
     }
 
     @Test

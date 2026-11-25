@@ -1,0 +1,17 @@
+# A frame broken by hand leaves no item behind, as BlockFrame's idDropped of -1 says, which the
+# port's frame-Block declares with set_drops_nothing. The frame is placed with place_block because
+# a player cannot obtain one.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x())
+    y: number = Math.floor(origin.y()) + 20
+    z: number = Math.floor(origin.z()) + 8
+
+    level.place_block(x, y, z, "grug:frame")
+    ctx.assert(level.get_block(x, y, z) == "grug:frame", "The frame should be placed.")
+
+    ctx.break_block(level, x, y, z)
+    ctx.assert(level.is_air(x, y, z), "A broken frame should be gone.")
+    ctx.assert(level.count_item_entities(x, y, z, 2) == 0, "A broken frame should leave no item entity.")
+}

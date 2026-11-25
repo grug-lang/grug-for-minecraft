@@ -154,6 +154,19 @@ public class GrugBlock extends BlockContainer {
         return GrugDeclarations.blockDataByFileId.get(this.blockFileId);
     }
 
+    /**
+     * The item the block yields when it breaks: its own item, unless set_drops_nothing declared
+     * that it leaves none. 1.2.5's drop path skips an id of 0, which is what a block that drops
+     * nothing answers here.
+     */
+    @Override
+    public int idDropped(int metadata, Random random, int fortune) {
+        if (blockData().dropsNothing) {
+            return 0;
+        }
+        return super.idDropped(metadata, random, fortune);
+    }
+
     @Override
     public int getBlockTextureFromSide(int side) {
         if (faceSprites != null && side >= 0 && side < faceSprites.length) {

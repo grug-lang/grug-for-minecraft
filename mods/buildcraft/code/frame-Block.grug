@@ -6,14 +6,15 @@
 # the base getCollidingBoundingBoxes, but that method reads c(), which BlockFrame overrides with the
 # union, so the per-arm bounds are never added as boxes (#1773). BlockFrame.d answers c() too, which
 # is the selection box. isPipeConnected is true for the frame's own block id only.
-# The reference's idDropped is -1, so a broken frame drops nothing; the port has no host function to
-# say that yet, so a frame broken by hand drops its own item (a recorded deviation).
+# The reference's idDropped is -1, so a broken frame drops nothing, which set_drops_nothing declares
+# so the game's own break answers the same.
 export init(ctx: BlockInitContext) {
     ctx.set_hardness(0.5)
     ctx.set_material("glass")
     ctx.set_block_entity(e"frame_entity")
     ctx.set_custom_render()
     ctx.set_shape()
+    ctx.set_drops_nothing()
 }
 
 # The centre's box, reaching this block's face on every side a frame is next to, as BlockFrame.c

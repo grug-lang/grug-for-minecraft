@@ -48,6 +48,13 @@ public class GrugBlockData {
      */
     public boolean hasDisplayTick = false;
 
+    /**
+     * Whether breaking the block drops nothing at all, declared by set_drops_nothing. The game's
+     * own drop rules would otherwise leave the block's own item, which is wrong for a block that
+     * only exists as part of a structure, such as a frame a machine builds.
+     */
+    public boolean dropsNothing = false;
+
     public GrugBlockData(String id) {
         this.id = id;
     }

@@ -27,6 +27,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -97,6 +99,25 @@ public class GrugBlock extends Block implements EntityBlock {
     @Override
     public BlockEntity newBlockEntity(@NotNull BlockPos pos, @NotNull BlockState state) {
         return new GrugBlockEntity(pos, state);
+    }
+
+    /**
+     * What the block leaves when it breaks.
+     *
+     * <p>A grug block ships no loot table, so the loader answers with the block's own item, which
+     * is what vanilla's table for a block names. An explosion keeps vanilla's own chance of leaving
+     * nothing, the table's survives_explosion condition, so a blast scatters a grug block the way
+     * it scatters a vanilla one. A block that declared set_drops_nothing leaves nothing at all.
+     */
+    @Override
+    public List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
+        if (blockData().dropsNothing) return List.of();
+
+        Float radius = params.getOptionalParameter(LootContextParams.EXPLOSION_RADIUS);
+        if (radius != null && params.getLevel().getRandom().nextFloat() > 1.0F / radius) {
+            return List.of();
+        }
+        return List.of(new ItemStack(this.asItem()));
     }
 
     @Nullable

@@ -1119,6 +1119,17 @@ public class HostFunctions {
                 level -> GrugCore.getAdapter().useBlockForTest(level, x, y, z));
     }
 
+    public static void TestTickContext_break_block(
+            long contextId, long levelId, double x, double y, double z) {
+        if (!requireTickContext("TestTickContext.break_block", contextId)) return;
+        worldChanged();
+        withEntity(
+                "TestTickContext.break_block",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().breakBlockForTest(level, x, y, z));
+    }
+
     public static boolean TestTickContext_mining_crack(
             long contextId, long levelId, double x, double y, double z) {
         if (!requireTickContext("TestTickContext.mining_crack", contextId)) return false;
@@ -4492,6 +4503,14 @@ public class HostFunctions {
         if (block == null) return;
 
         block.hasDisplayTick = true;
+    }
+
+    public static void BlockInitContext_set_drops_nothing(long contextId) {
+        GrugBlockData block =
+                requireBlockInitContext("BlockInitContext.set_drops_nothing", contextId);
+        if (block == null) return;
+
+        block.dropsNothing = true;
     }
 
     public static void BlockInitContext_set_shape(long contextId) {
