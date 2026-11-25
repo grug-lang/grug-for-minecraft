@@ -108,7 +108,8 @@ public final class GrugLightRetry {
                                     + " and block "
                                     + serverBlock
                                     + " on this server, and the client's level there could not"
-                                    + " be read"
+                                    + " be read: its section fingerprint was unusable and no"
+                                    + " single-field candidate matched"
                             : "sky "
                                     + serverSky
                                     + " on this server and "
