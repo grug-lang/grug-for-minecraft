@@ -130,6 +130,14 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .give_from_slot(slot: number, amount: number)
 .refuse()
 
+## File
+.entry_count(path: string) number
+.entry_name(path: string, index: number) string
+.exists(path: string) bool
+.read_text(path: string) Option[string]
+.write_text(path: string, text: string)
+File.open(root: resource) File
+
 ## GUI
 .add_crafting_grid(start_slot: number, x: number, y: number)
 .add_crafting_result(x: number, y: number)
@@ -148,6 +156,7 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .count_item_entities(x: number, y: number, z: number, radius: number) number
 .count_item_entities_of(x: number, y: number, z: number, radius: number, item: Item) number
 .count_mobs(category: string) number
+.dimension() string
 .explode(x: number, y: number, z: number, power: number)
 .find_item_entity(x: number, y: number, z: number, radius: number) Option[ItemEntity]
 .get_block(x: number, y: number, z: number) string
@@ -161,6 +170,7 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .has_neighbor_signal(x: number, y: number, z: number) bool
 .is_air(x: number, y: number, z: number) bool
 .is_hostile_spawn_space(x: number, y: number, z: number) bool
+.name() string
 .place_block(x: number, y: number, z: number, block_name: string)
 .random_float() number
 .random_gaussian() number

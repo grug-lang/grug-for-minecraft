@@ -1109,6 +1109,29 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return MinecraftInstance.get().world;
     }
 
+    @Override
+    public String levelName(Object levelObj) {
+        String address = MinecraftInstance.get().hostAddress;
+        return address == null || address.isEmpty() ? levelNameOf((World) levelObj) : address;
+    }
+
+    /**
+     * The save's own name, which a dedicated server reads without a client's address. A client
+     * joined to another server does not know it, and reads the address it dialled instead.
+     */
+    static String levelNameOf(World world) {
+        return world.getData().toNbt().getString("LevelName");
+    }
+
+    @Override
+    public String levelDimension(Object levelObj) {
+        int id = ((World) levelObj).dimension.id;
+        if (id == 0) return "overworld";
+        if (id == -1) return "the_nether";
+        if (id == 1) return "the_end";
+        return "dimension_" + id;
+    }
+
     /**
      * This client's own copy of the light of the section the position falls in, read one block at a
      * time (#1240). The dedicated server asks its joined client for this, because its own world is

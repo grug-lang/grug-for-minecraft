@@ -575,6 +575,23 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return ((World) levelObj).ticks;
     }
 
+    /**
+     * The world's own name, which is the save directory's in singleplayer and on a dedicated
+     * server. Alpha's joined client names its own world {@code MpServer} whatever the server calls
+     * its save, so this call cannot identify a server there; see {@link
+     * ModLoaderAdapter#levelName}.
+     */
+    @Override
+    public String levelName(Object levelObj) {
+        return ((World) levelObj).saveName;
+    }
+
+    /** The one dimension Alpha has; the key is shared with every loader (#1757). */
+    @Override
+    public String levelDimension(Object levelObj) {
+        return "overworld";
+    }
+
     @Override
     public void setWorldTime(Object levelObj, long time) {
         // The field, as ServerOrnitheAdapter.buildTestBox does: the a0.2.1 server jar names

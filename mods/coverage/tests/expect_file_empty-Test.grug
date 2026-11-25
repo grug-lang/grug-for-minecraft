@@ -1,0 +1,7 @@
+# A path names a file inside the mod's own files (#1757): an empty one names none, so it is refused
+# rather than reaching the files directory itself.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("names no file in files")
+    files.read_text("")
+}

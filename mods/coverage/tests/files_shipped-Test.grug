@@ -1,0 +1,34 @@
+# What a mod ships in files/ is read without being copied into the writable copy (#1757), a name the
+# mod writes wins over the one it shipped, and a listing names a file present in both trees once.
+# shipped_only.txt is a file no test writes, so a repeat of the suite reads the same default; the
+# shipped shadowed.txt only proves the written copy wins on the first run, which is the CI case.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+
+    ctx.assert(files.exists("shipped_only.txt"), "The file the mod ships should exist before anything writes.")
+    ctx.assert(files.read_text("shipped_only.txt").unwrap() == "shipped value", "A shipped file should read its own text.")
+    files.write_text("shadowed.txt", "written value")
+    ctx.assert(files.read_text("shadowed.txt").unwrap() == "written value", "The written copy should win over the shipped one.")
+
+    count: number = files.entry_count(".")
+    found_shipped: number = 0
+    found_written: number = 0
+    index: number = 0
+    while index < count {
+        name: string = files.entry_name(".", index)
+        if name == "shipped_only.txt" {
+            found_shipped = found_shipped + 1
+        }
+        if name == "shadowed.txt" {
+            found_written = found_written + 1
+        }
+        index = index + 1
+    }
+    ctx.assert(found_shipped == 1, "The listing should name the shipped file once.")
+    ctx.assert(found_written == 1, "The listing should name a file present in both trees once.")
+
+    # A directory the mod ships and never writes lists its own entries, so a shipped tree works before
+    # the first write creates anything in the writable copy.
+    ctx.assert(files.entry_count("shipped_dir") == 1, "A shipped directory should list its one file.")
+    ctx.assert(files.entry_name("shipped_dir", 0) == "inside.txt", "The shipped directory's entry should be its file.")
+}

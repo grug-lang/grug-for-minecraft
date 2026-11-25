@@ -1,0 +1,7 @@
+# entry_name asks about a directory inside the mod's own files (#1757): a parent segment is refused
+# before the index is read, so the name of an entry elsewhere can never be asked for.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("no path may climb out of files")
+    files.entry_name("../escape", 0)
+}

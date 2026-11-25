@@ -1,0 +1,7 @@
+# A listing only sees a directory (#1757): a path that names a file the mod shipped is reported rather
+# than answering no entries as if the file were an empty directory.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("names a file, not a directory")
+    files.entry_count("shipped_only.txt")
+}

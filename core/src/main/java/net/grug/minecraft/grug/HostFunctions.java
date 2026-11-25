@@ -19,6 +19,7 @@ import net.grug.minecraft.gui.GrugGuiLayoutCodec;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
@@ -2941,6 +2942,139 @@ public class HostFunctions {
 
     public static long gui(String texturePath) {
         return GrugEntities.addEntity(GrugEntityType.GUI, new GrugGuiBuilder(texturePath));
+    }
+
+    /**
+     * The handle whose calls read and write one mod's {@code files} directory, which no other entry
+     * can reach and which no entry lets one mod name another mod's.
+     *
+     * <p>The resource is the compiler's rewrite of {@code r"files"} to {@code <mod>/files}, so the
+     * host learns which mod is calling from the literal itself rather than from a mod name a script
+     * could lie about. See {@link GrugModData}.
+     */
+    public static long File_open(String resource) {
+        try {
+            return GrugEntities.addEntity(
+                    GrugEntityType.File, new GrugModFile(GrugModData.modOf(resource)));
+        } catch (IllegalArgumentException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "File.open: " + e.getMessage());
+            return GrugEntities.addEntity(GrugEntityType.File, new GrugModFile(null));
+        }
+    }
+
+    public static long File_read_text(long fileId, String path) {
+        return withEntity("File.read_text", "file", fileId, file -> readText(file, path), 0L);
+    }
+
+    private static long readText(Object fileObj, String path) {
+        String text = null;
+        try {
+            text =
+                    GrugModData.read(
+                            GrugCore.getAdapter().getGrugModsDirectory(),
+                            GrugCore.getAdapter().getGameDirectory(),
+                            ((GrugModFile) fileObj).modName(),
+                            path);
+        } catch (IllegalArgumentException | IOException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "File.read_text: " + e.getMessage());
+        }
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(text));
+    }
+
+    public static void File_write_text(long fileId, String path, String text) {
+        withEntity("File.write_text", "file", fileId, file -> writeText(file, path, text));
+    }
+
+    private static void writeText(Object fileObj, String path, String text) {
+        try {
+            GrugModData.write(
+                    GrugCore.getAdapter().getGameDirectory(),
+                    ((GrugModFile) fileObj).modName(),
+                    path,
+                    text);
+        } catch (IllegalArgumentException | IOException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "File.write_text: " + e.getMessage());
+        }
+    }
+
+    public static boolean File_exists(long fileId, String path) {
+        return withEntity("File.exists", "file", fileId, file -> exists(file, path), false);
+    }
+
+    private static boolean exists(Object fileObj, String path) {
+        try {
+            return GrugModData.exists(
+                    GrugCore.getAdapter().getGrugModsDirectory(),
+                    GrugCore.getAdapter().getGameDirectory(),
+                    ((GrugModFile) fileObj).modName(),
+                    path);
+        } catch (IllegalArgumentException | IOException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "File.exists: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static double File_entry_count(long fileId, String path) {
+        return withEntity("File.entry_count", "file", fileId, file -> entryCount(file, path), 0.0);
+    }
+
+    private static double entryCount(Object fileObj, String path) {
+        try {
+            return GrugModData.entryCount(
+                    GrugCore.getAdapter().getGrugModsDirectory(),
+                    GrugCore.getAdapter().getGameDirectory(),
+                    ((GrugModFile) fileObj).modName(),
+                    path);
+        } catch (IllegalArgumentException | IOException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "File.entry_count: " + e.getMessage());
+            return 0.0;
+        }
+    }
+
+    public static String File_entry_name(long fileId, String path, double index) {
+        return withEntity(
+                "File.entry_name", "file", fileId, file -> entryName(file, path, index), "");
+    }
+
+    private static String entryName(Object fileObj, String path, double index) {
+        try {
+            return GrugModData.entryName(
+                    GrugCore.getAdapter().getGrugModsDirectory(),
+                    GrugCore.getAdapter().getGameDirectory(),
+                    ((GrugModFile) fileObj).modName(),
+                    path,
+                    index);
+        } catch (IllegalArgumentException | IOException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "File.entry_name: " + e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * The world's own name, as the game stores it, or the address a client joined when the client
+     * does not know the name. The loader decides which, and two sides of one world can answer
+     * differently; see {@link ModLoaderAdapter#levelName}.
+     */
+    public static String Level_name(long levelId) {
+        return withEntity(
+                "Level.name",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().levelName(level),
+                "");
+    }
+
+    /**
+     * The dimension's key as one path segment ({@code overworld}, {@code the_nether}, {@code
+     * the_end}, or {@code dimension_<id>}), so a mod composes a per-world path from it.
+     */
+    public static String Level_dimension(long levelId) {
+        return withEntity(
+                "Level.dimension",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().levelDimension(level),
+                "");
     }
 
     public static long item(long resourceLocationId) {

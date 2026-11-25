@@ -1,0 +1,7 @@
+# A path joins its segments with a slash (#1757): a backslash is refused rather than being read as a
+# separator on one platform and as a file name on another.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("use '/' between its segments")
+    files.read_text("back\\slash.txt")
+}

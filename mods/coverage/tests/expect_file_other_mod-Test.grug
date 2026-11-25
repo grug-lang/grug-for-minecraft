@@ -1,0 +1,6 @@
+# No entry takes a mod name (#1757): the compiler rewrites a resource literal to the calling mod, so a
+# literal that tries to name another mod becomes <this mod>/<literal> and fails the shape check.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("names no mod")
+    handle: File = File.open(r"coverage/files")
+}

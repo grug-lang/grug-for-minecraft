@@ -300,6 +300,11 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         return MinecraftServerInstance.get().getWorld(0);
     }
 
+    @Override
+    public String levelName(Object levelObj) {
+        return OrnitheAdapter.levelNameOf((World) levelObj);
+    }
+
     /**
      * The first player who joined.
      *
