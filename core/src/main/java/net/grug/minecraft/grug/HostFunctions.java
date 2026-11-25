@@ -4655,7 +4655,7 @@ public class HostFunctions {
         if (Double.isFinite(value) && value == Math.rint(value)) {
             return new java.math.BigDecimal(value).toBigInteger().toString();
         }
-        return Double.toString(value);
+        return GrugJavaNumbers.doubleText(value);
     }
 
     /** The two texts joined, the first then the second. */
@@ -4695,6 +4695,69 @@ public class HostFunctions {
     /** How many characters the text has, counting a character outside the basic plane once. */
     public static double String_length(String text) {
         return text.codePointCount(0, text.length());
+    }
+
+    /** The whole number the text writes, or an empty Option when it does not write one. */
+    public static long String_to_integer(String text) {
+        Double value = null;
+        try {
+            value = (double) Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            // Not a whole number, which is what the empty Option says.
+        }
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(value));
+    }
+
+    /** The number the text writes, or an empty Option when it does not write one. */
+    public static long String_to_number(String text) {
+        Double value = null;
+        try {
+            value = Double.parseDouble(text);
+        } catch (NumberFormatException e) {
+            // Not a number, which is what the empty Option says.
+        }
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(value));
+    }
+
+    /**
+     * The float the text writes, widened to a number, or an empty Option when it writes none. It is
+     * {@code Float.parseFloat} and not {@code String_to_number} narrowed, because the two round a
+     * text with more digits than a float holds differently.
+     */
+    public static long String_to_float(String text) {
+        Float value = null;
+        try {
+            value = Float.parseFloat(text);
+        } catch (NumberFormatException e) {
+            // Not a float, which is what the empty Option says.
+        }
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(value));
+    }
+
+    /** Whether the texts are equal, ignoring the case of each character, as Java compares them. */
+    public static boolean String_equals_ignore_case(String text, String other) {
+        return text.equalsIgnoreCase(other);
+    }
+
+    /** The text without the characters at its ends that are U+0020 or below. */
+    public static String String_trim(String text) {
+        return text.trim();
+    }
+
+    /** Where the needle first appears in the text, counted in characters, or -1. */
+    public static double String_index_of(String text, String needle) {
+        int at = text.indexOf(needle);
+        return at < 0 ? -1 : text.codePointCount(0, at);
+    }
+
+    /** Java's own text for the float the number becomes. */
+    public static String String_from_float(double value) {
+        return GrugJavaNumbers.floatText(value);
+    }
+
+    /** Java's own text for the number, as a 64-bit value. */
+    public static String String_from_double(double value) {
+        return GrugJavaNumbers.doubleText(value);
     }
 
     /**

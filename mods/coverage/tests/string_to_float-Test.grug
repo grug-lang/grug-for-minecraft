@@ -1,0 +1,30 @@
+# String.to_float reads the whole text as Java's Float.parseFloat does and answers the float widened to
+# a number, because a grug number is a 64-bit double. It is a separate call from String.to_number
+# because the two round a long text differently: to_number rounds once to 64 bits and to_float rounds
+# once to 32 bits, which is what a Java program reading a persisted float property does.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.to_float("3").unwrap() == 3, "3 should read as 3.")
+        ctx.assert(String.to_float("2.5").unwrap() == 2.5, "2.5 is exact in 32 bits too.")
+        ctx.assert(String.to_float("0.1").unwrap() == 0.10000000149011612, "0.1 should read as the nearest float, widened.")
+        ctx.assert(String.to_float("-0.25").unwrap() == -0.25, "-0.25 is exact in 32 bits too.")
+        ctx.assert(String.to_float("1e-50").unwrap() == 0, "A magnitude below the smallest float should read as 0, as Float.parseFloat answers.")
+        ctx.assert(String.to_float("3.4028235e38").unwrap() == String.to_number("3.4028234663852886e38").unwrap(), "The largest float should read back from its shortest text.")
+        ctx.assert(String.to_float("3.4028236e38").unwrap() > String.to_number("3.4028234663852886e38").unwrap(), "A magnitude past the largest float should read as Infinity.")
+        ctx.assert(String.to_float("0x1.8p1").unwrap() == 3, "A hexadecimal number should be read.")
+        ctx.assert(String.to_float("1.0f").unwrap() == 1, "A float suffix should be allowed.")
+        # Java's own Float.parseFloat answers the float just above 1 here, where to_number narrows
+        # the 64-bit midpoint to 1: the two calls are not the same rounding.
+        long_text: string = "1.00000005960464477539062500000000000000000001"
+        ctx.assert(String.to_float(long_text).unwrap() == 1.0000001192092896, "A long text should round once to 32 bits.")
+        ctx.assert(not (String.to_number(long_text).unwrap() == String.to_float(long_text).unwrap()), "to_float and to_number should round a long text differently.")
+        nan: number = String.to_float("NaNf").unwrap()
+        ctx.assert(String.from_float(nan) == "NaN", "NaN with a float suffix should read as NaN.")
+        ctx.assert(String.to_float("-Infinity").unwrap() < -String.to_number("1e308").unwrap(), "-Infinity should read as a number below every finite one.")
+        ctx.assert(not String.to_float("").has(), "An empty text writes no float.")
+        ctx.assert(String.to_float(" 1").unwrap() == 1, "A leading space should be trimmed, as Java's parseFloat trims the text.")
+        ctx.assert(not String.to_float("1.0.0").has(), "Two points write no float.")
+        ctx.assert(not String.to_float("0x10").has(), "A hexadecimal number without a p exponent writes no float.")
+        ctx.assert(String.from_float(String.to_float("0.1").unwrap()) == "0.1", "A float should write back as its text.")
+    }
+}

@@ -1,0 +1,21 @@
+# String.index_of answers where a needle first appears, counted from 0 in the characters String.length
+# counts, or -1. A file line is split at its first " = " with it, and the pieces after that are found
+# by scanning the rest of the line, because grug has no list type to split into.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.index_of("a=b", "=") == 1, "The equals sign should be at 1.")
+        ctx.assert(String.index_of("abc", "c") == 2, "The last character should be at 2.")
+        ctx.assert(String.index_of("abc", "d") == -1, "A needle that does not appear should answer -1.")
+        ctx.assert(String.index_of("abc", "abcd") == -1, "A needle longer than the text should answer -1.")
+        ctx.assert(String.index_of("abc", "") == 0, "The empty needle should be found at the start.")
+        ctx.assert(String.index_of("", "") == 0, "The empty needle in an empty text should be found at the start.")
+        ctx.assert(String.index_of("abc", "b") == 1, "A middle character should be at 1.")
+        ctx.assert(String.index_of("aXbXc", "X") == 1, "The first of two needles should be answered.")
+        ctx.assert(String.index_of("index=1;origin=2", "=") == 5, "The first equals sign of a set line should be at 5.")
+        ctx.assert(String.index_of("abcabc", "cab") == 2, "A multi-character needle should answer where it starts.")
+        ctx.assert(String.index_of(String.concat(String.from_character(128512), "x"), "x") == 1, "A character outside the basic plane should count once.")
+        ctx.assert(String.index_of("x", String.from_character(128512)) == -1, "A needle outside the basic plane should be found by its character.")
+        ctx.assert(String.index_of(String.concat("a", String.from_character(128512)), String.from_character(128512)) == 1, "An astral needle should answer its character position.")
+        ctx.assert(String.substring("abc", 1, 2) == "b", "The answer should be the offset String.substring takes.")
+    }
+}

@@ -204,6 +204,32 @@ static void test_double_text(void) {
     }
 }
 
+// Float.toString, which java_text writes when a reference property is a float. The reference runs on
+// Java 21, so these expected texts are that JDK's: `java-21-openjdk 21.0.13.1` printed each of them,
+// and the last two rows are decimal ties whose text is not the one Java 8 wrote. A float is narrowed
+// from the grug double first, because the reference stores the narrow value and prints it back.
+static void test_float_text(void) {
+    char m[64];
+    struct { float v; const char* want; } cases[] = {
+        {0.0f, "0.0"}, {-0.0f, "-0.0"}, {1.0f, "1.0"}, {0.1f, "0.1"}, {2.5f, "2.5"}, {-3.25f, "-3.25"},
+        {0.3f, "0.3"}, {0.001f, "0.001"}, {1.0e-4f, "1.0E-4"}, {1.0e7f, "1.0E7"}, {9999999.0f, "9999999.0"},
+        {1.0e8f, "1.0E8"}, {1.0e20f, "1.0E20"}, {0.33333334f, "0.33333334"},
+        {1.401298464324817e-45, "1.4E-45"}, {3.4028234663852886e38, "3.4028235E38"},
+        {1.2345678e7f, "1.2345678E7"},
+        // 0x4c837a40 is 68932096.0f: Java 8 wrote 6.8932096E7, Java 21 writes the shorter 6.89321E7,
+        // which reads back as the same float.
+        {68932096.0f, "6.89321E7"},
+        // The next float is 1.0000001192092896, so the value prints as 1.0000001. Java's
+        // Float.parseFloat rounds the text once; reading it as a double first would land exactly on
+        // the midpoint 1.000000059604644775390625 and then narrow to 1.0f, the even side of that tie.
+        {1.0000001f, "1.0000001"},
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof *cases; i++) {
+        java_text((double)cases[i].v, true, m, sizeof m);
+        CHECK(!strcmp(m, cases[i].want), "Float.toString(%g) is %s, got %s", (double)cases[i].v, cases[i].want, m);
+    }
+}
+
 // The argument checks of slice 9: messages follow HostFunctions.colorProblem, GrugTestState.checkTickCount,
 // GrugSoundArgs and GrugDisplayTicks.particleProblem.
 static void test_argument_checks(void) {
@@ -305,6 +331,7 @@ int main(void) {
     test_match_recipe();
     test_use_face();
     test_double_text();
+    test_float_text();
     test_nbt_helpers();
     test_file_charge();
     test_argument_checks();

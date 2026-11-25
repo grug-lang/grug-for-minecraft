@@ -1,0 +1,20 @@
+# String.equals_ignore_case compares two texts the way Java's String.equalsIgnoreCase does, which is
+# how a persisted boolean is read: Java's Boolean.parseBoolean answers true for `true` in any case and
+# false for every other text, so a state file holding `TRUE` restores the same guide.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.equals_ignore_case("true", "TRUE"), "true and TRUE should be equal ignoring case.")
+        ctx.assert(String.equals_ignore_case("True", "tRUE"), "True and tRUE should be equal ignoring case.")
+        ctx.assert(String.equals_ignore_case("true", "true"), "Two equal texts should match.")
+        ctx.assert(String.equals_ignore_case("", ""), "Two empty texts should match.")
+        ctx.assert(not String.equals_ignore_case("true", "false"), "true and false should not match.")
+        ctx.assert(not String.equals_ignore_case("true", "tru"), "A shorter text should not match.")
+        ctx.assert(not String.equals_ignore_case("true", "truex"), "A longer text should not match.")
+        ctx.assert(not String.equals_ignore_case("", "x"), "An empty text and a text should not match.")
+        ctx.assert(String.equals_ignore_case("a", "A"), "One letter should match its upper case.")
+        ctx.assert(not String.equals_ignore_case("abc", "abd"), "A different last letter should not match.")
+        ctx.assert(not String.equals_ignore_case("a b", "a  b"), "A different space count should not match.")
+        ctx.assert(String.equals_ignore_case("false", "FALSE"), "false and FALSE should be equal ignoring case.")
+        ctx.assert(not String.equals_ignore_case("1", "2"), "Two different digits should not match.")
+    }
+}

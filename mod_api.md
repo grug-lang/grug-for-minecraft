@@ -298,10 +298,18 @@ Option.new() Option[$Value]
 
 ## String
 String.concat(first: string, second: string) string
+String.equals_ignore_case(text: string, other: string) bool
 String.from_character(code: number) string
+String.from_double(value: number) string
+String.from_float(value: number) string
 String.from_number(value: number) string
+String.index_of(text: string, needle: string) number
 String.length(text: string) number
 String.substring(text: string, start: number, end: number) string
+String.to_float(text: string) Option[number]
+String.to_integer(text: string) Option[number]
+String.to_number(text: string) Option[number]
+String.trim(text: string) string
 
 ## TestInitContext
 .get_origin() Vec3

@@ -1,0 +1,18 @@
+# String.trim removes the characters at both ends that are U+0020 or below, as Java's String.trim
+# does: a config line is trimmed before it is split, and a persisted value is trimmed by nothing else,
+# so the difference between a space and a non-breaking space is visible here.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.trim("  a b  ") == "a b", "The spaces around a text should go.")
+        ctx.assert(String.trim("abc") == "abc", "A text with nothing to remove should stay itself.")
+        ctx.assert(String.trim("") == "", "An empty text should stay empty.")
+        ctx.assert(String.trim("   ") == "", "A text of spaces should become empty.")
+        ctx.assert(String.trim(String.concat(String.from_character(10), "x")) == "x", "A line feed below a space should go.")
+        ctx.assert(String.trim(String.concat("x", String.from_character(10))) == "x", "A line feed after a text should go.")
+        ctx.assert(String.trim(String.concat(String.from_character(9), "x")) == "x", "A tab should go.")
+        ctx.assert(String.trim(String.concat(String.from_character(13), "x")) == "x", "A carriage return should go.")
+        ctx.assert(String.trim(String.concat(String.from_character(32), "x")) == "x", "A space should go.")
+        ctx.assert(String.trim(String.concat(String.from_character(160), "x")) == String.concat(String.from_character(160), "x"), "A non-breaking space is above U+0020 and should stay.")
+        ctx.assert(String.trim(" a b ") == "a b", "Inner spaces should stay.")
+    }
+}
