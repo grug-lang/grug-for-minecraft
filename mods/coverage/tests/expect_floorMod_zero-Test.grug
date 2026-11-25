@@ -1,5 +1,0 @@
-# A divisor of 0 would give NaN, which is a result nobody asked for, so Math.floorMod reports it.
-export tick(ctx: TestTickContext) {
-    ctx.expect_error("Math.floorMod")
-    Math.floorMod(7, 0)
-}

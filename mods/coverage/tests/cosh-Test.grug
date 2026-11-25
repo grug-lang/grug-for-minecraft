@@ -6,7 +6,10 @@ export tick(ctx: TestTickContext) {
         ctx.assert(Math.cosh(1) > 1.54308063481524, "Math.cosh(1) should be about 1.543.")
         ctx.assert(Math.cosh(1) < 1.54308063481525, "Math.cosh(1) should be about 1.543.")
         ctx.assert(Math.cosh(-1) == Math.cosh(1), "Math.cosh should be even.")
-        inf: number = Math.sinh(1000)
+        # A large finite argument overflows cosh on its own, which is a value a catenary's solve can
+        # reach. 1/Infinity is 0, where 1 over a large but finite number stays nonzero.
+        inf: number = Math.cosh(1000)
+        ctx.assert(1 / inf == 0, "Math.cosh(1000) should overflow to Infinity.")
         ctx.assert(Math.cosh(inf) == inf, "Math.cosh(Infinity) should be Infinity.")
         nan: number = Math.sqrt(-1)
         ctx.assert(not (Math.cosh(nan) <= Math.cosh(nan)), "Math.cosh(NaN) should stay NaN.")

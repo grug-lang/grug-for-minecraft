@@ -77,8 +77,8 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "A catenary whose Newton solve does not converge draws no cells, where the reference reports an invalid value.",
-					"why": "grug cannot raise an error to the player yet, and every non-convergent solve ends in a NaN or infinite height whose comparisons are all false, so no cell passes the check.",
+					"what": "A catenary whose Newton solve does not converge draws no cells: the reference either reports an invalid value or never leaves its loop, and the port answers no cells at once in both cases.",
+					"why": "grug cannot raise an error to the player yet. A solve whose values leave the finite range makes the reference throw, and a solve whose Newton step changes nothing (dx 1419, dz 0, an added length of 1) repeats that step until the shape is cancelled. The port ends the solve when a step is non-finite or changes nothing, which bounds both arms, and its cell loops keep the reference's own bounds rather than a cap of this port's own.",
 					"tracking_issue": 1752
 				}
 			]
