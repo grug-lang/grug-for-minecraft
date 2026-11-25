@@ -3,6 +3,12 @@
 // a development run: an installed game names the same fields by their intermediary names. This
 // writes grug_vanilla_names.txt, a line naming the namespaces and then one "<intermediary> <named>"
 // line per field of the two classes, which GrugVanillaNames reads in either kind of run.
+//
+// The same two namespaces name the game's animated sprites, for the same reason: a capture run has
+// to tell the sprite classes from every other dynamic texture, and an installed game sees them by
+// their intermediary names. This writes grug_animated_sprites.txt beside the field table, which
+// GrugFrozenAnimations and b1.7.3-stationapi's texture manager read in either kind of run. A class
+// the mappings do not have, such as Alpha's nether portal sprite, is simply absent from the table.
 
 def vanillaNamesDir = layout.buildDirectory.dir('generated/grug-vanilla-names')
 
@@ -25,12 +31,24 @@ def generateVanillaNames = tasks.register('generateVanillaNames') {
         }
 
         def classes = ['net/minecraft/block/Block', 'net/minecraft/item/Item']
+        def sprites = [
+            'net/minecraft/client/render/texture/WaterSprite',
+            'net/minecraft/client/render/texture/WaterSideSprite',
+            'net/minecraft/client/render/texture/LavaSprite',
+            'net/minecraft/client/render/texture/LavaSideSprite',
+            'net/minecraft/client/render/texture/FireSprite',
+            'net/minecraft/client/render/texture/NetherPortalSprite'
+        ]
         def names = []
+        def animated = []
         def inClass = false
         lines.drop(1).each { line ->
             def columns = line.split('\t', -1)
             if (columns[0] == 'c') {
                 inClass = columns[1 + named] in classes
+                if (columns[1 + named] in sprites) {
+                    animated << "${columns[1 + intermediary]} ${columns[1 + named]}"
+                }
             } else if (inClass && columns.length > 2 && columns[0] == '' && columns[1] == 'f') {
                 // A field line: tab, "f", the descriptor, then one name per namespace.
                 names << "${columns[3 + intermediary]} ${columns[3 + named]}"
@@ -39,10 +57,16 @@ def generateVanillaNames = tasks.register('generateVanillaNames') {
         if (names.isEmpty()) {
             throw new GradleException("${mappings} maps no fields of ${classes.join(' or ')}.")
         }
+        if (animated.isEmpty()) {
+            throw new GradleException("${mappings} maps none of the animated sprites.")
+        }
 
         def file = vanillaNamesDir.get().file('grug_vanilla_names.txt').asFile
         file.parentFile.mkdirs()
         file.text = (['intermediary named'] + names.sort()).join('\n') + '\n'
+
+        def spriteFile = vanillaNamesDir.get().file('grug_animated_sprites.txt').asFile
+        spriteFile.text = (['intermediary named'] + animated.sort()).join('\n') + '\n'
     }
 }
 

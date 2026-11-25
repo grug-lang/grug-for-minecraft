@@ -11,6 +11,10 @@ apply(from = "../../gradle/jacoco-loader.gradle")
 // from gradle/grug-core.gradle, which core publishes under too.
 apply(from = "../../gradle/grug-core.gradle")
 
+// The sprite table: a capture run tells the game's animated sprites by their binary class name,
+// which an installed game sees in its intermediary namespace, so the table names both.
+apply(from = "../../gradle/ornithe-vanilla-names.gradle")
+
 val grugCoreVersion = project.property("grugCoreVersion") as String
 val grugCoreRepository = project.property("grugCoreRepository") as File
 
