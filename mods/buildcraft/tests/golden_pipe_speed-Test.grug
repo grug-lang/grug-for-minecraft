@@ -1,0 +1,84 @@
+# Covers PipeItemsGold.entityEntered and the readjustSpeed it replaces: a speed entering a golden pipe
+# from another kind of pipe is first readjusted by the default rule, which takes 0.01 off a speed
+# above normal, and then raised to 0.2, twenty times Utils.pipeNormalSpeed, when the golden pipe is
+# powered. A stone pipe with a torch under it takes the same record at 0.025, so the twentyfold boost
+# is the golden pipe's own and not a rule of every pipe. Two golden pipes never connect, so the record
+# is handed over by a stone pipe each time.
+# Each record is written on the source pipe's east face, so the one move the test runs is the
+# hand-over, as the reference's endReached would see it.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    # Band 29, clear of the bands the other pipe tests use.
+    y: number = origin.y() + 29
+    z: number = origin.z()
+
+    # An unpowered golden pipe: the default readjust.
+    level.place_block(x, y, z, "grug:stone_pipe")
+    level.place_block(x + 1, y, z, "grug:golden_pipe")
+    source: BlockEntity = _entity(ctx, level, x, y, z)
+    target: BlockEntity = _entity(ctx, level, x + 1, y, z)
+    _record(source, 0.03)
+    ctx.tick_block_entity(source, 1)
+    ctx.assert(source.get_saved_list_size("traveling") == 0, "The stone source should have handed the record over.")
+    ctx.assert(target.get_saved_list_size("traveling") == 1, "The golden target should have taken the record.")
+    ctx.assert(_thousandths(_speed(target, 0)) == 20, "A speed of 0.03 should enter an unpowered golden pipe at 0.02.")
+
+    # A powered golden pipe: the same record, raised to 0.2 after the readjust.
+    level.place_block(x + 2, y, z, "grug:stone_pipe")
+    level.place_block(x + 3, y, z, "grug:golden_pipe")
+    level.place_block(x + 3, y - 1, z, "minecraft:redstone_torch")
+    powered_source: BlockEntity = _entity(ctx, level, x + 2, y, z)
+    powered_target: BlockEntity = _entity(ctx, level, x + 3, y, z)
+    _record(powered_source, 0.03)
+    _record(powered_source, 0.5)
+    ctx.tick_block_entity(powered_source, 1)
+    ctx.assert(powered_target.get_saved_list_size("traveling") == 2, "The powered golden target should have taken both records.")
+    ctx.assert(_thousandths(_speed(powered_target, 0)) == 200, "A powered golden pipe should raise a speed of 0.03 to 0.2.")
+    ctx.assert(_thousandths(_speed(powered_target, 1)) == 200, "A powered golden pipe should raise a speed of 0.5 to 0.2.")
+
+    # A stone pipe with the same torch gets its own rule, 0.005 off, and no boost.
+    level.place_block(x + 4, y, z, "grug:cobblestone_pipe")
+    level.place_block(x + 5, y, z, "grug:stone_pipe")
+    level.place_block(x + 5, y - 1, z, "minecraft:redstone_torch")
+    stone_source: BlockEntity = _entity(ctx, level, x + 4, y, z)
+    stone_target: BlockEntity = _entity(ctx, level, x + 5, y, z)
+    _record(stone_source, 0.03)
+    ctx.tick_block_entity(stone_source, 1)
+    ctx.assert(stone_target.get_saved_list_size("traveling") == 1, "The stone target should have taken the record.")
+    ctx.assert(_thousandths(_speed(stone_target, 0)) == 25, "A powered stone pipe should still only take 0.005 off.")
+}
+
+# Adds one record at the source pipe's floor on its east face, so a single tick's move carries it
+# past the block's edge and is the hand-over.
+local _record(pipe: BlockEntity, speed: number) {
+    center: Vec3 = pipe.block_pos().center()
+    index: number = pipe.append_saved_list_record("traveling")
+    pipe.set_saved_list_number("traveling", index, "x", center.x() + 0.5)
+    pipe.set_saved_list_number("traveling", index, "y", center.y() - 0.25)
+    pipe.set_saved_list_number("traveling", index, "z", center.z())
+    pipe.set_saved_list_number("traveling", index, "speed", speed)
+    pipe.set_saved_list_number("traveling", index, "direction", 5)
+    pipe.set_saved_list_number("traveling", index, "steps", 50)
+    pipe.set_saved_list_number("traveling", index, "to_center", 0)
+    pipe.set_saved_list_number("traveling", index, "count", 1)
+    pipe.set_saved_list_number("traveling", index, "damage", 0)
+    pipe.set_saved_list_item("traveling", index, item(resource_location("minecraft:diamond")))
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+local _speed(pipe: BlockEntity, index: number) number {
+    return pipe.get_saved_list_number("traveling", index, "speed")
+}
+
+# A readjusted speed is a float64 subtraction, so the thousandths are what the test compares, as the
+# other speed tests do.
+local _thousandths(value: number) number {
+    return Math.floor(value * 1000 + 0.5)
+}

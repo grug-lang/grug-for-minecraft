@@ -80,9 +80,17 @@ local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: Bloc
 local _is_connected(world: Level, x: number, y: number, z: number, side: number) bool {
     kind: number = _pipe_kind(world, _neighbor_x(x, side), _neighbor_y(y, side), _neighbor_z(z, side))
     if kind != 0 {
-        return true
+        return _pipe_connects(kind)
     }
     return _is_inventory(world, x, y, z, side)
+}
+
+# PipeLogicCobblestone.isPipeConnected refuses a pipe whose logic is PipeLogicStone, which is the
+# stone pipe, so with the default pipes.alwaysConnect of false a cobblestone pipe connects to every
+# other pipe this mod has, another cobblestone pipe included. That is a quirk of the reference (the
+# check names the stone pipe's logic, not its own) that the port reproduces.
+local _pipe_connects(kind: number) bool {
+    return kind != 3
 }
 
 # The same inventory test as the block entity's _is_inventory.
@@ -104,8 +112,9 @@ local _reverse(side: number) number {
     return side - 1
 }
 
-# Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe and 2 for a cobblestone
-# pipe, as the block entity's copy of this says.
+# Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe, 2 for a cobblestone pipe,
+# 3 for a stone pipe and 4 for a golden pipe, as the block entity's copy of this says. Every pipe's
+# copy of this has to agree.
 local _pipe_kind(world: Level, nx: number, ny: number, nz: number) number {
     name: string = world.get_block(nx, ny, nz)
     if name == "grug:wooden_pipe" {
@@ -113,6 +122,12 @@ local _pipe_kind(world: Level, nx: number, ny: number, nz: number) number {
     }
     if name == "grug:cobblestone_pipe" {
         return 2
+    }
+    if name == "grug:stone_pipe" {
+        return 3
+    }
+    if name == "grug:golden_pipe" {
+        return 4
     }
     return 0
 }
