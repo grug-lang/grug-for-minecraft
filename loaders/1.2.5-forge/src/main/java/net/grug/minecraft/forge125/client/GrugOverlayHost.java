@@ -397,9 +397,10 @@ public final class GrugOverlayHost {
     /**
      * Test only: delivers one press of the key whose character code is {@code charCode} to the
      * overlays and answers whether one took it. The press types the character that number produces
-     * without shift, as a real press does, and a number that names no key is only a character. A
-     * number held with {@code release} false makes the next press of it a repeat, as the game
-     * reports one.
+     * without shift, as a real press does, and a number below 128 that names no key is only a
+     * character, while a number from 128 up is no character and has no key here, which the press
+     * reports as an error. A number held with {@code release} false makes the next press of it a
+     * repeat, as the game reports one.
      *
      * <p>Unlike a mouse press, a key press is not put into LWJGL's queue: the keyboard state that
      * says whether control is held cannot be written, so the decoded event goes to {@link #key}

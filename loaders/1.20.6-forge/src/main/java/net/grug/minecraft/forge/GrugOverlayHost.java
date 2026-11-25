@@ -308,13 +308,20 @@ public final class GrugOverlayHost {
         return letter || digit ? glfwKey : -1;
     }
 
-    /** The GLFW key code of the number a test presses, or -1 when the number names no such key. */
+    /**
+     * The GLFW key code the number a test presses stands for, or -1 when the number is not a key
+     * the test presses: a letter, a digit, the space bar and backspace are pressed as their key,
+     * and a number above the printable ASCII range is one of GLFW's own codes and is pressed as it
+     * is (256 is Escape, which the screen acts on). A printable number that names no key is not a
+     * key at all, and {@code press_screen_key} types it instead.
+     */
     static int glfwKey(int overlayKey) {
         if (overlayKey == GrugOverlay.KEY_BACKSPACE) return GLFW_KEY_BACKSPACE;
         if (overlayKey == GrugOverlay.KEY_SPACE) return GLFW_KEY_SPACE;
         boolean letter = overlayKey >= 'A' && overlayKey <= 'Z';
         boolean digit = overlayKey >= '0' && overlayKey <= '9';
-        return letter || digit ? overlayKey : -1;
+        if (letter || digit) return overlayKey;
+        return overlayKey > 126 ? overlayKey : -1;
     }
 
     /** The key held since its first press, or -1: a second press event for it is a key repeat. */
