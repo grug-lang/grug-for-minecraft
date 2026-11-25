@@ -106,6 +106,9 @@ jobs:
       # Whether the smoke games and the reference job can see anything the diff changed (#909).
       smoke-needed: ${{ steps.selection.outputs.smoke }}
       reference: ${{ steps.selection.outputs.reference }}
+      # Which answer the diff got (#1815): `code` runs the jobs the axes select, `scripts` and
+      # `docs` run only what proves the pipeline still runs, because no class can change.
+      tier: ${{ steps.selection.outputs.tier }}
       # Whether the diff is prose alone, which no test can read (#785).
       no-tests: ${{ steps.no-tests.outputs.no-tests }}
       # The coverage tests a pull request carries over instead of rerunning, and the run of the
@@ -217,16 +220,20 @@ jobs:
           python3 .github/scripts/main-selection.py "${args[@]}" > "$RUNNER_TEMP/selection.out" || true
           # A selection that was not written cannot narrow anything, and the fallback is the shape of
           # a full run rather than a run with no loader in it. An empty build matrix is the same
-          # failure in a well-formed line, so it takes the same fallback; a tree that still names no
-          # loader then fails this step, since a green run with no test is the one outcome neither
-          # this step nor main-selection.py may produce (#920 review).
+          # failure in a well-formed line, so it takes the same fallback, except that a diff of
+          # nothing a class reads selects no loader job on purpose (#1815) and main-selection.py's
+          # own docs tier is what says so; a tree that still names no loader then fails this step,
+          # since a green run with no test is the one outcome neither this step nor the script may
+          # produce (#920 review).
           if ! grep -q '^build=' "$RUNNER_TEMP/selection.out" \
-            || grep -q '^build=\[\]$' "$RUNNER_TEMP/selection.out"; then
+            || { grep -q '^build=\[\]$' "$RUNNER_TEMP/selection.out" \
+              && ! grep -q '^tier=docs$' "$RUNNER_TEMP/selection.out"; }; then
             echo "::warning::the selection wrote no loader to run, so this run selects everything."
             python3 .github/scripts/main-selection.py --everything > "$RUNNER_TEMP/selection.out"
           fi
           if ! grep -q '^build=' "$RUNNER_TEMP/selection.out" \
-            || grep -q '^build=\[\]$' "$RUNNER_TEMP/selection.out"; then
+            || { grep -q '^build=\[\]$' "$RUNNER_TEMP/selection.out" \
+              && ! grep -q '^tier=docs$' "$RUNNER_TEMP/selection.out"; }; then
             echo "::error::no loader can be selected from this tree, so there is nothing to run."
             exit 1
           fi
@@ -401,10 +408,21 @@ jobs:
           BASE: ${{ steps.base.outputs.base || github.event.pull_request.base.sha || github.event.before }}
           REF: ${{ github.ref }}
           MATRIX: ${{ steps.discover.outputs.matrix }}
+          # The tier the selection answered (#1815): a diff of nothing a class reads runs no leg.
+          TIER: ${{ steps.selection.outputs.tier }}
           # Listing the runs, their jobs and their artifacts needs the token, which a step only
           # sees when it passes it in.
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          # No class changed, so no server class's bytes moved: the legs and the layer jobs could
+          # only tell about a class, and the coverage job that reads their data is skipped too.
+          if [ "$TIER" != 'code' ]; then
+            echo "Skipping the dedicated-server legs and the layer jobs: every changed path is outside what a loader compiles, so no class changed, so no coverage can move."
+            echo "dedicated=false" >> "$GITHUB_OUTPUT"
+            echo "loaders=[]" >> "$GITHUB_OUTPUT"
+            echo "layer=[]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # A pull request and a push (#1601) read their diff against the base commit the steps above
           # fetched and run the leg of each loader whose own code it touches; one that cannot be
           # read runs every loader's leg, like every doubt.
@@ -445,8 +463,11 @@ jobs:
   grug-rs:
     name: build grug-rs
     # The smoketest job (#1589) links this library too, and a diff of .github/smoketest/ alone is one
-    # no game test reads, so it skips every test job and still needs the library.
-    if: needs.discover.outputs.no-tests != 'true' || needs.discover.outputs.smoketest == 'true'
+    # no game test reads, so it skips every test job and still needs the library. A diff of prose or
+    # an editor's configuration runs no job that links it, so the docs tier skips it (#1815).
+    if: >-
+      (needs.discover.outputs.no-tests != 'true' || needs.discover.outputs.smoketest == 'true')
+      && needs.discover.outputs.tier != 'docs'
     needs: discover
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -569,9 +590,12 @@ jobs:
 
   core:
     name: core tests
-    # A diff of prose alone cannot change a test's result, so the job skips (#785). Only an
-    # explicit true skips it (see the discover job), and a dispatch never sets one.
-    if: needs.discover.outputs.no-tests != 'true'
+    # A diff of prose alone cannot change a test's result, so the job skips (#785), and the docs tier
+    # runs no test job at all (#1815). Only an explicit value skips it (see the discover job), and a
+    # dispatch never sets one.
+    if: >-
+      needs.discover.outputs.no-tests != 'true'
+      && needs.discover.outputs.tier != 'docs'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -2357,11 +2381,14 @@ jobs:
     # run the legs of the loaders their diff touches (#1601) and of the loaders whose carried-over
     # server exec data no longer matches their class bytes (#1739), and !cancelled() keeps this job running when a need was skipped or failed:
     # its own verdict is what the gate reports, and a failed leg already fails the run.
-    if: ${{ !cancelled() && needs.discover.outputs.no-tests != 'true' }}
+    if: ${{ !cancelled() && needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.tier != 'docs' && needs.discover.outputs.tier != 'scripts' }}
     # discover is a need because this job reads its carry-over: the two outputs are what names
     # the base run and the tests the loader jobs skipped (#786).
     # layer is a need so the Ornithe server set's jar is there when this job reads it (#169): it
     # needs only discover and grug-rs, so it finishes with the loader jobs this job already waits for.
+    # The docs and scripts tiers skip it (#1815): no class changed, so no coverage can move, and the
+    # line that says so is in the discover job's log. A skipped need counts as satisfied in `pr gate`,
+    # which still fails a red one.
     needs: [discover, core, build, multiplayer, layer]
     runs-on: ubuntu-24.04
     # Its own steps only: a job's timeout does not count the time it waits for the jobs it needs.

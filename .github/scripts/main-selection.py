@@ -10,11 +10,14 @@ prints the discover job's outputs, one ``key=value`` line each, ready for ``$GIT
     mods=buildcraft,coverage
     smoke=false
     reference=false
+    tier=code
 
 ``build`` is the matrix of the development loader jobs, ``installed`` the matrix of the jobs that run
 the suite again in a player's install, and ``mods`` the selection those jobs run, empty for "every
-mod". ``smoke`` and ``reference`` say whether those two jobs can see anything the diff changed. The
-reasons go to stderr, so the discover job's log says why the run got the selection it did.
+mod". ``smoke`` and ``reference`` say whether those two jobs can see anything the diff changed, and
+``tier`` says which of the three answers below the diff got: ``code`` runs the jobs the two axes
+select, and the two narrower tiers select no coverage, dedicated, layer or reference job. The reasons
+go to stderr, so the discover job's log says why the run got the selection it did.
 
 Three rules, from #707's design (#909):
 
@@ -27,6 +30,29 @@ Three rules, from #707's design (#909):
    representative covers a job condition or an action: a broken one only shows on the jobs it edits.
 3. A workflow_dispatch and the weekly schedule (#909's third rule) select nothing away: every loader
    runs every mod, which is the full pass #310 asks for and the run no selection can shrink.
+
+A pull request whose diff cannot change a compiled class runs no loader job, no dedicated leg, no
+layer job and no coverage gate (#1815), because such a diff costs 21 job slots that the real work
+waits behind, and none of them can say anything about it. The gate is the safety net that notices a
+class nobody covers, so the predicate is exact and every doubt runs more: only a path that is the
+CI's own machinery, prose or an editor's configuration is outside it, and one path that is not makes
+the run the full answer. There are two tiers, because a script can break the pipeline and a paragraph
+cannot:
+
+- ``scripts``: every changed path is under ``.github/scripts/``, ``.github/workflows/``,
+  ``.github/actions/`` or ``.github/smoketest/``, or is ``.pre-commit-config.yaml``. The run is
+  ``discover``, ``pre-commit``, ``core`` and one loader job, the representative of the newest
+  mechanism, running ``mods/coverage``'s tests: they prove the pipeline still runs, and no coverage,
+  dedicated, layer or reference job can see anything they changed.
+- ``docs``: every changed path is prose or an editor's configuration (the ``DOCS_*`` sets below), so
+  only ``discover``, ``pre-commit`` and the fixed ``pr gate`` job run.
+- ``code``: everything else, which keeps the whole answer above, including a diff that mixes a
+  workflow with one ``.grug`` file, because that file is code.
+
+The tier narrows a pull request only. A push to main runs every loader's job because main is the run
+that has to count every loader (#909), and its prose-alone narrowing is no-tests.py's (#822); a
+dispatch and the schedule are the full runs. A skipped ``coverage`` job leaves ``pr gate`` green,
+which already counts a skipped need as satisfied and still fails a red one.
 
 A run that compares a head tree with a base commit (a push to main and a pull request) asks the
 first two; an empty base, a base it cannot read, an empty diff and any error in this script answer
@@ -64,6 +90,17 @@ MODS = "mods"
 # A change to the CI's own machinery. A job condition, a matrix or an action decides every job, and no
 # family's representative is the one that runs it, so such a diff runs every loader once.
 PIPELINE = (".github/workflows/", ".github/actions/")
+# The CI's own code and machinery: a change to one of these can break the pipeline itself, and no
+# loader compiles it, so the scripts tier runs the jobs that prove the pipeline still runs (#1815).
+SCRIPTS = (".github/actions/", ".github/scripts/", ".github/smoketest/", ".github/workflows/")
+SCRIPTS_FILES = (".pre-commit-config.yaml",)
+# A changed path that is prose or an editor's configuration: no class, no mod, no golden and no gate
+# reads one, so the docs tier runs discover and pre-commit alone (#1815). A mod's own files are never
+# in it, since its text files are what its tests read.
+DOCS_DIRS = (".github/ISSUE_TEMPLATE/",)
+DOCS_FILES = (".editorconfig", ".gitattributes", ".gitignore", "LICENSE", "ruff.toml")
+DOCS_NAMES = ("CODEOWNERS", "README")
+DOCS_SUFFIXES = (".md",)
 # The events that build a head tree from a base commit, and so can narrow what they run. Every other
 # event a dispatch or the schedule can deliver is the full run.
 DIFFED = ("push", "pull_request")
@@ -86,6 +123,7 @@ def every_mod_outputs(loaders: list[str]) -> dict:
         "mods": "",
         "smoke": "true",
         "reference": "true",
+        "tier": "code",
     }
 
 
@@ -148,6 +186,98 @@ def coverage_mod(repo: Path) -> bool:
         return False
 
 
+def docs_path(path: str) -> bool:
+    """Whether a changed path is prose or an editor's configuration, which no class or gate reads."""
+    parts = PurePosixPath(path).parts
+    if not parts or parts[0] == MODS:
+        return False
+    if any(path.startswith(directory) for directory in DOCS_DIRS):
+        return True
+    if path in DOCS_FILES:
+        return True
+    name = parts[-1]
+    return name in DOCS_NAMES or PurePosixPath(name).suffix in DOCS_SUFFIXES
+
+
+def scripts_path(path: str) -> bool:
+    """Whether a changed path is the CI's own machinery, which can break the pipeline but no class."""
+    return path in SCRIPTS_FILES or any(path.startswith(prefix) for prefix in SCRIPTS)
+
+
+def diff_tier(paths: list[str]) -> tuple[str, str]:
+    """Which answer a readable, non-empty diff gets (``code``, ``scripts`` or ``docs``), and why."""
+    machinery = [path for path in paths if scripts_path(path)]
+    if all(docs_path(path) for path in paths if not scripts_path(path)):
+        # A diff that mixes prose with the CI's own machinery is the scripts tier, which runs more:
+        # the pre-commit and core jobs are what prove the pipeline after such a change.
+        if machinery:
+            return "scripts", (
+                f"all {len(paths)} changed paths are the CI's own machinery, prose or an editor's"
+                " configuration, which no loader compiles, so the run is the scripts tier"
+            )
+        return "docs", (
+            f"all {len(paths)} changed paths are prose or an editor's configuration, which no loader"
+            " compiles, no mod ships and the gate never counts, so the run is the docs tier"
+        )
+    return "code", ""
+
+
+def newest_loader(repo: Path, loaders: list[str]) -> str:
+    """The representative of the newest mechanism, the loader job the scripts tier runs."""
+    affected = sibling("affected-loaders")
+    semver = sibling("universal_jar").compare_semver
+    current = set(loaders)
+    # The same shares affected-loaders.py's own representative choice uses: a loader that shares
+    # code with another ranks below one that does not, at the same Minecraft.
+    shares: dict[str, set[str]] = {loader: set() for loader in loaders}
+    for users in affected.shared_dirs(repo, "HEAD").values():
+        for loader in users & current:
+            shares[loader].update(users - {loader})
+    games = affected.game_of(loaders)
+    best = ""
+    newest = ""
+    # representatives() answers one loader per mechanism, so the newest game among them names the
+    # mechanism whose representative is the job that proves the pipeline: Forge on 1.20.6 today.
+    for loader in sorted(affected.representatives(loaders, shares=shares).values()):
+        game = games.get(loader)
+        minecraft = game.minecraft if game is not None else "0"
+        if not best or semver(minecraft, newest) > 0:
+            best, newest = loader, minecraft
+    return best
+
+
+def no_class(repo: Path, tier: str, reason: str) -> tuple[dict, list[str]]:
+    """The outputs of a pull request whose diff cannot change a class, and the lines saying why."""
+    loaders = sorted(sibling("added-loaders").tree_loaders(repo, "HEAD"))
+    mods = ""
+    build = []
+    if tier == "scripts":
+        # One representative loader job proves the pipeline still runs. The gate's own mod is the
+        # cheapest suite and no gate reads it, because the coverage job is skipped.
+        mods = sibling("affected-mods").ALWAYS
+        build = [{"dir": newest_loader(repo, loaders), "mods": mods}]
+    lines = [
+        reason,
+        "no class changed, so no coverage can move: the coverage, dedicated and layer jobs are"
+        " skipped",
+    ]
+    if tier == "docs":
+        lines.append("the run is the docs tier: only discover, pre-commit and pr gate run")
+    else:
+        lines.append(
+            f"the run is the scripts tier: {mods} runs on {build[0]['dir']} alone, with core's"
+            " tests, to prove the pipeline still runs"
+        )
+    return {
+        "build": build,
+        "installed": [],
+        "mods": mods,
+        "smoke": "false",
+        "reference": "false",
+        "tier": tier,
+    }, lines
+
+
 def coverage_only(repo: Path) -> tuple[dict, list[str]]:
     """#831's dispatch input: the development jobs measure the coverage gate and the rest runs whole.
 
@@ -191,6 +321,14 @@ def decide(repo: Path, event: str, base: str = ""):
         )
     if not paths:
         return everything(repo, "the diff is empty, which is more likely a mistake than a no-op")
+
+    # A diff that changes no class runs none of the jobs that could only tell about a class (#1815).
+    # A push is not narrowed this way: main is the run that has to count every loader, and its
+    # prose-alone narrowing is no-tests.py's (#822).
+    if event == "pull_request":
+        tier, tier_reason = diff_tier(paths)
+        if tier != "code":
+            return no_class(repo, tier, tier_reason)
 
     # Rule 1: the mod axis, which is affected-mods.py's own answer.
     selection, lines = mod_axis(repo, base)
@@ -252,6 +390,7 @@ def decide(repo: Path, event: str, base: str = ""):
         "mods": selection_text,
         "smoke": "true" if smoke else "false",
         "reference": "true" if needed else "false",
+        "tier": "code",
     }
     return outputs, lines
 
@@ -307,7 +446,11 @@ def main(argv: list[str]) -> int:
     summary = ", ".join(
         f"{entry['dir']}: {entry['mods'] or 'every mod'}" for entry in outputs["build"]
     )
-    print(f"main-selection: the development jobs run {summary or 'no loader'}", file=sys.stderr)
+    print(
+        f"main-selection: the {outputs['tier']} tier's development jobs run"
+        f" {summary or 'no loader'}",
+        file=sys.stderr,
+    )
     print_outputs(outputs)
     return 0
 
