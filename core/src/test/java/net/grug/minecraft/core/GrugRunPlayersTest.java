@@ -104,6 +104,31 @@ class GrugRunPlayersTest {
     }
 
     @Test
+    void aPlayerThatJoinsAfterTheFirstTickIsKeptWhenItAppears() {
+        // The leg's real shape in run 45515180613: the second client joined first and the starter
+        // followed, so the list a tick sees grows after the run has begun. A run that marked only
+        // the list its first tick saw would leave the later player to the world.
+        Set<Object> invulnerable = new HashSet<>();
+
+        List<Object> firstTick = Collections.singletonList(SECOND);
+        assertEquals(
+                firstTick,
+                GrugRunPlayers.playersStillToKeep(firstTick, invulnerable::contains, true));
+        invulnerable.addAll(firstTick);
+
+        // The next tick sees the second player already kept, and the starter for the first time.
+        List<Object> both = Arrays.asList(SECOND, STARTER);
+        assertEquals(
+                Collections.singletonList(STARTER),
+                GrugRunPlayers.playersStillToKeep(both, invulnerable::contains, true));
+        invulnerable.addAll(Collections.singletonList(STARTER));
+
+        // Both are kept, and neither is asked for again on the ticks that follow.
+        assertEquals(new HashSet<>(both), invulnerable);
+        assertTrue(GrugRunPlayers.playersStillToKeep(both, invulnerable::contains, true).isEmpty());
+    }
+
+    @Test
     void theStarterAloneIsStillAKeptPlayer() {
         List<Object> players = Collections.singletonList(STARTER);
 
