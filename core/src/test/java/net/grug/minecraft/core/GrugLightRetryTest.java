@@ -307,17 +307,41 @@ class GrugLightRetryTest {
 
         assertEquals(
                 GrugLightRetry.Verdict.DIVERGED,
-                diverged(retry, box, serverBlock, DARK, never, (x, y, z) -> GrugClientLight.CANNOT_VERIFY));
+                diverged(
+                        retry,
+                        box,
+                        serverBlock,
+                        DARK,
+                        never,
+                        (x, y, z) -> GrugClientLight.CANNOT_VERIFY));
         assertEquals(
                 GrugLightRetry.Verdict.DIVERGED,
-                diverged(retry, box, serverBlock, DARK, never, (x, y, z) -> GrugClientLight.CANNOT_VERIFY));
+                diverged(
+                        retry,
+                        box,
+                        serverBlock,
+                        DARK,
+                        never,
+                        (x, y, z) -> GrugClientLight.CANNOT_VERIFY));
         assertEquals(
                 GrugLightRetry.Verdict.DIVERGED,
-                diverged(retry, box, serverBlock, DARK, never, (x, y, z) -> GrugClientLight.CANNOT_VERIFY),
+                diverged(
+                        retry,
+                        box,
+                        serverBlock,
+                        DARK,
+                        never,
+                        (x, y, z) -> GrugClientLight.CANNOT_VERIFY),
                 "an unread byte that repeats is not a field that stopped moving");
         assertEquals(
                 GrugLightRetry.Verdict.PERSISTED,
-                diverged(retry, box, serverBlock, DARK, never, (x, y, z) -> GrugClientLight.CANNOT_VERIFY),
+                diverged(
+                        retry,
+                        box,
+                        serverBlock,
+                        DARK,
+                        never,
+                        (x, y, z) -> GrugClientLight.CANNOT_VERIFY),
                 "the re-sends are spent, so the unread cell reports");
         assertTrue(retry.report().contains("could not be read"), retry.report());
     }

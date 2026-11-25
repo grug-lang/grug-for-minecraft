@@ -294,10 +294,10 @@ public final class GrugLightRetry {
     }
 
     /**
-     * How many times one box probe is asked again when the client answers that it is still busy.
-     * An ask requests a frame and the answer describes the frames before that frame ended, so a
-     * client can answer busy for one ask and name a divergence on the next. Every ask freezes the
-     * world, so the retries are few (#1695).
+     * How many times one box probe is asked again when the client answers that it is still busy. An
+     * ask requests a frame and the answer describes the frames before that frame ended, so a client
+     * can answer busy for one ask and name a divergence on the next. Every ask freezes the world,
+     * so the retries are few (#1695).
      */
     static final int BUSY_RETRIES = 2;
 
