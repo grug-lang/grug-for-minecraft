@@ -103,12 +103,15 @@ export render(ctx: OverlayRenderContext) {
     ctx.draw_box(grid_x + columns * slot - button_size, border_margin, grid_x + columns * slot, border_margin + button_size)
     # DeleteItemInputHandler.shouldDeleteItemOnClick: a left click over the grid deletes the stack on
     # the cursor unless the hovered ingredient stacks with it, and a cell past the last item counts
-    # as nothing hovered. The reference then hides the hover highlight and draws the delete message
-    # instead of the ingredient's name (IngredientGrid.drawHighlight and drawTooltips).
+    # as nothing hovered. The reference asks whether the pointer is over the grid's area before
+    # either the highlight or the message (IngredientGrid.draw, :130, and drawTooltips, :146-148), so
+    # a point outside it is neither, which is the condition the click export returns on. Its draw and
+    # drawTooltips then hide the hover highlight and draw the delete message instead of the
+    # ingredient's name, and the index they ask about is a cell of the page the pointer is over.
     carried: Option[Item] = ctx.carried_item()
     hovered: number = _clicked_index(mouse_x, mouse_y, screen_width, ctx.gui_left(), ctx.gui_width(), columns, rows)
     delete_on_click: bool = false
-    if carried.has() {
+    if carried.has() and hovered >= 0 {
         delete_on_click = _deletes_carried(carried.unwrap(), page * columns * rows + hovered, count)
     }
     first: number = page * columns * rows

@@ -1,0 +1,241 @@
+# The delete look beside the grid (#1763): with a stack on the cursor, the message is drawn only
+# while the pointer is over the grid. The reference asks whether the pointer is over its area before
+# it either hides the highlight or draws the message (IngredientGrid.draw, :130, and
+# IngredientGrid.drawTooltips, :146-148), so a point beside the grid is neither, and the port's click
+# export already returns for such a point. Before this gate the list counted a cell from the page's
+# start rather than from the pointer, so the cell before the page answered for a click and the
+# message was drawn at the pointer wherever it was, on every page after the first. The capture shows
+# the second page with a stack on the cursor and the pointer in the gap between the GUI and the grid,
+# inside the delete look's own rectangle, and it carries no message. It is a golden for the same
+# reason that look is one: only a capture shows a tooltip that should not be there. The pointer is
+# parked, as a run parks it in a corner otherwise, so a dedicated server skips the test.
+started: bool = false
+opened: bool = false
+waited: number = 0
+step: number = 0
+attempts: number = 0
+retry_at: number = 0
+before: Option[Screenshot] = Option.new()
+last: Option[Screenshot] = Option.new()
+settles: number = 0
+stable: number = 0
+
+# The window is 1280 by 720 at a GUI scale of 3, which the crop below assumes; both a 426 and a
+# 427 scaled width are that scale, as the item list's own capture test explains, and the crop is
+# fixed at 225 scaled pixels wide from the right edge so both give the same image size.
+frame_scale: number = 3
+
+export init(ctx: TestInitContext) {
+    # A loader that reads the back buffer can serve a capture a frame drawn several ticks ago, so
+    # the page and the look are waited for in captures taken 30 ticks apart, up to eight times.
+    ctx.set_max_ticks(1500)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() {
+            # This loader draws no overlays; the deviation is in about.json.
+            return
+        }
+        if me.on_dedicated_server() {
+            # The parked cursor is a client's own pointer, and the server's test cannot move it.
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens (#1287).
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        ctx.assert(ctx.screen_width() == 426 or ctx.screen_width() == 427, "The CI window should be 1280x720 at a GUI scale of 3.")
+        per_page: number = _columns(ctx) * _rows(ctx)
+        ctx.assert(item_count() > per_page, "The item list should hold more than one page of items.")
+        # The frame before the page turns, with nothing on the cursor and the pointer already where
+        # the look is captured: the list's first page has no cell before it, so no message can be
+        # drawn there however the page is counted.
+        ctx.clear_carried_item()
+        ctx.set_mouse_position(_gap_x(ctx) * frame_scale, _gap_y() * frame_scale)
+        before.set(ctx.screenshot().capture(_left(ctx), _top(), _right(ctx), _bottom()))
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        per_page: number = _columns(ctx) * _rows(ctx)
+        # The carried item has to differ from the last cell of the first page, because that is the
+        # cell the page's start answered for: a click there deletes the carried stack, so a message
+        # at the pointer is what the look must not draw. The item is looked up rather than picked by
+        # a fixed cell, because the order differs by version.
+        last_cell: Item = item_at(per_page - 1)
+        carried_index: number = -1
+        search: number = 0
+        while search < per_page - 1 and carried_index < 0 {
+            if not equals(item_at(search), last_cell) {
+                carried_index = search
+            }
+            search = search + 1
+        }
+        ctx.assert(carried_index >= 0, "The item list should hold an item besides the first page's last cell.")
+        ctx.set_carried_item(item_at(carried_index))
+        ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item on the cursor.")
+        # A wheel turned down over the grid shows the second page, which is where the count from the
+        # page's start is a real cell instead of -1.
+        taken: bool = ctx.scroll_screen(_cell_x(ctx, 0), _cell_y(0), -1)
+        ctx.assert(taken, "The overlay should take a wheel turned over its list.")
+        retry_at = ctx.current_tick()
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if ctx.current_tick() < retry_at + 30 {
+            ctx.not_done()
+            return
+        }
+        after: Screenshot = ctx.screenshot().capture(_left(ctx), _top(), _right(ctx), _bottom())
+        if after.change_from(before.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The second page never reached the frame.")
+            retry_at = ctx.current_tick()
+            ctx.not_done()
+            return
+        }
+        # The crop also holds the player's inventory beside the grid, and an item there is drawn
+        # with a value that settles rather than at once: a compass needle turns towards the world
+        # spawn through a damped wobble that eases once per frame, so a frame taken a few frames
+        # after the screen opens can still differ from the same frame in another run. The look is
+        # therefore taken again 60 ticks later, about six frames at the runner's speed, and only
+        # compared once two frames agree (#1834).
+        last.set(after)
+        retry_at = ctx.current_tick() + 60
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if ctx.current_tick() < retry_at {
+        ctx.not_done()
+        return
+    }
+    settled: Screenshot = ctx.screenshot().capture(_left(ctx), _top(), _right(ctx), _bottom())
+    if settled.change_from(last.unwrap()) >= 1 {
+        settles = settles + 1
+        ctx.assert(settles < 8, "The second page never stopped changing between frames.")
+        last.set(settled)
+        stable = 0
+        retry_at = ctx.current_tick() + 60
+        ctx.not_done()
+        return
+    }
+    # The comparison captures one more frame of its own, so two equal captures in a row are not
+    # enough to know that frame is among them: three are.
+    stable = stable + 1
+    if stable < 2 {
+        retry_at = ctx.current_tick() + 60
+        ctx.not_done()
+        return
+    }
+    ctx.screenshot().equals(r"screenshots/jei_delete_off_grid", _left(ctx), _top(), _right(ctx), _bottom())
+    ctx.clear_carried_item()
+    ctx.close_screen()
+}
+
+# The list's layout, as the overlay computes it, so the test works the same grid out.
+local _cell_x(ctx: TestTickContext, column: number) number {
+    return _grid_x(ctx) + column * 18 + 9
+}
+
+local _cell_y(row: number) number {
+    return _grid_y() + row * 18 + 9
+}
+
+local _grid_x(ctx: TestTickContext) number {
+    display_left: number = ctx.gui_left() + ctx.gui_width()
+    available_width: number = ctx.screen_width() - display_left - 12
+    return display_left + 6 + (available_width - _columns(ctx) * 18)
+}
+
+local _grid_y() number {
+    return 28
+}
+
+local _columns(ctx: TestTickContext) number {
+    available_width: number = ctx.screen_width() - ctx.gui_left() - ctx.gui_width() - 12
+    columns: number = Math.floor(available_width / 18)
+    if columns > 9 {
+        columns = 9
+    }
+    return columns
+}
+
+local _rows(ctx: TestTickContext) number {
+    screen_height: number = ctx.gui_top() * 2 + ctx.gui_height()
+    rows: number = Math.floor((screen_height - 22 - 22 - 12) / 18)
+    if rows > 16 {
+        rows = 16
+    }
+    return rows
+}
+
+# The middle of the gap between the GUI's right edge and the grid's left edge: inside the capture's
+# rectangle, which starts left of the GUI, and outside the grid's area, which the wheel and the click
+# both ask about. A message drawn here is what the gate removes.
+local _gap_x(ctx: TestTickContext) number {
+    return _grid_x(ctx) - 6
+}
+
+# Low enough that the message's panel is inside the rectangle on every version, which reaches from
+# 20 scaled pixels above the grid's first row to 32 below it.
+local _gap_y() number {
+    return 44
+}
+
+# The capture's rectangle in window pixels, the same one the delete look's capture uses: 225 scaled
+# pixels across to the window's right edge, and from above the grid's first row to below it.
+local _left(ctx: TestTickContext) number {
+    return _right(ctx) - 225 * frame_scale
+}
+
+local _top() number {
+    return (_grid_y() - 20) * frame_scale
+}
+
+local _right(ctx: TestTickContext) number {
+    return (ctx.screen_width() - 1) * frame_scale
+}
+
+local _bottom() number {
+    return (_grid_y() + 32) * frame_scale
+}
