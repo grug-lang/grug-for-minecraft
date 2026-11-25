@@ -40,7 +40,11 @@ import java.util.List;
 import java.util.Map;
 
 public class GrugBlockEntity extends BlockEntity
-        implements Container, GrugSavedNumbers.Holder, GrugSavedLists.Holder, GrugPower.Holder {
+        implements Container,
+                GrugSavedNumbers.Holder,
+                GrugSavedStrings.Holder,
+                GrugSavedLists.Holder,
+                GrugPower.Holder {
     /**
      * The key a redraw's block entity packet sets in its update tag, which the client's {@code
      * onDataPacket} reads to know it has to build the block's mesh again. A change send leaves it
