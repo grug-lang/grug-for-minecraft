@@ -6,6 +6,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -515,13 +516,19 @@ public final class GrugModData {
         if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
             return null;
         }
-        try (Stream<Path> stream = Files.list(directory)) {
-            for (Path entry : (Iterable<Path>) stream::iterator) {
+        // Closed by hand rather than by try-with-resources: the compiler's null check around an
+        // implicit close adds a branch no call can enter, because Files.newDirectoryStream never
+        // answers null.
+        DirectoryStream<Path> entries = Files.newDirectoryStream(directory);
+        try {
+            for (Path entry : entries) {
                 String existing = entry.getFileName().toString();
                 if (!existing.equals(name) && existing.equalsIgnoreCase(name)) {
                     return existing;
                 }
             }
+        } finally {
+            entries.close();
         }
         return null;
     }

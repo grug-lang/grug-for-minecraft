@@ -25,6 +25,7 @@ import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugLevelKey;
 import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
@@ -1109,29 +1110,29 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return MinecraftInstance.get().world;
     }
 
+    /**
+     * The world's own name, which is the save directory's in singleplayer and on a dedicated
+     * server. A client joined to somebody else's server never learns that server's save name and
+     * answers the name the game gives its own copy of the world instead, which does not identify
+     * the server; see {@link ModLoaderAdapter#levelName}.
+     */
     @Override
     public String levelName(Object levelObj) {
-        String address = MinecraftInstance.get().hostAddress;
-        return address == null || address.isEmpty() ? levelNameOf((World) levelObj) : address;
+        return levelNameOf((World) levelObj);
     }
 
     /**
-     * The save's own name, which a dedicated server reads without a client's address. A client
-     * joined to another server does not know it, and reads the address it dialled instead. A world
-     * whose data holds no name yet answers {@code world} rather than an empty string.
+     * The save's own name from the world data's NBT, the entry both the client and the dedicated
+     * server write. A world whose data holds no name yet answers {@code world} rather than an empty
+     * string.
      */
     static String levelNameOf(World world) {
-        String name = world.getData().toNbt().getString("LevelName");
-        return name.isEmpty() ? "world" : name;
+        return GrugLevelKey.name("", world.getData().toNbt().getString("LevelName"));
     }
 
     @Override
     public String levelDimension(Object levelObj) {
-        int id = ((World) levelObj).dimension.id;
-        if (id == 0) return "overworld";
-        if (id == -1) return "the_nether";
-        if (id == 1) return "the_end";
-        return "dimension_" + id;
+        return GrugLevelKey.ofNumber(((World) levelObj).dimension.id);
     }
 
     /**

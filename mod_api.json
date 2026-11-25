@@ -2159,7 +2159,7 @@
 					]
 				},
 				"name": {
-					"description": "The world's own name as the game stores it, or the address a client dialled when it does not know the name. A dedicated server answers its save's name, the directory under saves/, which a client joined to it never learns; in singleplayer both sides answer the same name. Beta answers the address a client dialled when it joined a server. Alpha and 1.2.5 expose no address on such a client, so there the call answers the name the game gives that client's own world (MpServer), which does not identify the server. The answer can hold characters a filesystem refuses, so a mod that builds a path from it keeps only what it accepts; dimension is always path-safe.",
+					"description": "The world's own name as the game stores it, or the address a client dialled when it joined somebody else's server and the loader exposes one. A dedicated server answers its save's name, the directory under saves/, which a client joined to it never learns; in singleplayer both sides answer the same name. On 1.20.6 a client joined to another server answers the address it dialled. Alpha, 1.2.5 and b1.7.3 expose no address there, so the call answers the name the game gives that client's own copy of the world (Alpha names it MpServer), which does not identify the server. A world whose name is empty answers world rather than an empty string. The answer can hold characters a filesystem refuses, so a mod that builds a path from it keeps only what it accepts; dimension is always path-safe.",
 					"return_type": {
 						"name": "string"
 					}
