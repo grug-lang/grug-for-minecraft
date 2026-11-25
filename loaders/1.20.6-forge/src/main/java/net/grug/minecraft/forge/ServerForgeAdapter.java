@@ -89,10 +89,13 @@ public class ServerForgeAdapter extends ForgeAdapter {
         throw Grug.fatal("A dedicated server has no client level: the read is forwarded instead.");
     }
 
+    /**
+     * The save's own name, which on a dedicated server is the only side that knows it. The server
+     * is current here: a dedicated server answers this while it ticks, which is when a test runs.
+     */
     @Override
-    @GrugGenerated("a defect in the caller: a server reads its own world data, never the client's")
-    public String clientLevelName() {
-        throw Grug.fatal("A dedicated server has no client world name: it reads its own.");
+    public String levelName(Object levelObj) {
+        return ServerLifecycleHooks.getCurrentServer().getWorldData().getLevelName();
     }
 
     /** A server has no frame to sample: only a client's render thread reports one. */

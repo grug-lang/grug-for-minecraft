@@ -21,6 +21,7 @@ import net.grug.minecraft.forge.mixin.GuiSavingIndicatorAccessor;
 import net.grug.minecraft.forge.mixin.ItemInHandRendererAccessor;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugLevelKey;
 import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
@@ -29,10 +30,8 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -62,6 +61,7 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 import java.awt.image.BufferedImage;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
 public class ClientForgeAdapter extends ForgeAdapter {
@@ -104,15 +104,24 @@ public class ClientForgeAdapter extends ForgeAdapter {
         return Minecraft.getInstance().level;
     }
 
+    /**
+     * The level's name: the address this client dialled when it joined somebody else's server, or
+     * the integrated server's name in singleplayer, which both sides of that world then answer.
+     * Reading both values unconditionally keeps the decision in {@link GrugLevelKey#name}, where
+     * every arm has a unit test.
+     */
     @Override
-    public String clientLevelName() {
+    public String levelName(Object levelObj) {
         Minecraft minecraft = Minecraft.getInstance();
-        IntegratedServer integrated = minecraft.getSingleplayerServer();
-        if (integrated != null) {
-            return integrated.getWorldData().getLevelName();
-        }
-        ServerData current = minecraft.getCurrentServer();
-        return current == null ? "" : current.ip;
+        String address =
+                Optional.ofNullable(minecraft.getCurrentServer())
+                        .map(current -> current.ip)
+                        .orElse("");
+        String saveName =
+                Optional.ofNullable(minecraft.getSingleplayerServer())
+                        .map(integrated -> integrated.getWorldData().getLevelName())
+                        .orElse("");
+        return GrugLevelKey.name(address, saveName);
     }
 
     /**

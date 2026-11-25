@@ -639,14 +639,14 @@ public interface ModLoaderAdapter {
      * does not know the name.
      *
      * <p>On a dedicated server this is the save's name, the directory under {@code saves/}, which
-     * its joined client never learns: a client joined to somebody else's server can only know the
-     * address it dialled, so the two sides of one world answer differently there and a mod must not
-     * key shared per-world state on this call. In singleplayer the client has the integrated
-     * server, so both sides answer the same name.
+     * its joined client never learns: 1.20.6's client answers the address it dialled instead, so
+     * the two sides of one world answer differently there and a mod must not key shared per-world
+     * state on this call. In singleplayer the client has the integrated server, so both sides
+     * answer the same name.
      *
-     * <p>Alpha and 1.2.5 expose no address on a joined client, so there it answers whatever name
-     * the game gives the client's own world ({@code MpServer} on 1.2.5), which does not identify
-     * the server.
+     * <p>The versions that expose no address answer the name the game gives the client's own copy
+     * of the world, which does not identify the server ({@code MpServer} on Alpha), and a world
+     * whose name is empty answers {@code world} rather than an empty string.
      */
     @GrugGenerated("no world name: a loader that has not added it keeps this default")
     default String levelName(Object levelObj) {
