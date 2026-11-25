@@ -3132,6 +3132,10 @@ static union grug_value Test_overlay_supported(ARGS) { UNUSED; return boolean(tr
 REGISTER("Test", "overlay_supported", Test_overlay_supported);
 static union grug_value Test_world_overlay_supported(ARGS) { UNUSED; stubbed = true; return boolean(false); }
 REGISTER("Test", "world_overlay_supported", Test_world_overlay_supported);
+// The forced-normalization hook is GL state for a capture. The smoketest draws nothing, so it answers
+// what a loader whose item draw inherits the state reports and marks the run STUBBED (#1137).
+static union grug_value TTC_normalization_forced(ARGS) { UNUSED; stubbed = true; return boolean(true); }
+REGISTER("TestTickContext", "normalization_forced", TTC_normalization_forced);
 static union grug_value TTC_world_settled(ARGS) { UNUSED; stubbed = true; return boolean(true); }
 REGISTER("TestTickContext", "world_settled", TTC_world_settled);
 // The client's copy of the world's block light, which a toy world with one copy always matches (a loader whose
