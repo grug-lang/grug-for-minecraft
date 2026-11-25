@@ -1,11 +1,14 @@
-# The joined client's half of the two block entity writes (#1759): the overlay's click on a client
+# A joined client's half of the two block entity writes (#1759): the overlay's click on a client
 # that started a run names the block entity to the server instead of writing its own mirror, which
 # the next block entity packet would overwrite. The test runs on the server, which holds the chest:
 # it places the chest at the test's origin, drives the overlay's right click from the joined client
-# twice, and reads the server's chest after each press. The first press asks the server to write a
-# stack of the item the overlay drew into slot 0, and the second asks it to drop the inventory.
-# Without the forwarding both presses write the client's copy only, so the server's chest keeps the
-# five items it was given and neither assertion can pass.
+# twice, and reads the server's chest after each press. The first press asks the server to write
+# three diamonds into slot 0, and the second asks it to drop the inventory. The item is named rather
+# than taken from the item list at index 0, because index 0 is an item that does not stack that far
+# on 1.20.6, where a chest limits a slot to the item's maximum stack: a write of three would land as
+# one and the test could not tell it from a write of one. Without the forwarding both presses write
+# the client's copy only, so the server's chest keeps the five diamonds it was given and neither
+# assertion can pass.
 
 # The test's own world pass captures the origin as the camera plus three, the position
 # TestTickContext.get_origin answers here, so the block the test places is the one the client's
@@ -61,7 +64,7 @@ export tick(ctx: TestTickContext) {
         level.place_block(origin.x(), origin.y(), origin.z(), "minecraft:chest")
         chest_opt: Option[BlockEntity] = level.get_block_entity(origin.x(), origin.y(), origin.z())
         ctx.assert(chest_opt.has(), "The chest should be placed at the test's origin.")
-        chest_opt.unwrap().set_item_in_slot(0, item_at(0), 5)
+        chest_opt.unwrap().set_item_in_slot(0, item(resource_location("minecraft:diamond")), 5)
         # The world key W turns the overlay's forwarded write on. The press is a forwarded call, so
         # it has reached the client before this returns; the wait below is for a frame after it.
         ctx.press_world_key(87, false)
@@ -125,7 +128,7 @@ export tick(ctx: TestTickContext) {
         }
         item_opt: Option[Item] = chest.get_item_in_slot(0)
         wrote = count == 3
-        wrote_the_item = item_opt.has() and equals(item_opt.unwrap(), item_at(0))
+        wrote_the_item = item_opt.has() and equals(item_opt.unwrap(), item(resource_location("minecraft:diamond")))
         print3("coverage: inventory_forwarded slot 0 count after the first press", count, first_pressed)
         box_x: number = ctx.gui_left() + Math.floor(ctx.gui_width() / 2)
         box_y: number = ctx.gui_top() + Math.floor(ctx.gui_height() / 2)

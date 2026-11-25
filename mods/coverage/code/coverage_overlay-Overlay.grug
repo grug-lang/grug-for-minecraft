@@ -17,8 +17,11 @@ shell_x: number = 0
 shell_y: number = 0
 shell_z: number = 0
 # Whether the world box's right clicks ask the server to change the block entity the test placed at
-# its origin (#1759), and which change the next world frame asks for: 0 none, 1 writes item_at(0)
-# into slot 0, 2 drops the inventory. World key W (87) turns it on, and it turns itself off after the
+# its origin (#1759), and which change the next world frame asks for: 0 none, 1 writes a diamond
+# into slot 0, 2 drops the inventory. The item is named rather than taken from the list at index 0,
+# because index 0 is an item that does not stack that far on 1.20.6 and a chest there limits a slot
+# to the item's maximum stack, so a write of three landed as one and the test could not tell it from
+# a write of one. World key W (87) turns it on, and it turns itself off after the
 # drop, so no other test's right click on the box changes anything. W rather than K, because the
 # mobcap mod's overlay toggles on K and an overlay is one entity for the whole run: a K press here
 # would leave its lines in every later test's capture. The origin is the camera plus
@@ -195,7 +198,7 @@ export render_world(ctx: OverlayWorldContext) {
         chest_opt: Option[BlockEntity] = ctx.get_level().get_block_entity(origin_x, origin_y, origin_z)
         if chest_opt.has() {
             inventory_call = 0
-            chest_opt.unwrap().set_item_in_slot(0, item_at(0), 3)
+            chest_opt.unwrap().set_item_in_slot(0, item(resource_location("minecraft:diamond")), 3)
             print("coverage: asked the server to write slot 0 of the block entity at the origin")
         } else if not missing_reported {
             # Said once, so a run whose joined client never has the block entity says so before the
