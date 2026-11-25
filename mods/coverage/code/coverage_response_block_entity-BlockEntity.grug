@@ -10,8 +10,15 @@
 #   8 gives from slot 0 and then gives the crafting result (extract_item only)
 #   7 answers the first time it is asked and errors on every later ask (add_item only)
 # liquid_mode behaves the same way for offer_liquid: 2 and 3 answer twice, 4 says nothing, 5 keeps the
-# response for on_neighbor_change, and any other mode answers the amount it was offered. It also tells
-# get_liquid to answer that it holds nothing, which is how a pipe answers.
+# response for on_neighbor_change, 9 answers a liquid where an amount was asked for, 10 answers a
+# negative amount, and any other mode answers the amount it was offered. It also tells get_liquid to
+# answer that it holds nothing (8), an amount where a liquid was asked for (11), a name that is no
+# liquid (12), nothing at all (13), flowing lava (14), or a liquid and then nothing (15), which is
+# what a response class's answer_none has to refuse once it was answered.
+# take_mode makes take_liquid answer a liquid (1), a negative amount (2) or nothing (3).
+# amount_mode and capacity_mode make those two exports answer a liquid (1) or nothing (2).
+# The default offer saves the liquid name it was handed under "offered_liquid", so a test can see
+# what the host normalised a flowing name to.
 # What the last call was asked is saved under "seen_remove", "seen_add" and "seen_side".
 level: Level = me.level()
 
@@ -114,17 +121,43 @@ export offer_liquid(liquid: string, amount: number, from_side: number, fill: boo
     } else if mode == 5 {
         kept_liquid.set(response)
         response.answer_amount(1)
+    } else if mode == 9 {
+        response.answer_liquid("minecraft:water")
+    } else if mode == 10 {
+        response.answer_amount(-1)
     } else {
+        me.set_saved_string("offered_liquid", liquid)
         response.answer_amount(amount)
     }
 }
 
 export take_liquid(amount: number, take: bool, response: LiquidResponse) {
-    response.answer_amount(500)
+    mode: number = me.get_saved_number("take_mode")
+    if mode == 1 {
+        response.answer_liquid("minecraft:water")
+    } else if mode == 2 {
+        response.answer_amount(-1)
+    } else if mode == 3 {
+        # Deliberately says nothing.
+    } else {
+        response.answer_amount(500)
+    }
 }
 
 export get_liquid(response: LiquidResponse) {
-    if me.get_saved_number("liquid_mode") == 8 {
+    mode: number = me.get_saved_number("liquid_mode")
+    if mode == 8 {
+        response.answer_none()
+    } else if mode == 11 {
+        response.answer_amount(1)
+    } else if mode == 12 {
+        response.answer_liquid("minecraft:stone")
+    } else if mode == 13 {
+        # Deliberately says nothing.
+    } else if mode == 14 {
+        response.answer_liquid("minecraft:flowing_lava")
+    } else if mode == 15 {
+        response.answer_liquid("minecraft:water")
         response.answer_none()
     } else {
         response.answer_liquid("minecraft:flowing_water")
@@ -132,9 +165,21 @@ export get_liquid(response: LiquidResponse) {
 }
 
 export get_liquid_amount(response: LiquidResponse) {
-    response.answer_amount(1234)
+    mode: number = me.get_saved_number("amount_mode")
+    if mode == 1 {
+        response.answer_liquid("minecraft:water")
+    } else if mode == 2 {
+        # Deliberately says nothing.
+    } else {
+        response.answer_amount(1234)
+    }
 }
 
 export get_liquid_capacity(response: LiquidResponse) {
-    response.answer_amount(16000)
+    mode: number = me.get_saved_number("capacity_mode")
+    if mode == 1 {
+        response.answer_liquid("minecraft:water")
+    } else {
+        response.answer_amount(16000)
+    }
 }

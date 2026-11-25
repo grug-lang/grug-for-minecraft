@@ -1,0 +1,186 @@
+# Covers the tank's drawn column, as RenderTank draws it in BuildCraft 2.2.14: the liquid's own still
+# texture on a box from 0.135 to 0.865 in x and z, whose height is
+# floor(quantity / capacity * 99) / 100. A tank holding 10000 of its 16000 mB therefore draws 0.61 of
+# the block, where a full one draws 0.99 and a stage of 0 draws no column at all.
+# The screenshot is the assertion, and the golden is the port's own pixels under this loader: the same
+# file runs in the reference job, which fills the real TileTank through its NBT instead of through the
+# port's saved data, and compares its live capture with that golden exactly. TileTank writes "stored"
+# and "liquidId" as ints, and 9 is still water in 1.2.5.
+# The tank stands four blocks in front of the camera with its base just below the camera's eye line,
+# so the column fills the middle of the frame against a stone wall two blocks behind it, rather than
+# against the sky. The reference draws the column unlit on every face, and so do the loaders, so the
+# wall's light reaches its own blocks and not the column.
+# The column's sprite is the game's animated still-water tile, which a CI run holds on the pack's
+# artwork (GrugReference.isAnimationFrozen, #1771): without that, the capture would be whichever
+# animation frame the run happened to reach, no golden could match the next run, and the reference
+# job, which compares its live capture with the port's golden, could not match at all.
+# The change is asserted before the golden is compared: the crop is captured with the tank empty, the
+# tank is filled, and the capture is retried until the column has arrived, because a saved-text change
+# does not unsettle the world.
+tank: Option[BlockEntity] = Option.new()
+before: Option[Screenshot] = Option.new()
+
+# Whether the tank has been filled yet.
+filled: bool = false
+
+# The runner tick the tank was filled on.
+filled_tick: number = 0
+
+# How many captures have already shown the frame from before the tank was filled.
+attempts: number = 0
+
+# Where the tank stands, for the waits below.
+tx: number = 0
+ty: number = 0
+tz: number = 0
+
+# The waits before the empty capture, as coverage_render-Test.grug explains them. See _ready.
+settled_ticks: number = 0
+remeshed: bool = false
+
+export init(ctx: TestInitContext) {
+    # Eight captures 30 ticks apart, each followed by the settle wait, beside the setup, pass the
+    # default 200.
+    ctx.set_max_ticks(600)
+}
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+        return
+    }
+
+    if not filled {
+        if not _ready(ctx) {
+            ctx.not_done()
+            return
+        }
+        before.set(ctx.screenshot().capture(500, 240, 780, 520))
+        _fill(ctx)
+        filled = true
+        filled_tick = ctx.current_tick()
+        attempts = 0
+        ctx.not_done()
+        return
+    }
+
+    if ctx.current_tick() < filled_tick + 30 {
+        # Nothing marks the world unsettled for a saved-text change, and the reference's load_nbt
+        # replaces the block entity and redraws the block, so this short wait keeps the captures from
+        # spinning; whether the column arrived is decided by the capture below.
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.world_settled() {
+        ctx.not_done()
+        return
+    }
+
+    after: Screenshot = ctx.screenshot().capture(500, 240, 780, 520)
+    if after.change_from(before.unwrap()) < 30 {
+        attempts = attempts + 1
+        ctx.assert(attempts < 8, "The tank's column never reached the client's frame.")
+        filled_tick = ctx.current_tick()
+        ctx.not_done()
+        return
+    }
+
+    # The tank and its column against the wall behind it. Pixel-exact, and it has to stay that way:
+    # the column's height is the one thing this test exists to compare with the reference's.
+    ctx.screenshot().equals(r"screenshots/tank_column", 500, 240, 780, 520)
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+
+    # The room has to hold the tank and the wall behind it, and it is asked for before either goes
+    # in so the room's clearing cannot take them out again.
+    ctx.set_box_radius(6)
+
+    origin: Vec3 = ctx.get_origin()
+    tx = origin.x()
+    # The origin is the camera lifted by three, so this puts the tank on the row the camera looks
+    # along, with the tank's base 0.62 of a block below the frame's middle when the player's feet sit
+    # at a block boundary, as a spawn does.
+    ty = origin.y() - 3
+    tz = origin.z() + 4
+
+    level.place_block(tx, ty, tz, _tank_block())
+
+    # Thirteen blocks square of stone two blocks behind the tank, as the engine's capture test
+    # builds, so the whole crop sits on the wall rather than on the sky.
+    _wall(level, tx - 6, origin.y() - 9, tz + 2)
+
+    placed: Option[BlockEntity] = level.get_block_entity(tx, ty, tz)
+    ctx.assert(placed.has(), "The tank should have a block entity.")
+    tank.set(placed.unwrap())
+}
+
+# The reference's BlockTank sets its block name to "tankBlock" in BuildCraftFactory, and 1.2.5 has no
+# block registry names, so that is the name the reference run places.
+local _tank_block() string {
+    if me.is_reference() {
+        return "buildcraft:tankBlock"
+    }
+    return "grug:tank"
+}
+
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 13 {
+        wx: number = x0
+        while wx < x0 + 13 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Fills the tank to 10000 mB of water, which draws stage 61. The reference reads the numbers from its
+# own NBT, which is what TileTank writes; the port reads its saved data.
+local _fill(ctx: TestTickContext) {
+    if me.is_reference() {
+        ctx.set_nbt_number(tank.unwrap(), "stored", "int", 10000)
+        ctx.set_nbt_number(tank.unwrap(), "liquidId", "int", 9)
+        # A liquid id of 0 makes TileTank read as empty, so the amount is set with the id.
+        ctx.load_nbt(tank.unwrap())
+    } else {
+        tank.unwrap().set_saved_string("liquid", "minecraft:water")
+        tank.unwrap().set_saved_number("amount", 10000)
+    }
+}
+
+# Whether the frame is ready for the empty capture: the same waits as coverage_render-Test.grug, for
+# the light to settle, for the section to be meshed again from it, and for that mesh to be drawn, and
+# then for the tank's own cell to have the light the capture will draw it with (#1695).
+local _ready(ctx: TestTickContext) bool {
+    if not ctx.world_settled() {
+        settled_ticks = 0
+        return false
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        return false
+    }
+    if not remeshed {
+        _force_remesh(ctx)
+        remeshed = true
+        return false
+    }
+    if not ctx.world_settled() {
+        return false
+    }
+    return ctx.light_applied(tx, ty, tz)
+}
+
+# Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
+# the capture's mesh is built from the settled light. See coverage_render-Test.grug.
+local _force_remesh(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    level.place_block(tx - 5, ty + 3, tz + 2, "minecraft:dirt")
+    level.place_block(tx - 5, ty + 3, tz + 2, "minecraft:stone")
+    ctx.assert(level.get_block(tx - 5, ty + 3, tz + 2) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}

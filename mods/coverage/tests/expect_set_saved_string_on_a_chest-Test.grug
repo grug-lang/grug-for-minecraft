@@ -1,0 +1,15 @@
+# Setting saved text on a vanilla chest must report an error: the text has nowhere to live and its
+# chunk would drop it. The get side is its own test, because the error ends this test's tick.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:chest")
+    chest: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    ctx.expect_error("Only a grug block entity saves text")
+    chest.set_saved_string("liquid", "minecraft:water")
+}

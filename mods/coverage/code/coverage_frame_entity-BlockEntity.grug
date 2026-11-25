@@ -40,6 +40,15 @@ export render_frame(ctx: RenderFrameContext) {
     # floating in the room.
     ctx.draw_model(r"assets/grug/models/block/coverage_frame_pedestal.json", 0, 0, 0, 0.0, 0.0, 0.0)
 
+    # A liquid's still texture on a box, drawn only once a test saves the number, so every other
+    # frame test's golden keeps the empty store it was accepted with. coverage_frame_liquid saves it
+    # and compares two captures, so the box needs no golden. It reaches past its block on every side
+    # on purpose: a dedicated server's room can sit a block off the joined client's camera, and the
+    # change has to stay inside the frame when the box is shifted by that much.
+    if me.get_saved_number("fluid") > 0 {
+        ctx.draw_liquid("minecraft:water", -0.5, 0.0, -0.5, 1.5, 1.5, 1.5)
+    }
+
     # A log is a block item, so it is a cube a quarter of a block across, lifted a quarter. The
     # stick is one flat sprite half a block across, lifted a tenth, turned to face the camera.
     ctx.draw_item(log, 0, 1, 0.3, 0.2, 0.5)

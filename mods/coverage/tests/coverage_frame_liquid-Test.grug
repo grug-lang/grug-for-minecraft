@@ -1,0 +1,85 @@
+# A liquid's still texture reaches the frame pass that draws it, on either side. The frame pass reads
+# the client's copy of the block entity, while a test's set_saved_number writes the copy the game
+# simulates, so on a dedicated server the number only arrives if the loader sends it. The
+# coverage_frame block draws a liquid box once its "fluid" number is above 0, and the assertion is
+# that the frame changed: it is a texture the game supplies and every loader looks up in its own
+# tables, so there is nothing to compare against a reference image. Two captures of one session are
+# compared instead, as coverage_frame_saved_number does, so this needs no golden.
+# The box is two blocks across and one and a half high, so it stays inside the crop even when a
+# dedicated server's room, built from its own copy of the player, sits a block off the joined
+# client's camera. The crop itself sits inside the wall the setup builds, so no sky and no drifting
+# cloud can make the frame change on its own; if the liquid never arrives the frame looks like the
+# one before and the test fails.
+frame_block: Option[BlockEntity] = Option.new()
+before: Option[Screenshot] = Option.new()
+saved: bool = false
+
+# The runner tick the number was saved on.
+saved_tick: number = 0
+
+# How many captures have already shown the frame from before the number was saved.
+attempts: number = 0
+
+export init(ctx: TestInitContext) {
+    # Eight captures 30 ticks apart, beside the setup, pass the default 200.
+    ctx.set_max_ticks(400)
+}
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+    } else if not ctx.world_settled() {
+        ctx.not_done()
+    } else if not saved {
+        before.set(ctx.screenshot().capture(400, 120, 880, 600))
+        frame_block.unwrap().set_saved_number("fluid", 1)
+        saved = true
+        saved_tick = ctx.current_tick()
+        attempts = 0
+        ctx.not_done()
+    } else if ctx.current_tick() < saved_tick + 30 {
+        # Nothing marks the world unsettled for a saved-number change: a script saves numbers as it
+        # runs, so a world that settled only between those would never settle. This short wait keeps
+        # the captures from spinning; whether the change arrived is decided by the capture below.
+        ctx.not_done()
+    } else {
+        after: Screenshot = ctx.screenshot().capture(400, 120, 880, 600)
+        if after.change_from(before.unwrap()) < 30 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The liquid never reached the client's frame.")
+            saved_tick = ctx.current_tick()
+            ctx.not_done()
+        } else {
+            ctx.assert(frame_block.unwrap().get_saved_number("fluid") == 1, "The number should still be saved.")
+        }
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    ctx.set_box_radius(6)
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y - 1.88, z + 3, "grug:coverage_frame")
+
+    # The wall behind the block, thirteen across and thirteen high, the size the other frame tests
+    # use. It covers the crop completely, and the crop keeps well clear of its edges so a block of
+    # shift between the server's copy of the player and the joined client's does not expose sky.
+    wy: number = y - 9
+    while wy < y + 4 {
+        wx: number = x - 6
+        while wx < x + 7 {
+            level.place_block(wx, wy, z + 5, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+
+    be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 3)
+    ctx.assert(be_opt.has(), "The frame-rendered block should have a block entity.")
+    frame_block.set(be_opt.unwrap())
+}

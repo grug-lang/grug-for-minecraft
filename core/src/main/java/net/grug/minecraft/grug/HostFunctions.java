@@ -4593,11 +4593,12 @@ public class HostFunctions {
                 missing);
     }
 
-    /** The item as an {@code Option[Item]}, empty when there is none. */
+    /** The text as an {@code Option[string]}, empty when there is none. */
     private static long stringOption(String value) {
         return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(value));
     }
 
+    /** The item as an {@code Option[Item]}, empty when there is none. */
     private static long itemOption(Object item) {
         Object handle = item != null ? GrugEntities.addEntity(GrugEntityType.Item, item) : null;
         return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(handle));
