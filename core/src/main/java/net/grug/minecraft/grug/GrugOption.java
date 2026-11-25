@@ -25,8 +25,29 @@ public final class GrugOption {
 
     /** Replaces the value, releasing the old root and rooting an entity id's object. */
     public void set(Object newValue) {
-        this.value = newValue;
-        this.root = rootOf(newValue);
+        this.value = widen(newValue);
+        this.root = rootOf(this.value);
+    }
+
+    /**
+     * A number a host function boxed in a narrower type than the double grug's own number is, so
+     * that {@link #value()} answers a double on every path.
+     *
+     * <p>A host function that answers {@code new GrugOption((double) Float.parseFloat(text))} is
+     * right; one that answers {@code new GrugOption(Float.parseFloat(text))} compiles, passes the
+     * smoketest, whose Option holds a C double, and then fails on every loader, because the JNI
+     * layer has no conversion for a boxed {@code Float} (#1799). Widening here makes that slip a
+     * pass rather than a crash, and the smoketest cannot be the only witness. A {@code Long} stays
+     * as it is, because an id is a Long and widening it would turn an entity into a number.
+     */
+    private static Object widen(Object newValue) {
+        if (newValue instanceof Float
+                || newValue instanceof Integer
+                || newValue instanceof Short
+                || newValue instanceof Byte) {
+            return ((Number) newValue).doubleValue();
+        }
+        return newValue;
     }
 
     /**
