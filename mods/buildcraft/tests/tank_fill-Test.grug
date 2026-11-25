@@ -1,0 +1,41 @@
+# Covers the tank's fill, as TileTank.fill does in BuildCraft 2.2.14: it takes one liquid at a time,
+# a different one is refused, what it takes is cut to the room left, and fill false only asks. The
+# tank holds 16000 mB. A flowing water name is the same liquid as still water, so the host hands the
+# export the canonical name and the tank reports that back.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:tank")
+    level.place_block(x + 2, y, z, "grug:tank")
+    tank: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    dry: BlockEntity = level.get_block_entity(x + 2, y, z).unwrap()
+
+    ctx.assert(tank.get_liquid_capacity() == 16000, "TileTank holds 16000 mB.")
+    ctx.assert(not tank.get_liquid().has(), "A new tank should hold no liquid.")
+    ctx.assert(tank.get_liquid_amount() == 0, "A new tank should hold nothing.")
+
+    # A flowing name is still water, so the tank reports the still liquid's name.
+    ctx.assert(tank.offer_liquid("minecraft:flowing_water", 1000, 0, true) == 1000, "A tank should take water.")
+    ctx.assert(tank.get_liquid_amount() == 1000, "The tank should hold the water it took.")
+    ctx.assert(tank.get_liquid().has(), "The tank should say what it holds.")
+    ctx.assert(tank.get_liquid().unwrap() == "minecraft:water", "The tank should hold still water.")
+
+    # A second liquid is refused while it holds one.
+    ctx.assert(tank.offer_liquid("minecraft:lava", 1000, 0, true) == 0, "A tank holding water should refuse lava.")
+    ctx.assert(tank.get_liquid_amount() == 1000, "The refused lava should have changed nothing.")
+    ctx.assert(tank.get_liquid().unwrap() == "minecraft:water", "The tank should still hold water.")
+
+    # What it takes is cut to the room left, 15000 here, and a full tank takes nothing.
+    ctx.assert(tank.offer_liquid("minecraft:water", 100000, 0, true) == 15000, "The offer should be cut to the room left.")
+    ctx.assert(tank.get_liquid_amount() == 16000, "The tank should be full.")
+    ctx.assert(tank.offer_liquid("minecraft:water", 1, 0, true) == 0, "A full tank should take nothing.")
+
+    # fill false only asks: it answers what it would take and changes nothing.
+    ctx.assert(dry.offer_liquid("minecraft:water", 500, 0, false) == 500, "A dry offer should say what it would take.")
+    ctx.assert(dry.get_liquid_amount() == 0, "A dry offer should have changed nothing.")
+    ctx.assert(not dry.get_liquid().has(), "A dry offer should not give the tank a liquid.")
+}

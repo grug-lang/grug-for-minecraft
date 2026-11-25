@@ -42,6 +42,9 @@ public final class GrugSavedListsNbt {
                     numbers.addElement(numberTag);
                 }
                 recordTag.put("Numbers", numbers);
+                if (record.text() != null) {
+                    recordTag.putString("Text", record.text());
+                }
                 if (record.item() != null) {
                     ItemStack stack =
                             (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0, 1);
@@ -76,7 +79,8 @@ public final class GrugSavedListsNbt {
                             GrugCore.getAdapter()
                                     .getStackItem(new ItemStack(recordTag.getCompound("Item")));
                 }
-                records.add(new GrugSavedLists.Record(numbers, item));
+                String text = recordTag.contains("Text") ? recordTag.getString("Text") : null;
+                records.add(new GrugSavedLists.Record(numbers, item, text));
             }
             lists.put(listTag.getString("Name"), records);
         }

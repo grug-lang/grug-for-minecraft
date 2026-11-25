@@ -1,0 +1,125 @@
+# BuildCraft 2.2.14's TileTank: a tank holds one liquid, at most 16000 mB of it, and refuses a
+# second liquid until it is empty. The amount and the liquid are saved, not member variables,
+# because a member variable starts over whenever the tank's chunk is loaded again and TileTank
+# keeps both in its NBT.
+# The rest of the tile is the liquid's own state and nothing else.
+# The tank holds the liquid itself; a pipe or a script asks it through the liquid exports, and the
+# host dispatches to them. That is the reference's ILiquidContainer: fill, empty, getLiquidId,
+# getLiquidQuantity and getCapacity.
+level: Level = me.level()
+pos: BlockPos = me.block_pos()
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+# TileTank.capacity.
+capacity: number = 16000
+
+# TileTank.fill: a different liquid than the one it holds is refused, what it takes is cut to the
+# room left, and fill false only asks. It answers how much of the offer it took, 0 for a refusal.
+export offer_liquid(liquid: string, amount: number, from_side: number, fill: bool, response: LiquidResponse) {
+    stored: number = me.get_saved_number("amount")
+    if stored > 0 {
+        held: Option[string] = me.get_saved_string("liquid")
+        if held.has() {
+            if held.unwrap() != liquid {
+                response.answer_amount(0)
+                return
+            }
+        }
+    }
+
+    room: number = capacity - stored
+    if room <= 0 or amount <= 0 {
+        response.answer_amount(0)
+        return
+    }
+
+    taken: number = amount
+    if taken > room {
+        taken = room
+    }
+    if fill {
+        me.set_saved_string("liquid", liquid)
+        me.set_saved_number("amount", stored + taken)
+    }
+    response.answer_amount(taken)
+}
+
+# TileTank.empty: what it gives is cut to what it holds, and take false only asks. It answers how
+# much it gave, 0 when it holds nothing.
+export take_liquid(amount: number, take: bool, response: LiquidResponse) {
+    stored: number = me.get_saved_number("amount")
+    if stored <= 0 or amount <= 0 {
+        response.answer_amount(0)
+        return
+    }
+
+    given: number = amount
+    if given > stored {
+        given = stored
+    }
+    if take {
+        me.set_saved_number("amount", stored - given)
+        if stored - given <= 0 {
+            me.set_saved_string("liquid", "")
+        }
+    }
+    response.answer_amount(given)
+}
+
+# TileTank.getLiquidId: the liquid it holds, or none when it holds nothing. An amount of 0 is no
+# liquid whatever the saved name says, which is how the reference's liquidId 0 reads.
+export get_liquid(response: LiquidResponse) {
+    if me.get_saved_number("amount") <= 0 {
+        response.answer_none()
+        return
+    }
+    held: Option[string] = me.get_saved_string("liquid")
+    if not held.has() {
+        response.answer_none()
+        return
+    }
+    response.answer_liquid(held.unwrap())
+}
+
+export get_liquid_amount(response: LiquidResponse) {
+    response.answer_amount(me.get_saved_number("amount"))
+}
+
+export get_liquid_capacity(response: LiquidResponse) {
+    response.answer_amount(capacity)
+}
+
+# BlockTank.d: a side draws 97 when the block below is a tank and 96 otherwise, which removes the
+# bottom rim so stacked tanks read as one tall tank. The texture draws the frame inside the block
+# face, so the model is the full block and the transparent part is the window.
+export render(ctx: RenderContext) {
+    if level.get_block(x, y - 1, z) == "grug:tank" {
+        ctx.draw_model(r"assets/grug/models/block/tank_joined.json", 0, 0, 0, 0, 0, 0)
+    } else {
+        ctx.draw_model(r"assets/grug/models/block/tank.json", 0, 0, 0, 0, 0, 0)
+    }
+}
+
+# RenderTank: the liquid column, 100 stages of a hundredth of the block each, from just inside the
+# walls. The stage is (int)(qty / capacity * 99), so a full tank draws 0.99 of the block and not 1.
+# It draws no column when it holds nothing, and a stage of 0 is an empty column.
+export render_frame(ctx: RenderFrameContext) {
+    stored: number = me.get_saved_number("amount")
+    if stored <= 0 {
+        return
+    }
+    held: Option[string] = me.get_saved_string("liquid")
+    if not held.has() {
+        return
+    }
+
+    stage: number = Math.floor(stored / capacity * 99)
+    height: number = stage / 100
+    if height <= 0 {
+        return
+    }
+    ctx.draw_liquid(held.unwrap(), 0.135, 0.0, 0.135, 0.865, height, 0.865)
+}

@@ -1,0 +1,21 @@
+# Covers the tank surviving its chunk being unloaded and loaded again, as TileTank's NBT holds
+# "stored" and "liquidId". The amount and the liquid are saved strings and numbers, not member
+# variables, so both must come back as they were. round_trip_nbt is STUBBED on the smoketest, which
+# keeps no save of its own, so this test proves the real NBT path in the game and nothing there.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 24
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:tank")
+    tank: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    ctx.assert(tank.offer_liquid("minecraft:water", 1234, 0, true) == 1234, "A tank should take water.")
+
+    ctx.round_trip_nbt(tank)
+
+    ctx.assert(tank.get_liquid_amount() == 1234, "The amount should survive the chunk being loaded again.")
+    ctx.assert(tank.get_liquid().has(), "The liquid should survive the chunk being loaded again.")
+    ctx.assert(tank.get_liquid().unwrap() == "minecraft:water", "The liquid should come back as water.")
+}

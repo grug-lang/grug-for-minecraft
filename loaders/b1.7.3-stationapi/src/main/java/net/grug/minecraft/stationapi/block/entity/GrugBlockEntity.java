@@ -11,6 +11,7 @@ import net.grug.minecraft.grug.GrugObject;
 import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedLists;
 import net.grug.minecraft.grug.GrugSavedNumbers;
+import net.grug.minecraft.grug.GrugSavedStrings;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
@@ -519,6 +520,7 @@ public class GrugBlockEntity extends BlockEntity
     public void writeSavedData(NbtCompound nbt) {
         writeSavedNumbers(nbt);
         writeSavedLists(nbt);
+        writeSavedStrings(nbt);
         nbt.putDouble("GrugEnergy", GrugPower.stored(this));
     }
 
@@ -526,6 +528,7 @@ public class GrugBlockEntity extends BlockEntity
     public void readSavedData(NbtCompound nbt) {
         readSavedNumbers(nbt);
         readSavedLists(nbt);
+        readSavedStrings(nbt);
         GrugPower.load(this, nbt.getDouble("GrugEnergy"));
         // This is the first data a joined client's copy may be waiting for; it may draw now.
         GrugSavedDataSync.clientCopyReceived(this);
@@ -536,6 +539,7 @@ public class GrugBlockEntity extends BlockEntity
         super.readNbt(nbt);
         readSavedNumbers(nbt);
         readSavedLists(nbt);
+        readSavedStrings(nbt);
         GrugPower.load(this, nbt.getDouble("GrugEnergy"));
         // A copy loaded from NBT has its data, so it is not waiting for an update.
         GrugSavedDataSync.clientCopyReceived(this);
@@ -568,6 +572,7 @@ public class GrugBlockEntity extends BlockEntity
         super.writeNbt(nbt);
         writeSavedNumbers(nbt);
         writeSavedLists(nbt);
+        writeSavedStrings(nbt);
         nbt.putDouble("GrugEnergy", GrugPower.stored(this));
         ensureSized();
 
@@ -637,6 +642,9 @@ public class GrugBlockEntity extends BlockEntity
                     numbers.add(numberTag);
                 }
                 recordTag.put("Numbers", numbers);
+                if (record.text() != null) {
+                    recordTag.putString("Text", record.text());
+                }
                 if (record.item() != null) {
                     ItemStack stack =
                             (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0, 1);
@@ -648,6 +656,30 @@ public class GrugBlockEntity extends BlockEntity
             lists.add(list);
         }
         nbt.put("GrugLists", lists);
+    }
+
+    /**
+     * The saved text, as a list of name and value pairs, the same layout every old loader writes.
+     */
+    private void writeSavedStrings(NbtCompound nbt) {
+        NbtList list = new NbtList();
+        for (Map.Entry<String, String> entry : GrugSavedStrings.snapshot(this).entrySet()) {
+            NbtCompound string = new NbtCompound();
+            string.putString("Name", entry.getKey());
+            string.putString("Value", entry.getValue());
+            list.add(string);
+        }
+        nbt.put("GrugStrings", list);
+    }
+
+    private void readSavedStrings(NbtCompound nbt) {
+        Map<String, String> strings = new HashMap<String, String>();
+        NbtList list = nbt.getList("GrugStrings");
+        for (int i = 0; i < list.size(); i++) {
+            NbtCompound string = (NbtCompound) list.get(i);
+            strings.put(string.getString("Name"), string.getString("Value"));
+        }
+        GrugSavedStrings.replace(this, strings);
     }
 
     private void readSavedLists(NbtCompound nbt) {
@@ -671,7 +703,8 @@ public class GrugBlockEntity extends BlockEntity
                             GrugCore.getAdapter()
                                     .getStackItem(new ItemStack(recordTag.getCompound("Item")));
                 }
-                records.add(new GrugSavedLists.Record(numbers, item));
+                String text = recordTag.contains("Text") ? recordTag.getString("Text") : null;
+                records.add(new GrugSavedLists.Record(numbers, item, text));
             }
             lists.put(listTag.getString("Name"), records);
         }

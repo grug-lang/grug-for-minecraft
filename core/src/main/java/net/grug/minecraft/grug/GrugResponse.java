@@ -72,8 +72,8 @@ public abstract class GrugResponse {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     exportName
-                            + " returned without answering its response, and refusing has to be"
-                            + " said with response.refuse().");
+                            + " returned without answering its response, and every response has"
+                            + " to be answered before the call returns.");
         }
         return answered;
     }
