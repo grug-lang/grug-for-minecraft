@@ -1,61 +1,124 @@
 package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-/** When a dedicated server stops advancing its world for a client that is behind (#1802). */
+import java.util.concurrent.atomic.AtomicInteger;
+
+/** Whether a dedicated server waits for a joined client that is behind (#1802). */
 class GrugSendBufferTest {
-    @Test
-    void anEmptyBacklogNeverPauses() {
-        GrugSendBuffer buffer = new GrugSendBuffer();
+    private static final int OVER_THE_MARK = GrugSendBuffer.LOW_WATER_BYTES + 1;
 
-        assertFalse(buffer.pause(0));
+    /** Runs a step's worth of ticks and counts them, so a test can see what really ran. */
+    private static final class Steps implements Runnable {
+        private int ran = 0;
+
+        @Override
+        public void run() {
+            ran++;
+        }
+    }
+
+    private static GrugSendBuffer ciRun() {
+        return new GrugSendBuffer(name -> "true");
     }
 
     @Test
-    void theMarkItselfDoesNotPause() {
-        GrugSendBuffer buffer = new GrugSendBuffer();
+    void aRunOutsideCiNeverWaits() {
+        GrugSendBuffer buffer = new GrugSendBuffer(name -> null);
+        Steps steps = new Steps();
 
-        assertFalse(buffer.pause(GrugSendBuffer.LOW_WATER_BYTES));
+        assertEquals(3, buffer.advance(() -> OVER_THE_MARK, 3, steps));
+        assertEquals(3, steps.ran);
     }
 
     @Test
-    void oneByteOverTheMarkPauses() {
-        GrugSendBuffer buffer = new GrugSendBuffer();
+    void anEmptyBacklogRunsEveryStep() {
+        GrugSendBuffer buffer = ciRun();
+        Steps steps = new Steps();
 
-        assertTrue(buffer.pause(GrugSendBuffer.LOW_WATER_BYTES + 1));
+        assertEquals(3, buffer.advance(() -> 0, 3, steps));
+        assertEquals(3, steps.ran);
     }
 
     @Test
-    void thePauseIsBoundedAndLetsTheWorldThroughAfterwards() {
-        GrugSendBuffer buffer = new GrugSendBuffer();
-        int backlog = GrugSendBuffer.LOW_WATER_BYTES + 1;
+    void theMarkItselfDoesNotWait() {
+        GrugSendBuffer buffer = ciRun();
+        Steps steps = new Steps();
+
+        assertEquals(1, buffer.advance(() -> GrugSendBuffer.LOW_WATER_BYTES, 1, steps));
+        assertEquals(1, steps.ran);
+    }
+
+    @Test
+    void aBacklogOverTheMarkStopsTheBatchAndTheNextOneRunsAgain() {
+        GrugSendBuffer buffer = ciRun();
+        AtomicInteger queued = new AtomicInteger(OVER_THE_MARK);
+        Steps steps = new Steps();
+
+        assertEquals(0, buffer.advance(queued::get, 3, steps));
+        assertEquals(0, steps.ran);
+        assertEquals(0, buffer.advance(queued::get, 3, steps));
+
+        queued.set(0);
+        assertEquals(3, buffer.advance(queued::get, 3, steps));
+        assertEquals(3, steps.ran);
+    }
+
+    @Test
+    void aBatchStopsAtTheStepTheClientFallsBehindOn() {
+        GrugSendBuffer buffer = ciRun();
+        AtomicInteger queued = new AtomicInteger(0);
+        Steps steps = new Steps();
+
+        assertEquals(
+                1,
+                buffer.advance(
+                        queued::get,
+                        5,
+                        () -> {
+                            steps.run();
+                            queued.set(OVER_THE_MARK);
+                        }));
+        assertEquals(1, steps.ran);
+    }
+
+    @Test
+    void theWaitIsBoundedAndLetsTheWorldThroughAfterwards() {
+        GrugSendBuffer buffer = ciRun();
+        Steps steps = new Steps();
 
         for (int tick = 0; tick < GrugSendBuffer.MAX_PAUSE_TICKS; tick++) {
-            assertTrue(buffer.pause(backlog), "tick " + tick + " of the pause");
+            assertEquals(0, buffer.advance(() -> OVER_THE_MARK, 1, steps), "tick " + tick);
         }
-        assertFalse(buffer.pause(backlog));
-        assertFalse(buffer.pause(backlog));
+        assertEquals(0, steps.ran);
+
+        assertEquals(1, buffer.advance(() -> OVER_THE_MARK, 1, steps));
+        assertEquals(1, steps.ran);
     }
 
     @Test
-    void aDrainedBacklogGivesTheNextPauseItsFullBudget() {
-        GrugSendBuffer buffer = new GrugSendBuffer();
-        int backlog = GrugSendBuffer.LOW_WATER_BYTES + 1;
-        for (int tick = 0; tick < GrugSendBuffer.MAX_PAUSE_TICKS; tick++) {
-            buffer.pause(backlog);
-        }
-        assertFalse(buffer.pause(backlog));
-
-        assertFalse(buffer.pause(0));
+    void aFinishedWaitGivesTheNextOneItsFullBudget() {
+        GrugSendBuffer buffer = ciRun();
+        AtomicInteger queued = new AtomicInteger(OVER_THE_MARK);
+        Steps steps = new Steps();
 
         for (int tick = 0; tick < GrugSendBuffer.MAX_PAUSE_TICKS; tick++) {
-            assertTrue(buffer.pause(backlog), "tick " + tick + " of the second pause");
+            assertEquals(0, buffer.advance(queued::get, 1, steps));
         }
-        assertFalse(buffer.pause(backlog));
+        assertEquals(1, buffer.advance(queued::get, 1, steps));
+        assertEquals(1, steps.ran);
+
+        queued.set(0);
+        assertEquals(1, buffer.advance(queued::get, 1, steps));
+
+        queued.set(OVER_THE_MARK);
+        for (int tick = 0; tick < GrugSendBuffer.MAX_PAUSE_TICKS; tick++) {
+            assertEquals(0, buffer.advance(queued::get, 1, steps), "tick " + tick);
+        }
+        assertEquals(2, steps.ran);
     }
 
     @Test
