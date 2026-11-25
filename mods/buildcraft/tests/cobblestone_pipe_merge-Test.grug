@@ -14,19 +14,21 @@
 # again makes new objects. The sums are not widened to cover an inbox, a dropped item or the held
 # slot: none is a state this pipe leaves at a tick boundary, so each is a defect the assertion has
 # to keep reporting, and a drop the a1 player picks up therefore still fails.
-# #1205: a single pass gives that red one chance per run, and this leg used to repeat the first
-# delivery a hundred times. That repeat is paused while #1787 is open: a pass of this fixture queues
-# megabytes of block entity packets on this leg, so a hundred of them cannot fit a connection that
-# closes past 1 MiB, and main's push run 45556913399 lost its player 66 seconds in. It returns with
-# the pull request that stops a pipe queueing its saved data on every travelling tick, at a number
-# of passes that pull request measures against this leg's 30 minute limit.
-# #1735: this leg advances one world tick a runner tick, because the a1 server checks a
-# connection's send queue only once per server tick and closes a client whose queue passed 1 MiB
-# (Connection.tick, "Send buffer overflow"). A world tick of this fixture queues block entity
-# packets, and a batch is written and drained between two server ticks, so one tick per batch keeps
-# the queue at one tick's worth: 200 world ticks in one batch lost the test player in run
-# 45547610028, and a first attempt at this task restored that and lost it again in run 45560506005.
-# The pace is not a property of the repeat, so the single pass keeps it too.
+# #1205: a single pass gives that red one chance per run, so the a1 dedicated leg repeats the first
+# delivery. A pass is about 400 world ticks, and this leg advances one world tick a runner tick, so
+# the number of passes has to fit the 4000 runner tick budget: thirty passes of the eight-tick batch
+# below is about 1500 to 2250 runner ticks, well inside it, and a hundred would not fit at any batch
+# small enough to carry.
+# #1735: the a1 server checks a connection's send queue once per server tick and closes a client
+# whose queue passed 1 MiB (Connection.tick, "Send buffer overflow"), and the queue grows by what a
+# burst sends before the joined client's reader drains it. At 200 world ticks in one runner tick the
+# leg lost its player (run 45547610028) and at 25 it lost it again (run 45560506005), while one tick
+# per runner tick passed on every leg (run 45562704688). So the repeat's batch is eight world ticks
+# per runner tick, a third of the burst that failed, and the single pass uses it too rather than
+# having a pace of its own.
+# #1787 measured the payload that burst carries: a pipe's saved-data packet is 439 bytes with one
+# travelling record and 2884 with eight, not the ten kilobytes the repeat's pause was filed on, so
+# what the batch has to keep small is the number of ticks sent back to back and not a pipe's tick.
 source_a: Option[BlockEntity] = Option.new()
 source_b: Option[BlockEntity] = Option.new()
 target: Option[BlockEntity] = Option.new()
@@ -47,9 +49,9 @@ advanced: number = 0
 round: number = 0
 round_started: number = 0
 
-# How many times the a1 dedicated leg runs the delivery. It is one while #1787 is open, because a
-# pass of the fixture already queues more than the leg's connection carries at the hundred passes.
-rounds: number = 1
+# How many times the a1 dedicated leg runs the delivery. Every other leg runs it once, because the
+# red has only come from that one, and a pass costs about 400 world ticks of the runner's budget.
+rounds: number = 30
 
 # Whether any tick_level call has run a world tick. A loader whose adapter leaves tick_level at
 # its default answers 0 every time, and the runner's own tick then carries the first pass; a leg
@@ -158,8 +160,10 @@ local _advance(ctx: TestTickContext) {
     step: number = 5
     batch: number = 200
     if _repeats() {
+        # #1735: one world tick per call and eight per runner tick, so a server tick checks the
+        # connection between the calls and the burst stays a third of the 25 that failed.
         step = 1
-        batch = 1
+        batch = 8
     }
     chunk: number = 0
     ran: number = step
