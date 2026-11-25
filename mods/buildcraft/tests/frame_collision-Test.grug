@@ -1,0 +1,61 @@
+# Covers the frame block's collision list (#1773): the reference's entity collision is one union box
+# around the centre and every connected arm, never one box per arm. BlockFrame.c overrides
+# getCollisionBoundingBoxFromPool with that union (BlockFrame.java:42-81), and the base class's
+# getCollidingBoundingBoxes adds c()'s box, so the per-arm bounds BlockFrame.a sets at :89-122 are
+# never read as boxes. BlockFrame.d (:84) returns c() for the selection box, so picking is that same
+# union. An L of two frames therefore collides in the corner between its two arms, the corner on the
+# far side of both arms is empty, and a single arm collides across its own cross-section.
+# The reference side places BuildCraft's own frameBlock, so the reference job checks the same answers
+# against the real BlockFrame; the port places grug:frame.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = Math.floor(origin.x())
+    y: number = Math.floor(origin.y()) + 10
+    z: number = Math.floor(origin.z()) + 12
+
+    if ctx.current_tick() == 0 {
+        # An L: the frame at x + 8 has a frame to its east and one to its north.
+        _place_frame(level, x + 8, y, z)
+        _place_frame(level, x + 9, y, z)
+        _place_frame(level, x + 8, y, z - 1)
+        # A frame with a frame to its east only.
+        _place_frame(level, x + 12, y, z)
+        _place_frame(level, x + 13, y, z)
+        ctx.not_done()
+        return
+    }
+
+    # The client has to hold the blocks before the game's own collision can be asked of them.
+    if not ctx.world_settled() {
+        ctx.not_done()
+        return
+    }
+
+    # The L's centre and both arms collide.
+    ctx.assert(ctx.block_collision(level, x + 8, y, z, 0.4, 0.4, 0.4, 0.6, 0.6, 0.6), "An L's frame should collide in its centre.")
+    ctx.assert(ctx.block_collision(level, x + 8, y, z, 0.85, 0.4, 0.4, 0.95, 0.6, 0.6), "An L's frame should collide in its east arm.")
+    ctx.assert(ctx.block_collision(level, x + 8, y, z, 0.4, 0.4, 0.05, 0.6, 0.6, 0.15), "An L's frame should collide in its north arm.")
+    # The union box fills the corner between the arms, which is where a per-arm list would be empty.
+    ctx.assert(ctx.block_collision(level, x + 8, y, z, 0.85, 0.4, 0.05, 0.95, 0.6, 0.15), "The corner between an L's two arms should collide, as the reference's one union box does.")
+    # The corner on the far side of both arms is outside the union.
+    ctx.assert(not ctx.block_collision(level, x + 8, y, z, 0.85, 0.4, 0.85, 0.95, 0.6, 0.95), "The corner opposite an L's two arms should be empty.")
+    ctx.assert(not ctx.block_collision(level, x + 8, y, z, 0.05, 0.4, 0.4, 0.15, 0.6, 0.6), "An L's frame should have no west arm.")
+
+    # A single east arm collides at its far end and at the corner of its own cross-section.
+    ctx.assert(ctx.block_collision(level, x + 12, y, z, 0.4, 0.4, 0.4, 0.6, 0.6, 0.6), "A frame with one arm should collide in its centre.")
+    ctx.assert(ctx.block_collision(level, x + 12, y, z, 0.85, 0.4, 0.4, 0.95, 0.6, 0.6), "A frame with one arm should collide at the arm's far end.")
+    ctx.assert(ctx.block_collision(level, x + 12, y, z, 0.85, 0.26, 0.26, 0.95, 0.4, 0.4), "A frame with one arm should collide at the corner of the arm's cross-section.")
+    ctx.assert(not ctx.block_collision(level, x + 12, y, z, 0.85, 0.4, 0.85, 0.95, 0.6, 0.95), "A frame with one arm only should be empty under the arm's south side.")
+    ctx.assert(not ctx.block_collision(level, x + 12, y, z, 0.05, 0.4, 0.4, 0.15, 0.6, 0.6), "A frame with one arm only should have no west arm.")
+}
+
+# The frame's block name differs between the port and the reference, which BuildCraft names
+# frameBlock (BuildCraftFactory: frameBlock.a("frameBlock")).
+local _place_frame(level: Level, x: number, y: number, z: number) {
+    if me.is_reference() {
+        level.place_block(x, y, z, "buildcraft:frameBlock")
+    } else {
+        level.place_block(x, y, z, "grug:frame")
+    }
+}
