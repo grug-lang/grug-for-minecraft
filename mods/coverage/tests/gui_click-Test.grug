@@ -1,18 +1,27 @@
 # The container click a server applies (#1094): the client presses a slot of the container the
 # server opened, and the click packet it sends is applied between two runner ticks, never inside the
-# call that pressed. The assertion on the next tick sees the item in the block entity's own slot.
+# call that pressed. The check on the next tick sees the item in the block entity's own slot.
 # That ordering is the contract: a test clicks, returns with not_done, and asserts on a later tick,
-# never in the same one, because the click's effect is the server's. On a dedicated server the drain
-# reads the packet before the next tick; on the 1.20.6 client leg the click's handler is a task on
-# the integrated server, so the runner holds its next tick until that handler ran. The cursor is set
-# on the server's menu, which is the one the click is applied to, and the game syncs it to the
-# client's screen, so the press and the release both find the diamond on the cursor.
+# never in the same one, because the click's effect is the server's. A dedicated server used to
+# drain its connection with one bounded pass of the game's own queue, so a click packet behind that
+# bound was applied after the next tick had already checked the slot. The client now writes a
+# control barrier behind the click packet on the same connection, and the server keeps draining
+# until the game thread has handled the barrier, which proves the click packet in front of it ran
+# first (#1393). The press is repeated 20 times here, rebuilding the slot and the cursor each
+# round, so a loss of that ordering has 20 chances to show instead of one.
 # The cursor carries a diamond here, so on 1.20.6 the press only starts a drag and the release is
 # what sends the click packet: this test proves the release half, and the diamond landing in the
 # grid proves the click was applied. gui_click_empty proves the other half, the press path an empty
-# cursor takes. The a1.1.2_01 dedicated leg does not apply the click yet (#1393), so it lists this test.
+# cursor takes.
+# Tick cost: one tick makes the first press, and each of the 20 ticks after it checks the press
+# before and makes the next one in that same tick, the last tick only checking, so the presses and
+# their checks cost 21 ticks. The setup and the wait for the screen to open are the rest, about 25
+# tick calls in all. Every loader runs at 10x here, where the 200-tick real-time budget is 2000
+# tick calls, so the repeats cost about 1 percent of it on the slowest leg (1.2.5-forge).
 started: bool = false
-clicked: bool = false
+opened: bool = false
+pressed: bool = false
+round: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -25,35 +34,51 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    if not clicked {
+    if not opened {
         # The server opens the container and sends it, so the client's screen arrives a frame later.
         if not ctx.screen_open() {
             ctx.not_done()
             return
         }
-        clicked = true
-        ctx.set_carried_item(item(resource_location("minecraft:diamond")))
-        ctx.assert(ctx.get_carried_item().has(), "The cursor should carry the diamond the test put on it.")
-        # The grid's first slot is 30,17 from the panel's corner and a slot is 16 pixels, so this
-        # presses its centre. No overlay is asked on a mod's own GrugScreen, so the press is left to
-        # the screen: it answers false and sends the click packet.
-        left: number = ctx.gui_left()
-        top: number = ctx.gui_top()
-        ctx.assert(not ctx.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
-        ctx.not_done()
+        opened = true
+    }
+    if pressed {
+        # The effect is the server's, so it is read on the tick after the click, once the drain has
+        # applied the client's packet.
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+        ctx.assert(block_entity.get_item_count_in_slot(0) == 1, "The click should have put the diamond in the grid's first slot.")
+        in_slot: Option[Item] = block_entity.get_item_in_slot(0)
+        ctx.assert(in_slot.has(), "The grid's first slot should hold the diamond.")
+        if in_slot.has() {
+            ctx.assert(equals(in_slot.unwrap(), item(resource_location("minecraft:diamond"))), "The click should have moved the diamond, not another item.")
+        }
+        ctx.assert(not ctx.get_carried_item().has(), "The click should have taken the item off the cursor.")
+        pressed = false
+    }
+    if round >= 20 {
+        ctx.close_screen()
         return
     }
-    # The effect is the server's, so it is read on the tick after the click, once the drain has
-    # applied the client's packet.
+    # The next round starts here: the previous click left the diamond in the grid and the cursor
+    # empty, so the slot is cleared and the cursor filled again before the press. Both are set on
+    # the server's menu, the one the click is applied to, and the game syncs them to the client's
+    # screen before the press reaches it, so the press and the release both find the diamond on the
+    # cursor and the empty grid.
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
-    ctx.assert(block_entity.get_item_count_in_slot(0) == 1, "The click should have put the diamond in the grid's first slot.")
-    in_slot: Option[Item] = block_entity.get_item_in_slot(0)
-    ctx.assert(in_slot.has(), "The grid's first slot should hold the diamond.")
-    if in_slot.has() {
-        ctx.assert(equals(in_slot.unwrap(), item(resource_location("minecraft:diamond"))), "The click should have moved the diamond, not another item.")
-    }
-    ctx.assert(not ctx.get_carried_item().has(), "The click should have taken the item off the cursor.")
-    ctx.close_screen()
+    block_entity.set_item_count_in_slot(0, 0)
+    ctx.set_carried_item(item(resource_location("minecraft:diamond")))
+    ctx.assert(ctx.get_carried_item().has(), "The cursor should carry the diamond the test put on it.")
+    # The grid's first slot is 30,17 from the panel's corner and a slot is 16 pixels, so this
+    # presses its centre. No overlay is asked on a mod's own GrugScreen, so the press is left to
+    # the screen: it answers false and sends the click packet.
+    left: number = ctx.gui_left()
+    top: number = ctx.gui_top()
+    ctx.assert(not ctx.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+    round = round + 1
+    pressed = true
+    ctx.not_done()
 }

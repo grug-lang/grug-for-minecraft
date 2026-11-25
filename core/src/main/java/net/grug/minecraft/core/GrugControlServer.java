@@ -1,5 +1,6 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugModFileStates;
 import net.grug.minecraft.grug.Vec3;
 
@@ -224,6 +225,28 @@ public final class GrugControlServer {
     private volatile boolean clientWorkPending;
 
     /**
+     * How many of the loader's drains {@link #applyClientWork} pays before it gives up waiting for
+     * the barrier behind a click packet (#1393). A drain is one bounded pass of the game's own
+     * packet queue, so the cap is a number of passes rather than a time: 200 passes of 101 packets
+     * on a1 is 20,200 packets, and 200 of 1001 on 1.2.5 is 200,200, far beyond anything a client
+     * sends while one call waits. Reaching the cap is a broken ordering guarantee, not a slow
+     * client, so it is reported rather than waited out. Visible for tests, which pin that bound.
+     */
+    static final int MAX_CLICK_DRAIN_PASSES = 200;
+
+    /**
+     * Whether a click packet the starter's client wrote has not been applied by this server yet
+     * (#1393). The server thread sets it in {@link #forward}, before the call goes out, and clears
+     * it when the client's {@link GrugControlWire#CLICK_WRITTEN} barrier reaches {@link #onMessage}
+     * after the loader had the click packet in front of it, or when the call fails before the
+     * client could have written the packet. Until it is cleared, {@link #applyClientWork} keeps
+     * draining the connection: the barrier was written behind the click packet on the same stream,
+     * so handling the barrier proves the click packet's handler already ran, whatever the queue's
+     * length or the thread the loader handles the barrier on.
+     */
+    private volatile boolean clickPacketOwed;
+
+    /**
      * The gives the starter's client sent and this server has not applied yet (#1099), in the order
      * they arrived. Written on the network thread, drained by {@link #applyClientWork} on the
      * server thread, because a give changes the world and only that thread may.
@@ -327,13 +350,38 @@ public final class GrugControlServer {
      * that only reads a screen's geometry pays nothing, because a read cannot make the client send
      * anything; a call the wire says can send a packet still marks the flag when it happens to send
      * nothing, which costs one empty drain and keeps the rule simple.
+     *
+     * <p>A click is the one call whose packet must be applied before the next tick, so it is not
+     * left to a single bounded pass: the client writes a {@link GrugControlWire#CLICK_WRITTEN}
+     * barrier behind the click packet on the same connection, and this drains until the barrier has
+     * been handled by the game thread's own queue. Handling the barrier proves the click packet in
+     * front of it ran first, whatever the queue held behind the bound of one pass (#1393). A
+     * barrier that never arrives is reported as the ordering defect it is, rather than left for the
+     * test's assertion to blame the click.
      */
     public void applyClientWork() {
         if (!clientWorkPending) {
             return;
         }
         clientWorkPending = false;
-        link.applyClientWork();
+        // One drain is one bounded pass of the game's own packet queue, and a click packet behind
+        // that bound would be handled after the next tick had already asserted. The client sends a
+        // barrier behind the click packet, so this keeps draining until that barrier is handled
+        // (#1393).
+        int passes = 0;
+        do {
+            link.applyClientWork();
+            passes++;
+        } while (clickPacketOwed && passes < MAX_CLICK_DRAIN_PASSES);
+        if (clickPacketOwed) {
+            clickPacketOwed = false;
+            GrugErrors.recordHostFunctionException(
+                    "The click packet that TestTickContext.click_screen wrote did not reach the"
+                            + " server in "
+                            + passes
+                            + " drains of its connection, so the next tick cannot see the click."
+                            + " This is the control channel's ordering, not the test's (#1393).");
+        }
         // After the game's own packets, so a give sees the inventory a click of the same tick
         // already changed: the client sends both in that order, and this is the order it sees.
         drainGives();
@@ -551,6 +599,15 @@ public final class GrugControlServer {
             return;
         }
         if (!fromStarter) {
+            return;
+        }
+        if (message.type == GrugControlWire.CLICK_WRITTEN) {
+            // Left to the game thread by {@link GrugControlWire#handledOnRead}, so on every loader
+            // that reads its control messages there, reaching this line means the connection's own
+            // queue handled the click packet in front of this barrier first. A loader that takes
+            // its control messages on the network thread (1.20.6) has already given the game
+            // thread the click packet's handler, and its applyClientWork empties that whole queue.
+            clickPacketOwed = false;
             return;
         }
         if (message.type == GrugControlWire.GIVE_REQUEST) {
@@ -1542,6 +1599,13 @@ public final class GrugControlServer {
             // or times out: the client may still have sent a packet the server has to apply.
             clientWorkPending = true;
         }
+        if (call == GrugControlWire.CALL_CLICK_SCREEN) {
+            // The client answers a click only after the press wrote the game's click packet and the
+            // barrier behind it, so the barrier is in the game's queue by the time this returns
+            // (#1393). Marked before the call goes out, so a call that fails still leaves any
+            // packet it did send to the drain above.
+            clickPacketOwed = true;
+        }
         try {
             // No flushWorld here: a sound or screen call depends on no world state, and flushing
             // sends the queued block changes to the client early, which changed what a later
@@ -1572,6 +1636,14 @@ public final class GrugControlServer {
                             + " answered: "
                             + describeAnswer(answer, result));
             return result;
+        } catch (ControlException e) {
+            if (call == GrugControlWire.CALL_CLICK_SCREEN) {
+                // The client answered with an error or never answered: it wrote no barrier, so
+                // nothing is owed. A click packet it did write is still applied by the next drain,
+                // which the mark above pays for.
+                clickPacketOwed = false;
+            }
+            throw e;
         } finally {
             pending.remove(id);
             System.out.println(

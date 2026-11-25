@@ -15,20 +15,23 @@ import java.util.List;
  * packet its game has; nothing here knows about a packet, so every loader can reuse the format and
  * a unit test can run both ends in one process.
  *
- * <p>Ten messages exist. {@link #RUN_START} goes from the client to the server and says this player
- * started a run, which is the consent the client later relies on. {@link #CAPTURE_REQUEST} goes the
- * other way and names a screenshot rectangle. The client answers with either {@link #ANSWER_ERROR}
- * or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound custom payload is
- * limited to 32767 bytes on 1.20.6 and the other old games are no more generous, so a capture is
- * cut into {@link #MAX_CHUNK}-byte pieces. {@link #CALL_REQUEST} carries one of the client-only
- * host functions a server may forward, with a name and the six numbers the call may use, which the
- * client answers with a {@link #ANSWER_VALUE}, or with an {@link #ANSWER_NUMBER} when the call's
- * answer is a measurement such as a screen's width. A call that measures a whole screen answers
- * with one {@link #ANSWER_NUMBERS}, so reading six values costs one round trip rather than six
- * (#1277). {@link #GIVE_REQUEST} goes from the client to the server and asks it to give the player
- * an item, which is the one host function whose effect belongs to the server rather than to the
- * client that ran it (#1099). It names the item, because two processes whose item lists differ give
- * different items under the same index.
+ * <p>Twelve messages exist. {@link #RUN_START} goes from the client to the server and says this
+ * player started a run, which is the consent the client later relies on. {@link #CAPTURE_REQUEST}
+ * goes the other way and names a screenshot rectangle. The client answers with either {@link
+ * #ANSWER_ERROR} or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound
+ * custom payload is limited to 32767 bytes on 1.20.6 and the other old games are no more generous,
+ * so a capture is cut into {@link #MAX_CHUNK}-byte pieces. {@link #CALL_REQUEST} carries one of the
+ * client-only host functions a server may forward, with a name and the six numbers the call may
+ * use, which the client answers with a {@link #ANSWER_VALUE}, or with an {@link #ANSWER_NUMBER}
+ * when the call's answer is a measurement such as a screen's width. A call that measures a whole
+ * screen answers with one {@link #ANSWER_NUMBERS}, so reading six values costs one round trip
+ * rather than six (#1277). {@link #GIVE_REQUEST} goes from the client to the server and asks it to
+ * give the player an item, which is the one host function whose effect belongs to the server rather
+ * than to the client that ran it (#1099). It names the item, because two processes whose item lists
+ * differ give different items under the same index. {@link #CLICK_WRITTEN} goes from the client to
+ * the server after a press has written the game's own click packet, and is the ordering barrier
+ * that says the server's connection holds that packet, so the runner may not tick again until it is
+ * handled (#1393).
  */
 public final class GrugControlWire {
     public static final byte RUN_START = 1;
@@ -79,6 +82,20 @@ public final class GrugControlWire {
      * the server's cursor. It carries nothing and has no answer.
      */
     public static final byte DELETE_CARRIED_REQUEST = 11;
+
+    /**
+     * Client to server: the press of a {@link #CALL_CLICK_SCREEN} has written the game's own click
+     * packet on this client's connection, so that packet is in front of this message on the same
+     * FIFO stream (#1393). It carries nothing and has no answer.
+     *
+     * <p>It is deliberately not one of {@link #handledOnRead}'s messages: a loader leaves it to the
+     * game thread, where the connection's own queue handles it after the click packet. The server
+     * takes that as the barrier, because the barrier being handled proves the click packet's
+     * handler already ran, and holds the next runner tick until it is. A loader whose control
+     * messages never reach the game thread, such as 1.20.6, gets the same ordering from its drain,
+     * which empties the server's whole task queue rather than one bounded pass.
+     */
+    public static final byte CLICK_WRITTEN = 12;
 
     /** The call: does the game have the sound under the name. The answer is 1 or 0. */
     public static final byte CALL_HAS_SOUND = 1;
@@ -486,7 +503,9 @@ public final class GrugControlWire {
      * connection's reader thread: an answer completes a call the server thread is waiting on, and a
      * give only joins the queue the server thread drains (#1280). A start is not one of them,
      * because the server learns the player of a connection on its game thread and refuses a start
-     * from a connection whose player it has not learnt yet.
+     * from a connection whose player it has not learnt yet. Nor is {@link #CLICK_WRITTEN}: it is
+     * the barrier that proves the game's click packet in front of it was handled, so only the game
+     * thread, reading its own FIFO packet queue, can read it after that packet (#1393).
      *
      * <p>A give read on the game thread waits for the connection's own drain, which a frozen server
      * only reaches between two calls: on b1.7.3 that drain reads at most 101 packets, so a give
@@ -583,6 +602,11 @@ public final class GrugControlWire {
     /** The ask to clear the cursor of the server's copy of the test player's menu (#1389). */
     public static byte[] deleteCarriedRequest() {
         return new byte[] {DELETE_CARRIED_REQUEST};
+    }
+
+    /** The barrier that follows a press's click packet on the client's connection (#1393). */
+    public static byte[] clickWritten() {
+        return new byte[] {CLICK_WRITTEN};
     }
 
     /** The answer to a call whose result is a measurement, such as a screen's width. */
@@ -707,6 +731,7 @@ public final class GrugControlWire {
                 case RUN_START:
                 case RUN_END:
                 case DELETE_CARRIED_REQUEST:
+                case CLICK_WRITTEN:
                     message = new Message(type, 0, none, 0, 0, null, null);
                     break;
                 case GIVE_REQUEST:

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugTestContexts;
 import net.grug.minecraft.grug.HostFunctions;
 import net.grug.minecraft.grug.Vec3;
@@ -253,6 +254,81 @@ class GrugControlTest {
         loop.server = new GrugControlServer(loop, timeoutMillis);
         loop.client = new GrugControlClient(loop, solid(0), caller, -1, -1);
         return loop;
+    }
+
+    /**
+     * A loader whose game thread handles at most {@code batch} packets per drain, with the press's
+     * click packet and the client's barrier queued behind {@code ahead} packets the client wrote
+     * earlier. A pass is bounded exactly as the game's own connection tick is on a1 and b1.7.3 (101
+     * packets), so one drain cannot reach a barrier that sits behind more than that (#1393). The
+     * queue is what proves the order: a barrier can only be handled after the click packet in front
+     * of it, and the click only after the packets in front of that.
+     */
+    private static final class BoundedClickLink
+            implements GrugControlServer.Link, GrugControlClient.Link {
+        final GrugControlServer server;
+        final GrugControlClient client;
+        final int batch;
+        final List<String> queued = new ArrayList<>();
+        int drains;
+        int clicksApplied;
+        boolean barrierHandled;
+
+        /** A client whose barrier is lost, which is the report arm: no message ever arrives. */
+        boolean dropBarrier;
+
+        BoundedClickLink(int batch, int ahead) {
+            this.batch = batch;
+            for (int at = 0; at < ahead; at++) {
+                queued.add("other " + at);
+            }
+            ScreenCalls screens = new ScreenCalls();
+            screens.onPress = () -> queued.add("click");
+            server = new GrugControlServer(this, 1000);
+            client = new GrugControlClient(this, solid(0), screens, -1, -1);
+        }
+
+        @Override
+        public boolean sendToStarter(Object starter, byte[] message) {
+            client.onMessage(message);
+            return true;
+        }
+
+        @Override
+        public void flushWorld() {}
+
+        @Override
+        public void applyClientWork() {
+            drains++;
+            for (int handled = 0; handled < batch && !queued.isEmpty(); handled++) {
+                String next = queued.remove(0);
+                if (next.equals("click")) {
+                    clicksApplied++;
+                } else if (next.equals("barrier")) {
+                    barrierHandled = true;
+                    server.onMessage(PLAYER, GrugControlWire.clickWritten());
+                }
+            }
+        }
+
+        @Override
+        public boolean mayStartRun(Object sender) {
+            return true;
+        }
+
+        @Override
+        public void send(byte[] message) {
+            if (message.length == 1 && message[0] == GrugControlWire.CLICK_WRITTEN) {
+                // Left to the game thread, as every loader's onRead leaves it: it waits in the
+                // connection's queue behind the click packet the press wrote.
+                if (!dropBarrier) {
+                    queued.add("barrier");
+                }
+                return;
+            }
+            // An answer is taken on the reader thread, as every loader's onRead takes it.
+            server.onMessage(PLAYER, message);
+        }
     }
 
     /** A caller that knows the sound "random.click" and records what it was asked to play. */
@@ -542,6 +618,10 @@ class GrugControlTest {
         boolean keyTaken = true;
         boolean scrollTaken = false;
         boolean clickTaken = false;
+
+        /** Runs when the click reaches the game, before this client answers (#1393). */
+        Runnable onPress = () -> {};
+
         double read = 176.0;
         double saved = 5.0;
         boolean savedFails;
@@ -632,6 +712,7 @@ class GrugControlTest {
         @Override
         public boolean clickScreen(double x, double y, int button) {
             seen.add("click " + x + " " + y + " " + button);
+            onPress.run();
             return clickTaken;
         }
 
@@ -3771,6 +3852,74 @@ class GrugControlTest {
         assertThrows(GrugControlServer.ControlException.class, () -> server.clickScreen(1, 2, 0));
         server.applyClientWork();
         assertEquals(2, loop.drained);
+    }
+
+    @Test
+    void aClickBarrierIsLeftToTheGameThreadSoItFollowsTheClickPacket() {
+        // The barrier is the one message that must be read where the game's own click packet is
+        // handled, so a loader's onRead has to leave it to the game thread rather than take it on
+        // the connection's reader thread (#1393).
+        assertFalse(GrugControlWire.handledOnRead(GrugControlWire.CLICK_WRITTEN));
+        Loopback loop = wireCalls(1000, new ScreenCalls());
+        assertFalse(loop.server.onRead(PLAYER, GrugControlWire.clickWritten()));
+
+        // It carries nothing and is not an answer: a connection that read it hands the game thread
+        // the barrier that says the click packet in front of it was handled.
+        GrugControlWire.Message decoded = GrugControlWire.decode(GrugControlWire.clickWritten());
+        assertEquals(GrugControlWire.CLICK_WRITTEN, decoded.type);
+        assertFalse(GrugControlWire.isAnswer(GrugControlWire.CLICK_WRITTEN));
+    }
+
+    @Test
+    void aClickDrainsPastTheBoundOfOnePassUntilTheBarrierBehindItIsHandled() throws Exception {
+        // 300 packets the client wrote before the press, more than the 101 one pass of a1's own
+        // connection tick handles, so the click packet and its barrier sit behind the bound of a
+        // single drain. Without the loop the click would be handled after the next tick asserted.
+        BoundedClickLink link = new BoundedClickLink(101, 300);
+        link.client.beginRun();
+
+        link.server.clickScreen(12, 34, 0);
+        // The call returned with the barrier still queued, so nothing has applied the click yet.
+        assertEquals(0, link.clicksApplied);
+        assertFalse(link.barrierHandled);
+
+        link.server.applyClientWork();
+
+        // Three passes: 101 + 101 + the 98 ahead, the click and the barrier. The barrier can only
+        // be reached after the click packet in front of it, so this is the click being applied
+        // before the drain returns.
+        assertEquals(3, link.drains);
+        assertEquals(1, link.clicksApplied);
+        assertTrue(link.barrierHandled);
+        assertNull(GrugErrors.takeHostFunctionException());
+    }
+
+    @Test
+    void aBarrierThatNeverArrivesIsReportedRatherThanLeftForTheNextTickToBlameTheClick()
+            throws Exception {
+        BoundedClickLink link = new BoundedClickLink(101, 0);
+        link.client.beginRun();
+        link.dropBarrier = true;
+        GrugErrors.takeHostFunctionException();
+
+        link.server.clickScreen(12, 34, 0);
+        link.server.applyClientWork();
+
+        // The drain paid its whole cap, applied the click packet, and never saw the barrier. That
+        // is the ordering guarantee broken, which the runner reports as the test's error instead of
+        // letting its next tick read a slot the click never filled.
+        assertEquals(GrugControlServer.MAX_CLICK_DRAIN_PASSES, link.drains);
+        assertEquals(1, link.clicksApplied);
+        assertFalse(link.barrierHandled);
+        String reported = GrugErrors.takeHostFunctionException();
+        assertNotNull(reported);
+        assertTrue(reported.contains("did not reach the server"), reported);
+        assertTrue(reported.contains("#1393"), reported);
+
+        // The report clears the mark, so a later drain does not report the same loss twice.
+        link.server.applyClientWork();
+        assertEquals(GrugControlServer.MAX_CLICK_DRAIN_PASSES, link.drains);
+        assertNull(GrugErrors.takeHostFunctionException());
     }
 
     @Test
