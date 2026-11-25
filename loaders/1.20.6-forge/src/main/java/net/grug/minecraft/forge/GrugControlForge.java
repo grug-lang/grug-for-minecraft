@@ -32,7 +32,7 @@ import java.util.UUID;
  *
  * <p>The protocol version is raised by every change to the wire's messages, so a pair built before
  * and after must refuse each other rather than misread each other's messages; the number and the
- * history of what each one carried sit beside {@code networkProtocolVersion} below.
+ * recent history sit beside {@code networkProtocolVersion} below.
  *
  * <p>The channel is registered on both sides and is {@code optional()}, so a player without grug
  * can still join a grug server and the other way round. Handlers run on the network thread, never
@@ -73,12 +73,12 @@ public final class GrugControlForge {
                         // each other: the older build does not know call 23. #1705 took 12 for its
                         // SETTLE_LIGHT_DIVERGED answer to the world-settled call, and #1393 took
                         // 13 for the click barrier the client sends behind the game's own click
-                        // packet. #1705 took 14 for its answer to the world-settled call and #1759
-                        // took 15 for the two requests that name a block entity to change its
-                        // inventory: past every open pull request's number, because two builds
-                        // that call themselves the same while carrying different message sets
-                        // silently disagree, and a client that never sends the barrier would
-                        // instead trip the server's wait.
+                        // packet. #1705's revision on top of the barrier took 14, and #1759 took
+                        // 15 for the two requests that name a block entity to change its
+                        // inventory: past every number an open or a closed branch has taken,
+                        // because two builds that call themselves the same while carrying
+                        // different message sets silently disagree, and a client that never sends
+                        // the barrier would instead trip the server's wait.
                         .networkProtocolVersion(15)
                         .optional()
                         .simpleChannel()
