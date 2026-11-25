@@ -8,11 +8,14 @@
 # pushed off it and the capture is drawn from the pose the test names (#1696). The crop and the
 # reasons for the room are overlay_crosses', including its vanilla stone platform and the crop's stop
 # at x 840 for the held item (#1550). So is the clock: the test sets noon first, so the sky light that
-# is drawn is the same at every hour of the run, and so is the budget: the platform's light settles
-# slowly on 1.2.5's incremental light, so this test takes the 3000 ticks overlay_crosses explains.
+# is drawn is the same at every hour of the run, and so are the waits: each phase is bounded by its
+# own phase, as overlay_crosses explains, and the budget is the sum of those bounds.
 state: number = 0
 moved: bool = false
 waited: number = 0
+light_at: number = 0
+settle_waited: number = 0
+drawn_waited: number = 0
 settled_ticks: number = 0
 fy: number = 0
 hx: number = 0
@@ -27,16 +30,17 @@ clock_at: number = 0
 rd: number = 0
 safe: number = 0
 
-# The room build, the light settle and the scan waits are longer than the default budget, so it is
-# raised rather than a wait shortened.
+# The 40 ticks of clock wait, the light phase's 3000, the settle's 200 plus its five settled ticks
+# and the frame wait's 200 come to 3445 ticks, with the ticks that place the platform, move, press
+# and capture: 3500. Each of those waits asserts its own bound first, so this only has to cover them.
 export init(ctx: TestInitContext) {
-    ctx.set_max_ticks(3000)
+    ctx.set_max_ticks(3500)
 }
 
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     waited = waited + 1
-    late: bool = waited >= 3000
+    light_late: bool = waited - light_at >= 3000
 
     if state == 0 {
         if not me.world_overlay_supported() {
@@ -60,12 +64,12 @@ export tick(ctx: TestTickContext) {
         hz = pz + 5
 
         clock_at = waited
-        state = 4
+        state = 1
         ctx.not_done()
         return
     }
 
-    if state == 4 {
+    if state == 1 {
         # A joined client, and 1.20.6's, learn the new time from a packet the server sends every 20 ticks, and
         # a mesh built before it keeps the old hour's light, so the platform is placed only after 40 ticks, which
         # outlast one packet, and its blocks are the ones that rebuild the meshes in view (#1550).
@@ -90,17 +94,18 @@ export tick(ctx: TestTickContext) {
             level.place_block(hx, hy, hz, "minecraft:air")
             hy = hy + 1
         }
-        state = 1
+        light_at = waited
+        state = 2
         ctx.not_done()
         return
     }
 
-    if state == 1 {
+    if state == 2 {
         # Yellow under the hole, red on the far side of the room from it, both on a bare floor.
-        ctx.assert(not (late and level.get_block_light(hx, fy, hz) != 0), "Wait 1: the square under the hole should lose its block light.")
-        ctx.assert(not (late and level.get_block_light(hx - 10, fy, hz - 2) != 0), "Wait 2: the far square should lose its block light.")
-        ctx.assert(not (late and level.get_sky_light(hx, fy, hz) <= 7), "Wait 3: the square under the hole should get sky light above 7.")
-        ctx.assert(not (late and level.get_sky_light(hx - 10, fy, hz - 2) > 7), "Wait 4: the far square should have sky light of at most 7.")
+        ctx.assert(not (light_late and level.get_block_light(hx, fy, hz) != 0), "Wait 1: the square under the hole should lose its block light.")
+        ctx.assert(not (light_late and level.get_block_light(hx - 10, fy, hz - 2) != 0), "Wait 2: the far square should lose its block light.")
+        ctx.assert(not (light_late and level.get_sky_light(hx, fy, hz) <= 7), "Wait 3: the square under the hole should get sky light above 7.")
+        ctx.assert(not (light_late and level.get_sky_light(hx - 10, fy, hz - 2) > 7), "Wait 4: the far square should have sky light of at most 7.")
         if level.get_block_light(hx, fy, hz) != 0 or level.get_block_light(hx - 10, fy, hz - 2) != 0 {
             ctx.not_done()
             return
@@ -114,30 +119,32 @@ export tick(ctx: TestTickContext) {
         cfg: Config = ctx.get_config()
         rd = Math.floor(cfg.number("render_distance"))
         safe = cfg.number("safe_light_level")
-        state = 2
-        ctx.not_done()
-        return
-    }
-
-    if state == 2 {
-        # A client's light can keep the torch light the platform hides for a square after the two
-        # probes read right, and the scan then draws every cross but one (#1550), so the press waits
-        # for the scan to keep every platform square at the safe level (overlay_crosses explains it).
-        if not _platform_marked(ctx, px, pz, fy, rd, safe) {
-            ctx.assert(not late, "Wait 5: every platform square should reach the safe level the overlay marks.")
-            ctx.not_done()
-            return
-        }
         state = 3
         ctx.not_done()
         return
     }
 
-    ctx.assert(not late, "Wait 6: the world should settle and the overlay draw.")
-
     if state == 3 {
+        # A client's light can keep the torch light the platform hides for a square after the two
+        # probes read right, and the scan then draws every cross but one (#1550), so the press waits
+        # for the scan to keep every platform square at the safe level (overlay_crosses explains it).
+        if not _platform_marked(ctx, px, pz, fy, rd, safe) {
+            ctx.assert(not light_late, "Wait 5: every platform square should reach the safe level the overlay marks.")
+            ctx.not_done()
+            return
+        }
+        # One line that names the phase lengths if this test goes red, as overlay_crosses has it.
+        print3("overlay_follows_player: the settle begins at tick", waited, waited - light_at)
+        state = 4
+        ctx.not_done()
+        return
+    }
+
+    if state == 4 {
         if not ctx.world_settled() {
             settled_ticks = 0
+            settle_waited = settle_waited + 1
+            ctx.assert(settle_waited < 200, "Wait 6: the client should settle after the platform's light.")
             ctx.not_done()
             return
         }
@@ -147,12 +154,14 @@ export tick(ctx: TestTickContext) {
             return
         }
         ctx.press_world_key(76, false)
-        state = 4
+        state = 5
         ctx.not_done()
         return
     }
 
     if not ctx.world_overlay_drawn() {
+        drawn_waited = drawn_waited + 1
+        ctx.assert(drawn_waited < 200, "Wait 7: the overlay should draw after the press.")
         ctx.not_done()
         return
     }
@@ -167,7 +176,8 @@ export tick(ctx: TestTickContext) {
         # along x stay over it.
         ctx.set_player_position(ox + 3.0, oy - 4.62, oz)
         # Off and on again, so world_overlay_drawn is cleared and the capture is of a frame drawn
-        # from the new position.
+        # from the new position. The frame wait starts over with it.
+        drawn_waited = 0
         ctx.press_world_key(76, false)
         ctx.press_world_key(76, false)
         ctx.not_done()
