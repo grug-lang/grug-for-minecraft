@@ -1,0 +1,48 @@
+# Covers which neighbours the stone pipe grows an arm toward. BuildCraft 2.2.14's PipeLogicStone
+# refuses only a pipe whose logic is PipeLogicCobblestone, so the stone pipe connects to the wooden
+# pipe and to another stone pipe, while the cobblestone pipe and the stone pipe refuse each other and
+# Utils.checkPipesConnections asks both, so neither gets an arm toward the other. An inventory
+# connects as PipeTransportItems.isPipeConnected accepts it. The fixture asks the rule through the
+# pipe's collision box, as wooden_pipe_connections does, and the second fixture checks the refusal
+# from the cobblestone pipe's side.
+phase: number = 0
+
+export tick(ctx: TestTickContext) {
+    if phase == 0 {
+        phase = 1
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        x: number = origin.x()
+        y: number = origin.y() - 1.88
+        z: number = origin.z()
+        level.place_block(x, y, z, "grug:stone_pipe")
+        level.place_block(x - 1, y, z, "grug:wooden_pipe")
+        level.place_block(x, y, z - 1, "grug:cobblestone_pipe")
+        level.place_block(x + 1, y, z, "grug:stone_pipe")
+        level.place_block(x, y, z + 1, "minecraft:chest")
+
+        level.place_block(x + 4, y, z, "grug:cobblestone_pipe")
+        level.place_block(x + 5, y, z, "grug:stone_pipe")
+        ctx.not_done()
+    } else if phase == 1 and not ctx.world_settled() {
+        ctx.not_done()
+    } else {
+        _check(ctx)
+    }
+}
+
+local _check(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() - 1.88
+    z: number = origin.z()
+
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "The stone pipe's centre should collide.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A stone pipe beside a wooden pipe should have an arm toward it.")
+    ctx.assert(not ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.02, 0.65, 0.65, 0.2), "A stone pipe beside a cobblestone pipe should have no arm toward it.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A stone pipe beside another stone pipe should have an arm toward it.")
+    ctx.assert(ctx.block_collision(level, x, y, z, 0.35, 0.35, 0.8, 0.65, 0.65, 0.98), "A stone pipe beside an inventory should have an arm toward it.")
+
+    ctx.assert(not ctx.block_collision(level, x + 4, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A cobblestone pipe beside a stone pipe should have no arm toward it either.")
+}

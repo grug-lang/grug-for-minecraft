@@ -219,7 +219,7 @@ local _move_item(index: number) bool {
         return true
     }
 
-    if steps >= _end_steps(direction) {
+    if _end_reached(px, py, pz) {
         # The reference sets the position before it looks at the tile, so the item is handed on, or
         # dropped, from where this last move put it.
         _save(index, px, py, pz, speed, direction, steps, 0, count, damage)
@@ -230,18 +230,24 @@ local _move_item(index: number) bool {
     return true
 }
 
-# How many moves from the centre reach past the pipe's block, which is endReached: 51 horizontally,
-# where the face is 0.5 away; 76 upwards, where the centre is at y + 0.25 and the top is 0.75 away;
-# and 26 downwards, where the bottom is 0.25 away. Each is the first move strictly past the bound,
-# floor(distance / 0.01) + 1, with 0.01 as a float64.
-local _end_steps(direction: number) number {
-    if direction == 0 {
-        return 26
+# PipeTransportItems.endReached: the item has moved strictly past the pipe's block on some axis, so
+# the neighbour it is heading for is the one it reached. The bound is the block's own edge, half a
+# block either way from the centre this pipe measures from, which at Utils.pipeNormalSpeed = 0.01
+# leaves after 51 moves horizontally, 76 upwards from the floor and 26 downwards, exactly as the
+# reference does, and leaves after fewer moves at a higher speed.
+local _end_reached(px: number, py: number, pz: number) bool {
+    # Float noise, not movement: the position is accumulated one speed at a time, so fifty moves of
+    # a double 0.01 land a hair above the block's edge where the reference's float32 lands below it,
+    # and without this the item would leave a tick early. It is ten million times smaller than one
+    # step at any speed a pipe uses.
+    noise: number = 0.000000001
+    if px > x + 0.5 + noise or px < x - 0.5 - noise {
+        return true
     }
-    if direction == 1 {
-        return 76
+    if py > y + 0.5 + noise or py < y - 0.5 - noise {
+        return true
     }
-    return 51
+    return pz > z + 0.5 + noise or pz < z - 0.5 - noise
 }
 
 # PipeTransportItems.resolveDestination: count the exits that can take the item, then take the
@@ -636,7 +642,8 @@ local _store(item: Item, damage: number, count: number) {
     }
 }
 
-# Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe and 2 for a cobblestone pipe.
+# Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe, 2 for a cobblestone pipe,
+# 3 for a stone pipe and 4 for a golden pipe. Every pipe's copy of this has to agree.
 local _pipe_kind(nx: number, ny: number, nz: number) number {
     name: string = level.get_block(nx, ny, nz)
     if name == "grug:wooden_pipe" {
@@ -644,6 +651,12 @@ local _pipe_kind(nx: number, ny: number, nz: number) number {
     }
     if name == "grug:cobblestone_pipe" {
         return 2
+    }
+    if name == "grug:stone_pipe" {
+        return 3
+    }
+    if name == "grug:golden_pipe" {
+        return 4
     }
     return 0
 }
@@ -666,8 +679,8 @@ local _is_connected(side: number) bool {
 
 # PipeTransportItems.entityEntering on the neighbouring pipe: the item becomes a record of that pipe,
 # at the position this pipe's last move put it, still travelling the same way and on its way to that
-# pipe's centre. readjustSpeed brings a speed back to Utils.pipeNormalSpeed, and a horizontal entry
-# puts the item at the new pipe's floor.
+# pipe's centre. readjustSpeed brings a speed back towards Utils.pipeNormalSpeed, a horizontal entry
+# puts the item at the new pipe's floor, and a powered golden pipe then makes it twenty times as fast.
 local _enter_pipe(nx: number, ny: number, nz: number, direction: number, px: number, py: number, pz: number, speed: number, item: Item, count: number, damage: number) {
     neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
     if not neighbor_opt.has() {
@@ -675,12 +688,12 @@ local _enter_pipe(nx: number, ny: number, nz: number, direction: number, px: num
         return
     }
 
-    entering: number = speed
-    if entering > 0.01 {
-        entering = entering - 0.01
-    }
-    if entering < 0.01 {
-        entering = 0.01
+    kind: number = _pipe_kind(nx, ny, nz)
+    entering: number = _readjust_for(kind, speed)
+    # PipeItemsGold.entityEntered: a powered golden pipe makes the item twenty times as fast, after
+    # the readjust and before it starts moving again.
+    if kind == 4 and level.has_neighbor_signal(nx, ny, nz) {
+        entering = 0.2
     }
     entry_y: number = py
     if direction != 0 and direction != 1 {
@@ -699,6 +712,26 @@ local _enter_pipe(nx: number, ny: number, nz: number, direction: number, px: num
     neighbor.set_saved_list_number("traveling", index, "count", count)
     neighbor.set_saved_list_number("traveling", index, "damage", damage)
     neighbor.set_saved_list_item("traveling", index, item)
+}
+
+# PipeTransportItems.entityEntering's readjustSpeed: the receiving pipe's own rule. This pipe's is
+# PipeLogicWood's, which is the reference's default readjust, so it subtracts the whole 0.01 from a
+# speed above normal, as every other pipe the port has except the stone pipe does. The stone pipe
+# subtracts half of normal, and a pipe of another mod is given the default because its rule cannot be
+# seen from here.
+local _readjust_for(kind: number, speed: number) number {
+    entering: number = speed
+    if entering > 0.01 {
+        if kind == 3 {
+            entering = entering - 0.005
+        } else {
+            entering = entering - 0.01
+        }
+    }
+    if entering < 0.01 {
+        entering = 0.01
+    }
+    return entering
 }
 
 local _neighbor_x(side: number) number {

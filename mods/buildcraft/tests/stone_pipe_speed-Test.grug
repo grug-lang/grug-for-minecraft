@@ -1,0 +1,79 @@
+# Covers PipeItemsStone.readjustSpeed, the one thing the stone pipe's transport hook changes: a speed
+# above Utils.pipeNormalSpeed (0.01) loses half of normal, 0.005, and a speed below it is raised to
+# normal. Every other pipe this port has subtracts the whole 0.01, so the same record entering a
+# cobblestone pipe loses twice as much: 0.03 becomes 0.025 in the stone pipe and 0.02 in the
+# cobblestone one. Both pairs run from one test so the difference is pinned on the same speeds.
+# Each record is written so that one move of its own speed takes it past the source pipe's east
+# face, which is the hand-over the reference's endReached sees.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    # Band 23, clear of the bands the other pipe tests use.
+    y: number = origin.y() + 23
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:stone_pipe")
+    level.place_block(x + 1, y, z, "grug:stone_pipe")
+    stone_source: BlockEntity = _entity(ctx, level, x, y, z)
+    stone_target: BlockEntity = _entity(ctx, level, x + 1, y, z)
+    center: Vec3 = stone_source.block_pos().center()
+    floor_y: number = center.y() - 0.25
+
+    _record(stone_source, center.x() + 0.475, floor_y, center.z(), 0.03)
+    _record(stone_source, center.x() + 0.49, floor_y, center.z(), 0.02)
+    _record(stone_source, center.x() + 0.495, floor_y, center.z(), 0.015)
+    _record(stone_source, center.x() + 0.5, floor_y, center.z(), 0.01)
+    _record(stone_source, center.x() + 0.505, floor_y, center.z(), 0.005)
+
+    ctx.tick_block_entity(stone_source, 1)
+    ctx.assert(stone_source.get_saved_list_size("traveling") == 0, "Every stone record should have been handed over.")
+    ctx.assert(stone_target.get_saved_list_size("traveling") == 5, "The stone target should have taken all five records.")
+    ctx.assert(_thousandths(_speed(stone_target, 0)) == 25, "A speed of 0.03 should enter a stone pipe at 0.025.")
+    ctx.assert(_thousandths(_speed(stone_target, 1)) == 15, "A speed of 0.02 should enter a stone pipe at 0.015.")
+    ctx.assert(_thousandths(_speed(stone_target, 2)) == 10, "A speed of 0.015 should lose 0.005 and be raised back to 0.01.")
+    ctx.assert(_thousandths(_speed(stone_target, 3)) == 10, "A speed of 0.01 should stay at 0.01.")
+    ctx.assert(_thousandths(_speed(stone_target, 4)) == 10, "A speed of 0.005 should be raised to 0.01.")
+
+    # The same 0.03 into a cobblestone pipe, whose default readjust takes the whole 0.01.
+    level.place_block(x + 2, y, z, "grug:cobblestone_pipe")
+    level.place_block(x + 3, y, z, "grug:cobblestone_pipe")
+    cobblestone_source: BlockEntity = _entity(ctx, level, x + 2, y, z)
+    cobblestone_target: BlockEntity = _entity(ctx, level, x + 3, y, z)
+    cobblestone_center: Vec3 = cobblestone_source.block_pos().center()
+    _record(cobblestone_source, cobblestone_center.x() + 0.475, cobblestone_center.y() - 0.25, cobblestone_center.z(), 0.03)
+    ctx.tick_block_entity(cobblestone_source, 1)
+    ctx.assert(cobblestone_target.get_saved_list_size("traveling") == 1, "The cobblestone target should have taken the record.")
+    ctx.assert(_thousandths(_speed(cobblestone_target, 0)) == 20, "The same speed should enter a cobblestone pipe at 0.02, twice the stone pipe's loss.")
+}
+
+# Adds one record at the pipe floor, already past the centre, its speed short of the east face.
+local _record(pipe: BlockEntity, px: number, py: number, pz: number, speed: number) {
+    index: number = pipe.append_saved_list_record("traveling")
+    pipe.set_saved_list_number("traveling", index, "x", px)
+    pipe.set_saved_list_number("traveling", index, "y", py)
+    pipe.set_saved_list_number("traveling", index, "z", pz)
+    pipe.set_saved_list_number("traveling", index, "speed", speed)
+    pipe.set_saved_list_number("traveling", index, "direction", 5)
+    pipe.set_saved_list_number("traveling", index, "steps", 50)
+    pipe.set_saved_list_number("traveling", index, "to_center", 0)
+    pipe.set_saved_list_number("traveling", index, "count", 1)
+    pipe.set_saved_list_number("traveling", index, "damage", 0)
+    pipe.set_saved_list_item("traveling", index, item(resource_location("minecraft:diamond")))
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+local _speed(pipe: BlockEntity, index: number) number {
+    return pipe.get_saved_list_number("traveling", index, "speed")
+}
+
+# A readjusted speed is a float64 subtraction, so 0.03 - 0.005 is not the double nearest 0.025; the
+# thousandths are what the test compares, as the position tests compare hundredths.
+local _thousandths(value: number) number {
+    return Math.floor(value * 1000 + 0.5)
+}

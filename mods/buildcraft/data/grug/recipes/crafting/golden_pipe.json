@@ -1,0 +1,20 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "   ",
+        "pgp",
+        "   "
+    ],
+    "key": {
+        "p": {
+            "item": "minecraft:gold_ingot"
+        },
+        "g": {
+            "item": "minecraft:glass"
+        }
+    },
+    "result": {
+        "id": "grug:golden_pipe",
+        "count": 8
+    }
+}

@@ -1,0 +1,79 @@
+{
+    "parent": "minecraft:block/block",
+    "render_type": "minecraft:cutout",
+    "textures": {
+        "all": "grug:block/golden_pipe_powered",
+        "particle": "grug:block/golden_pipe_powered"
+    },
+    "elements": [
+        {
+            "name": "powered_centre",
+            "from": [
+                4,
+                4,
+                4
+            ],
+            "to": [
+                12,
+                12,
+                12
+            ],
+            "faces": {
+                "west": {
+                    "uv": [
+                        4,
+                        4,
+                        12,
+                        12
+                    ],
+                    "texture": "#all"
+                },
+                "east": {
+                    "uv": [
+                        4,
+                        4,
+                        12,
+                        12
+                    ],
+                    "texture": "#all"
+                },
+                "down": {
+                    "uv": [
+                        4,
+                        4,
+                        12,
+                        12
+                    ],
+                    "texture": "#all"
+                },
+                "up": {
+                    "uv": [
+                        4,
+                        4,
+                        12,
+                        12
+                    ],
+                    "texture": "#all"
+                },
+                "north": {
+                    "uv": [
+                        4,
+                        4,
+                        12,
+                        12
+                    ],
+                    "texture": "#all"
+                },
+                "south": {
+                    "uv": [
+                        4,
+                        4,
+                        12,
+                        12
+                    ],
+                    "texture": "#all"
+                }
+            }
+        }
+    ]
+}
