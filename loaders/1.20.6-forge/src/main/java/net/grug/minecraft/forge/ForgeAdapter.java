@@ -445,22 +445,23 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     /**
      * The dimension's key as one path segment, settled the same on every loader: {@code overworld},
      * {@code the_nether}, {@code the_end}, and for any other dimension {@code dimension_} followed
-     * by the game's own key with {@code :} and {@code /} replaced by {@code _}. 1.20.6 keeps a
-     * dimension as a namespaced resource location, so the other dimension is {@code
-     * dimension_<namespace>_<path>}; the versions that number their dimensions answer {@code
-     * dimension_<number>}, and Alpha, which has one dimension, always answers {@code overworld}.
-     * See {@link ModLoaderAdapter#levelDimension}.
+     * by the key's namespace, {@code ~}, and its path with each {@code /} replaced by {@code +}.
+     * Neither part of a resource key may hold {@code ~} or {@code +}, so the encoding is injective:
+     * two different dimensions never answer the same string. The versions that number their
+     * dimensions answer {@code dimension_<number>} instead, which is also different for each, and
+     * Alpha, which has one dimension, always answers {@code overworld}. See {@link
+     * ModLoaderAdapter#levelDimension}.
      */
     @Override
     public String levelDimension(Object levelObj) {
         ResourceLocation id = ((Level) levelObj).dimension().location();
-        String path = id.getPath().replace('/', '_');
-        if (!"minecraft".equals(id.getNamespace())) {
-            return "dimension_" + id.getNamespace() + "_" + path;
+        if ("minecraft".equals(id.getNamespace())) {
+            String path = id.getPath();
+            if ("overworld".equals(path) || "the_nether".equals(path) || "the_end".equals(path)) {
+                return path;
+            }
         }
-        return "overworld".equals(path) || "the_nether".equals(path) || "the_end".equals(path)
-                ? path
-                : "dimension_" + path;
+        return "dimension_" + id.getNamespace() + "~" + id.getPath().replace('/', '+');
     }
 
     @Override

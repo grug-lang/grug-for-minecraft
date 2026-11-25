@@ -656,11 +656,13 @@ public interface ModLoaderAdapter {
     /**
      * The dimension's key as one path segment, so a mod builds a per-world path without a character
      * its filesystem refuses: {@code overworld}, {@code the_nether}, {@code the_end}, and for any
-     * other dimension {@code dimension_} followed by the game's own key for it with {@code :} and
-     * {@code /} replaced by {@code _} (a modded namespace and path on 1.20.6, a provider's number
-     * on the versions whose other dimensions are numbered). Every loader answers the same three
-     * names for the three dimensions the game ships, and the two sides of one world agree on this
-     * even where they do not agree on {@link #levelName}.
+     * other dimension {@code dimension_} followed by the key itself. On 1.20.6 that is {@code
+     * dimension_<namespace>~<path>}, the path with each {@code /} replaced by {@code +}; {@code ~}
+     * and {@code +} appear in neither part of a key, so two different dimensions never answer the
+     * same string. The versions that number their dimensions answer {@code dimension_<number>},
+     * likewise different for each, and Alpha always answers {@code overworld}. A key is stable for
+     * one dimension, different for different dimensions, and safe as one path segment, and the two
+     * sides of one world agree on it even where they do not agree on {@link #levelName}.
      */
     @GrugGenerated("no dimension key: a loader that has not added it keeps this default")
     default String levelDimension(Object levelObj) {

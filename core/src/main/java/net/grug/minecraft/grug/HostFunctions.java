@@ -3067,7 +3067,8 @@ public class HostFunctions {
 
     /**
      * The dimension's key as one path segment ({@code overworld}, {@code the_nether}, {@code
-     * the_end}, or {@code dimension_<id>}), so a mod composes a per-world path from it.
+     * the_end}, or {@code dimension_} followed by the game's own key), so a mod composes a
+     * per-world path from it and two dimensions never share a path.
      */
     public static String Level_dimension(long levelId) {
         return withEntity(
