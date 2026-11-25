@@ -6,14 +6,17 @@
 # in the green stage (251 to 500 of 1000 energy) and the second six in the red stage (over 750), facing
 # 0 at the right and 5 at the left, since the camera looks towards +z, each with its plate out at a
 # progress of 0.5. The energy is set near the top of the stage, 495 and 995, so the one energy an
-# unpowered engine loses each tick cannot take it out of the stage before the capture. The reference
-# run has no grug saved data, so it sets the real TileEngine's "orientation", "progress" and "energy"
-# through its NBT, and ctx.load_nbt replaces the engine with one loaded from it and redraws the block.
+# unpowered engine loses each tick cannot take it out of the stage while the capture's wait runs, and
+# the wait asks for the stage rather than for that number. The reference run has no grug saved data,
+# so it sets the real TileEngine's "orientation", "progress" and "energy" through its NBT, and
+# ctx.load_nbt replaces the engine with one loaded from it and redraws the block.
 # The capture stops high on the screen because the runner prints each test's name to the chat on
 # every loader but 1.2.5, and that readout grows to ten lines of 27 pixels once a repeat has run, so
-# anything below about y=250 holds text in a later repeat. As in redstone_engine_animation-Test.grug,
-# each capture first lets the engines at rest settle and be meshed, then changes them and meshes the
-# wall again, so the frame the capture reads shows the change.
+# anything below about y=250 holds text in a later repeat. Each capture first lets the engines at rest
+# settle, be meshed and take the light, then sets the six engines' numbers once and waits only for the
+# client's copy of them, which is the copy the frame pass draws, and for a frame drawn after it: the
+# energy is a number that pass reads, so no mesh and no light depends on it, and the full settle is not
+# repeated for it. See _showed, _drawn and #1811.
 # Where the leftmost engine is, which is where the row starts, one block apart towards +x.
 ex: number = 0
 ey: number = 0
@@ -22,9 +25,14 @@ ez: number = 0
 # Which capture is next: 0 is the green stage and 1 is the red stage.
 capture: number = 0
 
-# Whether the capture's change has been made. A capture needs the scene settled before the change,
-# which is _ready, and settled again after it, which is _settled.
+# Whether the capture's orientation, progress and energy have been set. A capture needs the scene
+# settled and lit before them, which is _ready, the client's copy of them after, which is _showed, and
+# a frame drawn after that copy, which is _drawn.
 changed: bool = false
+
+# Whether the block swap that gives the renderer work after the numbers are set has been made. See
+# _drawn.
+swapped: bool = false
 
 # The waits before each capture, as coverage_render-Test.grug explains them. See _ready.
 settled_ticks: number = 0
@@ -46,10 +54,10 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    # The scene is settled and meshed once, with every engine at rest and facing up, before anything
-    # changes. The change itself is only numbers a renderer reads, so the wait after it meshes the
-    # wall once more: that edit is what the wait counts frames from, and the frame the capture reads
-    # therefore shows the change. See _ready.
+    # The scene is settled, meshed and lit once, with every engine at rest and facing up, before any
+    # energy is set. The energy is only a number the frame pass reads, so nothing is settled for it a
+    # second time: the wait after it is the client's own copy, which is the copy that pass reads, and
+    # then a frame drawn after it. See _ready, _showed and _drawn.
     if not changed {
         if not _ready(ctx) {
             ctx.not_done()
@@ -61,36 +69,32 @@ export tick(ctx: TestTickContext) {
             _show(ctx, 995)
         }
         changed = true
-        settled_ticks = 0
-        remeshed = false
-        ctx.not_done()
-        return
-    }
-
-    if not _ready(ctx) {
-        ctx.not_done()
-        return
-    }
-
-    # An unpowered engine loses one energy on every tick, and the runner plays up to ten ticks a frame,
-    # so on a slow runner the 495 or 995 set once drifts out of its stage while the waits above run
-    # (the a1 dedicated leg drew the blue stage, 1 energy, in the green capture). The engine is set
-    # again, with the settle wait restarted, only once it has lost 150, which leaves 94 ticks of the
-    # stage for the frame the capture reads. The energies are the tops of the stages, 495 of 251 to
-    # 500 and 995 of over 750 to 1000, for the most room. Setting it on every tick instead keeps the
-    # world from settling and the test ran out of ticks.
-    # Only the port's engine ticks; the reference's NBT load is made once.
-    if not me.is_reference() {
-        target: number = 495
-        if capture == 1 {
-            target = 995
-        }
-        if _engine(ctx, 0).get_saved_number("energy") < target - 150 {
-            _show(ctx, target)
+        swapped = false
+        if me.is_reference() {
+            # The reference's engines are the real TileEngine, and load_nbt replaced each one with a
+            # tile loaded from its NBT and redrew the block, so its capture has to wait for frames
+            # drawn after that edit, which is a settle wait again. There is no grug saved number to
+            # wait on instead: set_saved_number is the port's, and client_saved_number answers 0 for
+            # a copy that never saved one. The wait stays short because the reference run is a client
+            # leg, where each of these calls is local.
             settled_ticks = 0
+            remeshed = false
+        }
+        ctx.not_done()
+        return
+    }
+
+    if me.is_reference() {
+        if not _ready(ctx) {
             ctx.not_done()
             return
         }
+    } else if not _showed(ctx) {
+        ctx.not_done()
+        return
+    } else if not _drawn(ctx) {
+        ctx.not_done()
+        return
     }
 
     # Both runs compare against the same committed pixels, because the port draws the engine from the
@@ -166,11 +170,55 @@ local _engine(ctx: TestTickContext, i: number) BlockEntity {
     return engine_opt.unwrap()
 }
 
+# Whether the client's copy of every engine holds an energy the capture's stage draws its trunk for.
+# One save is made per engine, and a send carries the whole saved data, so a copy that holds the energy
+# holds the facing and the progress saved with it. A capture alone cannot say the numbers arrived: a
+# section built again or a light step moves a frame too (#1162). This is not enough on its own to take
+# the capture, though, because a client's copy is its own: see _drawn.
+local _showed(ctx: TestTickContext) bool {
+    i: number = 0
+    while i < 6 {
+        if not _in_stage(ctx.client_saved_number(_engine(ctx, i), "energy")) {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+# Whether a frame has been drawn since the client's copy held the numbers. A client's copy is the copy
+# its own process writes, so _showed answers on the very tick the numbers are set, and a capture then
+# reads the framebuffer of the frame drawn before them: the four client legs of #1812, 1.2.5-forge,
+# a1.1.2_01-ornithe, b1.7.3-ornithe and b1.7.3-stationapi, drew all six engines at rest with the
+# numbers already in the copy, while every dedicated leg passed. A block swap outside the crop is work
+# the renderer owes, so a settled answer can only come from a frame drawn after the set, and that
+# frame's pass reads the numbers. The light has not changed since _ready, so that wait is not repeated.
+local _drawn(ctx: TestTickContext) bool {
+    if not swapped {
+        _force_remesh(ctx)
+        swapped = true
+        return false
+    }
+    return ctx.world_settled()
+}
+
+# Whether an energy draws the trunk colour the capture is of: the green stage, 251 to 500 of 1000, for
+# the first capture and the red one, over 750, for the second. The wait asks for the stage and not for
+# the 495 or 995 that was set, because an unpowered engine loses one energy every tick and each of the
+# six reads is a control round trip on a dedicated leg, so the number has fallen by the time a read
+# answers. Each stage has hundreds of ticks of room, which the six reads cannot use up.
+local _in_stage(energy: number) bool {
+    if capture == 0 {
+        return energy > 250 and energy <= 500
+    }
+    return energy > 750
+}
+
 # Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
-# light to settle, for the section to be meshed again from it, and for that mesh to be drawn. Run
-# after a change it is also what anchors the wait to the change: the swap is a block edit the
-# renderer has not seen, so no settled answer can come from frames drawn before it, and the numbers
-# the engines now hold are drawn by the frame pass in those same frames.
+# light to settle, for the section to be meshed again from it, and for that mesh to be drawn. The port
+# runs it before the engines' numbers are set, which says the scene they are drawn on is the settled
+# one; the reference runs it after load_nbt too, where its swap is also the anchor for the edit. The
+# port's anchor is _drawn.
 local _ready(ctx: TestTickContext) bool {
     if not ctx.world_settled() {
         settled_ticks = 0
