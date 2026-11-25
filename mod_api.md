@@ -168,12 +168,23 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .set_time(ticks: number)
 
 ## Math
+Math.abs(value: number) number
+Math.atan2(y: number, x: number) number
+Math.ceil(value: number) number
 Math.cos(angle: number) number
+Math.cosh(value: number) number
 Math.floor(value: number) number
+Math.floorMod(value: number, divisor: number) number
+Math.max(a: number, b: number) number
+Math.min(a: number, b: number) number
 Math.pi() number
 Math.remainder(value: number, divisor: number) number
+Math.signum(value: number) number
 Math.sin(angle: number) number
+Math.sinh(value: number) number
+Math.sqrt(value: number) number
 Math.tau() number
+Math.toDegrees(radians: number) number
 
 ## Option
 .has() bool
