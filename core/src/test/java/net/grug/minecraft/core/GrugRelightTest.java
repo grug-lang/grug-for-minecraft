@@ -155,39 +155,45 @@ class GrugRelightTest {
     }
 
     @Test
-    void anImmediateRelightIsHandedTheRoomInPiecesEachUpdateAccepts() {
-        // A dedicated server's engine recomputes a box the moment it is given one, so it has no
-        // Room to queue into, and it skips the whole box above 32768 cells just as the queued one
-        // does ("Light too large, skipping!"). A server that hands a radius 13 room's box over
-        // whole therefore relights nothing and resends the light the room was built over (#1522).
-        List<int[]> boxes = new ArrayList<>();
+    void aSettleOnAnEngineThatRecomputesAtOnceNeverHandsItABoxItDrops() {
+        // Both dedicated servers relight a room through settleImmediately, whose engine (beta's
+        // LightUpdate) recomputes a box the moment it is given one and refuses a box over 32768
+        // cells ("Light too large, skipping!"). This fake keeps that number as its own oracle
+        // rather than reading GrugRelight's, so the test cannot agree with the production constant
+        // by construction: a box handed over whole is dropped here and the room stays unlit
+        // (#1522).
+        DroppingRoom room = new DroppingRoom();
 
-        GrugRelight.inPieces(
-                (minX, minY, minZ, maxX, maxY, maxZ) ->
-                        boxes.add(new int[] {minX, minY, minZ, maxX, maxY, maxZ}),
-                0,
-                0,
-                0,
-                28,
-                41,
-                28);
+        int sweeps = GrugRelight.settleImmediately(room, 0, 0, 0, 28, 41, 28, 4);
 
-        assertTrue(boxes.size() > 1, "the room's box should be handed over in pieces");
-        long covered = 0;
-        for (int at = 0; at < boxes.size(); at++) {
-            int[] box = boxes.get(at);
-            assertTrue(
-                    cells(box) <= GrugRelight.MAX_UPDATE_CELLS,
-                    "one update should cover at most " + GrugRelight.MAX_UPDATE_CELLS);
-            assertTrue(
-                    inside(box, new int[] {0, 0, 0, 28, 41, 28}),
-                    "a piece should stay inside the box it was cut from");
-            covered = covered + cells(box);
-            for (int other = at + 1; other < boxes.size(); other++) {
-                assertFalse(overlaps(box, boxes.get(other)), "two pieces should not share a cell");
+        assertEquals(2, sweeps);
+        assertEquals(
+                0,
+                room.dropped,
+                "the engine drops a box over 32768 cells, so none may be that large");
+        assertEquals(2, room.boxesPerSweep.size(), "both sweeps should update the box");
+        for (List<int[]> boxes : room.boxesPerSweep) {
+            long covered = 0;
+            for (int at = 0; at < boxes.size(); at++) {
+                int[] box = boxes.get(at);
+                assertTrue(
+                        inside(box, new int[] {0, 0, 0, 28, 41, 28}),
+                        "a piece should stay inside the box it was cut from");
+                covered = covered + cells(box);
+                for (int other = at + 1; other < boxes.size(); other++) {
+                    assertFalse(
+                            overlaps(box, boxes.get(other)), "two pieces should not share a cell");
+                }
             }
+            assertEquals(35322, covered, "the pieces should cover the room exactly once");
         }
-        assertEquals(35322, covered, "the pieces should cover the box exactly once");
+    }
+
+    @Test
+    void aBoxOfExactlyTheEnginesLimitPassesAndOneCellMoreIsCut() {
+        // Beta's check is a strict >, so 32768 cells are accepted in one update and 32769 are not.
+        assertEquals(1, GrugRelight.pieces(0, 0, 0, 32767, 0, 0).size(), "32768 cells pass");
+        assertEquals(2, GrugRelight.pieces(0, 0, 0, 32768, 0, 0).size(), "32769 cells are cut");
     }
 
     @Test
@@ -335,6 +341,40 @@ class GrugRelightTest {
         @Override
         public int block(int x, int y, int z) {
             return 0;
+        }
+    }
+
+    /**
+     * An engine that recomputes a box the moment it is given one and refuses a box over 32768 cells
+     * the way beta's {@code LightUpdate} does, recording the drop and leaving the room unlit. The
+     * limit is the engine's own number rather than GrugRelight's, so the test cannot pass by
+     * agreeing with the production constant.
+     */
+    private static final class DroppingRoom implements GrugRelight.ImmediateRoom {
+        private final List<List<int[]>> boxesPerSweep = new ArrayList<>();
+        private List<int[]> current;
+        int dropped;
+
+        @Override
+        public void update(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+            int[] box = {minX, minY, minZ, maxX, maxY, maxZ};
+            if (cells(box) > 32768) {
+                this.dropped++;
+                return;
+            }
+            if (this.current == null) {
+                this.current = new ArrayList<>();
+                this.boxesPerSweep.add(this.current);
+            }
+            this.current.add(box);
+        }
+
+        @Override
+        public int block(int x, int y, int z) {
+            // A sweep reads the field after its updates, which is where the next sweep's boxes
+            // begin. The value never changes, so the settle confirms on its second sweep.
+            this.current = null;
+            return 7;
         }
     }
 }
