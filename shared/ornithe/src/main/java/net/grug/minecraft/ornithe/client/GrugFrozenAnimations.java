@@ -1,13 +1,15 @@
 package net.grug.minecraft.ornithe.client;
 
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.MappingResolver;
+import net.grug.minecraft.grug.Grug;
 import net.minecraft.client.render.texture.DynamicTexture;
 
-import java.util.Arrays;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Names the game's own animated sprites, which a capture run leaves on the tile the texture pack
@@ -26,37 +28,58 @@ import java.util.function.Function;
  * <p>A sprite is identified by its binary class name, not by its simple name: two classes in
  * different packages may share a simple name, and a lambda's synthetic hidden class has one that
  * names nothing in the game. A development run sees the named classes and an installed game sees
- * intermediary ones, so the running game's name is unmapped to the named namespace before it is
- * compared, the way {@link net.grug.minecraft.ornithe.GrugVanillaNames} resolves a field. Alpha
- * ships neither the clock nor the nether portal sprite, and naming one costs nothing: it simply
- * never matches.
+ * their intermediary names, so the build writes both namespaces' binary names into {@value #TABLE}
+ * from this loader's mappings (gradle/ornithe-vanilla-names.gradle) and either kind of run matches
+ * its own column. Alpha ships neither the clock nor the nether portal sprite, and the table simply
+ * holds the classes the mappings have.
  */
 public final class GrugFrozenAnimations {
-    private static final Set<String> ANIMATED =
-            new HashSet<>(
-                    Arrays.asList(
-                            "net.minecraft.client.render.texture.WaterSprite",
-                            "net.minecraft.client.render.texture.WaterSideSprite",
-                            "net.minecraft.client.render.texture.LavaSprite",
-                            "net.minecraft.client.render.texture.LavaSideSprite",
-                            "net.minecraft.client.render.texture.FireSprite",
-                            "net.minecraft.client.render.texture.NetherPortalSprite"));
+    /** The table the build writes, one binary class name per namespace per line. */
+    private static final String TABLE = "grug_animated_sprites.txt";
+
+    private static final Set<String> ANIMATED = readAnimatedNames();
 
     private GrugFrozenAnimations() {}
 
     /** Whether {@code texture} is one of the game's own animated sprites. */
     public static boolean isGameAnimation(DynamicTexture texture) {
-        MappingResolver resolver = FabricLoader.getInstance().getMappingResolver();
-        return isGameAnimationName(
-                texture.getClass().getName(), name -> resolver.unmapClassName("named", name));
+        return isGameAnimationName(texture.getClass().getName());
     }
 
-    /**
-     * Whether the class with this binary name is one of the sprites, once {@code toNamed} has
-     * turned the running game's name into the named one. Split out so a unit test can pin the
-     * identity without a game or a mapping resolver.
-     */
-    static boolean isGameAnimationName(String binaryName, Function<String, String> toNamed) {
-        return ANIMATED.contains(toNamed.apply(binaryName));
+    /** Whether the class with this binary name is one of the sprites, for a unit test. */
+    static boolean isGameAnimationName(String binaryName) {
+        return ANIMATED.contains(binaryName);
+    }
+
+    /** The binary names of the sprites in both namespaces, for a unit test. */
+    static Set<String> animatedNames() {
+        return ANIMATED;
+    }
+
+    private static Set<String> readAnimatedNames() {
+        InputStream in = GrugFrozenAnimations.class.getResourceAsStream("/" + TABLE);
+        if (in == null) {
+            throw Grug.fatal("The grug jar holds no " + TABLE);
+        }
+        try (BufferedReader reader =
+                new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            if (reader.readLine() == null) {
+                throw Grug.fatal(TABLE + " is empty");
+            }
+            Set<String> names = new HashSet<>();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                // One sprite's name in each namespace of the header, so both are in the set.
+                for (String name : line.split(" ")) {
+                    names.add(name.replace('/', '.'));
+                }
+            }
+            if (names.isEmpty()) {
+                throw Grug.fatal(TABLE + " names no sprite");
+            }
+            return names;
+        } catch (IOException e) {
+            throw Grug.fatal("Failed to read " + TABLE, e);
+        }
     }
 }

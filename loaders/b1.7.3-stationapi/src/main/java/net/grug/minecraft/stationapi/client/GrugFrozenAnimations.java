@@ -1,13 +1,16 @@
 package net.grug.minecraft.stationapi.client;
 
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.MappingResolver;
+import net.grug.minecraft.grug.Grug;
 import net.minecraft.client.render.texture.DynamicTexture;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Which of the texture manager's dynamic textures a capture run holds still, so an animated tile
@@ -26,25 +29,24 @@ import java.util.function.Function;
  * because which one a given StationAPI build installs is not this loader's to assume.
  *
  * <p>A sprite is identified by its binary class name, not by its simple name, which two classes in
- * different packages can share and which a lambda's synthetic hidden class makes unstable. An
- * installed game names the class in its intermediary namespace, so the name is unmapped to the
- * named one before it is compared. The identity sits here rather than in the mixin because Mixin
- * refuses a non-private method in a mixin class, and a unit test has to reach it.
+ * different packages can share and which a lambda's synthetic hidden class makes unstable. Beta's
+ * classes are named in the namespace the build gives them and in the intermediary one an installed
+ * game runs them in, so {@value #TABLE} holds both and either kind of run matches its own column.
+ * StationAPI's own binders are not in the game's mappings, so their name is the same in both. The
+ * identity sits here rather than in the mixin because Mixin refuses a non-private method in a mixin
+ * class, and a unit test has to reach it.
  */
 public final class GrugFrozenAnimations {
+    /** The table the build writes, one Beta sprite per line with both its binary names. */
+    private static final String TABLE = "grug_animated_sprites.txt";
 
     /**
-     * The binary names of the tiles a capture run holds still, with the clock and compass absent.
+     * StationAPI's own binders, whose binary names are the same in a development and an installed
+     * run.
      */
-    private static final Set<String> ANIMATED =
+    private static final Set<String> BINDERS =
             new HashSet<>(
                     Arrays.asList(
-                            "net.minecraft.client.render.texture.WaterSprite",
-                            "net.minecraft.client.render.texture.WaterSideSprite",
-                            "net.minecraft.client.render.texture.LavaSprite",
-                            "net.minecraft.client.render.texture.LavaSideSprite",
-                            "net.minecraft.client.render.texture.FireSprite",
-                            "net.minecraft.client.render.texture.NetherPortalSprite",
                             "net.modificationstation.stationapi.impl.client.arsenic.renderer.render"
                                     + ".binder.ArsenicStillWater",
                             "net.modificationstation.stationapi.impl.client.arsenic.renderer.render"
@@ -58,21 +60,49 @@ public final class GrugFrozenAnimations {
                             "net.modificationstation.stationapi.impl.client.arsenic.renderer.render"
                                     + ".binder.ArsenicPortal"));
 
+    private static final Set<String> ANIMATED = readAnimatedNames();
+
     private GrugFrozenAnimations() {}
 
     /** Whether {@code texture} is one of the game's own animated tiles. */
     public static boolean isGameAnimation(DynamicTexture texture) {
-        MappingResolver resolver = FabricLoader.getInstance().getMappingResolver();
-        return isGameAnimationName(
-                texture.getClass().getName(), name -> resolver.unmapClassName("named", name));
+        return isGameAnimationName(texture.getClass().getName());
     }
 
-    /**
-     * Whether the class with this binary name is one of the tiles, once {@code toNamed} has
-     * unmapped a name the running game's namespace to the named one. Split out so a unit test can
-     * pin the identity without a game or a mapping resolver.
-     */
-    public static boolean isGameAnimationName(String binaryName, Function<String, String> toNamed) {
-        return ANIMATED.contains(toNamed.apply(binaryName));
+    /** Whether the class with this binary name is one of the tiles, for a unit test. */
+    static boolean isGameAnimationName(String binaryName) {
+        return ANIMATED.contains(binaryName) || BINDERS.contains(binaryName);
+    }
+
+    /** The Beta sprites' binary names in both namespaces, for a unit test. */
+    static Set<String> animatedNames() {
+        return ANIMATED;
+    }
+
+    private static Set<String> readAnimatedNames() {
+        InputStream in = GrugFrozenAnimations.class.getResourceAsStream("/" + TABLE);
+        if (in == null) {
+            throw Grug.fatal("The grug jar holds no " + TABLE);
+        }
+        try (BufferedReader reader =
+                new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            if (reader.readLine() == null) {
+                throw Grug.fatal(TABLE + " is empty");
+            }
+            Set<String> names = new HashSet<>();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                // One sprite's name in each namespace of the header, so both are in the set.
+                for (String name : line.split(" ")) {
+                    names.add(name.replace('/', '.'));
+                }
+            }
+            if (names.isEmpty()) {
+                throw Grug.fatal(TABLE + " names no sprite");
+            }
+            return names;
+        } catch (IOException e) {
+            throw Grug.fatal("Failed to read " + TABLE, e);
+        }
     }
 }
