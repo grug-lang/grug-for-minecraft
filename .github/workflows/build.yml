@@ -415,8 +415,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           # No class changed, so no server class's bytes moved: the legs and the layer jobs could
-          # only tell about a class, and the coverage job that reads their data is skipped too.
-          if [ "$TIER" != 'code' ]; then
+          # only tell about a class, and the coverage job that reads their data is skipped too. Only
+          # an explicit narrower tier skips them, so a step that wrote no output runs them.
+          if [ "$TIER" = 'docs' ] || [ "$TIER" = 'scripts' ]; then
             echo "Skipping the dedicated-server legs and the layer jobs: every changed path is outside what a loader compiles, so no class changed, so no coverage can move."
             echo "dedicated=false" >> "$GITHUB_OUTPUT"
             echo "loaders=[]" >> "$GITHUB_OUTPUT"
