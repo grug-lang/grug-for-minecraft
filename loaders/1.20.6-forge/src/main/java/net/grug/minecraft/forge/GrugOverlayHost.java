@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -10,6 +11,7 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 
+import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.forge.gui.GrugScreen;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugOverlay;
@@ -109,6 +111,16 @@ public final class GrugOverlayHost {
 
         GuiGraphics graphics = event.getGuiGraphics();
         String testMod = GrugTestState.currentTestMod;
+        // A test that parks the cursor for a capture tells the overlay where the mouse is, rather
+        // than relying on the game's own pointer having followed the warp: this version reads its
+        // pointer from the window's callbacks, and a warp raises none of them. The parked point is
+        // in window pixels, which the screen's scaled size turns into the pixels an overlay gets.
+        Window window = Minecraft.getInstance().getWindow();
+        double[] parked =
+                GrugRunWindow.parkedMousePosition(
+                        window.getWidth(), window.getHeight(), container.width, container.height);
+        double mouseX = parked == null ? event.getMouseX() : parked[0];
+        double mouseY = parked == null ? event.getMouseY() : parked[1];
         for (GrugOverlayScripts.Script overlay : overlays()) {
             GrugOverlayGeometry geometry =
                     GrugOverlay.render(
@@ -120,8 +132,8 @@ public final class GrugOverlayHost {
                             container.getGuiTop(),
                             container.getXSize(),
                             container.getYSize(),
-                            event.getMouseX(),
-                            event.getMouseY());
+                            mouseX,
+                            mouseY);
 
             // A test waits for its own mod's overlay, not for another mod's on the same screen: the
             // coverage mod's overlay draws on every screen too, and would otherwise hide a port

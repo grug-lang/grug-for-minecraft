@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125.client;
 
+import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.forge125.GrugGuiAccess;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -637,8 +638,22 @@ public final class GrugOverlayHost {
     /**
      * The scaled mouse position, in the same pixels a screen's mouse handlers take. LWJGL counts y
      * from the bottom of the window, so it is flipped here the way {@code GuiScreen} flips it.
+     *
+     * <p>A test that parked the cursor for a capture is where the overlay must see the mouse; the
+     * point is in window pixels and the screen's scaled size turns it into this one.
      */
     private static void readMouse(Minecraft minecraft, GuiScreen screen) {
+        double[] parked =
+                GrugRunWindow.parkedMousePosition(
+                        minecraft.displayWidth,
+                        minecraft.displayHeight,
+                        screen.width,
+                        screen.height);
+        if (parked != null) {
+            mouseX = (int) parked[0];
+            mouseY = (int) parked[1];
+            return;
+        }
         mouseX = Mouse.getX() * screen.width / minecraft.displayWidth;
         mouseY = screen.height - Mouse.getY() * screen.height / minecraft.displayHeight - 1;
     }
