@@ -118,8 +118,13 @@
 					"tracking_issue": 870
 				},
 				{
-					"what": "The port gives one item on a left or right click and a stack on shift+left or the middle button. A left click while the cursor carries an item deletes that stack unless the clicked item is the one the cursor carries, which can stack with it and is given instead. It has no give-versus-cheat mode and no cheat permission check, and it sends no \"Gave ... to ...\" chat message. Its give is silent, as the reference's default MOUSE_PICKUP give is: only the reference's hotbar-slot and INVENTORY give paths play the pickup sound.",
-					"why": "The overlay host exposes the press's button and whether shift is held, but not JEI's GiveMode setting, its cheat permission, its pickup sound, its chat line or the cursor stack's count and damage, so a give that the reference merges into the carried stack goes into the inventory instead, and the delete compares the two item ids where the reference compares whole stacks.",
+					"what": "While a left click on the grid would delete the stack on the cursor, the reference hides the hover highlight and shows its delete tooltip (\"jei.tooltip.delete.item\", \"Click to delete.\") instead (IngredientGrid.java:130-137,146-153; DeleteItemInputHandler.java:78-81); the port keeps drawing the highlight, and it draws no tooltip of either kind.",
+					"why": "The overlay API asks nothing about the click a hover would make and offers no tooltip, so the port marks the hovered cell from the mouse position alone.",
+					"tracking_issue": 1763
+				},
+				{
+					"what": "The port gives one item on a left or right click and a stack on shift+left or the middle button, into the player's inventory. The reference's default MOUSE_PICKUP give puts the picked stack on the cursor and merges it into a stack the cursor already carries of the same item, up to the item's maximum (ServerCommandUtil.mousePickupItemStack, :137-158). A left click while the cursor carries an item deletes that stack unless the clicked item is the same one, which gives one item instead; an item that cannot stack, such as a tool, a piece of armour, a potion or a filled bucket, is deleted as well, because two of a stack of one never merge. The port has no give-versus-cheat mode and no cheat permission check, and it sends no \"Gave ... to ...\" chat message. Its give is silent, as the reference's default MOUSE_PICKUP give is: only the reference's hotbar-slot and INVENTORY give paths play the pickup sound.",
+					"why": "The overlay host exposes the press's button and whether shift is held, but not JEI's GiveMode setting, its cheat permission, its pickup sound, its chat line, or a way to write the cursor, so a give goes into the inventory where the reference puts the picked stack on the cursor. The delete matches the reference's merge check for an undamaged item, a max-stack-1 item included, since two of a stack of one cannot merge; a carried stack with damage or components is compared by its item id alone, because the host gives the overlay no damage of the cursor's stack, where the reference compares those too.",
 					"tracking_issue": 870
 				},
 				{

@@ -172,8 +172,8 @@ export click(ctx: OverlayClickContext) {
         # DeleteItemInputHandler.shouldDeleteItemOnClick (:94-101) deletes the item on the cursor only
         # when the clicked ingredient cannot stack with it, so a left click on the item the cursor
         # already carries gives one instead of deleting the stack. Its canStack compares one-item
-        # copies (ServerCommandUtil.canStack, :160-164), which equals reproduces for undamaged items
-        # by comparing their ids.
+        # copies (ServerCommandUtil.canStack, :160-163), which merge only when two fit the item's
+        # stack, so a tool, armour, a potion or a filled bucket cannot stack and is deleted.
 
         # A cell past the last item on the page still deletes, which is why this comes before the
         # empty-cell return below: the reference asks only whether the mouse is over the grid's area
@@ -182,7 +182,10 @@ export click(ctx: OverlayClickContext) {
         # screen never sees it.
         carries_clicked: bool = false
         if index < count {
-            carries_clicked = equals(ctx.carried_item().unwrap(), search_item_at(query, index))
+            clicked: Item = search_item_at(query, index)
+            if equals(ctx.carried_item().unwrap(), clicked) {
+                carries_clicked = item_max_stack(clicked) > 1
+            }
         }
         if not carries_clicked {
             ctx.delete_carried_item()

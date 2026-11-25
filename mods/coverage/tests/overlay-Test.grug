@@ -65,7 +65,7 @@ export tick(ctx: TestTickContext) {
         # An earlier test may have left something on the cursor, which the overlay would delete
         # instead of giving.
         ctx.clear_carried_item()
-        ctx.assert(ctx.get_item_max_stack(item_at(0)) > 0, "The first item should have a positive stack size.")
+        ctx.assert(item_max_stack(item_at(0)) > 0, "The first item should have a positive stack size.")
         ctx.assert(ctx.get_held_count(ctx.get_player()) == 0, "The hand should be empty when the test starts.")
         step = 1
         taken: bool = ctx.click_screen(213, 120, 0)

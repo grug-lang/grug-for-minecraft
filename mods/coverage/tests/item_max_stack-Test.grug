@@ -1,0 +1,9 @@
+# item_max_stack is the adapter's answer for one item, which the JEI port's delete rule reads to
+# tell an item that stacks from one that never does: the same item is 64 or one by its kind, so a
+# constant, an item count or the carried count would answer wrongly on one of the two.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(item_max_stack(item(resource_location("minecraft:diamond"))) == 64, "A diamond should stack to 64.")
+        ctx.assert(item_max_stack(item(resource_location("minecraft:diamond_sword"))) == 1, "A diamond sword should not stack.")
+    }
+}

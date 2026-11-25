@@ -233,21 +233,6 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: the largest stack the item can come in, so a test of an overlay can tell a full
-     * stack from one item without knowing which item this version's list puts first.
-     */
-    @GrugGenerated("asks the adapter about the game's own items: a unit test has no game")
-    public static double TestTickContext_get_item_max_stack(long contextId, long itemId) {
-        if (!requireTickContext("TestTickContext.get_item_max_stack", contextId)) return 0.0;
-        return withEntity(
-                "TestTickContext.get_item_max_stack",
-                "item",
-                itemId,
-                item -> (double) GrugCore.getAdapter().getItemMaxStack(item),
-                0.0);
-    }
-
-    /**
      * Test only: puts one of the item on the mouse cursor of the open container screen, which is
      * where the reference reads the stack a left click deletes.
      */
@@ -3232,6 +3217,20 @@ public class HostFunctions {
                                 GrugEntityType.ItemEntity,
                                 GrugCore.getAdapter().createItemEntity(level, x, y, z, itemStack)),
                 0L);
+    }
+
+    /**
+     * The largest stack the item can come in: 64 for a block, one for a tool, a piece of armour, a
+     * potion or a filled bucket. A rule that asks whether two stacks would merge needs it, since
+     * two items that each stack to one never do. A loader with no item list answers 0.
+     */
+    public static double item_max_stack(long itemId) {
+        return withEntity(
+                "item_max_stack",
+                "item",
+                itemId,
+                item -> (double) GrugCore.getAdapter().getItemMaxStack(item),
+                0.0);
     }
 
     public static long item_stack(long itemId, double damage, double count) {

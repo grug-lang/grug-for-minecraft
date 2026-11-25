@@ -303,7 +303,6 @@ String.substring(text: string, start: number, end: number) string
 .get_carried_item() Option[Item]
 .get_client_level() Level
 .get_held_count(player: Player) number
-.get_item_max_stack(item: Item) number
 .get_origin() Vec3
 .get_player() Player
 .gui_height() number
@@ -366,6 +365,7 @@ item(resource_location: ResourceLocation) Item
 item_at(index: number) Item
 item_count() number
 item_entity(level: Level, x: number, y: number, z: number, item_stack: ItemStack) ItemEntity
+item_max_stack(item: Item) number
 item_stack(item: Item, damage: number, count: number) ItemStack
 play_ui_sound(sound: string, volume: number, pitch: number)
 print(value: $Value)
