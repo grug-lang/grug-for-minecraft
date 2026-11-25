@@ -7,6 +7,13 @@ name: Sweep caches
 # store. The rule is in .github/scripts/sweep-caches.py: refs/pull/<n>/merge goes unless pull request
 # n is open, refs/heads/<b> goes unless the branch exists, and main and every other ref stay.
 #
+# The second step prunes main's own older generations (#1805): a key that carries a hash of its
+# inputs writes a new entry beside the old one, and restore-keys hands a run the newest, so an older
+# generation of a family on main is dead weight too. The rule is in
+# .github/scripts/prune-caches.py: the newest two entries of each main family stay and the older
+# ones go. The measurement behind it is in #1805: 147 cache restores across 31 jobs of two days of
+# Build runs were all exact hits or restore-keys fallbacks, and none asked for a missing entry.
+#
 # Both triggers read this file from the default branch or from the branch a dispatch names, and no
 # code of a pull request is checked out by the schedule. A dispatch defaults to a dry run, so
 # trying the sweep deletes nothing until `-f dry_run=false` says so.
@@ -44,3 +51,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
         run: python3 .github/scripts/sweep-caches.py $DRY_RUN
+
+      # main keeps the newest two generations of every key family (#1805). Its older generations are
+      # what the 10 GB store filled up with, and no run can restore one: restore-keys hands back the
+      # newest. A failed deletion fails the job, as the sweep's does.
+      - name: Prune main's older cache generations
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+        run: python3 .github/scripts/prune-caches.py $DRY_RUN
