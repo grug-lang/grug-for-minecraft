@@ -25,7 +25,9 @@ request that has not merged deletes nothing. ``--dry-run`` prints what it would 
 
 Prints one line per ref with the entries and bytes it deleted, then a total, and exits 1 when a
 deletion failed, so a drain that stopped working is a red run rather than a store filling up. An
-entry the cap evicted between the listing and the deletion is reported as already gone, not failed.
+entry the cap evicted between the listing and the deletion is reported as already gone, not failed,
+and a 5xx answer from the cache backend is retried before it counts as one, because a ``DELETE`` is
+idempotent and that answer is transient.
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -44,6 +47,12 @@ PROTECTED_REFS = ("refs/heads/main", "refs/heads/master")
 # The most entries one listing page holds. The script pages until a page comes back short, so an
 # empty store, a store over the cap and a pull request with a full generation all work.
 PER_PAGE = 100
+# How often one deletion is asked for when the cache backend answers 5xx, and how long the second
+# attempt waits, doubled for each further one. Three attempts span a few seconds, which is enough
+# for a backend that is answering transiently and short enough that a store that really refuses one
+# entry cannot hold the job past its own 10 minutes (#1832).
+DELETE_ATTEMPTS = 3
+DELETE_RETRY_SECONDS = 2
 
 
 def api(url: str, token: str, method: str = "GET"):
@@ -122,15 +131,30 @@ def caches_of(api_base: str, slug: str, ref: str, token: str) -> list[dict]:
 
 
 def delete_cache(api_base: str, slug: str, cache_id: int, token: str) -> bool:
-    """Delete one entry, False when it was already gone, and raise on any other refusal."""
+    """Delete one entry, False when it was already gone, and raise on any other refusal.
+
+    A 5xx is the cache backend answering transiently rather than a verdict about the request, and a
+    ``DELETE`` is idempotent, so the same request repeated either deletes the entry or finds it
+    already gone. A 4xx is a verdict about the request or the token, which repeating cannot change.
+    """
     url = f"{api_base}/repos/{slug}/actions/caches/{cache_id}"
-    try:
-        api(url, token, method="DELETE")
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return False
-        raise
-    return True
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            api(url, token, method="DELETE")
+            return True
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return False
+            if e.code < 500 or attempt >= DELETE_ATTEMPTS:
+                raise
+            print(
+                f"drain-caches: {cache_id}: attempt {attempt} of {DELETE_ATTEMPTS} answered"
+                f" {e.code}, retrying",
+                file=sys.stderr,
+            )
+            time.sleep(DELETE_RETRY_SECONDS * attempt)
 
 
 def megabytes(count: int) -> str:
