@@ -1999,7 +1999,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
-    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+    public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
         if (refuseWithoutAClient("TestTickContext.press_screen_key")) return false;
         Minecraft minecraft = MinecraftInstance.get();
         if (minecraft.screen == null) {
@@ -2008,7 +2008,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     "TestTickContext.press_screen_key: There is no screen open to press.");
             return false;
         }
-        return GrugOverlayHost.pressKey(minecraft.screen, key, ctrl, release);
+        return GrugOverlayHost.pressKey(minecraft.screen, key, ctrl, shift, release);
     }
 
     @Override

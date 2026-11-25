@@ -653,7 +653,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
 
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
-    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+    public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (screen == null) {
             Grug.hostFunctionErrorHappened(
@@ -661,7 +661,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
                     "TestTickContext.press_screen_key: There is no screen open to press.");
             return false;
         }
-        return GrugOverlayHost.pressKey(screen, key, ctrl, release);
+        return GrugOverlayHost.pressKey(screen, key, ctrl, shift, release);
     }
 
     @Override

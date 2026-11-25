@@ -1092,10 +1092,21 @@ public final class GrugControlServer {
      * Asks the starter's client to press a key on its open screen, and answers whether an overlay
      * took it (#1094).
      */
-    public boolean pressScreenKey(int key, boolean ctrl, boolean release) throws ControlException {
+    public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release)
+            throws ControlException {
         forgetGeometry();
+        // The shift flag rides in the fourth number, which an older client ignores, so a press
+        // without shift is read the same by both.
         byte result =
-                call(GrugControlWire.CALL_PRESS_SCREEN_KEY, "", key, ctrl ? 1 : 0, release ? 1 : 0);
+                call(
+                        GrugControlWire.CALL_PRESS_SCREEN_KEY,
+                        "",
+                        key,
+                        ctrl ? 1 : 0,
+                        release ? 1 : 0,
+                        shift ? 1 : 0,
+                        0,
+                        0);
         return yesOrNo(result, "press_screen_key");
     }
 
@@ -1413,7 +1424,7 @@ public final class GrugControlServer {
             case GrugControlWire.CALL_PRESS_SCREEN_KEY:
                 String key = screenKeyProblem(volume);
                 if (key != null) return key;
-                return flagProblem(pitch, third);
+                return flagProblem(pitch, third, fourth);
             case GrugControlWire.CALL_SCROLL_SCREEN:
                 return scrollProblem(volume, pitch, third);
             case GrugControlWire.CALL_CLICK_SCREEN:
@@ -1576,8 +1587,8 @@ public final class GrugControlServer {
     }
 
     /** Why the two flags of a forwarded key press are not booleans, or null. */
-    private static String flagProblem(double ctrl, double release) {
-        for (double flag : new double[] {ctrl, release}) {
+    private static String flagProblem(double... flags) {
+        for (double flag : flags) {
             if (flag != 0 && flag != 1) {
                 return "A key press flag has to be 0 or 1, and was " + flag + ".";
             }

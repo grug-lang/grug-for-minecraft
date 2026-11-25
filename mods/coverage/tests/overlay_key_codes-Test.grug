@@ -1,0 +1,85 @@
+# A key with no character of its own reaches an overlay as its number from 256 up, the same on every
+# loader (#1748), and shift is the event's own flag. The coverage overlay takes one of those keys
+# while shift is held and leaves it alone without shift, so a test can prove both the number and the
+# flag. A shifted letter and digit are taken as the characters shift types, which proves a test press
+# carries the shifted character. The letter M with control covers a test press of an API key code
+# that is not this loader's key index: 77 is numpad 6 on LWJGL 2, so a press the overlay saw as 77 was
+# translated by name. It does not prove anything about a mod's own key code (#1749).
+started: bool = false
+opened: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() {
+            # This loader draws no overlays; the deviation is in about.json.
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens, as overlay-Test
+    # explains (#1287).
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    # The character code a letter has reaches an overlay as that code on every loader, not as the
+    # key index the loader happens to give the letter.
+    ctx.assert(ctx.press_screen_key(77, true, false, true), "Ctrl+M should reach the overlay as 77.")
+
+    # A shifted character is the one shift produces: M rather than m, ! rather than 1. The overlay
+    # takes those two only while shift is held, so a press that typed the unshifted character would
+    # not be taken (#1748).
+    ctx.assert(ctx.press_screen_key(77, false, true, true), "Shift+M should type M.")
+    ctx.assert(ctx.press_screen_key(49, false, true, true), "Shift+1 should type !.")
+    ctx.assert(not ctx.press_screen_key(77, false, false, true), "M without shift should type m and be left to the screen.")
+
+    # Every key with no character of its own reaches an overlay as its number from 256 up, and shift
+    # arrives with it.
+    ctx.assert(ctx.press_screen_key(256, false, true, true), "Shift+Escape should reach the overlay as 256.")
+    ctx.assert(ctx.press_screen_key(257, false, true, true), "Shift+Enter should reach the overlay as 257.")
+    ctx.assert(ctx.press_screen_key(260, false, true, true), "Shift+Insert should reach the overlay as 260.")
+    ctx.assert(ctx.press_screen_key(261, false, true, true), "Shift+Delete should reach the overlay as 261.")
+    ctx.assert(ctx.press_screen_key(262, false, true, true), "Shift+Right should reach the overlay as 262.")
+    ctx.assert(ctx.press_screen_key(263, false, true, true), "Shift+Left should reach the overlay as 263.")
+    ctx.assert(ctx.press_screen_key(264, false, true, true), "Shift+Down should reach the overlay as 264.")
+    ctx.assert(ctx.press_screen_key(265, false, true, true), "Shift+Up should reach the overlay as 265.")
+    ctx.assert(ctx.press_screen_key(266, false, true, true), "Shift+Page up should reach the overlay as 266.")
+    ctx.assert(ctx.press_screen_key(267, false, true, true), "Shift+Page down should reach the overlay as 267.")
+    ctx.assert(ctx.press_screen_key(268, false, true, true), "Shift+Home should reach the overlay as 268.")
+    ctx.assert(ctx.press_screen_key(269, false, true, true), "Shift+End should reach the overlay as 269.")
+
+    # The same key without shift is left to the screen, so the flag is told apart from a press that
+    # carries no key at all.
+    ctx.assert(not ctx.press_screen_key(268, false, false, true), "Home without shift should be left to the screen.")
+    ctx.assert(not ctx.press_screen_key(262, false, false, true), "Right without shift should be left to the screen.")
+    ctx.close_screen()
+}

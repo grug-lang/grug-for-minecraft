@@ -220,7 +220,8 @@ public final class GrugOverlayHost {
      *
      * <p>The key is the number {@code OverlayKeyContext.key} documents and the character is the one
      * the game produced, with shift applied, so a letter arrives as both and a punctuation key as a
-     * character only. A press the game reports again while its key is held is delivered with {@code
+     * character only. Shift is the event's own flag, which a text field extends its selection with.
+     * A press the game reports again while its key is held is delivered with {@code
      * OverlayKeyContext.repeat} true, so a toggle flips once per press and a text field types its
      * character again.
      *
@@ -237,11 +238,12 @@ public final class GrugOverlayHost {
         if (code == 0 && typed == 0) return false;
 
         boolean ctrl = isControlDown();
+        boolean shift = isShiftDown();
         boolean repeat = isRepeat();
         boolean chord = typed > 0 ? GrugOverlay.characterEventIsChord(ctrl, isAltDown()) : ctrl;
         for (GrugOverlayScripts.Script overlay : overlays()) {
             if (GrugOverlay.key(
-                    overlay.entityHandle, overlay.keyFnId, code, typed, chord, repeat)) {
+                    overlay.entityHandle, overlay.keyFnId, code, typed, chord, shift, repeat)) {
                 GrugOverlay.noteTestPressTaken();
                 return true;
             }
@@ -254,6 +256,12 @@ public final class GrugOverlayHost {
         if (testPress) return testCtrl;
         return Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
                 || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
+    }
+
+    /** Whether shift is held, or whether the test press being delivered says it is. */
+    private static boolean isShiftDown() {
+        if (testPress) return testShift;
+        return Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
     }
 
     /**
@@ -274,6 +282,7 @@ public final class GrugOverlayHost {
     private static boolean testPress = false;
     private static boolean testCtrl = false;
     private static boolean testRepeat = false;
+    private static boolean testShift = false;
 
     /** The key a test holds down with {@code release} false, or -1. */
     private static int testHeld = -1;
@@ -281,16 +290,17 @@ public final class GrugOverlayHost {
     /**
      * Test only: delivers one press of the key whose character code is {@code charCode} through the
      * screen's own key path, so the hook that cancels the key is the one under test, and answers
-     * whether an overlay took it. The press types the character that number produces without shift,
-     * as a real press does, and a number below 128 that names no key is only a character, while a
-     * number from 128 up is no character and has no key here, which the press reports as an error.
-     * A number held with {@code release} false makes the next press of it a repeat, as the game
-     * reports one.
+     * whether an overlay took it. The press types the character that number produces, with shift
+     * applied, as a real press does, and a number below 128 that names no key is only a character,
+     * while a number from 128 up is one of the keys with no character of its own and is pressed as
+     * that key. Shift is held for the press when {@code shift} says so. A number held with {@code
+     * release} false makes the next press of it a repeat, as the game reports one.
      */
-    public static boolean pressKey(Object screen, int charCode, boolean ctrl, boolean release) {
+    public static boolean pressKey(
+            Object screen, int charCode, boolean ctrl, boolean shift, boolean release) {
         if (!(screen instanceof GrugScreenGeometry)) return false;
-        int key = Keyboard.getKeyIndex(GrugOverlay.keyNameForCode(charCode));
-        int typed = ctrl ? 0 : GrugOverlay.typedCharacterFor(charCode);
+        int key = keyIndex(charCode);
+        int typed = ctrl ? 0 : GrugOverlay.typedCharacterFor(charCode, shift);
         if (key == Keyboard.KEY_NONE && typed == 0) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -301,13 +311,26 @@ public final class GrugOverlayHost {
         }
         testPress = true;
         testCtrl = ctrl;
+        testShift = shift;
         testRepeat = charCode == testHeld;
         testHeld = release ? -1 : charCode;
         try {
             return ((GrugScreenGeometry) screen).grug$pressKey((char) typed, key);
         } finally {
             testPress = false;
+            testShift = false;
         }
+    }
+
+    /**
+     * The key index this loader presses for the API's key code {@code code}, or {@link
+     * Keyboard#KEY_NONE} when it has no such key: this loader's own numbering is looked up from the
+     * name the code has here, so an API code never reaches a loader as an index of its own. LWJGL
+     * 2's index for the letter L is not 76, which is the numpad's 5, and this is the one place in
+     * this loader that difference is applied.
+     */
+    public static int keyIndex(int code) {
+        return Keyboard.getKeyIndex(GrugOverlay.keyNameForCode(code));
     }
 
     /** LWJGL 2's wheel delta for one notch, which turns the delta into the API's notches. */

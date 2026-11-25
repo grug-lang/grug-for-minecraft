@@ -69,7 +69,7 @@ public final class GrugControlForge {
                         // again: #1425 took 7 for the cursor clear, #1430 took 8 for the forwarded
                         // forced normalization, #1449 took 9 with the call code 21, #1441 took 10
                         // with the call code 22 and the world overlay calls took 11 with the call
-                        // code 23, so this sits at 11. A pair built either side of this refuses
+                        // code 23, so this sat at 11. A pair built either side of this refuses
                         // each other: the older build does not know call 23. #1705 took 12 for its
                         // SETTLE_LIGHT_DIVERGED answer to the world-settled call, and #1393 took
                         // 13 for the click barrier the client sends behind the game's own click
@@ -78,8 +78,9 @@ public final class GrugControlForge {
                         // inventory: past every number an open or a closed branch has taken,
                         // because two builds that call themselves the same while carrying
                         // different message sets silently disagree, and a client that never sends
-                        // the barrier would instead trip the server's wait.
-                        .networkProtocolVersion(15)
+                        // the barrier would instead trip the server's wait. #1748 takes 16 for the
+                        // shift flag in the press call's fourth slot.
+                        .networkProtocolVersion(16)
                         .optional()
                         .simpleChannel()
                         .messageBuilder(Packet.class, NetworkProtocol.PLAY)

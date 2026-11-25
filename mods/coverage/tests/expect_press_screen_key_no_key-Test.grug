@@ -3,10 +3,12 @@
 # and have no key for anything that is not a key code: a lowercase letter such as this 'a' is not
 # one, while space, backspace, the digits and the capital letters are. 1.20.6 has no GLFW key for it
 # and types no character for it either, so it reports the same error (#1741). A number from 128 up is
-# never a character a press types, so 1.20.6 presses GLFW's own key for it: 256 is Escape, which the
-# screen acts on, where a loader before 1.20.6 has no key for that number either. On a dedicated
-# server the press is forwarded to the joined client, and the error the client raises there cannot
-# reach the server's test, so the test leaves the dedicated leg alone.
+# never a character a press types: 1.20.6 presses GLFW's own key for the numbers the API names (256
+# is Escape, which the screen acts on) and the four loaders before it press the key they have for
+# the same name, while a number in that range that names no key is a press that presses nothing,
+# which expect_press_screen_key_no_named_key asks for (#1748). On a dedicated server the press is
+# forwarded to the joined client, and the error the client raises there cannot reach the server's
+# test, so the test leaves the dedicated leg alone.
 started: bool = false
 opened: bool = false
 waited: number = 0
@@ -46,7 +48,7 @@ export tick(ctx: TestTickContext) {
     }
 
     if me.loader_name() == "1.20.6-forge" {
-        ctx.assert(not ctx.press_screen_key(256, false, true), "Escape should be left to the overlay.")
+        ctx.assert(not ctx.press_screen_key(256, false, false, true), "Escape should be left to the overlay.")
         ctx.assert(not ctx.screen_open(), "Escape should close the screen.")
         ctx.close_screen()
     }
@@ -54,5 +56,5 @@ export tick(ctx: TestTickContext) {
     # is asked for last, after Escape has closed the screen on 1.20.6: the error it raises aborts the
     # test, which expecting it turns into a pass.
     ctx.expect_error("TestTickContext.press_screen_key: The game has no key for character code 97.")
-    ctx.press_screen_key(97, true, true)
+    ctx.press_screen_key(97, true, false, true)
 }

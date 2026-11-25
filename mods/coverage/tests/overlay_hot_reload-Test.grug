@@ -94,7 +94,7 @@ export tick(ctx: TestTickContext) {
         if blank == 1 {
             # A swapped overlay's new text exports nothing, so the key, press and wheel it used to
             # take are left to the screen as well.
-            ctx.assert(not ctx.press_screen_key(75, true, true), "A swapped overlay should not take a key.")
+            ctx.assert(not ctx.press_screen_key(75, true, false, true), "A swapped overlay should not take a key.")
             ctx.assert(not ctx.click_screen(1, 1, 0), "A swapped overlay should not take a press.")
             ctx.assert(not ctx.scroll_screen(1, 1, -1), "A swapped overlay should not take a wheel.")
         }

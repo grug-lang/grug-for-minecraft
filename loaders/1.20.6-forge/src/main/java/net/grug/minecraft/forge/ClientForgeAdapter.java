@@ -1043,7 +1043,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
 
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
-    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+    public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
         if (refuseWithoutAClient("TestTickContext.press_screen_key")) return false;
         // A number that names no key of its own and types no character is a press that presses
         // nothing, which a loader before 1.20.6 reports the same way (#1741).
@@ -1058,7 +1058,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
         // The same path a real key takes: the pre event the overlay listens to, fired on the
         // client thread, and the screen's own handler only when nothing cancelled it.
         boolean[] outcome = new boolean[2];
-        onClientThread(() -> pressKeyOnClient(key, ctrl, release, outcome));
+        onClientThread(() -> pressKeyOnClient(key, ctrl, shift, release, outcome));
         if (outcome[0]) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -1067,8 +1067,10 @@ public class ClientForgeAdapter extends ForgeAdapter {
         return outcome[1];
     }
 
+    /** Presses the key on the client thread, with shift and control as the test asked for it. */
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
-    private void pressKeyOnClient(int key, boolean ctrl, boolean release, boolean[] outcome) {
+    private void pressKeyOnClient(
+            int key, boolean ctrl, boolean shift, boolean release, boolean[] outcome) {
         Screen screen = Minecraft.getInstance().screen;
         if (screen == null) {
             outcome[0] = true;
@@ -1076,6 +1078,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
         }
         GrugOverlay.beginTestPress();
         int modifiers = ctrl ? GrugOverlayHost.controlModifier() : 0;
+        if (shift) modifiers |= GrugOverlayHost.shiftModifier();
         int glfwKey = GrugOverlayHost.glfwKey(key);
         if (glfwKey >= 0) {
             if (!ForgeEventFactoryClient.onScreenKeyPressedPre(screen, glfwKey, 0, modifiers)) {
@@ -1083,8 +1086,8 @@ public class ClientForgeAdapter extends ForgeAdapter {
             }
         }
         // A real press types its character as a second event on this version, so the test does too;
-        // control held types none.
-        int character = ctrl ? 0 : GrugOverlay.typedCharacterFor(key);
+        // control held types none, and shift types the character shift puts on the key.
+        int character = ctrl ? 0 : GrugOverlay.typedCharacterFor(key, shift);
         if (character > 0) {
             if (!ForgeEventFactoryClient.onScreenCharTypedPre(
                     screen, (char) character, modifiers)) {

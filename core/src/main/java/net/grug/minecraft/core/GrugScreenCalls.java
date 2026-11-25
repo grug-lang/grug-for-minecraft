@@ -214,9 +214,9 @@ public final class GrugScreenCalls {
         }
 
         /** Whether the client's overlay took the key, false when the client could not be asked. */
-        public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
             try {
-                return server.get().pressScreenKey(key, ctrl, release);
+                return server.get().pressScreenKey(key, ctrl, shift, release);
             } catch (GrugControlServer.ControlException e) {
                 failed.accept("TestTickContext.press_screen_key: " + e.getMessage());
                 return false;

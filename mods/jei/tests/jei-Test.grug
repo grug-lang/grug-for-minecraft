@@ -272,7 +272,7 @@ export tick(ctx: TestTickContext) {
         ctx.assert(_page_count(ctx) >= 2, "The item list should hold more than one page of items.")
         ctx.assert(ctx.click_screen(_field_x(ctx), _field_y(ctx), 0), "The overlay should take a press on its search field.")
         ctx.assert(ctx.click_screen(_next_x(ctx), _button_y(), 0), "The overlay should take a press on its next page button.")
-        ctx.assert(not ctx.press_screen_key(65, false, true), "A press on the next page button should unfocus the search field.")
+        ctx.assert(not ctx.press_screen_key(65, false, false, true), "A press on the next page button should unfocus the search field.")
         waited = 0
         step = 11
         taken: bool = ctx.click_screen(_cell_x(ctx, 0), _cell_y(0), 1)
@@ -386,7 +386,7 @@ export tick(ctx: TestTickContext) {
 
 # A typed letter, which the overlay takes while the search field has the keyboard.
 local _press_key(ctx: TestTickContext, key: number) {
-    ctx.assert(ctx.press_screen_key(key, false, true), "A typed letter should be taken while the search field is focused.")
+    ctx.assert(ctx.press_screen_key(key, false, false, true), "A typed letter should be taken while the search field is focused.")
 }
 
 # The search field is the 20 pixel bar 6 pixels above the bottom of the screen, as wide as the grid.

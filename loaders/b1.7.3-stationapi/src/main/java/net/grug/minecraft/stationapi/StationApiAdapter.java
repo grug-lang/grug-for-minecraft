@@ -1961,7 +1961,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
-    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+    public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
         if (refuseWithoutAClient("TestTickContext.press_screen_key")) return false;
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
@@ -1972,7 +1972,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
                     "TestTickContext.press_screen_key: There is no screen open to press.");
             return false;
         }
-        return GrugOverlayHost.pressKey(mc.currentScreen, key, ctrl, release);
+        return GrugOverlayHost.pressKey(mc.currentScreen, key, ctrl, shift, release);
     }
 
     @Override

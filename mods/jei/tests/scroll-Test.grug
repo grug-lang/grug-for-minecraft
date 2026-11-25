@@ -69,9 +69,9 @@ export tick(ctx: TestTickContext) {
         # A wheel that did not move is not a movement to take.
         ctx.assert(not ctx.scroll_screen(_cell_x(ctx, 0), _cell_y(0), 0), "A wheel that did not turn should be left to the screen.")
         # Hidden, the list takes no wheel; Ctrl+O shows it again.
-        ctx.assert(ctx.press_screen_key(79, true, true), "Ctrl+O should hide the list.")
+        ctx.assert(ctx.press_screen_key(79, true, false, true), "Ctrl+O should hide the list.")
         ctx.assert(not ctx.scroll_screen(_cell_x(ctx, 0), _cell_y(0), -1), "A hidden list should take no wheel.")
-        ctx.assert(ctx.press_screen_key(79, true, true), "Ctrl+O should show the list again.")
+        ctx.assert(ctx.press_screen_key(79, true, false, true), "Ctrl+O should show the list again.")
         # Down shows the second page, whose first cell is the item after the first page.
         expected_index = per_page
         _scroll(ctx, -1)

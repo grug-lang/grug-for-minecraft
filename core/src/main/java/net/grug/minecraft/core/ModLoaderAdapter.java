@@ -1336,7 +1336,7 @@ public interface ModLoaderAdapter {
      * overlay took it.
      */
     @GrugGenerated("default only: every current adapter drives a synthetic key press")
-    default boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+    default boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr,
                 "TestTickContext.press_screen_key: This loader cannot press a key yet.");

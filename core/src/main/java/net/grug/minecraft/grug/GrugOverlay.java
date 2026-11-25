@@ -122,18 +122,56 @@ public final class GrugOverlay {
      * The number an overlay's {@code key()} is given for a key whose LWJGL 2 name is {@code
      * keyName}, or -1 when the key is not asked: the upper case character code of a letter or a
      * digit key, which is the same number on every loader, 32 for the space bar and 8 for
-     * backspace, which are the ASCII codes. Any other name longer than one character (an arrow, a
-     * function key, a numpad key) and a name that is not a letter or a digit are not asked.
+     * backspace, which are the ASCII codes, and one of {@link #KEY_ESCAPE} to {@link #KEY_END} for
+     * a key with no character of its own. Any other name longer than one character (a function key,
+     * a numpad key) and a name that is not a letter or a digit are not asked.
      */
     public static int keyCodeForName(String keyName) {
         if (keyName == null) return -1;
         if (keyName.equals("SPACE")) return KEY_SPACE;
         if (keyName.equals("BACK")) return KEY_BACKSPACE;
+        if (keyName.equals("ESCAPE")) return KEY_ESCAPE;
+        if (keyName.equals("RETURN")) return KEY_ENTER;
+        if (keyName.equals("INSERT")) return KEY_INSERT;
+        if (keyName.equals("DELETE")) return KEY_DELETE;
+        if (keyName.equals("RIGHT")) return KEY_RIGHT;
+        if (keyName.equals("LEFT")) return KEY_LEFT;
+        if (keyName.equals("DOWN")) return KEY_DOWN;
+        if (keyName.equals("UP")) return KEY_UP;
+        if (keyName.equals("PRIOR")) return KEY_PAGE_UP;
+        if (keyName.equals("NEXT")) return KEY_PAGE_DOWN;
+        if (keyName.equals("HOME")) return KEY_HOME;
+        if (keyName.equals("END")) return KEY_END;
         if (keyName.length() != 1) return -1;
         char c = Character.toUpperCase(keyName.charAt(0));
         boolean letter = c >= 'A' && c <= 'Z';
         boolean digit = c >= '0' && c <= '9';
         return letter || digit ? c : -1;
+    }
+
+    /**
+     * Whether a key() number is one of the keys with no character of its own, {@link #KEY_ESCAPE}
+     * to {@link #KEY_END}: a loader whose own codes are these passes the number through, and one
+     * that numbers its keys another way translates it with {@link #keyNameForCode}.
+     */
+    public static boolean isNamedKey(int code) {
+        switch (code) {
+            case KEY_ESCAPE:
+            case KEY_ENTER:
+            case KEY_INSERT:
+            case KEY_DELETE:
+            case KEY_RIGHT:
+            case KEY_LEFT:
+            case KEY_DOWN:
+            case KEY_UP:
+            case KEY_PAGE_UP:
+            case KEY_PAGE_DOWN:
+            case KEY_HOME:
+            case KEY_END:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /**
@@ -143,6 +181,18 @@ public final class GrugOverlay {
     public static String keyNameForCode(int code) {
         if (code == KEY_SPACE) return "SPACE";
         if (code == KEY_BACKSPACE) return "BACK";
+        if (code == KEY_ESCAPE) return "ESCAPE";
+        if (code == KEY_ENTER) return "RETURN";
+        if (code == KEY_INSERT) return "INSERT";
+        if (code == KEY_DELETE) return "DELETE";
+        if (code == KEY_RIGHT) return "RIGHT";
+        if (code == KEY_LEFT) return "LEFT";
+        if (code == KEY_DOWN) return "DOWN";
+        if (code == KEY_UP) return "UP";
+        if (code == KEY_PAGE_UP) return "PRIOR";
+        if (code == KEY_PAGE_DOWN) return "NEXT";
+        if (code == KEY_HOME) return "HOME";
+        if (code == KEY_END) return "END";
         return String.valueOf((char) code);
     }
 
@@ -188,9 +238,6 @@ public final class GrugOverlay {
      * <p>A number above the printable ASCII range is not a character a press types: on a loader
      * that takes the game's own key codes it is one of those instead (256 is Escape, which a test
      * presses through the same call), so it types nothing.
-     *
-     * <p>{@code TestTickContext.press_screen_key} cannot press shift, so this is the whole set a
-     * test can type. A real press carries the game's own character instead, shift included.
      */
     public static int typedCharacterFor(int keyCode) {
         boolean letter = keyCode >= 'A' && keyCode <= 'Z';
@@ -201,11 +248,58 @@ public final class GrugOverlay {
         return characterCode(keyCode);
     }
 
+    /**
+     * The character a test's press of the key() number {@code keyCode} types while {@code shift} is
+     * held, or 0 for a key that types nothing either way. Shift applies the character a US keyboard
+     * puts on the key, as the game's own character event does: M rather than m, ! rather than 1 and
+     * : rather than ;. The space bar keeps its space, and a number that already names a shifted
+     * character, such as ! itself, keeps that character.
+     *
+     * <p>So a press of 77 with shift delivers the pair a keyboard produces, key 77 and character
+     * 77, rather than the key 77 with the character m that no keyboard sends (#1748).
+     */
+    public static int typedCharacterFor(int keyCode, boolean shift) {
+        boolean letter = keyCode >= 'A' && keyCode <= 'Z';
+        if (letter) return shift ? keyCode : keyCode + 32;
+        int unshifted = typedCharacterFor(keyCode);
+        if (!shift || unshifted == 0) return unshifted;
+        int at = UNSHIFTED_CHARACTERS.indexOf(unshifted);
+        return at < 0 ? unshifted : SHIFTED_CHARACTERS.charAt(at);
+    }
+
+    /**
+     * The characters a US keyboard gives an unshifted key, paired with {@link #SHIFTED_CHARACTERS}.
+     */
+    private static final String UNSHIFTED_CHARACTERS = "`1234567890-=[]\\;',./";
+
+    /** What the same keys give in {@link #UNSHIFTED_CHARACTERS} order while shift is held. */
+    private static final String SHIFTED_CHARACTERS = "~!@#$%^&*()_+{}|:\"<>?";
+
     /** The code a key pass gives the space bar, the same on every loader. */
     public static final int KEY_SPACE = 32;
 
     /** The code a key pass gives backspace, the same on every loader. */
     public static final int KEY_BACKSPACE = 8;
+
+    /**
+     * The codes a key pass gives a key with no character of its own, the same on every loader: they
+     * are GLFW's codes for those keys, which every loader maps its own keyboard onto. A text field
+     * reads them to move its caret, delete and paste; a mod reads escape and enter to give the
+     * keyboard back to the screen.
+     */
+    public static final int KEY_ESCAPE = 256;
+
+    public static final int KEY_ENTER = 257;
+    public static final int KEY_INSERT = 260;
+    public static final int KEY_DELETE = 261;
+    public static final int KEY_RIGHT = 262;
+    public static final int KEY_LEFT = 263;
+    public static final int KEY_DOWN = 264;
+    public static final int KEY_UP = 265;
+    public static final int KEY_PAGE_UP = 266;
+    public static final int KEY_PAGE_DOWN = 267;
+    public static final int KEY_HOME = 268;
+    public static final int KEY_END = 269;
 
     /** Whether this loader draws overlays on the inventory and container screens. */
     public static boolean overlaySupported() {
@@ -444,7 +538,10 @@ public final class GrugOverlay {
         return button;
     }
 
-    /** Whether shift was held for the press, which is half of the reference's stack binding. */
+    /**
+     * Whether shift was held: for a press, half of the reference's stack binding; for a key pass,
+     * what a text field extends its selection with.
+     */
     public static boolean shift() {
         return shift;
     }
@@ -509,15 +606,18 @@ public final class GrugOverlay {
      * Opens a key pass for one key press or one typed character, with nothing recorded in it, for
      * the screen the geometry describes. The key is the numbers {@code OverlayKeyContext.key}
      * answers (0 when the press carries no such key), the character is the printable character the
-     * press typed (0 when it typed none), {@code ctrl} says whether control was held and {@code
-     * repeat} whether the game reported the press as a repeat of a held key.
+     * press typed (0 when it typed none), {@code ctrl} says whether control was held, {@code shift}
+     * whether shift was, and {@code repeat} whether the game reported the press as a repeat of a
+     * held key.
      */
-    public static void openKey(double keyCode, double character, boolean ctrl, boolean repeat) {
+    public static void openKey(
+            double keyCode, double character, boolean ctrl, boolean shift, boolean repeat) {
         open(true, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, false);
         keyPass = true;
         GrugOverlay.keyCode = keyCode;
         GrugOverlay.character = character;
         GrugOverlay.ctrl = ctrl;
+        GrugOverlay.shift = shift;
         GrugOverlay.repeat = repeat;
     }
 
@@ -837,10 +937,11 @@ public final class GrugOverlay {
             double keyCode,
             double character,
             boolean ctrl,
+            boolean shift,
             boolean repeat) {
         GrugStateLock.lock();
         try {
-            openKey(keyCode, character, ctrl, repeat);
+            openKey(keyCode, character, ctrl, shift, repeat);
             boolean wasTaken;
             try {
                 if (entityHandle != 0 && keyFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {

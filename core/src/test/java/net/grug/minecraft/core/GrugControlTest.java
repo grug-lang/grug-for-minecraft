@@ -174,7 +174,8 @@ class GrugControlTest {
                 }
 
                 @Override
-                public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+                public boolean pressScreenKey(
+                        int key, boolean ctrl, boolean shift, boolean release) {
                     throw new AssertionError("no screen call was expected");
                 }
 
@@ -392,7 +393,7 @@ class GrugControlTest {
         }
 
         @Override
-        public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
             throw new AssertionError("no screen call was expected");
         }
 
@@ -532,7 +533,7 @@ class GrugControlTest {
         }
 
         @Override
-        public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
             throw new AssertionError("no screen call was expected");
         }
 
@@ -706,8 +707,8 @@ class GrugControlTest {
         }
 
         @Override
-        public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
-            seen.add("key " + key + " " + ctrl + " " + release);
+        public boolean pressScreenKey(int key, boolean ctrl, boolean shift, boolean release) {
+            seen.add("key " + key + " " + ctrl + " " + shift + " " + release);
             return keyTaken;
         }
 
@@ -1991,11 +1992,12 @@ class GrugControlTest {
                                 GrugControlWire.answerNumbers(
                                         9, new double[] {1, 2, 3, 4, Double.NaN})));
 
-        // A screen call carries its arguments in the call's three number slots.
+        // A screen call carries its arguments in the call's number slots: a press puts its key,
+        // control, release and shift in the first four, in that order (#1748).
         GrugControlWire.Message press =
                 GrugControlWire.decode(
                         GrugControlWire.callRequest(
-                                8, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75, 1, 0));
+                                8, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75, 1, 0, 1, 0, 0));
         assertEquals(75, press.volume);
         assertEquals(1, press.pitch);
         assertEquals(0, press.third);
@@ -2020,7 +2022,7 @@ class GrugControlTest {
         assertEquals(0.25, selection.fourth);
         assertEquals(0.5, selection.fifth);
         assertEquals(0.75, selection.sixth);
-        assertEquals(0, press.fourth);
+        assertEquals(1, press.fourth);
         assertEquals(0, press.fifth);
         assertEquals(0, press.sixth);
         // Each of the point's three numbers is checked, not only the first.
@@ -2243,7 +2245,7 @@ class GrugControlTest {
         caller.forgetSettledFrames();
         assertEquals(0L, caller.screenIdentity());
         assertEquals(0.0, caller.screenRead(GrugScreenCalls.GUI_LEFT));
-        assertTrue(caller.pressScreenKey(1, true, false));
+        assertTrue(caller.pressScreenKey(1, true, false, false));
         assertTrue(caller.scrollScreen(2, 3, -1));
         caller.closeScreen();
         assertTrue(caller.clickScreen(4, 5, 0));
@@ -3660,7 +3662,7 @@ class GrugControlTest {
 
         assertTrue(forwarded.screenOpen());
         assertEquals(176.0, forwarded.read(GrugScreenCalls.GUI_WIDTH));
-        assertTrue(forwarded.pressScreenKey(75, true, false));
+        assertTrue(forwarded.pressScreenKey(75, true, true, false));
         assertFalse(forwarded.scrollScreen(10, 20, -1));
         assertFalse(forwarded.clickScreen(12, 34, 0));
         forwarded.openInventory();
@@ -3668,7 +3670,7 @@ class GrugControlTest {
         screens.open = false;
         assertFalse(forwarded.screenOpen());
         screens.keyTaken = false;
-        assertFalse(forwarded.pressScreenKey(75, false, true));
+        assertFalse(forwarded.pressScreenKey(75, false, false, true));
         screens.scrollTaken = true;
         assertTrue(forwarded.scrollScreen(10, 20, 1));
         screens.clickTaken = true;
@@ -3685,12 +3687,12 @@ class GrugControlTest {
                         "read gui_width",
                         "read gui_height",
                         "read screen_width",
-                        "key 75 true false",
+                        "key 75 true true false",
                         "scroll 10.0 20.0 -1.0",
                         "click 12.0 34.0 0",
                         "openInventory",
                         "screenOpen",
-                        "key 75 false true",
+                        "key 75 false false true",
                         "scroll 10.0 20.0 1.0",
                         "click 12.0 34.0 1",
                         "close"),
@@ -3746,7 +3748,7 @@ class GrugControlTest {
 
         // Each call that can move or replace the screen drops the batch before it sends, so the
         // read after it asks the client again and the read after that one does not.
-        server.pressScreenKey(75, true, false);
+        server.pressScreenKey(75, true, false, false);
         assertReasked(server, loop);
         server.scrollScreen(10, 20, 1);
         assertReasked(server, loop);
@@ -4081,7 +4083,7 @@ class GrugControlTest {
         // Each of the four calls that can send a packet marks the work once, and one drain clears
         // the mark for all of them.
         server.clickScreen(12, 34, 0);
-        server.pressScreenKey(75, true, false);
+        server.pressScreenKey(75, true, false, false);
         server.closeScreen();
         server.openInventory();
         assertEquals(0, loop.drained);
@@ -4275,7 +4277,7 @@ class GrugControlTest {
         GrugControlServer.ControlException key =
                 assertThrows(
                         GrugControlServer.ControlException.class,
-                        () -> server.pressScreenKey(-1, false, false));
+                        () -> server.pressScreenKey(-1, false, false, false));
         assertTrue(key.getMessage().contains("whole number from 0 up"), key.getMessage());
 
         GrugControlServer.ControlException x =
@@ -4422,7 +4424,8 @@ class GrugControlTest {
                             }
 
                             @Override
-                            public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+                            public boolean pressScreenKey(
+                                    int key, boolean ctrl, boolean shift, boolean release) {
                                 throw new AssertionError("no screen call was expected");
                             }
 
@@ -4545,6 +4548,8 @@ class GrugControlTest {
                             3, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75, 2, 0),
                     GrugControlWire.callRequest(
                             3, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75, 0, 2),
+                    GrugControlWire.callRequest(
+                            3, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75, 0, 0, 2, 0, 0),
                     GrugControlWire.callRequest(
                             3, GrugControlWire.CALL_PRESS_SCREEN_KEY, "", 75.5, 0, 0),
                     GrugControlWire.callRequest(

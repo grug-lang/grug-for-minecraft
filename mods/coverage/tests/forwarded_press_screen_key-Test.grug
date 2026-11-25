@@ -29,14 +29,14 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    ctx.assert(ctx.press_screen_key(75, true, true), "Ctrl+K should be taken by the coverage overlay on the client.")
-    ctx.assert(not ctx.press_screen_key(75, false, true), "K without control should be left to the client's screen.")
+    ctx.assert(ctx.press_screen_key(75, true, false, true), "Ctrl+K should be taken by the coverage overlay on the client.")
+    ctx.assert(not ctx.press_screen_key(75, false, false, true), "K without control should be left to the client's screen.")
     if loader != "1.20.6-forge" {
         ctx.close_screen()
         ctx.assert(not ctx.screen_open(), "TestTickContext.close_screen should leave the client's screen closed.")
         return
     }
-    ctx.assert(not ctx.press_screen_key(256, false, true), "Escape should be left to the client's screen.")
+    ctx.assert(not ctx.press_screen_key(256, false, false, true), "Escape should be left to the client's screen.")
     ctx.assert(not ctx.screen_open(), "Escape should have closed the client's screen.")
     # Escape closed the client's screen; the server's menu is closed here, so the panel this test
     # opened does not outlive it.
