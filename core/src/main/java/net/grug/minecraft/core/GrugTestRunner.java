@@ -127,6 +127,12 @@ public class GrugTestRunner {
         default void resetPlayerInventory() {}
 
         /**
+         * Puts the test player's health back to full before every test starts, so a heart an
+         * earlier test took never reaches this test's capture. See #1831.
+         */
+        default void resetPlayerHealth() {}
+
+        /**
          * Marks every achievement earned and drops the toast on screen, before every test starts,
          * so the first pass of a suite and every later one capture the same corner. See #1576.
          */
@@ -471,6 +477,11 @@ public class GrugTestRunner {
                     @Override
                     public void resetPlayerInventory() {
                         GrugCore.getAdapter().resetPlayerInventoryForTest();
+                    }
+
+                    @Override
+                    public void resetPlayerHealth() {
+                        GrugCore.getAdapter().resetPlayerHealthForTest();
                     }
 
                     @Override
@@ -1761,6 +1772,10 @@ public class GrugTestRunner {
         // the centre of their block with a level view when any of them looks. See #609.
         boxBuilder.snapPlayer();
         boxBuilder.resetPlayerInventory();
+        // With the hotbar, the health a test can take from the player goes back too: the hearts are
+        // part of the HUD a capture draws, and a client that owns its own player keeps the health a
+        // test left it with (#1831).
+        boxBuilder.resetPlayerHealth();
         // Every pass and every test, so a toast the game queued since the last one is dropped too.
         // See #1576.
         boxBuilder.markAchievementsEarned();

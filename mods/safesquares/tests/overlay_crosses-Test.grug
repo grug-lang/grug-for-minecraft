@@ -139,10 +139,9 @@ export tick(ctx: TestTickContext) {
     if state == 3 {
         # The two probes above name one square of each kind, but the overlay marks only the squares
         # whose block light the scan reads at the safe level or below, and a client's copy can keep
-        # the torch light the platform hides for another square a little longer: one capture drew
-        # every cross but one, 105 pixels of b1.7.3-stationapi's golden (#1550). Wait for the scan the
-        # overlay makes to keep every platform square at the safe level, so the activation's scan
-        # cannot drop one.
+        # the torch light the platform hides for another square a little longer. Wait for the scan
+        # the overlay makes to keep every platform square at the safe level, so the activation's
+        # scan cannot drop one (#1550).
         if not _platform_marked(ctx, px, pz, fy, rd, safe) {
             ctx.assert(not light_late, "Wait 5: every platform square should reach the safe level the overlay marks.")
             ctx.not_done()

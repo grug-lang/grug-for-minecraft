@@ -1332,6 +1332,14 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void healOf(Object playerObj) {
+        // The server's copy is the player whose health the joined client's HUD draws, so the heal
+        // goes there and the health packet carries it.
+        Player player = serverSideOf((Player) playerObj);
+        player.setHealth(player.getMaxHealth());
+    }
+
+    @Override
     public double getHeldCount(Object playerObj) {
         return serverSideOf((Player) playerObj).getMainHandItem().getCount();
     }

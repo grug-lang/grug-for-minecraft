@@ -1301,6 +1301,13 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void healOf(Object playerObj) {
+        EntityPlayer player = (EntityPlayer) playerObj;
+        // heal adds its argument and clamps at the maximum, so asking for the maximum fills it.
+        player.heal(player.getMaxHealth());
+    }
+
+    @Override
     public double getHeldCount(Object playerObj) {
         ItemStack stack = ((EntityPlayer) playerObj).inventory.getCurrentItem();
         return stack == null ? 0.0 : stack.stackSize;
