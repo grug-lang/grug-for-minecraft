@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import org.junit.jupiter.api.Test;
 
@@ -33,5 +34,22 @@ class GrugNumberTextTest {
     @Test
     void hostFunctionAnswersTheSameText() {
         assertEquals("41", HostFunctions.String_from_number(41));
+    }
+
+    /**
+     * The generated adapter unwraps an {@code Option[number]} as a {@link Double}, so a float
+     * answer has to be widened when the Option is made. Boxing the parsed {@link Float} itself made
+     * every {@code String.to_float(text).unwrap()} throw a {@code ClassCastException} in the game,
+     * which no smoketest run could see because its Option holds every number as a double.
+     */
+    @Test
+    void toFloatAnswersAWidenedFloatSoAnOptionNumberUnwraps() {
+        long option = HostFunctions.String_to_float("0.1");
+        assertEquals(Double.valueOf(0.10000000149011612), HostFunctions.Option_unwrap(option));
+    }
+
+    @Test
+    void toFloatAnswersAnEmptyOptionForTextThatIsNoFloat() {
+        assertFalse(HostFunctions.Option_has(HostFunctions.String_to_float("0.1.0")));
     }
 }
