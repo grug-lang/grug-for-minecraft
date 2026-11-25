@@ -118,11 +118,15 @@ class GrugTestCameraTest {
         // one a capture may read, and the level write clears them beside the camera's own (#1785).
         View view = new View();
         view.armYaw = 0.06F;
+        view.armPitch = 0.04F;
+        view.previousArmYaw = -0.03F;
         view.previousArmPitch = -0.02F;
 
         assertTrue(GrugTestCamera.levelForFrame(true, new Object(), view));
-        assertEquals(0.0F, view.armYaw);
-        assertEquals(0.0F, view.previousArmPitch);
+        assertEquals(0.0F, view.armYaw, "armYaw");
+        assertEquals(0.0F, view.armPitch, "armPitch");
+        assertEquals(0.0F, view.previousArmYaw, "previousArmYaw");
+        assertEquals(0.0F, view.previousArmPitch, "previousArmPitch");
         assertEquals(1, view.levelCalls);
     }
 
