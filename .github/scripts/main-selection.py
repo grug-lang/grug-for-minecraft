@@ -206,6 +206,8 @@ def scripts_path(path: str) -> bool:
 
 def diff_tier(paths: list[str]) -> tuple[str, str]:
     """Which answer a readable, non-empty diff gets (``code``, ``scripts`` or ``docs``), and why."""
+    if not paths:
+        return "code", ""
     machinery = [path for path in paths if scripts_path(path)]
     if all(docs_path(path) for path in paths if not scripts_path(path)):
         # A diff that mixes prose with the CI's own machinery is the scripts tier, which runs more:
@@ -261,7 +263,10 @@ def no_class(repo: Path, tier: str, reason: str) -> tuple[dict, list[str]]:
         # One representative loader job proves the pipeline still runs. The gate's own mod is the
         # cheapest suite and no gate reads it, because the coverage job is skipped.
         mods = sibling("affected-mods").ALWAYS
-        build = [{"dir": newest_loader(repo, loaders), "mods": mods}]
+        representative = newest_loader(repo, loaders)
+        # A tree that names no loader has no job to run: the empty matrix is what the discover step
+        # refuses, and its fallback runs everything, which is the failure today's run has too.
+        build = [{"dir": representative, "mods": mods}] if representative else []
     lines = [
         reason,
         "no class changed, so no coverage can move: the coverage, dedicated and layer jobs are"
@@ -269,11 +274,13 @@ def no_class(repo: Path, tier: str, reason: str) -> tuple[dict, list[str]]:
     ]
     if tier == "docs":
         lines.append("the run is the docs tier: only discover, pre-commit and pr gate run")
-    else:
+    elif build:
         lines.append(
             f"the run is the scripts tier: {mods} runs on {build[0]['dir']} alone, with core's"
             " tests, to prove the pipeline still runs"
         )
+    else:
+        lines.append("the scripts tier names no loader, so the run selects everything")
     return {
         "build": build,
         "installed": [],
