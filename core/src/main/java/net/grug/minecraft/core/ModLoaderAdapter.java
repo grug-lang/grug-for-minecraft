@@ -478,12 +478,10 @@ public interface ModLoaderAdapter {
 
     /**
      * Whether the level's own height limit puts the y coordinate outside the world, so the scan
-     * skips the position (#1255). A version without a height limit that a world can set keeps the
-     * default and scans every position.
+     * skips the position (#1255). Every loader answers from its own level, so a version without a
+     * height limit answers that no y is outside it.
      */
-    default boolean isOutOfHeightLimit(Object levelObj, int y) {
-        return false;
-    }
+    boolean isOutOfHeightLimit(Object levelObj, int y);
 
     /**
      * The number of living entities in the level that the game's spawner counts toward the cap of

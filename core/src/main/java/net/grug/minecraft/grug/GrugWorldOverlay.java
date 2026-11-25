@@ -535,15 +535,20 @@ public final class GrugWorldOverlay {
     }
 
     /**
-     * Polls one declared binding and asks the overlay's {@code world_binding()} when it just went
-     * down in a world with no screen open. The loader calls this every tick with the binding's held
-     * state, and a held binding is one press.
+     * Polls one declared binding and asks the mod's overlays' {@code world_binding()} when it just
+     * went down in a world with no screen open, running the first overlay that exports it. The
+     * loader calls this every tick with the binding's held state, and a held binding is one press.
+     *
+     * <p>The engine's export id is looked up by entity type and function name, not by file, so it
+     * cannot say which of the mod's overlay files exports the function. Every one of them is asked
+     * in clean-name order and the first answer ends the pass, which is what makes the mod's second
+     * overlay its handler when the first one does not export {@code world_binding} (#1749's
+     * review).
      *
      * @param gated whether a world is shown and no screen is open
      */
     public static void binding(
-            long entityHandle,
-            long fnId,
+            List<GrugOverlayScripts.Script> scripts,
             String callerMod,
             String id,
             boolean down,
@@ -553,7 +558,9 @@ public final class GrugWorldOverlay {
         try {
             openBinding(callerMod, id);
             try {
-                call(entityHandle, fnId, GrugEntityType.OverlayWorldBindingContext);
+                for (GrugOverlayScripts.Script script : scripts) {
+                    if (callAnswering(script.entityHandle, script.worldBindingFnId)) return;
+                }
             } finally {
                 closeBinding();
             }
@@ -563,18 +570,30 @@ public final class GrugWorldOverlay {
     }
 
     /**
-     * Presses, once, every binding of {@code callerMod} whose declared default key is {@code code}.
-     * A loader with no way to register a binding polls raw keys and calls this, which is how its
-     * default key still works; a loader that registers the binding polls {@link #binding} instead,
-     * so a rebound key is the one that fires.
+     * Presses, once, every binding of every mod among {@code scripts} whose declared default key is
+     * {@code code}. A loader with no way to register a binding polls raw keys and calls this, which
+     * is how its default key still works; a loader that registers the binding polls {@link
+     * #binding} instead, so a rebound key is the one that fires.
      */
-    public static void bindingDefaultsFor(
-            long entityHandle, long fnId, String callerMod, int code) {
-        for (GrugMetadata.Key key : GrugMetadata.forCallerMod(callerMod).keys()) {
-            if (key.code() != code) continue;
-            binding(entityHandle, fnId, callerMod, key.id(), true, true);
-            binding(entityHandle, fnId, callerMod, key.id(), false, true);
+    public static void bindingDefaultsFor(List<GrugOverlayScripts.Script> scripts, int code) {
+        List<String> mods = new ArrayList<>();
+        for (GrugOverlayScripts.Script script : scripts) {
+            if (!mods.contains(script.mod)) mods.add(script.mod);
         }
+        for (String mod : mods) {
+            List<GrugOverlayScripts.Script> modScripts = GrugOverlayScripts.bindingScripts(mod);
+            for (GrugMetadata.Key key : GrugMetadata.forCallerMod(mod).keys()) {
+                if (key.code() != code) continue;
+                binding(modScripts, mod, key.id(), true, true);
+                binding(modScripts, mod, key.id(), false, true);
+            }
+        }
+    }
+
+    private static boolean callAnswering(long entityHandle, long fnId) {
+        if (entityHandle == 0 || fnId == Grug.INVALID_GRUG_EXPORT_FN_ID) return false;
+        return GrugOverlay.callExport(
+                entityHandle, fnId, GrugEntityType.OverlayWorldBindingContext, context);
     }
 
     private static void call(long entityHandle, long fnId, GrugEntityType contextType) {

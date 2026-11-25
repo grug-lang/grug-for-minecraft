@@ -1029,16 +1029,23 @@ public final class GrugOverlay {
     @GrugGenerated(
             "the call into the VM and its context entity: needs a live grug entity, which only a"
                     + " game has")
-    static void callExport(
+    /**
+     * Runs one export with a fresh context, and answers whether the entity's own file exports it: a
+     * file without the export answers false and runs nothing, which is how a caller tells one
+     * overlay of a mod from another (#1749's review).
+     */
+    static boolean callExport(
             long entityHandle, long exportFnId, GrugEntityType contextType, Object context) {
+        boolean[] answered = {false};
         GrugEntities.withFreshOwner(
                 () -> {
                     long contextHandle = GrugEntities.addEntity(contextType, context);
                     try {
-                        Grug.callExportFn(entityHandle, exportFnId, contextHandle);
+                        answered[0] = Grug.callExportFn(entityHandle, exportFnId, contextHandle);
                     } finally {
                         GrugEntities.removeEntity(contextHandle);
                     }
                 });
+        return answered[0];
     }
 }

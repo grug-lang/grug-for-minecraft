@@ -327,17 +327,26 @@ static void clear_scans(void) {
 // with TestTickContext.set_player_position; run_test puts them back around the room before every
 // test, the way the room is put back.
 static double player_x = 8.5, player_y = 67.5, player_z = 8.5;
-// The overlay entities of the running test's mod, the drawn mark a frame sets, and the passes'
-// exports, which main() looks up once.
-struct overlay_entity { void* entity; char* mod; };
-static struct overlay_entity* world_overlay_entities;
-static size_t nworld_overlay_entities, capworld_overlay_entities;
+// The drawn mark a world frame sets and the passes' exports, which main() looks up once. The
+// overlays themselves are the one entity per file that make_overlays creates: the host gives each
+// overlay file one handle for every export, so a member render_hud sets is the one render_world and
+// world_binding read (#1749's review).
 static uint64_t world_render_fn, world_key_fn, world_binding_fn;
 static bool world_overlay_drawn_flag;
 static const char* world_pass_mod;
+// The one entity per overlay file, made by make_overlays below and asked by the world passes here.
+struct overlay {
+    void* entity;
+    const char* name;  // the clean entity name GrugOverlayScripts keys the file by
+    const char* mod;
+    const char* path;
+};
+static struct overlay* overlays;
+static size_t noverlays, capoverlays;
+// Java's (long) cast of a double, defined with the other converts below.
+static int64_t java_long(double d);
 static void overlay_render_world(void);
 static void overlay_press_world_key(double code, bool ctrl);
-static void create_world_overlays(const char* mod);
 static void clear_overlays(void);
 
 // =============================================================================================
@@ -371,7 +380,7 @@ static uint64_t toy_scan(double radius) {
     size_t count = 0, cap = 64;
     struct square* squares = xmalloc(cap * sizeof *squares);
     // Java floors the feet's block, as MathHelper.floor_double does: a feet x of -18.5 is in -19.
-    long cx = (long)floor(player_x), cy = (long)floor(player_y), cz = (long)floor(player_z);
+    long cx = java_long(floor(player_x)), cy = java_long(floor(player_y)), cz = java_long(floor(player_z));
     for (long dz = -r; dz <= r; dz++)
         for (long dy = -r; dy <= r; dy++)
             for (long dx = -r; dx <= r; dx++) {
@@ -402,6 +411,15 @@ static int32_t java_int(double d) {
     if (d >= 2147483647.0) return 2147483647;
     if (d <= -2147483648.0) return (int32_t)-2147483647 - 1;
     return (int32_t)d;
+}
+// Java's (long) cast of a double, for the feet a toy scan floors: a coordinate like 1e300 is out
+// of range, where the cast would be undefined behaviour in C, and Java saturates it (#1749's
+// review). 2^63 is the first double above Long.MAX_VALUE, so the comparison is against it.
+static int64_t java_long(double d) {
+    if (d != d) return 0;
+    if (d >= 9223372036854775808.0) return INT64_MAX;
+    if (d <= -9223372036854775808.0) return INT64_MIN;
+    return (int64_t)d;
 }
 static bool is_whole(double d) { return isfinite(d) && d == floor(d); }
 
@@ -1640,48 +1658,31 @@ static void call_contained(void* entity, uint64_t fn, const union grug_value* ar
 // delivers it. A pass is open only around its export call, so a context saved for a later call is
 // refused, as the game refuses it.
 static double world_pass_serial;  // 0 while no pass is open
+static double world_pass_count;   // the serial the last opened pass took, which never repeats
 static double overlay_key_code;
 static bool overlay_ctrl;
 static const char* overlay_binding_id;
 static double camera_x, camera_y, camera_z;
 
 static void clear_world_overlays(void) {
-    for (size_t i = 0; i < nworld_overlay_entities; i++) {
-        grug_deinit_entity(g_state, world_overlay_entities[i].entity);
-        free(world_overlay_entities[i].mod);
-    }
-    nworld_overlay_entities = 0;
     world_overlay_drawn_flag = false;
     world_pass_mod = NULL;
 }
-static void create_world_overlays(const char* mod) {
-    for (size_t i = 0; i < G.f.len; i++) {
-        struct grug_file_info* fi = &G.f.ptr[i];
-        if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Overlay")) continue;
-        if (strcmp(fi->mod_name, mod)) continue;
-        void* entity = grug_create_entity(g_state, fi->file_id);
-        if (!entity) continue;  // SMOKETEST_EXCL: a mod file that fails to compile, which no committed mod has
-        if (nworld_overlay_entities == capworld_overlay_entities) {
-            capworld_overlay_entities = capworld_overlay_entities ? capworld_overlay_entities * 2 : 4;
-            world_overlay_entities = xrealloc(world_overlay_entities, capworld_overlay_entities * sizeof *world_overlay_entities);
-        }
-        world_overlay_entities[nworld_overlay_entities].entity = entity;
-        world_overlay_entities[nworld_overlay_entities].mod = xstrdup(mod);
-        nworld_overlay_entities++;
-    }
-}
-// Asks one export of every overlay, with a fresh context of the given kind. A file without the
-// export answers false and no error; an error the export raised is reported as the test's own,
-// because a contained err would leave an overlay that silently draws nothing.
+// Asks one export of every overlay of the running test's mod, with a fresh context of the given
+// kind. A file without the export answers false and no error; an error the export raised is
+// reported as the test's own, because a contained err would leave an overlay that silently draws
+// nothing. The serial advances on every call and is never reused, so a context a script saved from
+// an earlier call is refused rather than taken for the current one (#1749's review).
 static void ask_world_overlays(uint64_t fn, enum kind kind, const char* name) {
-    for (size_t i = 0; i < nworld_overlay_entities; i++) {
+    for (size_t i = 0; i < noverlays; i++) {
+        if (!cur_test_mod || strcmp(overlays[i].mod, cur_test_mod)) continue;
         char err[sizeof last_msg];
-        world_pass_serial += 1;
+        world_pass_serial = ++world_pass_count;
         uint64_t ctx = new_obj(kind);
         objs[ctx - 1].x = world_pass_serial;
         union grug_value arg = id(ctx);
-        world_pass_mod = world_overlay_entities[i].mod;
-        bool ran = call_export(world_overlay_entities[i].entity, fn, &arg, 1, err);
+        world_pass_mod = overlays[i].mod;
+        bool ran = call_export(overlays[i].entity, fn, &arg, 1, err);
         world_pass_mod = NULL;
         world_pass_serial = 0;
         if (!ran) continue;
@@ -1699,18 +1700,19 @@ static void overlay_press_world_key(double code, bool ctrl) {
     overlay_key_code = code;
     overlay_ctrl = ctrl;
     if (world_key_fn != UINT64_MAX) ask_world_overlays(world_key_fn, K_WORLD_KEY_CTX, "world_key");
-    for (size_t i = 0; i < nworld_overlay_entities; i++) {
-        const char* mod = world_overlay_entities[i].mod;
+    for (size_t i = 0; i < noverlays; i++) {
+        const char* mod = overlays[i].mod;
+        if (!cur_test_mod || strcmp(mod, cur_test_mod)) continue;
         for (size_t k = 0; k < nmod_keys; k++) {
             if (strcmp(mod_keys[k].mod, mod) || mod_keys[k].def[0] != (char)code) continue;
             char err[sizeof last_msg];
             overlay_binding_id = mod_keys[k].id;
-            world_pass_serial += 1;
+            world_pass_serial = ++world_pass_count;
             uint64_t ctx = new_obj(K_BINDING_CTX);
             objs[ctx - 1].x = world_pass_serial;
             union grug_value arg = id(ctx);
             world_pass_mod = mod;
-            bool ran = call_export(world_overlay_entities[i].entity, world_binding_fn, &arg, 1, err);
+            bool ran = call_export(overlays[i].entity, world_binding_fn, &arg, 1, err);
             world_pass_mod = NULL;
             world_pass_serial = 0;
             overlay_binding_id = NULL;
@@ -4133,13 +4135,6 @@ REGISTER("TestTickContext", "close_screen", TTC_close_screen);
 // is the overlay's own logic, which a test may read through overlay_drawn, while TestTickContext
 // .screenshot is what marks the run STUBBED because a capture is what this host cannot answer.
 static char current_test_mod[128];
-static struct overlay {
-    void* entity;
-    const char* name;  // the clean entity name GrugOverlayScripts keys the file by
-    const char* mod;
-    const char* path;
-} * overlays;
-static size_t noverlays, capoverlays;
 static bool overlay_drawn;
 static bool overlay_first_frame_recorded, overlay_first_frame_cleared;
 static double overlay_screen_serial;
@@ -5152,7 +5147,6 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     // three up.
     cur_test_mod = mod_of_file(file_id);
     player_x = origin_x; player_y = origin_y - 3; player_z = origin_z;
-    create_world_overlays(cur_test_mod ? cur_test_mod : "");
     uint64_t ctx = new_obj(K_CTX);
     union grug_value arg = id(ctx);
     int rc = 0;
@@ -5352,7 +5346,6 @@ done:
     clear_scans();
     free(scans);
     clear_world_overlays();
-    free(world_overlay_entities);
     free(world); free(objs); free(arena); free(expected_error);
     remove_game_dir();
     grug_deinit(g_state);

@@ -913,15 +913,10 @@ public final class GrugOverlayHost {
         for (DeclaredBinding declared : declaredBindings) {
             // Consumed even when no overlay answers, so a press is never left to fire later.
             boolean down = declared.binding.isPressed();
-            GrugOverlayScripts.Script script = GrugOverlayScripts.bindingScript(declared.mod);
-            if (script == null) continue;
-            GrugWorldOverlay.binding(
-                    script.entityHandle,
-                    script.worldBindingFnId,
-                    declared.mod,
-                    declared.id,
-                    down,
-                    open);
+            java.util.List<GrugOverlayScripts.Script> scripts =
+                    GrugOverlayScripts.bindingScripts(declared.mod);
+            if (scripts.isEmpty()) continue;
+            GrugWorldOverlay.binding(scripts, declared.mod, declared.id, down, open);
         }
     }
 
@@ -935,9 +930,6 @@ public final class GrugOverlayHost {
     public static void pressWorldKey(int code, boolean ctrl) {
         GrugWorldOverlay.clearDrawn();
         deliverWorldKey(code, ctrl);
-        for (GrugOverlayScripts.Script script : GrugOverlayScripts.bindingScripts()) {
-            GrugWorldOverlay.bindingDefaultsFor(
-                    script.entityHandle, script.worldBindingFnId, script.mod, code);
-        }
+        GrugWorldOverlay.bindingDefaultsFor(GrugOverlayScripts.bindingScripts(), code);
     }
 }

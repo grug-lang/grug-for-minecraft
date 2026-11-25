@@ -1,7 +1,6 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -180,7 +179,11 @@ class GrugOverlayScriptsTest {
     }
 
     @Test
-    void aModsBindingIsAnsweredByItsFirstOverlay() {
+    void aModsBindingCandidatesAreItsOverlaysInCleanNameOrder() {
+        // The engine looks the export id up by entity type and function name, not by file, so the
+        // id cannot tell the two files apart: both are candidates and the caller asks them in
+        // order, which is what lets the second file answer when the first has no export
+        // (#1749's review).
         Map<String, Long> files = twoOverlays();
         Map<String, String> mods = new TreeMap<>();
         mods.put(NAME, "a");
@@ -188,21 +191,22 @@ class GrugOverlayScriptsTest {
         record();
         init(files, mods);
 
-        GrugOverlayScripts.Script first = GrugOverlayScripts.bindingScript("a");
-        assertEquals(NAME, first.name);
-        List<GrugOverlayScripts.Script> answering = GrugOverlayScripts.bindingScripts();
-        assertEquals(1, answering.size(), "one overlay per mod answers its mod's bindings");
-        assertSame(first, answering.get(0));
-        assertNull(GrugOverlayScripts.bindingScript("b"));
+        List<GrugOverlayScripts.Script> answering = GrugOverlayScripts.bindingScripts("a");
+        assertEquals(Arrays.asList(NAME, OTHER), namesOf(answering));
+        assertEquals(
+                2,
+                GrugOverlayScripts.bindingScripts().size(),
+                "every overlay of a mod that may bind is asked");
+        assertTrue(GrugOverlayScripts.bindingScripts("b").isEmpty());
     }
 
     @Test
-    void aModWithoutAWorldBindingExportAnswersNoBinding() {
+    void aProgramWithoutAWorldBindingExportAnswersNoBinding() {
         recordRefusingExport("Overlay.world_binding");
         init(twoOverlays(), twoMods());
 
         assertTrue(GrugOverlayScripts.bindingScripts().isEmpty());
-        assertNull(GrugOverlayScripts.bindingScript("a"));
+        assertTrue(GrugOverlayScripts.bindingScripts("a").isEmpty());
     }
 
     @Test

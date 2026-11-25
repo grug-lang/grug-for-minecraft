@@ -128,46 +128,47 @@ export tick(ctx: TestTickContext) {
     }
 
     if state == 4 {
+        # The client's mirror learns the new time from a packet every 20 ticks, so the clock the
+        # overlay scans is waited for. The server's own read is enough for the range check, and the
+        # press asks for the frame that follows it.
         if level.get_time() < jump_to {
             ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
         forward_at = level.get_time()
+        # A press clears the drawn mark the first scan set and asks for a frame, so the forward
+        # scan's own answer is a draw this wait can see rather than the first scan's mark.
+        ctx.press_world_key(75, false)
+        forward_waited = 0
         state = 5
         ctx.not_done()
         return
     }
 
     if state == 5 {
-        # A joined client's mirror learns the new time from a packet every 20 ticks, and the scan
-        # that records it runs on a frame after that, so the forward scan is waited for with room to
-        # spare. The client draws and scans on its own frames, so this wait only keeps the test
-        # alive: reading the overlay here would freeze a dedicated server once per tick.
+        # Wait on the scan's own answer, not on the clock alone: the mark drawn again is a frame
+        # that scanned at the forward time, which is what records the last scan far above the
+        # world's first time. A scan that never ran leaves the mark off and the test fails here.
         forward_waited = forward_waited + 1
         ctx.assert(forward_waited < 4 * rate + 120, "The forward scan should run.")
-        if level.get_time() - forward_at < 4 * rate + 60 {
+        if not ctx.world_overlay_drawn() {
             ctx.not_done()
             return
         }
-        # The torch goes in the square and the clock goes back in the same tick, so no frame can
-        # scan the torch at the forward time: the batch the next frame holds is the forward one,
-        # which still has the square dark. A scan on the backwards clock drops it; one held off
-        # keeps it, which is what the check below reads.
+        # The torch goes into the square, and its own wait follows before the clock moves, so a
+        # joined client cannot see the backwards time and the torch in the other order.
         level.place_block(px, py, pz, "minecraft:torch")
-        level.set_time(original_time)
         state = 6
         ctx.not_done()
         return
     }
 
     if state == 6 {
-        # The torch and the backwards time reach a joined client in packets. The light wait is the
-        # one the client can compare, which inside this room it cannot on 1.2.5 (it answers true
-        # without comparing, #1207), so the world settle waits for the client's copy to hold the
-        # placed torch before anything is read. The settle covers the block and its light, not the
-        # clock: that is waited for through the presses below, because the client's clock has no
-        # read on the server side.
+        # The torch reaches a joined client in a packet, and the light wait is the one the client
+        # can compare, which inside this room it cannot on 1.2.5 (it answers true without
+        # comparing, #1207), so the world settle waits for the client's copy to hold the placed
+        # torch before the clock is moved.
         if not ctx.light_applied(px, py, pz) {
             ctx.world_overlay_drawn()
             ctx.not_done()
@@ -180,6 +181,10 @@ export tick(ctx: TestTickContext) {
             }
             settled = 1
         }
+        # The clock goes back only now, so the batch the next frame holds is the forward one,
+        # which still has the square dark. A scan on the backwards clock drops it; one held off
+        # keeps it, which is what the check below reads. The press also clears the mark.
+        level.set_time(original_time)
         ctx.press_world_key(75, false)
         presses = presses + 1
         cleared_at = ctx.current_tick()

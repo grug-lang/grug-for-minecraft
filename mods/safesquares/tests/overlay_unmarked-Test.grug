@@ -11,10 +11,13 @@
 # file's default, which is also above 1.20.6's own spawn limit of 0, so a port that clamped the
 # file's level to the version's limit would leave the square unmarked here.
 
-# "Marked" and "not marked" are read through TestTickContext.world_overlay_drawn, which a press of
-# the overlay's own key clears and a frame sets. Each case turns the overlay off and on before it
-# reads: an activation scans at once, so the frames after it draw the batch the case's change made,
-# and the second press is what clears the mark the test then reads a frame of.
+# "Marked" and "not marked" are read through TestTickContext.world_overlay_drawn, which a world key
+# press clears and a frame sets. Each case turns the overlay off and on before it reads: an
+# activation schedules a scan on the next frame, so that frame replaces the cached batch before it
+# draws, and a stale mark cannot outlive the press. The fresh scan is read through a second, K,
+# press once its frames have run: K is a key the overlay does not take, so it only clears the mark,
+# and a cached batch that is still marked redraws every frame and sets it again, which is what makes
+# the absence read come from frames drawn after the scan and not from the activation's own draw.
 
 # The states below are the rule's cases:
 # 1. The feet square is a spawn space at the safe level: marked.
@@ -303,6 +306,17 @@ local _fresh_scan(ctx: TestTickContext) bool {
         # A read asks for a frame and answers the frame before it, and the client draws fewer frames
         # than the run has ticks at the game's maximum speed, so the frame the activation scanned in
         # is waited for over several reads rather than assumed on the next one.
+        ctx.world_overlay_drawn()
+        return false
+    }
+    if force_at == 12 {
+        # The activation's scan has run, so the cached batch is now the one the case's change made.
+        # K clears the mark that scan set; only frames drawn after this clear are read below, and a
+        # marked batch redraws every frame, so a mark cannot hide behind the clear.
+        ctx.press_world_key(75, false)
+        return false
+    }
+    if force_at < 16 {
         ctx.world_overlay_drawn()
         return false
     }

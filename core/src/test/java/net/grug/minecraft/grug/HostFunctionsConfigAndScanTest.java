@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -256,17 +257,38 @@ class HostFunctionsConfigAndScanTest {
 
     @Test
     void aBindingIsDeliveredOnceAndItsDefaultsPressTheDeclaredKey() {
-        GrugWorldOverlay.binding(
-                0, Grug.INVALID_GRUG_EXPORT_FN_ID, "coverage", "toggle", true, true);
-        GrugWorldOverlay.binding(
-                0, Grug.INVALID_GRUG_EXPORT_FN_ID, "coverage", "toggle", true, true);
-        GrugWorldOverlay.binding(
-                0, Grug.INVALID_GRUG_EXPORT_FN_ID, "coverage", "toggle", false, true);
-        GrugWorldOverlay.binding(
-                0, Grug.INVALID_GRUG_EXPORT_FN_ID, "coverage", "toggle", true, false);
+        // A candidate whose export id is the invalid one answers no binding, so the pass opens and
+        // closes around it without a VM, which is the shape a loader's poll has without a script.
+        GrugOverlayScripts.Script candidate =
+                new GrugOverlayScripts.Script(
+                        "coverage-Overlay",
+                        0,
+                        Collections.emptyList(),
+                        "coverage",
+                        new GrugOverlayScripts.Entities() {
+                            @Override
+                            public long create(long fileId, List<GrugObject> owner) {
+                                return 0;
+                            }
 
-        GrugWorldOverlay.bindingDefaultsFor(0, Grug.INVALID_GRUG_EXPORT_FN_ID, "coverage", 'L');
-        GrugWorldOverlay.bindingDefaultsFor(0, Grug.INVALID_GRUG_EXPORT_FN_ID, "coverage", 'Q');
+                            @Override
+                            public void destroy(long entityHandle) {}
+
+                            @Override
+                            public long exportFnId(String entityType, String fnName) {
+                                return Grug.INVALID_GRUG_EXPORT_FN_ID;
+                            }
+                        });
+        List<GrugOverlayScripts.Script> candidates = Collections.singletonList(candidate);
+
+        GrugWorldOverlay.binding(candidates, "coverage", "toggle", true, true);
+        GrugWorldOverlay.binding(candidates, "coverage", "toggle", true, true);
+        GrugWorldOverlay.binding(candidates, "coverage", "toggle", false, true);
+        GrugWorldOverlay.binding(candidates, "coverage", "toggle", true, false);
+        GrugWorldOverlay.binding(Collections.emptyList(), "coverage", "toggle", true, true);
+
+        GrugWorldOverlay.bindingDefaultsFor(candidates, 'L');
+        GrugWorldOverlay.bindingDefaultsFor(candidates, 'Q');
 
         assertFalse(GrugWorldOverlay.isOpen(), "Every pass closed behind itself.");
         assertTrue(drain().isEmpty());

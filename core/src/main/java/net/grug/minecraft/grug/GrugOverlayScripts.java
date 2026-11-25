@@ -165,29 +165,34 @@ public final class GrugOverlayScripts {
     }
 
     /**
-     * The overlay of {@code mod} that answers its declared key bindings, or null when the mod has
-     * no overlay with a {@code world_binding} export. The first in clean-name order is the one
-     * asked, so two overlay files of one mod cannot both answer one press of one binding.
+     * The overlays of {@code mod} that may answer its declared key bindings, in clean-name order,
+     * which the caller asks in turn and takes the first answer from.
+     *
+     * <p>The engine looks an export id up by entity type and function name, not by file, so the id
+     * cannot say which file of the mod exports {@code world_binding}: when one file of the program
+     * has the export every script carries its id, and calling it on a file without the export
+     * answers false without running anything. Asking the mod's files in order is therefore what
+     * makes its second overlay the handler when the first one does not export it (#1749's review).
      */
-    public static Script bindingScript(String mod) {
+    public static List<Script> bindingScripts(String mod) {
+        List<Script> answering = new ArrayList<>();
         for (Script script : scripts()) {
             if (!mod.equals(script.mod)) continue;
             if (script.worldBindingFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) continue;
-            return script;
+            answering.add(script);
         }
-        return null;
+        return answering;
     }
 
     /**
-     * The one overlay per mod that answers its declared key bindings, in clean-name order. A test
-     * presses a declared key through these, and a loader that registers no binding polls them.
+     * Every overlay that may answer a declared key binding, in clean-name order. A test presses a
+     * declared key through these, and a loader that registers no binding polls them; the first
+     * overlay of a mod that answers is the one whose handler runs.
      */
     public static List<Script> bindingScripts() {
         List<Script> answering = new ArrayList<>();
-        Set<String> seen = new TreeSet<>();
         for (Script script : scripts()) {
             if (script.worldBindingFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) continue;
-            if (!seen.add(script.mod)) continue;
             answering.add(script);
         }
         return answering;
