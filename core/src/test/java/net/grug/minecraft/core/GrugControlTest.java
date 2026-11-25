@@ -1543,6 +1543,116 @@ class GrugControlTest {
                         .length);
     }
 
+    @Test
+    void theWireRefusesAnInventoryChangeThatIsNotOne() {
+        // A position the game cannot hold names no block: the server must not hand one to the game.
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(dropAt(Double.NaN, 64, 10)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(dropAt(11, Double.NaN, 10)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(dropAt(11, 64, Double.POSITIVE_INFINITY)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(Double.NaN, 64, 10, 0, 1, "stone")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(11, Double.NaN, 10, 0, 1, "stone")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(11, 64, Double.NaN, 0, 1, "stone")));
+
+        // A write with no name cannot name an item, so there is nothing to write.
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(11, 64, 10, 0, 1, "")));
+
+        // A slot outside the message's range, or one that is not a whole number, is not a slot.
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(11, 64, 10, Double.NaN, 1, "stone")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(11, 64, 10, 2.5, 1, "stone")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(11, 64, 10, -1, 1, "stone")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        GrugControlWire.decode(
+                                slotWrite(11, 64, 10, GrugControlWire.MAX_SLOT + 1, 1, "stone")));
+
+        // The same for a count: a fraction, a negative and one past the message's cap are refused.
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(11, 64, 10, 0, Double.NaN, "stone")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(11, 64, 10, 0, 2.5, "stone")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(slotWrite(11, 64, 10, 0, -1, "stone")));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        GrugControlWire.decode(
+                                slotWrite(
+                                        11,
+                                        64,
+                                        10,
+                                        0,
+                                        GrugControlWire.MAX_ITEM_COUNT + 1,
+                                        "stone")));
+
+        // The edges are messages: zero clears the slot, and the caps themselves are accepted.
+        GrugControlWire.Message clear =
+                GrugControlWire.decode(slotWrite(11, 64, 10, 0, 0, "stone"));
+        assertEquals(0.0, clear.fifth, 0.0);
+        GrugControlWire.Message largest =
+                GrugControlWire.decode(
+                        slotWrite(
+                                11,
+                                64,
+                                10,
+                                GrugControlWire.MAX_SLOT,
+                                GrugControlWire.MAX_ITEM_COUNT,
+                                "stone"));
+        assertEquals(GrugControlWire.MAX_SLOT, largest.fourth, 0.0);
+        assertEquals(GrugControlWire.MAX_ITEM_COUNT, largest.fifth, 0.0);
+    }
+
+    /** A drop request's bytes, so a test can name a position the writer would never produce. */
+    private static byte[] dropAt(double x, double y, double z) {
+        return java.nio.ByteBuffer.allocate(1 + 24)
+                .put(GrugControlWire.DROP_INVENTORY_REQUEST)
+                .putDouble(x)
+                .putDouble(y)
+                .putDouble(z)
+                .array();
+    }
+
+    /**
+     * A slot write's bytes, so a test can name a slot or a count the writer would never produce.
+     */
+    private static byte[] slotWrite(
+            double x, double y, double z, double slot, double count, String item) {
+        byte[] name = item.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return java.nio.ByteBuffer.allocate(1 + 4 + name.length + 40)
+                .put(GrugControlWire.SET_ITEM_IN_SLOT_REQUEST)
+                .putInt(name.length)
+                .put(name)
+                .putDouble(x)
+                .putDouble(y)
+                .putDouble(z)
+                .putDouble(slot)
+                .putDouble(count)
+                .array();
+    }
+
     private static byte[] chunk(long id, int index, int total, byte[] data) {
         return java.nio.ByteBuffer.allocate(1 + 8 + 12 + data.length)
                 .put(GrugControlWire.ANSWER_CHUNK)

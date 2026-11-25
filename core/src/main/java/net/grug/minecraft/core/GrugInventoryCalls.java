@@ -77,8 +77,12 @@ public final class GrugInventoryCalls {
                 return;
             }
             BlockPos position = adapter.getBlockPosOfBlockEntity(blockEntity);
+            // A local write truncates both numbers to whole ones (every adapter's own write takes
+            // an int), so the forwarded write names the same whole slot and count: a fraction
+            // would otherwise be a message the wire refuses, and the two paths would disagree
+            // about what the call means.
             GrugControlClient.setItemInSlotOnServer(
-                    position.x(), position.y(), position.z(), slot, name, count);
+                    position.x(), position.y(), position.z(), (int) slot, name, (int) count);
             return;
         }
         adapter.setItemInSlot(blockEntity, slot, item, count);
