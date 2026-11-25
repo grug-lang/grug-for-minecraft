@@ -67,12 +67,17 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "The per-world state file and the three config options are not read or written.",
-					"why": "The file format is reproduced exactly, but a mod has no file access until the directory it may write is decided in #1757.",
+					"what": "The per-world state and the config are a library in tests/state-Test.grug with no runtime caller yet: nothing loads a state on first access or saves it when a screen closes until the overlay exists.",
+					"why": "A grug local function is visible only inside its own file and the host cannot call it, so stage 2 proves both files byte for byte as tests, and stage 3 moves the library into the overlay that reads and writes them.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "The state and config files live under the root File.open(r\"files\") answers, at buildguide/<world>@<dimension>.dat and config/buildguide.cfg, where the reference writes <gameDir>/buildguide/<world>@<dimension>.dat and <gameDir>/config/buildguide.cfg.",
+					"why": "A mod may write only inside the directory #1757 gives it, so a guide the reference already saved at the game directory's path is not imported and a guide this port saves is not read by the reference. The file formats themselves are the reference's, byte for byte.",
 					"tracking_issue": 1757
 				},
 				{
-					"what": "The five screens, their widgets, the four key binds and the config file are not implemented.",
+					"what": "The five screens, their widgets and the four key binds are not implemented.",
 					"why": "A mod cannot open a screen or draw a filled rectangle yet, and designing that API against more than this port is stage 3 of #1752.",
 					"tracking_issue": 1752
 				},

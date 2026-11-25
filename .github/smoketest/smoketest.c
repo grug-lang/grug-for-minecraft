@@ -725,54 +725,59 @@ static union grug_value String_concat(ARGS) {
     return str(keep(s));
 }
 REGISTER("String", "concat", String_concat);
-// Java's Double.toString: the shortest digits that read back as the same double, plain between 1e-3 and
-// 1e7 and as d.dddE+x outside it. This is what a Java string concatenation of a double writes.
-static void double_text(double v, char* out, size_t cap) {
-    if (isnan(v)) { snprintf(out, cap, "NaN"); return; }
-    if (isinf(v)) { snprintf(out, cap, v > 0 ? "Infinity" : "-Infinity"); return; }
-    if (v == 0) { snprintf(out, cap, signbit(v) ? "-0.0" : "0.0"); return; }
+// Java's Float.toString and Double.toString: the shortest digits that read back as the same value,
+// plain from 1e-3 up to 1e7 and as d.dddE+x outside it. This is what a Java string concatenation of
+// a float or a double writes, and what the adapter's String.from_float and String.from_double write.
+static void java_text(double v, bool single, char* out, size_t cap) {
+    float f = (float)v;
+    double m = single ? (double)f : v;
+    if (isnan(m)) { snprintf(out, cap, "NaN"); return; }
+    if (isinf(m)) { snprintf(out, cap, m > 0 ? "Infinity" : "-Infinity"); return; }
+    if (m == 0) { snprintf(out, cap, signbit(m) ? "-0.0" : "0.0"); return; }
     char e[40];
     // Java picks the closest of the two-digit texts when one digit would do (4.9E-324, not 5.0E-324),
     // so the search starts at two digits and a trailing zero is dropped afterwards.
+    int maxp = single ? 9 : 17;
     int p = 2;
-    for (; p < 17; p++) {
-        snprintf(e, sizeof e, "%.*e", p - 1, v);
-        if (strtod(e, NULL) == v) break;
+    for (; p < maxp; p++) {
+        snprintf(e, sizeof e, "%.*e", p - 1, m);
+        if (single ? strtof(e, NULL) == f : strtod(e, NULL) == m) break;
     }
-    snprintf(e, sizeof e, "%.*e", p - 1, v);
-    char digits[20]; size_t nd = 0;
+    snprintf(e, sizeof e, "%.*e", p - 1, m);
+    char digits[24]; size_t nd = 0;
     const char* c = e;
     bool neg = *c == '-';
     if (neg) c++;
     for (; *c && *c != 'e'; c++) if (*c != '.') digits[nd++] = *c;
     while (nd > 1 && digits[nd - 1] == '0') nd--;
     digits[nd] = 0;
-    int e10 = atoi(c + 1);
+    int lead = atoi(c + 1);  // the power of ten the leading digit stands for
     char* w = out;
     if (neg) *w++ = '-';
-    if (fabs(v) >= 1e-3 && fabs(v) < 1e7) {
-        if (e10 >= 0) {
-            for (int k = 0; k <= e10; k++) *w++ = (size_t)k < nd ? digits[k] : '0';
+    if (lead >= -3 && lead < 7) {
+        if (lead >= 0) {
+            for (int k = 0; k <= lead; k++) *w++ = (size_t)k < nd ? digits[k] : '0';
             *w++ = '.';
-            if ((size_t)e10 + 1 < nd) { memcpy(w, digits + e10 + 1, nd - (size_t)e10 - 1); w += nd - (size_t)e10 - 1; }
+            if ((size_t)lead + 1 < nd) { memcpy(w, digits + lead + 1, nd - (size_t)lead - 1); w += nd - (size_t)lead - 1; }
             else *w++ = '0';
         } else {
             *w++ = '0'; *w++ = '.';
-            for (int k = 0; k < -e10 - 1; k++) *w++ = '0';
+            for (int k = 0; k < -lead - 1; k++) *w++ = '0';
             memcpy(w, digits, nd); w += nd;
         }
         *w = 0;
     } else {
         *w++ = digits[0]; *w++ = '.';
         if (nd > 1) { memcpy(w, digits + 1, nd - 1); w += nd - 1; } else *w++ = '0';
-        snprintf(w, cap - (size_t)(w - out), "E%d", e10);
+        snprintf(w, cap - (size_t)(w - out), "E%d", lead);
     }
 }
+static void double_text(double v, char* out, size_t cap) { java_text(v, false, out, cap); }
 // The text of a number as the adapter writes it: a whole number as a plain integer (BigDecimal's exact
 // expansion), anything else as Double.toString.
 static void number_text(double v, char* out, size_t cap) {
     if (isfinite(v) && v == rint(v)) { snprintf(out, cap, v == 0 ? "0" : "%.0f", v); return; }
-    double_text(v, out, cap);
+    java_text(v, false, out, cap);
 }
 static union grug_value String_from_number(ARGS) {
     UNUSED;
@@ -781,6 +786,154 @@ static union grug_value String_from_number(ARGS) {
     return str(keep(xstrdup(buf)));
 }
 REGISTER("String", "from_number", String_from_number);
+static union grug_value String_from_float(ARGS) {
+    UNUSED;
+    char buf[40];
+    java_text(a[0]._number, true, buf, sizeof buf);
+    return str(keep(xstrdup(buf)));
+}
+REGISTER("String", "from_float", String_from_float);
+static union grug_value String_from_double(ARGS) {
+    UNUSED;
+    char buf[40];
+    java_text(a[0]._number, false, buf, sizeof buf);
+    return str(keep(xstrdup(buf)));
+}
+REGISTER("String", "from_double", String_from_double);
+// Java's String.trim: the characters at the ends that are U+0020 or below. Every byte of a character
+// outside the basic plane is 0x80 or above, so a byte-wise trim removes exactly those characters.
+static union grug_value String_trim(ARGS) {
+    UNUSED;
+    const char* t = a[0]._string;
+    while (*t && (unsigned char)*t <= ' ') t++;
+    const char* end = t + strlen(t);
+    while (end > t && (unsigned char)end[-1] <= ' ') end--;
+    char* out = xmalloc((size_t)(end - t) + 1);
+    memcpy(out, t, (size_t)(end - t));
+    out[end - t] = 0;
+    return str(keep(out));
+}
+REGISTER("String", "trim", String_trim);
+// Java's String.indexOf, answered in code points so it can be handed to String.substring.
+static union grug_value String_index_of(ARGS) {
+    UNUSED;
+    const char* at = strstr(a[0]._string, a[1]._string);
+    if (!at) return num(-1);
+    size_t n = 0;
+    for (const char* q = a[0]._string; q < at; q++) n += ((unsigned char)*q & 0xC0) != 0x80;
+    return num((double)n);
+}
+REGISTER("String", "index_of", String_index_of);
+// Java's Double.parseDouble for the forms a file holds: a sign, digits with a point and an exponent,
+// a hexadecimal number, or NaN and Infinity, all or nothing. The trimmed text is answered, or NULL
+// when it is not a number, and the caller reads it with strtod or strtof.
+static char* java_number_text(const char* in) {
+    const char* t = in;
+    while (*t && (unsigned char)*t <= ' ') t++;
+    size_t n = strlen(t);
+    while (n > 0 && (unsigned char)t[n - 1] <= ' ') n--;
+    char* text = xmalloc(n + 1);
+    memcpy(text, t, n); text[n] = 0;
+    if (n > 0 && strchr("fFdD", text[n - 1])) text[--n] = 0;
+    bool special = strcmp(text, "NaN") == 0 || strcmp(text, "+NaN") == 0 || strcmp(text, "-NaN") == 0
+            || strcmp(text, "Infinity") == 0 || strcmp(text, "+Infinity") == 0 || strcmp(text, "-Infinity") == 0;
+    if (!special) {
+        // Java's parseDouble accepts no infinity or NaN spelling except the exact ones above, while
+        // strtod also takes "inf" and "nan" in any case, so the first significant character must be a
+        // digit or a point, which every finite form starts with (a hexadecimal one with 0).
+        const char* q = text;
+        if (*q == '+' || *q == '-') q++;
+        char* end = NULL;
+        (void)strtod(text, &end);
+        bool ok = n > 0 && end == text + n && (*q == '.' || (*q >= '0' && *q <= '9'));
+        if (ok && text[0] == '0' && (text[1] == 'x' || text[1] == 'X')
+                && !strchr(text, 'p') && !strchr(text, 'P')) ok = false;
+        if (!ok) { free(text); return NULL; }
+    }
+    return text;
+}
+static union grug_value String_to_number(ARGS) {
+    UNUSED;
+    char* text = java_number_text(a[0]._string);
+    uint64_t o = new_obj(K_OPTION);
+    if (text) {
+        double value;
+        if (strcmp(text, "NaN") == 0 || strcmp(text, "+NaN") == 0 || strcmp(text, "-NaN") == 0) value = NAN;
+        else if (strcmp(text, "-Infinity") == 0) value = -INFINITY;
+        else if (strcmp(text, "Infinity") == 0 || strcmp(text, "+Infinity") == 0) value = INFINITY;
+        else value = strtod(text, NULL);
+        objs[o - 1].has = true; objs[o - 1].val = num(value);
+        free(text);
+    }
+    return id(o);
+}
+REGISTER("String", "to_number", String_to_number);
+// Java's Float.parseFloat: the same grammar, rounded once to 32 bits, so this is strtof and not the
+// double answer narrowed.
+static union grug_value String_to_float(ARGS) {
+    UNUSED;
+    char* text = java_number_text(a[0]._string);
+    uint64_t o = new_obj(K_OPTION);
+    if (text) {
+        float value;
+        if (strcmp(text, "NaN") == 0 || strcmp(text, "+NaN") == 0 || strcmp(text, "-NaN") == 0) value = NAN;
+        else if (strcmp(text, "-Infinity") == 0) value = -INFINITY;
+        else if (strcmp(text, "Infinity") == 0 || strcmp(text, "+Infinity") == 0) value = INFINITY;
+        else value = strtof(text, NULL);
+        objs[o - 1].has = true; objs[o - 1].val = num((double)value);
+        free(text);
+    }
+    return id(o);
+}
+REGISTER("String", "to_float", String_to_float);
+// Java's String.equalsIgnoreCase over code points: equal, or equal upper case, or equal lower case of
+// that upper case, in no locale. Java folds the whole of Unicode; this folds ASCII, which is what the
+// committed tests compare, and the Java unit test covers a pair outside it.
+static unsigned cp_upper_ascii(unsigned c) { return c >= 'a' && c <= 'z' ? c - 32 : c; }
+static unsigned cp_lower_ascii(unsigned c) { return c >= 'A' && c <= 'Z' ? c + 32 : c; }
+static unsigned cp_take(const char** p) {
+    const unsigned char* s = (const unsigned char*)*p;
+    unsigned c = *s++;
+    if (c >= 0xF0) { c &= 0x07; for (int k = 0; k < 3; k++) c = (c << 6) | (*s++ & 0x3F); }
+    else if (c >= 0xE0) { c &= 0x0F; for (int k = 0; k < 2; k++) c = (c << 6) | (*s++ & 0x3F); }
+    else if (c >= 0xC0) { c &= 0x1F; c = (c << 6) | (*s++ & 0x3F); }
+    *p = (const char*)s;
+    return c;
+}
+static union grug_value String_equals_ignore_case(ARGS) {
+    UNUSED;
+    const char* x = a[0]._string;
+    const char* y = a[1]._string;
+    while (*x && *y) {
+        unsigned c = cp_take(&x), d = cp_take(&y);
+        if (c != d && cp_upper_ascii(c) != cp_upper_ascii(d)
+                && cp_lower_ascii(cp_upper_ascii(c)) != cp_lower_ascii(cp_upper_ascii(d)))
+            return boolean(false);
+    }
+    return boolean(*x == 0 && *y == 0);
+}
+REGISTER("String", "equals_ignore_case", String_equals_ignore_case);
+// Java's Integer.parseInt: an optional sign and at least one digit, inside the 32-bit range.
+static union grug_value String_to_integer(ARGS) {
+    UNUSED;
+    const char* t = a[0]._string;
+    int i = 0;
+    bool negative = false, ok = true;
+    if (t[0] == '+' || t[0] == '-') { negative = t[0] == '-'; i = 1; }
+    if (!t[i]) ok = false;
+    long long v = 0;
+    for (; ok && t[i]; i++) {
+        if (t[i] < '0' || t[i] > '9') { ok = false; break; }
+        v = v * 10 + (t[i] - '0');
+        if (v > 2147483648LL) { ok = false; break; }
+    }
+    if (ok && negative) v = -v;
+    if (ok && (v > 2147483647LL || v < -2147483648LL)) ok = false;
+    uint64_t o = new_obj(K_OPTION);
+    if (ok) { objs[o - 1].has = true; objs[o - 1].val = num((double)v); }
+    return id(o);
+}
+REGISTER("String", "to_integer", String_to_integer);
 
 // =============================================================================================
 // SECTION: Generic host functions and print
