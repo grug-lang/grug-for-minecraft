@@ -1378,6 +1378,11 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isOutOfHeightLimit(Object levelObj, int y) {
+        return ((Level) levelObj).isOutsideBuildHeight(y);
+    }
+
+    @Override
     public int getHostileBlockLightLimit(Object levelObj) {
         return ((Level) levelObj).dimensionType().monsterSpawnBlockLightLimit();
     }

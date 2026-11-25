@@ -1,6 +1,8 @@
 package net.grug.minecraft.stationapi.events.init;
 
+import net.grug.minecraft.grug.GrugMetadata;
 import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.grug.minecraft.stationapi.GrugClientHooks;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.GrugBlockModels;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
@@ -38,6 +40,14 @@ public class ClientInitListener {
         event.keyBindings.add(runTestsKey);
         forceResolutionKey = new KeyBinding("key.grug.force_test_resolution", Keyboard.KEY_M);
         event.keyBindings.add(forceResolutionKey);
+        for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
+            KeyBinding binding = new KeyBinding(declared.key().name(), declared.key().code());
+            event.keyBindings.add(binding);
+            GrugClientHooks.declaredBindings()
+                    .add(
+                            new GrugClientHooks.DeclaredBinding(
+                                    declared.mod(), declared.key().id(), binding));
+        }
     }
 
     /**

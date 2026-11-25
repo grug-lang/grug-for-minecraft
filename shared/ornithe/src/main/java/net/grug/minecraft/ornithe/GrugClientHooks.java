@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugMetadata;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugReference;
@@ -26,6 +27,8 @@ import java.awt.Dimension;
 import java.awt.Frame;
 import java.awt.Insets;
 import java.awt.Window;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The Minecraft client's per-tick behavior, driven from the {@code MinecraftMixin} injection.
@@ -42,6 +45,26 @@ import java.awt.Window;
 public class GrugClientHooks {
     private static KeyBinding runTestsKey;
     private static KeyBinding forceResolutionKey;
+
+    /** One binding a mod declared, with the key the game registered for it. */
+    public static final class DeclaredBinding {
+        public final String mod;
+        public final String id;
+        public final KeyBinding binding;
+
+        DeclaredBinding(String mod, String id, KeyBinding binding) {
+            this.mod = mod;
+            this.id = id;
+            this.binding = binding;
+        }
+    }
+
+    private static final List<DeclaredBinding> declaredBindings = new ArrayList<>();
+
+    /** The declared bindings this loader registered, one per binding a mounted mod declares. */
+    public static List<DeclaredBinding> declaredBindings() {
+        return declaredBindings;
+    }
 
     private final Minecraft minecraft;
     private final GrugClientAccess access;
@@ -264,7 +287,10 @@ public class GrugClientHooks {
         return true;
     }
 
-    /** Registers the R and M keybinds; safe to call once from the mixin's static initializer. */
+    /**
+     * Registers the R and M keybinds and one per binding the mounted mods declare; safe to call
+     * once from the mixin's static initializer.
+     */
     @GrugGenerated("dev-only: R runs tests and M forces the test resolution by hand")
     public static void registerKeybinds() {
         KeybindEvents.REGISTER_KEYBINDS.register(
@@ -274,6 +300,16 @@ public class GrugClientHooks {
                     forceResolutionKey =
                             KeybindRegistry.register(
                                     "key.grug.force_test_resolution", Keyboard.KEY_M, "Grug");
+                    for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
+                        declaredBindings.add(
+                                new DeclaredBinding(
+                                        declared.mod(),
+                                        declared.key().id(),
+                                        KeybindRegistry.register(
+                                                declared.key().name(),
+                                                declared.key().code(),
+                                                "Grug")));
+                    }
                 });
     }
 

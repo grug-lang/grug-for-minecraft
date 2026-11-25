@@ -14,6 +14,7 @@ import net.grug.minecraft.stationapi.client.GrugModelRenderer;
 import net.grug.minecraft.stationapi.events.init.ClientInitListener;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.option.KeyBinding;
 import net.modificationstation.stationapi.api.client.resource.ReloadableAssetsManager;
 import net.modificationstation.stationapi.api.resource.ResourceReload;
 import net.modificationstation.stationapi.api.tick.TickScheduler;
@@ -48,6 +49,27 @@ import java.util.List;
  * behind the R and M keys live in core's {@link GrugRunWindow}, which core's JUnit tests measure.
  */
 public class GrugClientHooks {
+
+    /** One binding a mod declared, with the key the game registered for it. */
+    public static final class DeclaredBinding {
+        public final String mod;
+        public final String id;
+        public final KeyBinding binding;
+
+        public DeclaredBinding(String mod, String id, KeyBinding binding) {
+            this.mod = mod;
+            this.id = id;
+            this.binding = binding;
+        }
+    }
+
+    private static final List<DeclaredBinding> declaredBindings = new ArrayList<>();
+
+    /** The declared bindings this loader registered, one per binding a mounted mod declares. */
+    public static List<DeclaredBinding> declaredBindings() {
+        return declaredBindings;
+    }
+
     private final Minecraft minecraft;
     private final GrugClientAccess access;
     private final String title;

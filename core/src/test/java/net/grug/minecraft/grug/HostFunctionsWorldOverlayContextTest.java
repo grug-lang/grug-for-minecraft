@@ -106,7 +106,7 @@ class HostFunctionsWorldOverlayContextTest {
     @Test
     void aWorldContextAnswersTheCameraAndRecordsItsLines() {
         long color = GrugEntities.addEntity(GrugEntityType.Color, new Color(0, 255, 0));
-        GrugWorldOverlay.openWorld(0.25, 1.5, 64, -3);
+        GrugWorldOverlay.openWorld(0.25, 1.5, 64, -3, 1.5, 62, -3, "coverage");
         long context =
                 GrugEntities.addEntity(
                         GrugEntityType.OverlayWorldContext, GrugWorldOverlay.context());
@@ -158,9 +158,13 @@ class HostFunctionsWorldOverlayContextTest {
         HostFunctions.OverlayWorldKeyContext_key(keyContext);
         HostFunctions.OverlayWorldKeyContext_ctrl(keyContext);
         HostFunctions.OverlayHudContext_top_inset(keyContext);
+        HostFunctions.OverlayWorldContext_get_config(keyContext);
+        HostFunctions.OverlayWorldContext_get_spawn_squares(keyContext, 1);
+        HostFunctions.OverlayWorldBindingContext_id(keyContext);
+        HostFunctions.OverlayWorldBindingContext_get_config(keyContext);
 
         List<String> reports = drain();
-        assertEquals(14, reports.size(), "Every method names its own refusal.");
+        assertEquals(18, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("OverlayHudContext.screen_width"), reports.get(0));
         assertTrue(reports.get(3).contains("OverlayHudContext.get_level"), reports.get(3));
         assertTrue(reports.get(8).contains("OverlayWorldContext.draw_line"), reports.get(8));
@@ -168,6 +172,12 @@ class HostFunctionsWorldOverlayContextTest {
         assertTrue(reports.get(10).contains("OverlayWorldContext.get_level"), reports.get(10));
         assertTrue(reports.get(12).contains("OverlayWorldKeyContext.ctrl"), reports.get(12));
         assertTrue(reports.get(13).contains("OverlayHudContext.top_inset"), reports.get(13));
+        assertTrue(reports.get(14).contains("OverlayWorldContext.get_config"), reports.get(14));
+        assertTrue(
+                reports.get(15).contains("OverlayWorldContext.get_spawn_squares"), reports.get(15));
+        assertTrue(reports.get(16).contains("OverlayWorldBindingContext.id"), reports.get(16));
+        assertTrue(
+                reports.get(17).contains("OverlayWorldBindingContext.get_config"), reports.get(17));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }

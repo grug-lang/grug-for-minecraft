@@ -13,5 +13,37 @@
 			"name": "BSD Zero Clause License",
 			"url": "https://spdx.org/licenses/0BSD.html"
 		}
+	],
+	"keys": [
+		{
+			"id": "coverage_toggle",
+			"name": "Coverage Binding",
+			"default_key": "B"
+		}
+	],
+	"config": [
+		{
+			"key": "coverage_flag",
+			"type": "boolean",
+			"title": "Coverage flag",
+			"description": "Whether the flag is on, which the binding test reads as its default and its fallback.",
+			"default": true
+		},
+		{
+			"key": "coverage_count",
+			"type": "number",
+			"title": "Coverage count",
+			"description": "A whole number inside a range, which the binding test reads as its default and its fallback.",
+			"default": 3,
+			"min": 1,
+			"max": 9
+		},
+		{
+			"key": "coverage_color",
+			"type": "color",
+			"title": "Coverage colour",
+			"description": "A colour, which the binding test reads so the host's parser and the Color it answers are exercised.",
+			"default": "#00FF00"
+		}
 	]
 }

@@ -1,0 +1,306 @@
+# Covers the rules the marks follow, without a capture (#1255). A square is marked only when the
+# spawner accepts it and its block light is at most the configured safe_light_level, and then it is
+# red when the sky does not light it and yellow when it does. The player never moves: the scan is a
+# cube of radius render_distance around the block the player's feet are in, and a radius-15 room
+# seals the cube of radius 16 around the feet, because a square of the open world's ground is a
+# spawn space under the sky and would be marked yellow and spoil every absence below.
+
+# The room puts a torch on every floor tile but the player's column, so the feet block is lit from
+# a neighbour's column. The torches within three blocks of the column are taken away, which leaves
+# the nearest one four blocks out and lights the feet block to the safe level itself: 7 with the
+# file's default, which is also above 1.20.6's own spawn limit of 0, so a port that clamped the
+# file's level to the version's limit would leave the square unmarked here.
+
+# "Marked" and "not marked" are read through TestTickContext.world_overlay_drawn, which a press
+# clears and a frame sets, so a press of a key the overlay does not take clears it without changing
+# anything else.
+
+# The states below are the rule's cases:
+# 1. The feet square is a spawn space at the safe level: marked.
+# 2. A torch beside it, on a stone of its own, lights it to 13: not marked.
+# 3. The torch becomes a redstone torch, whose light beside the square is 6, above 1.20.6's own
+#    spawn limit of 0 and at or below the file's 7: marked, because the reference compares to the
+#    file's value and not to the version's limit.
+# 4. A torch in the square itself lights it to 14: not marked.
+# 5. The square is empty and at the safe level again: marked again.
+# 6. L a second time turns the overlay off: not marked.
+
+# The scan is taken again every update_rate ticks of the level's time, so each case waits two rates
+# and a margin after its change before it reads a frame, which is long enough for a scan to have
+# seen it even when a joined client learns the level's time from a packet every 20 ticks. The light
+# is waited for through light_applied, since a joined client's copy carries the section's light and
+# the overlay draws from that copy.
+state: number = 0
+waited: number = 0
+rate: number = 0
+safe: number = 0
+change_at: number = 0
+cleared_at: number = 0
+drawn_waited: number = 0
+px: number = 0
+py: number = 0
+pz: number = 0
+
+# The room build, the light settles and the scan waits together are longer than the default
+# budget, so the budget is raised rather than a wait shortened. A radius-15 room seals the cube
+# the overlay scans, which is the room_sky_light test's radius-13 wait plus a wider shell.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(3000)
+}
+
+export tick(ctx: TestTickContext) {
+    waited = waited + 1
+    ctx.assert(waited < 3000, "The unmarked square test should finish.")
+    level: Level = ctx.get_client_level()
+
+    if state == 0 {
+        if not me.world_overlay_supported() {
+            return
+        }
+        ctx.set_box_radius(15)
+        state = 1
+        ctx.not_done()
+        return
+    }
+
+    if state == 1 {
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        cfg: Config = ctx.get_config()
+        rate = cfg.number("update_rate")
+        safe = cfg.number("safe_light_level")
+        # The scan is the cube around the block the feet are in, floored as the host floors it, so
+        # the fixture goes around that block on every side of the world.
+        feet: Vec3 = ctx.get_player().position()
+        px = Math.floor(feet.x())
+        py = Math.floor(feet.y())
+        pz = Math.floor(feet.z())
+        level.place_block(px, py - 1, pz, "minecraft:stone")
+        # The torches near the player's column go, so the nearest left is four blocks away and
+        # lights the feet block to 14 - 3 - 4 = 7. The floor spaces this opens are one to four
+        # blocks from a torch left in their row, so each is lit to at least 10 and none is marked.
+        a: number = -3
+        while a <= 3 {
+            b: number = -3
+            while b <= 3 {
+                level.place_block(px + a, py - 3, pz + b, "minecraft:air")
+                b = b + 1
+            }
+            a = a + 1
+        }
+        state = 2
+        ctx.not_done()
+        return
+    }
+
+    if state == 2 {
+        if not level.is_hostile_spawn_space(px, py, pz) {
+            ctx.not_done()
+            return
+        }
+        if level.get_block_light(px, py, pz) > safe {
+            ctx.not_done()
+            return
+        }
+        if not ctx.light_applied(px, py, pz) {
+            ctx.not_done()
+            return
+        }
+        # L turns the overlay on, and an active overlay scans at once.
+        ctx.press_world_key(76, false)
+        change_at = ctx.current_tick()
+        state = 3
+        ctx.not_done()
+        return
+    }
+
+    if state == 3 {
+        # The press cleared the flag, and the client draws fewer frames than it runs ticks at the
+        # game's maximum speed, so the frame the mark is read from is waited for rather than read on
+        # the tick after the press.
+        if not ctx.world_overlay_drawn() {
+            drawn_waited = drawn_waited + 1
+            ctx.assert(drawn_waited < 200, "The square at the safe level should be marked.")
+            ctx.not_done()
+            return
+        }
+        # A torch beside the square, on a stone of its own so it has a floor to stand on. Its own
+        # square is a torch, not a solid block, and its own light is 14, above the safe level.
+        level.place_block(px + 1, py - 1, pz, "minecraft:stone")
+        level.place_block(px + 1, py, pz, "minecraft:torch")
+        change_at = ctx.current_tick()
+        state = 4
+        ctx.not_done()
+        return
+    }
+
+    if state == 4 {
+        if level.get_block_light(px, py, pz) <= safe {
+            ctx.not_done()
+            return
+        }
+        if not ctx.light_applied(px, py, pz) {
+            ctx.not_done()
+            return
+        }
+        if ctx.current_tick() - change_at < 2 * rate + 40 {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        # K is a key the overlay does not take, so the press only clears the frame flag. The read
+        # after a frame's worth of ticks is the batch the next frame draws.
+        ctx.press_world_key(75, false)
+        cleared_at = ctx.current_tick()
+        state = 5
+        ctx.not_done()
+        return
+    }
+
+    if state == 5 {
+        if ctx.current_tick() - cleared_at < 12 {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        ctx.assert(not ctx.world_overlay_drawn(), "A square lit above the safe level should not be marked.")
+        # A redstone torch in the torch's place lights the square to 6: above 1.20.6's own spawn
+        # limit of 0 and at or below the file's 7, so the reference's rule marks the square there.
+        level.place_block(px + 1, py, pz, "minecraft:redstone_torch")
+        change_at = ctx.current_tick()
+        state = 6
+        ctx.not_done()
+        return
+    }
+
+    if state == 6 {
+        if level.get_block_light(px, py, pz) > safe {
+            ctx.not_done()
+            return
+        }
+        if not ctx.light_applied(px, py, pz) {
+            ctx.not_done()
+            return
+        }
+        if ctx.current_tick() - change_at < 2 * rate + 40 {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        # The square's own block light is above the limit 1.20.6 allows a spawn at, so a port that
+        # clamped the file's safe level to the version's spawn limit would not mark it.
+        if me.loader_name() == "1.20.6-forge" {
+            ctx.assert(level.get_block_light(px, py, pz) > level.get_hostile_block_light_limit(), "The square's light should be above 1.20.6's spawn limit and at or below the file's safe level.")
+        }
+        drawn_waited = 0
+        ctx.press_world_key(75, false)
+        state = 7
+        ctx.not_done()
+        return
+    }
+
+    if state == 7 {
+        if not ctx.world_overlay_drawn() {
+            drawn_waited = drawn_waited + 1
+            ctx.assert(drawn_waited < 200, "A square lit above the version's spawn limit is still marked at the safe level.")
+            ctx.not_done()
+            return
+        }
+        # A torch in the square itself lights it to 14, above the safe level. A torch is not a
+        # solid block, so this version's spawner either keeps the square or drops it, and the light
+        # alone leaves it unmarked either way.
+        level.place_block(px + 1, py, pz, "minecraft:air")
+        level.place_block(px + 1, py - 1, pz, "minecraft:air")
+        level.place_block(px, py, pz, "minecraft:torch")
+        change_at = ctx.current_tick()
+        state = 8
+        ctx.not_done()
+        return
+    }
+
+    if state == 8 {
+        if level.get_block_light(px, py, pz) <= safe {
+            ctx.not_done()
+            return
+        }
+        if not ctx.light_applied(px, py, pz) {
+            ctx.not_done()
+            return
+        }
+        if ctx.current_tick() - change_at < 2 * rate + 40 {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        ctx.press_world_key(75, false)
+        cleared_at = ctx.current_tick()
+        state = 9
+        ctx.not_done()
+        return
+    }
+
+    if state == 9 {
+        if ctx.current_tick() - cleared_at < 12 {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        ctx.assert(not ctx.world_overlay_drawn(), "A square lit to 14 in the square itself should not be marked.")
+        # The square is empty again and the torches near the column are still gone, so it is at the
+        # safe level and a spawn space: a mark again.
+        level.place_block(px, py, pz, "minecraft:air")
+        change_at = ctx.current_tick()
+        state = 10
+        ctx.not_done()
+        return
+    }
+
+    if state == 10 {
+        if not level.is_hostile_spawn_space(px, py, pz) {
+            ctx.not_done()
+            return
+        }
+        if level.get_block_light(px, py, pz) > safe {
+            ctx.not_done()
+            return
+        }
+        if not ctx.light_applied(px, py, pz) {
+            ctx.not_done()
+            return
+        }
+        if ctx.current_tick() - change_at < 2 * rate + 40 {
+            ctx.world_overlay_drawn()
+            ctx.not_done()
+            return
+        }
+        drawn_waited = 0
+        ctx.press_world_key(75, false)
+        state = 11
+        ctx.not_done()
+        return
+    }
+
+    if state == 11 {
+        if not ctx.world_overlay_drawn() {
+            drawn_waited = drawn_waited + 1
+            ctx.assert(drawn_waited < 200, "The square at the safe level should be marked again.")
+            ctx.not_done()
+            return
+        }
+        # L again turns the overlay off, which is the second press the reference's active flag counts.
+        ctx.press_world_key(76, false)
+        cleared_at = ctx.current_tick()
+        state = 12
+        ctx.not_done()
+        return
+    }
+
+    if ctx.current_tick() - cleared_at < 12 {
+        ctx.world_overlay_drawn()
+        ctx.not_done()
+        return
+    }
+    ctx.assert(not ctx.world_overlay_drawn(), "The overlay should be off after the second press of L.")
+}

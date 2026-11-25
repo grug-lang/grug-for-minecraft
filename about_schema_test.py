@@ -81,6 +81,7 @@ class SchemaCase(unittest.TestCase):
             message for _, message in about_schema.loaders_errors(data, loaders_dir=loaders_dir)
         ]
         messages += [message for _, message in about_schema.done_errors(data)]
+        messages += [message for _, message in about_schema.declaration_errors(data)]
         return messages
 
     def assertValid(self, data: dict):
@@ -330,6 +331,193 @@ class LoadersTest(SchemaCase):
         mod = base_mod()
         mod["loaders"] = ["b1.7.3-stationapi", 1]
         self.assertInvalid(mod, "is not of type 'string'")
+
+
+class DeclarationsTest(SchemaCase):
+    """The key bindings and configuration options a mod declares (#1255)."""
+
+    def mod_with_option(self, option: dict) -> dict:
+        mod = base_mod()
+        mod["config"] = [option]
+        return mod
+
+    def mod_with_binding(self, binding: dict) -> dict:
+        mod = base_mod()
+        mod["keys"] = [binding]
+        return mod
+
+    def test_a_mod_may_declare_a_binding_and_a_config(self):
+        mod = base_mod()
+        mod["keys"] = [{"id": "toggle", "name": "Toggle SafeSquares", "default_key": "L"}]
+        mod["config"] = [
+            {
+                "key": "enabled",
+                "type": "boolean",
+                "title": "Enabled",
+                "description": "On.",
+                "default": True,
+            },
+            {
+                "key": "render_distance",
+                "type": "number",
+                "title": "Render distance",
+                "description": "Blocks.",
+                "default": 16,
+                "min": 1,
+                "max": 32,
+            },
+            {
+                "key": "sky_color",
+                "type": "color",
+                "title": "Colour",
+                "description": "Hex.",
+                "default": "#DDDD00",
+            },
+        ]
+        self.assertValid(mod)
+
+    def test_a_mod_that_declares_neither_declares_nothing(self):
+        mod = base_mod()
+        mod.pop("keys", None)
+        mod.pop("config", None)
+        self.assertValid(mod)
+
+    def test_an_empty_declaration_list_is_rejected(self):
+        mod = base_mod()
+        mod["keys"] = []
+        self.assertInvalid(mod, "should be non-empty")
+
+    def test_a_binding_default_key_is_one_letter_or_digit(self):
+        for good in ("L", "l", "7"):
+            self.assertValid(
+                self.mod_with_binding({"id": "toggle", "name": "Toggle", "default_key": good})
+            )
+        for bad in ("F5", "", "space"):
+            self.assertInvalid(
+                self.mod_with_binding({"id": "toggle", "name": "Toggle", "default_key": bad}),
+                "does not match",
+            )
+
+    def test_a_binding_needs_an_id_and_a_name(self):
+        self.assertInvalid(
+            self.mod_with_binding({"name": "Toggle", "default_key": "L"}),
+            "'id' is a required property",
+        )
+        self.assertInvalid(
+            self.mod_with_binding({"id": "toggle", "default_key": "L"}),
+            "'name' is a required property",
+        )
+
+    def test_duplicate_binding_ids_are_rejected(self):
+        mod = base_mod()
+        mod["keys"] = [
+            {"id": "toggle", "name": "Toggle", "default_key": "L"},
+            {"id": "toggle", "name": "Again", "default_key": "K"},
+        ]
+        self.assertInvalid(mod, "binding ids must be unique")
+
+    def test_an_option_default_must_match_its_type(self):
+        option = {
+            "key": "enabled",
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "On.",
+            "default": 1,
+        }
+        self.assertInvalid(self.mod_with_option(option), "is not of type 'boolean'")
+        option = {
+            "key": "radius",
+            "type": "number",
+            "title": "Radius",
+            "description": "Blocks.",
+            "default": "16",
+        }
+        self.assertInvalid(self.mod_with_option(option), "is not of type 'number'")
+
+    def test_a_colour_default_is_hex(self):
+        option = {
+            "key": "sky",
+            "type": "color",
+            "title": "Sky",
+            "description": "Hex.",
+            "default": "yellow",
+        }
+        self.assertInvalid(self.mod_with_option(option), "does not match")
+        for good in ("#DDDD00", "#88DDDD00", "DDDD00"):
+            option["default"] = good
+            self.assertValid(self.mod_with_option(option))
+
+    def test_an_unknown_option_type_is_rejected(self):
+        option = {"key": "x", "type": "choice", "title": "X", "description": "X.", "default": 1}
+        self.assertInvalid(self.mod_with_option(option), "is not one of")
+
+    def test_duplicate_option_keys_are_rejected(self):
+        mod = base_mod()
+        mod["config"] = [
+            {
+                "key": "enabled",
+                "type": "boolean",
+                "title": "A",
+                "description": "A.",
+                "default": True,
+            },
+            {
+                "key": "enabled",
+                "type": "boolean",
+                "title": "B",
+                "description": "B.",
+                "default": False,
+            },
+        ]
+        self.assertInvalid(mod, "option keys must be unique")
+
+    def test_a_range_belongs_to_a_number_option(self):
+        option = {
+            "key": "label",
+            "type": "color",
+            "title": "Label",
+            "description": "Hex.",
+            "default": "#FFFFFF",
+            "min": 0,
+        }
+        self.assertInvalid(self.mod_with_option(option), "only a number option may declare")
+
+    def test_a_number_default_is_inside_its_range(self):
+        option = {
+            "key": "radius",
+            "type": "number",
+            "title": "Radius",
+            "description": "Blocks.",
+            "default": 40,
+            "min": 1,
+            "max": 32,
+        }
+        self.assertInvalid(self.mod_with_option(option), "is above max")
+        option["default"] = 0
+        self.assertInvalid(self.mod_with_option(option), "is below min")
+
+    def test_a_range_with_min_above_max_is_rejected(self):
+        option = {
+            "key": "radius",
+            "type": "number",
+            "title": "Radius",
+            "description": "Blocks.",
+            "default": 5,
+            "min": 9,
+            "max": 2,
+        }
+        self.assertInvalid(self.mod_with_option(option), "is above max")
+
+    def test_an_unknown_option_property_is_rejected(self):
+        option = {
+            "key": "radius",
+            "type": "number",
+            "title": "Radius",
+            "description": "Blocks.",
+            "default": 1,
+            "step": 2,
+        }
+        self.assertInvalid(self.mod_with_option(option), "Additional properties are not allowed")
 
 
 class UnsafeModeRequestTest(SchemaCase):

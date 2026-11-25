@@ -9,6 +9,7 @@ public enum GrugEntityType {
     BlockPos,
     BlockUseContext,
     Color,
+    Config,
     DisplayTickContext,
     Entity,
     ExtractResponse,
@@ -25,6 +26,7 @@ public enum GrugEntityType {
     OverlayKeyContext,
     OverlayRenderContext,
     OverlayScrollContext,
+    OverlayWorldBindingContext,
     OverlayWorldContext,
     OverlayWorldKeyContext,
     Player,
@@ -32,6 +34,7 @@ public enum GrugEntityType {
     ResourceLocation,
     Screenshot,
     ShapeContext,
+    SpawnSquares,
     TestInitContext,
     TestTickContext,
     Vec3;

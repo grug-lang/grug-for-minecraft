@@ -235,6 +235,97 @@ def recreation_errors(derived_from) -> list:
     return errors
 
 
+def declaration_errors(about: dict) -> list:
+    """The rules for the declared key bindings and configuration options jsonschema cannot express.
+
+    A declaration is read by the host at run time, so a duplicate is refused here rather than
+    answered as the first or the last: two options with one key would make the config file ambiguous,
+    and two bindings with one id would deliver every press to both. A number option's default has to
+    be inside its declared range, and only a number option may declare a range at all.
+    """
+    errors = []
+
+    keys = about.get("keys")
+    if isinstance(keys, list):
+        seen = {}
+        for index, binding in enumerate(keys):
+            if not isinstance(binding, dict):
+                continue
+            declared = binding.get("id")
+            if not isinstance(declared, str):
+                continue
+            if declared in seen:
+                errors.append(
+                    (
+                        f"/keys/{index}/id",
+                        f"binding ids must be unique; {declared!r} is already used by"
+                        f" /keys/{seen[declared]}/id.",
+                    )
+                )
+            else:
+                seen[declared] = index
+
+    options = about.get("config")
+    if isinstance(options, list):
+        seen = {}
+        for index, option in enumerate(options):
+            if not isinstance(option, dict):
+                continue
+            declared = option.get("key")
+            if not isinstance(declared, str):
+                continue
+            path = f"/config/{index}"
+            if declared in seen:
+                errors.append(
+                    (
+                        f"{path}/key",
+                        f"option keys must be unique; {declared!r} is already used by"
+                        f" /config/{seen[declared]}/key.",
+                    )
+                )
+                continue
+            seen[declared] = index
+
+            if option.get("type") != "number":
+                for field in ("min", "max"):
+                    if field in option:
+                        errors.append(
+                            (
+                                f"{path}/{field}",
+                                f"only a number option may declare {field!r}.",
+                            )
+                        )
+                continue
+
+            lowest = option.get("min")
+            highest = option.get("max")
+            if (
+                isinstance(lowest, (int, float))
+                and isinstance(highest, (int, float))
+                and lowest > highest
+            ):
+                errors.append((f"{path}/min", f"min {lowest!r} is above max {highest!r}."))
+            fallback = option.get("default")
+            if not isinstance(fallback, (int, float)):
+                continue
+            if isinstance(lowest, (int, float)) and fallback < lowest:
+                errors.append(
+                    (
+                        f"{path}/default",
+                        f"the default {fallback!r} is below min {lowest!r}.",
+                    )
+                )
+            if isinstance(highest, (int, float)) and fallback > highest:
+                errors.append(
+                    (
+                        f"{path}/default",
+                        f"the default {fallback!r} is above max {highest!r}.",
+                    )
+                )
+
+    return errors
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parent
     schema_path = repo_root / "about_schema.json"
@@ -275,13 +366,22 @@ def main() -> int:
         recreation_problems = recreation_errors(data.get("derived_from"))
         loaders_problems = loaders_errors(data)
         done_problems = done_errors(data)
-        if errors or recreation_problems or loaders_problems or done_problems:
+        declaration_problems = declaration_errors(data)
+        if (
+            errors
+            or recreation_problems
+            or loaders_problems
+            or done_problems
+            or declaration_problems
+        ):
             has_error = True
             print(f"FAILED: {rel_path}", file=sys.stderr)
             for err in errors:
                 json_path = "/" + "/".join(str(p) for p in err.path) if err.path else "/"
                 print(f"  - At '{json_path}': {err.message}", file=sys.stderr)
             for json_path, message in recreation_problems + loaders_problems + done_problems:
+                print(f"  - At '{json_path}': {message}", file=sys.stderr)
+            for json_path, message in declaration_problems:
                 print(f"  - At '{json_path}': {message}", file=sys.stderr)
             print("", file=sys.stderr)
         else:

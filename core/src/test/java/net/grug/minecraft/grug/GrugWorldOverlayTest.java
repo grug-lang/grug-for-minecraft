@@ -29,7 +29,21 @@ class GrugWorldOverlayTest {
             GrugWorldOverlay.closeWorld();
         } else if (GrugWorldOverlay.isKey()) {
             GrugWorldOverlay.closeKey();
+        } else if (GrugWorldOverlay.isBinding()) {
+            GrugWorldOverlay.closeBinding();
         }
+    }
+
+    @Test
+    void aBindingPassCarriesTheModAndItsIdAndForgetsThemWhenItCloses() {
+        GrugWorldOverlay.openBinding("coverage", "toggle");
+        assertTrue(GrugWorldOverlay.isBinding());
+        assertEquals("coverage", GrugWorldOverlay.mod());
+        assertEquals("toggle", GrugWorldOverlay.bindingId());
+        GrugWorldOverlay.closeBinding();
+        assertFalse(GrugWorldOverlay.isBinding());
+        assertNull(GrugWorldOverlay.mod());
+        assertNull(GrugWorldOverlay.bindingId());
     }
 
     @Test
@@ -57,7 +71,7 @@ class GrugWorldOverlayTest {
 
     @Test
     void aWorldPassRecordsItsLinesAndTheCameraItWasGiven() {
-        GrugWorldOverlay.openWorld(0.5, 10, 20, 30);
+        GrugWorldOverlay.openWorld(0.5, 10, 20, 30, 10, 18, 30, "coverage");
         assertTrue(GrugWorldOverlay.isWorld());
         assertEquals(0.5, GrugWorldOverlay.partialTick());
         assertEquals(10, GrugWorldOverlay.cameraX());
@@ -93,7 +107,7 @@ class GrugWorldOverlayTest {
     @Test
     void aSecondPassWhileOneIsOpenIsABrokenInvariant() {
         GrugWorldOverlay.openHud(1, 1);
-        assertThrows(Throwable.class, () -> GrugWorldOverlay.openWorld(0, 0, 0, 0));
+        assertThrows(Throwable.class, () -> GrugWorldOverlay.openWorld(0, 0, 0, 0, 0, 0, 0, null));
     }
 
     @Test
@@ -105,7 +119,7 @@ class GrugWorldOverlayTest {
     @Test
     void aMissingScriptOrExportStillOpensAndClosesThePass() {
         assertTrue(GrugWorldOverlay.hud(0, Grug.INVALID_GRUG_EXPORT_FN_ID, 10, 20).isEmpty());
-        assertTrue(GrugWorldOverlay.world(0, 5, 0, 1, 2, 3).isEmpty());
+        assertTrue(GrugWorldOverlay.world(0, 5, 0, 1, 2, 3, 1, 1, 3, "coverage").isEmpty());
         GrugWorldOverlay.key(0, Grug.INVALID_GRUG_EXPORT_FN_ID, 'L', false);
         // A live entity whose file has no such export is skipped too, without a native call.
         assertTrue(GrugWorldOverlay.hud(1, Grug.INVALID_GRUG_EXPORT_FN_ID, 10, 20).isEmpty());

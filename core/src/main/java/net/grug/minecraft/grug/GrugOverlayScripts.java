@@ -76,6 +76,7 @@ public final class GrugOverlayScripts {
         public final long hudFnId;
         public final long worldFnId;
         public final long worldKeyFnId;
+        public final long worldBindingFnId;
         public final String mod;
 
         Script(
@@ -94,6 +95,7 @@ public final class GrugOverlayScripts {
             this.hudFnId = entities.exportFnId("Overlay", "render_hud");
             this.worldFnId = entities.exportFnId("Overlay", "render_world");
             this.worldKeyFnId = entities.exportFnId("Overlay", "world_key");
+            this.worldBindingFnId = entities.exportFnId("Overlay", "world_binding");
             this.mod = mod;
         }
     }
@@ -160,6 +162,35 @@ public final class GrugOverlayScripts {
     public static List<Script> scripts() {
         ensureCreated();
         return scripts;
+    }
+
+    /**
+     * The overlay of {@code mod} that answers its declared key bindings, or null when the mod has
+     * no overlay with a {@code world_binding} export. The first in clean-name order is the one
+     * asked, so two overlay files of one mod cannot both answer one press of one binding.
+     */
+    public static Script bindingScript(String mod) {
+        for (Script script : scripts()) {
+            if (!mod.equals(script.mod)) continue;
+            if (script.worldBindingFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) continue;
+            return script;
+        }
+        return null;
+    }
+
+    /**
+     * The one overlay per mod that answers its declared key bindings, in clean-name order. A test
+     * presses a declared key through these, and a loader that registers no binding polls them.
+     */
+    public static List<Script> bindingScripts() {
+        List<Script> answering = new ArrayList<>();
+        Set<String> seen = new TreeSet<>();
+        for (Script script : scripts()) {
+            if (script.worldBindingFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) continue;
+            if (!seen.add(script.mod)) continue;
+            answering.add(script);
+        }
+        return answering;
     }
 
     /**

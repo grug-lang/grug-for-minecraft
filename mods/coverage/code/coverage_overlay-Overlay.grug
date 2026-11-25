@@ -37,6 +37,10 @@ origin_x: number = 0
 origin_y: number = 0
 origin_z: number = 0
 
+# Whether the declared binding (default B) has flipped its own mark, which the first press turns on
+# and each press after it flips. See #1255.
+binding_on: bool = false
+
 # The serial of the last screen the overlay drew on, and whether the key Ctrl+Z has not yet been answered
 # on it, which lets a test tell a new screen from the same one (OverlayRenderContext.screen_serial,
 # #865).
@@ -295,6 +299,16 @@ export render_world(ctx: OverlayWorldContext) {
         ctx.draw_triangle(triangle_x - 1, triangle_y - 1, triangle_z, triangle_x + 1, triangle_y - 1, triangle_z, triangle_x + 1, triangle_y + 1, triangle_z, half_red)
         ctx.draw_triangle(triangle_x - 1, triangle_y - 1, triangle_z, triangle_x + 1, triangle_y + 1, triangle_z, triangle_x - 1, triangle_y + 1, triangle_z, half_red)
     }
+    # The mark the declared binding flips, drawn in the colour its config declares, so a test tells
+    # a binding press from a world key press by what the next frame shows (#1255).
+    if binding_on {
+        cfg: Config = ctx.get_config()
+        mark: Color = cfg.color("coverage_color")
+        x: number = ctx.camera_x()
+        y: number = ctx.camera_y()
+        z: number = ctx.camera_z() + 4
+        ctx.draw_line(x - 1, y - 1, z, x + 1, y + 1, z, mark)
+    }
 }
 
 # The world key J (74) flips the cross, and Control and J only ever turns it off, so a test can tell
@@ -329,5 +343,24 @@ export world_key(ctx: OverlayWorldKeyContext) {
         } else {
             cross_on = not cross_on
         }
+    }
+}
+
+# The binding the mod declares in about.json (see coverage_toggle there). A press reads the mod's
+# own config through the binding context, which is the one host path a binding has, and flips the
+# mark render_world draws while it is on. A number read from a colour option and a bool read from
+# a number option answer their type's empty value, which a mod that mistypes sees rather than an
+# err; the host's own Java test checks those values.
+export world_binding(ctx: OverlayWorldBindingContext) {
+    cfg: Config = ctx.get_config()
+    if ctx.id() != "coverage_toggle" {
+        return
+    }
+    count: number = cfg.number("coverage_count")
+    flag: bool = cfg.bool("coverage_flag")
+    not_a_number: number = cfg.number("coverage_color")
+    not_a_bool: bool = cfg.bool("coverage_count")
+    if flag and count == 3 and not_a_number == 0 and not not_a_bool {
+        binding_on = not binding_on
     }
 }

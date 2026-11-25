@@ -862,6 +862,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isOutOfHeightLimit(Object levelObj, int y) {
+        // This version's world is 128 blocks tall and has no limit a world can set.
+        return y < 0 || y >= 128;
+    }
+
+    @Override
     public int getBlockLight(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.getLight(

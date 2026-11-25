@@ -9,6 +9,104 @@
 		"1.2.5-forge",
 		"1.20.6-forge"
 	],
+	"keys": [
+		{
+			"id": "toggle",
+			"name": "Toggle SafeSquares",
+			"default_key": "L"
+		}
+	],
+	"config": [
+		{
+			"key": "enabled",
+			"type": "boolean",
+			"title": "Enabled",
+			"description": "Enables or disables SafeSquares completely.",
+			"default": true
+		},
+		{
+			"key": "render_distance",
+			"type": "number",
+			"title": "Render distance",
+			"description": "How many blocks away from the player to check for safe blocks.",
+			"default": 16,
+			"min": 1,
+			"max": 32
+		},
+		{
+			"key": "update_rate",
+			"type": "number",
+			"title": "Update rate",
+			"description": "How often blocks should be checked, in ticks.",
+			"default": 8,
+			"min": 1,
+			"max": 100
+		},
+		{
+			"key": "safe_sky_enabled",
+			"type": "boolean",
+			"title": "Show spot safety under the sky",
+			"description": "If enabled, blocks that are unsafe under the sky will be highlighted.",
+			"default": true
+		},
+		{
+			"key": "safe_sky_color",
+			"type": "color",
+			"title": "Sky unsafe color",
+			"description": "Color of blocks that are unsafe under the sky (hex code, #RRGGBB or #AARRGGBB).",
+			"default": "#DDDD00"
+		},
+		{
+			"key": "safe_dark_enabled",
+			"type": "boolean",
+			"title": "Show spot safety in darkness",
+			"description": "If enabled, blocks that are unsafe in darkness will be highlighted.",
+			"default": true
+		},
+		{
+			"key": "safe_dark_color",
+			"type": "color",
+			"title": "Unsafe color",
+			"description": "Color of blocks that are unsafe in darkness (hex code, #RRGGBB or #AARRGGBB).",
+			"default": "#FF2222"
+		},
+		{
+			"key": "cross_scale",
+			"type": "number",
+			"title": "Cross scale",
+			"description": "Scale of the cross, relative to the size of the block (1).",
+			"default": 1.0,
+			"min": 0.1,
+			"max": 2.0
+		},
+		{
+			"key": "cross_epsilon",
+			"type": "number",
+			"title": "Cross epsilon",
+			"description": "How high above the block to render the cross, relative to the size of the block (1).",
+			"default": 0.125,
+			"min": -1.0,
+			"max": 1.0
+		},
+		{
+			"key": "cross_line_width",
+			"type": "number",
+			"title": "Cross line width",
+			"description": "Thickness of the line, in pixels.",
+			"default": 2.0,
+			"min": 1.0,
+			"max": 10.0
+		},
+		{
+			"key": "safe_light_level",
+			"type": "number",
+			"title": "Safe light level",
+			"description": "Light level considered safe from monster spawns (default 7).",
+			"default": 7,
+			"min": 1,
+			"max": 16
+		}
+	],
 	"authors": [
 		"MyNameIsTrez"
 	],
@@ -65,23 +163,23 @@
 			},
 			"deviations": [
 				{
-					"what": "The marks are found within 8 blocks of the camera in every direction, where the reference's default render distance is 16, and they are found again every frame, where the reference scans every 8 ticks.",
-					"why": "A grug mod has no array to keep a scanned grid in, so each frame scans the cube afresh through host calls, and a cube of 33 blocks a side is too many calls for one frame. A larger radius and a stored grid need a host call that returns a batch of squares.",
+					"what": "On Release 1.2.5 and 1.20.6 the overlay's ground test is that version's own spawner test and not the reference's, and on 1.20.6 the light rule is a chance and not a threshold: the game spawns a zombie only when a random draw of the sky light fails and the light at the time of day is at most a random 0 to 7, where the reference's spawner needs the light to be at most 7 and nothing more. The overlay compares the square's block light to the configured safe_light_level, as the reference does, and shows where a spawn is possible, not the chance, and not the thunderstorm that darkens the day sky.",
+					"why": "The reference's rule is Beta 1.7.3's. Release 1.2.5 asks the block below to accept a creature and not be bedrock, and 1.20.6 asks the zombie's spawn placement and that its box is free of collisions. The overlay marks a square where a spawn is possible at all, in the reference's two colors, and the weather and the chance are not part of the stored light it reads. Each version's own spawner is the rule a port of that version follows, so this is a per-version rule and not a gap.",
 					"tracking_issue": 1255
 				},
 				{
-					"what": "The key is the letter L and cannot be rebound, the cross is a fixed full block wide, 0.125 above the block, two pixels thick and in the reference's default colors, and the mod has no configuration.",
-					"why": "The host has no key binding or configuration API for a mod to register a rebindable key or read options.",
+					"what": "The cross is drawn at the host's own line width of two pixels whatever cross_line_width says.",
+					"why": "OverlayWorldContext.draw_line takes no width, because the host's world line renderer draws one width. The option is declared so a player's file matches the reference's, and the reference's default of two pixels is what the host draws.",
 					"tracking_issue": 1255
 				},
 				{
-					"what": "The scan is centred on the camera's block, which is the player's eyes, where the reference centres it on the player's position.",
-					"why": "The world draw hands a mod the camera and not the player.",
+					"what": "The squares are scanned every update_rate ticks of level time and kept between frames, and are not scanned again one tick after a block is placed or broken, as the reference's Checker.checkNextTick does.",
+					"why": "An overlay has no tick export and no hook for a block change, so a block placed or broken shows at the next scheduled scan, at most update_rate ticks later.",
 					"tracking_issue": 1255
 				},
 				{
-					"what": "On Release 1.2.5 and 1.20.6 the overlay's ground test is that version's own spawner test and not the reference's, and on 1.20.6 the light rule is a chance and not a threshold: the game spawns a zombie only when a random draw of the sky light fails and the light at the time of day is at most a random 0 to 7, where the reference's spawner needs the light to be at most 7 and nothing more. The overlay uses the dimension's own block light limit (0 in the overworld), and shows where a spawn is possible, not the chance, and not the thunderstorm that darkens the day sky.",
-					"why": "The reference's rule is Beta 1.7.3's. Release 1.2.5 asks the block below to accept a creature and not be bedrock, and 1.20.6 asks the zombie's spawn placement and that its box is free of collisions. The overlay marks a square where a spawn is possible at all, in the reference's two colors, and the weather and the chance are not part of the stored light it reads.",
+					"what": "The render distance is capped at 32 blocks, where the reference accepts 1 to 256: the config's max is 32, so a player's file cannot ask for the reference's full range.",
+					"why": "A scan is a cube of side 2 * render_distance + 1, so 256 is 513 blocks on a side, about 135 million cells in one scan, and the port's scan runs on the render thread; 32 is 65 blocks on a side.",
 					"tracking_issue": 1255
 				}
 			]

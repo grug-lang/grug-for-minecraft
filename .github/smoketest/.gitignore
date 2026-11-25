@@ -2,3 +2,4 @@ smoketest
 api_table.inc
 selftest
 recipes.inc
+mod_config.inc

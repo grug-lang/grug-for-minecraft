@@ -144,7 +144,8 @@ public final class GrugWorldOverlay {
         NONE,
         HUD,
         WORLD,
-        KEY
+        KEY,
+        BINDING
     }
 
     private static final List<Text> TEXTS = new ArrayList<>();
@@ -163,6 +164,14 @@ public final class GrugWorldOverlay {
     private static double cameraZ = 0.0;
     private static double keyCode = 0.0;
     private static boolean ctrl = false;
+    private static double playerX = 0.0;
+    private static double playerY = 0.0;
+    private static double playerZ = 0.0;
+    private static String mod = null;
+    private static String bindingId = null;
+
+    /** The held state of every declared binding, so a poll reports a press and not a hold. */
+    private static final GrugKeyBindings bindings = new GrugKeyBindings();
 
     /** Set by a loader that registers the three hooks, which is what the test's probe answers. */
     private static volatile boolean supported = false;
@@ -218,6 +227,11 @@ public final class GrugWorldOverlay {
         return kind == Kind.KEY;
     }
 
+    /** Whether the open pass is a binding pass. */
+    public static boolean isBinding() {
+        return kind == Kind.BINDING;
+    }
+
     /** Whether any pass is open. */
     public static boolean isOpen() {
         return kind != Kind.NONE;
@@ -260,6 +274,33 @@ public final class GrugWorldOverlay {
         return ctrl;
     }
 
+    /**
+     * The local player's feet this frame, the position a scan of the world is centred on. A loader
+     * passes the player's own non-interpolated position, not the camera that is interpolated for
+     * the draw, and the scan floors it to the block the feet are in.
+     */
+    public static double playerX() {
+        return playerX;
+    }
+
+    public static double playerY() {
+        return playerY;
+    }
+
+    public static double playerZ() {
+        return playerZ;
+    }
+
+    /** The mod whose export is running in the open pass, or null outside one. */
+    public static String mod() {
+        return mod;
+    }
+
+    /** The binding id the open world_binding pass was called for, or null outside one. */
+    public static String bindingId() {
+        return bindingId;
+    }
+
     private static void open(Kind opened) {
         if (kind != Kind.NONE) {
             throw Grug.fatal("A world overlay pass is already open.");
@@ -278,13 +319,28 @@ public final class GrugWorldOverlay {
         screenHeight = height;
     }
 
-    /** Opens the world pass for one frame, with the camera the lines are seen from. */
-    public static void openWorld(double tick, double x, double y, double z) {
+    /**
+     * Opens the world pass for one frame, with the camera the lines are seen from, the local
+     * player's feet, and the mod whose overlay is being asked.
+     */
+    public static void openWorld(
+            double tick,
+            double x,
+            double y,
+            double z,
+            double feetX,
+            double feetY,
+            double feetZ,
+            String callerMod) {
         open(Kind.WORLD);
         partialTick = tick;
         cameraX = x;
         cameraY = y;
         cameraZ = z;
+        playerX = feetX;
+        playerY = feetY;
+        playerZ = feetZ;
+        mod = callerMod;
     }
 
     /** Opens a key pass for one press of the key whose upper case character code is given. */
@@ -292,6 +348,13 @@ public final class GrugWorldOverlay {
         open(Kind.KEY);
         keyCode = code;
         ctrl = controlHeld;
+    }
+
+    /** Opens the pass for one press of the binding {@code id} of the mod {@code callerMod}. */
+    public static void openBinding(String callerMod, String id) {
+        open(Kind.BINDING);
+        mod = callerMod;
+        bindingId = id;
     }
 
     /** Records one text for the HUD pass, false when no HUD pass is open. */
@@ -369,6 +432,12 @@ public final class GrugWorldOverlay {
         finish();
     }
 
+    /** Closes a binding pass. */
+    public static void closeBinding() {
+        requireKind(Kind.BINDING);
+        finish();
+    }
+
     private static void requireKind(Kind expected) {
         if (kind != expected) {
             throw Grug.fatal(
@@ -388,6 +457,11 @@ public final class GrugWorldOverlay {
         context = null;
         keyCode = 0.0;
         ctrl = false;
+        playerX = 0.0;
+        playerY = 0.0;
+        playerZ = 0.0;
+        mod = null;
+        bindingId = null;
     }
 
     /**
@@ -413,12 +487,24 @@ public final class GrugWorldOverlay {
         }
     }
 
-    /** Runs an overlay's {@code render_world()} for one frame and answers the lines it drew. */
+    /**
+     * Runs an overlay's {@code render_world()} for one frame with the camera, the local player's
+     * feet and the mod the overlay belongs to, and answers the lines it drew.
+     */
     public static List<Line> world(
-            long entityHandle, long fnId, double tick, double x, double y, double z) {
+            long entityHandle,
+            long fnId,
+            double tick,
+            double x,
+            double y,
+            double z,
+            double feetX,
+            double feetY,
+            double feetZ,
+            String callerMod) {
         GrugStateLock.lock();
         try {
-            openWorld(tick, x, y, z);
+            openWorld(tick, x, y, z, feetX, feetY, feetZ, callerMod);
             List<Line> recorded;
             try {
                 call(entityHandle, fnId, GrugEntityType.OverlayWorldContext);
@@ -445,6 +531,49 @@ public final class GrugWorldOverlay {
             }
         } finally {
             GrugStateLock.unlock();
+        }
+    }
+
+    /**
+     * Polls one declared binding and asks the overlay's {@code world_binding()} when it just went
+     * down in a world with no screen open. The loader calls this every tick with the binding's held
+     * state, and a held binding is one press.
+     *
+     * @param gated whether a world is shown and no screen is open
+     */
+    public static void binding(
+            long entityHandle,
+            long fnId,
+            String callerMod,
+            String id,
+            boolean down,
+            boolean gated) {
+        if (!bindings.deliver(callerMod, id, down, gated)) return;
+        GrugStateLock.lock();
+        try {
+            openBinding(callerMod, id);
+            try {
+                call(entityHandle, fnId, GrugEntityType.OverlayWorldBindingContext);
+            } finally {
+                closeBinding();
+            }
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /**
+     * Presses, once, every binding of {@code callerMod} whose declared default key is {@code code}.
+     * A loader with no way to register a binding polls raw keys and calls this, which is how its
+     * default key still works; a loader that registers the binding polls {@link #binding} instead,
+     * so a rebound key is the one that fires.
+     */
+    public static void bindingDefaultsFor(
+            long entityHandle, long fnId, String callerMod, int code) {
+        for (GrugMetadata.Key key : GrugMetadata.forCallerMod(callerMod).keys()) {
+            if (key.code() != code) continue;
+            binding(entityHandle, fnId, callerMod, key.id(), true, true);
+            binding(entityHandle, fnId, callerMod, key.id(), false, true);
         }
     }
 
