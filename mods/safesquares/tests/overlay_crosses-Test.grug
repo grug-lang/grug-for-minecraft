@@ -11,11 +11,13 @@
 # room gets none. Squares under the hole are yellow (the sky lights them by day only), and the rest
 # are red. The test reads one square of each kind from the light the client holds and waits for both
 # before it turns the overlay on, so a capture that cannot hold both crosses fails here rather than
-# as a golden that was accepted with only one. The golden is the position check: every cross in the
-# crop is drawn where the square is, from the camera, which looks towards +z, so the hole's side is
-# on the left. The crop stops at x 840: the player's held item is drawn at the bottom right and
-# differs between the client-only run and the installed jar's, which is not what this test is about,
-# and every cross stays inside it.
+# as a golden that was accepted with only one, and it waits for the scan to keep every platform
+# square at the safe level, since a client's light can still hold the torch light the platform hides
+# for one square after the two probes read right (#1550). The golden is the position check: every
+# cross in the crop is drawn where the square is, from the camera, which looks towards +z, so the
+# hole's side is on the left. The crop stops at x 840: the player's held item is drawn at the bottom
+# right and differs between the client-only run and the installed jar's, which is not what this test
+# is about, and every cross stays inside it.
 # The sky light that is drawn depends on the clock (1.2.5 draws the stored sky light less a darkness
 # that follows the time of day; Alpha and Beta do the same), so the test sets noon before it places
 # the platform, and every capture is at the same hour whatever the run's clock was (#1550).
@@ -29,6 +31,8 @@ px: number = 0
 py: number = 0
 pz: number = 0
 clock_at: number = 0
+rd: number = 0
+safe: number = 0
 
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
@@ -105,14 +109,34 @@ export tick(ctx: TestTickContext) {
         }
         ctx.assert(level.is_hostile_spawn_space(hx, fy, hz), "The square under the hole should be a spawn space.")
         ctx.assert(level.is_hostile_spawn_space(hx - 10, fy, hz - 2), "The square far from the hole should be a spawn space.")
+        cfg: Config = ctx.get_config()
+        rd = Math.floor(cfg.number("render_distance"))
+        safe = cfg.number("safe_light_level")
         state = 2
         ctx.not_done()
         return
     }
 
-    ctx.assert(not late, "Wait 5: the world should settle and the overlay draw.")
-
     if state == 2 {
+        # The two probes above name one square of each kind, but the overlay marks only the squares
+        # whose block light the scan reads at the safe level or below, and a client's copy can keep
+        # the torch light the platform hides for another square a little longer: one capture drew
+        # every cross but one, 105 pixels of b1.7.3-stationapi's golden (#1550). Wait for the scan the
+        # overlay makes to keep every platform square at the safe level, so the activation's scan
+        # cannot drop one.
+        if not _platform_marked(ctx, px, pz, fy, rd, safe) {
+            ctx.assert(not late, "Wait 5: every platform square should reach the safe level the overlay marks.")
+            ctx.not_done()
+            return
+        }
+        state = 3
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(not late, "Wait 6: the world should settle and the overlay draw.")
+
+    if state == 3 {
         if not ctx.world_settled() {
             settled_ticks = 0
             ctx.not_done()
@@ -124,7 +148,7 @@ export tick(ctx: TestTickContext) {
             return
         }
         ctx.press_world_key(76, false)
-        state = 3
+        state = 4
         ctx.not_done()
         return
     }
@@ -138,4 +162,26 @@ export tick(ctx: TestTickContext) {
     # The overlay is one entity for the whole run: L turns it off again, or its crosses would sit in
     # every later test's captures.
     ctx.press_world_key(76, false)
+}
+
+# Whether the scan the overlay makes keeps every square of the platform at the safe level it marks.
+# The platform is 13 by 13 at the feet block, all of it inside the scan's cube, so all 169 squares
+# are kept and none may still hold light above the safe level.
+local _platform_marked(ctx: TestTickContext, centre_x: number, centre_z: number, feet_y: number, radius: number, safe_level: number) bool {
+    batch: SpawnSquares = ctx.get_spawn_squares(radius)
+    kept: number = 0
+    lit: number = 0
+    i: number = 0
+    while i < batch.count() {
+        square_x: number = batch.x(i)
+        square_z: number = batch.z(i)
+        if batch.y(i) == feet_y and Math.abs(square_x - centre_x) <= 6 and Math.abs(square_z - centre_z) <= 6 {
+            kept = kept + 1
+            if batch.block_light(i) > safe_level {
+                lit = lit + 1
+            }
+        }
+        i = i + 1
+    }
+    return kept == 169 and lit == 0
 }

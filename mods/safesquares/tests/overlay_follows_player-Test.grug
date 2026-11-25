@@ -23,6 +23,8 @@ ox: number = 0
 oy: number = 0
 oz: number = 0
 clock_at: number = 0
+rd: number = 0
+safe: number = 0
 
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
@@ -102,14 +104,31 @@ export tick(ctx: TestTickContext) {
         }
         ctx.assert(level.is_hostile_spawn_space(hx, fy, hz), "The square under the hole should be a spawn space.")
         ctx.assert(level.is_hostile_spawn_space(hx - 10, fy, hz - 2), "The square far from the hole should be a spawn space.")
+        cfg: Config = ctx.get_config()
+        rd = Math.floor(cfg.number("render_distance"))
+        safe = cfg.number("safe_light_level")
         state = 2
         ctx.not_done()
         return
     }
 
-    ctx.assert(not late, "Wait 5: the world should settle and the overlay draw.")
-
     if state == 2 {
+        # A client's light can keep the torch light the platform hides for a square after the two
+        # probes read right, and the scan then draws every cross but one (#1550), so the press waits
+        # for the scan to keep every platform square at the safe level (overlay_crosses explains it).
+        if not _platform_marked(ctx, px, pz, fy, rd, safe) {
+            ctx.assert(not late, "Wait 5: every platform square should reach the safe level the overlay marks.")
+            ctx.not_done()
+            return
+        }
+        state = 3
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(not late, "Wait 6: the world should settle and the overlay draw.")
+
+    if state == 3 {
         if not ctx.world_settled() {
             settled_ticks = 0
             ctx.not_done()
@@ -121,7 +140,7 @@ export tick(ctx: TestTickContext) {
             return
         }
         ctx.press_world_key(76, false)
-        state = 3
+        state = 4
         ctx.not_done()
         return
     }
@@ -152,4 +171,26 @@ export tick(ctx: TestTickContext) {
     # The overlay is one entity for the whole run: L turns it off again, or its crosses would sit in
     # every later test's captures.
     ctx.press_world_key(76, false)
+}
+
+# Whether the scan the overlay makes keeps every square of the platform at the safe level it marks.
+# The platform is 13 by 13 at the feet block, all of it inside the scan's cube, so all 169 squares
+# are kept and none may still hold light above the safe level.
+local _platform_marked(ctx: TestTickContext, centre_x: number, centre_z: number, feet_y: number, radius: number, safe_level: number) bool {
+    batch: SpawnSquares = ctx.get_spawn_squares(radius)
+    kept: number = 0
+    lit: number = 0
+    i: number = 0
+    while i < batch.count() {
+        square_x: number = batch.x(i)
+        square_z: number = batch.z(i)
+        if batch.y(i) == feet_y and Math.abs(square_x - centre_x) <= 6 and Math.abs(square_z - centre_z) <= 6 {
+            kept = kept + 1
+            if batch.block_light(i) > safe_level {
+                lit = lit + 1
+            }
+        }
+        i = i + 1
+    }
+    return kept == 169 and lit == 0
 }
