@@ -155,6 +155,42 @@ class GrugRelightTest {
     }
 
     @Test
+    void anImmediateRelightIsHandedTheRoomInPiecesEachUpdateAccepts() {
+        // A dedicated server's engine recomputes a box the moment it is given one, so it has no
+        // Room to queue into, and it skips the whole box above 32768 cells just as the queued one
+        // does ("Light too large, skipping!"). A server that hands a radius 13 room's box over
+        // whole therefore relights nothing and resends the light the room was built over (#1522).
+        List<int[]> boxes = new ArrayList<>();
+
+        GrugRelight.inPieces(
+                (minX, minY, minZ, maxX, maxY, maxZ) ->
+                        boxes.add(new int[] {minX, minY, minZ, maxX, maxY, maxZ}),
+                0,
+                0,
+                0,
+                28,
+                41,
+                28);
+
+        assertTrue(boxes.size() > 1, "the room's box should be handed over in pieces");
+        long covered = 0;
+        for (int at = 0; at < boxes.size(); at++) {
+            int[] box = boxes.get(at);
+            assertTrue(
+                    cells(box) <= GrugRelight.MAX_UPDATE_CELLS,
+                    "one update should cover at most " + GrugRelight.MAX_UPDATE_CELLS);
+            assertTrue(
+                    inside(box, new int[] {0, 0, 0, 28, 41, 28}),
+                    "a piece should stay inside the box it was cut from");
+            covered = covered + cells(box);
+            for (int other = at + 1; other < boxes.size(); other++) {
+                assertFalse(overlaps(box, boxes.get(other)), "two pieces should not share a cell");
+            }
+        }
+        assertEquals(35322, covered, "the pieces should cover the box exactly once");
+    }
+
+    @Test
     void aBoxIsCutAlongItsLongestSide() {
         // The settle case above cuts a room's box, whose longest side is y. These put the longest
         // side on x and on z, and the last one has x longer than y but shorter than z, so every

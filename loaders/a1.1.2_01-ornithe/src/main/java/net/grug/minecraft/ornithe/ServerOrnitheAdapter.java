@@ -55,7 +55,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
-import java.util.zip.Deflater;
 
 /**
  * The adapter for an Alpha a0.2.1 dedicated server, which is the same loader as {@link
@@ -1053,11 +1052,31 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /**
      * Recomputes the block light of every cell of the box once and hashes what the box holds
      * afterwards.
+     *
+     * <p>The engine skips a light update whose box covers more than 32768 cells ("Light too large,
+     * skipping!"), so a room's box is handed over in pieces, each drained before the next is queued
+     * (#1522).
      */
     private static long relightSweep(
             World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        world.updateLight(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
-        GrugLinkArms.drain(world, world::doLightUpdates);
+        GrugRelight.inPieces(
+                (pieceMinX, pieceMinY, pieceMinZ, pieceMaxX, pieceMaxY, pieceMaxZ) -> {
+                    world.updateLight(
+                            LightType.BLOCK,
+                            pieceMinX,
+                            pieceMinY,
+                            pieceMinZ,
+                            pieceMaxX,
+                            pieceMaxY,
+                            pieceMaxZ);
+                    GrugLinkArms.drain(world, world::doLightUpdates);
+                },
+                minX,
+                minY,
+                minZ,
+                maxX,
+                maxY,
+                maxZ);
         long hash = 0;
         for (int y = minY; y <= maxY; y++) {
             for (int z = minZ; z <= maxZ; z++) {
@@ -1096,12 +1115,8 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         packet.shouldDelay = true;
 
         byte[] raw = packChunkData(world, x, adjustedY, z, sizeX, adjustedSizeY, sizeZ);
-        Deflater deflater = new Deflater();
-        deflater.setInput(raw);
-        deflater.finish();
-        packet.data = new byte[raw.length];
-        setCompressedSize(packet, deflater.deflate(packet.data));
-        deflater.end();
+        packet.data = GrugDeflate.deflate(raw);
+        setCompressedSize(packet, packet.data.length);
         return packet;
     }
 
@@ -1126,12 +1141,12 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
 
         @Override
         public int block(int x, int y, int z) {
-            return world.getBlock(x, y, z);
+            return GrugWorldAccess.blockId(this.world, x, y, z);
         }
 
         @Override
         public int metadata(int x, int y, int z) {
-            return world.getBlockMetadata(x, y, z);
+            return GrugWorldAccess.metadata(this.world, x, y, z);
         }
 
         @Override

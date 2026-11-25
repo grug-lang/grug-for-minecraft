@@ -67,13 +67,34 @@ public final class GrugRelight {
     }
 
     /**
-     * The most cells one queued light update may cover, which is what beta's engine accepts: its
-     * {@code LightUpdate.updateLight} prints {@code Light too large, skipping!} and recomputes
-     * nothing for a larger box. A radius 13 room's box is 29 x 29 x 42, which is 35322 cells, so a
-     * settle that hands that box over whole does nothing at all and confirms the light the room was
-     * built over.
+     * The most cells one light update may cover, which is what beta's engine accepts: its {@code
+     * LightUpdate.updateLight} prints {@code Light too large, skipping!} and recomputes nothing for
+     * a larger box. A radius 13 room's box is 29 x 29 x 42, which is 35322 cells, so a settle or a
+     * server relight that hands that box over whole does nothing at all and confirms the light the
+     * room was built over.
      */
     static final int MAX_UPDATE_CELLS = 32768;
+
+    /**
+     * One recompute of a box, as {@link #inPieces} hands it over: a loader whose engine recomputes
+     * a box immediately, rather than queuing it, has no {@link Room} to drive but still has to stay
+     * within the size the engine accepts.
+     */
+    public interface BoxUpdate {
+        /** Recomputes the box. */
+        void update(int minX, int minY, int minZ, int maxX, int maxY, int maxZ);
+    }
+
+    /**
+     * Hands the box to {@code update} as the pieces {@link #pieces} gives, so that no update is
+     * larger than the engine accepts and none of them is dropped.
+     */
+    public static void inPieces(
+            BoxUpdate update, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        for (int[] piece : pieces(minX, minY, minZ, maxX, maxY, maxZ)) {
+            update.update(piece[0], piece[1], piece[2], piece[3], piece[4], piece[5]);
+        }
+    }
 
     /**
      * Recomputes the box once, for both fields, and hashes what it holds afterwards. The sky is
@@ -84,10 +105,18 @@ public final class GrugRelight {
      * the engine accepts and none of them is dropped.
      */
     static long sweep(Room room, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        for (int[] piece : pieces(minX, minY, minZ, maxX, maxY, maxZ)) {
-            room.queueSky(piece[0], piece[1], piece[2], piece[3], piece[4], piece[5]);
-            room.queueBlock(piece[0], piece[1], piece[2], piece[3], piece[4], piece[5]);
-        }
+        inPieces(
+                (pieceMinX, pieceMinY, pieceMinZ, pieceMaxX, pieceMaxY, pieceMaxZ) -> {
+                    room.queueSky(pieceMinX, pieceMinY, pieceMinZ, pieceMaxX, pieceMaxY, pieceMaxZ);
+                    room.queueBlock(
+                            pieceMinX, pieceMinY, pieceMinZ, pieceMaxX, pieceMaxY, pieceMaxZ);
+                },
+                minX,
+                minY,
+                minZ,
+                maxX,
+                maxY,
+                maxZ);
         room.drain();
         long hash = 0;
         for (int y = minY; y <= maxY; y++) {

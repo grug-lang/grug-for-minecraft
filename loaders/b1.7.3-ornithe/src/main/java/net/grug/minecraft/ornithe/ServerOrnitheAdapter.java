@@ -842,11 +842,31 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /**
      * Recomputes the block light of every cell of the box once and hashes what the box holds
      * afterwards.
+     *
+     * <p>The engine skips a light update whose box covers more than 32768 cells ("Light too large,
+     * skipping!"), so a room's box is handed over in pieces, each drained before the next is queued
+     * (#1522).
      */
     private static long relightSweep(
             World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        world.updateLight(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
-        GrugLinkArms.drain(world, world::doLightUpdates);
+        GrugRelight.inPieces(
+                (pieceMinX, pieceMinY, pieceMinZ, pieceMaxX, pieceMaxY, pieceMaxZ) -> {
+                    world.updateLight(
+                            LightType.BLOCK,
+                            pieceMinX,
+                            pieceMinY,
+                            pieceMinZ,
+                            pieceMaxX,
+                            pieceMaxY,
+                            pieceMaxZ);
+                    GrugLinkArms.drain(world, world::doLightUpdates);
+                },
+                minX,
+                minY,
+                minZ,
+                maxX,
+                maxY,
+                maxZ);
         long hash = 0;
         for (int y = minY; y <= maxY; y++) {
             for (int z = minZ; z <= maxZ; z++) {
