@@ -1,0 +1,42 @@
+# The liquid entries that answer without an error. A vanilla chest has no grug entity, and a grug
+# block entity with no liquid exports is one whose exports are missing: both answer -1 for an offer
+# and a take, no liquid, and 0 for the amount and the capacity. That is how a pipe sees a block that
+# cannot hold liquid rather than an error. Lava is named by its still block too, so a flowing lava
+# name read from an export comes back as still lava.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:chest")
+    chest: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    ctx.assert(chest.offer_liquid("minecraft:water", 1000, 0, true) == -1, "A chest should answer -1 for an offer.")
+    ctx.assert(chest.take_liquid(1000, true) == -1, "A chest should answer -1 for a take.")
+    ctx.assert(not chest.get_liquid().has(), "A chest should hold no liquid.")
+    ctx.assert(chest.get_liquid_amount() == 0, "A chest should hold 0.")
+    ctx.assert(chest.get_liquid_capacity() == 0, "A chest should hold 0 at most.")
+
+    # The same answers through a real grug handle, whose liquid exports are simply not there.
+    level.place_block(x, y + 1, z, "grug:coverage_init_block")
+    plain: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
+    ctx.assert(plain.offer_liquid("minecraft:water", 1000, 0, true) == -1, "A block entity with no offer should answer -1.")
+    ctx.assert(plain.take_liquid(1000, true) == -1, "A block entity with no take should answer -1.")
+    ctx.assert(not plain.get_liquid().has(), "A block entity with no get_liquid should hold no liquid.")
+    ctx.assert(plain.get_liquid_amount() == 0, "A block entity with no amount should hold 0.")
+    ctx.assert(plain.get_liquid_capacity() == 0, "A block entity with no capacity should hold 0 at most.")
+
+    # A flowing lava name is normalised before it reaches the export, so the export sees still lava
+    # and a get_liquid that answers a flowing name comes back as still lava too.
+    level.place_block(x + 1, y, z, "grug:coverage_response_block")
+    container: BlockEntity = level.get_block_entity(x + 1, y, z).unwrap()
+    ctx.assert(container.offer_liquid("minecraft:flowing_lava", 1000, 0, true) == 1000, "A lava offer should reach the export as still lava.")
+    offered: Option[string] = container.get_saved_string("offered_liquid")
+    ctx.assert(offered.has(), "The export should have saved the liquid it was offered.")
+    ctx.assert(offered.unwrap() == "minecraft:lava", "The host should normalise flowing lava to still lava.")
+    container.set_saved_number("liquid_mode", 14)
+    held: Option[string] = container.get_liquid()
+    ctx.assert(held.has(), "The block entity should hold a liquid.")
+    ctx.assert(held.unwrap() == "minecraft:lava", "A flowing lava name should be read as still lava.")
+}

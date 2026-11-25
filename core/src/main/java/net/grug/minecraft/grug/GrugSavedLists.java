@@ -60,12 +60,11 @@ public final class GrugSavedLists {
             this.text = null;
         }
 
-        /** A copy of a record a loader read back, or one a caller is about to store. */
-        public Record(Map<String, Double> numbers, Object item) {
-            this(numbers, item, null);
-        }
-
-        /** A copy of a record that carries text too, which is what a loader reads back. */
+        /**
+         * A copy of a record a loader read back, or one a caller is about to store. {@code text} is
+         * null when the record holds none, which is how every record written before text existed
+         * reads.
+         */
         public Record(Map<String, Double> numbers, Object item, String text) {
             this.numbers = new HashMap<>(numbers);
             this.item = item;

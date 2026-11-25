@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedLists;
 import net.grug.minecraft.grug.GrugSavedNumbers;
+import net.grug.minecraft.grug.GrugSavedStrings;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -26,7 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 class GrugSavedDataSyncTest {
 
     /** Stands in for a loader's grug block entity. */
-    private static final class Machine implements GrugSavedNumbers.Holder, GrugSavedLists.Holder {
+    private static final class Machine
+            implements GrugSavedNumbers.Holder, GrugSavedLists.Holder, GrugSavedStrings.Holder {
         /** The level this copy stands in, for a transport that scopes its record. */
         Object level = null;
 
@@ -168,6 +170,26 @@ class GrugSavedDataSyncTest {
         GrugSavedNumbers.set(machine, "marker", 2);
         GrugSavedDataSync.changed(machine);
         assertEquals(2, recorder.sends, "a different number is a different frame");
+    }
+
+    @Test
+    void aChangedStringIsSentOnceAndTheSameStringAgainIsNot() {
+        Recorder recorder = new Recorder();
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedStrings.set(machine, "liquid", "minecraft:water");
+        GrugSavedDataSync.changed(machine);
+
+        assertEquals(1, recorder.sends);
+        assertEquals(machine, recorder.lastSent, "the send is about the block entity that changed");
+
+        GrugSavedDataSync.changed(machine);
+        assertEquals(1, recorder.sends, "the client already holds that text");
+
+        GrugSavedStrings.set(machine, "liquid", "minecraft:lava");
+        GrugSavedDataSync.changed(machine);
+        assertEquals(2, recorder.sends, "different text is a different frame");
     }
 
     @Test

@@ -554,6 +554,49 @@ class GrugRenderPassTest {
     }
 
     @Test
+    void aFramePassRecordsALiquidAndItsBoxInTheOrderItWasDrawn() {
+        GrugRenderPass.openFrame(0.0, 0.0);
+        assertEquals(
+                null,
+                GrugRenderPass.recordLiquid(
+                        "minecraft:water", 0.135, 0.0, 0.135, 0.865, 0.49, 0.865));
+        GrugRenderPass.recordItem(ITEM, 0, 1, 0.0, 0.0, 0.0);
+        assertEquals(null, GrugRenderPass.recordLiquid("minecraft:lava", 0, 0, 0, 1, 1, 1));
+
+        List<GrugFrameDraw> draws = GrugRenderPass.closeFrame().draws();
+        assertEquals(3, draws.size());
+        GrugLiquidDraw first = (GrugLiquidDraw) draws.get(0);
+        assertEquals("minecraft:water", first.liquid());
+        assertEquals(0.135, first.x1());
+        assertEquals(0.49, first.y2());
+        assertEquals(0.865, first.z2());
+        assertTrue(draws.get(1) instanceof GrugItemDraw);
+        assertEquals("minecraft:lava", ((GrugLiquidDraw) draws.get(2)).liquid());
+    }
+
+    @Test
+    void aLiquidOutsideAFramePassIsRefusedWithTheReasonTheCallerReports() {
+        assertTrue(
+                GrugRenderPass.recordLiquid("minecraft:water", 0, 0, 0, 1, 1, 1)
+                        .contains("while a block entity's render_frame() is drawing"));
+
+        GrugRenderPass.open();
+        assertTrue(
+                GrugRenderPass.recordLiquid("minecraft:water", 0, 0, 0, 1, 1, 1)
+                        .contains("while a block entity's render_frame() is drawing"));
+        assertTrue(GrugRenderPass.close().isEmpty());
+    }
+
+    @Test
+    void aLiquidBoxWithItsCornersTheWrongWayRoundIsRefusedAndNotRecorded() {
+        GrugRenderPass.openFrame(0.0, 0.0);
+
+        String problem = GrugRenderPass.recordLiquid("minecraft:water", 1, 0, 0, 0, 1, 1);
+        assertTrue(problem.contains("corners have to be the right way round"));
+        assertTrue(GrugRenderPass.closeFrame().draws().isEmpty());
+    }
+
+    @Test
     void closingAFramePassAsAChunkPassBreaksAnInvariant() {
         GrugRenderPass.openFrame(0.0, 0.0);
 

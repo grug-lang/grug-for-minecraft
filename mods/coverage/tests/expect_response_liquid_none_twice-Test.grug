@@ -1,0 +1,17 @@
+# A LiquidResponse answered with answer_liquid and then with answer_none is an err: the second
+# answer is refused even though it disagrees with the first, which is the rule every response class
+# shares. The existing twice tests answer offer_liquid, whose response only takes an amount.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_response_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    be.set_saved_number("liquid_mode", 15)
+
+    ctx.expect_error("has already been answered")
+    held: Option[string] = be.get_liquid()
+}

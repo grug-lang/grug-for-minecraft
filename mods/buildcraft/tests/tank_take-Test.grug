@@ -28,7 +28,8 @@ export tick(ctx: TestTickContext) {
     ctx.assert(not tank.get_liquid().has(), "An empty tank should hold no liquid.")
     ctx.assert(tank.take_liquid(1, true) == 0, "An empty tank should give nothing.")
 
-    # An emptied tank takes a different liquid, as the reference zeroes its liquid id when it empties.
+    # An emptied tank takes a different liquid: the reference's actualEmtpy leaves liquidId set, and
+    # its fill only refuses a different liquid while stored is not 0.
     ctx.assert(tank.offer_liquid("minecraft:lava", 1000, 0, true) == 1000, "An emptied tank should take another liquid.")
     ctx.assert(tank.get_liquid().unwrap() == "minecraft:lava", "The tank should now hold lava.")
 }
