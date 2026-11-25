@@ -834,10 +834,14 @@ static char* java_number_text(const char* in) {
     while (n > 0 && (unsigned char)t[n - 1] <= ' ') n--;
     char* text = xmalloc(n + 1);
     memcpy(text, t, n); text[n] = 0;
-    if (n > 0 && strchr("fFdD", text[n - 1])) text[--n] = 0;
+    // The f, F, d and D type suffixes belong to a decimal or hexadecimal literal, not to NaN or
+    // Infinity: Java's parseDouble refuses "NaNf" and "Infinityd", so the special spellings are
+    // matched on the text before any suffix is stripped, and a special spelling that carried one
+    // falls through to the check below, which refuses it.
     bool special = strcmp(text, "NaN") == 0 || strcmp(text, "+NaN") == 0 || strcmp(text, "-NaN") == 0
             || strcmp(text, "Infinity") == 0 || strcmp(text, "+Infinity") == 0 || strcmp(text, "-Infinity") == 0;
     if (!special) {
+        if (n > 0 && strchr("fFdD", text[n - 1])) text[--n] = 0;
         // Java's parseDouble accepts no infinity or NaN spelling except the exact ones above, while
         // strtod also takes "inf" and "nan" in any case, so the first significant character must be a
         // digit or a point, which every finite form starts with (a hexadecimal one with 0).

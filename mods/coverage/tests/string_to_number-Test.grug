@@ -25,6 +25,10 @@ export tick(ctx: TestTickContext) {
         ctx.assert(not String.to_number("0x10").has(), "A hexadecimal number without a p exponent writes no number.")
         ctx.assert(not String.to_number("1_0").has(), "An underscore writes no number.")
         ctx.assert(not String.to_number("NaNx").has(), "A text after NaN writes no number.")
+        # The f, F, d and D suffix belongs to a decimal or hexadecimal literal, not to NaN or
+        # Infinity: Java's Double.parseDouble refuses "NaNf" and "-Infinityd".
+        ctx.assert(not String.to_number("NaNf").has(), "A suffix after NaN writes no number, as Double.parseDouble refuses it.")
+        ctx.assert(not String.to_number("-Infinityd").has(), "A suffix after Infinity writes no number either.")
         ctx.assert(not String.to_number("infinity").has(), "The name of Infinity is case-sensitive.")
         ctx.assert(String.from_number(String.to_number("2.5").unwrap()) == "2.5", "A number should write back as its text.")
     }
