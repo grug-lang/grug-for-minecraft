@@ -32,54 +32,131 @@
 # The origin functions answer where the reference draws the origin cube inside the block at the set
 # origin: a shape whose cells sit half a block off the block corner moves its origin cube by half.
 
+# Which case's assertions the next tick runs. The watcher's time limit is per grug call, not per
+# test: on a loaded runner this file's fifteen shapes took 195 ms inside one tick and tripped the
+# 100 ms limit (1.20.6-forge on a dedicated server, run 45547022140, job 138979658079), so each
+# tick runs one case's assertions and asks to be called again for the next, in this order.
+shape: number = 0
+
 export tick(ctx: TestTickContext) {
-    if ctx.current_tick() == 0 {
+    if shape == 0 {
         _assert_origins(ctx)
+    } else if shape == 1 {
         _assert_catenary_default(ctx)
+    } else if shape == 2 {
         _assert_catenary_dy2dz3(ctx)
+    } else if shape == 3 {
         _assert_catenary_invert(ctx)
+    } else if shape == 4 {
         _assert_catenary_vertical(ctx)
+    } else if shape == 5 {
         _assert_catenary_non_finite(ctx)
+    } else if shape == 6 {
         _assert_catenary_no_progress(ctx)
+    } else if shape == 7 {
         _assert_circle_x_r3_d1(ctx)
+    } else if shape == 8 {
         _assert_circle_x_r3_d2_even(ctx)
+    } else if shape == 9 {
         _assert_circle_y_r4(ctx)
+    } else if shape == 10 {
         _assert_circle_one_cell(ctx)
+    } else if shape == 11 {
         _assert_cone_x_r3_h3(ctx)
+    } else if shape == 12 {
         _assert_cone_x_r3_hm3(ctx)
+    } else if shape == 13 {
         _assert_cone_z_r2_h4_even(ctx)
+    } else if shape == 14 {
         _assert_cuboid_solid(ctx)
+    } else if shape == 15 {
         _assert_cuboid_hollow(ctx)
+    } else if shape == 16 {
         _assert_cuboid_neg_xy_centred(ctx)
+    } else if shape == 17 {
         _assert_cuboid_one_cell(ctx)
+    } else if shape == 18 {
         _assert_ellipse_x_3_3(ctx)
+    } else if shape == 19 {
         _assert_ellipse_z_4_2_d2_even(ctx)
+    } else if shape == 20 {
         _assert_ellipsoid_3_3_3(ctx)
+    } else if shape == 21 {
         _assert_ellipsoid_4_2_3_domeY_even(ctx)
+    } else if shape == 22 {
         _assert_grid(ctx)
+    } else if shape == 23 {
         _assert_grid_2_3_1(ctx)
+    } else if shape == 24 {
         _assert_grid_one_cell(ctx)
+    } else if shape == 25 {
         _assert_helix_default(ctx)
+    } else if shape == 26 {
         _assert_helix_neg_even(ctx)
+    } else if shape == 27 {
         _assert_helix_x_720(ctx)
+    } else if shape == 28 {
         _assert_line_x3(ctx)
+    } else if shape == 29 {
         _assert_line_neg(ctx)
+    } else if shape == 30 {
         _assert_line_1_1_1(ctx)
+    } else if shape == 31 {
         _assert_parabola_x_r0(ctx)
+    } else if shape == 32 {
         _assert_parabola_z_rot1_even(ctx)
+    } else if shape == 33 {
         _assert_parabola_y_rot2(ctx)
+    } else if shape == 34 {
         _assert_paraboloid_x(ctx)
+    } else if shape == 35 {
         _assert_paraboloid_y_neg_even(ctx)
+    } else if shape == 36 {
         _assert_polygon_3(ctx)
+    } else if shape == 37 {
         _assert_polygon_5_z_rot1_even(ctx)
+    } else if shape == 38 {
         _assert_pyramid_4(ctx)
+    } else if shape == 39 {
         _assert_pyramid_3_x_rot2_even(ctx)
+    } else if shape == 40 {
         _assert_sphere_r3(ctx)
+    } else if shape == 41 {
         _assert_sphere_r3_domeY_even(ctx)
+    } else if shape == 42 {
         _assert_sphere_one_cell(ctx)
-        _assert_torus_x(ctx)
-        _assert_torus_z_even(ctx)
+    } else if shape == 43 {
+        _assert_torus_x_count(ctx)
+    } else if shape == 44 {
+        _assert_torus_x_cells_0_1(ctx)
+    } else if shape == 45 {
+        _assert_torus_x_cell_274(ctx)
+    } else if shape == 46 {
+        _assert_torus_x_cell_505(ctx)
+    } else if shape == 47 {
+        _assert_torus_x_cell_546(ctx)
+    } else if shape == 48 {
+        _assert_torus_x_cell_547(ctx)
+    } else if shape == 49 {
+        _assert_torus_z_even_count(ctx)
+    } else if shape == 50 {
+        _assert_torus_z_even_cells_0_1_5(ctx)
+    } else if shape == 51 {
+        _assert_torus_z_even_cell_284(ctx)
+    } else if shape == 52 {
+        _assert_torus_z_even_cell_528(ctx)
+    } else if shape == 53 {
+        _assert_torus_z_even_cell_539(ctx)
+    } else if shape == 54 {
+        _assert_torus_z_even_cell_566(ctx)
+    } else if shape == 55 {
+        _assert_torus_z_even_cell_567(ctx)
+    } else if shape == 56 {
         _assert_known_cells(ctx)
+    }
+    shape = shape + 1
+    if shape < 57 {
+        ctx.not_done()
     }
 }
 
@@ -1220,9 +1297,14 @@ local _assert_sphere_one_cell(ctx: TestTickContext) {
     ctx.assert(Math.abs(cell_6.unwrap().z() - 0) == 0, "sphere_one_cell cell 6 z should be 0.")
 }
 
-# torus_x
-local _assert_torus_x(ctx: TestTickContext) {
+# torus_x. The count check gets a tick of its own, and each late cell one of its own, because every
+# _cell_torus call rebuilds the shape's whole cell list and searches it, so a call for a late cell
+# costs most of the shape: one tick of every case took 195 ms on a loaded runner (see the counter).
+local _assert_torus_x_count(ctx: TestTickContext) {
     ctx.assert(not _cell_torus(0, 5, 3, false, false, 548).has(), "torus_x should have 548 cells.")
+}
+
+local _assert_torus_x_cells_0_1(ctx: TestTickContext) {
     cell_0: Option[Vec3] = _cell_torus(0, 5, 3, false, false, 0)
     ctx.assert(Math.abs(cell_0.unwrap().x() - -1) == 0, "torus_x cell 0 x should be -1.")
     ctx.assert(Math.abs(cell_0.unwrap().y() - -2) == 0, "torus_x cell 0 y should be -2.")
@@ -1231,27 +1313,42 @@ local _assert_torus_x(ctx: TestTickContext) {
     ctx.assert(Math.abs(cell_1.unwrap().x() - 0) == 0, "torus_x cell 1 x should be 0.")
     ctx.assert(Math.abs(cell_1.unwrap().y() - -2) == 0, "torus_x cell 1 y should be -2.")
     ctx.assert(Math.abs(cell_1.unwrap().z() - -8) == 0, "torus_x cell 1 z should be -8.")
+}
+
+local _assert_torus_x_cell_274(ctx: TestTickContext) {
     cell_274: Option[Vec3] = _cell_torus(0, 5, 3, false, false, 274)
     ctx.assert(Math.abs(cell_274.unwrap().x() - -1) == 0, "torus_x cell 274 x should be -1.")
     ctx.assert(Math.abs(cell_274.unwrap().y() - 2) == 0, "torus_x cell 274 y should be 2.")
     ctx.assert(Math.abs(cell_274.unwrap().z() - 0) == 0, "torus_x cell 274 z should be 0.")
+}
+
+local _assert_torus_x_cell_505(ctx: TestTickContext) {
     cell_505: Option[Vec3] = _cell_torus(0, 5, 3, false, false, 505)
     ctx.assert(Math.abs(cell_505.unwrap().x() - 2) == 0, "torus_x cell 505 x should be 2.")
     ctx.assert(Math.abs(cell_505.unwrap().y() - 5) == 0, "torus_x cell 505 y should be 5.")
     ctx.assert(Math.abs(cell_505.unwrap().z() - 6) == 0, "torus_x cell 505 z should be 6.")
+}
+
+local _assert_torus_x_cell_546(ctx: TestTickContext) {
     cell_546: Option[Vec3] = _cell_torus(0, 5, 3, false, false, 546)
     ctx.assert(Math.abs(cell_546.unwrap().x() - 0) == 0, "torus_x cell 546 x should be 0.")
     ctx.assert(Math.abs(cell_546.unwrap().y() - 2) == 0, "torus_x cell 546 y should be 2.")
     ctx.assert(Math.abs(cell_546.unwrap().z() - 8) == 0, "torus_x cell 546 z should be 8.")
+}
+
+local _assert_torus_x_cell_547(ctx: TestTickContext) {
     cell_547: Option[Vec3] = _cell_torus(0, 5, 3, false, false, 547)
     ctx.assert(Math.abs(cell_547.unwrap().x() - 1) == 0, "torus_x cell 547 x should be 1.")
     ctx.assert(Math.abs(cell_547.unwrap().y() - 2) == 0, "torus_x cell 547 y should be 2.")
     ctx.assert(Math.abs(cell_547.unwrap().z() - 8) == 0, "torus_x cell 547 z should be 8.")
 }
 
-# torus_z_even
-local _assert_torus_z_even(ctx: TestTickContext) {
+# torus_z_even, split the same way and for the same reason as torus_x.
+local _assert_torus_z_even_count(ctx: TestTickContext) {
     ctx.assert(not _cell_torus(2, 5, 3, true, true, 568).has(), "torus_z_even should have 568 cells.")
+}
+
+local _assert_torus_z_even_cells_0_1_5(ctx: TestTickContext) {
     cell_0: Option[Vec3] = _cell_torus(2, 5, 3, true, true, 0)
     ctx.assert(Math.abs(cell_0.unwrap().x() - -3) == 0, "torus_z_even cell 0 x should be -3.")
     ctx.assert(Math.abs(cell_0.unwrap().y() - -7) == 0, "torus_z_even cell 0 y should be -7.")
@@ -1264,34 +1361,43 @@ local _assert_torus_z_even(ctx: TestTickContext) {
     ctx.assert(Math.abs(cell_5.unwrap().x() - -2) == 0, "torus_z_even cell 5 x should be -2.")
     ctx.assert(Math.abs(cell_5.unwrap().y() - -7) == 0, "torus_z_even cell 5 y should be -7.")
     ctx.assert(Math.abs(cell_5.unwrap().z() - 2) == 0, "torus_z_even cell 5 z should be 2.")
+}
+
+local _assert_torus_z_even_cell_284(ctx: TestTickContext) {
     cell_284: Option[Vec3] = _cell_torus(2, 5, 3, true, true, 284)
     ctx.assert(Math.abs(cell_284.unwrap().x() - -7) == 0, "torus_z_even cell 284 x should be -7.")
     ctx.assert(Math.abs(cell_284.unwrap().y() - 1) == 0, "torus_z_even cell 284 y should be 1.")
     ctx.assert(Math.abs(cell_284.unwrap().z() - -1) == 0, "torus_z_even cell 284 z should be -1.")
+}
+
+local _assert_torus_z_even_cell_528(ctx: TestTickContext) {
     cell_528: Option[Vec3] = _cell_torus(2, 5, 3, true, true, 528)
     ctx.assert(Math.abs(cell_528.unwrap().x() - 2) == 0, "torus_z_even cell 528 x should be 2.")
     ctx.assert(Math.abs(cell_528.unwrap().y() - 7) == 0, "torus_z_even cell 528 y should be 7.")
     ctx.assert(Math.abs(cell_528.unwrap().z() - -2) == 0, "torus_z_even cell 528 z should be -2.")
+}
+
+local _assert_torus_z_even_cell_539(ctx: TestTickContext) {
     cell_539: Option[Vec3] = _cell_torus(2, 5, 3, true, true, 539)
     ctx.assert(Math.abs(cell_539.unwrap().x() - 5) == 0, "torus_z_even cell 539 x should be 5.")
     ctx.assert(Math.abs(cell_539.unwrap().y() - 7) == 0, "torus_z_even cell 539 y should be 7.")
     ctx.assert(Math.abs(cell_539.unwrap().z() - 2) == 0, "torus_z_even cell 539 z should be 2.")
+}
+
+local _assert_torus_z_even_cell_566(ctx: TestTickContext) {
     cell_566: Option[Vec3] = _cell_torus(2, 5, 3, true, true, 566)
     ctx.assert(Math.abs(cell_566.unwrap().x() - 4) == 0, "torus_z_even cell 566 x should be 4.")
     ctx.assert(Math.abs(cell_566.unwrap().y() - 8) == 0, "torus_z_even cell 566 y should be 8.")
     ctx.assert(Math.abs(cell_566.unwrap().z() - 0) == 0, "torus_z_even cell 566 z should be 0.")
+}
+
+local _assert_torus_z_even_cell_567(ctx: TestTickContext) {
     cell_567: Option[Vec3] = _cell_torus(2, 5, 3, true, true, 567)
     ctx.assert(Math.abs(cell_567.unwrap().x() - 4) == 0, "torus_z_even cell 567 x should be 4.")
     ctx.assert(Math.abs(cell_567.unwrap().y() - 8) == 0, "torus_z_even cell 567 y should be 8.")
     ctx.assert(Math.abs(cell_567.unwrap().z() - 1) == 0, "torus_z_even cell 567 z should be 1.")
 }
 
-# Cells derived by hand from each shape's definition rather than read off its loop, so a faithful
-# shape is told apart from one that only agrees with itself. A circle of radius 4 is the ring of
-# points 4 from the centre, so it reaches the four axis points; a sphere of radius 1 reaches each of
-# its six axis neighbours; and a torus with outer radius 2 and inner radius 1 has its tube centred on
-# (0,0,2) at angle 0, so the tube's outer and inner ends are (0,0,3) and (0,0,1), with its sides at
-# (1,0,2) and (-1,0,2). Each of them must appear exactly once, which one pass per shape counts.
 local _assert_known_cells(ctx: TestTickContext) {
     circle_px: number = 0
     circle_nx: number = 0
