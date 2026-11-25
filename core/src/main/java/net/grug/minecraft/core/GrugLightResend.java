@@ -16,9 +16,9 @@ import java.util.List;
  * The client-only run, whose world is one copy, lit it as the server did, so a server-driven
  * capture shows a lighter or darker band at the edge that the client-only golden does not (#1092).
  *
- * <p>Region packets are the one way this version carries light to a client, so the loader sends the
- * region the changes touched again once the server's light has settled. The server flushes a tick's
- * block changes to its clients at the end of the tick, and a region sent before that flush would be
+ * <p>A chunk packet is the only carrier of light this version has, so the loader sends the box the
+ * changes touched again once the server's light has settled. The server flushes a tick's block
+ * changes to its clients at the end of the tick, and a region sent before that flush would be
  * overwritten by the client's own relight of the block-change packet that follows it. {@link #due}
  * therefore answers nothing for the poll that follows a change and the region on the next one.
  *
