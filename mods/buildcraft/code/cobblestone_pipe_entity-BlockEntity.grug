@@ -131,7 +131,7 @@ local _move_item(index: number) bool {
         # floor is a quarter below the centre. This is Utils.pipeNormalSpeed = 0.01 as a float64,
         # which is the precision rule: the reference's float32 agrees on these counts.
         limit: number = speed * 1.01
-        if _near(px, x, limit) and _near(py, y - 0.25, limit) and _near(pz, z, limit) {
+        if Math.abs(px - x) < limit and Math.abs(py - (y - 0.25)) < limit and Math.abs(pz - z) < limit {
             next: number = _pick_direction(direction, item, damage)
             if next < 0 {
                 me.remove_saved_list_record("traveling", index)
@@ -154,11 +154,6 @@ local _move_item(index: number) bool {
     }
     _save(index, px, py, pz, speed, direction, steps, 0, count, damage)
     return true
-}
-
-# Whether two coordinates are closer than the limit, which is Math.abs(a - b) < limit.
-local _near(a: number, b: number, limit: number) bool {
-    return a - b < limit and b - a < limit
 }
 
 # How many moves from the centre reach past the pipe's block, which is endReached: 51 horizontally,
