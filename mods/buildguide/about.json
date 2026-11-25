@@ -77,6 +77,16 @@
 					"tracking_issue": 1757
 				},
 				{
+					"what": "A state file whose number does not parse stops the load where it is and keeps what it already applied, where the reference lets the NumberFormatException escape getState() and the client fails the tick. Nothing clamps after a stopped load, so a truncated file can hold an iShapeSet past its shape sets.",
+					"why": "grug has no exception to raise, and turning a stopped load into a fresh state belongs to the overlay stage 3 adds. The partial load is exactly what the reference applies before it throws, pinned by _assert_bad_number in tests/state-Test.grug.",
+					"tracking_issue": 1816
+				},
+				{
+					"what": "The three config comments are the en_us sentences as fixed text, where the reference writes the client's language through Translatable, so a non-English client's rewritten config is not the reference's bytes.",
+					"why": "mod_api.json has no entry for a translated string, so a translated comment needs a general host function that a port of any translated mod would use.",
+					"tracking_issue": 1817
+				},
+				{
 					"what": "The five screens, their widgets and the four key binds are not implemented.",
 					"why": "A mod cannot open a screen or draw a filled rectangle yet, and designing that API against more than this port is stage 3 of #1752.",
 					"tracking_issue": 1752

@@ -45,20 +45,18 @@ final class GrugJavaNumbers {
         // floor(log10(magnitude)), the power of ten the leading digit stands for.
         int exponent = exact.precision() - exact.scale() - 1;
         int maxDigits = single ? 9 : 17;
-        // Two digits at least: Java writes 4.9E-324 for the smallest double rather than the one
-        // digit
-        // 5.0E-324, because its own search cannot shorten a value that small any further. From
-        // there
-        // every decimal of a length is tried, in the order of how close it is to the value, until
-        // one
-        // reads back as the same value. The nearest of a longer grid is never farther away, so the
-        // first length that has one is the shortest text.
-        BigDecimal chosen = null;
-        for (int digits = 2; digits <= maxDigits && chosen == null; digits++) {
+        // The rounding at maxDigits digits reads back as the value, because 17 significant digits
+        // identify a double and 9 a float, so it is the answer when no shorter decimal does. Every
+        // shorter length is tried in turn and the first that has a decimal which reads back wins:
+        // the first length with one is the shortest text. Two digits are tried before one, as Java
+        // writes 4.9E-324 for the smallest double rather than the one digit 5.0E-324.
+        BigDecimal chosen = exact.round(new MathContext(maxDigits, RoundingMode.HALF_EVEN));
+        for (int digits = 2; digits < maxDigits; digits++) {
             // The gap between two decimals of this length that end in the same power of ten.
             BigDecimal step = BigDecimal.ONE.scaleByPowerOfTen(exponent - digits + 1);
             BigDecimal nearest = exact.round(new MathContext(digits, RoundingMode.HALF_EVEN));
             BigDecimal bestDistance = null;
+            BigDecimal best = null;
             // The nearest decimal can sit on either side of the value, and the one that reads back
             // can be its neighbour on the other side, so both neighbours are tried as well.
             for (int k = -1; k <= 1; k++) {
@@ -68,23 +66,21 @@ final class GrugJavaNumbers {
                     continue;
                 }
                 BigDecimal distance = candidate.subtract(exact).abs();
-                // Closer wins, and a decimal exactly as close as the best one so far wins only when
-                // its last digit is even, which is how Java breaks that tie: 0x3ac00000 is exactly
+                // Closer wins, and a decimal exactly as close as the best one so far wins when its
+                // last digit is even, which is how Java breaks that tie: 0x3ac00000 is exactly
                 // 0.00146484375, halfway between 0.0014648437 and 0.0014648438, and Java writes the
                 // even one.
                 if (bestDistance == null
                         || distance.compareTo(bestDistance) < 0
-                        || (distance.compareTo(bestDistance) == 0
-                                && isEven(candidate)
-                                && !isEven(chosen))) {
-                    chosen = candidate;
+                        || (distance.compareTo(bestDistance) == 0 && isEven(candidate))) {
+                    best = candidate;
                     bestDistance = distance;
                 }
             }
-        }
-        if (chosen == null) {
-            // Cannot happen: the value itself is a decimal of maxDigits digits or fewer.
-            chosen = exact.round(new MathContext(maxDigits, RoundingMode.HALF_EVEN));
+            if (best != null) {
+                chosen = best;
+                break;
+            }
         }
         return layout(chosen, negative);
     }

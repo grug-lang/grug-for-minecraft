@@ -22,6 +22,20 @@ export tick(ctx: TestTickContext) {
         ctx.assert(String.from_float(String.to_number("1.401298464324817e-45").unwrap()) == "1.4E-45", "The smallest float should write its shortest text.")
         ctx.assert(String.from_float(12345678) == "1.2345678E7", "A float's digits should be the shortest that read back.")
         ctx.assert(String.from_float(0.5) == "0.5", "A half should write as 0.5.")
+        # Java breaks an exact tie between two decimals by taking the even last significant digit:
+        # 0x3ac00000 is exactly 0.00146484375, halfway between 0.0014648437 and 0.0014648438, and it
+        # writes the even 0.0014648438.
+        ctx.assert(String.from_float(0.00146484375) == "0.0014648438", "A tied pair should take the even last digit.")
+        # Here the even decimal is the one already held, so the odd 0.0024414063 at the same distance
+        # does not replace it and the text is 0.0024414062.
+        ctx.assert(String.from_float(0.00244140625) == "0.0024414062", "An odd decimal at the same distance should not replace the even one.")
+        # 16777217 is exactly half a float ulp above 16777216, and a halfway decimal reads back only
+        # when the value's own significand is even, because that is the one rounding goes to. The
+        # exact digits are still nearer, so the text is the float's own.
+        ctx.assert(String.from_float(16777216) == "1.6777216E7", "A halfway neighbour of an even float should read back but lose to the exact digits.")
+        # 16777218's significand is odd, so its halfway neighbours 16777217 and 16777219 round away
+        # from it and neither reads back.
+        ctx.assert(String.from_float(16777218) == "1.6777218E7", "A halfway neighbour of an odd float should not read back.")
         nan: number = String.to_number("NaN").unwrap()
         ctx.assert(String.from_float(nan) == "NaN", "A NaN should write as NaN.")
         ctx.assert(String.from_float(2147483647) == "2.1474836E9", "An int narrowed to a float should write its float text.")

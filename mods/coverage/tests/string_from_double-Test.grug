@@ -19,6 +19,11 @@ export tick(ctx: TestTickContext) {
         ctx.assert(String.from_double(String.to_number("2.2250738585072014e-308").unwrap()) == "2.2250738585072014E-308", "The smallest normal number should write its shortest text.")
         ctx.assert(String.from_double(String.to_number("1.7976931348623157e308").unwrap()) == "1.7976931348623157E308", "The largest number should write its shortest text.")
         ctx.assert(String.from_double(String.to_number("1e300").unwrap()) == "1.0E300", "1e300 should be written with an exponent.")
+        # The halfway rule is the same for a double: 9007199254740993 is exactly half an ulp above
+        # 9007199254740992, whose significand is even, so it reads back and still loses to the exact
+        # digits. 9007199254740994's significand is odd, so its halfway neighbours do not read back.
+        ctx.assert(String.from_double(9007199254740992) == "9.007199254740992E15", "A halfway neighbour of an even double should read back but lose to the exact digits.")
+        ctx.assert(String.from_double(9007199254740994) == "9.007199254740994E15", "A halfway neighbour of an odd double should not read back.")
         nan: number = String.to_number("NaN").unwrap()
         ctx.assert(String.from_double(nan) == "NaN", "A NaN should write as NaN.")
         ctx.assert(String.from_double(String.to_number("Infinity").unwrap()) == "Infinity", "Infinity should write as Infinity.")
