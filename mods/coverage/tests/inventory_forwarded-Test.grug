@@ -24,6 +24,17 @@ wrote: bool = false
 wrote_the_item: bool = false
 dropped: bool = false
 
+export init(ctx: TestInitContext) {
+    # The default 200 ticks is not enough for this test: it settles the world, waits for a frame
+    # after the key press, opens the inventory and waits for its screen, then waits for each of the
+    # two presses to reach the server's chest. The bounds of those waits add up to
+    # 1000 (settle) + 200 (a frame after the press) + 100 + 200 (the screen and its overlay)
+    # + 200 (the write reaching the chest) + 200 (the drop reaching it) = 1900, plus the ticks that
+    # only switch step, so the budget is 2400. A bound raised past that has to raise this with it:
+    # a wait bound larger than the budget can never reach its own assertion.
+    ctx.set_max_ticks(2400)
+}
+
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
@@ -51,9 +62,9 @@ export tick(ctx: TestTickContext) {
         chest_opt: Option[BlockEntity] = level.get_block_entity(origin.x(), origin.y(), origin.z())
         ctx.assert(chest_opt.has(), "The chest should be placed at the test's origin.")
         chest_opt.unwrap().set_item_in_slot(0, item_at(0), 5)
-        # The world key turns the overlay's forwarded write on. The press is a forwarded call, so it
-        # has reached the client before this returns; the wait below is for a frame after it.
-        ctx.press_world_key(75, false)
+        # The world key W turns the overlay's forwarded write on. The press is a forwarded call, so
+        # it has reached the client before this returns; the wait below is for a frame after it.
+        ctx.press_world_key(87, false)
         waited = 0
         step = 1
         ctx.not_done()
@@ -63,7 +74,7 @@ export tick(ctx: TestTickContext) {
     if step == 1 {
         waited = waited + 1
         ctx.assert(waited < 200, "A frame after the press should draw the overlay and the chest.")
-        # The K press arms the world pass, which draws a line at the chest only while armed, and
+        # The W press arms the world pass, which draws a line at the chest only while armed, and
         # the press cleared the drawn mark, so a frame that has drawn since proves the press
         # reached the joined client and captured the origin the click names.
         if not ctx.world_overlay_drawn() or not ctx.world_settled() {
