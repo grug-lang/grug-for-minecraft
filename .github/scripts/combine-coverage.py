@@ -152,6 +152,11 @@ EXCLUDED_CLASSES = {
     "BlockEntityAccess",
     "BlockWithEntityMixin",
     "ChunkMixin",
+    # Recomputes a joined Beta client's light over the box a region packet wrote (#1740). A mixin,
+    # so unmeasurable for the reason above: the y clamp it applies is the game's own, and the box it
+    # walks, the 32768-cell cap it cuts under and the drain all live in GrugRelight, which the
+    # loaders' own settle calls measure.
+    "ChunkDataRelightMixin",
     "GrugMixin",
     "GuiMixin",
     "GameGuiMixin",

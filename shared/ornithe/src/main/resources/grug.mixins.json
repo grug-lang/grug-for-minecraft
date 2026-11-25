@@ -16,8 +16,7 @@
         "ParticleManagerMixin",
         "ScreenMixin",
         "GrugFillInvoker",
-        "WorldNotifyAccess",
-        "ChunkDataRelightMixin"
+        "WorldNotifyAccess"
     ],
     "injectors": {
         "defaultRequire": 1
