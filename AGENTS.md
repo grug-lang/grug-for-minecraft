@@ -140,6 +140,13 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   second pair of eyes, not a gate: the orchestrator still reads the diff itself and verifies a
   finding before acting on it. Non-trivial means code, a workflow or a script; prose alone and a
   one-line documentation edit do not need it.
+- **A port's API additions are checked for overlap.** Ports land in parallel and ask the host for the
+  same things, so a review of one reads its `mod_api.json` and `smoketest.c` additions against every
+  entry already in the tree and against the other ports in flight: a new entry that duplicates an
+  existing one (a second file read, a second string split, a second path join) is rejected in favour
+  of using or extending the entry that is there, and a mod that hand-rolls in grug what an existing
+  entry already does is a defect in the mod. Two ports asking for the same thing is the signal to
+  extend the first entry, not to add a sibling beside it.
 - **Review threads.** A review comment that is answered or fixed is marked resolved on the pull
   request, so its thread list shows only what is still open; the reply says what was done, and a
   finding the orchestrator decided against is resolved with the reason. At a task boundary, about
