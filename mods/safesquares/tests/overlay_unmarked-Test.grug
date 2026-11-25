@@ -32,7 +32,10 @@
 # another, which a capture-free rule test must not depend on. Turning the overlay off and on makes
 # the next frame scan at once instead, whatever the clock says, and `overlay_scan_clock-Test.grug`
 # covers the clock-driven rescan on its own. The light is waited for through light_applied, since a
-# joined client's copy carries the section's light and the overlay draws from that copy.
+# joined client's copy carries the section's light and the overlay draws from that copy, and each
+# case also waits for the client's world to settle before it rescans: 1.2.5 cannot compare a joined
+# client's room light with its own, so light_applied answers cannot-verify there and would let the
+# batch be taken from the light before the change (#1207).
 state: number = 0
 waited: number = 0
 safe: number = 0
@@ -144,7 +147,7 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        if not _fresh_scan(ctx) {
+        if not _settled_fresh_scan(ctx) {
             ctx.not_done()
             return
         }
@@ -166,7 +169,7 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        if not _fresh_scan(ctx) {
+        if not _settled_fresh_scan(ctx) {
             ctx.not_done()
             return
         }
@@ -208,7 +211,7 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        if not _fresh_scan(ctx) {
+        if not _settled_fresh_scan(ctx) {
             ctx.not_done()
             return
         }
@@ -234,7 +237,7 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        if not _fresh_scan(ctx) {
+        if not _settled_fresh_scan(ctx) {
             ctx.not_done()
             return
         }
@@ -265,6 +268,22 @@ export tick(ctx: TestTickContext) {
         return
     }
     ctx.assert(not ctx.world_overlay_drawn(), "The overlay should be off after the second press of L.")
+}
+
+# Waits for the client's own world to settle, then rescans at once. The light the overlay scans is
+# the joined client's copy, and 1.2.5's incremental engine leaves that copy of the room at a field
+# its server cannot compare with its own, so light_applied answers cannot-verify there and the wait
+# above it does not cover the placed block's light (#1207). world_settled is the condition this
+# loader does have: it freezes the world and asks the client's own world, which drains its light
+# queue before it answers, and state 1 already waits with it for the room build. The settle runs
+# once per case, before the first press of the off/on rescan.
+local _settled_fresh_scan(ctx: TestTickContext) bool {
+    if force_at == 0 {
+        if not ctx.world_settled() {
+            return false
+        }
+    }
+    return _fresh_scan(ctx)
 }
 
 # Turns the overlay off and on and answers false until the frames after the activation have drawn,
