@@ -20,8 +20,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Covers the four arms that answer a call a dedicated server cannot serve: {@code
- * ModLoaderAdapter.refuseWithoutAClient} refusing a call that needs a client, and {@code
+ * Covers the arms that answer a call a dedicated server cannot serve: {@code
+ * ModLoaderAdapter.refuseWithoutAClient} refusing a call that needs a client, {@code
+ * TestTickContext.set_mouse_position} refusing to park the cursor a capture would show, and {@code
  * TestTickContext.get_client_level}, {@code TestTickContext.get_player} and {@code
  * TestTickContext.get_origin} reporting that the server has no level, no player and no test origin
  * yet. Those arms used to carry a {@code @GrugGenerated} exclusion, because only a dedicated server
@@ -101,6 +102,19 @@ class HostFunctionsOnADedicatedServerWithNothingJoinedTest {
                 List.of(
                         "TestTickContext.block_selection: This needs a client, and grug is running"
                                 + " on a dedicated server."),
+                reported);
+    }
+
+    @Test
+    void aDedicatedServerRefusesToParkTheCursorForACapture() throws Exception {
+        installAnEmptyDedicatedServer();
+
+        HostFunctions.TestTickContext_set_mouse_position(GrugTestContexts.tick(), 0.0, 0.0);
+
+        assertEquals(
+                List.of(
+                        "TestTickContext.set_mouse_position: This needs a client, and grug is"
+                                + " running on a dedicated server."),
                 reported);
     }
 
