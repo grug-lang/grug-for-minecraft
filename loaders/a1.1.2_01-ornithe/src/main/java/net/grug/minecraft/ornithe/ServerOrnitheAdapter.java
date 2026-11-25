@@ -1045,47 +1045,32 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     private static void relightRoom(
             World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        GrugRelight.sweepUntilStable(
-                () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), RELIGHT_SWEEP_LIMIT);
+        GrugRelight.settleImmediately(
+                new ImmediateLight(world), minX, minY, minZ, maxX, maxY, maxZ, RELIGHT_SWEEP_LIMIT);
     }
 
     /**
-     * Recomputes the block light of every cell of the box once and hashes what the box holds
-     * afterwards.
-     *
-     * <p>The engine skips a light update whose box covers more than 32768 cells ("Light too large,
-     * skipping!"), so a room's box is handed over in pieces, each drained before the next is queued
-     * (#1522).
+     * This version's engine as {@link GrugRelight.ImmediateRoom} drives it. {@code updateLight}
+     * recomputes the box there and then, so each {@link GrugRelight} piece is drained before the
+     * next is handed over, and the hashed field is the one the resend will send.
      */
-    private static long relightSweep(
-            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        GrugRelight.inPieces(
-                (pieceMinX, pieceMinY, pieceMinZ, pieceMaxX, pieceMaxY, pieceMaxZ) -> {
-                    world.updateLight(
-                            LightType.BLOCK,
-                            pieceMinX,
-                            pieceMinY,
-                            pieceMinZ,
-                            pieceMaxX,
-                            pieceMaxY,
-                            pieceMaxZ);
-                    GrugLinkArms.drain(world, world::doLightUpdates);
-                },
-                minX,
-                minY,
-                minZ,
-                maxX,
-                maxY,
-                maxZ);
-        long hash = 0;
-        for (int y = minY; y <= maxY; y++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                for (int x = minX; x <= maxX; x++) {
-                    hash = hash * 31 + world.getLight(LightType.BLOCK, x, y, z);
-                }
-            }
+    private static final class ImmediateLight implements GrugRelight.ImmediateRoom {
+        private final World world;
+
+        ImmediateLight(World world) {
+            this.world = world;
         }
-        return hash;
+
+        @Override
+        public void update(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+            this.world.updateLight(LightType.BLOCK, minX, minY, minZ, maxX, maxY, maxZ);
+            GrugLinkArms.drain(this.world, this.world::doLightUpdates);
+        }
+
+        @Override
+        public int block(int x, int y, int z) {
+            return this.world.getLight(LightType.BLOCK, x, y, z);
+        }
     }
 
     /**
@@ -1093,6 +1078,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * world: the compressed data is assembled from the server's blocks, metadata and light.
      */
     private static WorldChunkPacket buildWorldChunkPacket(World world, int[] region) {
+        return buildWorldChunkPacket(region, new WorldSource(world));
+    }
+
+    /**
+     * Builds the region packet from the given cells, which is the step that packs, deflates and
+     * sizes the payload; the World above is only where the cells come from. It is package-private
+     * so a unit test can build a packet without a game, which is where a payload that compresses
+     * larger than it holds is seen (#1522).
+     */
+    static WorldChunkPacket buildWorldChunkPacket(int[] region, GrugChunkData.Source cells) {
         int x = region[0];
         int y = region[1];
         int z = region[2];
@@ -1114,16 +1109,10 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         packet.sizeZ = sizeZ;
         packet.shouldDelay = true;
 
-        byte[] raw = packChunkData(world, x, adjustedY, z, sizeX, adjustedSizeY, sizeZ);
+        byte[] raw = GrugChunkData.pack(x, adjustedY, z, sizeX, adjustedSizeY, sizeZ, cells);
         packet.data = GrugDeflate.deflate(raw);
         setCompressedSize(packet, packet.data.length);
         return packet;
-    }
-
-    /** Packs the region's cells with {@link GrugChunkData}, which documents the layout. */
-    private static byte[] packChunkData(
-            World world, int x, int y, int z, int sizeX, int sizeY, int sizeZ) {
-        return GrugChunkData.pack(x, y, z, sizeX, sizeY, sizeZ, new WorldSource(world));
     }
 
     /**

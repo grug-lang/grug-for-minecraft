@@ -76,24 +76,74 @@ public final class GrugRelight {
     static final int MAX_UPDATE_CELLS = 32768;
 
     /**
-     * One recompute of a box, as {@link #inPieces} hands it over: a loader whose engine recomputes
-     * a box immediately, rather than queuing it, has no {@link Room} to drive but still has to stay
-     * within the size the engine accepts.
+     * One recompute of a box, as {@link #inPieces} hands it over: an engine that recomputes a box
+     * immediately, rather than queuing it, is driven through this.
      */
-    public interface BoxUpdate {
+    interface BoxUpdate {
         /** Recomputes the box. */
         void update(int minX, int minY, int minZ, int maxX, int maxY, int maxZ);
+    }
+
+    /**
+     * A room's light engine as {@link #settleImmediately} drives it: one that recomputes a box the
+     * moment it is given one, rather than queuing it, and whose block light is read per cell.
+     */
+    public interface ImmediateRoom {
+        /** Recomputes the box's block light now, draining whatever that queued. */
+        void update(int minX, int minY, int minZ, int maxX, int maxY, int maxZ);
+
+        /** The block light a cell holds now, 0 to 15, as the renderer reads it. */
+        int block(int x, int y, int z);
     }
 
     /**
      * Hands the box to {@code update} as the pieces {@link #pieces} gives, so that no update is
      * larger than the engine accepts and none of them is dropped.
      */
-    public static void inPieces(
+    static void inPieces(
             BoxUpdate update, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
         for (int[] piece : pieces(minX, minY, minZ, maxX, maxY, maxZ)) {
             update.update(piece[0], piece[1], piece[2], piece[3], piece[4], piece[5]);
         }
+    }
+
+    /**
+     * Recomputes the box's block light until a sweep changes nothing, then returns how many sweeps
+     * that took.
+     *
+     * <p>Both dedicated servers whose engine recomputes a box at once settle a room through this,
+     * so the box is cut here rather than in each adapter. See {@link #settle}, which does the same
+     * for an engine that queues its updates.
+     */
+    public static int settleImmediately(
+            ImmediateRoom room,
+            int minX,
+            int minY,
+            int minZ,
+            int maxX,
+            int maxY,
+            int maxZ,
+            int limit) {
+        return sweepUntilStable(
+                () -> sweepImmediately(room, minX, minY, minZ, maxX, maxY, maxZ), limit);
+    }
+
+    /**
+     * Recomputes the block light of the box once, in the pieces the engine accepts, and hashes what
+     * it holds afterwards.
+     */
+    static long sweepImmediately(
+            ImmediateRoom room, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        inPieces(room::update, minX, minY, minZ, maxX, maxY, maxZ);
+        long hash = 0;
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    hash = hash * 31 + room.block(x, y, z);
+                }
+            }
+        }
+        return hash;
     }
 
     /**
