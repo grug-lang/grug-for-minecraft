@@ -1033,14 +1033,12 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
      * until something else happens to mark it: the wall of a room then draws at the brightness it
      * had before the sweep, which is the scatter a capture reads (#1580). The range request is the
      * game's own, and it grows the box by one block, so every section the box touches and the
-     * sections beside it are rebuilt. A dedicated server has no renderer to tell, and its joined
-     * client sweeps its own copy through {@code relightClientRoom}, which marks there.
+     * sections beside it are rebuilt. It is asked unconditionally, and a dedicated server owes
+     * nothing: its world holds no renderer listeners, so the request reaches none, while its joined
+     * client sweeps its own copy through {@code relightClientRoom}, which marks there too.
      */
     static void markSweptSections(
             World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        if (!world.isRemote) {
-            return;
-        }
         world.markBlocksDirty(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
