@@ -9,11 +9,11 @@
 # second bread (#602).
 # #1205: the a1.1.2_01 dedicated leg once failed the dropped-item check right after the server
 # logged `Can't keep up`, and a rerun passed. A check that only runs at the end cannot say when the
-# pipe dropped one, so every runner tick counts the item entities at the fixture and fails when the
-# count rises above what the fixture expects, naming that tick, the round and what each container
-# held at it. Nothing is printed on a passing tick. That leg also repeats the delivery a hundred
-# times, so a red that needs an overloaded tick has a hundred chances per run instead of one; every
-# other leg checks once at the timing its captures were taken with (#262).
+# bread left the pipe, so every runner tick counts the bread at the fixture and fails on the first
+# one, naming that tick, the round and what each container held at it. Nothing is printed on a
+# passing tick. That leg also repeats the delivery a hundred times, so a red that needs an overloaded
+# tick has a hundred chances per run instead of one; every other leg checks once at the timing its
+# captures were taken with (#262).
 pipe_table_table: Option[BlockEntity] = Option.new()
 pipe_table_chest: Option[BlockEntity] = Option.new()
 pipe_table_pipe: Option[BlockEntity] = Option.new()
@@ -39,16 +39,8 @@ round_started: number = 0
 rounds: number = 100
 
 # How many item entities the fixture itself leaves at the pipe: the stray diamond spawned in
-# _setup_pipe. A sample that finds another has seen a drop, whatever kind the dropped item is.
+# _setup_pipe. The first pass's end check asserts it is still there beside no dropped bread.
 stray_entities: number = 1
-
-# The item entities the per-tick sample expects to find. It starts at the stray diamond and follows
-# the level's own count down when an entity disappears, because Alpha despawns a dropped item after
-# 6000 game ticks and the a1 dedicated leg's hundred rounds at 10x outlive that diamond. It follows
-# nothing down until the diamond has been seen once, so an entity that reaches the client a tick late
-# is not read as a pipe that dropped one. A count that rises above it is the pipe's drop.
-expected_entities: number = 1
-stray_seen: bool = false
 
 # The tick the pipe was placed on, or -1 before that. The wait after it is for what the pipe does
 # with the result rather than for a tick count, and it also keeps the old floor of 25 ticks, which is
@@ -149,29 +141,20 @@ local _check_round(ctx: TestTickContext) {
     }
 }
 
-# #1205: the tick a stack leaves the pipe is what a red has to name, so this runs on every runner
-# tick rather than at the check alone. Nothing in this fixture puts an item on the floor but the
-# stray diamond, so a count above the one expected fails the tick it appears, with every container
-# printed. The expected count follows a disappearance down, so the stray's own despawn is not read
-# as the pipe's doing. A passing tick prints nothing.
+# #1205: the tick the bread leaves the pipe is what a red has to name, so this runs on every runner
+# tick rather than at the check alone. It asks for the bread alone: a count of every item entity is
+# not the pipe's, since a run on 2026-11-25 saw a second non-bread entity with the table's grid
+# untouched and every container as a pass leaves it, which #1692 already warned not to read as a
+# drop. A passing tick prints nothing.
 local _sample(ctx: TestTickContext) {
     level: Level = test_level.unwrap()
-    all: number = level.count_item_entities(base_x, base_y, base_z, 5)
     bread: number = level.count_item_entities_of(base_x, base_y, base_z, 5, bread_item.unwrap())
-    if bread > 0 {
-        _report(ctx, all, bread)
-        ctx.assert(false, "The pipe should not have dropped the bread.")
+    if bread == 0 {
+        return
     }
-    if all > expected_entities {
-        _report(ctx, all, bread)
-        ctx.assert(false, "The pipe should not have dropped an item.")
-    }
-    if all >= stray_entities {
-        stray_seen = true
-    }
-    if stray_seen and all < expected_entities {
-        expected_entities = all
-    }
+    all: number = level.count_item_entities(base_x, base_y, base_z, 5)
+    _report(ctx, all, bread)
+    ctx.assert(false, "The pipe should not have dropped the bread.")
 }
 
 # #1205: a dropped item names the tick and where every item stood in it, because the failing run's
@@ -179,11 +162,21 @@ local _sample(ctx: TestTickContext) {
 # printed too, since a recorded bread is the state it is in before a push, and the table's grid, so
 # a pipe that took a second result rather than the chest refusing the first is visible.
 local _report(ctx: TestTickContext, all: number, bread: number) {
+    level: Level = test_level.unwrap()
     chest: BlockEntity = pipe_table_chest.unwrap()
     pipe: BlockEntity = pipe_table_pipe.unwrap()
     table: BlockEntity = pipe_table_table.unwrap()
+    # #1205: the count of every entity is not the pipe's (#1692), so a run that reports one prints
+    # what it could be made of, which names a fixture item, a wheat the table handed over, or a
+    # second bread, without another run.
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    wheat_item: Item = item(resource_location("minecraft:wheat"))
+    diamonds: number = level.count_item_entities_of(base_x, base_y, base_z, 5, diamond)
+    wheat: number = level.count_item_entities_of(base_x, base_y, base_z, 5, wheat_item)
     print2("Item entities at the fixture: count", all)
     print2("of which bread", bread)
+    print2("of which diamond", diamonds)
+    print2("of which wheat", wheat)
     print2("the stray entities the fixture started with", stray_entities)
     print2("round", round)
     print2("runner tick", ctx.current_tick())
