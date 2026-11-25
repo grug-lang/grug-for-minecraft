@@ -96,6 +96,7 @@ export tick(ctx: TestTickContext) {
         stack_column = Math.remainder(stack_index, _columns(ctx))
         stack_row = Math.floor(stack_index / _columns(ctx))
         ctx.clear_carried_item()
+        waited = 0
         step = 1
         taken: bool = ctx.click_screen(_cell_x(ctx, clicked_column), _cell_y(clicked_row), 1)
         ctx.assert(taken, "The overlay should take a right click on its item, so that the vanilla slot under it is not clicked too.")
@@ -113,6 +114,7 @@ export tick(ctx: TestTickContext) {
         }
         ctx.assert(equals(held.unwrap(), expected), "A right click should give the clicked item.")
         ctx.assert(ctx.get_held_count(ctx.get_player()) == 1, "A right click should give one item.")
+        waited = 0
         step = 2
         ctx.not_done()
         return
@@ -124,6 +126,7 @@ export tick(ctx: TestTickContext) {
         # single item.
         ctx.assert(ctx.get_item_max_stack(expected_stack) == 64, "The stack item should be a 64 stack.")
         ctx.clear_held_item(ctx.get_player())
+        waited = 0
         step = 3
         taken: bool = ctx.click_screen(_cell_x(ctx, stack_column), _cell_y(stack_row), 2)
         ctx.assert(taken, "The overlay should take a middle click on its item.")
@@ -142,6 +145,7 @@ export tick(ctx: TestTickContext) {
         ctx.assert(equals(held.unwrap(), expected_stack), "A middle click should give the clicked item.")
         ctx.assert(ctx.get_held_count(ctx.get_player()) == 64, "A middle click should give a full stack.")
         ctx.clear_held_item(ctx.get_player())
+        waited = 0
         step = 4
         ctx.not_done()
         return
@@ -155,6 +159,7 @@ export tick(ctx: TestTickContext) {
         ctx.set_carried_item(expected)
         carried: Option[Item] = ctx.get_carried_item()
         ctx.assert(carried.has(), "The test should be able to put an item on the cursor.")
+        waited = 0
         step = 5
         taken: bool = ctx.click_screen(_cell_x(ctx, 0), _cell_y(0), 0)
         ctx.assert(taken, "The overlay should take a left click while the cursor carries an item.")
@@ -169,6 +174,7 @@ export tick(ctx: TestTickContext) {
         # stack, because the two can stack. The port gives into the inventory where the reference
         # merges into the cursor, which is the deviation about.json records (#870).
         ctx.set_carried_item(expected)
+        waited = 0
         step = 6
         taken: bool = ctx.click_screen(_cell_x(ctx, clicked_column), _cell_y(clicked_row), 0)
         ctx.assert(taken, "The overlay should take a left click on the item the cursor carries.")
@@ -207,6 +213,7 @@ export tick(ctx: TestTickContext) {
         }
         # With the cursor empty again, a left click gives one item.
         ctx.assert(not ctx.get_carried_item().has(), "The cursor should be empty before the last press.")
+        waited = 0
         step = 8
         taken: bool = ctx.click_screen(_cell_x(ctx, clicked_column), _cell_y(clicked_row), 0)
         ctx.assert(taken, "The overlay should take a left click on its item, so that the vanilla slot under it is not clicked too.")
@@ -225,6 +232,7 @@ export tick(ctx: TestTickContext) {
         ctx.assert(equals(held.unwrap(), expected), "The item in the player's hand should be the one that was clicked.")
         ctx.assert(ctx.get_held_count(ctx.get_player()) == 1, "A left click should give one item.")
         ctx.clear_held_item(ctx.get_player())
+        waited = 0
         step = 9
         ctx.not_done()
         return
