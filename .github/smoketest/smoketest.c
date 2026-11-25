@@ -3644,7 +3644,8 @@ REGISTER("TestTickContext", "scroll_screen", TTC_scroll_screen);
 // The one directory a mod may write (#1757). The writable copy is this host's own temp game
 // directory, so a run never writes into the repository's mods; the shipped tree is the repository's
 // mods/<mod>/files, read only, exactly as a development run sees it. A path is checked segment by
-// segment as a portable file name, a missing file is an empty Option, and a write is a temporary file
+// segment as a portable file name (a leading "./" is accepted, since appending a listing's own name
+// to "." produces one), a missing file is an empty Option, and a write is a temporary file
 // under grug_mod_files/.tmp, outside every mod's files directory, renamed into place, so nothing a
 // mod lists or counts ever sees a temporary file and a crash leaves one where no call reads it.
 // A grug script has no call that creates a symbolic link, so the escape through one is covered by
@@ -3733,7 +3734,9 @@ static bool segment_reserved(const char* s, size_t n) {
 // Why `path` is not a name this host accepts, or NULL: GrugModData.pathProblem's rules, a path being
 // a portable file name rather than one this host's filesystem happens to accept.
 static const char* path_problem(const char* path, bool allow_root) {
-    if (!path || !*path) return "names no file in files.";  // SMOKETEST_EXCL_BRANCH: a grug string is never null, so only the empty-path arm is reachable
+    if (!path) return "names no file in files.";  // SMOKETEST_EXCL_BRANCH: a grug string is never null
+    while (!strncmp(path, "./", 2)) path += 2;
+    if (!*path) return "names no file in files.";
     if (path[0] == '/') return "is absolute, and a path is always relative to the mod's own files.";
     if (allow_root && !strcmp(path, ".")) return NULL;
     for (const char* s = path;;) {

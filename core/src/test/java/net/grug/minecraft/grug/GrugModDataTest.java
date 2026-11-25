@@ -141,7 +141,7 @@ class GrugModDataTest {
                     "lpt9.tar.gz",
                     "/absolute",
                     "a//b",
-                    "./a",
+                    "./",
                     "a/./b",
                     ".",
                     "..",
@@ -159,7 +159,9 @@ class GrugModDataTest {
         assertNull(GrugModData.pathProblem("console.txt", false));
         assertNull(GrugModData.pathProblem("com0", false));
         assertNull(GrugModData.pathProblem(".", true));
-        assertTrue(GrugModData.pathProblem("./a", true) != null);
+        assertNull(GrugModData.pathProblem("./a.txt", false));
+        assertNull(GrugModData.pathProblem("././a.txt", false));
+        assertTrue(GrugModData.pathProblem("./../a", true) != null);
         assertTrue(GrugModData.pathProblem("a/.", true) != null);
     }
 
@@ -171,6 +173,7 @@ class GrugModDataTest {
         assertEquals(root.resolve("inside.txt"), GrugModData.resolve(root, "inside.txt", false));
         assertEquals(root.resolve("not/yet.txt"), GrugModData.resolve(root, "not/yet.txt", false));
         assertEquals(root, GrugModData.resolve(root, ".", true));
+        assertEquals(root.resolve("inside.txt"), GrugModData.resolve(root, "./inside.txt", false));
 
         Path outside = Files.createDirectories(tmp.resolve("outside"));
         Files.writeString(outside.resolve("secret.txt"), "secret");
