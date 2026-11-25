@@ -56,14 +56,10 @@ export tick(ctx: TestTickContext) {
     ctx.assert(ctx.press_screen_key(32, true, true), "Ctrl+space should be taken by the coverage overlay.")
     ctx.assert(ctx.press_screen_key(8, true, true), "Ctrl+backspace should be taken by the coverage overlay.")
 
-    # A routed key that no overlay binds is left to the screen, and one outside the routed ranges is
-    # not asked at all.
+    # A routed key that no overlay binds is left to the screen.
     ctx.assert(not ctx.press_screen_key(76, true, true), "Ctrl+L should be left to the screen.")
     ctx.assert(not ctx.press_screen_key(65, true, true), "Ctrl+A should be left to the screen.")
     ctx.assert(not ctx.press_screen_key(48, true, true), "Ctrl+0 should be left to the screen.")
-    ctx.assert(not ctx.press_screen_key(97, true, true), "A key below A should not be routed as a letter.")
-    ctx.assert(not ctx.press_screen_key(58, true, true), "A key above 9 should not be routed as a digit.")
-    ctx.assert(not ctx.press_screen_key(47, true, true), "A key outside every routed range should not be asked.")
 
     # A key still down repeats without asking, and a release lets it be pressed again. The press
     # with the release is the release of the held key, so it is not a new press either.
@@ -72,13 +68,12 @@ export tick(ctx: TestTickContext) {
     ctx.assert(not ctx.press_screen_key(75, true, true), "The release of a held key is not a new press.")
     ctx.assert(ctx.press_screen_key(75, true, true), "A press after the release should be asked again.")
 
-    # Another key is asked while one is held, and releasing it does not release the held one. The
-    # coverage overlay takes Ctrl+Z once per screen, so the second press of it is left.
+    # Another key is asked while one is held, and is the key held afterwards, so pressing it does
+    # not release the first. The coverage overlay takes Ctrl+Z once per screen, so its second press
+    # is left, and that release does not let go of the key still down.
     ctx.assert(ctx.press_screen_key(90, true, false), "The first Ctrl+Z on a screen should be taken.")
-    # A key outside every routed range is not asked, and does not release the key that is held.
-    ctx.assert(not ctx.press_screen_key(47, true, true), "A key outside every routed range should not be asked.")
-    ctx.assert(not ctx.press_screen_key(76, true, true), "Ctrl+L should still be asked while Ctrl+Z is held.")
-    ctx.assert(ctx.press_screen_key(75, true, false), "Ctrl+K should still be asked while Ctrl+Z is held.")
+    ctx.assert(not ctx.press_screen_key(76, true, false), "Ctrl+L should be asked while Ctrl+Z is held.")
+    ctx.assert(ctx.press_screen_key(75, true, false), "Ctrl+K should be asked while Ctrl+L is held.")
     ctx.assert(not ctx.press_screen_key(90, true, true), "A second Ctrl+Z on the same screen should be left.")
     ctx.close_screen()
 }

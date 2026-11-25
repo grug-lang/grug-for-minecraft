@@ -3461,7 +3461,12 @@ static bool overlay_click_taken(double x, double y, double button) {
 
 // TestTickContext.press_screen_key: a key down through the screen's own key path, with the release
 // the test asks for. Only a letter, a digit, space and backspace reach an overlay, as the loader
-// routes them; a key still held repeats without asking, so a toggle flips once per press.
+// routes them; a key still held repeats without asking, so a toggle flips once per press. The four
+// loaders before 1.20.6 ask LWJGL's keyboard for the name GrugOverlay.keyNameForCode gives a
+// character code and have no key for any other, which is the host error below; 1.20.6 hands the
+// code to GLFW, where a code with no binding is simply left to the screen. The smoketest has no
+// loader's keyboard, so it answers as the older ones do, the branch its own name takes in a test
+// (sound-Test branches on loader_name the same way).
 static union grug_value TTC_press_screen_key(ARGS) {
     UNUSED;
     double k = a[1]._number;
@@ -3474,10 +3479,15 @@ static union grug_value TTC_press_screen_key(ARGS) {
     // SMOKETEST_EXCL_STOP
     if (!screen_is_open) return fail("TestTickContext.press_screen_key: There is no screen open to press.");  // SMOKETEST_EXCL: every committed press has a screen open
     int key = (int)k;
+    // The keys a loader routes to an overlay are backspace, space, a digit and a letter. Each range
+    // is one unsigned comparison, so every arm below is a key a test can press.
+    bool digit = (unsigned) (key - '0') <= 9;
+    bool letter = (unsigned) (key - 'A') <= 25;
+    if (!(key == 8 || key == 32 || digit || letter))
+        return fail("TestTickContext.press_screen_key: The game has no key for character code %d.", key);
     bool ctrl = a[2]._bool, release = a[3]._bool;
-    bool routable = key == 8 || key == 32 || (key >= 'A' && key <= 'Z') || (key >= '0' && key <= '9');
     bool taken = false;
-    if (routable && !(overlay_key_held && overlay_key_held_code == key)) {
+    if (!(overlay_key_held && overlay_key_held_code == key)) {
         overlay_key_held = true;
         overlay_key_held_code = key;
         overlay_key_code = key;
@@ -3491,7 +3501,8 @@ static union grug_value TTC_press_screen_key(ARGS) {
             if (overlay_pass_taken) { taken = true; break; }
         }
     }
-    if (release && overlay_key_held && overlay_key_held_code == key) overlay_key_held = false;
+    // A press with release lets go of whatever was held, as the loader sets its held key to none.
+    if (release) overlay_key_held = false;
     return boolean(taken);
 }
 REGISTER("TestTickContext", "press_screen_key", TTC_press_screen_key);
