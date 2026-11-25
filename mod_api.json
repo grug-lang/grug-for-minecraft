@@ -1527,7 +1527,7 @@
 			},
 			"methods": {
 				"entry_count": {
-					"description": "How many entries the directory at `path` holds, counting the written copy and the files the mod ships together, with a name present in both listed once, or 0 when there is no such directory. `path` may be `.` to name the mod's own directory. A path that names a file is reported. Together with entry_name this is the listing, since grug has no list type: entry_name(path, 0) is the first name in sorted order.",
+					"description": "How many entries the directory at `path` holds, counting the written copy and the files the mod ships together, with a name present in both listed once, or 0 when there is no such directory. A symbolic link is never counted or named, because a read refuses one. `path` may be `.` to name the mod's own directory. A path that names a file is reported. Together with entry_name this is the listing, since grug has no list type: entry_name(path, 0) is the first name in sorted order.",
 					"return_type": {
 						"name": "number"
 					},
@@ -1541,7 +1541,7 @@
 					]
 				},
 				"entry_name": {
-					"description": "The name of the entry at `index` in the directory at `path`, sorted by name, where entry_count(path) says how many there are. `path` may be `.` to name the mod's own directory. An index that is not a whole number from 0 up, or that is past the last entry, is reported, and so is a path that names a file. Append `/` and the name to the same path to read or list a child.",
+					"description": "The name of the entry at `index` in the directory at `path`, sorted by name, where entry_count(path) says how many there are and a symbolic link is never one of them. `path` may be `.` to name the mod's own directory. An index that is not a whole number from 0 up, or that is past the last entry, is reported, and so is a path that names a file. Append `/` and the name to the same path to read or list a child.",
 					"return_type": {
 						"name": "string"
 					},
@@ -1594,7 +1594,7 @@
 					]
 				},
 				"write_text": {
-					"description": "Writes `text` to `path` as UTF-8, creating the directories it needs. The write is atomic: the bytes go to a temporary file in the game directory, outside every mod's files directory, and are renamed over the target, so a crash leaves either the old text or the new one and never half of it, and a write that fails leaves what was there. A temporary file a crash leaves behind is in no mod's directory, so no read or listing sees it and no byte count includes it. The mod's whole written directory is capped at 16 MiB (16777216 bytes): a write that would pass the cap is reported with the size it would reach, and nothing is written.",
+					"description": "Writes `text` to `path` as UTF-8, creating the directories it needs. The write is atomic: the bytes go to a temporary file in the game directory, outside every mod's files directory, and are renamed over the target. The bytes are flushed to the disk before the rename, and the target's directory after it where the platform can flush a directory, so a crash or a power loss leaves either the old text or the new one and never half of it, and a write that fails leaves what was there. A temporary file a crash leaves behind is in no mod's directory, so no read or listing sees it and no byte count includes it. The mod's whole written directory is charged one filesystem block of 4096 bytes per entry, a file's own size when larger and one block for a file smaller than that or for a directory, against a cap of 16 MiB (16777216 bytes), so at most 4096 entries fit whatever their sizes. A write that would pass the cap is reported with the charge it would reach, and nothing is written.",
 					"parameters": [
 						{
 							"name": "path",

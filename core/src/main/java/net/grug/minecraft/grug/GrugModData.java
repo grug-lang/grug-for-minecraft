@@ -3,6 +3,7 @@ package net.grug.minecraft.grug;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +15,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,8 +44,12 @@ import java.util.stream.Stream;
  * differs only in case from an existing entry, or when any component is a symbolic link (a leading
  * {@code "./"} is accepted, so a listing's own name can be appended to {@code "."}); a link is
  * refused rather than followed, because its target could be outside the directory. Writes are
- * atomic (a temporary file outside the mod's tree and a rename), so a crash leaves either the old
- * content or the new one, and the whole writable directory is capped at {@link #CAP} bytes.
+ * atomic (a temporary file outside the mod's tree and a rename), and the new bytes are flushed to
+ * the disk before the rename and the directory after it where the platform can flush one, so even a
+ * power loss leaves either the old content or the new one. Every entry is charged at least one
+ * filesystem block of {@link #BLOCK} bytes against {@link #CAP}: a file costs its size or one block
+ * when smaller, a directory one block, and a link nothing, so at most 4096 entries fit whatever
+ * their sizes and no collection of tiny files can fill the disk while the count says otherwise.
  */
 public final class GrugModData {
 
@@ -56,8 +62,15 @@ public final class GrugModData {
      */
     public static final String WRITABLE_DIRECTORY = "grug_mod_files";
 
-    /** The cap of one mod's writable directory, in bytes. */
+    /** The cap of one mod's writable directory, in charged bytes. */
     public static final long CAP = 16L * 1024 * 1024;
+
+    /**
+     * The charge of one entry that holds less than a filesystem block, and of every directory: the
+     * filesystem spends at least one block on each entry's data or on each directory, whatever the
+     * file's own size says.
+     */
+    static final long BLOCK = 4096;
 
     /**
      * The characters Windows refuses in a file name, besides a control character and the path
@@ -398,13 +411,21 @@ public final class GrugModData {
         return new ArrayList<>(names);
     }
 
-    /** Adds the names of the entries of {@code directory} when it is one. */
+    /**
+     * Adds the names of the entries of {@code directory} when it is one. A link is left out because
+     * {@link #resolve} refuses one, so a listing must not name an entry no read can open.
+     */
     private static void addNames(Path directory, Set<String> names) throws IOException {
         if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
             return;
         }
         try (Stream<Path> stream = Files.list(directory)) {
-            stream.forEach(entry -> names.add(entry.getFileName().toString()));
+            stream.forEach(
+                    entry -> {
+                        if (!Files.isSymbolicLink(entry)) {
+                            names.add(entry.getFileName().toString());
+                        }
+                    });
         }
     }
 
@@ -413,10 +434,12 @@ public final class GrugModData {
      *
      * <p>The bytes go to a temporary file in {@code <game directory>/grug_mod_files/.tmp/}, which
      * is on the same filesystem as every mod's directory but in none of them, and are renamed over
-     * the target. A crash therefore leaves either the old content or the new one, and the only
-     * trace a crash can leave is a file under {@code .tmp} that no read, listing or byte count ever
-     * sees. The cap check, the temporary write and the move hold {@link #WRITE_LOCK}, so a write
-     * from the render thread and one from the server thread cannot both pass the cap and land.
+     * the target. The bytes are flushed to the disk before the rename and the target's directory
+     * after it where the platform can flush one, so a crash or a power loss leaves either the old
+     * content or the new one, and the only trace a crash can leave is a file under {@code .tmp}
+     * that no read, listing or byte count ever sees. The cap check, the temporary write and the
+     * move hold {@link #WRITE_LOCK}, so a write from the render thread and one from the server
+     * thread cannot both pass the cap and land.
      *
      * @throws IllegalArgumentException when the path is refused, differs only in case from an
      *     existing entry, or the write would exceed {@link #CAP}
@@ -431,13 +454,17 @@ public final class GrugModData {
         synchronized (WRITE_LOCK) {
             Path target = resolve(root, path, false);
             requirePortableCase(shippedRoot(modsDir, modName), root, target, path);
-            long previous = sizeOf(target);
-            long after = totalBytes(root) - previous + bytes.length;
+            long previous = chargeOf(target);
+            long after =
+                    totalBytes(root)
+                            - previous
+                            + charge(bytes.length)
+                            + pendingDirectories(root, target);
             if (after > CAP) {
                 throw new IllegalArgumentException(
                         "Writing "
                                 + quote(path)
-                                + " would make the mod's "
+                                + " would charge the mod's "
                                 + DIRECTORY
                                 + " directory "
                                 + after
@@ -453,12 +480,14 @@ public final class GrugModData {
             boolean moved = false;
             try {
                 Files.write(temp, bytes);
+                forceFile(temp);
                 Files.move(
                         temp,
                         target,
                         StandardCopyOption.REPLACE_EXISTING,
                         StandardCopyOption.ATOMIC_MOVE);
                 moved = true;
+                forceDirectory(target.getParent());
             } finally {
                 if (!moved) {
                     Files.deleteIfExists(temp);
@@ -468,17 +497,69 @@ public final class GrugModData {
     }
 
     /**
-     * The bytes of the regular file {@code path} holds, or 0 when nothing regular is there. The
+     * What an entry of that size is charged against {@link #CAP}: at least one filesystem block.
+     */
+    private static long charge(long size) {
+        return Math.max(size, BLOCK);
+    }
+
+    /**
+     * The charge of the existing regular file {@code path}, or 0 when nothing regular is there. The
      * attributes are read without following a link, since {@link #resolve} has already refused one.
      */
-    private static long sizeOf(Path path) throws IOException {
+    private static long chargeOf(Path path) throws IOException {
         try {
             BasicFileAttributes attrs =
                     Files.readAttributes(
                             path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-            return attrs.isRegularFile() ? attrs.size() : 0;
+            return attrs.isRegularFile() ? charge(attrs.size()) : 0;
         } catch (NoSuchFileException e) {
             return 0;
+        }
+    }
+
+    /**
+     * The block charge of the directories a write of {@code target} must create below {@code root},
+     * so the cap counts them before they exist. The root itself is not an entry of the cap.
+     */
+    private static long pendingDirectories(Path root, Path target) {
+        Path parent = target.getParent();
+        if (parent.equals(root)) {
+            return 0;
+        }
+        long pending = 0;
+        Path here = root;
+        for (Path part : root.relativize(parent)) {
+            here = here.resolve(part);
+            if (Files.exists(here, LinkOption.NOFOLLOW_LINKS)) {
+                break;
+            }
+            pending += BLOCK;
+        }
+        return pending;
+    }
+
+    /** Flushes the temporary file's bytes to the disk before the rename can put it in place. */
+    private static void forceFile(Path file) throws IOException {
+        try (FileChannel channel = FileChannel.open(file, StandardOpenOption.WRITE)) {
+            channel.force(true);
+        }
+    }
+
+    /**
+     * Flushes the target's directory after the rename, where the platform can open a directory to
+     * flush it.
+     *
+     * <p>Windows refuses to open a directory, and no Java call flushes one there. That is not a
+     * write failure: the file's own bytes were flushed before the rename, so the target still holds
+     * the old text or the new one and only the rename's own survival is weaker. A path that no
+     * longer exists takes the same arm.
+     */
+    static void forceDirectory(Path directory) {
+        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
+            channel.force(true);
+        } catch (IOException e) {
+            return;
         }
     }
 
@@ -534,11 +615,12 @@ public final class GrugModData {
     }
 
     /**
-     * The bytes every regular file under {@code root} holds, which is what the cap counts. A link
-     * is not counted and is never followed, so no link can feed the cap a target's size.
+     * The charged bytes of the tree under {@code root}, which is what the cap counts: one block per
+     * directory and per file that holds less, a larger file's own size, and nothing for a link,
+     * which is never followed, so no link can feed the cap a target's size.
      */
     private static long totalBytes(Path root) throws IOException {
-        if (!Files.isDirectory(root)) {
+        if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
             return 0;
         }
         final long[] total = {0};
@@ -546,9 +628,18 @@ public final class GrugModData {
                 root,
                 new SimpleFileVisitor<Path>() {
                     @Override
+                    public FileVisitResult preVisitDirectory(
+                            Path directory, BasicFileAttributes attrs) {
+                        if (!directory.equals(root)) {
+                            total[0] += BLOCK;
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                         if (attrs.isRegularFile()) {
-                            total[0] += attrs.size();
+                            total[0] += charge(attrs.size());
                         }
                         return FileVisitResult.CONTINUE;
                     }

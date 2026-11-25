@@ -1092,11 +1092,6 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * The address the client dialled, when it joined a server, and the save's own name otherwise. A
-     * client joined to somebody else's server never learns the save name; see {@link
-     * ModLoaderAdapter#levelName}.
-     */
-    /**
      * The world's own name, which is the save directory's in singleplayer and on a dedicated
      * server. A client joined to somebody else's server never learns that server's save name and
      * answers the name the game gives its own copy of the world instead, which does not identify
