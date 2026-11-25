@@ -10,7 +10,6 @@
 # parse, which is how the reference's Shape.error survives in a text with no objects. Saving drops the
 # marker and keeps the shape, because ShapeSet.toPersistence writes every non-null shape whether or
 # not it is in error: the shape is what the player fixes in a screen, not something to throw away.
-# The one path difference follows from that.
 # The only path difference is where the two files live (#1757): a mod writes under the root that
 # File.open(r"files") answers, not under the game directory, so the state is at
 # `buildguide/<key>.dat` and the config at `config/buildguide.cfg` inside that root. A guide already
