@@ -126,6 +126,7 @@ export tick(ctx: TestTickContext) {
         item_opt: Option[Item] = chest.get_item_in_slot(0)
         wrote = count == 3
         wrote_the_item = item_opt.has() and equals(item_opt.unwrap(), item_at(0))
+        print3("coverage: inventory_forwarded slot 0 count after the first press", count, first_pressed)
         box_x: number = ctx.gui_left() + Math.floor(ctx.gui_width() / 2)
         box_y: number = ctx.gui_top() + Math.floor(ctx.gui_height() / 2)
         second_pressed = ctx.click_screen(box_x, box_y, 1)
@@ -147,6 +148,11 @@ export tick(ctx: TestTickContext) {
     }
     dropped = count == 0
     ctx.close_screen()
+
+    # What the server's own chest held when the second press had had its wait, and whether each
+    # press was taken, so a run that fails here says which half did not land rather than only that
+    # one of them did not.
+    print3("coverage: inventory_forwarded slot 0 count after the second press", count, second_pressed)
 
     ctx.assert(first_pressed, "The overlay should take the first right click on its box.")
     ctx.assert(second_pressed, "The overlay should take the second right click on its box.")
