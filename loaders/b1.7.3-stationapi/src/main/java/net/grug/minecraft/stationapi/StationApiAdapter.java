@@ -437,22 +437,28 @@ public class StationApiAdapter implements ModLoaderAdapter {
         if (level == null) {
             return -1;
         }
-        // Diagnostic only (#1765): the client's own levels at the cell the wait asked about.
+        // Diagnostic only (#1765): the client's own levels at the cell the wait asked about, and
+        // the six engine cells and the air faces the camera sees.
         World clientWorld = (World) level;
         int cellX = (int) Math.floor(x);
         int cellY = (int) Math.floor(y);
         int cellZ = (int) Math.floor(z);
-        System.out.println(
-                "[GRUG RELIGHT] client light at "
-                        + cellX
-                        + ","
-                        + cellY
-                        + ","
-                        + cellZ
-                        + " sky="
-                        + clientWorld.getBrightness(LightType.SKY, cellX, cellY, cellZ)
-                        + " block="
-                        + clientWorld.getBrightness(LightType.BLOCK, cellX, cellY, cellZ));
+        StringBuilder clientLightText =
+                new StringBuilder("[GRUG RELIGHT] client light at ")
+                        .append(cellX)
+                        .append(',')
+                        .append(cellY)
+                        .append(',')
+                        .append(cellZ)
+                        .append(" sky=")
+                        .append(clientWorld.getBrightness(LightType.SKY, cellX, cellY, cellZ))
+                        .append(" block=")
+                        .append(clientWorld.getBrightness(LightType.BLOCK, cellX, cellY, cellZ));
+        lightRow(clientLightText, clientWorld, "engine sky", LightType.SKY, -56);
+        lightRow(clientLightText, clientWorld, "engine block", LightType.BLOCK, -56);
+        lightRow(clientLightText, clientWorld, "face sky", LightType.SKY, -57);
+        lightRow(clientLightText, clientWorld, "face block", LightType.BLOCK, -57);
+        System.out.println(clientLightText);
         ClientBlockLight blockLight = new ClientBlockLight(clientWorld, LightType.BLOCK);
         ClientBlockLight skyLight = new ClientBlockLight(clientWorld, LightType.SKY);
         return GrugLightSync.lightFingerprint(
@@ -1051,7 +1057,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
                         + " drains="
                         + room.drains);
         System.out.println(
-                "[GRUG RELIGHT] engines before "
+                "[GRUG RELIGHT] engines before sky/block/facesky/faceblock "
                         + engineText(enginesBefore)
                         + " after "
                         + engineText(engineLight(room)));
@@ -1059,9 +1065,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     /**
      * Diagnostic only (#1765): the redstone_engine_facing_stages test's six engines in this run's
-     * test save, at {@code -22..-17, 71, -56}.
+     * test save, at {@code -22..-17, 74, -56}, and the air cells the camera side of them shows.
      */
-    private static final int[] ENGINE_CELLS = {-22, 71, -56};
+    private static final int[] ENGINE_CELLS = {-22, 74, -56};
+
+    /** Diagnostic only (#1765): the air row in front of the engines, on the camera's side. */
+    private static final int ENGINE_FACE_Z = -57;
 
     /** Diagnostic only (#1765): the sky and block light of two light fields, as pairs. */
     private static int[] snapshot(
@@ -1106,24 +1115,40 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return changed;
     }
 
-    /** Diagnostic only (#1765): the sky and block light of the six engine cells. */
+    /** Diagnostic only (#1765): appends a row of six levels at {@code y=74, z}. */
+    private static void lightRow(
+            StringBuilder text, World world, String label, LightType type, int z) {
+        text.append(' ').append(label);
+        for (int i = 0; i < 6; i++) {
+            text.append(' ').append(world.getBrightness(type, -22 + i, 74, z));
+        }
+    }
+
+    /** Diagnostic only (#1765): the sky and block light of the six engine cells and their faces. */
     private static int[] engineLight(QueuedLight room) {
-        int[] light = new int[12];
+        int[] light = new int[24];
         for (int i = 0; i < 6; i++) {
             light[i] = room.sky(ENGINE_CELLS[0] + i, ENGINE_CELLS[1], ENGINE_CELLS[2]);
             light[6 + i] = room.block(ENGINE_CELLS[0] + i, ENGINE_CELLS[1], ENGINE_CELLS[2]);
+            light[12 + i] = room.sky(ENGINE_CELLS[0] + i, ENGINE_CELLS[1], ENGINE_FACE_Z);
+            light[18 + i] = room.block(ENGINE_CELLS[0] + i, ENGINE_CELLS[1], ENGINE_FACE_Z);
         }
         return light;
     }
 
-    /** Diagnostic only (#1765): six sky levels then six block levels, space separated. */
+    /** Diagnostic only (#1765): each group of six levels, space separated. */
     private static String engineText(int[] light) {
         StringBuilder text = new StringBuilder();
-        for (int i = 0; i < light.length; i++) {
-            if (i > 0) {
-                text.append(' ');
+        for (int group = 0; group < light.length / 6; group++) {
+            if (group > 0) {
+                text.append(" / ");
             }
-            text.append(light[i]);
+            for (int i = 0; i < 6; i++) {
+                if (i > 0) {
+                    text.append(' ');
+                }
+                text.append(light[group * 6 + i]);
+            }
         }
         return text.toString();
     }

@@ -347,21 +347,28 @@ public final class GrugControlStationClient {
                         + ", camera at the room's eye: "
                         + cameraHere
                         + ")");
-        // Diagnostic only (#1765): the client's own light at the engine row's six cells when the
-        // frame is read, which is what the redstone_engine captures draw them from.
+        // Diagnostic only (#1765): the client's own light at the engine row's six cells and the
+        // air faces the frame draws them from.
         World captureWorld = mc.world;
         if (captureWorld != null) {
-            StringBuilder engineLight = new StringBuilder("[GRUG RELIGHT] capture engines sky");
-            for (int i = 0; i < 6; i++) {
-                engineLight
-                        .append(' ')
-                        .append(captureWorld.getBrightness(LightType.SKY, -22 + i, 71, -56));
+            StringBuilder engineLight = new StringBuilder("[GRUG RELIGHT] capture");
+            for (String label : new String[] {"engine sky", "engine block"}) {
+                LightType type = label.endsWith("sky") ? LightType.SKY : LightType.BLOCK;
+                engineLight.append(' ').append(label);
+                for (int i = 0; i < 6; i++) {
+                    engineLight
+                            .append(' ')
+                            .append(captureWorld.getBrightness(type, -22 + i, 74, -56));
+                }
             }
-            engineLight.append(" block");
-            for (int i = 0; i < 6; i++) {
-                engineLight
-                        .append(' ')
-                        .append(captureWorld.getBrightness(LightType.BLOCK, -22 + i, 71, -56));
+            for (String label : new String[] {"face sky", "face block"}) {
+                LightType type = label.endsWith("sky") ? LightType.SKY : LightType.BLOCK;
+                engineLight.append(' ').append(label);
+                for (int i = 0; i < 6; i++) {
+                    engineLight
+                            .append(' ')
+                            .append(captureWorld.getBrightness(type, -22 + i, 74, -57));
+                }
             }
             System.out.println(engineLight.toString());
         }

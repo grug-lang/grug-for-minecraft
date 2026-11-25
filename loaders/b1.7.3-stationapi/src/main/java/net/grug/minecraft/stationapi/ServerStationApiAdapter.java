@@ -469,24 +469,38 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                         (lightX, lightY, lightZ) ->
                                 world.getBrightness(LightType.SKY, lightX, lightY, lightZ));
         // Diagnostic only (#1765): the simulated side's own levels at the cell the wait asked
-        // about.
+        // about, and the six engine cells and the air faces the camera sees.
         int cellX = (int) Math.floor(x);
         int cellY = (int) Math.floor(y);
         int cellZ = (int) Math.floor(z);
-        System.out.println(
-                "[GRUG RELIGHT] server light at "
-                        + cellX
-                        + ","
-                        + cellY
-                        + ","
-                        + cellZ
-                        + " sky="
-                        + world.getBrightness(LightType.SKY, cellX, cellY, cellZ)
-                        + " block="
-                        + world.getBrightness(LightType.BLOCK, cellX, cellY, cellZ)
-                        + " fingerprint="
-                        + simulated);
+        StringBuilder serverLightText =
+                new StringBuilder("[GRUG RELIGHT] server light at ")
+                        .append(cellX)
+                        .append(',')
+                        .append(cellY)
+                        .append(',')
+                        .append(cellZ)
+                        .append(" sky=")
+                        .append(world.getBrightness(LightType.SKY, cellX, cellY, cellZ))
+                        .append(" block=")
+                        .append(world.getBrightness(LightType.BLOCK, cellX, cellY, cellZ))
+                        .append(" fingerprint=")
+                        .append(simulated);
+        lightRow(serverLightText, world, "engine sky", LightType.SKY, -56);
+        lightRow(serverLightText, world, "engine block", LightType.BLOCK, -56);
+        lightRow(serverLightText, world, "face sky", LightType.SKY, -57);
+        lightRow(serverLightText, world, "face block", LightType.BLOCK, -57);
+        System.out.println(serverLightText);
         return clientLight.lightApplied(x, y, z, simulated);
+    }
+
+    /** Diagnostic only (#1765): appends a row of six levels at {@code y=74, z}. */
+    private static void lightRow(
+            StringBuilder text, World world, String label, LightType type, int z) {
+        text.append(' ').append(label);
+        for (int i = 0; i < 6; i++) {
+            text.append(' ').append(world.getBrightness(type, -22 + i, 74, z));
+        }
     }
 
     /**
@@ -893,7 +907,24 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         for (int[] region : regions) {
             // A chunk this server never loaded is an empty one with no block array, which a region
             // packet cannot be made of, and the client holds no light for it either.
-            if (world.getChunk(region[0] >> 4, region[2] >> 4).blocks == null) {
+            boolean loaded = world.getChunk(region[0] >> 4, region[2] >> 4).blocks != null;
+            // Diagnostic only (#1765): what the resend actually puts on the wire.
+            System.out.println(
+                    "[GRUG RELIGHT] region "
+                            + region[0]
+                            + ","
+                            + region[1]
+                            + ","
+                            + region[2]
+                            + " size "
+                            + region[3]
+                            + ","
+                            + region[4]
+                            + ","
+                            + region[5]
+                            + " loaded="
+                            + loaded);
+            if (!loaded) {
                 continue;
             }
             ((ServerPlayerEntity) starter)
