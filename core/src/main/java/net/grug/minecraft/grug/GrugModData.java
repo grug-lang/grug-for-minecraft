@@ -38,7 +38,8 @@ import java.util.stream.Stream;
  * one mod cannot address another. A path is a portable file name: it is rejected when it is
  * absolute, when it has a parent, empty or dot segment, when it holds a character Windows refuses
  * or a device name Windows keeps for itself, when a segment ends in a dot or a space, when it
- * differs only in case from an existing entry, or when any component is a symbolic link; a link is
+ * differs only in case from an existing entry, or when any component is a symbolic link (a leading
+ * {@code "./"} is accepted, so a listing's own name can be appended to {@code "."}); a link is
  * refused rather than followed, because its target could be outside the directory. Writes are
  * atomic (a temporary file outside the mod's tree and a rename), so a crash leaves either the old
  * content or the new one, and the whole writable directory is capped at {@link #CAP} bytes.
@@ -166,8 +167,9 @@ public final class GrugModData {
      * path whose segments are all portable file names. A path is absolute, has a parent, dot or
      * empty segment, holds a character Windows refuses in a name (a backslash, a colon, a control
      * character or one of {@code * ? " < > |}), ends a segment in a dot or a space, or names a
-     * device Windows keeps for itself. {@code "."} alone is allowed only for a listing, where it
-     * names the mod's own directory.
+     * device Windows keeps for itself. A leading {@code "./"} is accepted, because appending a
+     * listing's own name to {@code "."} produces one. {@code "."} alone is allowed only for a
+     * listing, where it names the mod's own directory.
      */
     static String pathProblem(String path, boolean allowRoot) {
         if (path == null || path.isEmpty()) {
@@ -175,6 +177,12 @@ public final class GrugModData {
         }
         if (path.startsWith("/")) {
             return "is absolute, and a path is always relative to the mod's own " + DIRECTORY + ".";
+        }
+        while (path.startsWith("./")) {
+            path = path.substring(2);
+        }
+        if (path.isEmpty()) {
+            return "names no file in " + DIRECTORY + ".";
         }
         if (allowRoot && path.equals(".")) {
             return null;

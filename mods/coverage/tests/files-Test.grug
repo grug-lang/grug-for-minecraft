@@ -34,4 +34,22 @@ export tick(ctx: TestTickContext) {
     world_path: string = String.concat(String.concat("worlds/", level.dimension()), "/state.txt")
     files.write_text(world_path, "world")
     ctx.assert(files.read_text(world_path).unwrap() == "world", "A path built from the dimension should round trip.")
+
+    files.write_text("listing_join/only.txt", "listed")
+    joined: string = files.entry_name("listing_join", 0)
+    ctx.assert(files.read_text(String.concat("listing_join/", joined)).unwrap() == "listed", "A listing's name should read back when appended to its directory.")
+
+    files.write_text("root_listing.txt", "root")
+    count: number = files.entry_count(".")
+    i = 0
+    found: string = ""
+    while i < count {
+        name: string = files.entry_name(".", i)
+        if name == "root_listing.txt" {
+            found = name
+        }
+        i = i + 1
+    }
+    ctx.assert(String.length(found) > 0, "The root listing should name the file this test wrote.")
+    ctx.assert(files.read_text(String.concat("./", found)).unwrap() == "root", "A listing's name appended to the root path should read back.")
 }
