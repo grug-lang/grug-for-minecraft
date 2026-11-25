@@ -264,14 +264,16 @@ class GrugConfigTest {
         installAdapter(gameDir, modsDir);
 
         assertFalse(GrugConfig.file(gameDir, "declares-none").exists());
-        GrugConfig.forMod("declares-none");
+        GrugConfig.Values absent = GrugConfig.forMod("declares-none");
         assertFalse(GrugConfig.file(gameDir, "declares-none").exists());
 
         File config = GrugConfig.file(gameDir, "declares-none");
         assertTrue(config.getParentFile().mkdirs());
         Files.write(config.toPath(), "on: false\n".getBytes(StandardCharsets.UTF_8));
         assertTrue(config.setLastModified(0), "The test needs an unchanged modification time.");
-        assertFalse(GrugConfig.forMod("declares-none").bool("on"));
+        assertFalse(
+                GrugConfig.forMod("declares-none") == absent,
+                "A file that appeared is read rather than answered from the absent-file cache.");
     }
 
     @Test
@@ -290,6 +292,54 @@ class GrugConfigTest {
         assertEquals(4.0, values.number("count"));
         assertEquals(1, reports.size());
         assertTrue(reports.get(0).contains("cannot be read"), reports.get(0));
+    }
+
+    @Test
+    void aChangedAboutJsonIsReadEvenWhenTheConfigFileIsUnchanged() throws Exception {
+        File gameDir = tmp.resolve("metadata").toFile();
+        File modsDir = new File(gameDir, "mods");
+        assertTrue(modsDir.mkdirs());
+        writeAbout(modsDir, "live", DECLARATION);
+        installAdapter(gameDir, modsDir);
+
+        GrugConfig.Values first = GrugConfig.forMod("live");
+        File about = new File(new File(modsDir, "live"), "about.json");
+        File config = GrugConfig.file(gameDir, "live");
+        assertTrue(config.isFile(), "The first read writes the declared defaults.");
+        long configModified = config.lastModified();
+
+        String changed =
+                "{\"config\": [{\"key\": \"rate\", \"type\": \"number\", \"title\": \"Rate\","
+                        + " \"description\": \"How often.\", \"default\": 7}]}";
+        Files.write(about.toPath(), changed.getBytes(StandardCharsets.UTF_8));
+        assertTrue(
+                about.setLastModified(about.lastModified() + 5000),
+                "The test needs a different modification time for about.json.");
+        assertEquals(configModified, config.lastModified(), "The config file itself is untouched.");
+
+        GrugConfig.Values second = GrugConfig.forMod("live");
+        assertFalse(second == first, "A changed about.json is not answered from the cache.");
+        assertTrue(second.declares("rate"), "The changed declaration is the one resolved against.");
+        assertFalse(second.declares("on"), "An option the new about.json dropped is gone.");
+        assertEquals(7.0, second.number("rate"), "The new declaration's default is read.");
+    }
+
+    @Test
+    void aWhiteFileValueIsTheColourRatherThanTheDeclaredDefault() throws Exception {
+        File gameDir = tmp.resolve("white").toFile();
+        File modsDir = new File(gameDir, "mods");
+        assertTrue(modsDir.mkdirs());
+        writeAbout(modsDir, "white", DECLARATION);
+        installAdapter(gameDir, modsDir);
+        File config = GrugConfig.file(gameDir, "white");
+        assertTrue(config.getParentFile().mkdirs());
+        Files.write(config.toPath(), "tint: #FFFFFF\n".getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(
+                -1,
+                GrugConfig.forMod("white").color("tint"),
+                "Opaque white is a value, so the file's colour wins over the declared one.");
+        assertTrue(reports.isEmpty(), "A legal config reports nothing.");
     }
 
     private static void writeAbout(File modsDir, String mod, String declaration)

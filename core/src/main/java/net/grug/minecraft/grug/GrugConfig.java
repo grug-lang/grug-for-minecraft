@@ -27,8 +27,9 @@ import java.util.function.Consumer;
  * refusing the read, because a typo in a file a player edited must not break the mod that owns it;
  * {@code about_schema.py} keeps the declarations themselves honest.
  *
- * <p>The values are cached per mod and re-read when the file's modification time changes, so an
- * edit made outside the game applies on the next read without a restart.
+ * <p>The values are cached per mod and re-read when the file's or the mod's {@code about.json}'s
+ * modification time changes, so an edit made outside the game applies on the next read without a
+ * restart.
  */
 public final class GrugConfig {
     /** The directory under the game directory the host keeps mod configuration files in. */
@@ -116,8 +117,8 @@ public final class GrugConfig {
             if (!"color".equals(option.type())) return option.defaultColor();
             String raw = file.get(key);
             if (raw != null) {
-                int value = GrugMetadata.colorCode(raw);
-                if (value != GrugMetadata.INVALID_COLOR) return value;
+                long value = GrugMetadata.colorCode(raw);
+                if (value != GrugMetadata.INVALID_COLOR) return (int) value;
             }
             return option.defaultColor();
         }
@@ -128,16 +129,22 @@ public final class GrugConfig {
         }
     }
 
-    /** One mod's values and the file's modification time they were read from, or 0 when absent. */
+    /**
+     * One mod's values and the modification times they were read from: the configuration file's, or
+     * 0 when it is absent, and its {@code about.json}'s, which is what the values were resolved
+     * against.
+     */
     private static final class Cached {
         final Values values;
         final long modified;
         final boolean exists;
+        final long metadataModified;
 
-        Cached(Values values, long modified, boolean exists) {
+        Cached(Values values, long modified, boolean exists, long metadataModified) {
             this.values = values;
             this.modified = modified;
             this.exists = exists;
+            this.metadataModified = metadataModified;
         }
     }
 
@@ -169,8 +176,14 @@ public final class GrugConfig {
         String key = modsDir.getAbsolutePath() + '/' + mod;
         long modified = config.lastModified();
         boolean exists = config.isFile();
+        // A changed about.json changes the declarations the values resolve against, so the cache
+        // has to notice it too: the file a player edits is not the only input (#1749's review).
+        long metadataModified = new File(new File(modsDir, mod), "about.json").lastModified();
         Cached cached = cache.get(key);
-        if (cached != null && cached.modified == modified && cached.exists == exists) {
+        if (cached != null
+                && cached.modified == modified
+                && cached.exists == exists
+                && cached.metadataModified == metadataModified) {
             return cached.values;
         }
         GrugMetadata.Mod metadata = GrugMetadata.forMod(modsDir, mod);
@@ -191,7 +204,8 @@ public final class GrugConfig {
                             + "), so every option answers its declared default.");
             values = new Values(mod, metadata, new HashMap<String, String>());
         }
-        cache.put(key, new Cached(values, config.lastModified(), config.isFile()));
+        cache.put(
+                key, new Cached(values, config.lastModified(), config.isFile(), metadataModified));
         return values;
     }
 

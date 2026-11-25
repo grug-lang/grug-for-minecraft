@@ -646,15 +646,11 @@ public final class GrugOverlayHost {
             }
         }
         for (DeclaredBinding declared : declaredBindings) {
-            GrugOverlayScripts.Script script = GrugOverlayScripts.bindingScript(declared.mod);
-            if (script == null) continue;
+            java.util.List<GrugOverlayScripts.Script> scripts =
+                    GrugOverlayScripts.bindingScripts(declared.mod);
+            if (scripts.isEmpty()) continue;
             GrugWorldOverlay.binding(
-                    script.entityHandle,
-                    script.worldBindingFnId,
-                    declared.mod,
-                    declared.id,
-                    declared.mapping.isDown(),
-                    open);
+                    scripts, declared.mod, declared.id, declared.mapping.isDown(), open);
         }
     }
 
@@ -676,9 +672,6 @@ public final class GrugOverlayHost {
     static void pressWorldKey(int code, boolean ctrl) {
         GrugWorldOverlay.clearDrawn();
         deliverWorldKey(code, ctrl);
-        for (GrugOverlayScripts.Script script : GrugOverlayScripts.bindingScripts()) {
-            GrugWorldOverlay.bindingDefaultsFor(
-                    script.entityHandle, script.worldBindingFnId, script.mod, code);
-        }
+        GrugWorldOverlay.bindingDefaultsFor(GrugOverlayScripts.bindingScripts(), code);
     }
 }

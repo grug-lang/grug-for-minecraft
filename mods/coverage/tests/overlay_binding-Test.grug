@@ -18,14 +18,17 @@ fy: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
-        started = true
         if not me.world_overlay_supported() {
+            started = true
             return
         }
+        # The settle is waited for before started is set, so an unsettled first tick does not skip
+        # the config assertions below for good (#1749's review).
         if not ctx.world_settled() {
             ctx.not_done()
             return
         }
+        started = true
         # The scan is a cube of radius zero around the block the player's feet are in, floored
         # as the host floors it, so a negative side centres on the block the player stands in and
         # not its neighbour toward zero.

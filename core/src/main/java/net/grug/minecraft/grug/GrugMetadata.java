@@ -193,8 +193,13 @@ public final class GrugMetadata {
                 return defaultBool ? "true" : "false";
             }
             if ("number".equals(type)) {
+                // A whole number inside long's range is written without a fraction; one outside it
+                // keeps the double's own text, because the cast would saturate at the long's end
+                // and the file would carry a value the mod never declared (#1749's review).
                 if (defaultNumber == Math.rint(defaultNumber)
-                        && !Double.isInfinite(defaultNumber)) {
+                        && !Double.isInfinite(defaultNumber)
+                        && defaultNumber >= Long.MIN_VALUE
+                        && defaultNumber <= Long.MAX_VALUE) {
                     return Long.toString((long) defaultNumber);
                 }
                 return Double.toString(defaultNumber);
@@ -385,8 +390,11 @@ public final class GrugMetadata {
                 fallback.isJsonPrimitive() && fallback.getAsJsonPrimitive().isString()
                         ? fallback.getAsString()
                         : "";
-        int defaultColor = colorCode(defaultText);
-        if (isColor && defaultColor == INVALID_COLOR) return null;
+        // A colour option's default has to parse, and every other option's is the sentinel: an
+        // option that is not a colour has no colour text to answer with.
+        long color = colorCode(defaultText);
+        if (isColor && color == INVALID_COLOR) return null;
+        int defaultColor = (int) color;
 
         boolean hasMin = numberMember(object, "min") != null;
         double min = hasMin ? numberMember(object, "min") : 0.0;
@@ -427,8 +435,11 @@ public final class GrugMetadata {
         return element.getAsString();
     }
 
-    /** The number a bad color text is, which no 0xAARRGGBB value can be. */
-    public static final int INVALID_COLOR = -1;
+    /**
+     * The number a bad color text is, which no 0xAARRGGBB value can be: a valid one is 0 to
+     * 0xFFFFFFFF, so a negative {@code long} is outside the range every colour is in.
+     */
+    public static final long INVALID_COLOR = -1L;
 
     /** The opaque magenta a color option answers when the mod declares nothing usable. */
     public static final int FALLBACK_COLOR = 0xFFFF00FF;
@@ -437,9 +448,10 @@ public final class GrugMetadata {
      * Parses a colour text into 0xAARRGGBB: {@code #RRGGBB} is opaque, and {@code #AARRGGBB}
      * carries its own alpha. The reference's ConfigColors trims the text, accepts the leading
      * {@code #} or not, and falls back to the default on anything else; this answers {@link
-     * #INVALID_COLOR} instead, which the caller turns into the default.
+     * #INVALID_COLOR} instead, which the caller turns into the default. The answer is a {@code
+     * long} so that opaque white, {@code #FFFFFF}, is not mistaken for the sentinel.
      */
-    public static int colorCode(String text) {
+    public static long colorCode(String text) {
         if (text == null) return INVALID_COLOR;
         String value = text.trim();
         if (value.startsWith("#")) {
@@ -453,9 +465,9 @@ public final class GrugMetadata {
             parsed = (parsed << 4) | digit;
         }
         if (value.length() == 6) {
-            return 0xFF000000 | (int) parsed;
+            return 0xFF000000L | parsed;
         }
-        return (int) parsed;
+        return parsed;
     }
 
     /** The text a colour is written as in a config file: {@code #RRGGBB} or {@code #AARRGGBB}. */

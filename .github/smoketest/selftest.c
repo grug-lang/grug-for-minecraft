@@ -256,6 +256,7 @@ static void test_argument_checks(void) {
     const char* bad[] = {"ui.button.click", ":x", "x:", "Minecraft:ui", "minecraft:UI", "a b:c", "a/b:c", "a:b:c", ""};
     for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) CHECK(!sound_name_ok(bad[i]), "'%s' is not a sound name", bad[i]);
     CHECK(java_int(NAN) == 0 && java_int(1e12) == 2147483647 && java_int(-1e12) == INT32_MIN && java_int(-2.9) == -2 && java_int(2.9) == 2, "Java (int) cast");
+    CHECK(java_long(NAN) == 0 && java_long(1e300) == INT64_MAX && java_long(-1e300) == INT64_MIN && java_long(-18.5) == -19 && java_long(9.0) == 9, "Java (long) cast saturates a feet coordinate out of range");
     rnd_set_seed(7);
     double want = rnd_float();
     rnd_set_seed(7);

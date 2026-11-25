@@ -247,9 +247,14 @@ class GrugMetadataTest {
 
     @Test
     void theColourTextAcceptsTheShapesTheReferenceDoes() {
-        assertEquals(0xFF112233, GrugMetadata.colorCode("#112233"));
-        assertEquals(0xFF112233, GrugMetadata.colorCode(" 112233 "));
-        assertEquals(0x80112233, GrugMetadata.colorCode("#80112233"));
+        assertEquals(0xFF112233L, GrugMetadata.colorCode("#112233"));
+        assertEquals(0xFF112233L, GrugMetadata.colorCode(" 112233 "));
+        assertEquals(0x80112233L, GrugMetadata.colorCode("#80112233"));
+        assertEquals(
+                0xFFFFFFFFL,
+                GrugMetadata.colorCode("#FFFFFF"),
+                "Opaque white is a value, so it cannot be the invalid colour.");
+        assertEquals(0xFFFFFFFFL, GrugMetadata.colorCode("#FFFFFFFF"));
         assertEquals(GrugMetadata.INVALID_COLOR, GrugMetadata.colorCode(null));
         assertEquals(GrugMetadata.INVALID_COLOR, GrugMetadata.colorCode("#12345"));
         assertEquals(GrugMetadata.INVALID_COLOR, GrugMetadata.colorCode("#GGGGGG"));
@@ -278,9 +283,39 @@ class GrugMetadataTest {
         assertEquals("2.5", option("number", 2.5, null, null, null).defaultTextLine());
         assertEquals("#112233", option("color", null, "#112233", null, null).defaultTextLine());
         assertEquals(
+                Double.toString(1e20),
+                option("number", 1e20, null, null, null).defaultTextLine(),
+                "A whole number beyond long's range keeps the double's own text.");
+        assertEquals(
+                Double.toString(-1e20),
+                option("number", -1e20, null, null, null).defaultTextLine(),
+                "The same holds below long's range.");
+        assertEquals(
                 "Infinity",
                 option("number", "1e999", null, null, null).defaultTextLine(),
                 "A value JSON reads as infinite is written as it is.");
+    }
+
+    @Test
+    void aDeclaredWhiteIsAColourAndADeclarationWithoutADefaultIsNotAnOption() {
+        GrugMetadata.Option white = option("color", null, "#FFFFFF", null, null);
+        assertEquals(
+                -1,
+                white.defaultColor(),
+                "Opaque white fills the int, which is not the long sentinel any more.");
+        assertEquals("#FFFFFF", white.defaultTextLine());
+
+        GrugMetadata.Option opaqueWhite = option("color", null, "#FFFFFFFF", null, null);
+        assertEquals(-1, opaqueWhite.defaultColor());
+        assertEquals("#FFFFFF", opaqueWhite.defaultTextLine());
+
+        GrugMetadata.Mod mod =
+                GrugMetadata.read(
+                        "{\"config\": [{\"key\": \"k\", \"type\": \"color\", \"title\": \"K\","
+                                + " \"description\": \"K.\"}]}");
+        assertTrue(
+                mod.options().isEmpty(),
+                "A colour with no default is not an option, however usable its type is.");
     }
 
     private static GrugMetadata.Option option(

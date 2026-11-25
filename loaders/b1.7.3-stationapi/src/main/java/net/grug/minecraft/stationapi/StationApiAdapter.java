@@ -74,6 +74,7 @@ import net.modificationstation.stationapi.api.network.packet.MessagePacket;
 import net.modificationstation.stationapi.api.registry.BlockRegistry;
 import net.modificationstation.stationapi.api.registry.ItemRegistry;
 import net.modificationstation.stationapi.api.util.Identifier;
+import net.modificationstation.stationapi.api.world.HeightLimitView;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
@@ -1414,8 +1415,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean isOutOfHeightLimit(Object levelObj, int y) {
-        // This version's world is 128 blocks tall and has no limit a world can set.
-        return y < 0 || y >= 128;
+        // The flattening module gives every world a height limit from its own dimension, and a
+        // world may set one, so the answer is the world's rather than this version's 128. A
+        // dedicated server's world is the same world type, so both sides skip the same positions.
+        return ((HeightLimitView) levelObj).isOutOfHeightLimit(y);
     }
 
     @Override

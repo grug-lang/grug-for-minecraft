@@ -596,15 +596,10 @@ public final class GrugOverlayHost {
         }
         for (GrugClientHooks.DeclaredBinding declared : GrugClientHooks.declaredBindings()) {
             boolean down = Keyboard.isKeyDown(declared.binding.keyCode);
-            GrugOverlayScripts.Script script = GrugOverlayScripts.bindingScript(declared.mod);
-            if (script == null) continue;
-            GrugWorldOverlay.binding(
-                    script.entityHandle,
-                    script.worldBindingFnId,
-                    declared.mod,
-                    declared.id,
-                    down,
-                    open);
+            java.util.List<GrugOverlayScripts.Script> scripts =
+                    GrugOverlayScripts.bindingScripts(declared.mod);
+            if (scripts.isEmpty()) continue;
+            GrugWorldOverlay.binding(scripts, declared.mod, declared.id, down, open);
         }
     }
 
@@ -618,10 +613,7 @@ public final class GrugOverlayHost {
     public static void pressWorldKey(int code, boolean ctrl) {
         GrugWorldOverlay.clearDrawn();
         deliverWorldKey(code, ctrl);
-        for (GrugOverlayScripts.Script script : GrugOverlayScripts.bindingScripts()) {
-            GrugWorldOverlay.bindingDefaultsFor(
-                    script.entityHandle, script.worldBindingFnId, script.mod, code);
-        }
+        GrugWorldOverlay.bindingDefaultsFor(GrugOverlayScripts.bindingScripts(), code);
     }
 
     /** Whether an overlay may draw on this screen, and the geometry it draws through. */
