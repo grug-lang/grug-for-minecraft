@@ -10,6 +10,7 @@ import os
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
 HERE = Path(__file__).resolve().parent
@@ -206,6 +207,11 @@ class PruneTest(unittest.TestCase):
             "list_error": False,
         }
         self.server.requests = []
+        # A refused deletion is retried by the drain script's delete_cache, and the wait between
+        # attempts is the constant's business rather than something a test spends for real.
+        self.retry_sleep = mock.patch("time.sleep")
+        self.retry_sleep.start()
+        self.addCleanup(self.retry_sleep.stop)
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.start()
         self.saved_env = {name: os.environ.get(name) for name in self.ENV}
@@ -277,10 +283,11 @@ class PruneTest(unittest.TestCase):
         self.assertIn("0 entries, 0.0 MB deleted, 1 already gone", out)
 
     def test_a_refused_deletion_fails_but_prunes_the_rest(self):
+        # The shared delete_cache retries a 5xx three times before it counts as a failure (#1832).
         self.server.routes["refuse"] = {1}
         code, _, err = self.run_script()
         self.assertEqual(code, 1)
-        self.assertEqual(self.deleted(), ["1"])
+        self.assertEqual(self.deleted(), ["1", "1", "1"])
         self.assertIn("could not be deleted", err)
 
     def test_a_listing_failure_deletes_nothing(self):
