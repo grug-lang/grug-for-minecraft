@@ -266,8 +266,10 @@ public final class GrugOverlayHost {
      * Test only: delivers one press of the key whose character code is {@code charCode} through the
      * screen's own key path, so the hook that cancels the key is the one under test, and answers
      * whether an overlay took it. The press types the character that number produces without shift,
-     * as a real press does, and a number that names no key is only a character. A number held with
-     * {@code release} false makes the next press of it a repeat, as the game reports one.
+     * as a real press does, and a number below 128 that names no key is only a character, while a
+     * number from 128 up is no character and has no key here, which the press reports as an error.
+     * A number held with {@code release} false makes the next press of it a repeat, as the game
+     * reports one.
      */
     public static boolean pressKey(Object screen, int charCode, boolean ctrl, boolean release) {
         if (!(screen instanceof GrugScreenGeometry)) return false;

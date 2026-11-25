@@ -161,6 +161,10 @@ public final class GrugOverlay {
      * types nothing. It is what the game produces without shift: a letter in lower case, the digit
      * of a digit key, the space bar, and a printable number that names no key (punctuation) itself.
      *
+     * <p>A number above the printable ASCII range is not a character a press types: on a loader
+     * that takes the game's own key codes it is one of those instead (256 is Escape, which a test
+     * presses through the same call), so it types nothing.
+     *
      * <p>{@code TestTickContext.press_screen_key} cannot press shift, so this is the whole set a
      * test can type. A real press carries the game's own character instead, shift included.
      */
@@ -169,6 +173,7 @@ public final class GrugOverlay {
         boolean digit = keyCode >= '0' && keyCode <= '9';
         if (letter) return keyCode + 32;
         if (digit || keyCode == KEY_SPACE) return keyCode;
+        if (keyCode > 126) return 0;
         return characterCode(keyCode);
     }
 
