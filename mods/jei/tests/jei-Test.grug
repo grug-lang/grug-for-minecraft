@@ -17,11 +17,12 @@ opened: bool = false
 waited: number = 0
 step: number = 0
 
-# The cell the one-item clicks use. The stack cell is found in the list itself, because the item
-# order differs by version: the first item whose full stack is 64 is the one the middle click can
-# tell from a single item.
-clicked_column: number = 2
-clicked_row: number = 5
+# The cell the one-item clicks use and the cell the middle click uses. Both are found in the list
+# itself, because the item order differs by version: the clicked item must stack with itself, so
+# that carrying it and clicking its own cell merges instead of deleting, and the stack item must
+# have a full stack of 64, so that a full stack can be told from a single item.
+clicked_column: number = 0
+clicked_row: number = 0
 stack_column: number = 1
 stack_row: number = 0
 
@@ -78,17 +79,30 @@ export tick(ctx: TestTickContext) {
     expected: Item = item_at(clicked_row * _columns(ctx) + clicked_column)
     expected_stack: Item = item_at(stack_row * _columns(ctx) + stack_column)
     # The first cell holds an item the cursor does not carry, which the delete case needs: the
-    # clicked cell is rows down the list, so the two entries are always different items.
+    # clicked item is found after it, so the two entries are always different items.
     other: Item = item_at(0)
 
     if step == 0 {
         # A right click gives one item, which is the reference's cheatOneItem2. An earlier test may
         # have left something on the cursor; clearing it keeps the delete check from seeing it.
-        ctx.assert(_columns(ctx) >= 3, "The test needs the grid to be at least three columns wide to click column 2.")
-        # The first item whose full stack is 64 is the stack the middle click uses. The list order
-        # differs by version, so scanning it is what makes the same test work on all of them.
-        stack_index: number = -1
+        # The list order differs by version, so both items are scanned for rather than picked by a
+        # fixed cell. The clicked item stacks with itself: the case that clicks the cell the cursor
+        # carries needs two of one item to merge, and a list order that puts an item which cannot
+        # stack in the clicked cell would delete there instead.
+        clicked_index: number = -1
         search: number = 0
+        while search < item_count() and clicked_index < 0 {
+            if search > 0 and item_max_stack(item_at(search)) > 1 {
+                clicked_index = search
+            }
+            search = search + 1
+        }
+        ctx.assert(clicked_index >= 0, "The item list should hold an item after its first that stacks with itself.")
+        clicked_column = Math.remainder(clicked_index, _columns(ctx))
+        clicked_row = Math.floor(clicked_index / _columns(ctx))
+        # The first item whose full stack is 64 is the stack the middle click uses.
+        stack_index: number = -1
+        search = 0
         while search < item_count() and stack_index < 0 {
             if item_max_stack(item_at(search)) == 64 {
                 stack_index = search
@@ -173,9 +187,10 @@ export tick(ctx: TestTickContext) {
     if step == 5 {
         ctx.assert(not ctx.get_carried_item().has(), "A left click on another item should delete the item on the cursor.")
         ctx.assert(not ctx.get_player().get_held_item().has(), "Deleting the carried item should not also give one.")
-        # The delete above also asks the integrated server to clear its own cursor, and on 1.20.6
-        # that half is a task queued on the server thread (#1753), which can run after a write made
-        # in this tick. Setting the cursor in the next tick puts it after that clear.
+        # The next step writes the cursor again, one tick later, because this test reads each
+        # click's effect and acts on it in a later step. It is not waiting for a queued clear: the
+        # 1.20.6 delete clears both menus on the client thread (#1753), so a write made in this
+        # tick would be safe too.
         step = 6
         ctx.not_done()
         return
