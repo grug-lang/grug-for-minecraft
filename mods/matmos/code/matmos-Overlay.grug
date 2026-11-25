@@ -24,9 +24,10 @@
 # installed the 2012 pack hears it unchanged; a missing recording plays nothing and is not an error.
 
 # The engine starts switched off because this port ships no pack: the first press of A reads
-# `packs.txt` and starts it, a second press stops it, and a third reads the packs again. Ctrl+A
-# opens the volume slider, which the player's pitch drives, and the next key press closes it.
-# about.json records every place this departs from the reference.
+# `packs.txt` and starts it, a second press stops it, and a third starts the packs it already read.
+# Ctrl+A opens the volume slider while the engine runs, which the player's pitch drives and the next
+# key press closes, and reads the packs again while it is stopped. about.json records every place
+# this departs from the reference.
 
 # Whether the engine runs, whether its packs have been read, and how many packs and machines the
 # last read found, which is what the status line shows.

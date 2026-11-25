@@ -65,7 +65,7 @@
 					"tracking_issue": 1756
 				},
 				{
-					"what": "A block from another mod is sampled as air, and the scan's per-mil shares divide by the box's volume including those blocks, where the reference counted them under their own numeric id.",
+					"what": "A block the port's id table does not name is sampled as air, and the scan's per-mil shares divide by the box's volume including those blocks, where the reference counted them under their own numeric id. That covers a block from another mod and the five states 1.2.5 gave their own ids that no loader names today: flowing water and flowing lava, the lit furnace and lit repeater, and the locked chest, which a 1.2.5 world samples as their unlit or unlocked block and the other loaders never have.",
 					"why": "The sheets are 1.2.5 numeric block ids and the port resolves them through a table of the vanilla blocks, so an id no vanilla block has cannot be counted; the alternative is an id-getting host entry beside the name-based histogram.",
 					"tracking_issue": 1756
 				},
@@ -80,7 +80,7 @@
 					"tracking_issue": 1756
 				},
 				{
-					"what": "The A key toggles the engine on a press, where the reference toggles on a short release and opens the volume slider on a hold from the seventh tick: Control+A opens the slider, the next world key press closes it, there is no music-volume mode, and the status lines are HUD text rather than chat.",
+					"what": "The A key toggles the engine on a press, where the reference toggles on a short release and opens the volume slider on a hold from the seventh tick: Control+A opens the slider while the engine runs, the next world key press closes it, and Control+A while it is stopped reads the packs again, so an engine stopped and started with A keeps what it read where the reference reloaded its expansions on every start. There is no music-volume mode, and the status lines are HUD text rather than chat.",
 					"why": "The host reports a world key press and its control flag but neither a release nor a hold's duration, and a client-only mod has no chat entry.",
 					"tracking_issue": 1756
 				},
