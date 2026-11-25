@@ -102,7 +102,13 @@ public final class GrugTestBox {
         int torchY = torchFloorY + 1;
         // Below the floor by more than the room is wide, so a slope or a dip just outside the wall
         // cannot leave a gap under it for the sky light to pour through.
-        int wallBottomY = Math.min(py - radius - 1, torchFloorY);
+        //
+        // The walls and the clear reach one block below the bottom of the cube a scan of radius + 1
+        // around the feet covers, so the cleared shaft's own bottom is not a standable layer: such
+        // a scan reaches radius + 1 below the feet (SafeSquares' default 16 around a radius-15
+        // room), and ground the clear left under the shaft would read as a row of dark spawn
+        // squares the room is meant to hide. See #1255.
+        int wallBottomY = Math.min(py - radius - 2, torchFloorY);
 
         // The whole test area is cleared first, top down, so a plant is cleared before the block it
         // stands on: the other order pops it off as an item, which the player then picks up and
