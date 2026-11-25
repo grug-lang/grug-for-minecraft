@@ -27,11 +27,11 @@ export placed(world: Level, x: number, y: number, z: number, placer: Player) {
 
     # XPos, ZPos, XNeg and ZNeg, turned round, are 4, 2, 5 and 3.
     meta: number = 3
-    if dx < 0 and _abs(dz) < _abs(dx) {
+    if dx < 0 and Math.abs(dz) < Math.abs(dx) {
         meta = 4
     } else if dx > 0 and dz >= -dx and dz < dx {
         meta = 5
-    } else if dz < 0 and _abs(dx) <= _abs(dz) {
+    } else if dz < 0 and Math.abs(dx) <= Math.abs(dz) {
         meta = 2
     } else if dx == 0 and dz == 0 {
         meta = 5
@@ -42,11 +42,4 @@ export placed(world: Level, x: number, y: number, z: number, placer: Player) {
         quarry.unwrap().set_saved_number("meta", meta)
         quarry.unwrap().redraw()
     }
-}
-
-local _abs(value: number) number {
-    if value < 0 {
-        return -value
-    }
-    return value
 }
