@@ -30,6 +30,7 @@
     "SpriteMixin",
     "SpriteAtlasTextureMixin",
     "TextureStitcherHolderMixin",
+    "TextureManagerMixin",
     "GrugFillInvoker"
   ],
   "injectors": {
