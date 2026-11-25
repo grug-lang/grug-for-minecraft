@@ -289,17 +289,29 @@ public final class GrugLightRetry {
         return at + 1;
     }
 
+    /**
+     * How many times one box probe is asked again when the client answers that it is still busy.
+     * An ask requests a frame and the answer describes the frames before that frame ended, so a
+     * client can answer busy for one ask and name a divergence on the next. Every ask freezes the
+     * world, so the retries are few (#1695).
+     */
+    static final int BUSY_RETRIES = 2;
+
     /** Whether the client holds this server's light over {@code box}, as one probe answers it. */
     private static boolean differs(
             int[] box, GrugLightSync.BlockLight block, GrugLightSync.BlockLight sky, Probe probe)
             throws GrugControlServer.ControlException {
-        byte answer = probe.probe(GrugLightAsk.ask(box, block, sky));
-        if (answer == GrugControlWire.SETTLE_NO) {
-            throw new GrugControlServer.ControlException(
-                    "the joined client stopped drawing while the differing light cell was being"
-                            + " located");
+        for (int attempt = 0; attempt <= BUSY_RETRIES; attempt++) {
+            byte answer = probe.probe(GrugLightAsk.ask(box, block, sky));
+            if (answer != GrugControlWire.SETTLE_NO) {
+                return answer == GrugControlWire.SETTLE_LIGHT_DIVERGED;
+            }
         }
-        return answer == GrugControlWire.SETTLE_LIGHT_DIVERGED;
+        throw new GrugControlServer.ControlException(
+                "the joined client answered that it is still settling "
+                        + (BUSY_RETRIES + 1)
+                        + " times in a row while the differing light cell was being located, so"
+                        + " that cell could not be named");
     }
 
     /**

@@ -251,15 +251,48 @@ class GrugLightRetryTest {
     }
 
     @Test
-    void aClientThatStopsDrawingWhileTheCellIsLocatedIsNamed() {
+    void aClientThatStaysBusyWhileTheCellIsLocatedIsNamed() {
+        // The client re-evaluates its settled state on every ask, so one busy answer during a probe
+        // is not a verdict on the light: the probe asks again rather than aborting the diagnosis
+        // (#1695).
         int[] box = {0, 64, 0, 1, 64, 1};
+        AtomicInteger asks = new AtomicInteger();
         GrugControlServer.ControlException failure =
                 assertThrows(
                         GrugControlServer.ControlException.class,
                         () ->
                                 GrugLightRetry.firstDifference(
-                                        box, DARK, DARK, ask -> GrugControlWire.SETTLE_NO, null));
-        assertTrue(failure.getMessage().contains("stopped drawing"), failure.getMessage());
+                                        box,
+                                        DARK,
+                                        DARK,
+                                        ask -> {
+                                            asks.incrementAndGet();
+                                            return GrugControlWire.SETTLE_NO;
+                                        },
+                                        null));
+        assertTrue(failure.getMessage().contains("still settling"), failure.getMessage());
+        assertEquals(
+                GrugLightRetry.BUSY_RETRIES + 1,
+                asks.get(),
+                "the probe gives up after the retries rather than on the first busy answer");
+    }
+
+    @Test
+    void oneBusyAnswerDuringAProbeDoesNotAbortTheDiagnosis() throws Exception {
+        int[] box = {0, 64, 0, 0, 64, 0};
+        GrugLightSync.BlockLight serverBlock = (x, y, z) -> 7;
+        GrugLightSync.BlockLight clientBlock = (x, y, z) -> 9;
+        GrugLightRetry.Probe honest = probe(clientBlock, DARK);
+        AtomicInteger asked = new AtomicInteger();
+        GrugLightRetry.Probe busyOnce =
+                ask -> asked.getAndIncrement() == 0 ? GrugControlWire.SETTLE_NO : honest.probe(ask);
+
+        String report =
+                GrugLightRetry.firstDifference(box, serverBlock, DARK, busyOnce, null).describe();
+
+        assertTrue(report.contains("first at 0,64,0"), report);
+        assertTrue(report.contains("block 7 on this server and 9 on the client"), report);
+        assertTrue(asked.get() > 1, "the busy answer was asked again");
     }
 
     @Test
