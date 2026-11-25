@@ -112,6 +112,18 @@ class GrugReferenceTest {
     }
 
     @Test
+    void animationsAreFrozenForAClientThatJoinsACiRun() {
+        // The joined client of a dedicated-server job runs without GRUG_CI, because the server owns
+        // the run, yet its screen is what the multiplayer capture crops: a golden frozen on one
+        // frame would otherwise be compared against an animated capture.
+        System.setProperty(GrugReference.CI_PROPERTY, "0");
+        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "0");
+        System.setProperty(GrugReference.CI_CONNECT_PROPERTY, "127.0.0.1:25565");
+        assertTrue(GrugReference.isAnimationFrozen());
+        assertFalse(GrugReference.isCiRun());
+    }
+
+    @Test
     void modsDirOverrideReturnsADirectoryThatExists(@TempDir Path directory) {
         System.setProperty(GrugReference.MODS_DIR_PROPERTY, directory.toString());
         assertEquals(directory.toFile(), GrugReference.modsDirOverride());

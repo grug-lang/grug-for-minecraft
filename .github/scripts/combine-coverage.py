@@ -181,6 +181,12 @@ EXCLUDED_CLASSES = {
     "StationGuiHelper",
     "GrugCraftingInventory",
     "GrugStaticTexture",
+    # The three mixins a capture run freezes through (#1771): a mixin's methods are copied into its
+    # target and never instrumented, like every other mixin named here. What they call
+    # (GrugFrozenAnimations, GrugFrozenTextures) stays measured, because a capture run's boot runs it.
+    "TextureAtlasMixin",
+    "TextureManagerMixin",
+    "SpriteAtlasTextureMixin",
     "DummyCraftingInventory",
     # The mod manager's screen and the title screen button that opens it (#335): GUI glue over each
     # loader's own screen API. What it shows and does lives in core's GrugModsScreenModel.
