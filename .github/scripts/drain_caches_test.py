@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Tests drain_caches.py: a merged pull request's two refs lose every entry, and nothing else does."""
+"""Tests drain_caches.py: a merged pull request's two refs lose every entry, nothing else does, and a
+transient 5xx is retried (#1832)."""
 
 import contextlib
 import http.server
@@ -11,6 +12,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
 HERE = Path(__file__).resolve().parent
@@ -79,8 +81,17 @@ class ApiHandler(http.server.BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         self.server.requests.append(("DELETE", parsed.path, {}))
         cache_id = int(parsed.path.rsplit("/", 1)[1])
+        remaining = self.server.routes["flaky"].get(cache_id, 0)
+        if remaining:
+            # The cache backend answering transiently, as three deletes of #1832's drain did.
+            self.server.routes["flaky"][cache_id] = remaining - 1
+            self._reply(500)
+            return
         if cache_id in self.server.routes["refuse"]:
             self._reply(500)
+            return
+        if cache_id in self.server.routes["forbidden"]:
+            self._reply(403)
             return
         if cache_id in self.server.routes["vanished"]:
             self._reply(404)
@@ -109,9 +120,16 @@ class DrainCachesTest(unittest.TestCase):
                 BRANCH_REF: [entry(3, BRANCH_REF, size=1_000_000)],
             },
             "refuse": set(),
+            "forbidden": set(),
+            "flaky": {},
             "vanished": set(),
             "pull_error": False,
         }
+        # The retry waits seconds between attempts, which a test that refuses a delete would spend
+        # for real; the attempts and their order are what these tests judge, not the wait.
+        self.retry_sleep = mock.patch("time.sleep")
+        self.retry_sleep.start()
+        self.addCleanup(self.retry_sleep.stop)
         self.server.requests = []
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.start()
@@ -251,6 +269,30 @@ class DrainCachesTest(unittest.TestCase):
         # The other entries are still drained.
         self.assertIn(f"/repos/{SLUG}/actions/caches/1", self.deleted())
         self.assertIn(f"/repos/{SLUG}/actions/caches/3", self.deleted())
+
+    def test_a_transient_500_is_retried_and_the_entry_still_deletes(self):
+        self.server.routes["flaky"] = {1: 2}
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.deleted().count(f"/repos/{SLUG}/actions/caches/1"), 3)
+        self.assertIn("attempt 1 of 3 answered 500, retrying", err)
+        self.assertIn("attempt 2 of 3 answered 500, retrying", err)
+        self.assertIn("3 entries, 40.0 MB deleted", out)
+
+    def test_a_refusal_that_outlives_its_retries_still_fails_the_run(self):
+        self.server.routes["refuse"] = {1}
+        code, _, err = self.run_script()
+        self.assertEqual(code, 1)
+        self.assertEqual(self.deleted().count(f"/repos/{SLUG}/actions/caches/1"), 3)
+        self.assertIn("could not be deleted", err)
+
+    def test_a_forbidden_delete_is_not_retried(self):
+        # A 4xx is a verdict about the request or the token, which repeating cannot change.
+        self.server.routes["forbidden"] = {1}
+        code, _, err = self.run_script()
+        self.assertEqual(code, 1)
+        self.assertEqual(self.deleted().count(f"/repos/{SLUG}/actions/caches/1"), 1)
+        self.assertIn("403", err)
 
     def test_an_unreadable_api_fails_the_run(self):
         self.server.routes["pull_error"] = True
