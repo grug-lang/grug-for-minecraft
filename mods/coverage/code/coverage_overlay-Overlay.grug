@@ -192,6 +192,12 @@ export render_world(ctx: OverlayWorldContext) {
         inventory_call = 0
         drop_inventory(ctx.get_level(), origin_x, origin_y, origin_z)
     }
+    # A line at the block entity while the forwarded writes are armed. Only the K press arms them,
+    # so a world frame that draws this is the proof that the press reached this client, which is
+    # what the test waits for before it opens the inventory (#1759).
+    if inventory_calls_on {
+        ctx.draw_line(origin_x - 0.5, origin_y - 0.5, origin_z, origin_x + 0.5, origin_y - 0.5, origin_z, Color.rgb(255, 0, 0))
+    }
     if shell_pending {
         shell_pending = false
         shell_x = ctx.camera_x()

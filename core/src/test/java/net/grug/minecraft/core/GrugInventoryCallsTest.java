@@ -39,6 +39,7 @@ class GrugInventoryCallsTest {
         final Map<String, Object> blockEntities = new HashMap<>();
         final Map<Object, BlockPos> positions = new IdentityHashMap<>();
         final Map<Object, String> names = new IdentityHashMap<>();
+        final Map<Object, Double> inventorySizes = new IdentityHashMap<>();
         final List<Object> items = new ArrayList<>();
         final List<String> calls = new ArrayList<>();
         final Object level = "the level";
@@ -46,10 +47,22 @@ class GrugInventoryCallsTest {
         Vec3 playerPosition = new Vec3(10.5, 64, 10.5);
 
         Object addBlockEntity(int x, int y, int z) {
+            return addBlockEntity(x, y, z, 9);
+        }
+
+        Object addBlockEntity(int x, int y, int z, double inventorySize) {
             Object blockEntity = new Object();
             blockEntities.put(x + "," + y + "," + z, blockEntity);
             positions.put(blockEntity, new BlockPos(x, y, z));
+            inventorySizes.put(blockEntity, inventorySize);
             return blockEntity;
+        }
+
+        Object addSign(int x, int y, int z) {
+            Object sign = new Object();
+            blockEntities.put(x + "," + y + "," + z, sign);
+            positions.put(sign, new BlockPos(x, y, z));
+            return sign;
         }
 
         Object addItem(String name) {
@@ -102,6 +115,15 @@ class GrugInventoryCallsTest {
                                                 : null;
                                     case "playerPosition":
                                         return playerPosition;
+                                    case "getInventorySize":
+                                        Double size = inventorySizes.get(args[0]);
+                                        if (size == null) {
+                                            // A loader's inventory access casts the block entity
+                                            // to its game's container type, which is what a sign
+                                            // answers with.
+                                            throw new ClassCastException("not a container");
+                                        }
+                                        return size;
                                     default:
                                         throw new AssertionError(
                                                 "an inventory change does not ask "
@@ -141,11 +163,14 @@ class GrugInventoryCallsTest {
                 noLink(), noCapture(), GrugControlClient.adapterCaller(world::adapter), -1, -1);
 
         GrugInventoryCalls.dropInventory(adapter, world.level, 11, 64, 10);
+        // A fraction of a slot or of a count is handed to the adapter as it is, and the adapter's
+        // own write takes its whole part. The forwarded path names that same whole part, so the two
+        // paths write the same slot of the same item (#1759).
         GrugInventoryCalls.setItemInSlot(
-                adapter, blockEntity, 0, item, 1, "BlockEntity.set_item_in_slot");
+                adapter, blockEntity, 3.5, item, 7.5, "BlockEntity.set_item_in_slot");
 
         assertEquals(
-                List.of("drop the level 11.0,64.0,10.0", "slot minecraft:diamondx1.0 in 0.0"),
+                List.of("drop the level 11.0,64.0,10.0", "slot minecraft:diamondx7.5 in 3.5"),
                 world.calls);
     }
 
@@ -253,6 +278,50 @@ class GrugInventoryCallsTest {
         assertTrue(missing.contains("no block entity"), missing);
         assertEquals(1, world.calls.size());
         assertEquals(before + 1, GrugWorldRevision.current());
+    }
+
+    @Test
+    void theServerRefusesABlockEntityWithNoInventory() {
+        World world = new World();
+        Object sign = world.addSign(11, 64, 10);
+
+        // A sign is a block entity with no inventory, and every loader's inventory access would
+        // throw its cast on it: the server refuses instead, and tells the player why.
+        String drop =
+                GrugInventoryCalls.dropInventoryOnServer(world.adapter(), world.player, 11, 64, 10);
+        assertTrue(drop.contains("has no inventory"), drop);
+        String write =
+                GrugInventoryCalls.setItemInSlotOnServer(
+                        world.adapter(), world.player, 11, 64, 10, 0, "minecraft:diamond", 1);
+        assertTrue(write.contains("has no inventory"), write);
+        assertEquals(-1.0, GrugInventoryCalls.inventorySize(world.adapter(), sign), 0.0);
+        assertTrue(world.calls.isEmpty());
+    }
+
+    @Test
+    void theServerRefusesASlotTheInventoryDoesNotHave() {
+        World world = new World();
+        world.addBlockEntity(11, 64, 10, 3);
+        world.addItem("minecraft:diamond");
+
+        // A three-slot inventory has slots 0, 1 and 2, so a write to 3 or to a negative slot would
+        // throw the adapter's array access rather than write, and is refused with a line instead.
+        String past =
+                GrugInventoryCalls.setItemInSlotOnServer(
+                        world.adapter(), world.player, 11, 64, 10, 3, "minecraft:diamond", 1);
+        assertTrue(past.contains("no slot 3"), past);
+        String negative =
+                GrugInventoryCalls.setItemInSlotOnServer(
+                        world.adapter(), world.player, 11, 64, 10, -1, "minecraft:diamond", 1);
+        assertTrue(negative.contains("no slot -1"), negative);
+        assertTrue(world.calls.isEmpty());
+
+        // The last slot the inventory has is written, and a fraction is the whole slot below it,
+        // which is the slot every adapter's own write would have taken.
+        assertNull(
+                GrugInventoryCalls.setItemInSlotOnServer(
+                        world.adapter(), world.player, 11, 64, 10, 2.5, "minecraft:diamond", 1));
+        assertEquals(List.of("slot minecraft:diamondx1.0 in 2.0"), world.calls);
     }
 
     @Test
