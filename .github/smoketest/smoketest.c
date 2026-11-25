@@ -837,26 +837,30 @@ static union grug_value BlockPos_center(ARGS) {
 }
 REGISTER("BlockPos", "center", BlockPos_center);
 
-// The player and their hand, as held_item-Test asserts them: one local player, whose hand holds
-// an item or nothing. Nothing else about the player is modelled (position, inventory and the use
-// of items each wait for a committed test that needs them).
-static bool held_has;
-static uint64_t held_item_id;
-static double held_count;  // set_held_item gives one item; a stack arrives only by a give, which is not modelled
+// The player and their inventory, as held_item-Test, hotbar_reset_a-Test and overlay-Test assert them:
+// one local player with 36 slots, the first of them the hotbar slot the game has selected, which is
+// what Player.get_held_item and TestTickContext.get_held_count read as the hand. The runner empties
+// the inventory before every test, set_held_item and clear_held_item write the hand, and a give fills
+// the first free slot, so a give lands in the hand only because the test starts with an empty
+// inventory, as it does in the game. The hotbar selection never moves and nothing else about the
+// player is modelled (position, the hotbar keys and the use of items each wait for a committed test
+// that needs them).
+#define INV_SLOTS 36
+static struct inv_slot { bool has; uint64_t item; double count; } inv[INV_SLOTS];
 static union grug_value TTC_get_player(ARGS) { UNUSED; return id(new_obj(K_PLAYER)); }
 REGISTER("TestTickContext", "get_player", TTC_get_player);
 static union grug_value TTC_set_held_item(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.set_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
     if (!get_obj(a[2]._id, K_ITEM)) return fail("TestTickContext.set_held_item: not an Item");  // SMOKETEST_EXCL: no committed test
-    held_has = true; held_item_id = a[2]._id; held_count = 1;
+    inv[0].has = true; inv[0].item = a[2]._id; inv[0].count = 1;
     return none();
 }
 REGISTER("TestTickContext", "set_held_item", TTC_set_held_item);
 static union grug_value TTC_clear_held_item(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.clear_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
-    held_has = false; held_count = 0;
+    inv[0].has = false; inv[0].count = 0;
     return none();
 }
 REGISTER("TestTickContext", "clear_held_item", TTC_clear_held_item);
@@ -864,14 +868,14 @@ REGISTER("TestTickContext", "clear_held_item", TTC_clear_held_item);
 static union grug_value TTC_get_held_count(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.get_held_count: not a Player");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but the player
-    return num(held_has ? held_count : 0);
+    return num(inv[0].has ? inv[0].count : 0);
 }
 REGISTER("TestTickContext", "get_held_count", TTC_get_held_count);
 static union grug_value Player_get_held_item(ARGS) {
     UNUSED;
     if (!get_obj(a[0]._id, K_PLAYER)) return fail("Player.get_held_item: not a Player");  // SMOKETEST_EXCL: no committed test
     uint64_t o = new_obj(K_OPTION);
-    if (held_has) { objs[o - 1].has = true; objs[o - 1].val = id(held_item_id); }
+    if (inv[0].has) { objs[o - 1].has = true; objs[o - 1].val = id(inv[0].item); }
     return id(o);
 }
 REGISTER("Player", "get_held_item", Player_get_held_item);
@@ -932,6 +936,20 @@ static void build_toy_items(void) {
     }
 }
 
+// The largest stack a vanilla item comes in, as the game's own items answer it: a bucket arrives on
+// its own and every block and ingredient item in the fixture list stacks to 64, which are the two
+// values the committed tests ask about (overlay-Test asks item_at(0), a bucket, and give_item_stack
+// -Test asks item_at(1), a block). A name outside the table stacks to 64, and adding a 16-stack
+// item later is a row here rather than another branch at each caller (#865).
+static double item_max_stack(const char* name) {
+    static const struct { const char* name; double size; } sizes[] = {
+        {"minecraft:bucket", 1},
+    };
+    for (size_t i = 0; i < sizeof sizes / sizeof sizes[0]; i++)
+        if (!strcmp(name, sizes[i].name)) return sizes[i].size;
+    return 64;
+}
+
 // GrugItemSearch's tokenizer: the text is lower cased and split on `|`, and an alternative is a run
 // of tokens of which the ones with a leading minus remove. A token is a quoted run or a run of
 // non-space characters, a lone prefix or a lone minus is no token, and an alternative with nothing
@@ -981,15 +999,18 @@ static size_t search_parse(const char* text, struct search_alternative* alts) {
             char raw[256];
             size_t rn = 0;
             if ((p[0] == '-' && p + 1 < stop && p[1] == QUOTE) || p[0] == QUOTE) {
+                // Only a minus before the quote negates a quoted token, as GrugItemSearch's pattern
+                // matches the token: a minus inside the quotes is part of the word to keep.
                 if (p[0] == '-') { negated = true; p++; }
                 p++;  // the opening quote
                 while (p < stop && *p != QUOTE) { if (rn + 1 < sizeof raw) raw[rn++] = *p; p++; }  // SMOKETEST_EXCL_BRANCH: no committed search text has a 255-byte quoted word
                 if (p < stop) p++;  // the closing quote
             } else {
+                // An unquoted token is negated by its own first character, before any quote is dropped.
+                if (p[0] == '-') { negated = true; p++; }
                 while (p < stop && !isspace((unsigned char)*p)) { if (rn + 1 < sizeof raw) raw[rn++] = *p; p++; }  // SMOKETEST_EXCL_BRANCH: no committed search text has a 255-byte word
             }
             raw[rn] = 0;
-            if (raw[0] == '-') { negated = true; memmove(raw, raw + 1, strlen(raw)); }
             search_token_add(&alt, negated, raw);
         }
         // An alternative with nothing to keep is no alternative: its minus words describe nothing.
@@ -1075,16 +1096,17 @@ static union grug_value hf_search_item_at(ARGS) {
 }
 REGISTER(NULL, "search_item_at", hf_search_item_at);
 
-// A give puts the item in the player's hand, where the tests read it with Player.get_held_item and
-// TestTickContext.get_held_count: one item for give_item and the item's own maximum stack for
-// give_item_stack, the reference's cheat bindings. The game fills the first empty slot instead, and
-// drops the stack when the inventory is full, which no committed test has an inventory for.
+// A give fills the player's inventory the way the game does: the stack goes into the first free slot,
+// and a give that finds every slot full drops it at the player's feet. The committed tests read it
+// back with Player.get_held_item and TestTickContext.get_held_count because the runner empties the
+// inventory before every test and the game has the first hotbar slot selected, so the first free slot
+// is the hand. give_item gives one item and give_item_stack the item's own maximum stack, the
+// reference's cheat bindings. The drop lives with the entity table, below.
+static void give_to_player(uint64_t item_id, double count);
 static union grug_value hf_give_item(ARGS) {
     UNUSED;
     if (!get_obj(a[0]._id, K_ITEM)) return fail("give_item: not an Item");  // SMOKETEST_EXCL_BRANCH: grug type-checks the argument, so a test cannot give anything but an Item
-    held_has = true;
-    held_item_id = a[0]._id;
-    held_count = 1;
+    give_to_player(a[0]._id, 1);
     return none();
 }
 REGISTER(NULL, "give_item", hf_give_item);
@@ -1092,9 +1114,7 @@ static union grug_value hf_give_item_stack(ARGS) {
     UNUSED;
     if (!get_obj(a[0]._id, K_ITEM)) return fail("give_item_stack: not an Item");  // SMOKETEST_EXCL_BRANCH: grug type-checks the argument, so a test cannot give anything but an Item
     struct obj* item = get_obj(a[0]._id, K_ITEM);
-    held_has = true;
-    held_item_id = a[0]._id;
-    held_count = strstr(item->str, "bucket") ? 1 : 64;
+    give_to_player(a[0]._id, item_max_stack(item->str));
     return none();
 }
 REGISTER(NULL, "give_item_stack", hf_give_item_stack);
@@ -2229,16 +2249,16 @@ static union grug_value TTC_use_block(ARGS) {
         handled = ran && !objs[c - 1].has;
         grug_deinit_entity(g_state, ent);
     }
-    if (handled || !held_has) return none();
+    if (handled || !inv[0].has) return none();
     long at[3];
     use_face(p[0], p[1], p[2], at);
-    if (!strcmp(objs[held_item_id - 1].str, "minecraft:cobblestone")) {
+    if (!strcmp(objs[inv[0].item - 1].str, "minecraft:cobblestone")) {
         struct block* t = find_block(at[0], at[1], at[2]);
         if (!t || !strcmp(t->name, "minecraft:air")) {
             set_block(at[0], at[1], at[2], "minecraft:cobblestone");
             on_block_placed(at[0], at[1], at[2], "minecraft:cobblestone");
-            held_count--;  // the block item takes one from the stack
-            if (held_count <= 0) held_has = false;
+            inv[0].count--;  // the block item takes one from the stack
+            if (inv[0].count <= 0) inv[0].has = false;
         } else stubbed = true;  // SMOKETEST_EXCL: no committed test clicks toward an occupied position; whether the game replaces it depends on the block
     } else stubbed = true;  // SMOKETEST_EXCL: no committed test holds another vanilla item for a declined click; whether it places is the game's
     return none();
@@ -2412,6 +2432,20 @@ static struct ent* ent_new(void) {
     struct ent* e = &ents[nents++];
     memset(e, 0, sizeof *e);
     return e;
+}
+// The give itself: the stack goes into the first free inventory slot, and a give that finds every
+// slot full drops it at the player's feet, where the runner snapped them, which is the test origin.
+static void give_to_player(uint64_t item_id, double count) {
+    for (size_t i = 0; i < INV_SLOTS; i++)  // SMOKETEST_EXCL_BRANCH: every committed give finds the first slot free, because the test clears the hand before giving
+        if (!inv[i].has) {  // SMOKETEST_EXCL_BRANCH: as the loop says, the give returns at slot 0
+            inv[i].has = true; inv[i].item = item_id; inv[i].count = count;
+            return;
+        }
+    // SMOKETEST_EXCL_START: no committed test fills all 36 slots, so the drop is never read, and how many stacks a loader's own give needs to fill its inventory differs between loaders
+    struct ent* e = ent_new();
+    e->x = origin_x; e->y = origin_y; e->z = origin_z;
+    e->item = item_id; e->count = count; e->spawned = true;
+    // SMOKETEST_EXCL_STOP
 }
 static union grug_value hf_item_entity(ARGS) {
     UNUSED;
@@ -2808,7 +2842,7 @@ static union grug_value TTC_click_screen(ARGS) {
     if (overlay_click_taken(a[1]._number, a[2]._number, a[3]._number)) return boolean(true);
     if (!screen_is_open) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL: every committed click that passes has a screen open
     struct be* b = be_of(screen_be);
-    if (!b) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL: the block entity of an open screen is live in every committed test
+    if (!b) { stubbed = true; return boolean(false); }  // the player's inventory screen has no block entity, and the vanilla slot overlay-Test presses on it is not modelled, so that run is STUBBED
     struct gui* gu = &guis[screen_gui];
     double mx = a[1]._number - gui_geometry(0), my = a[2]._number - gui_geometry(1);
     struct slot* hit = NULL;
@@ -3187,13 +3221,15 @@ REGISTER("TestTickContext", "close_screen", TTC_close_screen);
 // SECTION: Overlays
 // =============================================================================================
 // Overlay scripts (#1586, #1587): every mod's *-Overlay.grug entity, asked for one frame per runner
-// tick while a container screen is open, in mod-name order. The smoketest paints nothing, so an
+// tick while a container screen is open, in the clean-name order GrugOverlayScripts keeps. The
+// smoketest paints nothing, so an
 // overlay's draw_item, draw_text and draw_box only record that the mod asked to draw: that request
 // is the overlay's own logic, which a test may read through overlay_drawn, while TestTickContext
 // .screenshot is what marks the run STUBBED because a capture is what this host cannot answer.
 static char current_test_mod[128];
 static struct overlay {
     void* entity;
+    const char* name;  // the clean entity name GrugOverlayScripts keys the file by
     const char* mod;
     const char* path;
 } * overlays;
@@ -3227,8 +3263,9 @@ static void clear_overlays(void) {
 }
 
 // One overlay entity per compiled Overlay file, fresh for each test so its member state starts as
-// the load leaves it. Sorted by mod name, which is the order the loader asks the scripts in: the
-// coverage mod's overlay runs before JEI's, and a key the coverage one takes never reaches JEI.
+// the load leaves it. Sorted by the file's clean entity name, which is the order GrugOverlayScripts
+// asks the scripts in: the coverage mod's "coverage_overlay" runs before "jei", and a key the
+// coverage one takes never reaches JEI, whatever the two mods are called.
 static void make_overlays(void) {
     for (size_t i = 0; i < G.f.len; i++) {
         struct grug_file_info* fi = &G.f.ptr[i];
@@ -3237,11 +3274,11 @@ static void make_overlays(void) {
             capoverlays = capoverlays ? capoverlays * 2 : 8;  // SMOKETEST_EXCL_BRANCH: no more than eight overlays are compiled at once, so the doubling never runs
             overlays = xrealloc(overlays, capoverlays * sizeof *overlays);
         }
-        overlays[noverlays] = (struct overlay){grug_create_entity(g_state, fi->file_id), fi->mod_name, fi->path};
+        overlays[noverlays] = (struct overlay){grug_create_entity(g_state, fi->file_id), fi->entity_name, fi->mod_name, fi->path};
         noverlays++;
     }
     for (size_t i = 1; i < noverlays; i++)
-        for (size_t j = i; j > 0 && strcmp(overlays[j].mod, overlays[j - 1].mod) < 0; j--) {
+        for (size_t j = i; j > 0 && strcmp(overlays[j].name, overlays[j - 1].name) < 0; j--) {
             struct overlay t = overlays[j];
             overlays[j] = overlays[j - 1];
             overlays[j - 1] = t;
@@ -3314,13 +3351,14 @@ REGISTER("TestTickContext", "overlay_drawn", TTC_overlay_drawn);
 static union grug_value TTC_overlay_first_frame_cleared(ARGS) { UNUSED; return boolean(overlay_first_frame_cleared); }
 REGISTER("TestTickContext", "overlay_first_frame_cleared", TTC_overlay_first_frame_cleared);
 
-// The largest stack an item comes in. The toy list's first item is a bucket, which stacks to one,
-// and every other name the committed tests read stacks to 64, which is what they assert.
+// The largest stack an item comes in, asked of the table in the item list section: a bucket stacks to
+// one and a block to 64, which are the two the committed tests read (overlay-Test and
+// give_item_stack-Test).
 static union grug_value TTC_get_item_max_stack(ARGS) {
     UNUSED;
     struct obj* item = get_obj(a[1]._id, K_ITEM);
     if (!item) return fail("TestTickContext.get_item_max_stack: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test asks the stack size of anything but an item
-    return num(strstr(item->str, "bucket") ? 1 : 64);  // SMOKETEST_EXCL_BRANCH: the only item a committed test asks about is the first one, a bucket
+    return num(item_max_stack(item->str));
 }
 REGISTER("TestTickContext", "get_item_max_stack", TTC_get_item_max_stack);
 
@@ -3637,7 +3675,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
-    held_has = false; held_item_id = 0; held_count = 0;
+    memset(inv, 0, sizeof inv);
     time_offset = 0;
     operator_status = true;
     bg_missing[0] = 0;

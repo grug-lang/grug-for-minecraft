@@ -1,7 +1,8 @@
 # search_item_count and search_item_at list the items a search text matches, in the reference JEI's
 # search syntax (#865): the host lists every item for a text that holds no word to search, a word
 # matches a name or, after an @, a mod id, and a minus removes what it matches. A word may be
-# quoted, which keeps its spaces, and a quote inside any word is dropped. Alpha has no item
+# quoted, which keeps its spaces, and a quote inside any word is dropped. A minus negates a token only
+# at its start, so a quoted word that begins with one keeps it as part of the word. Alpha has no item
 # names, so there a word is matched against the registry name, and the name words are only asserted
 # elsewhere.
 export tick(ctx: TestTickContext) {
@@ -39,6 +40,7 @@ export tick(ctx: TestTickContext) {
     ctx.assert(search_item_count("@mi\"necraft") == search_item_count("@minecraft"), "A quote inside a word should be dropped.")
     ctx.assert(search_item_count("\"\"") == total, "Empty quotes should be no word.")
     ctx.assert(search_item_count("-") == total, "A lone minus should be no word.")
+    ctx.assert(search_item_count("\"-zzzzqqqq\"") == 0, "A quoted word that starts with a minus should be a word to keep, not a removal.")
     ctx.assert(search_item_count("@grug -\"@grug\"") == 0, "A quoted minus word should remove what it matches.")
     ctx.assert(search_item_count("@grug -@grug -grug") == 0, "Every minus word should be checked.")
 

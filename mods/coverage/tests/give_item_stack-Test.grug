@@ -1,7 +1,10 @@
 # give_item_stack puts the item's own maximum stack in the player's hand, the amount the reference's
-# stack binding gives, so a tool arrives as one item and a block as a whole stack (#865).
+# stack binding gives, so a tool arrives as one item and a block as a whole stack (#865). Two items are
+# given because the answer is per item: a host that gave 64 of everything would pass the block's
+# phase and fail the other's, where the fixture list's first item is a bucket that stacks to one.
 started: bool = false
 waited: number = 0
+step: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -11,8 +14,25 @@ export tick(ctx: TestTickContext) {
             return
         }
         ctx.clear_held_item(ctx.get_player())
-        # The second item is not the bucket the other tests give, so this is a stack larger than one.
         give_item_stack(item_at(1))
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        held: Option[Item] = ctx.get_player().get_held_item()
+        if not held.has() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The stack the give asked for should reach the player's hand.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(equals(held.unwrap(), item_at(1)), "The give should put the item it was asked for in the hand.")
+        ctx.assert(ctx.get_held_count(ctx.get_player()) == ctx.get_item_max_stack(item_at(1)), "The give should put the item's maximum stack in the hand.")
+        ctx.clear_held_item(ctx.get_player())
+        give_item_stack(item_at(0))
+        step = 2
         ctx.not_done()
         return
     }
@@ -20,11 +40,11 @@ export tick(ctx: TestTickContext) {
     held: Option[Item] = ctx.get_player().get_held_item()
     if not held.has() {
         waited = waited + 1
-        ctx.assert(waited < 200, "The stack the give asked for should reach the player's hand.")
+        ctx.assert(waited < 200, "The second stack the give asked for should reach the player's hand.")
         ctx.not_done()
         return
     }
-    ctx.assert(equals(held.unwrap(), item_at(1)), "The give should put the item it was asked for in the hand.")
-    ctx.assert(ctx.get_held_count(ctx.get_player()) == ctx.get_item_max_stack(item_at(1)), "The give should put the item's maximum stack in the hand.")
+    ctx.assert(equals(held.unwrap(), item_at(0)), "The second give should put the item it was asked for in the hand.")
+    ctx.assert(ctx.get_held_count(ctx.get_player()) == ctx.get_item_max_stack(item_at(0)), "The second give should put that item's own maximum stack in the hand.")
     ctx.clear_held_item(ctx.get_player())
 }
