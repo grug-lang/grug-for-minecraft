@@ -2116,6 +2116,54 @@
 		"Math": {
 			"description": "Mathematical functions that need no instance.",
 			"static_methods": {
+				"abs": {
+					"description": "The absolute value of a number, which is the number without its sign: Math.abs(-2.5) is 2.5 and Math.abs(2.5) is 2.5. Negative zero gives 0, NaN stays NaN, and the two infinities stay themselves. A mod written before this entry arrived returned the negative of a negative value by hand, which is wrong for negative zero and for NaN.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"atan2": {
+					"description": "The angle in radians from the positive X axis to the point (x, y), with the first argument y and the second x: Math.atan2(0, 1) is 0, Math.atan2(1, 0) is half a turn, and Math.atan2(0, 0) is 0. Its answer is from -pi to pi and keeps the signs of its arguments, so Math.atan2(-0.0, -1.0) is -pi where Math.atan2(0.0, -1.0) is pi. It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"ceil": {
+					"description": "The smallest whole number at or above the given number: Math.ceil(2.5) is 3 and Math.ceil(-2.5) is -2. NaN stays NaN, negative zero stays -0.0, and the infinities stay themselves. It is the pair of Math.floor, and a shape walks from the floor of its lower bound to the ceiling of its upper one.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"cos": {
 					"description": "The cosine of an angle in radians: Math.cos(0) is 1 and Math.cos(3.141592653589793) is -1. A mod walks a point around a circle with it and Math.sin: the point at angle a is (radius * Math.cos(a), radius * Math.sin(a)). It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
 					"return_type": {
@@ -2130,6 +2178,20 @@
 						}
 					]
 				},
+				"cosh": {
+					"description": "The hyperbolic cosine of a number, (e^x + e^-x) / 2: Math.cosh(0) is 1 and Math.cosh(1) is about 1.543. With Math.sinh it is the point a hanging chain follows: the chain's height at a distance s along it is Math.cosh(s / a) times a constant. It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"floor": {
 					"description": "The largest whole number at or below the given number: Math.floor(2.5) is 2 and Math.floor(-2.5) is -3. A position in the world is a number with a fraction, while a block coordinate is a whole number, and this is how a mod turns one into the other.",
 					"return_type": {
@@ -2138,6 +2200,66 @@
 					"parameters": [
 						{
 							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"floorMod": {
+					"description": "What is left of the first number after dividing it by the second as many whole times as fit, with the sign of the second number: Math.floorMod(7, 3) is 1, Math.floorMod(-7, 3) is 2 and Math.floorMod(7, -3) is -2. It is what Java's Math.floorMod gives on whole numbers, and it answers on the divisor's side where Math.remainder answers on the first number's side, so the two differ exactly when their signs differ. A divisor of 0 reports an error, since the answer would be nothing but NaN, and NaN in either argument stays NaN.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "divisor",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"max": {
+					"description": "The larger of two numbers: Math.max(2, 3) is 3 and Math.max(3, 3) is 3. NaN in either argument gives NaN, and where the two are equal it keeps the one that is not negative zero, so Math.max(-0.0, 0.0) is 0.0. A loop that steps towards a bound takes the larger of the step and the bound.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "a",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "b",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"min": {
+					"description": "The smaller of two numbers: Math.min(2, 3) is 2 and Math.min(3, 3) is 3. NaN in either argument gives NaN, and where the two are equal it keeps negative zero, so Math.min(-0.0, 0.0) is -0.0. A loop that steps towards a bound takes the smaller of the step and the bound.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "a",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "b",
 							"type": {
 								"name": "number"
 							}
@@ -2170,6 +2292,20 @@
 						}
 					]
 				},
+				"signum": {
+					"description": "The sign of a number: 1 for a positive number, -1 for a negative one, and the number itself when it is zero, negative zero or NaN. So Math.signum(0) is 0, Math.signum(-0.0) is -0.0 and Math.signum(NaN) is NaN. A mod that rounds a fraction to the neighbouring block adds 0.5 times this, which keeps the rounding on the side the number points to.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"sin": {
 					"description": "The sine of an angle in radians: Math.sin(0) is 0 and Math.sin(1.5707963267948966) is 1. Together with Math.cos it places a point on a circle: the point at angle a is (radius * Math.cos(a), radius * Math.sin(a)). It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
 					"return_type": {
@@ -2184,11 +2320,53 @@
 						}
 					]
 				},
+				"sinh": {
+					"description": "The hyperbolic sine of a number, (e^x - e^-x) / 2: Math.sinh(0) is 0 and Math.sinh(1) is about 1.175. With Math.cosh it is the point a hanging chain follows: the chain's horizontal distance at a height s is a times Math.sinh(s / a), and its slope is Math.sinh(s / a). It is computed with Java's StrictMath, so every loader and every machine answers the same number.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"sqrt": {
+					"description": "The square root of a number: Math.sqrt(4) is 2 and Math.sqrt(2) is about 1.414. A negative number gives NaN, negative zero stays -0.0, and the infinities stay themselves. IEEE 754 defines the answer exactly, so every loader and every machine agrees without a library.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"tau": {
 					"description": "A whole turn in radians, 6.283185307179586, which is twice Math.pi() and Java's 2 * Math.PI. A ring of n segments steps its angle by Math.tau() / n.",
 					"return_type": {
 						"name": "number"
 					}
+				},
+				"toDegrees": {
+					"description": "The same angle in degrees, which is 180 / pi times the number of radians: Math.toDegrees(Math.pi()) is 180 and Math.toDegrees(Math.tau()) is 360. It is the pair of Java's toRadians, which this API does not have: an angle the game reports in radians becomes the degrees a shape's properties are written in.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "radians",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},

@@ -4366,9 +4366,36 @@ public class HostFunctions {
         return GrugDeclarations.initContext().block;
     }
 
+    /**
+     * The absolute value of a number: negative zero gives 0, NaN stays NaN, and the infinities stay
+     * themselves, which is Java's {@code Math.abs}.
+     */
+    public static double Math_abs(double value) {
+        return Math.abs(value);
+    }
+
+    /**
+     * The angle from the positive X axis to the point {@code (x, y)}: {@code y} comes first, as in
+     * Java's {@code Math.atan2}, and the answer is from -pi to pi and keeps the signs of its
+     * arguments. From {@code StrictMath} so every platform agrees.
+     */
+    public static double Math_atan2(double y, double x) {
+        return StrictMath.atan2(y, x);
+    }
+
+    /** The smallest whole number at or above the given number, the pair of {@link #Math_floor}. */
+    public static double Math_ceil(double value) {
+        return Math.ceil(value);
+    }
+
     /** The cosine of an angle in radians, from {@code StrictMath} so every platform agrees. */
     public static double Math_cos(double angle) {
         return StrictMath.cos(angle);
+    }
+
+    /** The hyperbolic cosine of a number, from {@code StrictMath} so every platform agrees. */
+    public static double Math_cosh(double value) {
+        return StrictMath.cosh(value);
     }
 
     /**
@@ -4377,6 +4404,34 @@ public class HostFunctions {
      */
     public static double Math_floor(double value) {
         return Math.floor(value);
+    }
+
+    /**
+     * What is left of {@code value} after dividing by {@code divisor}, with the sign of {@code
+     * divisor}, which is Java's {@code Math.floorMod} extended to numbers with a fraction: it
+     * answers on the divisor's side where {@link #Math_remainder} answers on the value's side.
+     */
+    public static double Math_floorMod(double value, double divisor) {
+        if (divisor == 0) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Math.floorMod: The divisor cannot be 0.");
+            return 0;
+        }
+        double remainder = value % divisor;
+        if (remainder != 0 && ((remainder < 0) != (divisor < 0))) {
+            remainder += divisor;
+        }
+        return remainder;
+    }
+
+    /** The larger of two numbers, NaN propagating and -0.0 losing to 0.0, as in Java. */
+    public static double Math_max(double a, double b) {
+        return Math.max(a, b);
+    }
+
+    /** The smaller of two numbers, NaN propagating and -0.0 winning against 0.0, as in Java. */
+    public static double Math_min(double a, double b) {
+        return Math.min(a, b);
     }
 
     /**
@@ -4406,6 +4461,29 @@ public class HostFunctions {
     /** The sine of an angle in radians, from {@code StrictMath} so every platform agrees. */
     public static double Math_sin(double angle) {
         return StrictMath.sin(angle);
+    }
+
+    /**
+     * The sign of a number: 1, -1, or the number itself when it is zero, negative zero or NaN,
+     * which is Java's {@code Math.signum}.
+     */
+    public static double Math_signum(double value) {
+        return Math.signum(value);
+    }
+
+    /** The hyperbolic sine of a number, from {@code StrictMath} so every platform agrees. */
+    public static double Math_sinh(double value) {
+        return StrictMath.sinh(value);
+    }
+
+    /** The square root of a number, which IEEE 754 defines exactly: a negative gives NaN. */
+    public static double Math_sqrt(double value) {
+        return Math.sqrt(value);
+    }
+
+    /** The same angle in degrees, from {@code StrictMath} so every platform agrees. */
+    public static double Math_toDegrees(double radians) {
+        return StrictMath.toDegrees(radians);
     }
 
     /**
