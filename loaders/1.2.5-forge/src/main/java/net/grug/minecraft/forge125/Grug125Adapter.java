@@ -32,6 +32,7 @@ import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugIdPool;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugLevelKey;
 import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
@@ -1186,22 +1187,14 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
      */
     @Override
     public String levelName(Object levelObj) {
-        String name = ((World) levelObj).getWorldInfo().getNBTTagCompound().getString("LevelName");
-        return name.isEmpty() ? "world" : name;
+        return GrugLevelKey.name(
+                "", ((World) levelObj).getWorldInfo().getNBTTagCompound().getString("LevelName"));
     }
 
     /** The dimension as a path segment, from the provider's own type number (#1757). */
     @Override
     public String levelDimension(Object levelObj) {
-        return dimensionKey(((World) levelObj).worldProvider.worldType);
-    }
-
-    /** The key of one of the game's three dimensions, or of any other number a provider reports. */
-    static String dimensionKey(int type) {
-        if (type == 0) return "overworld";
-        if (type == -1) return "the_nether";
-        if (type == 1) return "the_end";
-        return "dimension_" + type;
+        return GrugLevelKey.ofNumber(((World) levelObj).worldProvider.worldType);
     }
 
     @Override

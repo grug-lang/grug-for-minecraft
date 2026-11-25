@@ -25,6 +25,7 @@ import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugLevelKey;
 import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
@@ -583,7 +584,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      */
     @Override
     public String levelName(Object levelObj) {
-        return ((World) levelObj).saveName;
+        return GrugLevelKey.name("", ((World) levelObj).saveName);
     }
 
     /** The one dimension Alpha has; the key is shared with every loader (#1757). */

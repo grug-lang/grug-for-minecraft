@@ -25,6 +25,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugLevelKey;
 import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
@@ -1095,36 +1096,34 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * client joined to somebody else's server never learns the save name; see {@link
      * ModLoaderAdapter#levelName}.
      */
+    /**
+     * The world's own name, which is the save directory's in singleplayer and on a dedicated
+     * server. A client joined to somebody else's server never learns that server's save name and
+     * answers the name the game gives its own copy of the world instead, which does not identify
+     * the server; see {@link ModLoaderAdapter#levelName}.
+     */
     @Override
     public String levelName(Object levelObj) {
-        @SuppressWarnings("deprecation")
-        net.minecraft.client.Minecraft client =
-                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
-        String address = client.hostAddress;
-        return address == null || address.isEmpty() ? saveName((World) levelObj) : address;
+        return saveName((World) levelObj);
     }
 
     /**
-     * The save's own name, which the dedicated server reads without a client's address.
+     * The save's own name from the properties' NBT, the entry both the client and the dedicated
+     * server write.
      *
-     * <p>The name comes from the properties' NBT because the dedicated server's {@code
-     * WorldProperties} has no name getter: only the client jar's class has one, so calling it would
-     * abort at run time on the server, as 1.2.5's did. The NBT entry is the one both jars write,
-     * and a properties object with no name yet answers {@code world} rather than an empty string.
+     * <p>The NBT is read because the dedicated server's {@code WorldProperties} has no name getter:
+     * only the client jar's class has one, so calling it would abort at run time on the server, as
+     * 1.2.5's did. A properties object with no name yet answers {@code world} rather than an empty
+     * string.
      */
     static String saveName(World world) {
-        String name = world.getProperties().asNbt().getString("LevelName");
-        return name.isEmpty() ? "world" : name;
+        return GrugLevelKey.name("", world.getProperties().asNbt().getString("LevelName"));
     }
 
     /** The dimension as a path segment, from the dimension's own id (#1757). */
     @Override
     public String levelDimension(Object levelObj) {
-        int id = ((World) levelObj).dimension.id;
-        if (id == 0) return "overworld";
-        if (id == -1) return "the_nether";
-        if (id == 1) return "the_end";
-        return "dimension_" + id;
+        return GrugLevelKey.ofNumber(((World) levelObj).dimension.id);
     }
 
     @Override

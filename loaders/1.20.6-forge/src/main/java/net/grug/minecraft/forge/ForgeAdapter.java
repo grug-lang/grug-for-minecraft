@@ -24,6 +24,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugLevelKey;
 import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.Vec3;
@@ -426,21 +427,14 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * The save's own name when a server is running, which on a dedicated server is the only side
-     * that knows it, and the client's answer otherwise: an integrated server's name in singleplayer
-     * or the address the client dialled.
+     * The level's name: the save's own name on the dedicated server, and on a client the address it
+     * dialled when it joined somebody else's server or its integrated server's name in
+     * singleplayer. Each side implements it, because a dedicated server has no client to ask and a
+     * client joined to another server never learns that server's save name; see {@link
+     * net.grug.minecraft.core.ModLoaderAdapter#levelName}.
      */
     @Override
-    public String levelName(Object levelObj) {
-        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        return server == null ? clientLevelName() : server.getWorldData().getLevelName();
-    }
-
-    /**
-     * The client's answer for {@link #levelName}, which the server side never needs: a dedicated
-     * server always has its own world data.
-     */
-    public abstract String clientLevelName();
+    public abstract String levelName(Object levelObj);
 
     /**
      * The dimension's key as one path segment, settled the same on every loader: {@code overworld},
@@ -455,13 +449,7 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public String levelDimension(Object levelObj) {
         ResourceLocation id = ((Level) levelObj).dimension().location();
-        if ("minecraft".equals(id.getNamespace())) {
-            String path = id.getPath();
-            if ("overworld".equals(path) || "the_nether".equals(path) || "the_end".equals(path)) {
-                return path;
-            }
-        }
-        return "dimension_" + id.getNamespace() + "~" + id.getPath().replace('/', '+');
+        return GrugLevelKey.ofKey(id.getNamespace(), id.getPath());
     }
 
     @Override
