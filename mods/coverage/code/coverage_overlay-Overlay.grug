@@ -27,6 +27,9 @@ shell_z: number = 0
 inventory_calls_on: bool = false
 inventory_writes: number = 0
 inventory_call: number = 0
+# Whether the joined client has already said that it has no block entity at the origin, so that line
+# is printed once per run rather than once per frame.
+missing_reported: bool = false
 origin_x: number = 0
 origin_y: number = 0
 origin_z: number = 0
@@ -185,14 +188,25 @@ export render_world(ctx: OverlayWorldContext) {
     origin_y = ctx.camera_y() + 3
     origin_z = ctx.camera_z()
     if inventory_call == 1 {
-        inventory_call = 0
+        # The block entity can reach the joined client a frame or more after the block does, on a
+        # loader that sends block entities in their own packet, so the write stays armed until the
+        # client's level has it: clearing the flag first would make the click a silent no-op and the
+        # test would see a chest the server never changed (#1759).
         chest_opt: Option[BlockEntity] = ctx.get_level().get_block_entity(origin_x, origin_y, origin_z)
         if chest_opt.has() {
+            inventory_call = 0
             chest_opt.unwrap().set_item_in_slot(0, item_at(0), 3)
+            print("coverage: asked the server to write slot 0 of the block entity at the origin")
+        } else if not missing_reported {
+            # Said once, so a run whose joined client never has the block entity says so before the
+            # test's own failure rather than leaving the click looking like it did nothing.
+            missing_reported = true
+            print("coverage: the joined client has no block entity at the test origin yet")
         }
     } else if inventory_call == 2 {
         inventory_call = 0
         drop_inventory(ctx.get_level(), origin_x, origin_y, origin_z)
+        print("coverage: asked the server to drop the block entity at the origin")
     }
     # A line at the block entity while the forwarded writes are armed. Only the W press arms them,
     # so a world frame that draws this is the proof that the press reached this client, which is
