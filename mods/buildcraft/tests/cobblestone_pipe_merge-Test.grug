@@ -29,6 +29,9 @@
 # #1787 measured the payload that burst carries: a pipe's saved-data packet is 439 bytes with one
 # travelling record and 2884 with eight, not the ten kilobytes the repeat's pause was filed on, so
 # what the batch has to keep small is the number of ticks sent back to back and not a pipe's tick.
+# A pass still queues what its items' travels record, and the joined client applies that one packet
+# at a time: thirty passes back to back left the a1 client 30 s behind, so the next test's
+# world_settled ask ran out (run 45569500221) and each pass now waits for the client to catch up.
 source_a: Option[BlockEntity] = Option.new()
 source_b: Option[BlockEntity] = Option.new()
 target: Option[BlockEntity] = Option.new()
@@ -102,6 +105,16 @@ export tick(ctx: TestTickContext) {
     _sample(ctx)
     if _done() {
         if _repeats() and can_advance and round + 1 < rounds {
+            # #1205: a pass queues saved-data packets for every world tick its items travel, and the
+            # client applies them one at a time. Thirty passes back to back left the a1 client
+            # 30 s of that work behind, so the next test's world_settled ask timed out (run
+            # 45569500221); the client holds none of it once a pass is over and its pipes are idle,
+            # so the next pass waits for it to catch up. The wait does not touch the delivery the
+            # pass just made, which is what the repeat is for.
+            if not ctx.world_settled() {
+                ctx.not_done()
+                return
+            }
             _reset()
             ctx.not_done()
             return
