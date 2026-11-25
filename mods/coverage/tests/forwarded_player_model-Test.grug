@@ -12,13 +12,26 @@
 # The crop is the head, the name tag and the body between the arms, not the whole model: vanilla
 # sways a player model's arms with its age, so consecutive frames of the arms never agree, while the
 # head, the tag and the torso did in every frame measured (#1298).
-# Nothing here waits a number of ticks. The test waits until the crop has changed from the empty
-# room and then held still for fifteen captures in a row: the client's light brightens the crop for
-# a few dozen ticks after the model arrives (its mean colour went from #372b20 to #413326), so a
-# shorter run of equal frames is a plateau and not the settled one. The tick bound only ends a wait
-# that cannot succeed.
-# Only 1.20.6-forge's multiplayer leg has a second client, so the other loaders return at once, and
-# the runner runs a forwarded_ test on a dedicated server alone.
+# The wait requires the client's light, not only a still crop. The stone block this test puts under
+# the other player takes the torch's light out of that column, and until the client's light engine
+# applies the change it draws the model with the cell's older, brighter light: the crop's mean
+# colour is the plateau's #433426 until the change arrives and #342b21 after it, which is the
+# golden. The change takes a few dozen frames, and a ramp that moves the crop by less than the
+# capture comparison's channel floor leaves a run of equal frames at either end, so fifteen equal
+# frames can all sit on the plateau. #1770's failing run sat on it for the whole wait; a capture
+# from it matches no golden, and accepting it as the golden would only move the flake to the
+# settled runs.
+# ctx.world_settled() alone cannot see that change: its light comparison is of the sections the
+# room build owed, which the baseline wait already cleared, and a settled answer is remembered
+# until a host call moves the world, which nothing here does after the baseline.
+# ctx.light_applied at the model's own positions compares the client's section light with the
+# world's every tick until they agree, so the accept happens after the change has arrived, and the
+# crop must then hold for fifteen captures in a row.
+# The accept is proved rather than assumed: the accepted crop is compared with one taken sixty
+# captures later, and one still on the plateau fails that assertion instead of being accepted.
+# Sixty captures is the proof's window, not a guess at how long the light takes: every capture
+# forces a frame, so the window is sixty drawn frames, longer than the few dozen the change takes.
+# The tick bounds only end a wait that cannot succeed.
 
 # The crop at the first tick, before the second player is in view.
 empty: Option[Screenshot] = Option.new()
@@ -26,11 +39,22 @@ empty: Option[Screenshot] = Option.new()
 # The last frame the wait took.
 previous: Option[Screenshot] = Option.new()
 
+# The crop the wait accepted, which the proof below compares with a much later one.
+accepted: Option[Screenshot] = Option.new()
+
 # How many captures in a row matched the one before them, with the model in the frame.
 steady: number = 0
 
+# How many captures the proof has taken since the accepted one.
+held: number = 0
+
+# Whether the client's copy of the light at the model is the world's, asked until it is.
+light_settled: bool = false
+
 export init(ctx: TestInitContext) {
-    ctx.set_max_ticks(500)
+    # The wait's own bound is 400 ticks; the proof's sixty captures come after it, and each capture
+    # freezes the world for a few ticks, so the budget has room for both.
+    ctx.set_max_ticks(800)
 }
 
 export tick(ctx: TestTickContext) {
@@ -48,8 +72,37 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
+    if accepted.has() {
+        # The proof: a crop taken sixty captures after the accepted one must be that same frame.
+        # Each capture forces a frame, so this spans sixty drawn frames, and a crop still on a light
+        # plateau moves by far more than the comparison's floor over them.
+        candidate: Screenshot = ctx.screenshot().capture(624, 236, 656, 392)
+        held = held + 1
+        if held < 60 {
+            ctx.not_done()
+            return
+        }
+        change: number = candidate.change_from(accepted.unwrap())
+        message: string = String.concat("The crop the wait accepted should still be the frame sixty captures later, but it changed by ", String.concat(String.from_number(change), " percent, so the wait accepted a plateau of the client's light ramp instead of the settled frame."))
+        ctx.assert(change < 0.05, message)
+        ctx.screenshot().equals(r"screenshots/player_model", 624, 236, 656, 392)
+        return
+    }
+    if not _frame_ready(ctx) {
+        steady = 0
+        ctx.assert(ctx.current_tick() < 400, "The client's light at the other player's model should have become the world's, but it never settled.")
+        ctx.not_done()
+        return
+    }
     now: Screenshot = ctx.screenshot().capture(624, 236, 656, 392)
-    if now.change_from(empty.unwrap()) > 5.0 and previous.has() and now.change_from(previous.unwrap()) < 0.05 {
+    if now.change_from(empty.unwrap()) <= 5.0 {
+        # The other player is not drawn yet, so a crop that matches the room is not a settled one.
+        steady = 0
+        ctx.assert(ctx.current_tick() < 400, "The other player's model should have been drawn in the starter's view and then held still, but the frame never settled.")
+        ctx.not_done()
+        return
+    }
+    if previous.has() and now.change_from(previous.unwrap()) < 0.05 {
         steady = steady + 1
     } else {
         steady = 0
@@ -60,7 +113,33 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    ctx.screenshot().equals(r"screenshots/player_model", 624, 236, 656, 392)
+    accepted.set(now)
+    ctx.not_done()
+}
+
+# Whether a capture taken now would read the settled frame: the client has drawn the room, and its
+# copy of the block light at the model is the world's. The light is asked at the other player's own
+# position, which is the section its model is drawn from, and the answer is kept once true because
+# the only change this test makes is the baseline block, before the model arrives.
+local _frame_ready(ctx: TestTickContext) bool {
+    if not ctx.world_settled() {
+        return false
+    }
+    if not light_settled {
+        light_settled = _light_settled(ctx)
+    }
+    return light_settled
+}
+
+# Whether the client's copy holds the world's light in the sections the model is drawn from. A
+# player is 1.8 blocks tall, so its legs and its head can fall either side of a section boundary;
+# both are asked, and a section is compared whole, so the body between them is covered too.
+local _light_settled(ctx: TestTickContext) bool {
+    origin: Vec3 = ctx.get_origin()
+    if not ctx.light_applied(origin.x(), origin.y() - 4.0, origin.z() + 3.0) {
+        return false
+    }
+    return ctx.light_applied(origin.x(), origin.y() - 2.5, origin.z() + 3.0)
 }
 
 # Asks the joined client whether it has drawn the room, as forwarded_capture_pinned_eye does.
