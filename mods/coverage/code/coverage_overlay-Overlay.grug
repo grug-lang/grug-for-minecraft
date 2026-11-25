@@ -16,6 +16,18 @@ far_shell_on: bool = false
 shell_x: number = 0
 shell_y: number = 0
 shell_z: number = 0
+# Whether the world box's right clicks ask the server to change the block entity the test placed at
+# its origin (#1759), and which change the next world frame asks for: 0 none, 1 writes item_at(0)
+# into slot 0, 2 drops the inventory. World key K turns it on, and it turns itself off after the
+# drop, so no other test's right click on the box changes anything. The origin is the camera plus
+# three, the position TestTickContext.get_origin answers, captured in the world pass because the
+# click has no level or camera of its own.
+inventory_calls_on: bool = false
+inventory_writes: number = 0
+inventory_call: number = 0
+origin_x: number = 0
+origin_y: number = 0
+origin_z: number = 0
 
 # The serial of the last screen the overlay drew on, and whether the key Ctrl+Z has not yet been answered
 # on it, which lets a test tell a new screen from the same one (OverlayRenderContext.screen_serial,
@@ -77,6 +89,21 @@ export click(ctx: OverlayClickContext) {
         return
     }
     if inside_screen and inside_gui and over_hotbar {
+        ctx.take()
+        return
+    }
+    # The right click over the box while the inventory is open is the forwarded write this overlay
+    # exists to prove (#1759): the change is made to the block entity the test placed at its origin,
+    # by the world pass, which is the pass that has the level and the camera.
+    if inside_screen and inside_gui and over_box and inventory_calls_on and ctx.button() == 1 {
+        if inventory_writes == 0 {
+            inventory_call = 1
+            inventory_writes = 1
+        } else {
+            inventory_call = 2
+            inventory_writes = 2
+            inventory_calls_on = false
+        }
         ctx.take()
         return
     }
@@ -162,6 +189,22 @@ export render_hud(ctx: OverlayHudContext) {
 # centred on the camera, in red, like the crosses SafeSquares draws on a safe square. Drawn only
 # while the cross is on.
 export render_world(ctx: OverlayWorldContext) {
+    # The test's origin is where its camera sits plus three, the same position
+    # TestTickContext.get_origin answers on the server (#188), so a block the test placed there is
+    # the block a click changes (#1759).
+    origin_x = ctx.camera_x()
+    origin_y = ctx.camera_y() + 3
+    origin_z = ctx.camera_z()
+    if inventory_call == 1 {
+        inventory_call = 0
+        chest_opt: Option[BlockEntity] = ctx.get_level().get_block_entity(origin_x, origin_y, origin_z)
+        if chest_opt.has() {
+            chest_opt.unwrap().set_item_in_slot(0, item_at(0), 3)
+        }
+    } else if inventory_call == 2 {
+        inventory_call = 0
+        drop_inventory(ctx.get_level(), origin_x, origin_y, origin_z)
+    }
     if shell_pending {
         shell_pending = false
         shell_x = ctx.camera_x()
@@ -217,6 +260,11 @@ export world_key(ctx: OverlayWorldKeyContext) {
     if ctx.key() == 89 {
         triangle_on = not triangle_on
         triangle_pending = triangle_on
+        return
+    }
+    if ctx.key() == 75 {
+        inventory_calls_on = true
+        inventory_writes = 0
         return
     }
     if ctx.key() == 74 {

@@ -488,6 +488,36 @@ public final class GrugControlClient {
         client.link.send(GrugControlWire.deleteCarriedRequest());
     }
 
+    /**
+     * Asks the server that drives this client's run to drop the contents of the block entity at the
+     * position (#1759), which is the drop an overlay's click performed on the client's mirror. Only
+     * legal while {@link #runActiveHere}, which its caller checks.
+     */
+    public static void dropInventoryOnServer(double x, double y, double z) {
+        GrugControlClient client = current;
+        if (!runActiveHere()) {
+            throw new IllegalStateException(
+                    "a drop named a block entity to the server with no run started on this client");
+        }
+        client.link.send(GrugControlWire.dropInventoryRequest(x, y, z));
+    }
+
+    /**
+     * Asks the server that drives this client's run to write the named item into a slot of the
+     * block entity at the position (#1759), which is the write an overlay's click performed on the
+     * client's mirror. Only legal while {@link #runActiveHere}, which its caller checks.
+     */
+    public static void setItemInSlotOnServer(
+            double x, double y, double z, double slot, String item, double count) {
+        GrugControlClient client = current;
+        if (!runActiveHere()) {
+            throw new IllegalStateException(
+                    "a slot write named a block entity to the server with no run started on this"
+                            + " client");
+        }
+        client.link.send(GrugControlWire.setItemInSlotRequest(x, y, z, slot, count, item));
+    }
+
     /** The player started a run: the flag first, then the message that tells the server. */
     public void beginRun() {
         runActive = true;

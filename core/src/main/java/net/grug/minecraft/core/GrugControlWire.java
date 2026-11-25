@@ -15,7 +15,7 @@ import java.util.List;
  * packet its game has; nothing here knows about a packet, so every loader can reuse the format and
  * a unit test can run both ends in one process.
  *
- * <p>Twelve messages exist. {@link #RUN_START} goes from the client to the server and says this
+ * <p>Fourteen messages exist. {@link #RUN_START} goes from the client to the server and says this
  * player started a run, which is the consent the client later relies on. {@link #CAPTURE_REQUEST}
  * goes the other way and names a screenshot rectangle. The client answers with either {@link
  * #ANSWER_ERROR} or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound
@@ -31,7 +31,9 @@ import java.util.List;
  * differ give different items under the same index. {@link #CLICK_WRITTEN} goes from the client to
  * the server after a press has written the game's own click packet, and is the ordering barrier
  * that says the server's connection holds that packet, so the runner may not tick again until it is
- * handled (#1393).
+ * handled (#1393). {@link #DROP_INVENTORY_REQUEST} and {@link #SET_ITEM_IN_SLOT_REQUEST} go from
+ * the client to the server and carry the two inventory host functions whose effect belongs to the
+ * server, so a joined client names the block entity and leaves its own copy alone (#1759).
  */
 public final class GrugControlWire {
     public static final byte RUN_START = 1;
@@ -96,6 +98,25 @@ public final class GrugControlWire {
      * which empties the server's whole task queue rather than one bounded pass.
      */
     public static final byte CLICK_WRITTEN = 12;
+
+    /**
+     * Client to server: drop the contents of the block entity at the three numbers (#1759). The
+     * client sends it while its run is active, from the {@code drop_inventory} an overlay's click
+     * performs. The drop belongs to the server, because it spawns item entities in the world the
+     * test reads: a drop written into the client's mirror of the block entity would be overwritten
+     * by the next block entity packet, and the items would fall into a world only that client
+     * simulates. The three numbers are the block's position. It has no answer.
+     */
+    public static final byte DROP_INVENTORY_REQUEST = 13;
+
+    /**
+     * Client to server: write the item named in the message into a slot of the block entity at the
+     * position (#1759), which is {@code BlockEntity.set_item_in_slot} on a joined client. The
+     * numbers are the block's x, y and z, then the slot and the count. The item is named for the
+     * reason a give names its item: the two processes can list different items, and an index would
+     * write the wrong one with no error. It has no answer.
+     */
+    public static final byte SET_ITEM_IN_SLOT_REQUEST = 14;
 
     /** The call: does the game have the sound under the name. The answer is 1 or 0. */
     public static final byte CALL_HAS_SOUND = 1;
@@ -330,6 +351,20 @@ public final class GrugControlWire {
      */
     public static final int MAX_GIVE_COUNT = 4096;
 
+    /**
+     * The most items a {@link #SET_ITEM_IN_SLOT_REQUEST} may write into a slot. A slot holds one
+     * stack, which every version caps well below this; a count above it is a message that is not
+     * the host function. Zero is legal and clears the slot.
+     */
+    public static final int MAX_ITEM_COUNT = MAX_GIVE_COUNT;
+
+    /**
+     * The largest slot a {@link #SET_ITEM_IN_SLOT_REQUEST} may write to. No block entity's
+     * inventory has this many slots, so an index above it is not a slot, and sending it would only
+     * make the server report an out-of-range write.
+     */
+    public static final int MAX_SLOT = 4096;
+
     /** Well under the 32767 bytes a serverbound payload may hold, leaving room for the header. */
     public static final int MAX_CHUNK = 20_000;
 
@@ -404,7 +439,9 @@ public final class GrugControlWire {
          * in that order. {@link #CALL_BLOCK_SELECTION} puts the block's position there and the
          * block-local point in {@link #fourth}, {@link #fifth} and {@link #sixth}. A {@link
          * #CAPTURE_REQUEST} puts the eye it must be taken from there, x, y and z in that order
-         * (#1161). The name is in {@link #text}.
+         * (#1161). A {@link #DROP_INVENTORY_REQUEST} puts the block's position there, and a {@link
+         * #SET_ITEM_IN_SLOT_REQUEST} puts the position there too, its slot in {@link #fourth} and
+         * its count in {@link #fifth}. The name is in {@link #text}.
          */
         public final double volume;
 
@@ -489,6 +526,17 @@ public final class GrugControlWire {
         }
     }
 
+    /**
+     * Reads a block position that changes an inventory: every coordinate is a number a position can
+     * be. A client that sends a NaN or an infinite one is a client that is not this wire's, and the
+     * server must not hand it to the game.
+     */
+    private static void requireFiniteBlock(double x, double y, double z, String what) {
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+            throw new IllegalArgumentException(what + " is not a finite position");
+        }
+    }
+
     /** Whether {@code type} is one of the answers a client sends, which a frozen server reads. */
     public static boolean isAnswer(byte type) {
         return type == ANSWER_ERROR
@@ -501,11 +549,12 @@ public final class GrugControlWire {
     /**
      * Whether a message from the client changes no world state when the server takes it on the
      * connection's reader thread: an answer completes a call the server thread is waiting on, and a
-     * give only joins the queue the server thread drains (#1280). A start is not one of them,
-     * because the server learns the player of a connection on its game thread and refuses a start
-     * from a connection whose player it has not learnt yet. Nor is {@link #CLICK_WRITTEN}: it is
-     * the barrier that proves the game's click packet in front of it was handled, so only the game
-     * thread, reading its own FIFO packet queue, can read it after that packet (#1393).
+     * give, a cursor clear, a drop or a slot write only joins the queue the server thread drains
+     * (#1280, #1759). A start is not one of them, because the server learns the player of a
+     * connection on its game thread and refuses a start from a connection whose player it has not
+     * learnt yet. Nor is {@link #CLICK_WRITTEN}: it is the barrier that proves the game's click
+     * packet in front of it was handled, so only the game thread, reading its own FIFO packet
+     * queue, can read it after that packet (#1393).
      *
      * <p>A give read on the game thread waits for the connection's own drain, which a frozen server
      * only reaches between two calls: on b1.7.3 that drain reads at most 101 packets, so a give
@@ -519,7 +568,11 @@ public final class GrugControlWire {
      * (#1288, #1418).
      */
     public static boolean handledOnRead(byte type) {
-        return isAnswer(type) || type == GIVE_REQUEST || type == DELETE_CARRIED_REQUEST;
+        return isAnswer(type)
+                || type == GIVE_REQUEST
+                || type == DELETE_CARRIED_REQUEST
+                || type == DROP_INVENTORY_REQUEST
+                || type == SET_ITEM_IN_SLOT_REQUEST;
     }
 
     /** Whether {@code call} is one of the calls this wire carries. */
@@ -602,6 +655,39 @@ public final class GrugControlWire {
     /** The ask to clear the cursor of the server's copy of the test player's menu (#1389). */
     public static byte[] deleteCarriedRequest() {
         return new byte[] {DELETE_CARRIED_REQUEST};
+    }
+
+    /**
+     * The ask to drop the contents of the block entity at the position (#1759). The position is the
+     * one the host function was given, which the server floors to a block the way its adapter does.
+     */
+    public static byte[] dropInventoryRequest(double x, double y, double z) {
+        return ByteBuffer.allocate(1 + 24)
+                .put(DROP_INVENTORY_REQUEST)
+                .putDouble(x)
+                .putDouble(y)
+                .putDouble(z)
+                .array();
+    }
+
+    /**
+     * The ask to write {@code count} of the item named {@code item} into {@code slot} of the block
+     * entity at the position (#1759). The item is named, never indexed, for the reason a give names
+     * it.
+     */
+    public static byte[] setItemInSlotRequest(
+            double x, double y, double z, double slot, double count, String item) {
+        byte[] bytes = item.getBytes(StandardCharsets.UTF_8);
+        return ByteBuffer.allocate(1 + 4 + bytes.length + 40)
+                .put(SET_ITEM_IN_SLOT_REQUEST)
+                .putInt(bytes.length)
+                .put(bytes)
+                .putDouble(x)
+                .putDouble(y)
+                .putDouble(z)
+                .putDouble(slot)
+                .putDouble(count)
+                .array();
     }
 
     /** The barrier that follows a press's click packet on the client's connection (#1393). */
@@ -757,6 +843,65 @@ public final class GrugControlWire {
                                     0,
                                     null,
                                     new String(given, StandardCharsets.UTF_8));
+                    break;
+                case DROP_INVENTORY_REQUEST:
+                    double dropX = in.getDouble();
+                    double dropY = in.getDouble();
+                    double dropZ = in.getDouble();
+                    requireFiniteBlock(dropX, dropY, dropZ, "a dropped block");
+                    message =
+                            new Message(
+                                    type, 0, none, 0, 0, null, null, (byte) 0, dropX, dropY, dropZ,
+                                    0, 0, 0, (byte) 0, 0, null);
+                    break;
+                case SET_ITEM_IN_SLOT_REQUEST:
+                    byte[] slotItem = new byte[checkedLength(in, MAX_NAME, "slot item name")];
+                    if (slotItem.length == 0) {
+                        throw new IllegalArgumentException("a slot write names no item");
+                    }
+                    in.get(slotItem);
+                    double blockX = in.getDouble();
+                    double blockY = in.getDouble();
+                    double blockZ = in.getDouble();
+                    requireFiniteBlock(blockX, blockY, blockZ, "a written block");
+                    double slot = in.getDouble();
+                    if (!Double.isFinite(slot)
+                            || slot != Math.floor(slot)
+                            || slot < 0
+                            || slot > MAX_SLOT) {
+                        throw new IllegalArgumentException(
+                                "a slot write to slot " + slot + " is outside 0 to " + MAX_SLOT);
+                    }
+                    double itemCount = in.getDouble();
+                    if (!Double.isFinite(itemCount)
+                            || itemCount != Math.floor(itemCount)
+                            || itemCount < 0
+                            || itemCount > MAX_ITEM_COUNT) {
+                        throw new IllegalArgumentException(
+                                "a slot write of "
+                                        + itemCount
+                                        + " items is outside 0 to "
+                                        + MAX_ITEM_COUNT);
+                    }
+                    message =
+                            new Message(
+                                    type,
+                                    0,
+                                    none,
+                                    0,
+                                    0,
+                                    null,
+                                    new String(slotItem, StandardCharsets.UTF_8),
+                                    (byte) 0,
+                                    blockX,
+                                    blockY,
+                                    blockZ,
+                                    slot,
+                                    itemCount,
+                                    0,
+                                    (byte) 0,
+                                    0,
+                                    null);
                     break;
                 case CAPTURE_REQUEST:
                     long id = in.getLong();

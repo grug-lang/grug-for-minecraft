@@ -1,0 +1,142 @@
+# The joined client's half of the two block entity writes (#1759): the overlay's click on a client
+# that started a run names the block entity to the server instead of writing its own mirror, which
+# the next block entity packet would overwrite. The test runs on the server, which holds the chest:
+# it places the chest at the test's origin, drives the overlay's right click from the joined client
+# twice, and reads the server's chest after each press. The first press asks the server to write a
+# stack of the item the overlay drew into slot 0, and the second asks it to drop the inventory.
+# Without the forwarding both presses write the client's copy only, so the server's chest keeps the
+# five items it was given and neither assertion can pass.
+
+# The test's own world pass captures the origin as the camera plus three, the position
+# TestTickContext.get_origin answers here, so the block the test places is the one the client's
+# click names.
+
+# Only the 1.20.6, 1.2.5, a1.1.2_01-ornithe, b1.7.3-ornithe and b1.7.3-stationapi dedicated legs run
+# it: a client-only run writes its own world, which the singleplayer path already covers, and the
+# other loaders have no dedicated leg. The others return on their first tick.
+
+started: bool = false
+step: number = 0
+waited: number = 0
+first_pressed: bool = false
+second_pressed: bool = false
+wrote: bool = false
+wrote_the_item: bool = false
+dropped: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.on_dedicated_server() or (me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge" and me.loader_name() != "a1.1.2_01-ornithe" and me.loader_name() != "b1.7.3-ornithe" and me.loader_name() != "b1.7.3-stationapi") or not me.overlay_supported() or not me.world_overlay_supported() {
+            # See the top of this file for where this test runs.
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        # A world frame has to be drawn before a screen that shows the player opens (#1287), and
+        # the chest has to be in the joined client's copy before its click reads it.
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the chest is placed.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        origin: Vec3 = ctx.get_origin()
+        level: Level = ctx.get_client_level()
+        level.place_block(origin.x(), origin.y(), origin.z(), "minecraft:chest")
+        chest_opt: Option[BlockEntity] = level.get_block_entity(origin.x(), origin.y(), origin.z())
+        ctx.assert(chest_opt.has(), "The chest should be placed at the test's origin.")
+        chest_opt.unwrap().set_item_in_slot(0, item_at(0), 5)
+        # The world key turns the overlay's forwarded write on. The press is a forwarded call, so it
+        # has reached the client before this returns; the wait below is for a frame after it.
+        ctx.press_world_key(75, false)
+        waited = 0
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame after the press should draw the overlay and the chest.")
+        if not ctx.world_overlay_drawn() or not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        waited = 0
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 100, "The player's inventory screen should open.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+            ctx.not_done()
+            return
+        }
+        box_x: number = ctx.gui_left() + Math.floor(ctx.gui_width() / 2)
+        box_y: number = ctx.gui_top() + Math.floor(ctx.gui_height() / 2)
+        first_pressed = ctx.click_screen(box_x, box_y, 1)
+        waited = 0
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        origin: Vec3 = ctx.get_origin()
+        chest_opt: Option[BlockEntity] = ctx.get_client_level().get_block_entity(origin.x(), origin.y(), origin.z())
+        ctx.assert(chest_opt.has(), "The chest should still be at the test's origin.")
+        chest: BlockEntity = chest_opt.unwrap()
+        count: number = chest.get_item_count_in_slot(0)
+        # The press is a forwarded call whose drain runs on this server, so the write is there after
+        # a tick or two; the wait is on the count with a bound that says it never came.
+        if count != 3 and waited < 200 {
+            waited = waited + 1
+            ctx.not_done()
+            return
+        }
+        item_opt: Option[Item] = chest.get_item_in_slot(0)
+        wrote = count == 3
+        wrote_the_item = item_opt.has() and equals(item_opt.unwrap(), item_at(0))
+        box_x: number = ctx.gui_left() + Math.floor(ctx.gui_width() / 2)
+        box_y: number = ctx.gui_top() + Math.floor(ctx.gui_height() / 2)
+        second_pressed = ctx.click_screen(box_x, box_y, 1)
+        waited = 0
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    origin: Vec3 = ctx.get_origin()
+    chest_opt: Option[BlockEntity] = ctx.get_client_level().get_block_entity(origin.x(), origin.y(), origin.z())
+    ctx.assert(chest_opt.has(), "The chest should still be at the test's origin.")
+    chest: BlockEntity = chest_opt.unwrap()
+    count: number = chest.get_item_count_in_slot(0)
+    if count != 0 and waited < 200 {
+        waited = waited + 1
+        ctx.not_done()
+        return
+    }
+    dropped = count == 0
+    ctx.close_screen()
+
+    ctx.assert(first_pressed, "The overlay should take the first right click on its box.")
+    ctx.assert(second_pressed, "The overlay should take the second right click on its box.")
+    ctx.assert(wrote, "The joined client's write should reach the server's chest.")
+    ctx.assert(wrote_the_item, "The server should write the item the client named.")
+    ctx.assert(dropped, "The joined client's drop should empty the server's chest.")
+}

@@ -107,6 +107,30 @@ public final class GrugControlServer {
         }
 
         /**
+         * Drops the contents of this server's own copy of the block entity at the position, which
+         * is the drop the starter's client sent (#1759). Answers the one-line error to show the
+         * sender, or null when the drop happened, the way {@link #applyGive} and the give's own
+         * refusal are separate arms. The default hands it to the game's adapter, which every
+         * loader's link shares, and a unit test covers it while another overrides it to see what
+         * was queued.
+         */
+        default String applyDropInventory(Object player, double x, double y, double z) {
+            return GrugInventoryCalls.dropInventoryOnServer(GrugCore.getAdapter(), player, x, y, z);
+        }
+
+        /**
+         * Writes the item named by the starter's client into a slot of this server's own copy of
+         * the block entity at the position, which is the write {@code BlockEntity.set_item_in_slot}
+         * performed on the client (#1759). Answers the same refusal {@link #applyDropInventory}
+         * does.
+         */
+        default String applySetItemInSlot(
+                Object player, double x, double y, double z, double slot, String item, int count) {
+            return GrugInventoryCalls.setItemInSlotOnServer(
+                    GrugCore.getAdapter(), player, x, y, z, slot, item, count);
+        }
+
+        /**
          * Whether this loader gives to the player who asked, whoever they are, after an operator
          * check (#882), instead of only to the run's starter with the older {@link #applyGive}. A
          * loader that answers true implements {@link #playerOfSender}, {@link #tell} and {@link
@@ -253,11 +277,12 @@ public final class GrugControlServer {
     private final AtomicInteger clickPacketsOwed = new AtomicInteger();
 
     /**
-     * The gives the starter's client sent and this server has not applied yet (#1099), in the order
-     * they arrived. Written on the network thread, drained by {@link #applyClientWork} on the
-     * server thread, because a give changes the world and only that thread may.
+     * The changes the starter's client sent and this server has not applied yet, in the order they
+     * arrived: a give (#1099), a clear of the cursor (#1389), a drop, or a slot write (#1759).
+     * Written on the network thread, drained by {@link #applyClientWork} on the server thread,
+     * because each changes the world and only that thread may.
      */
-    private final Queue<Give> gives;
+    private final Queue<ClientWork> gives;
 
     /**
      * The players whose start a loader with operator checks has still to judge (#37). A start is
@@ -271,23 +296,72 @@ public final class GrugControlServer {
     static final String START_REFUSAL = "You must be an operator to run tests.";
 
     /**
-     * One give a joined client asked for: the item's name and how many of it. A null item is not a
-     * give but the clear of the server's cursor an overlay's delete asked for (#1389), which shares
-     * the queue so it keeps its order among the gives.
+     * One change a joined client asked for, in the queue the server thread drains: a give's item
+     * name and count, a clear of the server's cursor, a drop at a block, or a slot write. The
+     * fields a kind does not use are zero or null.
      */
-    private static final class Give {
+    private static final class ClientWork {
+        /** One of the wire's {@code GIVE_REQUEST}, {@code DELETE_CARRIED_REQUEST}, ... types. */
+        final byte type;
+
         /**
-         * Who asked, or null for the older starter-only path, whose give goes to the test player.
+         * Who asked, or null for the older starter-only give path, whose give goes to the test
+         * player.
          */
         final Object sender;
 
+        /** The item a give names or a slot write writes. */
         final String item;
+
+        /** How many a give gives or a slot write writes; 0 for a slot write clears the slot. */
         final int count;
 
-        Give(Object sender, String item, int count) {
+        /** The block entity a drop or a slot write changes. */
+        final double x;
+
+        final double y;
+        final double z;
+
+        /** The slot a slot write writes. */
+        final double slot;
+
+        ClientWork(
+                byte type,
+                Object sender,
+                String item,
+                int count,
+                double x,
+                double y,
+                double z,
+                double slot) {
+            this.type = type;
             this.sender = sender;
             this.item = item;
             this.count = count;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.slot = slot;
+        }
+
+        static ClientWork give(Object sender, String item, int count) {
+            return new ClientWork(GrugControlWire.GIVE_REQUEST, sender, item, count, 0, 0, 0, 0);
+        }
+
+        static ClientWork deleteCarried() {
+            return new ClientWork(
+                    GrugControlWire.DELETE_CARRIED_REQUEST, null, null, 0, 0, 0, 0, 0);
+        }
+
+        static ClientWork dropInventory(Object sender, double x, double y, double z) {
+            return new ClientWork(
+                    GrugControlWire.DROP_INVENTORY_REQUEST, sender, null, 0, x, y, z, 0);
+        }
+
+        static ClientWork setItemInSlot(
+                Object sender, double x, double y, double z, double slot, String item, int count) {
+            return new ClientWork(
+                    GrugControlWire.SET_ITEM_IN_SLOT_REQUEST, sender, item, count, x, y, z, slot);
         }
     }
 
@@ -320,7 +394,7 @@ public final class GrugControlServer {
     }
 
     public GrugControlServer(Link link, long timeoutMillis) {
-        this(link, timeoutMillis, new ConcurrentLinkedQueue<Give>());
+        this(link, timeoutMillis, new ConcurrentLinkedQueue<ClientWork>());
     }
 
     /**
@@ -335,7 +409,7 @@ public final class GrugControlServer {
     GrugControlServer(Link link, long timeoutMillis, Queue<?> gives) {
         this.link = link;
         this.timeoutMillis = timeoutMillis;
-        this.gives = (Queue<Give>) gives;
+        this.gives = (Queue<ClientWork>) gives;
     }
 
     /**
@@ -395,37 +469,47 @@ public final class GrugControlServer {
     }
 
     /**
-     * Applies the queued gives, on the server thread: the older starter-only ones to the test
-     * player, and a player's own to that player after the operator check (#882).
+     * Applies the queued changes, on the server thread: the older starter-only give to the test
+     * player, and a player's own give, drop or slot write to that player after the check that
+     * decides whether they may (#882, #1759).
      */
     private void drainGives() {
         judgeStarts();
-        Give give;
-        while ((give = gives.poll()) != null) {
-            // Grants are read again after each give is taken, not only before the loop: the network
-            // thread adds a start's grant before any give that follows it on the same connection,
-            // so a give this poll returned was added after its sender's grant, and this read, which
-            // is after the poll, sees that grant. A single read before the loop could miss a grant
-            // added between it and the poll.
+        ClientWork work;
+        while ((work = gives.poll()) != null) {
+            // Grants are read again after each change is taken, not only before the loop: the
+            // network thread adds a start's grant before any give that follows it on the same
+            // connection, so a change this poll returned was added after its sender's grant, and
+            // this read, which is after the poll, sees that grant. A single read before the loop
+            // could miss a grant added between it and the poll.
             judgeStarts();
-            if (give.sender == null) {
-                if (give.item == null) {
+            if (work.sender == null) {
+                if (work.type == GrugControlWire.DELETE_CARRIED_REQUEST) {
                     link.applyDeleteCarried();
-                    continue;
+                } else {
+                    link.applyGive(work.item, work.count);
                 }
-                link.applyGive(give.item, give.count);
                 continue;
             }
-            Object player = link.playerOfSender(give.sender);
+            Object player = link.playerOfSender(work.sender);
             if (player == null) {
-                // The player left before the give was applied: nobody is left to tell.
+                // The player left before the change was applied: nobody is left to tell.
                 continue;
             }
-            String refusal =
-                    GrugGiveCalls.giveToPlayer(
-                            GrugCore.getAdapter(), player, give.item, give.count);
+            String refusal;
+            if (work.type == GrugControlWire.DROP_INVENTORY_REQUEST) {
+                refusal = link.applyDropInventory(player, work.x, work.y, work.z);
+            } else if (work.type == GrugControlWire.SET_ITEM_IN_SLOT_REQUEST) {
+                refusal =
+                        link.applySetItemInSlot(
+                                player, work.x, work.y, work.z, work.slot, work.item, work.count);
+            } else {
+                refusal =
+                        GrugGiveCalls.giveToPlayer(
+                                GrugCore.getAdapter(), player, work.item, work.count);
+            }
             if (refusal != null) {
-                link.tell(give.sender, refusal);
+                link.tell(work.sender, refusal);
             }
         }
     }
@@ -600,7 +684,7 @@ public final class GrugControlServer {
             // operator list is read where it is written. The order of the add and the mark is the
             // one explained below, and the scheduled drain covers a server with no run, whose
             // runner never calls applyClientWork.
-            gives.add(new Give(sender, message.text, message.x1));
+            gives.add(ClientWork.give(sender, message.text, message.x1));
             clientWorkPending = true;
             link.runOnServerThread(this::drainGives);
             return;
@@ -632,7 +716,7 @@ public final class GrugControlServer {
             // that has already polled, which would leave the give unapplied until an unrelated call
             // marked the flag again. The two-thread test that holds the network thread inside the
             // queue's add pins this.
-            gives.add(new Give(null, message.text, message.x1));
+            gives.add(ClientWork.give(null, message.text, message.x1));
             clientWorkPending = true;
             return;
         }
@@ -641,7 +725,34 @@ public final class GrugControlServer {
             // cleared its mirror of the cursor and this server clears its own, which is the one a
             // test reads. It joins the same queue as a give, in the same order of add and mark, so
             // it is applied by the next applyClientWork in the order the client sent it.
-            gives.add(new Give(null, null, 0));
+            gives.add(ClientWork.deleteCarried());
+            clientWorkPending = true;
+            return;
+        }
+        if (message.type == GrugControlWire.DROP_INVENTORY_REQUEST) {
+            // The client's half of a drop its overlay's click performed (#1759): the block entity
+            // the test reads is this server's, and a drop into the client's mirror is overwritten
+            // by the next block entity packet, so the client names the position and this server
+            // drops its own. It joins the same queue, in the same order of add and mark, so a drop
+            // and the slot write before it apply in the order the client sent them.
+            gives.add(
+                    ClientWork.dropInventory(sender, message.volume, message.pitch, message.third));
+            clientWorkPending = true;
+            return;
+        }
+        if (message.type == GrugControlWire.SET_ITEM_IN_SLOT_REQUEST) {
+            // The client's half of a slot write its overlay's click performed (#1759), queued for
+            // the same reason and in the same shape as the drop above. The item arrives by name,
+            // because the two processes can list the same items in different orders.
+            gives.add(
+                    ClientWork.setItemInSlot(
+                            sender,
+                            message.volume,
+                            message.pitch,
+                            message.third,
+                            message.fourth,
+                            message.text,
+                            (int) message.fifth));
             clientWorkPending = true;
             return;
         }
