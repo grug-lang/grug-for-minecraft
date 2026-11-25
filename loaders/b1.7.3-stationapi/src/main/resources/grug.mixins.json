@@ -29,7 +29,8 @@
     "SpriteContentsMixin",
     "SpriteMixin",
     "TextureStitcherHolderMixin",
-    "GrugFillInvoker"
+    "GrugFillInvoker",
+    "ChunkDataRelightMixin"
   ],
   "injectors": {
     "defaultRequire": 1
