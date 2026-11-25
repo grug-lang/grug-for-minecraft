@@ -1084,7 +1084,9 @@ jobs:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event_name == 'push') && needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.dedicated != 'false'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # The run cap below keeps 10 minutes of slack under this wall, so the two move together: a leg
+    # that reaches the cap still has time to print its thread dump and upload its exec data.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -1150,10 +1152,15 @@ jobs:
           # 1.20.6 finished in 334, 308 and 324 s (#1277). The a1 leg then grew to 343 tests and
           # 805 s on a fast runner, and run 45315917198 attempt 1 was cut at 900 s while still
           # passing tests two tests before its last, with the world answering every call in 50 to
-          # 120 ms (#1672: it was never a hang, the server logged the answers). 1200 s leaves 40%
-          # over the fast runner's time and still catches a hang, which the server's own 30 s
-          # bound on each call names long before.
-          GRUG_CI_RUN_TIMEOUT: '1200'
+          # 120 ms (#1672: it was never a hang, the server logged the answers). A full dispatch of
+          # main has since taken 17 minutes 22 seconds on a quiet runner (run 45611384023, job
+          # 139213002668), and the push that merged the stone and golden pipes was cut at 1200 s
+          # with 431 tests passed, nothing failed, and mobcap's overlay_labels still drawing (run
+          # 45655827539, job 139386723565). That leg runs every mod, and a shared runner stretches
+          # the three tests that wait on travel and settling by about a third, so 1500 s leaves 44%
+          # over the quiet runner's time. It still catches a hang, which the server's own 30 s bound
+          # on each call names long before.
+          GRUG_CI_RUN_TIMEOUT: '1500'
           # An update-goldens dispatch accepts each unmatched capture into its own side's reference
           # directory, which is the only way the server goldens are generated (#1092). core reads
           # this, and run-multiplayer.sh prints which mode the leg is in.
