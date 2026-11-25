@@ -15,11 +15,19 @@
 # slot: none is a state this pipe leaves at a tick boundary, so each is a defect the assertion has
 # to keep reporting, and a drop the a1 player picks up therefore still fails.
 # #1205: a single pass gives that red one chance per run, so the a1 dedicated leg repeats the first
-# delivery a hundred times. A pass costs about 400 world ticks, which the test's own 1.25 s on that
-# leg in run 45474288352 shows is about 2 to 3 minutes for the hundred, inside the 30 minute limit
-# of the job that took 14m50s there. Only that leg repeats: the defect has shown itself only there,
-# every other loader would pay the same minutes, and a leg that cannot advance its level inside the
-# test (the clients and the stationapi server) would have to wait for every round at real time.
+# delivery a hundred times. A pass costs about 400 world ticks, so the hundred are about 1600 runner
+# ticks, one to two minutes on that leg, inside the 30 minute limit of the job that took 14m50s
+# there. Only that leg repeats: the defect has shown itself only there, every other loader would pay
+# the same minutes, and a leg that cannot advance its level inside the test (the clients and the
+# stationapi server) would have to wait for every round at real time.
+# #1735: the hundred passes run in batches of 25 world ticks, one batch per runner tick, because the
+# a1 server checks a connection's send queue only once per server tick and closes a client whose
+# queue passed 1 MiB (Connection.tick, "Send buffer overflow"). A pipe writes nine saved numbers for
+# each travelling record every tick, and every write marks the block entity dirty, which sends the
+# whole block entity as a byte array in a TileEntityData packet straight into that queue. A burst of
+# 200 world ticks queues about 2 MB, which is what dropped the test player in run 45547610028; 25
+# ticks queue about 300 KB and hand the world back, so the server's writer thread drains between
+# batches.
 source_a: Option[BlockEntity] = Option.new()
 source_b: Option[BlockEntity] = Option.new()
 target: Option[BlockEntity] = Option.new()
@@ -41,7 +49,7 @@ round: number = 0
 round_started: number = 0
 
 # How many times the a1 dedicated leg repeats the first delivery. A pass is about 400 world ticks,
-# so the hundred are about 2 to 3 minutes, as the comment at the top measured.
+# so the hundred are about 1600 runner ticks at the batch below, one to two minutes.
 rounds: number = 100
 
 # Whether any tick_level call has run a world tick. A loader whose adapter leaves tick_level at
@@ -141,15 +149,21 @@ local _check_round_ticks(ctx: TestTickContext) {
 # call rather than dropping anything, and the sample still lands on a world-tick boundary. The a1
 # dedicated leg repeats the fixture and samples every world tick, since the red this repeat hunts
 # can sit inside one five-tick step; every other leg keeps the five-tick step, because it cannot
-# show the red and would pay five times the sampling for no diagnosis.
+# show the red and would pay five times the sampling for no diagnosis. #1735: that leg advances at
+# most 25 world ticks a runner tick instead of 200, because a tick of this fixture queues about 10
+# KB of block entity packets and the server closes a connection whose queue passed 1 MiB after the
+# tick, so a batch that fits one server tick has to stay well inside that; the server's own tick
+# between batches is also what lets the writer thread drain.
 local _advance(ctx: TestTickContext) {
     step: number = 5
+    batch: number = 200
     if _repeats() {
         step = 1
+        batch = 25
     }
     chunk: number = 0
     ran: number = step
-    while not _done() and ran > 0 and chunk < 200 and advanced - round_started < 6000 {
+    while not _done() and ran > 0 and chunk < batch and advanced - round_started < 6000 {
         ran = ctx.tick_level(test_level.unwrap(), step)
         if ran > 0 {
             can_advance = true
