@@ -5,18 +5,24 @@
 # category's cap, 80 hostile, 17 passive and 6 water on Beta for one player alone (the caps are 79, 16
 # and 5), and 71, 11 and 6 on 1.20.6 (70, 10 and 5). Beta lets a category spawn only while its count is
 # at most its cap and 1.20.6 only while it is below it, so at cap + 1 the spawner adds nothing on
-# either, and the number is exactly that. Every tick up to the capture asserts the
-# counts are still those, so a mob that died or despawned fails the test and cannot reach the golden.
-# The spawned mobs stand in a row behind the camera, which looks along +z from the room's middle, so
-# they are never in the capture: mobs jostling in view put a different picture behind the text in
+# either, and the number is exactly that. Every tick from the fill on asserts the counts are still
+# those, so a mob that died, despawned or was added fails the test instead of reaching the golden.
+# The spawned mobs stand behind the camera, which looks along +z from the room's middle, so they
+# are never in the capture: mobs jostling in view put a different picture behind the text in
 # every run. They are removed when the next room is built. Alpha 1.1.2_01 has flat caps of 200 and 15,
 # so its counts are 201 and 16, and no water mobs, so its overlay has two lines and the test fills
-# two categories. Its hostile mob is a slime: every other Alpha monster attacks a player within 16 blocks
-# and the zombie pigman does not exist yet, whereas a slime does nothing to a player that stays far
-# from it. The room is as wide as the game allows, with the row 17 blocks behind the player, so the
-# 201 slimes start out of the 16 blocks in which a slime turns to the player and hops at it, and not one
-# touches the player before the capture. The numbers are checked against a known
-# spawn by mods/coverage's mob_cap-Test. On a loader with no world overlay hooks the test returns before it presses anything.
+# two categories. Its hostile mob is a zombie: the zombie pigman does not exist yet, and a slime, which
+# the test used before, is the one Alpha monster that multiplies. Alpha's EntitySlime.die spawns four
+# half-size slimes when a slime above size 1 dies (the a0.2.1 server's fh.j(), lines 88 to 102), so one
+# death takes one mob away and puts four back, which is the 201 that became 204 in #1580. Nothing in
+# the spawner adds those: NaturalSpawner.tick only spawns while getEntityCount(class) < cap, and 201
+# is past 200, and the dedicated leg's spawner is off in any case, because Alpha reads a property
+# named "monsters" and the harness writes only "spawn-monsters". Alpha's Entity.move resolves entity
+# collisions only in y, so mobs spawned on one spot become a tower in the air, and the one that drops
+# from it takes the fall as damage; the zombie is spawned one to a cell of the cleared floor, a block
+# apart, so no two boxes overlap and nothing stacks. The numbers are checked against a known spawn by
+# mods/coverage's mob_cap-Test. On a loader with no world overlay hooks the test returns before it
+# presses anything.
 started: bool = false
 filled: bool = false
 pressed: bool = false
@@ -64,7 +70,7 @@ export tick(ctx: TestTickContext) {
         passive_id: string = "Pig"
         water_id: string = "Squid"
         if me.loader_name() == "a1.1.2_01-ornithe" {
-            hostile_id = "Slime"
+            hostile_id = "Zombie"
         }
         if me.loader_name() == "1.20.6-forge" {
             hostile_id = "minecraft:zombified_piglin"
@@ -101,12 +107,10 @@ export tick(ctx: TestTickContext) {
         captured = true
         ctx.screenshot().equals(r"screenshots/overlay_labels", 0, 0, 330, 120)
     }
-    # The counts have to hold for 60 ticks after the fill, not only up to the capture: the mobs that
-    # would die of a fall die and leave the world 31 ticks after they land. The capture comes first
-    # because the 201 slimes wander to the player, a slime within 16 blocks hops at it, and one that
-    # pushes the player moves the camera by tenths of a block and shifts the dark wall's texture by
-    # pixels. The duration is the thing waited for, and _check_counts asserts on every one of these
-    # ticks.
+    # The counts have to hold for 60 ticks after the fill, not only up to the capture: a mob that
+    # dies in that window could as well have died before the capture, in another run, and moved the
+    # golden's numbers. The duration is the thing waited for, and _check_counts asserts on every one
+    # of these ticks.
     if waited < filled_at + 60 {
         ctx.not_done()
         return
@@ -125,24 +129,42 @@ local _fill(ctx: TestTickContext, id: string, category: string) {
     target: number = level.get_mob_cap(category) + 1
     ctx.remove_entities(level, category)
     # The room's torch floor is 3 blocks below the player's feet and the player's feet are 4.62
-    # below the origin (the 3.0 lift and the 1.62 eye). A mob spawned at the origin falls 7.62
-    # blocks onto the floor and takes 5 damage, which kills every Alpha slime of size 1 and 2
-    # (health 1 and 4) 31 ticks after it lands. On Alpha the row is also 17 blocks from the player,
-    # past the 16 blocks the test area clears, so the room's inside there still holds the world's
-    # terrain, with surfaces at y 64, 65 and 68 over the floor at 61. A slime that lands on a
-    # ledge takes the fall to the ledge and one that walks off it takes the rest. The terrain behind
-    # the row is cleared here, so every slime stands on the floor, and the row spawns on it.
+    # below the origin (the 3.0 lift and the 1.62 eye), so the floor's surface is 7.62 below the
+    # origin and a mob spawned there stands on it. On Alpha the hostile rows are 16 to 20 blocks
+    # from the player, past the 16 the test area clears, so the room's inside there still holds the
+    # world's terrain over the floor. The cells each mob's body fills are cleared here, so a hostile
+    # stands on the floor rather than on a ledge it can walk off.
     floor_y: number = origin.y() - 7.62 + 0.01
-    if me.loader_name() == "a1.1.2_01-ornithe" {
+    alpha: bool = me.loader_name() == "a1.1.2_01-ornithe"
+    if alpha and category == "hostile" {
         _clear_terrain(level, origin)
     }
+    # Beta and 1.20.6 fit their cap in a room 6 blocks wide: one row 5 blocks behind the player, 11
+    # cells wide, so a cell holds several mobs and their boxes overlap, which their Entity.move
+    # resolves sideways. Alpha's resolves only in y, so mobs spawned on one spot become a tower in
+    # the air, and the one that drops from it takes the fall as damage. Alpha therefore stands one
+    # mob to a cell: its 201 hostiles in the five rows from 20 blocks behind the player to 16, which
+    # is the 41 cells the room's floor is wide by the five rows outside the test area's 16, the band
+    # _clear_terrain empties, and its 16 passive mobs in one row 12 blocks behind it, inside the
+    # cleared area.
     z: number = origin.z() - 5
-    if me.loader_name() == "a1.1.2_01-ornithe" {
-        z = origin.z() - 17
+    if alpha {
+        z = origin.z() - 12
+        if category == "hostile" {
+            z = origin.z() - 20
+        }
     }
     i: number = 0
     while level.count_mobs(category) < target {
-        ctx.spawn_mob(level, id, origin.x() - 5 + Math.remainder(i, 11), floor_y, z)
+        x: number = origin.x() - 5 + Math.remainder(i, 11)
+        row: number = z
+        if alpha and category == "hostile" {
+            x = origin.x() - 20 + (i - Math.floor(i / 41) * 41)
+            row = z + Math.floor(i / 41)
+        } else if alpha {
+            x = origin.x() - 7 + i
+        }
+        ctx.spawn_mob(level, id, x, floor_y, row)
         i = i + 1
         ctx.assert(i < 300, "Spawning should reach the target.")
     }
@@ -167,12 +189,12 @@ local _check_counts(ctx: TestTickContext) {
 }
 
 # Clears the terrain that the room build leaves between the test area (16 blocks from the player) and
-# the room's wall (20), over the part of it that the row of mobs and their wandering reach, from the
+# the room's wall (20), over the band Alpha's hostile rows occupy and their wandering reaches, from the
 # layer over the torch floor up to above the highest surface seen there (68).
 local _clear_terrain(level: Level, origin: Vec3) {
     floor_y: number = Math.floor(origin.y() - 7.62 + 0.5)
-    x: number = Math.floor(origin.x()) - 14
-    while x <= Math.floor(origin.x()) + 14 {
+    x: number = Math.floor(origin.x()) - 20
+    while x <= Math.floor(origin.x()) + 20 {
         z: number = Math.floor(origin.z()) - 20
         while z <= Math.floor(origin.z()) - 16 {
             y: number = floor_y + 1
