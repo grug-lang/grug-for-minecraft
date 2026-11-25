@@ -93,7 +93,9 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
 
         // The dispatcher colours a block entity with method_1782, which this mapping leaves under
         // its intermediary name. World.getBrightness is the integer light level instead, so using
-        // it here overflows the 0..1 colour and draws the items full bright.
+        // it here overflows the 0..1 colour and draws the items full bright. The model path takes
+        // the same value: one light read per frame, from the position the frame is drawn at, rather
+        // than a per-block read that StationAPI answers from a static (#1695).
         float brightness =
                 grugBlockEntity.world.method_1782(
                         grugBlockEntity.x, grugBlockEntity.y, grugBlockEntity.z);
@@ -114,7 +116,8 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
                             dz,
                             grugBlockEntity.world,
                             block,
-                            grugBlockEntity);
+                            grugBlockEntity,
+                            brightness);
                 } else if (draw instanceof GrugItemDraw) {
                     GrugItemDraw item = (GrugItemDraw) draw;
                     drawItem(
@@ -136,6 +139,10 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
      * Draws one model at the block's camera-relative position, moved by the model's own offset,
      * which is the chain a reference's block entity renderer builds: the block's position, then the
      * part's offset, then the boxes.
+     *
+     * <p>The brightness is the frame's, read once from the world at the block's position, so the
+     * model is drawn with the light of its own cell rather than with whatever a vanilla block
+     * render left behind for the block-entity pass to read (#1695).
      */
     private static void drawModel(
             GrugModelDraw draw,
@@ -144,12 +151,19 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
             double dz,
             BlockView world,
             Block block,
-            GrugBlockEntity blockEntity) {
+            GrugBlockEntity blockEntity,
+            float brightness) {
         GL11.glPushMatrix();
         GL11.glTranslatef((float) dx, (float) dy, (float) dz);
         GL11.glTranslatef((float) draw.x(), (float) draw.y(), (float) draw.z());
         GrugModelRenderer.drawInFrame(
-                world, block, blockEntity.x, blockEntity.y, blockEntity.z, draw.quads());
+                world,
+                block,
+                blockEntity.x,
+                blockEntity.y,
+                blockEntity.z,
+                brightness,
+                draw.quads());
         GL11.glPopMatrix();
     }
 

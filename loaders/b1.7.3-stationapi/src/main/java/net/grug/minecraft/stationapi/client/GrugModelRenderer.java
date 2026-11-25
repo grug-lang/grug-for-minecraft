@@ -199,21 +199,32 @@ public final class GrugModelRenderer {
      *
      * <p>This is the per-frame half of {@link #drawInWorld}: the vertices stay beside the block
      * instead of at its place in the world, which is what keeps an edge that moves every tick on
-     * the pixel the reference puts it on. Every face takes the block's own brightness, with no
-     * shade per side, which is how a block that declared set_flat_lighting is drawn.
+     * the pixel the reference puts it on. Every face takes {@code brightness}, with no shade per
+     * side, which is how a block that declared set_flat_lighting is drawn.
+     *
+     * <p>The brightness is the caller's, read once for the frame from the world at the block's
+     * position, and never this block's {@code getLuminance}: StationAPI patches that to answer the
+     * static a vanilla block render last left, which reads the light of some other block once the
+     * frame pass reaches a block entity. A model drawn in the block-entity pass would otherwise be
+     * brightened by whatever the vanilla pass rendered last (#1695).
      *
      * <p>Each face is submitted on its own, starting at the corner the game's box renderer starts
      * it at: see {@link GrugQuad#submittedCorner}. Two surfaces that cross at one depth are decided
      * by the triangles the rasteriser splits them into, so the split is that renderer's.
      */
     public static void drawInFrame(
-            BlockView world, Block block, int x, int y, int z, List<GrugQuad> quads) {
+            BlockView world,
+            Block block,
+            int x,
+            int y,
+            int z,
+            float brightness,
+            List<GrugQuad> quads) {
         if (quads.isEmpty()) return;
 
         TextureManager textures =
                 ((Minecraft) FabricLoader.getInstance().getGameInstance()).textureManager;
         Tessellator tesselator = Tessellator.INSTANCE;
-        float brightness = block.getLuminance(world, x, y, z);
         GL11.glPushAttrib(GL11.GL_TEXTURE_BIT);
 
         for (Map.Entry<String, List<GrugQuad>> group : byTexture(quads).entrySet()) {
