@@ -306,9 +306,7 @@ public class GrugClientHooks {
                                         declared.mod(),
                                         declared.key().id(),
                                         KeybindRegistry.register(
-                                                declared.key().name(),
-                                                declared.key().code(),
-                                                "Grug")));
+                                                declared.label(), declared.key().code(), "Grug")));
                     }
                 });
     }

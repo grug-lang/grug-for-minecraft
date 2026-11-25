@@ -218,6 +218,32 @@ class GrugMetadataTest {
     }
 
     @Test
+    void bindingsThatShareADisplayNameKeepALabelOfTheirOwn() throws Exception {
+        File beta = mods.resolve("beta").toFile();
+        File alpha = mods.resolve("alpha").toFile();
+        assertTrue(beta.mkdirs());
+        assertTrue(alpha.mkdirs());
+        Files.write(
+                new File(beta, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        Files.write(
+                new File(alpha, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"L\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+
+        java.util.List<GrugMetadata.DeclaredKey> declared = GrugMetadata.declaredKeys();
+        assertEquals(2, declared.size());
+        assertEquals("Toggle", declared.get(0).label(), "The first binding keeps the plain name.");
+        assertEquals(
+                "Toggle (beta.toggle)",
+                declared.get(1).label(),
+                "A repeated name carries its mod and id, because the loaders that save a binding "
+                        + "under its label would otherwise keep both under one saved key.");
+    }
+
+    @Test
     void aModsDirectoryThatCannotBeListedDeclaresNoKeys() throws Exception {
         installAdapter(new File(mods.toFile(), "absent"));
 
