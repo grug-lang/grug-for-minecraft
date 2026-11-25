@@ -1,4 +1,4 @@
-package net.grug.minecraft.stationapi.mixin;
+package net.grug.minecraft.stationapi.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -27,7 +27,7 @@ class GrugFrozenAnimationsTest {
     @Test
     void theSpriteIsFoundByItsBinaryName() {
         assertTrue(
-                TextureManagerMixin.isGameAnimationName(
+                GrugFrozenAnimations.isGameAnimationName(
                         "net.minecraft.client.render.texture.WaterSprite", name -> name));
     }
 
@@ -38,10 +38,10 @@ class GrugFrozenAnimationsTest {
                 Second.WaterSprite.class.getSimpleName(),
                 "the two stand-in classes do share the sprite's simple name");
         assertFalse(
-                TextureManagerMixin.isGameAnimationName(
+                GrugFrozenAnimations.isGameAnimationName(
                         First.WaterSprite.class.getName(), name -> name));
         assertFalse(
-                TextureManagerMixin.isGameAnimationName(
+                GrugFrozenAnimations.isGameAnimationName(
                         Second.WaterSprite.class.getName(), name -> name));
     }
 
@@ -49,7 +49,7 @@ class GrugFrozenAnimationsTest {
     void aLambdaIsNotASprite() {
         Runnable lambda = () -> {};
         assertFalse(
-                TextureManagerMixin.isGameAnimationName(lambda.getClass().getName(), name -> name),
+                GrugFrozenAnimations.isGameAnimationName(lambda.getClass().getName(), name -> name),
                 "a lambda's simple name is a synthetic hidden-class name, not a sprite's");
     }
 
@@ -57,12 +57,36 @@ class GrugFrozenAnimationsTest {
     void anInstalledGamesIntermediaryNameIsResolvedToTheNamedOne() {
         String intermediary = "net.minecraft.unmapped.C_19106855";
         assertTrue(
-                TextureManagerMixin.isGameAnimationName(
+                GrugFrozenAnimations.isGameAnimationName(
                         intermediary,
                         name ->
                                 name.equals(intermediary)
                                         ? "net.minecraft.client.render.texture.WaterSprite"
                                         : name),
                 "the comparison happens after the runtime name is unmapped");
+    }
+
+    @Test
+    void stationApisOwnWaterBinderIsHeldStill() {
+        assertTrue(
+                GrugFrozenAnimations.isGameAnimationName(
+                        "net.modificationstation.stationapi.impl.client.arsenic.renderer.render"
+                                + ".binder.ArsenicStillWater",
+                        name -> name),
+                "the list this loader actually holds is StationAPI's binders, not Beta's sprites");
+    }
+
+    @Test
+    void theCompassAndTheClockKeepAnimating() {
+        assertFalse(
+                GrugFrozenAnimations.isGameAnimationName(
+                        "net.modificationstation.stationapi.impl.client.arsenic.renderer.render"
+                                + ".binder.ArsenicCompass",
+                        name -> name));
+        assertFalse(
+                GrugFrozenAnimations.isGameAnimationName(
+                        "net.modificationstation.stationapi.impl.client.arsenic.renderer.render"
+                                + ".binder.ArsenicClock",
+                        name -> name));
     }
 }
