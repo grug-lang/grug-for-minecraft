@@ -673,6 +673,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void healOf(Object playerObj) {
+        // Beta 1.7.3 has no maximum to ask for: 20 is the health the HUD draws as ten hearts, and
+        // heal clamps to whatever maximum the player has.
+        ((PlayerEntity) playerObj).heal(20);
+    }
+
+    @Override
     public double getHeldCount(Object playerObj) {
         ItemStack stack = ((PlayerEntity) playerObj).inventory.getSelectedItem();
         return stack == null ? 0.0 : stack.size;

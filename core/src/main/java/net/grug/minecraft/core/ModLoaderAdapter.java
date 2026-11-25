@@ -1150,6 +1150,29 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Puts the test player's health back to full, so a test starts with the hearts the previous one
+     * did not take, as it starts with the hotbar the previous one did not touch. A test hurts the
+     * player on purpose or by accident (a fixture that leaves them inside a block, a fall, a mob),
+     * and the client that draws the HUD keeps what it was left with: a later capture then shows a
+     * heart its golden does not have, which is #1831's 105 pixels.
+     *
+     * <p>A no-op when this side has no player yet.
+     */
+    default void resetPlayerHealthForTest() {
+        Object player = testPlayer();
+        if (player == null) return;
+        healOf(player);
+    }
+
+    /**
+     * Heals the game's own player object to that game's maximum. The loader's half of {@link
+     * #resetPlayerHealthForTest}, which needs a player to write to; a game whose healing clamps at
+     * the maximum is healed by that number rather than set, so a modified maximum stays the one the
+     * HUD draws.
+     */
+    void healOf(Object playerObj);
+
+    /**
      * Marks every achievement the player could earn as already earned and drops the achievement
      * toast the game is showing, before every test starts, so no capture on any loader has the
      * "Taking Inventory" toast in its top-right corner (#1576).

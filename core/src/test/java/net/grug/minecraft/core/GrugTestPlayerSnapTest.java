@@ -177,6 +177,27 @@ class GrugTestPlayerSnapTest {
     }
 
     @Test
+    void healsTheTestPlayer() throws Throwable {
+        // The runner puts the health back before every test, so a heart an earlier test took can
+        // not reach this test's capture. See #1831.
+        List<Object> healed = new ArrayList<>();
+        Object player = new Object();
+
+        healthAdapter(player, healed).resetPlayerHealthForTest();
+
+        assertEquals(List.of(player), healed);
+    }
+
+    @Test
+    void leavesTheHealthAloneWhenThereIsNoPlayer() throws Throwable {
+        List<Object> healed = new ArrayList<>();
+
+        healthAdapter(null, healed).resetPlayerHealthForTest();
+
+        assertEquals(List.of(), healed);
+    }
+
+    @Test
     void aSideWithNoAchievementsMarksNothingEarned() throws Throwable {
         // The default is a no-op, so Alpha, the dedicated servers and 1.20.6 (which clears its
         // toasts every tick) need no override. See #1576.
@@ -192,6 +213,21 @@ class GrugTestPlayerSnapTest {
                             if (method.getName().equals("testPlayer")) return player;
                             if (method.getName().equals("clearInventoryOf")) {
                                 cleared.add(args[0]);
+                                return null;
+                            }
+                            return InvocationHandler.invokeDefault(proxy, method, args);
+                        });
+    }
+
+    private static ModLoaderAdapter healthAdapter(Object player, List<Object> healed) {
+        return (ModLoaderAdapter)
+                Proxy.newProxyInstance(
+                        ModLoaderAdapter.class.getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) -> {
+                            if (method.getName().equals("testPlayer")) return player;
+                            if (method.getName().equals("healOf")) {
+                                healed.add(args[0]);
                                 return null;
                             }
                             return InvocationHandler.invokeDefault(proxy, method, args);

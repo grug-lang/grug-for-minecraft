@@ -1218,6 +1218,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void healOf(Object playerObj) {
+        // StationAPI keeps Beta's 20 health maximum, and heal clamps to whatever maximum the player
+        // has.
+        ((PlayerEntity) playerObj).heal(20);
+    }
+
+    @Override
     public double getHeldCount(Object playerObj) {
         ItemStack stack = ((PlayerEntity) playerObj).inventory.getSelectedItem();
         return stack == null ? 0.0 : stack.count;
