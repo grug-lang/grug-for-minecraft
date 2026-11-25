@@ -9,6 +9,7 @@
     "ResourcePackManagerMixin"
   ],
   "server": [
+    "ConnectionAccess",
     "ServerCloseScreenMixin"
   ],
   "client": [
