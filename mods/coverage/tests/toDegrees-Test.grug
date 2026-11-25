@@ -8,7 +8,9 @@ export tick(ctx: TestTickContext) {
         ctx.assert(Math.toDegrees(Math.pi() / 2) == 90, "Math.toDegrees(half pi) should be 90.")
         ctx.assert(Math.toDegrees(-Math.pi()) == -180, "Math.toDegrees(-pi) should be -180.")
         # Multiplying by 180 and then dividing by pi rounds twice, and for this input that lands a
-        # last bit below the host's single multiply by 180/pi; the expected value is the host's.
+        # last bit below the single multiply by 180/pi the host does. Java 8's own toDegrees takes
+        # the two-rounding route, which is why 1.2.5-forge answered -29901.0828201778 before the
+        # host defined the conversion itself.
         ctx.assert(Math.toDegrees(-521.8723451236142) == -29901.082820177802, "Math.toDegrees should multiply by 180/pi once.")
         inf: number = Math.sinh(1000)
         ctx.assert(Math.toDegrees(inf) == inf, "Math.toDegrees(Infinity) should stay Infinity.")

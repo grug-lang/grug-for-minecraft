@@ -2335,7 +2335,7 @@
 					}
 				},
 				"toDegrees": {
-					"description": "The same angle in degrees, which is 180 / pi times the number of radians: Math.toDegrees(Math.pi()) is 180 and Math.toDegrees(Math.tau()) is 360. It is the pair of Java's toRadians, which this API does not have: an angle the game reports in radians becomes the degrees a shape's properties are written in.",
+					"description": "The same angle in degrees, which is 180 / pi times the number of radians: Math.toDegrees(Math.pi()) is 180 and Math.toDegrees(Math.tau()) is 360. It is the pair of Java's toRadians, which this API does not have: an angle the game reports in radians becomes the degrees a shape's properties are written in. The conversion multiplies by 180 / pi once, so it answers the same on every loader, where Java 8's own toDegrees rounds twice.",
 					"return_type": {
 						"name": "number"
 					},
