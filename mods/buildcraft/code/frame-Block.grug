@@ -1,8 +1,11 @@
 # BlockFrame, the frame the quarry builds around its box: hardness 0.5 and Material.glass (acn.q), a
 # block that is not a cube and not opaque, drawn with the pipe model (BuildCraftCore.pipeModel) in
 # block texture 34, as a quarter-block centre with an arm to every neighbouring frame. Its collision
-# and selection box is the same centre-and-arms union, which BlockFrame.c and BlockFrame.a compute
-# from Utils.checkPipesConnections, and isPipeConnected is true for the frame's own block id only.
+# and selection box is the same centre-and-arms union, which BlockFrame.c computes from
+# Utils.checkPipesConnections. BlockFrame.a sets the bounds of the centre and of each arm and calls
+# the base getCollidingBoundingBoxes, but that method reads c(), which BlockFrame overrides with the
+# union, so the per-arm bounds are never added as boxes (#1773). BlockFrame.d answers c() too, which
+# is the selection box. isPipeConnected is true for the frame's own block id only.
 # The reference's idDropped is -1, so a broken frame drops nothing; the port has no host function to
 # say that yet, so a frame broken by hand drops its own item (a recorded deviation).
 export init(ctx: BlockInitContext) {
@@ -13,7 +16,8 @@ export init(ctx: BlockInitContext) {
     ctx.set_shape()
 }
 
-# The centre's box, reaching this block's face on every side a frame is next to, as BlockFrame.c does.
+# The centre's box, reaching this block's face on every side a frame is next to, as BlockFrame.c
+# does: one union box, never one box per arm, because the base getCollidingBoundingBoxes reads c().
 export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
     min_x: number = 0.25
     min_y: number = 0.25
