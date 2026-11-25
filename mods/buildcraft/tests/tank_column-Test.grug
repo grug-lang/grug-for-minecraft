@@ -79,7 +79,10 @@ export tick(ctx: TestTickContext) {
     }
 
     after: Screenshot = ctx.screenshot().capture(500, 240, 780, 520)
-    if after.change_from(before.unwrap()) < 30 {
+    # change_from is the share of the crop that differs, as a percentage. The tank is a block across
+    # four blocks away, so the whole of it is under a fifth of this crop and 3 percent is already a
+    # thousand pixels: a crop where the column never arrived stays at 0.
+    if after.change_from(before.unwrap()) < 3 {
         attempts = attempts + 1
         ctx.assert(attempts < 8, "The tank's column never reached the client's frame.")
         filled_tick = ctx.current_tick()
