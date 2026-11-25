@@ -1,0 +1,27 @@
+# String.from_double turns a number into Java's Double.toString: the shortest text that reads back as
+# the same 64-bit number, plainly from a thousandth up to ten million and with an exponent outside
+# that, as Java 19 and later write it. A Java program writes a double property into a file with string
+# concatenation, so a state file's cube size round-trips byte for byte. The texts below were printed by
+# java-21-openjdk 21.0.13.1, the Java Build Guide 0.4.9 runs on.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.from_double(1) == "1.0", "A whole number should keep a .0.")
+        ctx.assert(String.from_double(2.5) == "2.5", "2.5 should write as 2.5.")
+        ctx.assert(String.from_double(0.6) == "0.6", "0.6 should write as 0.6.")
+        ctx.assert(String.from_double(-0.25) == "-0.25", "A negative number should keep its sign.")
+        ctx.assert(String.from_double(0) == "0.0", "Zero should write as 0.0.")
+        ctx.assert(String.from_double(-0.0) == "-0.0", "Negative zero should keep its sign.")
+        ctx.assert(String.from_double(0.30000000000000004) == "0.30000000000000004", "0.1 + 0.2 should write its own digits.")
+        ctx.assert(String.from_double(10000000) == "1.0E7", "Ten million should be written with an exponent.")
+        ctx.assert(String.from_double(0.0001) == "1.0E-4", "A ten-thousandth should be written with an exponent.")
+        ctx.assert(String.from_double(0.0000001) == "1.0E-7", "A hundred-millionth should be written with an exponent.")
+        ctx.assert(String.from_double(String.to_number("4.9e-324").unwrap()) == "4.9E-324", "The smallest number should write its shortest text.")
+        ctx.assert(String.from_double(String.to_number("2.2250738585072014e-308").unwrap()) == "2.2250738585072014E-308", "The smallest normal number should write its shortest text.")
+        ctx.assert(String.from_double(String.to_number("1.7976931348623157e308").unwrap()) == "1.7976931348623157E308", "The largest number should write its shortest text.")
+        ctx.assert(String.from_double(String.to_number("1e300").unwrap()) == "1.0E300", "1e300 should be written with an exponent.")
+        nan: number = String.to_number("NaN").unwrap()
+        ctx.assert(String.from_double(nan) == "NaN", "A NaN should write as NaN.")
+        ctx.assert(String.from_double(String.to_number("Infinity").unwrap()) == "Infinity", "Infinity should write as Infinity.")
+        ctx.assert(String.from_double(String.to_number("-Infinity").unwrap()) == "-Infinity", "-Infinity should write as -Infinity.")
+    }
+}

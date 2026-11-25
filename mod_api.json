@@ -3497,6 +3497,26 @@
 						}
 					]
 				},
+				"equals_ignore_case": {
+					"description": "Whether the two texts are the same, ignoring the case of their characters, as Java's String.equalsIgnoreCase compares them: String.equals_ignore_case(\"true\", \"TRUE\") is true, String.equals_ignore_case(\"True\", \"tRUE\") is true, and String.equals_ignore_case(\"true\", \"false\") is false. A character of one text matches the character of the other when they are equal, or when their upper-case forms are equal, or when the lower-case forms of those upper-case forms are equal, with no locale involved. Any other difference, including a different number of characters, is not equal, so this is not a case fold over the whole text. It is how Java's Boolean.parseBoolean reads a boolean, which answers true for `true` in any case and false for everything else.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "other",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"from_character": {
 					"description": "The one-character text of a Unicode code point, which is how a mod turns a key code into the character it types: String.from_character(97) is \"a\" and String.from_character(8364) is \"\u20ac\". The code has to be a whole number from 1 to 1114111 that is not a surrogate (55296 to 57343), or it is reported and the text is empty. Zero is refused because a text with a NUL in it does not survive the trip back to the mod.",
 					"return_type": {
@@ -3505,6 +3525,34 @@
 					"parameters": [
 						{
 							"name": "code",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"from_double": {
+					"description": "Java's own text for the number, the one a Java program's Double.toString writes: String.from_double(1) is \"1.0\", String.from_double(2.5) is \"2.5\", String.from_double(1e7) is \"1.0E7\", String.from_double(0.0001) is \"1.0E-4\" and String.from_double(-0.0) is \"-0.0\". It is the shortest text that reads back as the same number, in no locale, with an exponent only for a magnitude below 0.001 or at least ten million, and NaN and the infinities are \"NaN\", \"Infinity\" and \"-Infinity\". It differs from String.from_number, which writes a whole number in full with no decimal point: String.from_number(1e7) is \"10000000\" where this is \"1.0E7\". A file a Java program wrote as a double reads back as the same text, so a mod that keeps one number per line keeps its files byte for byte.",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"from_float": {
+					"description": "Java's own text for the number narrowed to 32 bits, the one a Java program's Float.toString writes: String.from_float(0.1) is \"0.1\", String.from_float(1) is \"1.0\", String.from_float(0.0001) is \"1.0E-4\" and String.from_float(1e20) is \"1.0E20\". The number is narrowed to the nearest float first, so String.from_float(1e-50) is \"0.0\" and String.from_float(1e300) is \"Infinity\", and the text then reads back as that same float, in the shape String.from_double has. Use it for a file a Java program wrote from floats, where String.from_double would write a longer text: the float nearest to 1e20 is 1.0E20, whose 64-bit value has the text \"1.0000000200408773E20\".",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "value",
 							"type": {
 								"name": "number"
 							}
@@ -3521,6 +3569,26 @@
 							"name": "value",
 							"type": {
 								"name": "number"
+							}
+						}
+					]
+				},
+				"index_of": {
+					"description": "Where the needle first appears in the text, counted from 0 in the characters String.length counts, or -1 when it does not appear at all: String.index_of(\"a=b\", \"=\") is 1, String.index_of(\"abc\", \"c\") is 2 and String.index_of(\"abc\", \"d\") is -1. The empty needle is at 0, a needle longer than the text is nowhere, and a character outside the basic plane is counted once, as String.length counts it. When the answer is not -1, String.substring(text, at, at + String.length(needle)) is a copy of the needle.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "needle",
+							"type": {
+								"name": "string"
 							}
 						}
 					]
@@ -3561,6 +3629,77 @@
 							"name": "end",
 							"type": {
 								"name": "number"
+							}
+						}
+					]
+				},
+				"to_float": {
+					"description": "The float the text writes, or an empty Option when it writes none: String.to_float(\"0.1\") has the number 0.10000000149011612, which is the float nearest to 0.1 widened to 64 bits, and String.to_float(\"3\") has 3. The text is read as Java's Float.parseFloat reads it: the forms String.to_number accepts, trimmed at its ends and taken whole otherwise, with a magnitude past the largest float answering Infinity. It is not String.to_number with the answer narrowed, because the two round a text with more digits than a float holds differently: String.to_number(\"1.00000005960464477539062500000000000000000001\") is that 64-bit number, whose nearest float is 1, while String.to_float of it is the float just above 1. A text String.from_float wrote always reads back through this, and String.from_float of the answer writes the same text.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "number"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"to_integer": {
+					"description": "The whole number the text writes, or an empty Option when it writes none: String.to_integer(\"41\") has 41, String.to_integer(\"-7\") has -7 and String.to_integer(\"+3\") has 3. The whole text has to be an optional + or - followed by at least one digit 0 to 9 and nothing else, as Java's Integer.parseInt reads it, so no space, no point, no exponent and no underscore, and a value outside -2147483648 to 2147483647 gives an empty Option. Every whole number String.from_number writes reads back through this.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "number"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"to_number": {
+					"description": "The number the text writes, or an empty Option when it writes none: String.to_number(\"2.5\") has 2.5, String.to_number(\"-3\") has -3, String.to_number(\"1e3\") has 1000 and String.to_number(\"0x1.8p1\") has 3. The whole text has to be a number Java's Double.parseDouble reads: digits with an optional sign, point and exponent, such as -3, 2.5, 1e3 or 1.0f; a hexadecimal number such as 0x1.8p1; or NaN or Infinity with an optional sign. A space or tab at either end is trimmed first, as Java trims it, while a space inside the text gives an empty Option, and so does a text such as \"3.0.0\", and the answer is the nearest 64-bit number, a text with more digits than a number holds rounding to one. A magnitude past the largest number answers Infinity rather than an empty Option. Every number String.from_number and String.from_double writes reads back through this.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "number"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"trim": {
+					"description": "The text without the characters at its ends that are U+0020 or below, which is what Java's String.trim removes: String.trim(\"  a b  \") is \"a b\", and a tab or a newline at either end goes too. A character above U+0020 at an end stays, so a non-breaking space is not a space to this call, and a text with nothing to remove is the text itself.",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
 							}
 						}
 					]

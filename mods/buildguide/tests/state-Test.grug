@@ -1,0 +1,1454 @@
+# Build Guide 0.4.9's stage 2: the per-world state file and the three config options (#1752). A later
+# stage has the screens and the rendering; this one reproduces the two files a Java Build Guide reads
+# and writes, so a guide saved by the reference is the same guide here and a file this port writes is
+# byte for byte what the reference would have written.
+# The library and its cases live here because of that.
+# A grug local function is visible only inside the file that defines it and the host cannot call it,
+# so the persistence library lives in this test file: stage 3 moves it into the overlay that reads a
+# state on first use and saves it when a screen closes. The state is kept as one string in the
+# reference's own file format, plus a `!` after the class name of a shape whose properties did not
+# parse, which is how the reference's Shape.error survives in a text with no objects. Saving drops the
+# marker and keeps the shape, because ShapeSet.toPersistence writes every non-null shape whether or
+# not it is in error: the shape is what the player fixes in a screen, not something to throw away.
+# The one path difference follows from that.
+# The only path difference is where the two files live (#1757): a mod writes under the root that
+# File.open(r"files") answers, not under the game directory, so the state is at
+# `buildguide/<key>.dat` and the config at `config/buildguide.cfg` inside that root. A guide already
+# saved at the reference's own path is therefore not imported, which about.json records.
+# ---
+# A number the reference reads with Integer.parseInt, Float.parseFloat or Double.parseDouble throws
+# when the text is not a number, and nothing in State.loadPersistence or ShapeSet.restorePersistence
+# catches it: the load stops where the throwing entry is, keeping what it already applied, and the
+# clamps after the loop never run. grug turns no error into an exception, so the same stop is a flag,
+# and the tests below pin it: the entries before the bad one are applied, the ones after it and the
+# later lines are not, and iShapeSet keeps a value past the set count.
+# ---
+# A shape's property values are re-read and re-printed on every load, because the reference's
+# setValueFromString parses each piece and getStringValue prints it: a float is Float.toString of the
+# float32 it parsed, a double is Double.toString, an int is Integer.toString, and a boolean and an
+# enum are canonicalised. So a file with odd spellings loads and saves in the reference's own text.
+# Float.parseFloat is String.to_float and not String.to_number narrowed, and the printing is
+# String.from_float and String.from_double, which is Java 19 and later's own text on every JDK.
+# The expected texts below were printed by java-21-openjdk 21.0.13.1 (the reference's own runtime)
+# with a throwaway driver kept outside the tree, one that transcribes each shape constructor's
+# default rather than the grug table, so a typo in the table is a failure here.
+# ---
+# Which case's assertions the next tick runs. The watcher's time limit is per grug call, so each tick
+# runs one case's assertions and asks to be called again for the next, as shapes-Test.grug does.
+
+case: number = 0
+
+# The load's hard stop, set where the reference's uncaught NumberFormatException leaves
+# loadPersistence and read by every loop that would otherwise carry on after it.
+load_failed: bool = false
+
+export tick(ctx: TestTickContext) {
+    if case == 0 {
+        _assert_registry(ctx)
+    } else if case == 1 {
+        _assert_sample(ctx)
+    } else if case == 2 {
+        _assert_new_state(ctx)
+    } else if case == 3 {
+        _assert_shape_lines(ctx)
+    } else if case == 4 {
+        _assert_kind_values(ctx)
+    } else if case == 5 {
+        _assert_shape_errors(ctx)
+    } else if case == 6 {
+        _assert_set_fields(ctx)
+    } else if case == 7 {
+        _assert_bad_number(ctx)
+    } else if case == 8 {
+        _assert_config_text(ctx)
+    } else if case == 9 {
+        _assert_config_parse(ctx)
+    } else if case == 10 {
+        _assert_config_file(ctx)
+    } else if case == 11 {
+        _assert_paths(ctx)
+    } else if case == 12 {
+        _assert_state_file(ctx)
+    } else if case == 13 {
+        _assert_init(ctx)
+    }
+    case = case + 1
+    if case < 14 {
+        ctx.not_done()
+    }
+}
+
+# The registry's fifteen class names in ShapeRegistry's declaration order, which is the order the
+# shapes' properties are persisted in, and the default value text of each shape.
+local _assert_registry(ctx: TestTickContext) {
+    ctx.assert(_shape_count() == 15, "The registry should hold fifteen shapes.")
+    ctx.assert(_shape_class(0) == "brentmaas.buildguide.common.shape.ShapeCatenary", "Shape 0 should be the catenary.")
+    ctx.assert(_shape_class(1) == "brentmaas.buildguide.common.shape.ShapeCircle", "Shape 1 should be the circle.")
+    ctx.assert(_shape_class(2) == "brentmaas.buildguide.common.shape.ShapeCone", "Shape 2 should be the cone.")
+    ctx.assert(_shape_class(3) == "brentmaas.buildguide.common.shape.ShapeCuboid", "Shape 3 should be the cuboid.")
+    ctx.assert(_shape_class(4) == "brentmaas.buildguide.common.shape.ShapeEllipse", "Shape 4 should be the ellipse.")
+    ctx.assert(_shape_class(5) == "brentmaas.buildguide.common.shape.ShapeEllipsoid", "Shape 5 should be the ellipsoid.")
+    ctx.assert(_shape_class(6) == "brentmaas.buildguide.common.shape.ShapeGrid", "Shape 6 should be the grid.")
+    ctx.assert(_shape_class(7) == "brentmaas.buildguide.common.shape.ShapeHelix", "Shape 7 should be the helix.")
+    ctx.assert(_shape_class(8) == "brentmaas.buildguide.common.shape.ShapeLine", "Shape 8 should be the line.")
+    ctx.assert(_shape_class(9) == "brentmaas.buildguide.common.shape.ShapeParabola", "Shape 9 should be the parabola.")
+    ctx.assert(_shape_class(10) == "brentmaas.buildguide.common.shape.ShapeParaboloid", "Shape 10 should be the paraboloid.")
+    ctx.assert(_shape_class(11) == "brentmaas.buildguide.common.shape.ShapePolygon", "Shape 11 should be the polygon.")
+    ctx.assert(_shape_class(12) == "brentmaas.buildguide.common.shape.ShapePolygonalPyramid", "Shape 12 should be the polygonal pyramid.")
+    ctx.assert(_shape_class(13) == "brentmaas.buildguide.common.shape.ShapeSphere", "Shape 13 should be the sphere.")
+    ctx.assert(_shape_class(14) == "brentmaas.buildguide.common.shape.ShapeTorus", "Shape 14 should be the torus.")
+    ctx.assert(_shape_defaults(0) == "3,0,0,Runnable,1.0,false", "The catenary's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(1) == "X,3.0,1,false", "The circle's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(2) == "X,3.0,3.0,false", "The cone's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(3) == "3,3,3,ALL,false", "The cuboid's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(4) == "X,3.0,3.0,1,false", "The ellipse's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(5) == "3.0,3.0,3.0,NO,false", "The ellipsoid's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(6) == "3,1,3,3,3,3", "The grid's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(7) == "Y,5.0,3.0,5,360.0,0.0,false,false", "The helix's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(8) == "3,0,0,Runnable", "The line's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(9) == "X,ROT0,3.0,3.0,1,false", "The parabola's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(10) == "X,3.0,3.0,3,false", "The paraboloid's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(11) == "3,3.0,X,ROT0,1,false", "The polygon's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(12) == "4,3.0,Y,ROT0,4.0,false", "The polygonal pyramid's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(13) == "3.0,NO,false", "The sphere's defaults should be the reference's.")
+    ctx.assert(_shape_defaults(14) == "X,5.0,3.0,false,false", "The torus's defaults should be the reference's.")
+    ctx.assert(_shape_id("brentmaas.buildguide.common.shape.ShapeNope") == -1, "An unregistered class name should have no id.")
+    i: number = 0
+    while i < _shape_count() {
+        ctx.assert(_shape_id(_shape_class(i)) == i, "Every class name should map back to its own id.")
+        ctx.assert(_split_count(_shape_kinds(i), ";") == _split_count(_shape_defaults(i), ","), "A shape should have one kind per default value.")
+        i = i + 1
+    }
+}
+
+# The map's sample file: one circle, enabled, the player at 10, 64, -3. Its floats are
+# Float.toString's, its cube sizes Double.toString's, and a load and a save leave it byte for byte.
+local _assert_sample(ctx: TestTickContext) {
+    sample: string = _state_text("true", "true", _line("shapeSet=index=1;origin=10,64,-3;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeCircle=X,3.0,1,false;"), "0", "1")
+    loaded: string = _state_load(sample, 10, 64, -3)
+    ctx.assert(_state_field(loaded, "enabled", "?") == "true", "The sample should load enabled.")
+    ctx.assert(_state_field(loaded, "depthTest", "?") == "true", "The sample should load its depth test.")
+    ctx.assert(_state_field(loaded, "iShapeSet", "?") == "0", "The sample should load its set index.")
+    ctx.assert(_state_field(loaded, "iShapeNew", "?") == "1", "The sample should load its new shape index.")
+    ctx.assert(_split_count(loaded, _newline()) == 5, "The sample should load one set and four scalar lines.")
+    set_line: string = _line_at(loaded, 2)
+    set: string = String.substring(set_line, 9, String.length(set_line))
+    ctx.assert(_set_int(set, "index", -1) == 1, "The sample's set should select the circle.")
+    ctx.assert(_set_field_value(set, "origin") == "10,64,-3", "The sample's set should keep its origin.")
+    ctx.assert(_set_field_value(set, "visible") == "true", "The sample's set should be visible.")
+    ctx.assert(_set_field_value(set, "shapeColour") == "1.0,1.0,1.0,0.5", "The sample's shape colour should load.")
+    ctx.assert(_set_field_value(set, "originColour") == "1.0,0.0,0.0,0.5", "The sample's origin colour should load.")
+    ctx.assert(_set_field_value(set, "shapeCubeSize") == "0.6", "The sample's shape cube size should load.")
+    ctx.assert(_set_field_value(set, "originCubeSize") == "0.2", "The sample's origin cube size should load.")
+    ctx.assert(_set_shape_values(set, 1) == "X,3.0,1,false", "The sample's circle should keep its values.")
+    ctx.assert(not _set_shape_error(set, 1), "The sample's circle should not be in error.")
+    ctx.assert(_state_save(loaded) == sample, "The sample should save exactly as it loaded.")
+}
+
+# A state with no file behind it has no set until initCheck pushes one, which starts at iShapeNew and
+# takes its origin from the player, and saving writes the four lines around it in that order.
+local _assert_new_state(ctx: TestTickContext) {
+    empty: string = _state_new()
+    ctx.assert(_split_count(empty, _newline()) == 4, "An empty state should have its four scalar lines.")
+    ctx.assert(_state_field(empty, "enabled", "?") == "false", "An empty state should be disabled.")
+    ctx.assert(_state_field(empty, "depthTest", "?") == "true", "An empty state should keep the depth test.")
+    ctx.assert(_state_field(empty, "iShapeSet", "?") == "0", "An empty state should select set 0.")
+    ctx.assert(_state_field(empty, "iShapeNew", "?") == "1", "An empty state should make circles.")
+    ctx.assert(_state_save(empty) == _state_text("false", "true", "", "0", "1"), "An empty state should save as its four lines.")
+    state: string = _state_init(empty, 10, 64, -3)
+    expected: string = _state_text("false", "true", _line("shapeSet=index=1;origin=10,64,-3;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeCircle=X,3.0,1,false;"), "0", "1")
+    ctx.assert(_state_save(state) == expected, "Init should push one default circle at the player.")
+    # initCheck starts the new set at iShapeNew, with that shape's own defaults.
+    other: string = _state_init(_state_text("false", "true", "", "0", "7"), 1, 2, 3)
+    other_line: string = _line_at(other, 2)
+    ctx.assert(_set_save(String.substring(other_line, 9, String.length(other_line))) == "index=7;origin=1,2,3;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeHelix=Y,5.0,3.0,5,360.0,0.0,false,false;", "Init should push the shape iShapeNew names.")
+}
+
+# Every shape's own default line survives a load and a save, and the shapes of a set are written in
+# registry order whatever order the file listed them in.
+local _assert_shape_lines(ctx: TestTickContext) {
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeCatenary", "3,0,0,Runnable,1.0,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeCircle", "X,3.0,1,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeCone", "X,3.0,3.0,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeCuboid", "3,3,3,ALL,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeEllipse", "X,3.0,3.0,1,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeEllipsoid", "3.0,3.0,3.0,NO,false", false)
+    # The grid's steps Y default is 1, while PropertyPositiveInt.setValueFromString requires a value
+    # strictly above its minimum of 1, so the reference's own default line loads in error: the shape
+    # keeps every value and is not drawn. The polygon's default of 3 sides has the same relation to
+    # PropertyMinimumInt's minimum of 3. Both are reproduced, and the text still round-trips.
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeGrid", "3,1,3,3,3,3", true)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeHelix", "Y,5.0,3.0,5,360.0,0.0,false,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeLine", "3,0,0,Runnable", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeParabola", "X,ROT0,3.0,3.0,1,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeParaboloid", "X,3.0,3.0,3,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapePolygon", "3,3.0,X,ROT0,1,false", true)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapePolygonalPyramid", "4,3.0,Y,ROT0,4.0,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeSphere", "3.0,NO,false", false)
+    _assert_shape_line(ctx, "brentmaas.buildguide.common.shape.ShapeTorus", "X,5.0,3.0,false,false", false)
+    # A set holds one shape of each type, and ShapeSet.toPersistence walks the registry array, so the
+    # two entries come back with the catenary first however the file ordered them.
+    data: string = "index=1;origin=1,2,3;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeCircle=X,4.0,2,true;brentmaas.buildguide.common.shape.ShapeCatenary=5,1,2,Runnable,2.0,true;"
+    set: string = _set_restore(_set_new(1, 1, 2, 3), data)
+    shapes: string = _set_shapes(set)
+    ctx.assert(_split_count(shapes, ";") == 2, "The set should hold two shapes.")
+    ctx.assert(_shape_id(_entry_key(_piece(shapes, ";", 0))) == 0, "The catenary should be written first.")
+    ctx.assert(_shape_id(_entry_key(_piece(shapes, ";", 1))) == 1, "The circle should be written second.")
+    # State.loadPersistence pushes `new ShapeSet(iShapeNew)` before the iShapeNew line is read, so
+    # the constructor has already made the default circle when the set is restored. A set whose file
+    # names another shape therefore holds both after a load, and saving writes both, as the
+    # reference does.
+    quirk: string = _state_text("true", "false", _line("shapeSet=index=0;origin=1,2,3;brentmaas.buildguide.common.shape.ShapeCatenary=3,0,0,Runnable,1.0,false;"), "0", "1")
+    quirk_loaded: string = _state_load(quirk, 1, 2, 3)
+    quirk_line: string = _line_at(quirk_loaded, 2)
+    quirk_shapes: string = _set_shapes(String.substring(quirk_line, 9, String.length(quirk_line)))
+    ctx.assert(_split_count(quirk_shapes, ";") == 2, "A loaded set should also hold the circle its constructor made.")
+    ctx.assert(_shape_id(_entry_key(_piece(quirk_shapes, ";", 0))) == 0, "The file's catenary should stay first.")
+    ctx.assert(_shape_id(_entry_key(_piece(quirk_shapes, ";", 1))) == 1, "The constructor's circle should be second.")
+}
+
+# One property value of every kind, valid and refused, through the rule that reprints it.
+local _assert_kind_values(ctx: TestTickContext) {
+    ctx.assert(_kind_value("i", "41") == "41", "An int should read as Integer.toString writes it.")
+    ctx.assert(_kind_value("i", "+41") == "41", "A leading plus should parse.")
+    ctx.assert(_kind_value("i", "007") == "7", "Leading zeros should parse and not survive.")
+    ctx.assert(_kind_value("i", "-7") == "-7", "A negative int should parse.")
+    ctx.assert(_kind_value("i", " 41") == "", "A leading space should be refused.")
+    ctx.assert(_kind_value("i", "41.0") == "", "A point should be refused for an int.")
+    ctx.assert(_kind_value("i", "2147483648") == "", "An int past the 32-bit range should be refused.")
+    ctx.assert(_kind_value("I", "2") == "2", "A positive int should take 2.")
+    ctx.assert(_kind_value("I", "1") == "", "A positive int should refuse 1.")
+    ctx.assert(_kind_value("N", "-3") == "-3", "A nonzero int should take -3.")
+    ctx.assert(_kind_value("N", "0") == "", "A nonzero int should refuse 0.")
+    ctx.assert(_kind_value("M", "4") == "4", "A minimum int of 3 should take 4.")
+    ctx.assert(_kind_value("M", "3") == "", "A minimum int of 3 should refuse 3, as the reference's strict check does.")
+    ctx.assert(_kind_value("f", "3") == "3.0", "A float should read as Float.toString writes it.")
+    ctx.assert(_kind_value("f", "0.1") == "0.1", "A float should keep Java's shortest text.")
+    ctx.assert(_kind_value("f", "0.30000001192092896") == "0.3", "A float should round to float32 and print its text.")
+    ctx.assert(_kind_value("f", "1.00000005960464477539062500000000000000000001") == "1.0000001", "A long text should round once to the nearest float, which is just above 1.")
+    ctx.assert(_kind_value("f", "1e-50") == "0.0", "A magnitude below the smallest float should read as 0.0.")
+    ctx.assert(_kind_value("f", "1.0f") == "1.0", "A float suffix should be allowed.")
+    ctx.assert(_kind_value("f", "abc") == "", "A text that is not a number should be refused.")
+    ctx.assert(_kind_value("p", "3") == "3.0", "A positive float should take 3.")
+    ctx.assert(_kind_value("p", "0") == "", "A positive float should refuse 0.")
+    ctx.assert(_kind_value("p", "-1") == "", "A positive float should refuse a negative number.")
+    ctx.assert(_kind_value("p", "1e-50") == "", "A positive float should refuse a value that reads back as 0.")
+    ctx.assert(_kind_value("p", "NaN") == "", "A positive float should refuse NaN, which is not above 0.")
+    ctx.assert(_kind_value("m", "2.5") == "2.5", "A minimum float of 2 should take 2.5.")
+    ctx.assert(_kind_value("m", "2") == "", "A minimum float of 2 should refuse 2, as the reference's strict check does.")
+    ctx.assert(_kind_value("l", "1.5") == "1.5", "A minimum float of 1 should take 1.5.")
+    ctx.assert(_kind_value("l", "1") == "", "A minimum float of 1 should refuse 1.")
+    ctx.assert(_kind_value("n", "-3") == "-3.0", "A nonzero float should take -3.")
+    ctx.assert(_kind_value("n", "0") == "", "A nonzero float should refuse 0.")
+    ctx.assert(_kind_value("n", "NaN") == "NaN", "A nonzero float should take NaN, which is not equal to 0.")
+    ctx.assert(_kind_value("b", "TRUE") == "true", "A boolean should take true in any case.")
+    ctx.assert(_kind_value("b", "false") == "false", "A boolean should take false.")
+    ctx.assert(_kind_value("b", "yes") == "", "A boolean should refuse anything else.")
+    ctx.assert(_kind_value("e:X,Y,Z", "Y") == "Y", "An enum should take one of its names.")
+    ctx.assert(_kind_value("e:X,Y,Z", "y") == "", "An enum should refuse a name in another case.")
+    ctx.assert(_kind_value("e:X,Y,Z", "W") == "", "An enum should refuse a name it does not have.")
+    ctx.assert(_kind_value("r", "whatever") == "Runnable", "The set-endpoint button should always print Runnable.")
+    ctx.assert(_kind_value("r", "") == "Runnable", "The set-endpoint button should read back even when empty.")
+}
+
+# An unparsable property sets Shape.error and is not drawn, while the pieces that did parse are kept
+# and the shape itself survives into the file, because the reference never drops it.
+local _assert_shape_errors(ctx: TestTickContext) {
+    bad_boolean: string = "index=1;origin=0,0,0;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeCircle=X,3.0,0,notabool;"
+    set: string = _set_restore(_set_new(1, 0, 0, 0), bad_boolean)
+    ctx.assert(_set_shape_error(set, 1), "An unparsable boolean should put the shape in error.")
+    ctx.assert(_shape_values(_shape_entry(_set_shapes(set), 1)) == "X,3.0,1,false", "Refused pieces should keep their defaults.")
+    ctx.assert(_set_field_value(set, "shapeCubeSize") == "0.6", "A bad property should not touch the set's own fields.")
+    ctx.assert(String.index_of(_set_shapes(set), "ShapeCircle!=") >= 0, "An entry in error should be marked until it is saved.")
+    ctx.assert(String.index_of(_set_save(set), "!") == -1, "A saved set should carry no error marker.")
+    # No short circuit: the reference ands every result, so a bad radius does not stop the depth and
+    # the even mode from being applied.
+    later: string = "index=1;origin=0,0,0;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeCircle=X,bad,2,true;"
+    set_later: string = _set_restore(_set_new(1, 0, 0, 0), later)
+    ctx.assert(_set_shape_error(set_later, 1), "A bad radius should put the shape in error.")
+    ctx.assert(_set_shape_values(set_later, 1) == "X,3.0,2,true", "Later pieces should still be applied.")
+    # A shape line that stops before its last properties is not an error: the loop ends at the
+    # shorter of the two lists, and the missing pieces keep their defaults.
+    short: string = "index=8;origin=0,0,0;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeLine=3,0,0;"
+    set_short: string = _set_restore(_set_new(8, 0, 0, 0), short)
+    ctx.assert(not _set_shape_error(set_short, 8), "A missing trailing piece should not be an error.")
+    ctx.assert(_set_shape_values(set_short, 8) == "3,0,0,Runnable", "A missing trailing piece should keep its default.")
+    # A class name that is not registered is ignored, and so is an entry that starts with the equals
+    # sign because restorePersistence requires the separator above position 0.
+    unknown: string = "index=1;origin=0,0,0;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeNope=9;=nonsense;brentmaas.buildguide.common.shape.ShapeCircle=X,4.0,2,true;"
+    set_unknown: string = _set_restore(_set_new(1, 0, 0, 0), unknown)
+    ctx.assert(_split_count(_set_shapes(set_unknown), ";") == 1, "An unknown class name should add no shape.")
+    ctx.assert(_set_shape_values(set_unknown, 1) == "X,4.0,2,true", "The known shape after an unknown one should load.")
+    # The same shape twice replaces the first, because restorePersistence assigns a fresh shape.
+    twice: string = "index=1;origin=0,0,0;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeCircle=X,4.0,2,true;brentmaas.buildguide.common.shape.ShapeCircle=Y,7.0,3,false;"
+    set_twice: string = _set_restore(_set_new(1, 0, 0, 0), twice)
+    ctx.assert(_split_count(_set_shapes(set_twice), ";") == 1, "A repeated class name should leave one shape.")
+    ctx.assert(_set_shape_values(set_twice, 1) == "Y,7.0,3,false", "The last entry of a repeated class name should win.")
+}
+
+# The set's own fields: index clamped to the registry, a colour applied only in four pieces, an origin
+# only in three, booleans by Boolean.parseBoolean, and the cube sizes as doubles.
+local _assert_set_fields(ctx: TestTickContext) {
+    data: string = "index=99;origin=1,2,3;visible=TRUE;shapeColour=0.1,0.2,0.3,0.4;originColour=0.5,0.6,0.7,0.8;shapeCubeSize=1e-3;originCubeSize=4.9E-324;"
+    set: string = _set_restore(_set_new(1, 0, 0, 0), data)
+    ctx.assert(_set_int(set, "index", -1) == 14, "A set index past the registry should clamp to 14.")
+    ctx.assert(_set_field_value(set, "origin") == "1,2,3", "An origin of three pieces should load.")
+    ctx.assert(_set_field_value(set, "visible") == "true", "Visible should read TRUE as true.")
+    ctx.assert(_set_field_value(set, "shapeColour") == "0.1,0.2,0.3,0.4", "A shape colour should reprint its floats.")
+    ctx.assert(_set_field_value(set, "originColour") == "0.5,0.6,0.7,0.8", "An origin colour should reprint its floats.")
+    ctx.assert(_set_field_value(set, "shapeCubeSize") == "0.001", "A cube size should read as a double.")
+    ctx.assert(_set_field_value(set, "originCubeSize") == "4.9E-324", "The smallest double should reprint its own text.")
+    negative: string = "index=-5;origin=1,2;visible=yes;shapeColour=1.0,1.0,1.0;originColour=1.0,1.0,1.0,1.0,1.0;"
+    set_negative: string = _set_restore(_set_new(1, 0, 0, 0), negative)
+    ctx.assert(_set_int(set_negative, "index", -1) == 0, "A negative set index should clamp to 0.")
+    ctx.assert(_set_field_value(set_negative, "origin") == "0,0,0", "An origin of two pieces should be ignored.")
+    ctx.assert(_set_field_value(set_negative, "visible") == "false", "Yes should read as false.")
+    ctx.assert(_set_field_value(set_negative, "shapeColour") == "1.0,1.0,1.0,0.5", "A colour of three pieces should be ignored.")
+    ctx.assert(_set_field_value(set_negative, "originColour") == "1.0,0.0,0.0,0.5", "A colour of five pieces should be ignored.")
+    twice: string = "index=0;index=3;origin=4,5,6;origin=7,8,9;"
+    set_twice: string = _set_restore(_set_new(1, 0, 0, 0), twice)
+    ctx.assert(_set_int(set_twice, "index", -1) == 3, "The last index entry should win.")
+    ctx.assert(_set_field_value(set_twice, "origin") == "7,8,9", "The last origin entry should win.")
+    # The clamp happens after every entry, so an index the file set early is clamped only at the end.
+    clamped: string = _set_restore(_set_new(1, 0, 0, 0), "index=20;index=2;")
+    ctx.assert(_set_int(clamped, "index", -1) == 2, "A clamped index should not override a later entry.")
+}
+
+# A number the file holds badly throws in the reference, which stops the load where it is: the
+# entries before it are applied, and the rest of that set and the later lines are not. A constructor
+# that throws stops it the same way, so the clamps after the loop run only on a whole file.
+local _assert_bad_number(ctx: TestTickContext) {
+    text: string = _state_text("false", "true", _line("shapeSet=index=0;origin=0,0,0;shapeCubeSize=abc;brentmaas.buildguide.common.shape.ShapeCircle=X,4.0,2,true;"), "7", "9")
+    loaded: string = _state_load(text, 1, 2, 3)
+    ctx.assert(_state_field(loaded, "iShapeSet", "?") == "0", "The lines after the stopped one should not be read, so the indexes keep their defaults.")
+    ctx.assert(_state_field(loaded, "iShapeNew", "?") == "1", "The lines after the stopped one should not be read.")
+    set_line: string = _line_at(loaded, 2)
+    set: string = String.substring(set_line, 9, String.length(set_line))
+    ctx.assert(_set_int(set, "index", -1) == 0, "The index before the bad number should be applied.")
+    ctx.assert(_set_field_value(set, "shapeCubeSize") == "0.6", "The bad number should keep the default.")
+    ctx.assert(_set_shape_values(set, 1) == "X,3.0,1,false", "The shape after the bad number should not be read.")
+    # A bad origin stops after the pieces it did parse, because the reference assigns origin.x before
+    # origin.y throws.
+    origin_text: string = _state_text("false", "true", _line("shapeSet=index=1;origin=4,x,6;visible=false;"), "0", "1")
+    origin_loaded: string = _state_load(origin_text, 1, 2, 3)
+    origin_line: string = _line_at(origin_loaded, 2)
+    origin_set: string = String.substring(origin_line, 9, String.length(origin_line))
+    ctx.assert(_set_field_value(origin_set, "origin") == "4,2,3", "An origin should keep the pieces before the bad one.")
+    ctx.assert(_set_field_value(origin_set, "visible") == "true", "An entry after the bad origin should not be read.")
+    # A bad colour piece likewise keeps the pieces before it.
+    colour_text: string = _state_text("false", "true", _line("shapeSet=shapeColour=0.25,bad,0.5,1.0;"), "0", "1")
+    colour_loaded: string = _state_load(colour_text, 1, 2, 3)
+    colour_line: string = _line_at(colour_loaded, 2)
+    colour_set: string = String.substring(colour_line, 9, String.length(colour_line))
+    ctx.assert(_set_field_value(colour_set, "shapeColour") == "0.25,1.0,1.0,0.5", "A colour should keep the pieces before the bad one.")
+    # The iShapeSet line can precede the set it selects in a hand-written file, and a bad iShapeNew
+    # after it stops the load before the clamps, so the set index stays past the set count.
+    broken: string = String.concat(_line("enabled=false"), String.concat(_line("depthTest=true"), String.concat(_line("iShapeSet=7"), String.concat(_line("iShapeNew=abc"), _line("shapeSet=index=1;")))))
+    broken_loaded: string = _state_load(broken, 1, 2, 3)
+    ctx.assert(_state_field(broken_loaded, "iShapeSet", "?") == "7", "A stopped load should not clamp iShapeSet.")
+    ctx.assert(_state_field(broken_loaded, "iShapeNew", "?") == "1", "The bad iShapeNew should keep its default.")
+    ctx.assert(_split_count(broken_loaded, _newline()) == 4, "A stopped load should hold no set.")
+    # iShapeNew out of range throws when the next set is constructed, which drops that set and keeps
+    # the value, again with no clamp.
+    index_text: string = _state_text("false", "true", "", "0", "99")
+    ctx.assert(_state_field(_state_load(index_text, 1, 2, 3), "iShapeNew", "?") == "14", "iShapeNew should clamp when the load finishes.")
+    out_of_range: string = String.concat(_line("enabled=false"), String.concat(_line("depthTest=true"), String.concat(_line("iShapeNew=99"), _line("shapeSet=index=1;"))))
+    out_loaded: string = _state_load(out_of_range, 1, 2, 3)
+    ctx.assert(_split_count(out_loaded, _newline()) == 4, "An out of range iShapeNew should drop the set it cannot construct.")
+    ctx.assert(_state_field(out_loaded, "iShapeNew", "?") == "99", "A stopped load should keep iShapeNew as it read it.")
+}
+
+# The config file the reference writes when it has none: a translated comment, then key = value.
+local _assert_config_text(ctx: TestTickContext) {
+    expected: string = String.concat(_line("# Enable asynchronous (multithreaded) shape generation."), String.concat(_line("asyncEnabled = true"), String.concat(_line("# Enable random colors for new shapes added to the shape list by default."), String.concat(_line("shapeListRandomColorsDefaultEnabled = false"), String.concat(_line("# Allow shapes to be saved to a file so they can be restored after restarting the client."), _line("persistenceEnabled = false"))))))
+    ctx.assert(_config_text("true,false,false") == expected, "The default config file should be the reference's own text.")
+    ctx.assert(_config_text("false,true,true") == _replace_all(_replace_all(_replace_all(expected, "asyncEnabled = true", "asyncEnabled = false"), "shapeListRandomColorsDefaultEnabled = false", "shapeListRandomColorsDefaultEnabled = true"), "persistenceEnabled = false", "persistenceEnabled = true"), "A rewrite should keep the values the file held.")
+    ctx.assert(_config_default_values() == "true,false,false", "The defaults should be the reference's three.")
+    ctx.assert(not _config_persistence("true,false,false"), "Persistence should be off by default.")
+    ctx.assert(_config_persistence("true,false,true"), "Persistence should be read from the third value.")
+}
+
+# Loading the config trims each line, skips an empty one and a comment, splits at the first " = ", and
+# reads all three values as Boolean.parseBoolean. A key that is not there is written back from the
+# values the file did hold.
+local _assert_config_parse(ctx: TestTickContext) {
+    text: string = String.concat(_line("# a comment"), String.concat(_line(""), String.concat(_line("asyncEnabled = false"), String.concat(_line("unknown = 1"), String.concat(_line("broken line"), String.concat(_line("persistenceEnabled = TRUE"), String.concat(_line("shapeListRandomColorsDefaultEnabled = yes"), _line("asyncEnabled = false"))))))))
+    values: string = _config_parse(text, _config_default_values())
+    ctx.assert(_piece(values, ",", 0) == "false", "asyncEnabled should read false.")
+    ctx.assert(_piece(values, ",", 1) == "false", "A value that is not true should read false.")
+    ctx.assert(_piece(values, ",", 2) == "true", "TRUE should read true.")
+    ctx.assert(not _config_missing(text), "A file with all three keys should not be rewritten.")
+    partial: string = String.concat(_line("asyncEnabled = false"), _line("shapeListRandomColorsDefaultEnabled = true"))
+    ctx.assert(_config_missing(partial), "A file without persistenceEnabled should be rewritten.")
+    ctx.assert(_config_parse(partial, _config_default_values()) == "false,true,false", "A missing key should keep its default.")
+    no_spaces: string = _line("asyncEnabled=true")
+    ctx.assert(_config_missing(no_spaces), "A line without the spaces around the equals sign should be skipped.")
+    empty_value: string = _line("asyncEnabled = ")
+    ctx.assert(_config_missing(empty_value), "A line whose value is only spaces should lose the separator with the trim.")
+    duplicate: string = String.concat(_line("asyncEnabled = true"), String.concat(_line("asyncEnabled = false"), String.concat(_line("shapeListRandomColorsDefaultEnabled = false"), _line("persistenceEnabled = false"))))
+    ctx.assert(_piece(_config_parse(duplicate, _config_default_values()), ",", 0) == "false", "The last duplicate key should win.")
+}
+
+# The config file on disk: absent means the defaults are written, a partial file is completed from
+# what it held, and a complete file is left alone.
+local _assert_config_file(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    absent_path: string = "config/stage2-absent.cfg"
+    absent: string = _config_open_at(files, absent_path)
+    ctx.assert(absent == "true,false,false", "A missing config should load the defaults.")
+    text: Option[string] = files.read_text(absent_path)
+    ctx.assert(text.has(), "A missing config should be written.")
+    ctx.assert(text.unwrap() == _config_text("true,false,false"), "A missing config should be written from the defaults.")
+    partial_path: string = "config/stage2-partial.cfg"
+    files.write_text(partial_path, String.concat(_line("# kept"), String.concat(_line("  asyncEnabled = false  "), _line("shapeListRandomColorsDefaultEnabled = true"))))
+    partial: string = _config_open_at(files, partial_path)
+    ctx.assert(partial == "false,true,false", "A partial config should load what it held.")
+    rewritten: Option[string] = files.read_text(partial_path)
+    ctx.assert(rewritten.has(), "A partial config should be rewritten.")
+    ctx.assert(rewritten.unwrap() == _config_text("false,true,false"), "A rewrite should keep the values the file held.")
+    complete_path: string = "config/stage2-complete.cfg"
+    files.write_text(complete_path, _config_text("false,true,true"))
+    complete: string = _config_open_at(files, complete_path)
+    ctx.assert(complete == "false,true,true", "A complete config should load its three values.")
+    again: Option[string] = files.read_text(complete_path)
+    ctx.assert(again.unwrap() == _config_text("false,true,true"), "A complete config should not be rewritten.")
+}
+
+# The key is the world name and the dimension the reference writes, with every character a Windows
+# file name refuses replaced by a dot, and the file sits under the mod's own writable root (#1757).
+local _assert_paths(ctx: TestTickContext) {
+    ctx.assert(_state_path("My World", "overworld") == "buildguide/My World@minecraft.overworld.dat", "A singleplayer overworld guide should sit at its world's name.")
+    ctx.assert(_state_path("", "overworld") == "buildguide/unknown@minecraft.overworld.dat", "A nameless world should read as unknown.")
+    ctx.assert(_state_path("play.example.com", "the_nether") == "buildguide/play.example.com@minecraft.the_nether.dat", "A joined server should keep its address and dimension.")
+    ctx.assert(_state_path("x", "the_end") == "buildguide/x@minecraft.the_end.dat", "The end should keep its resource location.")
+    ctx.assert(_state_path("a/b<c>d:e\"f\\g|h?i*j", "overworld") == "buildguide/a.b.c.d.e.f.g.h.i.j@minecraft.overworld.dat", "Every Windows-refused character should become a dot.")
+    ctx.assert(_state_path("x", "dimension_mymod~deep/dark") == "buildguide/x@mymod.deep.dark.dat", "A modded dimension should decode to its resource location and then be sanitised.")
+    ctx.assert(_state_path("name@with@ats", "overworld") == "buildguide/name@with@ats@minecraft.overworld.dat", "An at sign should stay, since the reference does not sanitise it.")
+    ctx.assert(_state_host("") == "unknown", "An empty host should be unknown.")
+    ctx.assert(_state_host("My World") == "My World", "A host should be its own text.")
+    ctx.assert(_dimension_text("overworld") == "minecraft:overworld", "The overworld should print as its resource location.")
+    ctx.assert(_dimension_text("the_nether") == "minecraft:the_nether", "The nether should print as its resource location.")
+    ctx.assert(_dimension_text("dimension_ns~a/b") == "ns:a/b", "A modded dimension should decode to namespace and path.")
+}
+
+# A state file round-trips through the writable root byte for byte, and persistence disabled leaves it
+# alone. Each name is unique to this test because the writable directory outlives a test.
+local _assert_state_file(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    name: string = "stage2 round trip"
+    state: string = _state_init(_state_new(), 1, 2, 3)
+    _state_write(files, name, "the_nether", state)
+    path: string = _state_path(name, "the_nether")
+    raw: Option[string] = files.read_text(path)
+    ctx.assert(raw.has(), "A written state should exist.")
+    ctx.assert(raw.unwrap() == _state_save(state), "A written state should be its saved text.")
+    loaded: string = _state_open(files, name, "the_nether", true, 9, 9, 9)
+    ctx.assert(_state_save(loaded) == _state_save(state), "A loaded state should save as it was written.")
+    off: string = _state_open(files, name, "the_nether", false, 1, 2, 3)
+    ctx.assert(_state_save(off) == _state_save(state), "Persistence off should start from a default state at the player.")
+    # A file holding only an enabled line is a state with no sets, so initCheck pushes one.
+    files.write_text(_state_path("stage2 short", "overworld"), _line("enabled=true"))
+    short: string = _state_open(files, "stage2 short", "overworld", true, 4, 5, 6)
+    ctx.assert(_state_field(short, "enabled", "?") == "true", "A short file should load its enabled line.")
+    ctx.assert(_split_count(short, _newline()) == 5, "A short file should gain one set at init.")
+    ctx.assert(_state_field(short, "iShapeSet", "?") == "0", "A short file should select set 0.")
+    # A file written with Windows line endings is read the same, because Scanner drops the carriage
+    # return and a save writes the reference's own line feed.
+    crlf: string = _replace_all(_state_save(state), _newline(), String.concat(String.from_character(13), _newline()))
+    files.write_text(_state_path("stage2 crlf", "overworld"), crlf)
+    crlf_loaded: string = _state_open(files, "stage2 crlf", "overworld", true, 1, 2, 3)
+    ctx.assert(_state_save(crlf_loaded) == _state_save(state), "A CRLF file should save with line feeds.")
+}
+
+# initCheck gives a set without an origin the player's position, and the clamps after a load keep the
+# two indexes inside what the state holds.
+local _assert_init(ctx: TestTickContext) {
+    no_origin: string = _state_text("false", "true", _line("shapeSet=index=1;visible=false;"), "3", "1")
+    loaded: string = _state_load(no_origin, 5, 6, 7)
+    set_line: string = _line_at(loaded, 2)
+    set: string = String.substring(set_line, 9, String.length(set_line))
+    ctx.assert(_set_field_value(set, "origin") == "5,6,7", "A set without an origin should take the player's position when it is pushed.")
+    with_origin: string = _state_init(_state_load(_state_text("false", "true", _line("shapeSet=index=1;origin=1,2,3;"), "0", "1"), 5, 6, 7), 5, 6, 7)
+    with_line: string = _line_at(with_origin, 2)
+    ctx.assert(_set_save(String.substring(with_line, 9, String.length(with_line))) == "index=1;origin=1,2,3;visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;brentmaas.buildguide.common.shape.ShapeCircle=X,3.0,1,false;", "A set with an origin should keep it.")
+    # iShapeSet clamps to the last set and iShapeNew to the last shape; a state with no set clamps
+    # iShapeSet to 0, which is what Math.max(0, ...) does around an empty list.
+    two_sets: string = _state_text("false", "true", String.concat(_line("shapeSet=index=0;origin=0,0,0;"), _line("shapeSet=index=1;origin=0,0,0;")), "9", "99")
+    clamped: string = _state_load(two_sets, 0, 0, 0)
+    ctx.assert(_state_field(clamped, "iShapeSet", "?") == "1", "iShapeSet should clamp to the last set.")
+    ctx.assert(_state_field(clamped, "iShapeNew", "?") == "14", "iShapeNew should clamp to the last shape.")
+    empty: string = _state_load(_state_text("false", "true", "", "9", "99"), 0, 0, 0)
+    ctx.assert(_state_field(empty, "iShapeSet", "?") == "0", "iShapeSet should clamp to 0 with no sets.")
+    ctx.assert(_state_field(empty, "iShapeNew", "?") == "14", "iShapeNew should still clamp with no sets.")
+    negative: string = _state_load(_state_text("false", "true", "", "-4", "-4"), 0, 0, 0)
+    ctx.assert(_state_field(negative, "iShapeSet", "?") == "0", "A negative iShapeSet should clamp to 0.")
+    ctx.assert(_state_field(negative, "iShapeNew", "?") == "0", "A negative iShapeNew should clamp to 0.")
+}
+
+# =============================================================================================
+# The persistence library
+# =============================================================================================
+
+# ---------------------------------------------------------------- the state as a whole
+
+# The state for a world: loaded from its file on the first access when persistence is enabled, then
+# given a set if it has none. The player's position is where a set created here starts its origin,
+# which is what ShapeSet.resetOrigin does when pushNewShapeSet runs during a load.
+local _state_open(files: File, name: string, dimension: string, persistence: bool, x: number, y: number, z: number) string {
+    state: string = _state_new()
+    if persistence {
+        text: Option[string] = files.read_text(_state_path(name, dimension))
+        if text.has() {
+            state = _state_load(text.unwrap(), x, y, z)
+        }
+    }
+    return _state_init(state, x, y, z)
+}
+
+# State.initCheck: one set when there is none, and an origin for a set that has none. Every set the
+# reference creates goes through pushNewShapeSet, which resets the origin, so the second rule is a
+# safety net there and here; it stays because initCheck has it.
+local _state_init(state: string, x: number, y: number, z: number) string {
+    enabled: string = _state_field(state, "enabled", "false")
+    depth: string = _state_field(state, "depthTest", "true")
+    i_set: string = _state_field(state, "iShapeSet", "0")
+    i_new: string = _state_field(state, "iShapeNew", "1")
+    sets: string = ""
+    count: number = 0
+    lines: number = _split_count(state, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(state, i)
+        if _has_prefix(line, "shapeSet=") {
+            set: string = String.substring(line, 9, String.length(line))
+            if not _set_has_origin(set) {
+                set = _set_with_field(set, "origin", _origin_text(x, y, z))
+            }
+            sets = String.concat(sets, _line(String.concat("shapeSet=", set)))
+            count = count + 1
+        }
+        i = i + 1
+    }
+    if count == 0 {
+        index: number = _clamp(_state_int(state, "iShapeNew", 1), 0, _shape_count() - 1)
+        sets = _line(String.concat("shapeSet=", _set_new(index, x, y, z)))
+    }
+    return _state_text(enabled, depth, sets, i_set, i_new)
+}
+
+# State.loadPersistence: one line per entry, the five known keys, and a hard stop where a number the
+# reference parses with Integer, Float or Double is not one. The clamps after the loop run only when
+# the whole file was read, as they do in the reference.
+local _state_load(text: string, x: number, y: number, z: number) string {
+    load_failed = false
+    enabled: string = "false"
+    depth: string = "true"
+    sets: string = ""
+    count: number = 0
+    i_set: string = "0"
+    i_new: string = "1"
+    lines: number = _split_count(text, _newline())
+    i: number = 0
+    while i < lines and not load_failed {
+        line: string = _line_at(text, i)
+        at: number = String.index_of(line, "=")
+        if at > 0 {
+            key: string = String.substring(line, 0, at)
+            value: string = String.substring(line, at + 1, String.length(line))
+            if key == "enabled" {
+                enabled = _boolean_text(value)
+            } else if key == "depthTest" {
+                depth = _boolean_text(value)
+            } else if key == "shapeSet" {
+                new_index: Option[number] = String.to_integer(i_new)
+                if not new_index.has() or new_index.unwrap() < 0 or new_index.unwrap() >= _shape_count() {
+                    # new ShapeSet(iShapeNew) throws on the array, before the set is pushed.
+                    load_failed = true
+                } else {
+                    set: string = _set_restore(_set_new(new_index.unwrap(), x, y, z), value)
+                    sets = String.concat(sets, _line(String.concat("shapeSet=", set)))
+                    count = count + 1
+                }
+            } else if key == "iShapeSet" {
+                i_set = _state_parse_int(value, i_set)
+            } else if key == "iShapeNew" {
+                i_new = _state_parse_int(value, i_new)
+            }
+        }
+        i = i + 1
+    }
+    if not load_failed {
+        i_set = String.from_number(_state_clamp_set(_state_int(_state_text("false", "true", "", i_set, i_new), "iShapeSet", 0), count))
+        i_new = String.from_number(_clamp(_state_int(_state_text("false", "true", "", i_set, i_new), "iShapeNew", 1), 0, _shape_count() - 1))
+    }
+    return _state_text(enabled, depth, sets, i_set, i_new)
+}
+
+# The saved text: every shapeSet line loses its internal section bar and the "!" that marks a shape
+# in error, because ShapeSet.toPersistence writes every non-null shape the same way.
+local _state_save(state: string) string {
+    out: string = ""
+    lines: number = _split_count(state, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(state, i)
+        if _has_prefix(line, "shapeSet=") {
+            set: string = String.substring(line, 9, String.length(line))
+            out = String.concat(out, _line(String.concat("shapeSet=", _set_save(set))))
+        } else {
+            out = String.concat(out, _line(line))
+        }
+        i = i + 1
+    }
+    return out
+}
+
+# Saves the state at the file the key names, inside the writable root (#1757).
+local _state_write(files: File, name: string, dimension: string, state: string) {
+    files.write_text(_state_path(name, dimension), _state_save(state))
+}
+
+# An empty state: no file behind it, so no set, disabled, with the depth test on, and a circle as the
+# shape the next set starts with.
+local _state_new() string {
+    return _state_text("false", "true", "", "0", "1")
+}
+
+# A scalar line's value, or the fallback when the line is not there.
+local _state_field(state: string, key: string, fallback: string) string {
+    prefix: string = String.concat(key, "=")
+    lines: number = _split_count(state, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(state, i)
+        if _has_prefix(line, prefix) {
+            return String.substring(line, String.length(prefix), String.length(line))
+        }
+        i = i + 1
+    }
+    return fallback
+}
+
+local _state_int(state: string, key: string, fallback: number) number {
+    parsed: Option[number] = String.to_integer(_state_field(state, key, ""))
+    if parsed.has() {
+        return parsed.unwrap()
+    }
+    return fallback
+}
+
+# A whole number the file holds, or the value to keep and the hard stop, which is what a
+# NumberFormatException does here.
+local _state_parse_int(value: string, keep: string) string {
+    parsed: Option[number] = String.to_integer(value)
+    if not parsed.has() {
+        load_failed = true
+        return keep
+    }
+    return String.from_number(parsed.unwrap())
+}
+
+# The state text in the reference's own line order, with a line feed after every line, including the
+# last, which is what State.savePersistence writes.
+local _state_text(enabled: string, depth: string, sets: string, i_set: string, i_new: string) string {
+    out: string = _line(String.concat("enabled=", enabled))
+    out = String.concat(out, _line(String.concat("depthTest=", depth)))
+    out = String.concat(out, sets)
+    out = String.concat(out, _line(String.concat("iShapeSet=", i_set)))
+    out = String.concat(out, _line(String.concat("iShapeNew=", i_new)))
+    return out
+}
+
+# Math.max(0, Math.min(count - 1, value)), where an empty list answers 0 through the outer max.
+local _state_clamp_set(value: number, count: number) number {
+    if count < 1 {
+        return 0
+    }
+    return _clamp(value, 0, count - 1)
+}
+
+# The file a state for this world lives at, inside the writable root (#1757).
+local _state_path(name: string, dimension: string) string {
+    return String.concat("buildguide/", _state_filename(name, dimension))
+}
+
+# AbstractStateManager.getPersistenceFile: the world and the dimension joined by an at sign, every
+# character a Windows file name refuses replaced by a dot, then ".dat".
+local _state_filename(name: string, dimension: string) string {
+    key: string = String.concat(String.concat(_state_host(name), "@"), _dimension_text(dimension))
+    return String.concat(_sanitise(key), ".dat")
+}
+
+# The reference has no world name on a client joined to another server but the server's address, and
+# this port's Level.name answers whichever of the two the level has, so it needs no second source. A
+# level with neither, which the reference calls unknown, is an empty name here.
+local _state_host(name: string) string {
+    if String.length(name) == 0 {
+        return "unknown"
+    }
+    return name
+}
+
+# Level.dimension's path segment back to the resource location the reference's
+# location().toString() writes: dimension_<namespace>~<path with + for />.
+local _dimension_text(dimension: string) string {
+    if dimension == "overworld" {
+        return "minecraft:overworld"
+    }
+    if dimension == "the_nether" {
+        return "minecraft:the_nether"
+    }
+    if dimension == "the_end" {
+        return "minecraft:the_end"
+    }
+    if _has_prefix(dimension, "dimension_") {
+        key: string = String.substring(dimension, 10, String.length(dimension))
+        tilde: number = String.index_of(key, "~")
+        if tilde > 0 {
+            namespace: string = String.substring(key, 0, tilde)
+            path: string = String.substring(key, tilde + 1, String.length(key))
+            return String.concat(String.concat(namespace, ":"), _replace_all(path, "+", "/"))
+        }
+    }
+    return dimension
+}
+
+# AbstractStateManager's sanitiser: each of / < > : " \ | ? * becomes a dot. The order cannot matter,
+# because the characters are distinct.
+local _sanitise(text: string) string {
+    out: string = text
+    out = _replace_all(out, "/", ".")
+    out = _replace_all(out, "<", ".")
+    out = _replace_all(out, ">", ".")
+    out = _replace_all(out, ":", ".")
+    out = _replace_all(out, "\"", ".")
+    out = _replace_all(out, "\\", ".")
+    out = _replace_all(out, "|", ".")
+    out = _replace_all(out, "?", ".")
+    out = _replace_all(out, "*", ".")
+    return out
+}
+
+# ---------------------------------------------------------------- the config
+
+# Config's constructor: write the default file when there is none, else load it and rewrite it whole
+# when a key is missing, keeping the values the file held. The path is a parameter so a test can give
+# it a name of its own, since the writable root outlives a test.
+local _config_open_at(files: File, path: string) string {
+    text: Option[string] = files.read_text(path)
+    if not text.has() {
+        values: string = _config_default_values()
+        files.write_text(path, _config_text(values))
+        return values
+    }
+    values: string = _config_parse(text.unwrap(), _config_default_values())
+    if _config_missing(text.unwrap()) {
+        files.write_text(path, _config_text(values))
+    }
+    return values
+}
+
+# The three values in file order: async shape generation, random colours for a new set, persistence.
+local _config_default_values() string {
+    return "true,false,false"
+}
+
+# Config.write: a "# " comment line, then "key = value", for each of the three in order.
+local _config_text(values: string) string {
+    async: string = _piece(values, ",", 0)
+    random: string = _piece(values, ",", 1)
+    persistence: string = _piece(values, ",", 2)
+    return String.concat(_line("# Enable asynchronous (multithreaded) shape generation."), String.concat(_line(String.concat("asyncEnabled = ", async)), String.concat(_line("# Enable random colors for new shapes added to the shape list by default."), String.concat(_line(String.concat("shapeListRandomColorsDefaultEnabled = ", random)), String.concat(_line("# Allow shapes to be saved to a file so they can be restored after restarting the client."), _line(String.concat("persistenceEnabled = ", persistence)))))))
+}
+
+# Whether any of the three keys is absent, which makes Config.write rewrite the whole file.
+local _config_missing(text: string) bool {
+    return not _config_has_key(text, "asyncEnabled") or not _config_has_key(text, "shapeListRandomColorsDefaultEnabled") or not _config_has_key(text, "persistenceEnabled")
+}
+
+local _config_has_key(text: string, wanted: string) bool {
+    lines: number = _split_count(text, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = String.trim(_line_at(text, i))
+        if String.length(line) > 0 and not _has_prefix(line, "#") {
+            at: number = String.index_of(line, " = ")
+            if at >= 0 and String.substring(line, 0, at) == wanted {
+                return true
+            }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+# Config.load: trim, skip an empty line and a comment, split at the first " = " with a limit of 2, and
+# read each known key as Boolean.parseBoolean. A line without the separator is skipped, as the
+# reference reports it and carries on.
+local _config_parse(text: string, current: string) string {
+    async: string = _piece(current, ",", 0)
+    random: string = _piece(current, ",", 1)
+    persistence: string = _piece(current, ",", 2)
+    lines: number = _split_count(text, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = String.trim(_line_at(text, i))
+        if String.length(line) > 0 and not _has_prefix(line, "#") {
+            at: number = String.index_of(line, " = ")
+            if at >= 0 {
+                key: string = String.substring(line, 0, at)
+                value: string = String.substring(line, at + 3, String.length(line))
+                if key == "asyncEnabled" {
+                    async = _boolean_text(value)
+                } else if key == "shapeListRandomColorsDefaultEnabled" {
+                    random = _boolean_text(value)
+                } else if key == "persistenceEnabled" {
+                    persistence = _boolean_text(value)
+                }
+            }
+        }
+        i = i + 1
+    }
+    return String.concat(String.concat(async, ","), String.concat(random, String.concat(",", persistence)))
+}
+
+# The persistence switch, which the third value holds.
+local _config_persistence(values: string) bool {
+    return _piece(values, ",", 2) == "true"
+}
+
+# ---------------------------------------------------------------- a shape set
+
+# A new set, as ShapeSet's constructor and resetOrigin leave it: the index it starts at, the player's
+# position as its origin, the reference's default colours and cube sizes, and one shape of the class
+# the index names, at that class's own defaults.
+local _set_new(index: number, x: number, y: number, z: number) string {
+    fields: string = String.concat("index=", String.from_number(index))
+    fields = String.concat(fields, ";origin=")
+    fields = String.concat(fields, _origin_text(x, y, z))
+    fields = String.concat(fields, ";visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;")
+    shapes: string = String.concat(String.concat(_shape_class(index), "="), String.concat(_shape_defaults(index), ";"))
+    return String.concat(fields, String.concat("|", shapes))
+}
+
+# ShapeSet.restorePersistence: one entry per ";", the seven own fields and then a class name per
+# shape. A number the reference would throw on sets the hard stop. The index is clamped to the
+# registry at the end, unless the stop happened first.
+local _set_restore(set: string, data: string) string {
+    entries: number = _split_count(data, ";")
+    i: number = 0
+    while i < entries and not load_failed {
+        entry: string = _piece(data, ";", i)
+        at: number = String.index_of(entry, "=")
+        if at > 0 {
+            key: string = String.substring(entry, 0, at)
+            value: string = String.substring(entry, at + 1, String.length(entry))
+            if key == "index" {
+                set = _set_restore_int(set, "index", value)
+            } else if key == "visible" {
+                set = _set_with_field(set, "visible", _boolean_text(value))
+            } else if key == "origin" {
+                set = _set_restore_pieces(set, "origin", value, 3)
+            } else if key == "shapeColour" {
+                set = _set_restore_pieces(set, "shapeColour", value, 4)
+            } else if key == "originColour" {
+                set = _set_restore_pieces(set, "originColour", value, 4)
+            } else if key == "shapeCubeSize" {
+                set = _set_restore_double(set, "shapeCubeSize", value)
+            } else if key == "originCubeSize" {
+                set = _set_restore_double(set, "originCubeSize", value)
+            } else {
+                set = _set_restore_shape(set, key, value)
+            }
+        }
+        i = i + 1
+    }
+    if not load_failed {
+        set = _set_with_field(set, "index", String.from_number(_clamp(_set_int(set, "index", 0), 0, _shape_count() - 1)))
+    }
+    return set
+}
+
+# The set's saved text: the fields, then every shape in registry order, with the error markers gone.
+local _set_save(set: string) string {
+    return String.concat(_set_fields(set), _replace_all(_set_shapes(set), "!=", "="))
+}
+
+local _set_field_value(set: string, key: string) string {
+    fields: string = _set_fields(set)
+    count: number = _split_count(fields, ";")
+    i: number = 0
+    while i < count {
+        entry: string = _piece(fields, ";", i)
+        at: number = String.index_of(entry, "=")
+        if at >= 0 and String.substring(entry, 0, at) == key {
+            return String.substring(entry, at + 1, String.length(entry))
+        }
+        i = i + 1
+    }
+    return ""
+}
+
+# The set with one own field replaced. Every field _set_new writes is present, so a field is replaced
+# in place and never appended, which keeps the reference's own order.
+local _set_with_field(set: string, key: string, value: string) string {
+    fields: string = _set_fields(set)
+    shapes: string = _set_shapes(set)
+    count: number = _split_count(fields, ";")
+    out: string = ""
+    i: number = 0
+    while i < count {
+        entry: string = _piece(fields, ";", i)
+        at: number = String.index_of(entry, "=")
+        if at >= 0 and String.substring(entry, 0, at) == key {
+            out = String.concat(out, String.concat(String.concat(key, "="), String.concat(value, ";")))
+        } else {
+            out = String.concat(out, String.concat(entry, ";"))
+        }
+        i = i + 1
+    }
+    return String.concat(out, String.concat("|", shapes))
+}
+
+# A set's own fields and its shapes, split at the internal bar. The bar keeps the two sections apart
+# so a field can be replaced without touching the shapes, which are a list grug has no type for.
+local _set_fields(set: string) string {
+    bar: number = String.index_of(set, "|")
+    if bar < 0 {
+        return set
+    }
+    return String.substring(set, 0, bar)
+}
+
+local _set_shapes(set: string) string {
+    bar: number = String.index_of(set, "|")
+    if bar < 0 {
+        return ""
+    }
+    return String.substring(set, bar + 1, String.length(set))
+}
+
+local _set_has_origin(set: string) bool {
+    return String.length(_set_field_value(set, "origin")) > 0
+}
+
+local _set_int(set: string, key: string, fallback: number) number {
+    parsed: Option[number] = String.to_integer(_set_field_value(set, key))
+    if parsed.has() {
+        return parsed.unwrap()
+    }
+    return fallback
+}
+
+local _set_restore_int(set: string, key: string, value: string) string {
+    parsed: Option[number] = String.to_integer(value)
+    if not parsed.has() {
+        load_failed = true
+        return set
+    }
+    return _set_with_field(set, key, String.from_number(parsed.unwrap()))
+}
+
+# A field of three or four comma pieces, each an int or a float, applied one at a time: the reference
+# assigns the pieces in order, so the ones before a bad one are kept when it throws.
+local _set_restore_pieces(set: string, key: string, value: string, required: number) string {
+    if _split_count(value, ",") != required {
+        return set
+    }
+    current: string = _set_field_value(set, key)
+    i: number = 0
+    while i < required {
+        piece: string = _piece(value, ",", i)
+        canonical: string = ""
+        if key == "origin" {
+            parsed: Option[number] = String.to_integer(piece)
+            if parsed.has() {
+                canonical = String.from_number(parsed.unwrap())
+            }
+        } else {
+            parsed_float: Option[number] = String.to_float(piece)
+            if parsed_float.has() {
+                canonical = String.from_float(parsed_float.unwrap())
+            }
+        }
+        if String.length(canonical) == 0 {
+            set = _set_with_field(set, key, current)
+            load_failed = true
+            return set
+        }
+        current = _value_replace(current, i, canonical)
+        i = i + 1
+    }
+    return _set_with_field(set, key, current)
+}
+
+# A cube size, which Double.parseDouble reads and Double.toString writes.
+local _set_restore_double(set: string, key: string, value: string) string {
+    parsed: Option[number] = String.to_number(value)
+    if not parsed.has() {
+        load_failed = true
+        return set
+    }
+    return _set_with_field(set, key, String.from_double(parsed.unwrap()))
+}
+
+# A shape the file names: a fresh shape at its defaults, every piece the file holds applied and its
+# refusals noted, then stored at the class's own place. An unregistered class name is ignored, and so
+# is a repeated one's earlier entry, because the reference assigns a new shape over it.
+local _set_restore_shape(set: string, key: string, value: string) string {
+    id: number = _shape_id(_shape_key(key))
+    if id < 0 {
+        return set
+    }
+    kinds: string = _shape_kinds(id)
+    refused: bool = _values_refused(kinds, value)
+    values: string = _values_apply(kinds, _shape_defaults(id), value)
+    return _set_put_shape(set, id, values, refused)
+}
+
+# The set with one shape at the registry place its id names, in the order ShapeSet.toPersistence
+# walks its array, and without the earlier entry for the same class.
+local _set_put_shape(set: string, id: number, values: string, refused: bool) string {
+    shapes: string = _set_shapes(set)
+    key: string = _shape_class(id)
+    if refused {
+        key = String.concat(key, "!")
+    }
+    entry: string = String.concat(String.concat(key, "="), String.concat(values, ";"))
+    out: string = ""
+    i: number = 0
+    while i < _shape_count() {
+        if i == id {
+            out = String.concat(out, entry)
+        } else {
+            existing: string = _shape_entry(shapes, i)
+            if String.length(existing) > 0 {
+                out = String.concat(out, String.concat(existing, ";"))
+            }
+        }
+        i = i + 1
+    }
+    return String.concat(_set_fields(set), String.concat("|", out))
+}
+
+# Whether the shape of this id is in error. The shape is still there, because the reference keeps it.
+local _set_shape_error(set: string, id: number) bool {
+    entry: string = _shape_entry(_set_shapes(set), id)
+    if String.length(entry) == 0 {
+        return false
+    }
+    return _shape_errored(entry)
+}
+
+# The shape's values as the file would write them.
+local _set_shape_values(set: string, id: number) string {
+    entry: string = _shape_entry(_set_shapes(set), id)
+    if String.length(entry) == 0 {
+        return ""
+    }
+    return _shape_values(entry)
+}
+
+# The player's position as ShapeHandler.getPlayerPosition answers it, floored to whole blocks.
+local _origin_text(x: number, y: number, z: number) string {
+    return String.concat(String.concat(String.from_number(Math.floor(x)), ","), String.concat(String.concat(String.from_number(Math.floor(y)), ","), String.from_number(Math.floor(z))))
+}
+
+# The entry of one shape id, without its ";" and "" when the set has none.
+local _shape_entry(shapes: string, id: number) string {
+    count: number = _split_count(shapes, ";")
+    i: number = 0
+    while i < count {
+        entry: string = _piece(shapes, ";", i)
+        at: number = String.index_of(entry, "=")
+        if at > 0 and _shape_id(_entry_key(entry)) == id {
+            return entry
+        }
+        i = i + 1
+    }
+    return ""
+}
+
+local _shape_values(entry: string) string {
+    at: number = String.index_of(entry, "=")
+    if at < 0 {
+        return ""
+    }
+    return String.substring(entry, at + 1, String.length(entry))
+}
+
+# The class name of a shape entry, before its equals sign and without a "!" error marker.
+local _entry_key(entry: string) string {
+    at: number = String.index_of(entry, "=")
+    if at < 0 {
+        return ""
+    }
+    return _shape_key(String.substring(entry, 0, at))
+}
+
+local _shape_errored(entry: string) bool {
+    at: number = String.index_of(entry, "=")
+    if at < 1 {
+        return false
+    }
+    return String.substring(entry, at - 1, at) == "!"
+}
+
+# The class name of a shape entry without the "!" that marks an error.
+local _shape_key(key: string) string {
+    length: number = String.length(key)
+    if length > 0 and String.substring(key, length - 1, length) == "!" {
+        return String.substring(key, 0, length - 1)
+    }
+    return key
+}
+
+# ---------------------------------------------------------------- shape properties
+
+# Shape.restorePersistence: the pieces the file holds, up to the class's property count, every one
+# applied whether or not an earlier one failed, and the shape in error when any failed.
+local _values_apply(kinds: string, values: string, raw: string) string {
+    pieces: number = _split_count(raw, ",")
+    count: number = _split_count(kinds, ";")
+    if pieces > count {
+        pieces = count
+    }
+    out: string = values
+    i: number = 0
+    while i < pieces {
+        value: string = _kind_value(_piece(kinds, ";", i), _piece(raw, ",", i))
+        if String.length(value) > 0 {
+            out = _value_replace(out, i, value)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+local _values_refused(kinds: string, raw: string) bool {
+    pieces: number = _split_count(raw, ",")
+    count: number = _split_count(kinds, ";")
+    if pieces > count {
+        pieces = count
+    }
+    i: number = 0
+    while i < pieces {
+        if String.length(_kind_value(_piece(kinds, ";", i), _piece(raw, ",", i))) == 0 {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+# One property's canonical text, or "" where the reference's setValueFromString refuses the piece and
+# keeps the value it had. The kinds are the property classes in one letter: i an Integer.parseInt,
+# I a PositiveInt (above 1), N a NonzeroInt, M a MinimumInt above 3, f a Float.parseFloat, p a
+# PositiveFloat (above 0), m a MinimumFloat above 2, l a MinimumFloat above 1, n a NonzeroFloat,
+# b a Boolean that must spell true or false, r the set-endpoint button that always prints Runnable,
+# and e:NAMES an Enum whose constant name has to match exactly.
+local _kind_value(kind: string, raw: string) string {
+    if kind == "i" or kind == "I" or kind == "N" or kind == "M" {
+        parsed: Option[number] = String.to_integer(raw)
+        if not parsed.has() {
+            return ""
+        }
+        value: number = parsed.unwrap()
+        if kind == "I" and not (value > 1) {
+            return ""
+        }
+        if kind == "M" and not (value > 3) {
+            return ""
+        }
+        if kind == "N" and value == 0 {
+            return ""
+        }
+        return String.from_number(value)
+    }
+    if kind == "f" or kind == "p" or kind == "m" or kind == "l" or kind == "n" {
+        parsed: Option[number] = String.to_float(raw)
+        if not parsed.has() {
+            return ""
+        }
+        value: number = parsed.unwrap()
+        if kind == "p" and not (value > 0) {
+            return ""
+        }
+        if kind == "m" and not (value > 2) {
+            return ""
+        }
+        if kind == "l" and not (value > 1) {
+            return ""
+        }
+        if kind == "n" and value == 0 {
+            return ""
+        }
+        return String.from_float(value)
+    }
+    if kind == "b" {
+        if String.equals_ignore_case(raw, "true") {
+            return "true"
+        }
+        if String.equals_ignore_case(raw, "false") {
+            return "false"
+        }
+        return ""
+    }
+    if kind == "r" {
+        return "Runnable"
+    }
+    if _has_prefix(kind, "e:") {
+        names: string = String.substring(kind, 2, String.length(kind))
+        count: number = _split_count(names, ",")
+        i: number = 0
+        while i < count {
+            name: string = _piece(names, ",", i)
+            if name == raw {
+                return name
+            }
+            i = i + 1
+        }
+        return ""
+    }
+    return ""
+}
+
+# The values with one piece replaced, which is how a parsed property is put back in its place.
+local _value_replace(values: string, at: number, replacement: string) string {
+    count: number = _split_count(values, ",")
+    out: string = ""
+    i: number = 0
+    while i < count {
+        if i > 0 {
+            out = String.concat(out, ",")
+        }
+        if i == at {
+            out = String.concat(out, replacement)
+        } else {
+            out = String.concat(out, _piece(values, ",", i))
+        }
+        i = i + 1
+    }
+    return out
+}
+
+# ---------------------------------------------------------------- the registry table
+
+local _shape_count() number {
+    return 15
+}
+
+local _shape_class(id: number) string {
+    return _piece(_shape_row(id), "@", 0)
+}
+
+local _shape_kinds(id: number) string {
+    return _piece(_shape_row(id), "@", 1)
+}
+
+local _shape_defaults(id: number) string {
+    return _piece(_shape_row(id), "@", 2)
+}
+
+# The registry, in ShapeRegistry's declaration order: the class name ShapeSet.toPersistence writes,
+# the property kinds in declaration order, and the default value text of each.
+local _shape_row(id: number) string {
+    if id == 0 {
+        return "brentmaas.buildguide.common.shape.ShapeCatenary@i;i;i;r;p;b@3,0,0,Runnable,1.0,false"
+    }
+    if id == 1 {
+        return "brentmaas.buildguide.common.shape.ShapeCircle@e:X,Y,Z;p;N;b@X,3.0,1,false"
+    }
+    if id == 2 {
+        return "brentmaas.buildguide.common.shape.ShapeCone@e:X,Y,Z;p;f;b@X,3.0,3.0,false"
+    }
+    if id == 3 {
+        return "brentmaas.buildguide.common.shape.ShapeCuboid@I;I;I;e:ALL,X,Y,Z,XY,XZ,YZ,NONE;b@3,3,3,ALL,false"
+    }
+    if id == 4 {
+        return "brentmaas.buildguide.common.shape.ShapeEllipse@e:X,Y,Z;p;p;N;b@X,3.0,3.0,1,false"
+    }
+    if id == 5 {
+        return "brentmaas.buildguide.common.shape.ShapeEllipsoid@p;p;p;e:NO,POSITIVE_X,POSITIVE_Y,POSITIVE_Z,NEGATIVE_X,NEGATIVE_Y,NEGATIVE_Z;b@3.0,3.0,3.0,NO,false"
+    }
+    if id == 6 {
+        return "brentmaas.buildguide.common.shape.ShapeGrid@I;I;I;N;N;N@3,1,3,3,3,3"
+    }
+    if id == 7 {
+        return "brentmaas.buildguide.common.shape.ShapeHelix@e:X,Y,Z;m;l;N;p;f;b;b@Y,5.0,3.0,5,360.0,0.0,false,false"
+    }
+    if id == 8 {
+        return "brentmaas.buildguide.common.shape.ShapeLine@i;i;i;r@3,0,0,Runnable"
+    }
+    if id == 9 {
+        return "brentmaas.buildguide.common.shape.ShapeParabola@e:X,Y,Z;e:ROT0,ROT90,ROT180,ROT270;p;p;N;b@X,ROT0,3.0,3.0,1,false"
+    }
+    if id == 10 {
+        return "brentmaas.buildguide.common.shape.ShapeParaboloid@e:X,Y,Z;p;p;N;b@X,3.0,3.0,3,false"
+    }
+    if id == 11 {
+        return "brentmaas.buildguide.common.shape.ShapePolygon@M;p;e:X,Y,Z;e:ROT0,ROT90,ROT180,ROT270;N;b@3,3.0,X,ROT0,1,false"
+    }
+    if id == 12 {
+        return "brentmaas.buildguide.common.shape.ShapePolygonalPyramid@M;p;e:X,Y,Z;e:ROT0,ROT90,ROT180,ROT270;n;b@4,3.0,Y,ROT0,4.0,false"
+    }
+    if id == 13 {
+        return "brentmaas.buildguide.common.shape.ShapeSphere@p;e:NO,POSITIVE_X,POSITIVE_Y,POSITIVE_Z,NEGATIVE_X,NEGATIVE_Y,NEGATIVE_Z;b@3.0,NO,false"
+    }
+    if id == 14 {
+        return "brentmaas.buildguide.common.shape.ShapeTorus@e:X,Y,Z;p;p;b;b@X,5.0,3.0,false,false"
+    }
+    return _shape_row(0)
+}
+
+# ShapeRegistry.getShapeId: the id of a class name, or -1 when the registry does not hold it.
+local _shape_id(key: string) number {
+    i: number = 0
+    while i < _shape_count() {
+        if _shape_class(i) == key {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+# ---------------------------------------------------------------- text
+
+# Boolean.parseBoolean: true only for every case of the word true.
+local _boolean_text(text: string) string {
+    if String.equals_ignore_case(text, "true") {
+        return "true"
+    }
+    return "false"
+}
+
+local _clamp(value: number, low: number, high: number) number {
+    if value < low {
+        return low
+    }
+    if value > high {
+        return high
+    }
+    return value
+}
+
+local _line(text: string) string {
+    return String.concat(text, _newline())
+}
+
+# The line at this index, without a carriage return, as Scanner.nextLine would read a CRLF file.
+local _line_at(text: string, index: number) string {
+    line: string = _piece(text, _newline(), index)
+    length: number = String.length(line)
+    if length > 0 and String.substring(line, length - 1, length) == String.from_character(13) {
+        return String.substring(line, 0, length - 1)
+    }
+    return line
+}
+
+local _replace_all(text: string, needle: string, replacement: string) string {
+    out: string = ""
+    start: number = 0
+    length: number = String.length(text)
+    width: number = String.length(needle)
+    done: bool = false
+    while not done {
+        at: number = _index_from(text, needle, start)
+        if at < 0 {
+            out = String.concat(out, String.substring(text, start, length))
+            done = true
+        } else {
+            out = String.concat(out, String.substring(text, start, at))
+            out = String.concat(out, replacement)
+            start = at + width
+        }
+    }
+    return out
+}
+
+# Java's String.split(separator) with a limit of 0: how many pieces it answers, with the trailing
+# empty ones dropped. An empty text is one empty piece; a text of only separators is none.
+local _split_count(text: string, separator: string) number {
+    if String.length(text) == 0 {
+        return 1
+    }
+    length: number = String.length(text)
+    width: number = String.length(separator)
+    count: number = 0
+    last: number = -1
+    start: number = 0
+    while start <= length {
+        at: number = _index_from(text, separator, start)
+        if at < 0 {
+            if length - start > 0 {
+                last = count
+            }
+            return last + 1
+        }
+        if at > start {
+            last = count
+        }
+        count = count + 1
+        start = at + width
+    }
+    return last + 1
+}
+
+# The piece at this index, which has to be below _split_count.
+local _piece(text: string, separator: string, index: number) string {
+    length: number = String.length(text)
+    width: number = String.length(separator)
+    start: number = 0
+    i: number = 0
+    while i < index {
+        found: number = _index_from(text, separator, start)
+        if found < 0 {
+            return ""
+        }
+        start = found + width
+        i = i + 1
+    }
+    found: number = _index_from(text, separator, start)
+    if found < 0 {
+        return String.substring(text, start, length)
+    }
+    return String.substring(text, start, found)
+}
+
+# A line feed, built rather than written as an escape: grug-tests does not accept escape sequences
+# in a string yet, and every text above is a file's own lines.
+local _newline() string {
+    return String.from_character(10)
+}
+
+local _has_prefix(text: string, prefix: string) bool {
+    if String.length(prefix) > String.length(text) {
+        return false
+    }
+    return String.substring(text, 0, String.length(prefix)) == prefix
+}
+
+# String.indexOf from an offset, for the scans above: -1 when the needle is not there at or after it.
+local _index_from(text: string, needle: string, from: number) number {
+    length: number = String.length(text)
+    if from > length {
+        return -1
+    }
+    at: number = String.index_of(String.substring(text, from, length), needle)
+    if at < 0 {
+        return -1
+    }
+    return from + at
+}
+
+# One shape's default line, used by the round-trip case: the class name and its default values.
+local _assert_shape_line(ctx: TestTickContext, shape_class: string, values: string, errored: bool) {
+    id: number = _shape_id(shape_class)
+    ctx.assert(id >= 0, String.concat(shape_class, " should be registered."))
+    fields: string = String.concat(String.concat("index=", String.from_number(id)), ";origin=5,6,7;visible=false;shapeColour=0.5,0.25,0.125,1.0;originColour=0.0,0.0,1.0,0.5;shapeCubeSize=0.9;originCubeSize=0.1;")
+    entry: string = String.concat(String.concat(shape_class, "="), String.concat(values, ";"))
+    set: string = _set_restore(_set_new(id, 5, 6, 7), String.concat(fields, entry))
+    ctx.assert(_set_save(set) == String.concat(fields, entry), String.concat(shape_class, " should save as it loaded."))
+    ctx.assert(_set_shape_error(set, id) == errored, String.concat(shape_class, " should have the error state its defaults give it."))
+}

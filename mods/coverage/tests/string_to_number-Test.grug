@@ -1,0 +1,31 @@
+# String.to_number reads the whole text as Java's Double.parseDouble does: a decimal with an optional
+# sign, point and exponent, a hexadecimal number with a p exponent, or NaN and Infinity, with nothing
+# else in the text. It is how a persisted 64-bit property, such as Build Guide 0.4.9's cube size, is
+# read back exactly as a Java program's Double.parseDouble reads it.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.to_number("2.5").unwrap() == 2.5, "2.5 should read as 2.5.")
+        ctx.assert(String.to_number("-3").unwrap() == -3, "-3 should read as -3.")
+        ctx.assert(String.to_number("+1.5").unwrap() == 1.5, "A leading + should be allowed.")
+        ctx.assert(String.to_number("1e3").unwrap() == 1000, "An exponent should be read.")
+        ctx.assert(String.to_number("0.1").unwrap() == 0.1, "0.1 should read as the nearest 64-bit number.")
+        ctx.assert(String.to_number("1.0f").unwrap() == 1, "A float suffix should be allowed.")
+        ctx.assert(String.to_number("0x1.8p1").unwrap() == 3, "A hexadecimal number with a p exponent should be read.")
+        ctx.assert(String.to_number("0x1p-1").unwrap() == 0.5, "A hexadecimal exponent may be negative.")
+        nan: number = String.to_number("NaN").unwrap()
+        ctx.assert(String.from_double(nan) == "NaN", "NaN should read as NaN.")
+        ctx.assert(String.to_number("Infinity").unwrap() == String.to_number("1e400").unwrap(), "Infinity should read as Infinity.")
+        ctx.assert(String.to_number("-Infinity").unwrap() < -String.to_number("1e308").unwrap(), "-Infinity should read as a number below every finite one.")
+        ctx.assert(String.to_number("1e400").unwrap() > String.to_number("1e308").unwrap(), "A magnitude past the largest number should read as Infinity.")
+        ctx.assert(not String.to_number("").has(), "An empty text writes no number.")
+        ctx.assert(String.to_number(" 3").unwrap() == 3, "A leading space should be trimmed, as Java's parseDouble trims the text.")
+        ctx.assert(String.to_number("3 ").unwrap() == 3, "A trailing space should be trimmed too.")
+        ctx.assert(not String.to_number("3 3").has(), "A space inside the text writes no number.")
+        ctx.assert(not String.to_number("3.0.0").has(), "Two points write no number.")
+        ctx.assert(not String.to_number("0x10").has(), "A hexadecimal number without a p exponent writes no number.")
+        ctx.assert(not String.to_number("1_0").has(), "An underscore writes no number.")
+        ctx.assert(not String.to_number("NaNx").has(), "A text after NaN writes no number.")
+        ctx.assert(not String.to_number("infinity").has(), "The name of Infinity is case-sensitive.")
+        ctx.assert(String.from_number(String.to_number("2.5").unwrap()) == "2.5", "A number should write back as its text.")
+    }
+}

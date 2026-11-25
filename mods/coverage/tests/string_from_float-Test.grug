@@ -1,0 +1,29 @@
+# String.from_float turns a number into Java's Float.toString: the number narrowed to 32 bits, then
+# the shortest text that reads back as that float. A Java program writes a float property into a file
+# with string concatenation, which is this text, so a state file round-trips byte for byte. The texts
+# below were printed by java-21-openjdk 21.0.13.1, the Java Build Guide 0.4.9 runs on.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.from_float(3) == "3.0", "A whole float should keep a .0.")
+        ctx.assert(String.from_float(2.5) == "2.5", "2.5 should write as 2.5.")
+        ctx.assert(String.from_float(0.1) == "0.1", "A float 0.1 should write as 0.1, not as its long exact value.")
+        ctx.assert(String.from_float(0.30000001192092896) == "0.3", "The float nearest 0.3 should write as 0.3.")
+        ctx.assert(String.from_float(-3.25) == "-3.25", "A negative float should keep its sign.")
+        ctx.assert(String.from_float(0) == "0.0", "Zero should write as 0.0.")
+        ctx.assert(String.from_float(-0.0) == "-0.0", "Negative zero should keep its sign.")
+        ctx.assert(String.from_float(0.001) == "0.001", "A thousandth should be written plainly.")
+        ctx.assert(String.from_float(0.0001) == "1.0E-4", "A ten-thousandth should be written with an exponent.")
+        ctx.assert(String.from_float(10000000) == "1.0E7", "Ten million should be written with an exponent.")
+        ctx.assert(String.from_float(9999999) == "9999999.0", "One below ten million should be written plainly.")
+        ctx.assert(String.from_float(String.to_number("1e20").unwrap()) == "1.0E20", "1e20 should be written with its float digits.")
+        ctx.assert(String.from_float(String.to_number("1e-50").unwrap()) == "0.0", "A magnitude below the smallest float should write as 0.0.")
+        ctx.assert(String.from_float(String.to_number("1e300").unwrap()) == "Infinity", "A magnitude past the largest float should write as Infinity.")
+        ctx.assert(String.from_float(String.to_number("3.4028234663852886e38").unwrap()) == "3.4028235E38", "The largest float should write its shortest text.")
+        ctx.assert(String.from_float(String.to_number("1.401298464324817e-45").unwrap()) == "1.4E-45", "The smallest float should write its shortest text.")
+        ctx.assert(String.from_float(12345678) == "1.2345678E7", "A float's digits should be the shortest that read back.")
+        ctx.assert(String.from_float(0.5) == "0.5", "A half should write as 0.5.")
+        nan: number = String.to_number("NaN").unwrap()
+        ctx.assert(String.from_float(nan) == "NaN", "A NaN should write as NaN.")
+        ctx.assert(String.from_float(2147483647) == "2.1474836E9", "An int narrowed to a float should write its float text.")
+    }
+}

@@ -1,0 +1,25 @@
+# String.to_integer reads the whole text as Java's Integer.parseInt does: an optional + or - and at
+# least one ASCII digit, inside the 32-bit range, with nothing else in the text. The answer is an
+# Option, so a text that writes no whole number is empty rather than a wrong number, which is how a
+# persisted shape property is read back (Build Guide 0.4.9's PropertyInt).
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.to_integer("41").unwrap() == 41, "41 should read as 41.")
+        ctx.assert(String.to_integer("-7").unwrap() == -7, "-7 should read as -7.")
+        ctx.assert(String.to_integer("+3").unwrap() == 3, "A leading + should be allowed.")
+        ctx.assert(String.to_integer("0").unwrap() == 0, "0 should read as 0.")
+        ctx.assert(String.to_integer("2147483647").unwrap() == 2147483647, "The largest int should read back.")
+        ctx.assert(String.to_integer("-2147483648").unwrap() == -2147483648, "The smallest int should read back.")
+        ctx.assert(not String.to_integer("").has(), "An empty text writes no whole number.")
+        ctx.assert(not String.to_integer(" 41").has(), "A leading space writes no whole number.")
+        ctx.assert(not String.to_integer("41 ").has(), "A trailing space writes no whole number.")
+        ctx.assert(not String.to_integer("4 1").has(), "A space inside writes no whole number.")
+        ctx.assert(not String.to_integer("1.0").has(), "A point writes no whole number.")
+        ctx.assert(not String.to_integer("1e3").has(), "An exponent writes no whole number.")
+        ctx.assert(not String.to_integer("0x10").has(), "A hexadecimal number writes no whole number.")
+        ctx.assert(not String.to_integer("+").has(), "A sign with no digit writes no whole number.")
+        ctx.assert(not String.to_integer("2147483648").has(), "One past the largest int writes no whole number.")
+        ctx.assert(not String.to_integer("-2147483649").has(), "One before the smallest int writes no whole number.")
+        ctx.assert(String.from_number(String.to_integer("41").unwrap()) == "41", "A whole number should write back as its text.")
+    }
+}
