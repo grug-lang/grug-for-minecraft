@@ -1,0 +1,74 @@
+# Two container clicks in one tick, both applied before the next tick's read (#1774). The client
+# writes one click packet and then one control barrier behind it per press, so a tick that presses
+# twice owes the server two barriers. The server tracked that with one flag, which the first barrier
+# cleared, so a drain could stop with the second click's packet still in front of the game thread and
+# that click landed after the test had already read the menu.
+# The two presses are the two cases the click tests already prove one at a time: gui_click_empty's
+# empty cursor takes a slot's stack, and gui_click's carried stack goes into an empty slot. Here they
+# are one tick apart from the read in neither direction, so the grid's first slot losing its diamond
+# and its second slot gaining one are two separate effects of the same tick's pair.
+# The read is on the tick right after the pair, not a wait on a condition: the one-tick bound is what
+# this test asserts, and the drain keeps going until every barrier the tick owes has been handled
+# (#1393).
+started: bool = false
+opened: bool = false
+clicked: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        ctx.close_screen()
+        # Cleared before the screen opens, so the client's queued half of the clear has landed on the
+        # server by the tick that presses.
+        ctx.clear_carried_item()
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        level.place_block(origin.x(), origin.y(), origin.z(), "grug:coverage_block")
+        ctx.use_block(level, origin.x(), origin.y(), origin.z())
+        ctx.not_done()
+        return
+    }
+    if not opened {
+        if not ctx.screen_open() {
+            ctx.not_done()
+            return
+        }
+        opened = true
+        level: Level = ctx.get_client_level()
+        origin: Vec3 = ctx.get_origin()
+        block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+        # One diamond in the grid's first slot and nothing in its second, which is what the pair
+        # moves from one to the other. The server's menu is what the clicks are applied to, so the
+        # client's own copy of the slot does not decide the outcome.
+        block_entity.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+        ctx.not_done()
+        return
+    }
+    if not clicked {
+        clicked = true
+        ctx.assert(not ctx.get_carried_item().has(), "The cursor should be empty before the pair of presses.")
+        left: number = ctx.gui_left()
+        top: number = ctx.gui_top()
+        # Both presses in this one tick: the first takes the grid's first slot onto the cursor, and
+        # the second puts it into the empty second slot. Each writes its own click packet and its own
+        # barrier, so the server owes two barriers when the tick ends.
+        ctx.assert(not ctx.click_screen(left + 38, top + 25, 0), "A press no overlay took should answer false.")
+        ctx.assert(not ctx.click_screen(left + 56, top + 25, 0), "A press no overlay took should answer false.")
+        ctx.not_done()
+        return
+    }
+    # The effect is the server's, so both clicks of the previous tick are read here, once: a click
+    # whose packet the drain missed would still be on the cursor and the second slot still empty.
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    block_entity: BlockEntity = level.get_block_entity(origin.x(), origin.y(), origin.z()).unwrap()
+    ctx.assert(block_entity.get_item_count_in_slot(0) == 0, "The first of two clicks in one tick should have taken the grid's first slot onto the cursor.")
+    ctx.assert(block_entity.get_item_count_in_slot(1) == 1, "The second of two clicks in one tick should have put the cursor's diamond into the grid's second slot.")
+    in_slot: Option[Item] = block_entity.get_item_in_slot(1)
+    ctx.assert(in_slot.has(), "The grid's second slot should hold the diamond the second click moved there.")
+    if in_slot.has() {
+        ctx.assert(equals(in_slot.unwrap(), item(resource_location("minecraft:diamond"))), "The grid's second slot should hold the diamond, not another item.")
+    }
+    ctx.assert(not ctx.get_carried_item().has(), "Both clicks of one tick should have been applied by the next tick, so the cursor is empty.")
+    ctx.close_screen()
+}

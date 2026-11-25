@@ -3895,6 +3895,30 @@ class GrugControlTest {
     }
 
     @Test
+    void twoClicksInOneTickDrainUntilBothBarriersAreHandled() throws Exception {
+        // Two clicks in one tick are two click packets on the wire with a barrier behind each, so a
+        // drain that ends at the first barrier leaves the second click's packet for the game's own
+        // next tick, after the test has read the menu (#1774). The pass handles exactly one click
+        // and its barrier, so it ends on that boundary: a single flag would end the drain here with
+        // one click applied.
+        BoundedClickLink link = new BoundedClickLink(2, 0);
+        link.client.beginRun();
+
+        link.server.clickScreen(12, 34, 0);
+        link.server.clickScreen(12, 34, 0);
+        assertEquals(0, link.clicksApplied);
+        assertFalse(link.barrierHandled);
+
+        link.server.applyClientWork();
+
+        // The first pass took the first click and its barrier, which left the second still owed.
+        assertEquals(2, link.drains);
+        assertEquals(2, link.clicksApplied);
+        assertTrue(link.barrierHandled);
+        assertNull(GrugErrors.takeHostFunctionException());
+    }
+
+    @Test
     void aBarrierThatNeverArrivesIsReportedRatherThanLeftForTheNextTickToBlameTheClick()
             throws Exception {
         BoundedClickLink link = new BoundedClickLink(101, 0);

@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -235,16 +236,21 @@ public final class GrugControlServer {
     static final int MAX_CLICK_DRAIN_PASSES = 200;
 
     /**
-     * Whether a click packet the starter's client wrote has not been applied by this server yet
-     * (#1393). The server thread sets it in {@link #forward}, before the call goes out, and clears
-     * it when the client's {@link GrugControlWire#CLICK_WRITTEN} barrier reaches {@link #onMessage}
-     * after the loader had the click packet in front of it, or when the call fails before the
-     * client could have written the packet. Until it is cleared, {@link #applyClientWork} keeps
-     * draining the connection: the barrier was written behind the click packet on the same stream,
-     * so handling the barrier proves the click packet's handler already ran, whatever the queue's
-     * length or the thread the loader handles the barrier on.
+     * How many click packets the starter's client wrote have not been applied by this server yet
+     * (#1393, #1774). The server thread adds one in {@link #forward}, before the call goes out, and
+     * takes one back when the client's {@link GrugControlWire#CLICK_WRITTEN} barrier reaches {@link
+     * #onMessage} after the loader had the click packet in front of it, or when the call fails
+     * before the client could have written the packet. It counts rather than flags because a client
+     * that clicks twice in one tick writes a click packet and then a barrier for each, and the flag
+     * this replaces reasoned about one click per tick (#1750): its first barrier cleared it, so
+     * {@link #applyClientWork} could stop with the second click's packet still in front of the game
+     * thread. While any is owed, {@link #applyClientWork} keeps draining the connection: a barrier
+     * was written behind its click packet on the same stream, so handling it proves that packet's
+     * handler already ran, whatever the queue's length or the thread the loader handles the barrier
+     * on. It is atomic because a loader that handles the barrier on the connection's network thread
+     * (1.20.6) takes one back there while the server thread adds another.
      */
-    private volatile boolean clickPacketOwed;
+    private final AtomicInteger clickPacketsOwed = new AtomicInteger();
 
     /**
      * The gives the starter's client sent and this server has not applied yet (#1099), in the order
@@ -353,11 +359,12 @@ public final class GrugControlServer {
      *
      * <p>A click is the one call whose packet must be applied before the next tick, so it is not
      * left to a single bounded pass: the client writes a {@link GrugControlWire#CLICK_WRITTEN}
-     * barrier behind the click packet on the same connection, and this drains until the barrier has
-     * been handled by the game thread's own queue. Handling the barrier proves the click packet in
-     * front of it ran first, whatever the queue held behind the bound of one pass (#1393). A
-     * barrier that never arrives is reported as the ordering defect it is, rather than left for the
-     * test's assertion to blame the click.
+     * barrier behind the click packet on the same connection, and this drains until every barrier
+     * the client owes has been handled by the game thread's own queue. Handling a barrier proves
+     * the click packet in front of it ran first, whatever the queue held behind the bound of one
+     * pass (#1393). A tick that clicks twice owes two barriers, and the count is what keeps the
+     * drain going between them (#1774). A barrier that never arrives is reported as the ordering
+     * defect it is, rather than left for the test's assertion to blame the click.
      */
     public void applyClientWork() {
         if (!clientWorkPending) {
@@ -366,18 +373,18 @@ public final class GrugControlServer {
         clientWorkPending = false;
         // One drain is one bounded pass of the game's own packet queue, and a click packet behind
         // that bound would be handled after the next tick had already asserted. The client sends a
-        // barrier behind the click packet, so this keeps draining until that barrier is handled
-        // (#1393).
+        // barrier behind each click packet, so this keeps draining until every owed barrier is
+        // handled (#1393, #1774).
         int passes = 0;
         do {
             link.applyClientWork();
             passes++;
-        } while (clickPacketOwed && passes < MAX_CLICK_DRAIN_PASSES);
-        if (clickPacketOwed) {
-            clickPacketOwed = false;
+        } while (clickPacketsOwed.get() > 0 && passes < MAX_CLICK_DRAIN_PASSES);
+        if (clickPacketsOwed.get() > 0) {
+            clickPacketsOwed.set(0);
             GrugErrors.recordHostFunctionException(
-                    "The click packet that TestTickContext.click_screen wrote did not reach the"
-                            + " server in "
+                    "The barrier behind a click packet that TestTickContext.click_screen wrote did"
+                            + " not reach the server in "
                             + passes
                             + " drains of its connection, so the next tick cannot see the click."
                             + " This is the control channel's ordering, not the test's (#1393).");
@@ -607,7 +614,11 @@ public final class GrugControlServer {
             // queue handled the click packet in front of this barrier first. A loader that takes
             // its control messages on the network thread (1.20.6) has already given the game
             // thread the click packet's handler, and its applyClientWork empties that whole queue.
-            clickPacketOwed = false;
+            // One barrier per click packet, so this takes one back rather than clearing the debt:
+            // a second click of the same tick is still owed, and only its own barrier pays it
+            // (#1774). The floor keeps a barrier whose call already failed from paying another
+            // click's debt.
+            clickPacketsOwed.updateAndGet(owed -> Math.max(0, owed - 1));
             return;
         }
         if (message.type == GrugControlWire.GIVE_REQUEST) {
@@ -1603,8 +1614,10 @@ public final class GrugControlServer {
             // The client answers a click only after the press wrote the game's click packet and the
             // barrier behind it, so the barrier is in the game's queue by the time this returns
             // (#1393). Marked before the call goes out, so a call that fails still leaves any
-            // packet it did send to the drain above.
-            clickPacketOwed = true;
+            // packet it did send to the drain above. One per call: a second click in the same tick
+            // has its own packet and its own barrier, and only a count keeps the drain going until
+            // both barriers are handled (#1774).
+            clickPacketsOwed.incrementAndGet();
         }
         try {
             // No flushWorld here: a sound or screen call depends on no world state, and flushing
@@ -1640,8 +1653,9 @@ public final class GrugControlServer {
             if (call == GrugControlWire.CALL_CLICK_SCREEN) {
                 // The client answered with an error or never answered: it wrote no barrier, so
                 // nothing is owed. A click packet it did write is still applied by the next drain,
-                // which the mark above pays for.
-                clickPacketOwed = false;
+                // which the mark above pays for. The floor is for a barrier that did arrive before
+                // an answer was lost: that one already took its click's debt back.
+                clickPacketsOwed.updateAndGet(owed -> Math.max(0, owed - 1));
             }
             throw e;
         } finally {
