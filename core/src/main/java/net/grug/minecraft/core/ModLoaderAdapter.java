@@ -710,6 +710,10 @@ public interface ModLoaderAdapter {
      * <p>A client that shares the server's world and a loader with no joined client never answer,
      * so they keep this default.
      */
+    @GrugGenerated(
+            "only 1.2.5-forge keeps this default, and its client answers the capture wait itself"
+                    + " rather than through core's settle ask, so no counted JVM asks; the report"
+                    + " that would read it is core's unit-tested GrugSettleLoop")
     default String settleReason() {
         return "";
     }
@@ -720,6 +724,10 @@ public interface ModLoaderAdapter {
      * which is a different case from a renderer that is slow to finish the frame it has. -1 when
      * the loader cannot count them, which leaves that wait its revision's own limit.
      */
+    @GrugGenerated(
+            "only 1.2.5-forge keeps this default, and its client answers the capture wait itself"
+                    + " rather than through core's settle ask, so no counted JVM reads it; the wait"
+                    + " that would read it is core's unit-tested GrugSettleLoop")
     default long settleFrames() {
         return -1;
     }

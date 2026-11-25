@@ -394,9 +394,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
         if (!serverSettled(minecraft, level)) {
             return false;
         }
-        if (!GrugLightSync.roomSettled(
-                (x, y, z) -> blockLightLayer(simulated, x, y, z),
-                (x, y, z) -> blockLightLayer(level, x, y, z))) {
+        if (!lightMatches(simulated, level)) {
             return false;
         }
         // A hand that is moving now is work no frame sampled so far has seen: the sample runs at
@@ -420,6 +418,10 @@ public class ClientForgeAdapter extends ForgeAdapter {
      * says which input was still busy. This is the loader that reads the light engine and the queue
      * of light packets separately, so its reason can name both.
      */
+    @GrugGenerated(
+            "a client of a remote server: the leg the gate measures runs a client with its own"
+                    + " integrated server and the dedicated leg measures only its server, so no"
+                    + " counted JVM asks this client why it is not settled")
     @Override
     public String settleReason() {
         Minecraft minecraft = Minecraft.getInstance();
@@ -431,9 +433,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
             return "the client is still reloading its resources";
         }
         Object simulated = getLevel();
-        if (!GrugLightSync.roomSettled(
-                (x, y, z) -> blockLightLayer(simulated, x, y, z),
-                (x, y, z) -> blockLightLayer(level, x, y, z))) {
+        if (!lightMatches(simulated, level)) {
             return "the light of the box this server sent differs on this client";
         }
         if (handMovedInLastClientTick) {
@@ -442,10 +442,40 @@ public class ClientForgeAdapter extends ForgeAdapter {
         return RENDER_SETTLE.busyReason(
                 level.getChunkSource().getLightEngine().hasLightWork(),
                 level.isLightUpdateQueueEmpty(),
-                BLOCK_SYNC.settled((x, y, z) -> blockNameAt((Level) simulated, x, y, z)));
+                blocksSettled(simulated));
+    }
+
+    /**
+     * Whether the light of the box the server sent matches on this client, for the settle answer
+     * and its reason.
+     *
+     * <p>A method of its own rather than a lambda inside {@code settleReason}: JaCoCo drops an
+     * annotated method but not the synthetic lambda it holds, so the comparison lives where a
+     * counted client leg runs it from {@link #isWorldSettled}.
+     */
+    private static boolean lightMatches(Object simulated, ClientLevel level) {
+        return GrugLightSync.roomSettled(
+                (x, y, z) -> blockLightLayer(simulated, x, y, z),
+                (x, y, z) -> blockLightLayer(level, x, y, z));
+    }
+
+    /**
+     * Whether the client holds every block the simulated world owes it, for the settle answer and
+     * its reason.
+     *
+     * <p>A method of its own for the same reason as {@link #lightMatches}: {@link #clientSettled},
+     * which a counted client leg runs, reads the comparison, and {@code settleReason} only names
+     * its answer.
+     */
+    private static boolean blocksSettled(Object simulated) {
+        return BLOCK_SYNC.settled((x, y, z) -> blockNameAt((Level) simulated, x, y, z));
     }
 
     /** The frames this client has drawn, for the wait that repeats one answer (#1695). */
+    @GrugGenerated(
+            "a client of a remote server: the leg the gate measures runs a client with its own"
+                    + " integrated server and the dedicated leg measures only its server, so no"
+                    + " counted JVM reads this client's frame count")
     @Override
     public long settleFrames() {
         return RENDER_SETTLE.framesDrawn();
@@ -635,7 +665,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
                         // capture whose wait has no settle call in front of it compares the client
                         // against what the world holds now rather than against a block the world
                         // replaced. See #804.
-                        BLOCK_SYNC.settled((x, y, z) -> blockNameAt((Level) simulated, x, y, z)));
+                        blocksSettled(simulated));
     }
 
     /**

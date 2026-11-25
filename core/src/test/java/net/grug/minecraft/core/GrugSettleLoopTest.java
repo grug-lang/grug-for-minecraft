@@ -90,6 +90,21 @@ class GrugSettleLoopTest {
     }
 
     @Test
+    void aCountThatBecomesReadableAfterAnUnreadableAskStallsFromThere() {
+        // A loader can answer without a frame count and then with one, for example once its client
+        // has drawn a frame it can count. The unreadable ask is not progress, so the count from the
+        // readable one onward is what the stall limit measures (#1695).
+        GrugSettleLoop loop = new GrugSettleLoop();
+        assertNull(loop.answered(5L, BUSY, -1), "the first ask cannot count frames");
+        for (int at = 1; at <= GrugSettleLoop.STALL_LIMIT; at++) {
+            assertNull(loop.answered(5L, BUSY, 9L), "ask " + at + " still starts the count");
+        }
+        String report = loop.answered(5L, BUSY, 9L);
+        assertNotNull(report, "a readable count that does not move reports as stalled");
+        assertTrue(report.contains("without drawing a frame"), report);
+    }
+
+    @Test
     void anUnnamedReasonSaysSo() {
         GrugSettleLoop loop = new GrugSettleLoop();
         for (int at = 1; at < GrugSettleLoop.LIMIT; at++) {

@@ -125,6 +125,41 @@ class GrugLightRetryTest {
     }
 
     @Test
+    void aSentAnswerSettlesThePollAndSendsTheBoxOnlyWhenItDiverged() {
+        GrugLightRetry retry = new GrugLightRetry();
+        AtomicInteger sends = new AtomicInteger();
+        Runnable resend = sends::incrementAndGet;
+
+        assertTrue(retry.settled(GrugLightRetry.Verdict.SETTLED, resend));
+        assertFalse(retry.settled(GrugLightRetry.Verdict.UNSETTLED, resend));
+        assertFalse(
+                retry.settled(GrugLightRetry.Verdict.DIVERGED, resend),
+                "a divergent answer leaves the poll unsettled");
+        assertFalse(retry.settled(GrugLightRetry.Verdict.PERSISTED, resend));
+        assertEquals(1, sends.get(), "only the divergent answer sends the box again");
+    }
+
+    @Test
+    void aDivergenceThatOutlastedItsResendsIsThrownAsTheReport() throws Exception {
+        GrugLightRetry retry = new GrugLightRetry();
+
+        assertEquals(
+                GrugLightRetry.Verdict.SETTLED,
+                retry.reportIfPersisted(GrugLightRetry.Verdict.SETTLED));
+        assertEquals(
+                GrugLightRetry.Verdict.DIVERGED,
+                retry.reportIfPersisted(GrugLightRetry.Verdict.DIVERGED));
+        GrugControlServer.ControlException thrown =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> retry.reportIfPersisted(GrugLightRetry.Verdict.PERSISTED));
+        assertEquals(
+                retry.report(),
+                thrown.getMessage(),
+                "the poll that catches this reports the same cell the retry named");
+    }
+
+    @Test
     void forgettingTheDivergenceStartsTheNextTestsWaitOver() throws Exception {
         int[] box = {0, 64, 0, 0, 64, 0};
         GrugLightSync.BlockLight serverBlock = (x, y, z) -> 7;
@@ -248,6 +283,67 @@ class GrugLightRetryTest {
                 GrugLightRetry.firstDifference(
                         new int[0], DARK, DARK, ask -> GrugControlWire.SETTLE_YES, null));
         assertTrue(new GrugLightRetry().report().contains("could not be located"));
+    }
+
+    @Test
+    void aDifferenceIsTheSameOnlyAtTheSameCellAndTheSameBytes() {
+        // A field that stopped moving is the same cell with the same bytes, so a difference in any
+        // one of the six decides it; the report's early answer depends on every comparison (#1695).
+        GrugLightRetry.Difference base = new GrugLightRetry.Difference(1, 2, 3, 4, 5, 6);
+
+        assertTrue(base.sameAs(new GrugLightRetry.Difference(1, 2, 3, 4, 5, 6)));
+        assertFalse(
+                base.sameAs(new GrugLightRetry.Difference(9, 2, 3, 4, 5, 6)), "another x differs");
+        assertFalse(
+                base.sameAs(new GrugLightRetry.Difference(1, 9, 3, 4, 5, 6)), "another y differs");
+        assertFalse(
+                base.sameAs(new GrugLightRetry.Difference(1, 2, 9, 4, 5, 6)), "another z differs");
+        assertFalse(
+                base.sameAs(new GrugLightRetry.Difference(1, 2, 3, 9, 5, 6)),
+                "another block level differs");
+        assertFalse(
+                base.sameAs(new GrugLightRetry.Difference(1, 2, 3, 4, 9, 6)),
+                "another sky level differs");
+        assertFalse(
+                base.sameAs(new GrugLightRetry.Difference(1, 2, 3, 4, 5, 9)),
+                "another client level differs");
+    }
+
+    @Test
+    void aBoxThatNoLongerDiffersWhenItIsAskedAgainHasNothingToReport() throws Exception {
+        // A client can move back into agreement between two divergent answers, so the ask that
+        // follows a located cell locates none. The wait asks again rather than reporting a
+        // difference that is gone.
+        int[] box = {0, 64, 0, 0, 64, 0};
+        GrugLightSync.BlockLight serverBlock = (x, y, z) -> 7;
+        GrugLightSync.BlockLight clientBlock = (x, y, z) -> 9;
+        GrugLightRetry retry = new GrugLightRetry();
+
+        assertEquals(
+                GrugLightRetry.Verdict.DIVERGED,
+                diverged(
+                        retry,
+                        box,
+                        serverBlock,
+                        DARK,
+                        probe(clientBlock, DARK),
+                        section(clientBlock, DARK)),
+                "the first divergence only sends the box again");
+        assertEquals(
+                GrugLightRetry.Verdict.DIVERGED,
+                diverged(
+                        retry,
+                        box,
+                        serverBlock,
+                        DARK,
+                        probe(clientBlock, DARK),
+                        section(clientBlock, DARK)),
+                "the second locates the cell and sends the box again");
+        assertEquals(
+                GrugLightRetry.Verdict.DIVERGED,
+                diverged(retry, box, serverBlock, DARK, ask -> GrugControlWire.SETTLE_YES, null),
+                "a box that agrees again has no cell to report");
+        assertTrue(retry.report().contains("could not be located"), retry.report());
     }
 
     @Test

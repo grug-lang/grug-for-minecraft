@@ -2246,6 +2246,7 @@ class GrugControlTest {
         caller.playUiSound("b", 1, 1);
         assertTrue(caller.isWorldSettled());
         assertEquals("", caller.settleReason(), "a loader that cannot name one says nothing");
+        assertEquals(0L, caller.settleFrames(), "the stand-in adapter's own frame count");
         assertTrue(caller.holdsBlocks(null));
         assertTrue(caller.holdsRoomLight(null));
         caller.forgetSettledFrames();
@@ -2288,6 +2289,7 @@ class GrugControlTest {
                         "playUiSound b",
                         "isWorldSettled",
                         "settleReason",
+                        "settleFrames",
                         "holdsBlockRegion null",
                         "holdsRoomLight null",
                         "forgetSettledFrames",

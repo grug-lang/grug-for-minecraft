@@ -827,35 +827,52 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                             worldSettledFailed(e);
                             return GrugLightRetry.Verdict.SETTLED;
                         });
-        if (verdict == GrugLightRetry.Verdict.DIVERGED) {
-            // A client that drew the world but holds its own light for the box this server sent it
-            // has to be sent that box again, so this poll is not settled (#1695).
-            lightResend.rearm();
-            return false;
-        }
-        return verdict == GrugLightRetry.Verdict.SETTLED;
+        // A client that drew the world but holds its own light for the box this server sent it has
+        // to be sent that box again, so that poll is not settled (#1695).
+        return lightRetry.settled(verdict, lightResend::rearm);
     }
 
     /**
-     * The client's answer to the light ask, as the loader reads it. A divergence that survived the
-     * box being sent again is a defect, so it is reported at the first cell whose light differs
-     * rather than asked again until the tick budget is gone. See {@link GrugLightRetry}.
+     * The client's answer to the light ask, as the loader reads it. A divergence that outlasted its
+     * re-sends is thrown as the report, so the poll reports the first cell whose light differs
+     * rather than asking until the tick budget is gone. See {@link GrugLightRetry}.
      */
     private GrugLightRetry.Verdict lightVerdict() throws GrugControlServer.ControlException {
-        World world = (World) getLevel();
-        GrugLightRetry.Verdict verdict =
+        return lightRetry.reportIfPersisted(
                 lightRetry.answered(
                         GrugControlStation.server().settle(lightAsk()),
                         lightResend.lastBox(),
-                        (x, y, z) -> world.getBrightness(LightType.BLOCK, x, y, z),
-                        (x, y, z) -> world.getBrightness(LightType.SKY, x, y, z),
+                        this::serverBlockLight,
+                        this::serverSkyLight,
                         GrugControlStation.server()::probeLight,
-                        (x, y, z) ->
-                                (long) GrugControlStation.server().clientLightFingerprint(x, y, z));
-        if (verdict == GrugLightRetry.Verdict.PERSISTED) {
-            throw new GrugControlServer.ControlException(lightRetry.report());
-        }
-        return verdict;
+                        this::clientLightFingerprint));
+    }
+
+    /** This server's block light at a cell, read only when a divergence locates one. */
+    @GrugGenerated(
+            "read only when a client's second divergent answer locates a differing cell, which a"
+                    + " passing run never has")
+    private int serverBlockLight(int x, int y, int z) {
+        return ((World) getLevel()).getBrightness(LightType.BLOCK, x, y, z);
+    }
+
+    /** This server's sky light at a cell, read only when a divergence locates one. */
+    @GrugGenerated(
+            "read only when a client's second divergent answer locates a differing cell, which a"
+                    + " passing run never has")
+    private int serverSkyLight(int x, int y, int z) {
+        return ((World) getLevel()).getBrightness(LightType.SKY, x, y, z);
+    }
+
+    /**
+     * The client's light fingerprint of a cell's section, asked only when a divergence locates one.
+     */
+    @GrugGenerated(
+            "asked only when a client's second divergent answer locates a differing cell, which a"
+                    + " passing run never has")
+    private long clientLightFingerprint(int x, int y, int z)
+            throws GrugControlServer.ControlException {
+        return (long) GrugControlStation.server().clientLightFingerprint(x, y, z);
     }
 
     /** The light answers so far, so a divergence is reported when it stops moving (#1695). */

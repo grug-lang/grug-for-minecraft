@@ -184,6 +184,33 @@ public final class GrugLightRetry {
     }
 
     /**
+     * {@code verdict}, or the report thrown when it says the divergence outlasted its re-sends.
+     *
+     * <p>A loader calls this inside the arm that catches a failed ask, so the report fails the test
+     * through the same path a client that cannot answer takes. Kept here because a passing run
+     * never produces that verdict, so its unit test is the only place the arm can run.
+     */
+    public Verdict reportIfPersisted(Verdict verdict) throws GrugControlServer.ControlException {
+        if (verdict == Verdict.PERSISTED) {
+            throw new GrugControlServer.ControlException(report());
+        }
+        return verdict;
+    }
+
+    /**
+     * Whether a poll that got {@code verdict} is settled, sending the box again for one whose light
+     * diverged, which also leaves the poll unsettled (#1695). The send is the only thing a loader
+     * supplies, so its unit test walks every verdict without a game.
+     */
+    public boolean settled(Verdict verdict, Runnable resend) {
+        if (verdict == Verdict.DIVERGED) {
+            resend.run();
+            return false;
+        }
+        return verdict == Verdict.SETTLED;
+    }
+
+    /**
      * Forgets a divergence, for the next test's own changes.
      *
      * <p>A wait that saw one divergent answer and ended before it asked again would otherwise leave

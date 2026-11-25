@@ -737,39 +737,58 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                         !owed,
                         false,
                         () ->
-                                GrugLinkArms.callOrReport(
-                                        this::askClientSettled,
-                                        "TestTickContext.world_settled: ",
-                                        true,
-                                        ServerOrnitheAdapter::reportFailure));
+                                lightRetry.settled(
+                                        GrugLinkArms.callOrReport(
+                                                this::lightVerdict,
+                                                "TestTickContext.world_settled: ",
+                                                GrugLightRetry.Verdict.SETTLED,
+                                                ServerOrnitheAdapter::reportFailure),
+                                        lightResend::rearm));
         return GrugRenderSettle.serverSettled(clientSettled, owed);
     }
 
     /**
-     * Asks the joined client whether it settled, and sends the box it was last sent the light of
-     * again when its own copy holds a different field (#1695). A divergence that survives that send
-     * is a defect, so it is reported at the first cell whose light differs rather than asked again
-     * until the tick budget is gone. See {@link GrugLightRetry}.
+     * Asks the joined client whether it settled, naming the first cell whose light differs when its
+     * answers say it holds another field (#1695). A divergence that outlasted its re-sends is
+     * thrown as the report, so the poll reports it rather than asking until the tick budget is
+     * gone. See {@link GrugLightRetry}.
      */
-    private boolean askClientSettled() throws GrugControlServer.ControlException {
-        World world = (World) getLevel();
-        GrugLightRetry.Verdict verdict =
+    private GrugLightRetry.Verdict lightVerdict() throws GrugControlServer.ControlException {
+        return lightRetry.reportIfPersisted(
                 lightRetry.answered(
                         GrugControlBeta.server().settle(lightAsk()),
                         lightResend.lastBox(),
-                        (x, y, z) -> world.getLight(LightType.BLOCK, x, y, z),
-                        (x, y, z) -> world.getLight(LightType.SKY, x, y, z),
+                        this::serverBlockLight,
+                        this::serverSkyLight,
                         GrugControlBeta.server()::probeLight,
-                        (x, y, z) ->
-                                (long) GrugControlBeta.server().clientLightFingerprint(x, y, z));
-        if (verdict == GrugLightRetry.Verdict.DIVERGED) {
-            lightResend.rearm();
-            return false;
-        }
-        if (verdict == GrugLightRetry.Verdict.PERSISTED) {
-            throw new GrugControlServer.ControlException(lightRetry.report());
-        }
-        return verdict == GrugLightRetry.Verdict.SETTLED;
+                        this::clientLightFingerprint));
+    }
+
+    /** This server's block light at a cell, read only when a divergence locates one. */
+    @GrugGenerated(
+            "read only when a client's second divergent answer locates a differing cell, which a"
+                    + " passing run never has")
+    private int serverBlockLight(int x, int y, int z) {
+        return ((World) getLevel()).getLight(LightType.BLOCK, x, y, z);
+    }
+
+    /** This server's sky light at a cell, read only when a divergence locates one. */
+    @GrugGenerated(
+            "read only when a client's second divergent answer locates a differing cell, which a"
+                    + " passing run never has")
+    private int serverSkyLight(int x, int y, int z) {
+        return ((World) getLevel()).getLight(LightType.SKY, x, y, z);
+    }
+
+    /**
+     * The client's light fingerprint of a cell's section, asked only when a divergence locates one.
+     */
+    @GrugGenerated(
+            "asked only when a client's second divergent answer locates a differing cell, which a"
+                    + " passing run never has")
+    private long clientLightFingerprint(int x, int y, int z)
+            throws GrugControlServer.ControlException {
+        return (long) GrugControlBeta.server().clientLightFingerprint(x, y, z);
     }
 
     /** The light answers so far, so a divergence is reported when it stops moving (#1695). */

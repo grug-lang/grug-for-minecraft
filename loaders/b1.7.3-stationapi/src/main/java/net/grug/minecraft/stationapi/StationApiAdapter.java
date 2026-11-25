@@ -1570,9 +1570,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // GrugRenderSettle, whose unit test covers every combination, so no branch here depends on
         // whether an edit happened to be owed. The block answer refreshes from the world it is
         // given first, so it compares the client against what the world holds now. See #804.
-        return renderSettle.settledNow(
-                frameHadPendingWork(),
-                blockSync.settled((x, y, z) -> getBlock(simulated, x, y, z)));
+        return renderSettle.settledNow(frameHadPendingWork(), blocksSettled(simulated));
     }
 
     /**
@@ -1581,15 +1579,33 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * work, so the reason names the blocks a test placed, the renderer's work, or the frames since
      * the last busy one.
      */
+    @GrugGenerated(
+            "timing: a wait reads this only when a repeated settle ask catches the client mid-frame"
+                + " with the blocks held, which a coverage test cannot make happen on purpose; the"
+                + " text is GrugRenderSettle.busyReason's, unit-tested for every combination")
     @Override
     public String settleReason() {
         Object simulated = getLevel();
-        return renderSettle.busyReason(
-                frameHadPendingWork(),
-                blockSync.settled((x, y, z) -> getBlock(simulated, x, y, z)));
+        return renderSettle.busyReason(frameHadPendingWork(), blocksSettled(simulated));
+    }
+
+    /**
+     * Whether the client holds every block the simulated world owes it, for the settle answer and
+     * its reason.
+     *
+     * <p>A method of its own rather than a lambda inside {@code settleReason}: JaCoCo drops an
+     * annotated method but not the synthetic lambda it holds, so the comparison lives where a
+     * counted client leg runs it from {@link #isWorldSettled}.
+     */
+    private boolean blocksSettled(Object simulated) {
+        return blockSync.settled((x, y, z) -> getBlock(simulated, x, y, z));
     }
 
     /** The frames this client has drawn, for the wait that repeats one answer (#1695). */
+    @GrugGenerated(
+            "a client of a remote server: the leg the gate measures runs a client with its own"
+                    + " integrated server and the dedicated leg measures only its server, so no"
+                    + " counted JVM reads this client's frame count")
     @Override
     public long settleFrames() {
         return renderSettle.framesDrawn();
