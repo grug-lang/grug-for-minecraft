@@ -53,8 +53,13 @@ final class GrugJavaNumbers {
         // one
         // reads back as the same value. The nearest of a longer grid is never farther away, so the
         // first length that has one is the shortest text.
-        BigDecimal chosen = null;
-        for (int digits = 2; digits <= maxDigits && chosen == null; digits++) {
+        //
+        // The search below always sets chosen: a float's shortest text has at most 9 digits and a
+        // double's at most 17, and one that reads back is always found at some length no longer
+        // than that. The value it starts as only keeps it non-null for the compiler.
+        BigDecimal chosen = exact;
+        boolean found = false;
+        for (int digits = 2; digits <= maxDigits && !found; digits++) {
             // The gap between two decimals of this length that end in the same power of ten.
             BigDecimal step = BigDecimal.ONE.scaleByPowerOfTen(exponent - digits + 1);
             BigDecimal nearest = exact.round(new MathContext(digits, RoundingMode.HALF_EVEN));
@@ -69,29 +74,34 @@ final class GrugJavaNumbers {
                 }
                 BigDecimal distance = candidate.subtract(exact).abs();
                 // Closer wins, and a decimal exactly as close as the best one so far wins only when
-                // its last digit is even, which is how Java breaks that tie: 0x3ac00000 is exactly
-                // 0.00146484375, halfway between 0.0014648437 and 0.0014648438, and Java writes the
-                // even one.
-                if (bestDistance == null
-                        || distance.compareTo(bestDistance) < 0
-                        || (distance.compareTo(bestDistance) == 0
-                                && isEven(candidate)
-                                && !isEven(chosen))) {
+                // its last digit is even and the best one's is odd, which is how Java breaks that
+                // tie.
+                if (bestDistance == null || distance.compareTo(bestDistance) < 0) {
                     chosen = candidate;
                     bestDistance = distance;
+                    found = true;
+                } else if (distance.compareTo(bestDistance) == 0 && winsTie(candidate, chosen)) {
+                    chosen = candidate;
                 }
             }
-        }
-        if (chosen == null) {
-            // Cannot happen: the value itself is a decimal of maxDigits digits or fewer.
-            chosen = exact.round(new MathContext(maxDigits, RoundingMode.HALF_EVEN));
         }
         return layout(chosen, negative);
     }
 
-    /** Whether the decimal's last significant digit is even. */
-    private static boolean isEven(BigDecimal decimal) {
-        return !decimal.unscaledValue().testBit(0);
+    /**
+     * Whether a decimal exactly as close as the best one so far replaces it. Java writes the one
+     * whose last digit is even: 0x3ac00000 is exactly 0.00146484375, halfway between 0.0014648437
+     * and 0.0014648438, and Java writes 0.0014648438. Comparing the two parities is that whole
+     * rule, because an even candidate beats an odd best one and any other tie keeps the best.
+     */
+    private static boolean winsTie(BigDecimal candidate, BigDecimal chosen) {
+        return parity(candidate) < parity(chosen);
+    }
+
+    /** 0 for an even last significant digit and 1 for an odd one. */
+    private static int parity(BigDecimal decimal) {
+        // intValue keeps the low 32 bits, which include the lowest one of the whole number.
+        return decimal.unscaledValue().intValue() & 1;
     }
 
     /**
