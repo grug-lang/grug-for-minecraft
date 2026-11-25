@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import net.grug.minecraft.core.ModLoaderAdapter;
 
@@ -97,6 +98,22 @@ class GrugSpawnSquaresTest {
         GrugSpawnSquares squares = GrugSpawnSquares.scan(empty, new Object(), 5, 5, 5, 2);
 
         assertEquals(0, squares.count());
+    }
+
+    @Test
+    void aVersionWithoutAHeightLimitKeepsTheDefault() {
+        // No loader leaves the default in place today, and a version without a height limit a world
+        // can set keeps it, so the method itself is what proves the branch it answers with.
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        Proxy.newProxyInstance(
+                                getClass().getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        InvocationHandler.invokeDefault(proxy, method, args));
+
+        assertFalse(adapter.isOutOfHeightLimit(new Object(), -1));
+        assertFalse(adapter.isOutOfHeightLimit(new Object(), 400));
     }
 
     @Test

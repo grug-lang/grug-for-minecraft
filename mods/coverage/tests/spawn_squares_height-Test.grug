@@ -1,0 +1,42 @@
+# Covers the world height limit the scan applies before the spawn-space test (#1255): a square
+# below the world and a scan whose whole cube is above it are dropped, which is the branch a
+# loader's own height decides. The player is moved rather than the room, so the scan runs against
+# whichever level the loader has, and a client leg exercises that loader's own limit.
+started: bool = false
+low_done: bool = false
+x: number = 0.0
+z: number = 0.0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        ctx.not_done()
+        return
+    }
+    if not ctx.world_settled() {
+        ctx.not_done()
+        return
+    }
+    if not low_done {
+        start: Vec3 = ctx.camera()
+        x = start.x()
+        z = start.z()
+        # The feet block is y 0, so a radius of one reaches y -1, which no world holds. Every
+        # square the scan keeps is in the world; how many there are is the fixture's business.
+        ctx.set_player_position(x, 0.5, z)
+        low_squares: SpawnSquares = ctx.get_spawn_squares(1)
+        i: number = 0
+        while i < low_squares.count() {
+            ctx.assert(low_squares.y(i) >= 0, "A square below the world should be dropped.")
+            i = i + 1
+        }
+        low_done = true
+        ctx.not_done()
+        return
+    }
+    # A feet block of 400 is above every world this suite runs on (128 on the older versions and
+    # 384 on 1.20.6), so the whole cube is out of the height limit and nothing is kept.
+    ctx.set_player_position(x, 400.0, z)
+    high_squares: SpawnSquares = ctx.get_spawn_squares(1)
+    ctx.assert(high_squares.count() == 0, "A scan above the world should keep no square.")
+}
