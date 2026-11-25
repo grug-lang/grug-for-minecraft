@@ -1,0 +1,7 @@
+# Every segment of a path is a name (#1757): a dot segment is refused even though it would resolve to
+# the same directory, so one file has one spelling and a listing cannot be asked for it by accident.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("has an empty or relative segment")
+    files.exists("dot/./segment.txt")
+}

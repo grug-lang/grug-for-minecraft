@@ -1,0 +1,7 @@
+# An entry index fits a Java int (#1757): a larger number names no entry of any list, so it is refused
+# before the listing is read rather than being clamped or wrapped.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("is not a whole number from 0 up")
+    files.entry_name(".", 3000000000)
+}

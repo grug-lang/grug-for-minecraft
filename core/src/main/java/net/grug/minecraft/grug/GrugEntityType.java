@@ -12,6 +12,7 @@ public enum GrugEntityType {
     DisplayTickContext,
     Entity,
     ExtractResponse,
+    File,
     GUI,
     Item,
     ItemEntity,

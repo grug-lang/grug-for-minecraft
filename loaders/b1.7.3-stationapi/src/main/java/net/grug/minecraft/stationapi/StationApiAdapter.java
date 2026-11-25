@@ -1090,6 +1090,35 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return ((World) levelObj).getTime();
     }
 
+    /**
+     * The address the client dialled, when it joined a server, and the save's own name otherwise. A
+     * client joined to somebody else's server never learns the save name; see {@link
+     * ModLoaderAdapter#levelName}.
+     */
+    @Override
+    public String levelName(Object levelObj) {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft client =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        String address = client.hostAddress;
+        return address == null || address.isEmpty() ? saveName((World) levelObj) : address;
+    }
+
+    /** The save's own name, which the dedicated server reads without a client's address. */
+    static String saveName(World world) {
+        return world.getProperties().getName();
+    }
+
+    /** The dimension as a path segment, from the dimension's own id (#1757). */
+    @Override
+    public String levelDimension(Object levelObj) {
+        int id = ((World) levelObj).dimension.id;
+        if (id == 0) return "overworld";
+        if (id == -1) return "the_nether";
+        if (id == 1) return "the_end";
+        return "dimension_" + id;
+    }
+
     @Override
     public void setWorldTime(Object levelObj, long time) {
         World world = (World) levelObj;

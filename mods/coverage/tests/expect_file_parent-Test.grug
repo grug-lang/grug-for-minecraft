@@ -1,0 +1,7 @@
+# A path may not climb out of the mod's own files (#1757): a parent segment is refused before anything
+# is read, so one mod cannot reach the game's files or another mod's with one.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("no path may climb out of files")
+    files.read_text("../escape.txt")
+}

@@ -1,0 +1,8 @@
+# entry_name asks for an entry the listing holds (#1757): an index past the last one is reported with
+# how many entries there are, rather than answering an empty name.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    files.write_text("index_dir/only.txt", "x")
+    ctx.expect_error("has no entry 5: it holds 1")
+    files.entry_name("index_dir", 5)
+}

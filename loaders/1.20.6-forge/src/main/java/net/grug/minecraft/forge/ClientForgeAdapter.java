@@ -29,9 +29,11 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -101,6 +103,17 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @Override
     public Object clientLevel() {
         return Minecraft.getInstance().level;
+    }
+
+    @Override
+    public String clientLevelName() {
+        Minecraft minecraft = Minecraft.getInstance();
+        IntegratedServer integrated = minecraft.getSingleplayerServer();
+        if (integrated != null) {
+            return integrated.getWorldData().getLevelName();
+        }
+        ServerData current = minecraft.getCurrentServer();
+        return current == null ? "" : current.ip;
     }
 
     /**

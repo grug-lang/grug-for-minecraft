@@ -1,0 +1,7 @@
+# A path is always relative to the mod's own files (#1757), so an absolute one is refused rather than
+# quietly reaching whatever it names.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("is absolute, and a path is always relative")
+    files.read_text("/etc/passwd")
+}

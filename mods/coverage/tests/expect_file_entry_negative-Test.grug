@@ -1,0 +1,7 @@
+# An entry index counts from 0 up (#1757): a negative one names no entry and is reported before the
+# listing is read.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("is not a whole number from 0 up")
+    files.entry_name(".", -1)
+}

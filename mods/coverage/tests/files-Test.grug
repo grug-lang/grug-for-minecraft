@@ -1,0 +1,37 @@
+# The one directory a mod may write (#1757). Paths are always relative to the mod's own files, the
+# first write creates the directories it needs, a missing file reads as an empty Option, and a
+# listing is sorted. Every path here is unique to this test because the writable directory outlives
+# a test, so a later assertion never reads a file an earlier test wrote.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+
+    files.write_text("round_trip.txt", "first")
+    ctx.assert(files.read_text("round_trip.txt").unwrap() == "first", "read_text should answer what write_text wrote.")
+    files.write_text("round_trip.txt", "second")
+    ctx.assert(files.read_text("round_trip.txt").unwrap() == "second", "A second write should replace the first.")
+
+    files.write_text("nested/deep/value.txt", "deep")
+    ctx.assert(files.read_text("nested/deep/value.txt").unwrap() == "deep", "A write should create the directories on its path.")
+    ctx.assert(files.exists("nested"), "A directory on a written path should exist.")
+    ctx.assert(files.exists("nested/deep/value.txt"), "A written file should exist.")
+    ctx.assert(not files.exists("absent.txt"), "A file nothing wrote should not exist.")
+    ctx.assert(not files.read_text("absent.txt").has(), "A missing file should read as an empty Option.")
+
+    i: number = 0
+    while i < 9 {
+        name: string = String.concat(String.concat("listing/file", String.from_number(i)), ".txt")
+        files.write_text(name, "x")
+        i = i + 1
+    }
+    ctx.assert(files.entry_count("listing") == 9, "The listing should hold the nine written files.")
+    ctx.assert(files.entry_name("listing", 0) == "file0.txt", "The listing should be sorted by name.")
+    ctx.assert(files.entry_name("listing", 8) == "file8.txt", "The listing should answer the last entry.")
+    ctx.assert(files.entry_count("absent_directory") == 0, "A missing directory should list no entries.")
+
+    level: Level = ctx.get_client_level()
+    ctx.assert(level.dimension() == "overworld", "The test world should be the overworld.")
+    ctx.assert(String.length(level.name()) > 0, "The test world should have a name.")
+    world_path: string = String.concat(String.concat("worlds/", level.dimension()), "/state.txt")
+    files.write_text(world_path, "world")
+    ctx.assert(files.read_text(world_path).unwrap() == "world", "A path built from the dimension should round trip.")
+}

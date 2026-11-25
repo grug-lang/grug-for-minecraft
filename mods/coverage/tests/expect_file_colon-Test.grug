@@ -1,0 +1,7 @@
+# A path segment holds no colon (#1757): on Windows a colon names a drive and a stream, so it is refused
+# everywhere and a mod's path means the same on every loader.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("holds a colon")
+    files.read_text("colon:name.txt")
+}

@@ -1,0 +1,7 @@
+# Every segment of a path is a name (#1757): two slashes in a row leave an empty segment, which is
+# refused like a parent segment so a path has one spelling.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("has an empty or relative segment")
+    files.read_text("empty//segment.txt")
+}

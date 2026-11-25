@@ -1,0 +1,13 @@
+# The writable directory of one mod is capped at 16 MiB (#1757), so a mod that writes without bound is
+# reported rather than filling the disk. The text doubles to 16777216 bytes and one more byte goes past
+# the cap, whatever an earlier test left, so the refusal names the path, the size and the cap.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    text: string = "x"
+    while String.length(text) < 16777216 {
+        text = String.concat(text, text)
+    }
+    text = String.concat(text, "x")
+    ctx.expect_error("over the 16777216-byte cap")
+    files.write_text("too_large.txt", text)
+}

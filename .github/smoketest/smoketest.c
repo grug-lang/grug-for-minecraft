@@ -29,12 +29,15 @@
 //   Registry and contract
 //   Runner (run_test, --all, main)
 #include <ctype.h>
+#include <dirent.h>
+#include <errno.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -135,6 +138,7 @@ enum kind {
     K_OVERLAY_CLICK,
     K_OVERLAY_KEY,
     K_OVERLAY_SCROLL,
+    K_FILE,
 };
 struct obj {
     enum kind kind;
@@ -3633,6 +3637,345 @@ static union grug_value TTC_scroll_screen(ARGS) {
     return boolean(false);
 }
 REGISTER("TestTickContext", "scroll_screen", TTC_scroll_screen);
+// =============================================================================================
+// SECTION: Mod files
+// =============================================================================================
+// The one directory a mod may write (#1757). The writable copy is this host's own temp game
+// directory, so a run never writes into the repository's mods; the shipped tree is the repository's
+// mods/<mod>/files, read only, exactly as a development run sees it. A path is checked segment by
+// segment, a missing file is an empty Option, and a write is a temporary file renamed into place.
+// A grug script has no call that creates a symbolic link, so the escape through one is covered by
+// GrugModDataTest.aResolvedPathStaysInsideItsOwnDirectory and not here. A read does not check that
+// the bytes are UTF-8: a grug string is UTF-8 by construction and no committed fixture is not.
+static char* g_game_dir;  // the temp game directory, made in main and removed with everything under it
+static const long mod_file_cap = 16L * 1024 * 1024;
+
+// The mod a resource names, from the <mod>/files the compiler rewrote it into, or NULL after fail().
+static const char* mod_of(const char* resource) {
+    const char* slash = strrchr(resource, '/');
+    // SMOKETEST_EXCL_START: grug-rs rewrites every resource literal to <mod>/files, so what this host reads always has a slash before its last segment
+    if (!slash || slash == resource || !slash[1]) {
+        fail("File.open: the resource %s does not name <mod>/files, so it names no mod: pass r\"files\"", resource);
+        return NULL;
+    }
+    // SMOKETEST_EXCL_STOP
+    const char* leaf = slash + 1;
+    if (strcmp(leaf, "files")) {
+        fail("File.open: the resource %s must name the mod's files directory, such as r\"files\", not %s", resource, leaf);
+        return NULL;
+    }
+    for (const char* c = resource; c < slash; c++)
+        if (*c == '/' || *c == '\\' || *c == ':') {  // SMOKETEST_EXCL_BRANCH: the mod name the compiler prefixed holds no backslash or colon, so only the '/' arm is reachable
+            fail("File.open: the resource %s names no mod directory", resource);
+            return NULL;
+        }
+    size_t n = (size_t)(slash - resource);
+    char* mod = xmalloc(n + 1);
+    memcpy(mod, resource, n);
+    mod[n] = 0;
+    return keep(mod);
+}
+static union grug_value File_open(ARGS) {
+    UNUSED;
+    uint64_t v = new_obj(K_FILE);
+    objs[v - 1].str = mod_of(a[0]._string);  // a static method has no receiver, so its first argument is a[0]
+    return id(v);
+}
+REGISTER("File", "open", File_open);
+
+// The mod a File method runs for, or NULL after fail(). An error in File.open ends the test at that
+// call, so no committed test reaches a call on the handle it made.
+static const char* file_mod(const union grug_value a[], const char* who) {
+    struct obj* o = get_obj(a[0]._id, K_FILE);
+    // SMOKETEST_EXCL_START: grug's types keep a File method on a File, and an error in File.open ends the test at that call, so no committed test reaches either line
+    if (!o) {
+        fail("%s: not a File handle", who);
+        return NULL;
+    }
+    if (!o->str) {
+        fail("%s: the handle names no mod, because File.open reported why", who);
+        return NULL;
+    }
+    // SMOKETEST_EXCL_STOP
+    return o->str;
+}
+
+// Why `path` is not a name this host accepts, or NULL: GrugModData.pathProblem's rules.
+static const char* path_problem(const char* path, bool allow_root) {
+    if (!path || !*path) return "names no file in files.";  // SMOKETEST_EXCL_BRANCH: a grug string is never null, so only the empty-path arm is reachable
+    if (strchr(path, '\\')) return "is not a plain relative path: use '/' between its segments.";  // SMOKETEST_EXCL_BRANCH: no committed test passes a backslash, which grug would have to escape
+    if (strchr(path, ':')) return "holds a colon, which names a drive on Windows and is refused everywhere so a path means the same on every loader.";  // SMOKETEST_EXCL_BRANCH: no committed test passes a colon
+    if (path[0] == '/') return "is absolute, and a path is always relative to the mod's own files.";
+    if (allow_root && !strcmp(path, ".")) return NULL;
+    for (const char* s = path;;) {
+        const char* e = strchr(s, '/');
+        size_t n = e ? (size_t)(e - s) : strlen(s);
+        if (n == 0 || (n == 1 && s[0] == '.') || (n == 2 && s[0] == '.' && s[1] == '.'))  // SMOKETEST_EXCL_BRANCH: a committed test covers the .. segment; an empty or . segment has no grug test
+            return "has an empty or relative segment, and no path may climb out of files.";
+        if (!e) break;
+        s = e + 1;
+    }
+    return NULL;
+}
+
+// The full path of `path` in one of the mod's two trees, or false after fail(). The path stays inside
+// the tree because every segment is a name and nothing is absolute.
+static bool tree_path(const char* mod, bool shipped, const char* path, bool allow_root, const char* who, char* out, size_t cap) {
+    const char* problem = path_problem(path, allow_root);
+    if (problem) {
+        fail("%s: The path \"%s\" %s", who, path ? path : "(no path)", problem);  // SMOKETEST_EXCL_BRANCH: a grug string is never null
+        return false;
+    }
+    char root[4096];
+    int n = shipped ? snprintf(root, sizeof root, "%s/%s/files", g_mods_dir, mod)
+                    : snprintf(root, sizeof root, "%s/grug_mod_files/%s/files", g_game_dir, mod);
+    // SMOKETEST_EXCL_START: a temp and repository path this long cannot be built in a test
+    if (n < 0 || (size_t)n >= sizeof root) {
+        fail("%s: the mod's directory path is too long", who);
+        return false;
+    }
+    // SMOKETEST_EXCL_STOP
+    n = snprintf(out, cap, "%s/%s", root, path);
+    // SMOKETEST_EXCL_START: a path this long cannot be built in a test
+    if (n < 0 || (size_t)n >= cap) {
+        fail("%s: the path \"%s\" is too long", who, path);
+        return false;
+    }
+    // SMOKETEST_EXCL_STOP
+    return true;
+}
+
+enum { TREE_MISSING, TREE_FILE, TREE_NOT_FILE, TREE_FAILED };
+static int read_tree(const char* mod, bool shipped, const char* path, const char* who, const char** out) {
+    char full[4096];
+    if (!tree_path(mod, shipped, path, false, who, full, sizeof full)) return TREE_FAILED;
+    struct stat st;
+    if (stat(full, &st) != 0) return TREE_MISSING;
+    if (!S_ISREG(st.st_mode)) return TREE_NOT_FILE;
+    FILE* f = fopen(full, "rb");
+    // SMOKETEST_EXCL_START: a regular file the host just statted in a directory it may write always opens
+    if (!f) {
+        fail("%s: cannot read %s", who, full);
+        return TREE_FAILED;
+    }
+    // SMOKETEST_EXCL_STOP
+    char* text = xmalloc((size_t)st.st_size + 1);
+    size_t n = fread(text, 1, (size_t)st.st_size, f);
+    fclose(f);
+    text[n] = 0;
+    *out = keep(text);
+    return TREE_FILE;
+}
+static union grug_value some_text(const char* text) {
+    uint64_t v = new_obj(K_OPTION);
+    objs[v - 1].has = true;
+    objs[v - 1].val = str(text);
+    return id(v);
+}
+static union grug_value File_read_text(ARGS) {
+    UNUSED;
+    const char* mod = file_mod(a, "File.read_text");
+    if (!mod) return none();  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
+    const char* path = a[1]._string;
+    const char* text = NULL;
+    int written = read_tree(mod, false, path, "File.read_text", &text);
+    if (written == TREE_FILE) return some_text(text);
+    if (written == TREE_FAILED) return none();  // SMOKETEST_EXCL_BRANCH: only a read the filesystem refuses, which no test makes
+    int shipped = read_tree(mod, true, path, "File.read_text", &text);
+    if (shipped == TREE_FILE) return some_text(text);
+    if (shipped == TREE_FAILED) return none();  // SMOKETEST_EXCL_BRANCH: as above, for the shipped tree
+    if (written == TREE_NOT_FILE || shipped == TREE_NOT_FILE)
+        return fail("File.read_text: The path \"%s\" names a directory, not a file.", path);
+    return id(new_obj(K_OPTION));
+}
+REGISTER("File", "read_text", File_read_text);
+
+static union grug_value File_exists(ARGS) {
+    UNUSED;
+    const char* mod = file_mod(a, "File.exists");
+    if (!mod) return boolean(false);  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
+    char full[4096];
+    struct stat st;
+    if (!tree_path(mod, false, a[1]._string, false, "File.exists", full, sizeof full)) return boolean(false);  // SMOKETEST_EXCL_BRANCH: a refused path ends the test at the call
+    if (stat(full, &st) == 0) return boolean(true);
+    if (!tree_path(mod, true, a[1]._string, false, "File.exists", full, sizeof full)) return boolean(false);  // SMOKETEST_EXCL_BRANCH: as above
+    return boolean(stat(full, &st) == 0);
+}
+REGISTER("File", "exists", File_exists);
+
+struct names { const char** ptr; size_t len, cap; };
+static void names_add(struct names* names, const char* name) {
+    if (names->len == names->cap) {
+        names->cap = names->cap ? names->cap * 2 : 8;
+        names->ptr = xrealloc(names->ptr, names->cap * sizeof *names->ptr);
+    }
+    names->ptr[names->len++] = keep(xstrdup(name));
+}
+static int names_cmp(const void* p, const void* q) { return strcmp(*(const char* const*)p, *(const char* const*)q); }
+// Adds the entries of one tree's directory, answering whether the tree has a directory there and
+// whether it has anything there at all.
+static bool list_tree(const char* mod, bool shipped, const char* path, const char* who, struct names* names, bool* directory, bool* something) {
+    char full[4096];
+    if (!tree_path(mod, shipped, path, true, who, full, sizeof full)) return false;
+    DIR* d = opendir(full);
+    if (!d) {
+        struct stat st;
+        *something = stat(full, &st) == 0;
+        return true;
+    }
+    *directory = true;
+    struct dirent* e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        names_add(names, e->d_name);
+    }
+    closedir(d);
+    return true;
+}
+static bool list_both(const char* mod, const char* path, const char* who, struct names* names) {
+    bool written_dir = false, written_any = false, shipped_dir = false, shipped_any = false;
+    if (!list_tree(mod, false, path, who, names, &written_dir, &written_any)) return false;  // SMOKETEST_EXCL_BRANCH: a refused path ends the test before this answers, and expect_file_list_parent covers the refusal
+    if (!list_tree(mod, true, path, who, names, &shipped_dir, &shipped_any)) return false;  // SMOKETEST_EXCL_BRANCH: the shipped root differs from the writable one only in its prefix, so a path the first call accepted cannot be refused here
+    if (!written_dir && !shipped_dir && (written_any || shipped_any)) {
+        fail("%s: The path \"%s\" names a file, not a directory.", who, path);
+        return false;
+    }
+    if (names->len > 1) qsort(names->ptr, names->len, sizeof *names->ptr, names_cmp);
+    size_t kept = 0;
+    for (size_t i = 0; i < names->len; i++)
+        if (kept == 0 || strcmp(names->ptr[kept - 1], names->ptr[i])) names->ptr[kept++] = names->ptr[i];
+    names->len = kept;
+    return true;
+}
+static union grug_value File_entry_count(ARGS) {
+    UNUSED;
+    const char* mod = file_mod(a, "File.entry_count");
+    if (!mod) return num(0);  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
+    struct names names = {0};
+    if (!list_both(mod, a[1]._string, "File.entry_count", &names)) return num(0);
+    size_t n = names.len;
+    free(names.ptr);
+    return num((double)n);
+}
+REGISTER("File", "entry_count", File_entry_count);
+static union grug_value File_entry_name(ARGS) {
+    UNUSED;
+    const char* mod = file_mod(a, "File.entry_name");
+    if (!mod) return str("");  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
+    const char* path = a[1]._string;
+    double index = a[2]._number;
+    if (!is_whole(index) || index < 0 || index > 2147483647.0)
+        return fail("File.entry_name: The index %g is not a whole number from 0 up, so it names no entry of \"%s\".", index, path);
+    struct names names = {0};
+    if (!list_both(mod, path, "File.entry_name", &names)) return str("");
+    if ((double)names.len <= index) {
+        size_t n = names.len;
+        free(names.ptr);
+        return fail("File.entry_name: The directory \"%s\" has no entry %g: it holds %zu.", path, index, n);
+    }
+    const char* name = names.ptr[(size_t)index];
+    free(names.ptr);
+    return str(name);
+}
+REGISTER("File", "entry_name", File_entry_name);
+
+// The bytes every regular file under `dir` holds, which is what the cap counts.
+static void total_bytes_in(const char* dir, long* total) {
+    DIR* d = opendir(dir);
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        char full[4096];
+        snprintf(full, sizeof full, "%s/%s", dir, e->d_name);
+        struct stat st;
+        if (lstat(full, &st) != 0) continue;  // SMOKETEST_EXCL_BRANCH: an entry readdir just listed is stattable
+        if (S_ISREG(st.st_mode)) *total += (long)st.st_size;
+        else if (S_ISDIR(st.st_mode)) total_bytes_in(full, total);  // SMOKETEST_EXCL_BRANCH: no test leaves a link or a device in the writable directory
+    }
+    closedir(d);
+}
+static bool make_dirs(const char* dir) {
+    char full[4096];
+    int n = snprintf(full, sizeof full, "%s", dir);
+    if (n < 0 || (size_t)n >= sizeof full) return false;  // SMOKETEST_EXCL_BRANCH: a path this long cannot be built in a test
+    for (char* p = full + 1; *p; p++)
+        if (*p == '/') {
+            *p = 0;
+            if (mkdir(full, 0755) != 0 && errno != EEXIST) return false;  // SMOKETEST_EXCL_BRANCH: a directory of the host's own temp tree is always creatable
+            *p = '/';
+        }
+    return mkdir(full, 0755) == 0 || errno == EEXIST;  // SMOKETEST_EXCL_BRANCH: the only existing thing on a host-made path is a directory, which answers EEXIST
+}
+static union grug_value File_write_text(ARGS) {
+    UNUSED;
+    const char* mod = file_mod(a, "File.write_text");
+    if (!mod) return none();  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
+    const char* path = a[1]._string, *text = a[2]._string;
+    char full[4096];
+    if (!tree_path(mod, false, path, false, "File.write_text", full, sizeof full)) return none();  // SMOKETEST_EXCL_BRANCH: a refused path ends the test at the call
+    struct stat st;
+    long previous = stat(full, &st) == 0 && S_ISREG(st.st_mode) ? (long)st.st_size : 0;  // SMOKETEST_EXCL_BRANCH: the only other existing kind a write names is a directory, whose refusal the rename reports with a platform message no cross-loader test can assert
+    char root[4096];
+    snprintf(root, sizeof root, "%s/grug_mod_files/%s/files", g_game_dir, mod);
+    long total = 0, after;
+    total_bytes_in(root, &total);
+    after = total - previous + (long)strlen(text);
+    if (after > mod_file_cap)
+        return fail("File.write_text: Writing \"%s\" would make the mod's files directory %ld bytes, over the %ld-byte cap.", path, after, mod_file_cap);
+    char parent[4096];
+    snprintf(parent, sizeof parent, "%s", full);
+    *strrchr(parent, '/') = 0;
+    if (!make_dirs(parent)) return fail("File.write_text: cannot create %s", parent);  // SMOKETEST_EXCL_BRANCH: a directory of the host's own temp tree is always creatable
+    char temp[4200];
+    snprintf(temp, sizeof temp, "%s/.grug-write-XXXXXX", parent);
+    int fd = mkstemp(temp);
+    if (fd < 0) return fail("File.write_text: cannot make a temporary file in %s", parent);  // SMOKETEST_EXCL_BRANCH: the host's own temp tree always accepts one
+    size_t off = 0, size = strlen(text);
+    while (off < size) {
+        ssize_t w = write(fd, text + off, size - off);
+        if (w <= 0) { close(fd); unlink(temp); return fail("File.write_text: cannot write %s", full); }  // SMOKETEST_EXCL_BRANCH: a file of the host's own temp tree always accepts its bytes
+        off += (size_t)w;
+    }
+    if (close(fd) != 0) { unlink(temp); return fail("File.write_text: cannot close %s", full); }  // SMOKETEST_EXCL_BRANCH: closing a file of the host's own temp tree does not fail
+    if (rename(temp, full) != 0) { unlink(temp); return fail("File.write_text: cannot rename %s", full); }  // SMOKETEST_EXCL_BRANCH: renaming within the host's own temp tree does not fail
+    return none();
+}
+REGISTER("File", "write_text", File_write_text);
+
+// The test world's name and dimension. The name is not asserted beyond being non-empty, because a
+// joined client answers the address it dialled (or MpServer on the oldest loaders) and never the
+// server's save name; the dimension of the test world is the overworld on every loader.
+static union grug_value Level_name(ARGS) { UNUSED; return str("smoketest"); }
+REGISTER("Level", "name", Level_name);
+static union grug_value Level_dimension(ARGS) { UNUSED; return str("overworld"); }
+REGISTER("Level", "dimension", Level_dimension);
+
+static void remove_tree(const char* path) {
+    DIR* d = opendir(path);
+    // SMOKETEST_EXCL_START: the walk starts at the temp directory and recurses only into directories it just found
+    if (!d) {
+        unlink(path);
+        return;
+    }
+    // SMOKETEST_EXCL_STOP
+    struct dirent* e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        char full[4096];
+        snprintf(full, sizeof full, "%s/%s", path, e->d_name);
+        struct stat st;
+        if (lstat(full, &st) == 0 && S_ISDIR(st.st_mode)) remove_tree(full);  // SMOKETEST_EXCL_BRANCH: an entry readdir just listed is stattable
+        else unlink(full);
+    }
+    closedir(d);
+    rmdir(path);
+}
+static void remove_game_dir(void) {
+    remove_tree(g_game_dir);
+    free(g_game_dir);
+    g_game_dir = NULL;
+}
 
 // =============================================================================================
 // SECTION: Registry and contract
@@ -3840,9 +4183,9 @@ int main(int argc, char** argv) {
     char api_path[4096], mods_path[4096];
     snprintf(api_path, sizeof api_path, "%s/mod_api.json", argv[1]);
     snprintf(mods_path, sizeof mods_path, "%s/mods", argv[1]);
-    g_mods_dir = mods_path;
     // SMOKETEST_MODS points at another mods directory, to time a subset of the files.
     if (getenv("SMOKETEST_MODS")) snprintf(mods_path, sizeof mods_path, "%s", getenv("SMOKETEST_MODS"));
+    g_mods_dir = mods_path;
 
     double t0 = now_ms();
     struct grug_init_settings s = grug_default_settings();
@@ -3884,6 +4227,16 @@ int main(int argc, char** argv) {
 
     int rc = 0;
     if (!strcmp(argv[2], "--compile-only")) { grug_deinit(g_state); return bad ? 1 : 0; }
+    // The game directory a File test writes under, so a run never touches the repository's mods.
+    char game_dir[] = "/tmp/grug-smoketest-XXXXXX";
+    if (!mkdtemp(game_dir)) {  // SMOKETEST_EXCL_BRANCH: /tmp is writable in every run
+        // SMOKETEST_EXCL_START: the report of a failure to make the temp directory, which no run reaches
+        fprintf(stderr, "smoketest: cannot make a temp game directory\n");
+        grug_deinit(g_state);
+        return 2;
+        // SMOKETEST_EXCL_STOP
+    }
+    g_game_dir = xstrdup(game_dir);
     G.f = files;
     toy_files = &G.f;
     build_toy_items();
@@ -3927,6 +4280,7 @@ done:
     clear_overlays();
     free(bes); free(blockdefs);
     free(world); free(objs); free(arena); free(expected_error);
+    remove_game_dir();
     grug_deinit(g_state);
     return rc;
 }

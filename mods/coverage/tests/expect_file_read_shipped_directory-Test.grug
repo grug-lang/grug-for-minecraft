@@ -1,0 +1,7 @@
+# A read only sees a file the mod shipped (#1757): a directory in the shipped tree names no file, so it
+# is reported like a directory in the writable copy instead of answering an empty Option.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("names a directory, not a file")
+    files.read_text("shipped_dir")
+}

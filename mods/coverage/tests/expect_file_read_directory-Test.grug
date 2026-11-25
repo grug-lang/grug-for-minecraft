@@ -1,0 +1,8 @@
+# A read asks for a file (#1757): a path that names a directory is reported instead of answering an
+# Option or the directory's bytes.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    files.write_text("a_directory/inside.txt", "x")
+    ctx.expect_error("names a directory, not a file")
+    files.read_text("a_directory")
+}
