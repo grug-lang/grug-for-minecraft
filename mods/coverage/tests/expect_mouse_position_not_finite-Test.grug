@@ -1,0 +1,10 @@
+# A position a screen cannot use is reported instead of parked, like every other argument the test
+# context checks. The smoketest implements set_mouse_position as a no-op, so it cannot observe the
+# report and skips the check it would prove.
+export tick(ctx: TestTickContext) {
+    if me.loader_name() == "smoketest" {
+        return
+    }
+    ctx.expect_error("set_mouse_position: The position has to be finite")
+    ctx.set_mouse_position(Math.sqrt(-1), 0)
+}

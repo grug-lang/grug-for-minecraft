@@ -478,6 +478,14 @@ class GrugRunWindowTest {
     }
 
     @Test
+    void aParkedPointIsNotHandedToAnOverlayWithNoWindowToScaleItBy() {
+        GrugRunWindow.parkAt(10, 10);
+        assertNull(GrugRunWindow.parkedMousePosition(0, 600, 400, 300));
+        assertNull(GrugRunWindow.parkedMousePosition(800, 0, 400, 300));
+        GrugRunWindow.forgetParkPoint();
+    }
+
+    @Test
     void aFractionalCursorRestoresExactly() {
         FakeDisplay display = new FakeDisplay();
         display.cursorX = 300.5;
