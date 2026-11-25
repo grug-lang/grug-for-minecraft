@@ -107,6 +107,10 @@ class SelectionCase(unittest.TestCase):
             outputs[key] = value
         return outputs
 
+    def reset(self):
+        """The next select() has to be taken from the base again, since the history keeps growing."""
+        self.repo.git("reset", "-q", "--hard", self.base)
+
     def every(self) -> dict:
         """The outputs of a run that selects nothing away."""
         return {
@@ -115,6 +119,7 @@ class SelectionCase(unittest.TestCase):
             "mods": "",
             "smoke": "true",
             "reference": "true",
+            "tier": "code",
         }
 
     def answer(self, outputs: dict) -> dict:
@@ -127,6 +132,7 @@ class SelectionCase(unittest.TestCase):
             "mods": outputs["mods"],
             "smoke": outputs["smoke"],
             "reference": outputs["reference"],
+            "tier": outputs["tier"],
         }
 
 
@@ -418,6 +424,165 @@ class PullRequestTest(SelectionCase):
         self.assertEqual(self.answer(outputs), self.every())
 
 
+class NoClassTest(SelectionCase):
+    """A pull request whose diff cannot change a class runs only the jobs that prove the pipeline (#1815)."""
+
+    def test_a_script_pull_request_runs_one_loader_job_and_no_gate(self):
+        outputs = self.answer(
+            self.select("pull_request", {".github/scripts/run-loader.sh": "# run again\n"})
+        )
+        # One representative loader job, the newest mechanism, runs the gate's own mod to prove the
+        # pipeline still runs: the gate itself is skipped, so its tests only exercise that job.
+        self.assertEqual(outputs["build"], {"1.20.6-forge": "coverage"})
+        self.assertEqual(outputs["installed"], {})
+        self.assertEqual(outputs["mods"], "coverage")
+        self.assertEqual(outputs["smoke"], "false")
+        self.assertEqual(outputs["reference"], "false")
+        self.assertEqual(outputs["tier"], "scripts")
+        self.assertIn("the run is the scripts tier", self.reason)
+        self.assertIn("no class changed, so no coverage can move", self.reason)
+        self.assertIn("1.20.6-forge", self.reason)
+
+    def test_the_scripts_tier_is_the_ci_own_machinery(self):
+        for path, content in (
+            (".github/scripts/prune-caches.py", "# new\n"),
+            (".github/scripts/prune_caches_test.py", "# new\n"),
+            (".github/workflows/main-dispatch.yml", "name: main\n"),
+            (".github/actions/setup-loader-build/action.yml", "name: setup\n"),
+            (".github/smoketest/smoketest.c", "int x;\n"),
+            (".pre-commit-config.yaml", "repos: []\n"),
+        ):
+            with self.subTest(path=path):
+                self.reset()
+                outputs = self.answer(self.select("pull_request", {path: content}))
+                self.assertEqual(outputs["tier"], "scripts")
+                self.assertEqual(outputs["build"], {"1.20.6-forge": "coverage"})
+
+    def test_a_prose_pull_request_runs_no_loader_job(self):
+        # discover, pre-commit and the fixed pr gate job are the whole run.
+        for path, content in (
+            ("AGENTS.md", "agents changed\n"),
+            ("README.md", "readme changed\n"),
+            ("mod_api.md", "api changed\n"),
+            (".github/PULL_REQUEST_TEMPLATE.md", "template\n"),
+            (".github/ISSUE_TEMPLATE/bug.yml", "name: Bug\n"),
+            (".gitignore", "/changed\n"),
+            (".gitattributes", "*.png binary\n"),
+            (".editorconfig", "root = true\n"),
+            ("LICENSE", "license changed\n"),
+            ("ruff.toml", "line-length = 100\n"),
+        ):
+            with self.subTest(path=path):
+                self.reset()
+                outputs = self.answer(self.select("pull_request", {path: content}))
+                self.assertEqual(outputs["tier"], "docs")
+                self.assertEqual(outputs["build"], {})
+                self.assertEqual(outputs["installed"], {})
+                self.assertEqual(outputs["smoke"], "false")
+                self.assertEqual(outputs["reference"], "false")
+                self.assertIn("the run is the docs tier", self.reason)
+                self.assertIn("no class changed, so no coverage can move", self.reason)
+
+    def test_a_mixed_prose_and_script_diff_is_still_scripts_only(self):
+        outputs = self.answer(
+            self.select(
+                "pull_request",
+                {"AGENTS.md": "agents changed\n", ".github/scripts/no-tests.py": "# new\n"},
+            )
+        )
+        self.assertEqual(outputs["tier"], "scripts")
+
+    def test_a_script_and_a_grug_file_keeps_the_full_answer(self):
+        # A grug file is code, so the pipeline-proof tier is not enough: the whole answer runs.
+        outputs = self.answer(
+            self.select(
+                "pull_request",
+                {
+                    ".github/workflows/build.yml": "name: Build\non: push\n",
+                    "mods/examplemod/code/foo-Block.grug": "# changed\n",
+                },
+            )
+        )
+        self.assertEqual(outputs["tier"], "code")
+        # The workflow path is the CI's own machinery, which no representative covers, so every
+        # loader runs once (the rule that already exists); the grug file is what keeps the tier.
+        self.assertEqual(outputs["build"], {loader: "" for loader in ALL})
+
+    def test_only_a_diff_of_nothing_a_class_reads_gets_the_narrow_answer(self):
+        # Each of these changes a class, a grug file, a mod's metadata, a golden, the API or a world,
+        # so every one keeps today's answer: the pinned half of #1815's exactness.
+        for path, content, build in (
+            (
+                "core/src/Main.java",
+                "class Main { int x; }\n",
+                {loader: "" for loader in REPRESENTATIVES},
+            ),
+            (
+                "mods/examplemod/code/foo-Block.grug",
+                "on_tick() { y() }\n",
+                {loader: "coverage,examplemod" for loader in REPRESENTATIVES},
+            ),
+            (
+                "mods/examplemod/about.json",
+                '{"name": "Example", "x": 1}',
+                {loader: "coverage,examplemod" for loader in REPRESENTATIVES},
+            ),
+            (
+                "mods/examplemod/assets/grug/textures/block/foo_block.png",
+                "png\n",
+                # A texture the diff adds can rebuild a stitched atlas, so every mod runs on every
+                # loader (#1575), which is why the mod axis is every mod.
+                {loader: "" for loader in ALL},
+            ),
+            (
+                "mod_api.json",
+                '{"host_functions": []}',
+                {loader: "" for loader in REPRESENTATIVES},
+            ),
+            (
+                "test-saves/world.zip",
+                "zip\n",
+                {loader: "" for loader in REPRESENTATIVES},
+            ),
+            (
+                "loaders/1.20.6-forge/src/main/java/Forge.java",
+                "class F { int x; }\n",
+                {loader: "" for loader in REPRESENTATIVES},
+            ),
+            (
+                "mods/examplemod/README.md",
+                "mod readme\n",
+                {loader: "coverage,examplemod" for loader in REPRESENTATIVES},
+            ),
+            (
+                "notes.txt",
+                "notes\n",
+                {loader: "" for loader in REPRESENTATIVES},
+            ),
+        ):
+            with self.subTest(path=path):
+                self.reset()
+                outputs = self.answer(self.select("pull_request", {path: content}))
+                self.assertEqual(outputs["tier"], "code")
+                self.assertEqual(outputs["build"], build)
+
+    def test_a_push_of_a_script_diff_still_runs_every_loader(self):
+        # The tier narrows a pull request only: main is the run that has to count every loader, and
+        # its prose-alone narrowing is no-tests.py's (#822).
+        outputs = self.answer(
+            self.select("push", {".github/scripts/run-loader.sh": "# run again\n"})
+        )
+        self.assertEqual(outputs["tier"], "code")
+        self.assertEqual(sorted(outputs["build"]), ALL)
+
+    def test_every_doubt_keeps_the_full_answer(self):
+        # An empty diff and a diff this cannot read answer with everything, as they did before.
+        self.assertEqual(self.answer(self.select("pull_request", {}))["tier"], "code")
+        outputs = self.answer(self.select("pull_request", {"AGENTS.md": "# new\n"}, base="2" * 40))
+        self.assertEqual(outputs["tier"], "code")
+        self.assertEqual(sorted(outputs["build"]), ALL)
+
+
 class FullRunTest(SelectionCase):
     """A dispatch and the weekly schedule select nothing away: every loader, every mod."""
 
@@ -468,6 +633,7 @@ class EverythingFlagTest(unittest.TestCase):
         self.assertEqual(build, {loader: "" for loader in ALL})
         self.assertEqual(outputs["mods"], "")
         self.assertEqual((outputs["smoke"], outputs["reference"]), ("true", "true"))
+        self.assertEqual(outputs["tier"], "code")
 
 
 class UnreadableTreeTest(unittest.TestCase):
