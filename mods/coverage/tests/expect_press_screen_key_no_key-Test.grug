@@ -1,0 +1,51 @@
+# A character code the loader has no key for is a host error, not a key left to the screen. The four
+# loaders before 1.20.6 ask LWJGL's keyboard for the name GrugOverlay.keyNameForCode gives the code
+# and have no key for anything that is not a key code: a lowercase letter such as this 'a' is not
+# one, while space, backspace, the digits and the capital letters are. 1.20.6 hands the code to
+# GLFW instead, where it binds nothing and is left to the screen (#866).
+started: bool = false
+opened: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() {
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # The press needs a screen open, as a real key press does; the inventory is the one every loader
+    # shows, and a world frame has to be drawn before it opens (#1287).
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if me.loader_name() == "1.20.6-forge" {
+        ctx.assert(not ctx.press_screen_key(97, true, true), "A code GLFW has no key for should be left to the screen.")
+        ctx.close_screen()
+        return
+    }
+    ctx.expect_error("TestTickContext.press_screen_key: The game has no key for character code 97.")
+    ctx.press_screen_key(97, true, true)
+}
