@@ -98,6 +98,14 @@ class ServerExecNeededTest(unittest.TestCase):
         )
         self.assertIn("no server code changed", self.lines)
 
+    def test_a_recording_at_the_head_selects_nothing(self):
+        # A branch with nothing since the artifact's commit has an empty diff, which for this check
+        # means the recording still matches rather than the empty diff that runs every leg elsewhere.
+        head = self.repo.commit({"mods/buildcraft/code/wrench-Item.grug": "x\n"})
+        chosen, lines = mod.select(self.repo.path, head, {loader: head for loader in ALL})
+        self.assertEqual(chosen, [])
+        self.assertIn("no server code changed", "\n".join(lines))
+
     def test_a_changed_shared_file_under_core_selects_every_leg(self):
         chosen = self.select(
             {
