@@ -14,6 +14,9 @@ step: number = 0
 attempts: number = 0
 retry_at: number = 0
 before: Option[Screenshot] = Option.new()
+last: Option[Screenshot] = Option.new()
+settles: number = 0
+stable: number = 0
 
 # The window is 1280 by 720 at a GUI scale of 3, which the crop below assumes; both a 426 and a
 # 427 scaled width are that scale, as the item list's own capture test explains, and the crop is
@@ -23,7 +26,7 @@ frame_scale: number = 3
 export init(ctx: TestInitContext) {
     # A loader that reads the back buffer can serve a capture a frame drawn several ticks ago, so
     # the look is waited for in captures taken 30 ticks apart, up to eight times.
-    ctx.set_max_ticks(600)
+    ctx.set_max_ticks(1500)
 }
 
 export tick(ctx: TestTickContext) {
@@ -112,18 +115,55 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    # A frame is not drawn between every two ticks, and the older loaders read the back buffer
-    # rather than waiting for a frame of their own, so the look is waited for instead of assumed:
-    # a capture that still matches the frame before the cursor moved is taken again after a pause.
-    if ctx.current_tick() < retry_at + 30 {
+    if step == 2 {
+        # A frame is not drawn between every two ticks, and the older loaders read the back buffer
+        # rather than waiting for a frame of their own, so the look is waited for instead of
+        # assumed: a capture that still matches the frame before the cursor moved is taken again
+        # after a pause.
+        if ctx.current_tick() < retry_at + 30 {
+            ctx.not_done()
+            return
+        }
+        after: Screenshot = ctx.screenshot().capture(_left(ctx), _top(), _right(ctx), _bottom())
+        if after.change_from(before.unwrap()) < 1 {
+            attempts = attempts + 1
+            ctx.assert(attempts < 8, "The delete look never reached the frame.")
+            retry_at = ctx.current_tick()
+            ctx.not_done()
+            return
+        }
+        # The crop also holds the player's inventory beside the grid, and an item there is drawn
+        # with a value that settles rather than at once: a compass needle turns towards the world
+        # spawn through a damped wobble that eases once per frame, so a frame taken a few frames
+        # after the screen opens can still differ from the same frame in another run. The look is
+        # therefore taken again 60 ticks later, about six frames at the runner's speed, and only
+        # compared once two frames agree (#1834).
+        last.set(after)
+        retry_at = ctx.current_tick() + 60
+        step = 3
         ctx.not_done()
         return
     }
-    after: Screenshot = ctx.screenshot().capture(_left(ctx), _top(), _right(ctx), _bottom())
-    if after.change_from(before.unwrap()) < 1 {
-        attempts = attempts + 1
-        ctx.assert(attempts < 8, "The delete look never reached the frame.")
-        retry_at = ctx.current_tick()
+
+    if ctx.current_tick() < retry_at {
+        ctx.not_done()
+        return
+    }
+    settled: Screenshot = ctx.screenshot().capture(_left(ctx), _top(), _right(ctx), _bottom())
+    if settled.change_from(last.unwrap()) >= 1 {
+        settles = settles + 1
+        ctx.assert(settles < 8, "The delete look never stopped changing between frames.")
+        last.set(settled)
+        stable = 0
+        retry_at = ctx.current_tick() + 60
+        ctx.not_done()
+        return
+    }
+    # The comparison captures one more frame of its own, so two equal captures in a row are not
+    # enough to know that frame is among them: three are.
+    stable = stable + 1
+    if stable < 2 {
+        retry_at = ctx.current_tick() + 60
         ctx.not_done()
         return
     }
