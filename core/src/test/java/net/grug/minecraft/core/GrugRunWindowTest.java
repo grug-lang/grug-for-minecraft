@@ -426,6 +426,42 @@ class GrugRunWindowTest {
     }
 
     @Test
+    void aParkPointATestAskedForHoldsForTheRunAndIsForgottenWithIt() {
+        FakeDisplay display = new FakeDisplay();
+        GrugRunWindow window = new GrugRunWindow(display);
+        GrugRunWindow.parkAt(300, 42);
+
+        window.parkCursor();
+        assertEquals(calls("setCursor(300,42)"), display.calls);
+
+        // The point belongs to the test that asked, so the frame after it parks in the corner
+        // again.
+        GrugRunWindow.forgetParkPoint();
+        window.parkCursor();
+        assertEquals(calls("setCursor(300,42)", "setCursor(0,0)"), display.calls);
+
+        window.endRun();
+        assertEquals(300, display.cursorX);
+        assertEquals(200, display.cursorY);
+    }
+
+    @Test
+    void aParkPointDoesNotOutliveTheRunThatAskedForIt() {
+        FakeDisplay display = new FakeDisplay();
+        GrugRunWindow window = new GrugRunWindow(display);
+        GrugRunWindow.parkAt(300, 42);
+        window.parkCursor();
+
+        window.endRun();
+        GrugRunWindow window2 = new GrugRunWindow(display);
+        // The restored cursor sits where the run found it, so the next run parks in the corner
+        // rather than at the last run's hover.
+        window2.parkCursor();
+        assertEquals(
+                calls("setCursor(300,42)", "setCursor(300,200)", "setCursor(0,0)"), display.calls);
+    }
+
+    @Test
     void aFractionalCursorRestoresExactly() {
         FakeDisplay display = new FakeDisplay();
         display.cursorX = 300.5;

@@ -9,6 +9,7 @@ import net.grug.minecraft.core.GrugGiveCalls;
 import net.grug.minecraft.core.GrugItemSearch;
 import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugOperatorCalls;
+import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugScreenCalls;
 import net.grug.minecraft.core.GrugSoundArgs;
 import net.grug.minecraft.core.GrugTestRunner;
@@ -245,6 +246,38 @@ public class HostFunctions {
                 "item",
                 itemId,
                 item -> GrugCore.getAdapter().setCarriedItem(item));
+    }
+
+    /**
+     * Test only: parks the cursor at a window pixel, so a capture shows the hover a player would
+     * see where the mouse is over a slot of the overlay's own drawing.
+     *
+     * <p>A run parks the cursor in the window's corner, which is outside every centred GUI, so no
+     * capture depends on where the invisible cursor happens to be. A test that asks for a look
+     * which depends on the hover, such as the reference's delete message, names the point instead;
+     * the run parks there for the rest of the test. The point is in window pixels from the window's
+     * top-left, the measure a screenshot's crop takes, which the loader's own GUI scale turns into
+     * the scaled pixels {@code OverlayRenderContext.mouse_x} reports.
+     *
+     * <p>Only a client can move its cursor, so a dedicated server reports the call rather than
+     * pretending the cursor moved: a test that captures a hover skips itself there.
+     */
+    public static void TestTickContext_set_mouse_position(long contextId, double x, double y) {
+        if (!requireTickContext("TestTickContext.set_mouse_position", contextId)) return;
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.set_mouse_position: The position has to be finite, and was "
+                            + x
+                            + ", "
+                            + y
+                            + ".");
+            return;
+        }
+        if (GrugCore.getAdapter().refuseWithoutAClient("TestTickContext.set_mouse_position")) {
+            return;
+        }
+        GrugRunWindow.parkAt(x, y);
     }
 
     /**
@@ -4003,6 +4036,49 @@ public class HostFunctions {
                     + " second.";
         }
         return null;
+    }
+
+    /**
+     * Records one tooltip for the render pass to draw, anchored at the screen pixel given.
+     *
+     * <p>The reference hides its hover highlight and shows the delete message in a tooltip while a
+     * left click would delete the stack on the cursor, so this is how an overlay draws that
+     * message: the game's own tooltip, in the loader's own version's look.
+     */
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    public static void OverlayRenderContext_draw_tooltip(
+            long contextId, String text, double x, double y) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.draw_tooltip", contextId)) return;
+
+        String problem = overlayItemProblem(x, y);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "OverlayRenderContext.draw_tooltip: " + problem);
+            return;
+        }
+
+        GrugOverlay.recordTooltip(text, x, y);
+    }
+
+    /**
+     * The item on the mouse cursor of the screen the frame is drawn on, if it holds one.
+     *
+     * <p>The reference reads the stack on the cursor while it draws, to decide whether a left click
+     * on the slot under the mouse would delete it rather than give another one, so a render pass
+     * can tell carrying from empty.
+     */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static long OverlayRenderContext_carried_item(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.carried_item", contextId)) {
+            return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+        }
+        Object item = GrugCore.getAdapter().carriedItem();
+        if (item == null) {
+            return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+        }
+        return GrugEntities.addEntity(
+                GrugEntityType.Option,
+                new GrugOption(GrugEntities.addEntity(GrugEntityType.Item, item)));
     }
 
     public static double OverlayClickContext_screen_width(long contextId) {

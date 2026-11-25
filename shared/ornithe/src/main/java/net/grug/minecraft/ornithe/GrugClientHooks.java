@@ -101,12 +101,15 @@ public class GrugClientHooks {
 
                 @Override
                 public double[] cursorPos() {
-                    return new double[] {Mouse.getX(), Mouse.getY()};
+                    // The game reads y from the bottom of the window; a point here is measured
+                    // from its top-left, like the other loaders', so a test names the same pixel
+                    // everywhere.
+                    return new double[] {Mouse.getX(), Display.getHeight() - 1 - Mouse.getY()};
                 }
 
                 @Override
                 public void setCursor(double x, double y) {
-                    Mouse.setCursorPosition((int) x, (int) y);
+                    Mouse.setCursorPosition((int) x, Display.getHeight() - 1 - (int) y);
                 }
             };
 

@@ -71,6 +71,14 @@ export render(ctx: OverlayRenderContext) {
     if over_box and inside_gui {
         ctx.draw_box(box_x, box_y, box_x + 18, box_y + 18)
     }
+    # The reference draws the delete message instead of the hovered ingredient's own tooltip while
+    # the cursor carries a stack a left click would delete (#1763). A coverage mod is loaded in every
+    # other mod's tests too, and its overlay draws on their screens, so the message is drawn only
+    # while the mouse is over this mod's own box: otherwise it would be painted over the tooltip a
+    # mod like jei draws in its own capture. overlay_tooltip-Test parks the mouse there.
+    if over_box and ctx.carried_item().has() {
+        ctx.draw_tooltip("Click to delete.", ctx.mouse_x(), ctx.mouse_y())
+    }
 }
 
 export click(ctx: OverlayClickContext) {

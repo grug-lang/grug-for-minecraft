@@ -101,6 +101,16 @@ export render(ctx: OverlayRenderContext) {
     _draw_search(ctx, grid_x, columns * slot, screen_height)
     ctx.draw_box(grid_x, border_margin, grid_x + button_size, border_margin + button_size)
     ctx.draw_box(grid_x + columns * slot - button_size, border_margin, grid_x + columns * slot, border_margin + button_size)
+    # DeleteItemInputHandler.shouldDeleteItemOnClick: a left click over the grid deletes the stack on
+    # the cursor unless the hovered ingredient stacks with it, and a cell past the last item counts
+    # as nothing hovered. The reference then hides the hover highlight and draws the delete message
+    # instead of the ingredient's name (IngredientGrid.drawHighlight and drawTooltips).
+    carried: Option[Item] = ctx.carried_item()
+    hovered: number = _clicked_index(mouse_x, mouse_y, screen_width, ctx.gui_left(), ctx.gui_width(), columns, rows)
+    delete_on_click: bool = false
+    if carried.has() {
+        delete_on_click = _deletes_carried(carried.unwrap(), page * columns * rows + hovered, count)
+    }
     first: number = page * columns * rows
     index: number = 0
     while index < columns * rows {
@@ -108,11 +118,14 @@ export render(ctx: OverlayRenderContext) {
             slot_x: number = grid_x + _column(index, columns) * slot
             slot_y: number = grid_y + _row(index, columns) * slot
             ctx.draw_item(search_item_at(query, first + index), slot_x + 1, slot_y + 1)
-            if _inside(mouse_x, mouse_y, slot_x, slot_y) {
+            if not delete_on_click and _inside(mouse_x, mouse_y, slot_x, slot_y) {
                 ctx.draw_box(slot_x, slot_y, slot_x + slot, slot_y + slot)
             }
         }
         index = index + 1
+    }
+    if delete_on_click {
+        ctx.draw_tooltip("Click to delete.", mouse_x, mouse_y)
     }
 }
 
@@ -180,14 +193,7 @@ export click(ctx: OverlayClickContext) {
         # (IngredientGrid.isMouseOver, :163-165) and reads an empty lookup as delete
         # (getIngredientUnderMouse().orElse(true)), then reports the press handled (:64-70), so the
         # screen never sees it.
-        carries_clicked: bool = false
-        if index < count {
-            clicked: Item = search_item_at(query, index)
-            if equals(ctx.carried_item().unwrap(), clicked) {
-                carries_clicked = item_max_stack(clicked) > 1
-            }
-        }
-        if not carries_clicked {
+        if _deletes_carried(ctx.carried_item().unwrap(), index, count) {
             ctx.delete_carried_item()
             ctx.take()
             return
@@ -440,4 +446,23 @@ local _row(index: number, columns: number) number {
 
 local _inside(mouse_x: number, mouse_y: number, slot_x: number, slot_y: number) bool {
     return mouse_x >= slot_x and mouse_x < slot_x + slot and mouse_y >= slot_y and mouse_y < slot_y + slot
+}
+
+# Whether a left click on the ingredient at an absolute index deletes the stack on the cursor rather
+# than giving the ingredient, the reference's DeleteItemInputHandler.shouldDeleteItemOnClick
+# (:94-101) and ServerCommandUtil.canStack (:160-163): a point outside the grid (a negative index)
+# is no delete, and an index past the last item is nothing hovered, which deletes. A hovered
+# ingredient only keeps the stack when it is the carried item and two of it fit one stack, which a
+# tool, armour, a potion or a filled bucket do not.
+local _deletes_carried(carried: Item, index: number, count: number) bool {
+    if index < 0 {
+        return false
+    }
+    if index < count {
+        clicked: Item = search_item_at(query, index)
+        if equals(carried, clicked) {
+            return item_max_stack(clicked) <= 1
+        }
+    }
+    return true
 }

@@ -9,10 +9,12 @@ import net.grug.minecraft.grug.GrugOverlayScripts;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugScreenText;
+import net.grug.minecraft.grug.GrugScreenTooltip;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.GrugWorldKeys;
 import net.grug.minecraft.grug.GrugWorldOverlay;
 import net.grug.minecraft.stationapi.gui.GrugScreen;
+import net.grug.minecraft.stationapi.mixin.GrugFillInvoker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -28,8 +30,6 @@ import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -68,15 +68,15 @@ public final class GrugOverlayHost {
     }
 
     /**
-     * Draws every overlay on top of the screen's own frame and answers the boxes the caller still
-     * has to fill.
+     * Draws every overlay on top of the screen's own frame.
      *
-     * <p>The icons are drawn here because item drawing belongs to the game's renderer; the
-     * highlight boxes go back to the mixin, which is the only place with the screen's own fill.
+     * <p>The icons are drawn here because item drawing belongs to the game's renderer, and the
+     * highlight boxes and tooltips go through the screen's own fill, which the mixin makes
+     * reachable, so everything an overlay recorded lands in the frame the screen just drew.
      */
-    public static List<GrugScreenBox> render(Screen screen, int mouseX, int mouseY) {
+    public static void render(Screen screen, int mouseX, int mouseY) {
         GrugScreenGeometry geometry = geometry(screen);
-        if (geometry == null) return Collections.emptyList();
+        if (geometry == null) return;
 
         // The first frame is where the screen-open hook's clearing has to show: a joined client
         // draws frames between a server's open and its read, so the mark alone cannot tell a hook
@@ -88,8 +88,8 @@ public final class GrugOverlayHost {
         }
 
         Minecraft minecraft = (Minecraft) FabricLoader.getInstance().getGameInstance();
+        GrugFillInvoker fill = (GrugFillInvoker) screen;
         String testMod = GrugTestState.currentTestMod;
-        List<GrugScreenBox> boxes = new ArrayList<>();
         for (GrugOverlayScripts.Script overlay : overlays()) {
             GrugOverlayGeometry drawn =
                     GrugOverlay.render(
@@ -104,7 +104,10 @@ public final class GrugOverlayHost {
                             mouseX,
                             mouseY);
 
-            if (!drawn.items().isEmpty() || !drawn.boxes().isEmpty() || !drawn.texts().isEmpty()) {
+            if (!drawn.items().isEmpty()
+                    || !drawn.boxes().isEmpty()
+                    || !drawn.texts().isEmpty()
+                    || !drawn.tooltips().isEmpty()) {
                 if (overlay.mod.equals(testMod)) {
                     GrugOverlay.noteDrawn();
                 }
@@ -145,9 +148,12 @@ public final class GrugOverlayHost {
                 if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
             }
             drawTexts(minecraft, drawn.texts());
-            boxes.addAll(drawn.boxes());
+            for (GrugScreenBox box : drawn.boxes()) {
+                fill.grug$fill(
+                        (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), 0x80FFFFFF);
+            }
+            drawTooltips(minecraft, fill, drawn.tooltips());
         }
-        return boxes;
     }
 
     /**
@@ -168,6 +174,41 @@ public final class GrugOverlayHost {
             for (GrugScreenText text : texts) {
                 minecraft.textRenderer.drawWithShadow(
                         text.text(), (int) text.x(), (int) text.y(), 0xFF000000 | text.rgb());
+            }
+        } finally {
+            GL11.glPopAttrib();
+        }
+    }
+
+    /**
+     * Draws an overlay's tooltips the way this version's own item tooltip is drawn: a flat
+     * translucent panel three pixels around the text, and the line with a shadow at the anchor
+     * moved 12 pixels right and 12 up, which is {@code InventoryMenuScreen.render}'s own tooltip.
+     * Alpha has no item tooltip at all, so its loader uses this same panel.
+     *
+     * <p>The panel and the text need the state the game's tooltip has, textures and blending on and
+     * lighting and the depth test off, so the panel is not hidden by the item under it. The state
+     * the frame had goes back afterwards.
+     */
+    private static void drawTooltips(
+            Minecraft minecraft, GrugFillInvoker fill, List<GrugScreenTooltip> tooltips) {
+        if (tooltips.isEmpty()) return;
+        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_CURRENT_BIT);
+        try {
+            GL11.glDisable(GL11.GL_LIGHTING);
+            GL11.glDisable(GL11.GL_DEPTH_TEST);
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+            for (GrugScreenTooltip tooltip : tooltips) {
+                int x = (int) tooltip.x() + 12;
+                int y = (int) tooltip.y() - 12;
+                int width = minecraft.textRenderer.getWidth(tooltip.text());
+                // 0xC0000000, the game's own tooltip panel colour.
+                fill.grug$fillGradient(
+                        x - 3, y - 3, x + width + 3, y + 8 + 3, -1073741824, -1073741824);
+                minecraft.textRenderer.drawWithShadow(tooltip.text(), x, y, -1);
             }
         } finally {
             GL11.glPopAttrib();

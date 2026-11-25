@@ -1,0 +1,144 @@
+# The reference's delete look (#1763): while a left click on the grid would delete the stack on the
+# cursor, the hover highlight is not drawn and the delete message is drawn at the mouse instead
+# (IngredientGrid.draw, :130-137, and drawTooltips, :146-153; DeleteItemInputHandler.java:78-81).
+# The capture shows the cursor carrying one item over another item's cell, so the click would
+# delete, with no highlight on that cell and "Click to delete." beside the cursor. It is a golden
+# rather than a comparison of two captures because the look is the assertion: the port keeps the
+# highlight and draws no message without this rule, and the committed references are what fail
+# then. The cursor is parked over the cell first, as a run parks it in a corner otherwise; only a
+# client can move its cursor, so a dedicated server skips the test.
+started: bool = false
+opened: bool = false
+waited: number = 0
+step: number = 0
+
+# The window is 1280 by 720 at a GUI scale of 3, which the crop below assumes; both a 426 and a
+# 427 scaled width are that scale, as the item list's own capture test explains.
+frame_scale: number = 3
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.overlay_supported() {
+            # This loader draws no overlays; the deviation is in about.json.
+            return
+        }
+        if me.on_dedicated_server() {
+            # The parked cursor is a client's own pointer, and the server's test cannot move it.
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens (#1287).
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        ctx.assert(ctx.screen_width() == 426 or ctx.screen_width() == 427, "The CI window should be 1280x720 at a GUI scale of 3.")
+        ctx.assert(_columns(ctx) >= 2, "The display area should hold at least two columns.")
+        # The first cell's item is put on the cursor and another cell is hovered, so the click the
+        # hover would make does not stack and the reference hides the highlight and shows the
+        # message. The items are looked up rather than picked by a fixed cell, because the order
+        # differs by version.
+        carried: Item = item_at(0)
+        hovered: number = -1
+        search: number = 1
+        while search < item_count() and hovered < 0 {
+            if not equals(item_at(search), carried) {
+                hovered = search
+            }
+            search = search + 1
+        }
+        ctx.assert(hovered >= 0, "The item list should hold a second item besides the carried one.")
+        ctx.assert(Math.floor(hovered / _columns(ctx)) < _rows(ctx), "The hovered item should be on the list's first page.")
+        ctx.set_carried_item(carried)
+        ctx.assert(ctx.get_carried_item().has(), "The test should be able to put an item on the cursor.")
+        column: number = Math.remainder(hovered, _columns(ctx))
+        row: number = Math.floor(hovered / _columns(ctx))
+        # The screen turns a window pixel into a scaled one with the GUI scale, so the cell's middle
+        # in scaled pixels is multiplied back up.
+        ctx.set_mouse_position(_cell_x(ctx, column) * frame_scale, _cell_y(row) * frame_scale)
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    # The capture is read from the first frame drawn after it asks, so this frame has the parked
+    # cursor and the overlay's frame has already drawn. The crop keeps the cell from the grid's
+    # first row to the right edge of the window, which is where the message is drawn on the older
+    # versions, and back to 200 scaled pixels, where 1.20.6's own positioner flips it when it would
+    # run off the window. Both are in the crop, as is the hovered cell, so a highlight left there
+    # fails the comparison.
+    left: number = 200 * frame_scale
+    top: number = (_grid_y() - 20) * frame_scale
+    right: number = (ctx.screen_width() - 1) * frame_scale
+    bottom: number = (_grid_y() + 32) * frame_scale
+    ctx.screenshot().equals(r"screenshots/jei_delete_hover", left, top, right, bottom)
+    ctx.clear_carried_item()
+    ctx.close_screen()
+}
+
+# The list's layout, as the overlay computes it, so the test works the same grid out.
+local _cell_x(ctx: TestTickContext, column: number) number {
+    return _grid_x(ctx) + column * 18 + 9
+}
+
+local _cell_y(row: number) number {
+    return _grid_y() + row * 18 + 9
+}
+
+local _grid_x(ctx: TestTickContext) number {
+    display_left: number = ctx.gui_left() + ctx.gui_width()
+    available_width: number = ctx.screen_width() - display_left - 12
+    return display_left + 6 + (available_width - _columns(ctx) * 18)
+}
+
+local _grid_y() number {
+    return 28
+}
+
+local _columns(ctx: TestTickContext) number {
+    available_width: number = ctx.screen_width() - ctx.gui_left() - ctx.gui_width() - 12
+    columns: number = Math.floor(available_width / 18)
+    if columns > 9 {
+        columns = 9
+    }
+    return columns
+}
+
+local _rows(ctx: TestTickContext) number {
+    screen_height: number = ctx.gui_top() * 2 + ctx.gui_height()
+    rows: number = Math.floor((screen_height - 22 - 22 - 12) / 18)
+    if rows > 16 {
+        rows = 16
+    }
+    return rows
+}

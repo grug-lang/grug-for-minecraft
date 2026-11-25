@@ -4,8 +4,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * What one overlay's render pass drew: the item icons, texts and highlight boxes its render()
- * recorded, in the order it drew them.
+ * What one overlay's render pass drew: the item icons, texts, highlight boxes and tooltips its
+ * render() recorded, in the order it drew them.
  *
  * <p>An overlay pass draws on top of the screen every frame, so nothing here is baked and nothing
  * needs rebuilding: the loader draws what this holds straight away and throws it away. There is no
@@ -16,12 +16,17 @@ public final class GrugOverlayGeometry {
     private final List<GrugScreenItemDraw> items;
     private final List<GrugScreenBox> boxes;
     private final List<GrugScreenText> texts;
+    private final List<GrugScreenTooltip> tooltips;
 
     public GrugOverlayGeometry(
-            List<GrugScreenItemDraw> items, List<GrugScreenBox> boxes, List<GrugScreenText> texts) {
+            List<GrugScreenItemDraw> items,
+            List<GrugScreenBox> boxes,
+            List<GrugScreenText> texts,
+            List<GrugScreenTooltip> tooltips) {
         this.items = Collections.unmodifiableList(items);
         this.boxes = Collections.unmodifiableList(boxes);
         this.texts = Collections.unmodifiableList(texts);
+        this.tooltips = Collections.unmodifiableList(tooltips);
     }
 
     /** The item icons to draw, in the order the script drew them. */
@@ -39,5 +44,13 @@ public final class GrugOverlayGeometry {
      */
     public List<GrugScreenText> texts() {
         return texts;
+    }
+
+    /**
+     * The tooltips to draw, in the order the script drew them, after everything else: a tooltip
+     * lies over the screen and over the overlay's own drawings.
+     */
+    public List<GrugScreenTooltip> tooltips() {
+        return tooltips;
     }
 }

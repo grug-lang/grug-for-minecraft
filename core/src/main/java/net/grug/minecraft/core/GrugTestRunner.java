@@ -1753,6 +1753,9 @@ public class GrugTestRunner {
         GrugTestState.testOrigin = null;
         GrugTestState.movedEye = null;
         GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
+        // The point the last test parked the cursor at belongs to that test, so this one's frames
+        // park in the window's corner until it asks for a point of its own.
+        GrugRunWindow.forgetParkPoint();
 
         // Before the init, the room and the first get_origin answer, so the player is already at
         // the centre of their block with a level view when any of them looks. See #609.
@@ -2045,6 +2048,9 @@ public class GrugTestRunner {
         GrugTestState.testOrigin = null;
         GrugTestState.movedEye = null;
         GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
+        // The test that parked the cursor at a point is over, so the frames between tests park in
+        // the corner again and a later capture cannot inherit this test's hover.
+        GrugRunWindow.forgetParkPoint();
         // The test's start goes back to "no test has started" with the rest, so a test that is not
         // started, such as the one a reload deadline fails, is not timed from this test's start.
         currentTestStartNanos = -1;

@@ -12,4 +12,8 @@ public interface GrugFillInvoker {
     /** Fills the rectangle, the way the screen's own drawing does. */
     @Invoker("fill")
     void grug$fill(int x1, int y1, int x2, int y2, int color);
+
+    /** Fills the rectangle between two colours, the way the screen's own tooltip panel is drawn. */
+    @Invoker("fillGradient")
+    void grug$fillGradient(int x1, int y1, int x2, int y2, int color1, int color2);
 }

@@ -3812,11 +3812,22 @@ static union grug_value TTC_overlay_drawn(ARGS) { UNUSED; return boolean(overlay
 REGISTER("TestTickContext", "overlay_drawn", TTC_overlay_drawn);
 static union grug_value TTC_overlay_first_frame_cleared(ARGS) { UNUSED; return boolean(overlay_first_frame_cleared); }
 REGISTER("TestTickContext", "overlay_first_frame_cleared", TTC_overlay_first_frame_cleared);
+// The point a test parks the cursor at so a capture shows a hover. The smoketest has no window and
+// paints nothing, so the point changes no answer here; a test that asks is a capture test, which
+// marks the run STUBBED at TestTickContext.screenshot.
+static union grug_value TTC_set_mouse_position(ARGS) { UNUSED; return none(); }
+REGISTER("TestTickContext", "set_mouse_position", TTC_set_mouse_position);
 
 // OverlayRenderContext: the open screen's geometry and mouse, and the screen serial, which changes
 // when a different screen is drawn on (#865). A draw records that this mod produced a frame, which
 // is the overlay's own logic; the host paints nothing, and TestTickContext.screenshot is what
 // marks the run STUBBED because a capture is what it cannot answer.
+static union grug_value option_of_carried(void) {
+    uint64_t o = new_obj(K_OPTION);
+    if (carried_has) { objs[o - 1].has = true; objs[o - 1].val = id(carried_item); }
+    return id(o);
+}
+
 static bool render_context(uint64_t handle) {
     return get_obj(handle, K_OVERLAY_RENDER) != NULL;
 }
@@ -3844,6 +3855,10 @@ static union grug_value ORC_draw_text(ARGS) { UNUSED; if (!render_context(a[0]._
 REGISTER("OverlayRenderContext", "draw_text", ORC_draw_text);
 static union grug_value ORC_draw_box(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_box: not a render pass"); overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "draw_box", ORC_draw_box);
+static union grug_value ORC_draw_tooltip(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_tooltip: not a render pass"); overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+REGISTER("OverlayRenderContext", "draw_tooltip", ORC_draw_tooltip);
+static union grug_value ORC_carried_item(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.carried_item: not a render pass"); return option_of_carried(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+REGISTER("OverlayRenderContext", "carried_item", ORC_carried_item);
 
 // =============================================================================================
 // SECTION: Overlay input
@@ -3862,12 +3877,6 @@ static bool overlay_key_ctrl;
 static bool overlay_key_shift;
 static bool overlay_key_repeat;
 static double overlay_scroll_x, overlay_scroll_y, overlay_scroll_delta;
-
-static union grug_value option_of_carried(void) {
-    uint64_t o = new_obj(K_OPTION);
-    if (carried_has) { objs[o - 1].has = true; objs[o - 1].val = id(carried_item); }
-    return id(o);
-}
 
 static bool click_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_CLICK) != NULL; }
 static union grug_value OCC_button(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.button: not a click pass"); return num(overlay_click_button); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it

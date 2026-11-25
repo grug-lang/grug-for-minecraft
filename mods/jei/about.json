@@ -113,14 +113,9 @@
 					"tracking_issue": 1737
 				},
 				{
-					"what": "Hovering an item draws the reference's highlight but no tooltip, item count or mod name, and the grid draws no page number or config button.",
-					"why": "The overlay API has no tooltip callback or item-name source, and the first version draws no chrome beyond the icons and the highlight.",
+					"what": "Hovering an item draws the reference's highlight but not its ingredient tooltip, item count or mod name; the only tooltip the port draws is the delete message. The grid draws no page number or config button.",
+					"why": "The overlay API offers a tooltip call but no item-name source for the hovered ingredient, so only the message, whose text is fixed, is drawn; the first version draws no chrome beyond the icons and the highlight.",
 					"tracking_issue": 870
-				},
-				{
-					"what": "While a left click on the grid would delete the stack on the cursor, the reference hides the hover highlight and shows its delete tooltip (\"jei.tooltip.delete.item\", \"Click to delete.\") instead (IngredientGrid.java:130-137,146-153; DeleteItemInputHandler.java:78-81); the port keeps drawing the highlight, and it draws no tooltip of either kind.",
-					"why": "The overlay API asks nothing about the click a hover would make and offers no tooltip, so the port marks the hovered cell from the mouse position alone.",
-					"tracking_issue": 1763
 				},
 				{
 					"what": "The port gives one item on a left or right click and a stack on shift+left or the middle button, into the player's inventory. The reference's default MOUSE_PICKUP give puts the picked stack on the cursor and merges it into a stack the cursor already carries of the same item, up to the item's maximum (ServerCommandUtil.mousePickupItemStack, :137-158). A left click while the cursor carries an item deletes that stack unless the clicked item is the same one, which gives one item instead; an item that cannot stack, such as a tool, a piece of armour, a potion or a filled bucket, is deleted as well, because two of a stack of one never merge. The port has no give-versus-cheat mode and no cheat permission check, and it sends no \"Gave ... to ...\" chat message. Its give is silent, as the reference's default MOUSE_PICKUP give is: only the reference's hotbar-slot and INVENTORY give paths play the pickup sound.",
