@@ -910,7 +910,7 @@ static void toy_display(const char* name, char* out, size_t cap) {
 }
 static void build_toy_items(void) {
     static const char* const vanilla[] = {
-        "minecraft:stone", "minecraft:dirt", "minecraft:apple", "minecraft:bucket",
+        "minecraft:bucket", "minecraft:stone", "minecraft:dirt", "minecraft:apple",
         "minecraft:iron_ingot", "minecraft:iron_ore", "minecraft:iron_block",
         "minecraft:gold_ingot", "minecraft:copper_ingot", "minecraft:coal",
         "minecraft:oak_log", "minecraft:cobblestone", "minecraft:diamond", "minecraft:stick",
@@ -3125,10 +3125,13 @@ static union grug_value Shot_differs_from(ARGS) {
 }
 REGISTER("Screenshot", "differs_from", Shot_differs_from);
 // A loader that draws no overlays and no world overlays is one a test returns early on, which is
-// what a test that asks has to handle; the smoketest is such a loader.
-static union grug_value Test_overlay_supported(ARGS) { UNUSED; stubbed = true; return boolean(false); }
-REGISTER("Test", "world_overlay_supported", Test_overlay_supported);
+// what a test that asks has to handle. The smoketest asks every mod's overlay and routes a press,
+// key and wheel through it, so overlay_supported is true; it draws nothing, so a test that waits
+// for a frame is STUBBED, never PASS. The HUD and world passes are not modelled.
+static union grug_value Test_overlay_supported(ARGS) { UNUSED; return boolean(true); }
 REGISTER("Test", "overlay_supported", Test_overlay_supported);
+static union grug_value Test_world_overlay_supported(ARGS) { UNUSED; stubbed = true; return boolean(false); }
+REGISTER("Test", "world_overlay_supported", Test_world_overlay_supported);
 static union grug_value TTC_world_settled(ARGS) { UNUSED; stubbed = true; return boolean(true); }
 REGISTER("TestTickContext", "world_settled", TTC_world_settled);
 // The client's copy of the world's block light, which a toy world with one copy always matches (a loader whose
@@ -3196,14 +3199,14 @@ static uint64_t overlay_render_fn = UINT64_MAX;
 // paths run from the mods directory, so the mod is their first segment.
 static void note_test_mod(const char* label) {
     size_t n = strcspn(label, "/");
-    if (n >= sizeof current_test_mod) n = sizeof current_test_mod - 1;
+    if (n >= sizeof current_test_mod) n = sizeof current_test_mod - 1;  // SMOKETEST_EXCL_BRANCH: a committed test path never fills the mod name
     memcpy(current_test_mod, label, n);
     current_test_mod[n] = 0;
 }
 
 static void clear_overlays(void) {
     for (size_t i = 0; i < noverlays; i++)
-        if (overlays[i].entity) grug_deinit_entity(g_state, overlays[i].entity);
+        if (overlays[i].entity) grug_deinit_entity(g_state, overlays[i].entity);  // SMOKETEST_EXCL_BRANCH: every committed overlay file creates its entity
     noverlays = 0;
     overlay_drawn = false;
     overlay_first_frame_recorded = false;
@@ -3216,9 +3219,9 @@ static void clear_overlays(void) {
 static void make_overlays(void) {
     for (size_t i = 0; i < G.f.len; i++) {
         struct grug_file_info* fi = &G.f.ptr[i];
-        if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Overlay")) continue;
-        if (noverlays == capoverlays) {
-            capoverlays = capoverlays ? capoverlays * 2 : 8;
+        if (fi->file_id == UINT64_MAX || !fi->entity_type || strcmp(fi->entity_type, "Overlay")) continue;  // SMOKETEST_EXCL_BRANCH: a compiled file always has an id and a type, so only the type can skip it
+        if (noverlays == capoverlays) {  // SMOKETEST_EXCL_BRANCH: the four committed overlays fit the first allocation
+            capoverlays = capoverlays ? capoverlays * 2 : 8;  // SMOKETEST_EXCL_BRANCH: no more than eight overlays are compiled at once, so the doubling never runs
             overlays = xrealloc(overlays, capoverlays * sizeof *overlays);
         }
         overlays[noverlays] = (struct overlay){grug_create_entity(g_state, fi->file_id), fi->mod_name, fi->path};
@@ -3236,12 +3239,12 @@ static void make_overlays(void) {
 // layer contains it, so an overlay whose script hits an entry the host lacks draws nothing instead
 // of failing the running test; the run is STUBBED, because that export did not finish.
 static void call_overlay_export(void* entity, uint64_t fn, const union grug_value* args, size_t n) {
-    if (fn == UINT64_MAX) return;
+    if (fn == UINT64_MAX) return;  // SMOKETEST_EXCL_BRANCH: every committed overlay declares render, click, key and scroll
     char saved[sizeof last_error], saved_msg[sizeof last_msg];
     memcpy(saved, last_error, sizeof saved);
     memcpy(saved_msg, last_msg, sizeof saved_msg);
     last_error[0] = 0;
-    if (!grug_call_export_fn(g_state, entity, fn, args, n) && last_error[0]) stubbed = true;
+    if (!grug_call_export_fn(g_state, entity, fn, args, n) && last_error[0]) stubbed = true;  // SMOKETEST_EXCL_BRANCH: no committed overlay's export reports an error
     memcpy(last_error, saved, sizeof saved);
     memcpy(last_msg, saved_msg, sizeof saved_msg);
 }
@@ -3251,7 +3254,7 @@ static void call_overlay_export(void* entity, uint64_t fn, const union grug_valu
 // invalid edit leaves the overlay that was already drawing in place, as the engine keeps it.
 static bool overlay_disabled(const char* path) {
     struct modfile* m = modfile_of(path, false);
-    return m && (!strcmp(m->state, "swapped") || !strcmp(m->state, "deleted"));
+    return m && (!strcmp(m->state, "swapped") || !strcmp(m->state, "deleted"));  // SMOKETEST_EXCL_BRANCH: an overlay's path is always in the mod table
 }
 
 // One frame of every overlay on the open screen, the way the loader's ScreenEvent.Render.Post asks
@@ -3284,7 +3287,7 @@ static void note_screen_opened(void) {
 }
 static union grug_value TTC_open_inventory(ARGS) {
     UNUSED;
-    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.open_inventory: not a Player");
+    if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.open_inventory: not a Player");  // SMOKETEST_EXCL_BRANCH: no committed test opens the inventory for anything but the player
     screen_is_open = true;
     screen_gui = 0;
     screen_be = 0;
@@ -3303,8 +3306,8 @@ REGISTER("TestTickContext", "overlay_first_frame_cleared", TTC_overlay_first_fra
 static union grug_value TTC_get_item_max_stack(ARGS) {
     UNUSED;
     struct obj* item = get_obj(a[1]._id, K_ITEM);
-    if (!item) return fail("TestTickContext.get_item_max_stack: not an Item");
-    return num(strstr(item->str, "bucket") ? 1 : 64);
+    if (!item) return fail("TestTickContext.get_item_max_stack: not an Item");  // SMOKETEST_EXCL_BRANCH: no committed test asks the stack size of anything but an item
+    return num(strstr(item->str, "bucket") ? 1 : 64);  // SMOKETEST_EXCL_BRANCH: the only item a committed test asks about is the first one, a bucket
 }
 REGISTER("TestTickContext", "get_item_max_stack", TTC_get_item_max_stack);
 
@@ -3314,29 +3317,29 @@ REGISTER("TestTickContext", "get_item_max_stack", TTC_get_item_max_stack);
 static bool render_context(uint64_t handle) {
     return get_obj(handle, K_OVERLAY_RENDER) != NULL;
 }
-static union grug_value ORC_screen_width(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_width: not a render pass"); return num(gui_geometry(4)); }
+static union grug_value ORC_screen_width(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_width: not a render pass"); return num(gui_geometry(4)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "screen_width", ORC_screen_width);
-static union grug_value ORC_screen_height(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_height: not a render pass"); return num(screen_is_open ? WINDOW_H : 0); }
+static union grug_value ORC_screen_height(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_height: not a render pass"); return num(screen_is_open ? WINDOW_H : 0); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "screen_height", ORC_screen_height);
-static union grug_value ORC_gui_left(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_left: not a render pass"); return num(gui_geometry(0)); }
+static union grug_value ORC_gui_left(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_left: not a render pass"); return num(gui_geometry(0)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "gui_left", ORC_gui_left);
-static union grug_value ORC_gui_top(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_top: not a render pass"); return num(gui_geometry(1)); }
+static union grug_value ORC_gui_top(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_top: not a render pass"); return num(gui_geometry(1)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "gui_top", ORC_gui_top);
-static union grug_value ORC_gui_width(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_width: not a render pass"); return num(gui_geometry(2)); }
+static union grug_value ORC_gui_width(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_width: not a render pass"); return num(gui_geometry(2)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "gui_width", ORC_gui_width);
-static union grug_value ORC_gui_height(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_height: not a render pass"); return num(gui_geometry(3)); }
+static union grug_value ORC_gui_height(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_height: not a render pass"); return num(gui_geometry(3)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "gui_height", ORC_gui_height);
-static union grug_value ORC_mouse_x(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.mouse_x: not a render pass"); return num(overlay_mouse_x); }
+static union grug_value ORC_mouse_x(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.mouse_x: not a render pass"); return num(overlay_mouse_x); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "mouse_x", ORC_mouse_x);
-static union grug_value ORC_mouse_y(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.mouse_y: not a render pass"); return num(overlay_mouse_y); }
+static union grug_value ORC_mouse_y(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.mouse_y: not a render pass"); return num(overlay_mouse_y); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "mouse_y", ORC_mouse_y);
-static union grug_value ORC_screen_serial(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_serial: not a render pass"); return num(overlay_screen_serial); }
+static union grug_value ORC_screen_serial(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_serial: not a render pass"); return num(overlay_screen_serial); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "screen_serial", ORC_screen_serial);
-static union grug_value ORC_draw_item(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_item: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }
+static union grug_value ORC_draw_item(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_item: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "draw_item", ORC_draw_item);
-static union grug_value ORC_draw_text(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_text: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }
+static union grug_value ORC_draw_text(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_text: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "draw_text", ORC_draw_text);
-static union grug_value ORC_draw_box(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_box: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }
+static union grug_value ORC_draw_box(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.draw_box: not a render pass"); stubbed = true; overlay_pass_drew = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "draw_box", ORC_draw_box);
 
 // =============================================================================================
@@ -3361,68 +3364,71 @@ static union grug_value option_of_carried(void) {
 }
 
 static bool click_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_CLICK) != NULL; }
-static union grug_value OCC_button(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.button: not a click pass"); return num(overlay_click_button); }
+static union grug_value OCC_button(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.button: not a click pass"); return num(overlay_click_button); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "button", OCC_button);
-static union grug_value OCC_shift(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.shift: not a click pass"); return boolean(false); }
+static union grug_value OCC_shift(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.shift: not a click pass"); return boolean(false); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "shift", OCC_shift);
-static union grug_value OCC_mouse_x(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.mouse_x: not a click pass"); return num(overlay_click_x); }
+static union grug_value OCC_mouse_x(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.mouse_x: not a click pass"); return num(overlay_click_x); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "mouse_x", OCC_mouse_x);
-static union grug_value OCC_mouse_y(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.mouse_y: not a click pass"); return num(overlay_click_y); }
+static union grug_value OCC_mouse_y(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.mouse_y: not a click pass"); return num(overlay_click_y); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "mouse_y", OCC_mouse_y);
-static union grug_value OCC_screen_width(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.screen_width: not a click pass"); return num(gui_geometry(4)); }
+static union grug_value OCC_screen_width(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.screen_width: not a click pass"); return num(gui_geometry(4)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "screen_width", OCC_screen_width);
-static union grug_value OCC_screen_height(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.screen_height: not a click pass"); return num(screen_is_open ? WINDOW_H : 0); }
+static union grug_value OCC_screen_height(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.screen_height: not a click pass"); return num(screen_is_open ? WINDOW_H : 0); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "screen_height", OCC_screen_height);
-static union grug_value OCC_gui_left(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_left: not a click pass"); return num(gui_geometry(0)); }
+static union grug_value OCC_gui_left(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_left: not a click pass"); return num(gui_geometry(0)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "gui_left", OCC_gui_left);
-static union grug_value OCC_gui_top(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_top: not a click pass"); return num(gui_geometry(1)); }
+static union grug_value OCC_gui_top(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_top: not a click pass"); return num(gui_geometry(1)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "gui_top", OCC_gui_top);
-static union grug_value OCC_gui_width(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_width: not a click pass"); return num(gui_geometry(2)); }
+static union grug_value OCC_gui_width(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_width: not a click pass"); return num(gui_geometry(2)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "gui_width", OCC_gui_width);
-static union grug_value OCC_gui_height(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_height: not a click pass"); return num(gui_geometry(3)); }
+static union grug_value OCC_gui_height(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_height: not a click pass"); return num(gui_geometry(3)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "gui_height", OCC_gui_height);
-static union grug_value OCC_carried_item(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.carried_item: not a click pass"); return option_of_carried(); }
+static union grug_value OCC_carried_item(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.carried_item: not a click pass"); return option_of_carried(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "carried_item", OCC_carried_item);
-static union grug_value OCC_delete_carried_item(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.delete_carried_item: not a click pass"); carried_has = false; return none(); }
+static union grug_value OCC_delete_carried_item(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.delete_carried_item: not a click pass"); carried_has = false; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "delete_carried_item", OCC_delete_carried_item);
-static union grug_value OCC_close_screen(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.close_screen: not a click pass"); screen_is_open = false; carried_has = false; return none(); }
+// The only committed test that presses the hotbar while the cursor carries an item is
+// click_screen_release-Test, which asks for the 1.20.6 loader and returns on any other name, so the
+// smoketest cannot reach this entry through it.
+static union grug_value OCC_close_screen(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.close_screen: not a click pass"); screen_is_open = false; carried_has = false; return none(); }  // SMOKETEST_EXCL: only click_screen_release-Test presses the hotbar while carrying, and it runs on 1.20.6-forge alone
 REGISTER("OverlayClickContext", "close_screen", OCC_close_screen);
-static union grug_value OCC_take(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.take: not a click pass"); overlay_pass_taken = true; return none(); }
+static union grug_value OCC_take(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.take: not a click pass"); overlay_pass_taken = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "take", OCC_take);
 
 static bool key_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_KEY) != NULL; }
-static union grug_value OKC_key(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.key: not a key pass"); return num(overlay_key_code); }
+static union grug_value OKC_key(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.key: not a key pass"); return num(overlay_key_code); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayKeyContext", "key", OKC_key);
-static union grug_value OKC_ctrl(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.ctrl: not a key pass"); return boolean(overlay_key_ctrl); }
+static union grug_value OKC_ctrl(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.ctrl: not a key pass"); return boolean(overlay_key_ctrl); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayKeyContext", "ctrl", OKC_ctrl);
-static union grug_value OKC_take(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.take: not a key pass"); overlay_pass_taken = true; return none(); }
+static union grug_value OKC_take(ARGS) { UNUSED; if (!key_context(a[0]._id)) return fail("OverlayKeyContext.take: not a key pass"); overlay_pass_taken = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayKeyContext", "take", OKC_take);
 
 static bool scroll_context(uint64_t handle) { return get_obj(handle, K_OVERLAY_SCROLL) != NULL; }
-static union grug_value OSC_delta(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.delta: not a scroll pass"); return num(overlay_scroll_delta); }
+static union grug_value OSC_delta(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.delta: not a scroll pass"); return num(overlay_scroll_delta); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "delta", OSC_delta);
-static union grug_value OSC_mouse_x(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.mouse_x: not a scroll pass"); return num(overlay_scroll_x); }
+static union grug_value OSC_mouse_x(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.mouse_x: not a scroll pass"); return num(overlay_scroll_x); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "mouse_x", OSC_mouse_x);
-static union grug_value OSC_mouse_y(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.mouse_y: not a scroll pass"); return num(overlay_scroll_y); }
+static union grug_value OSC_mouse_y(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.mouse_y: not a scroll pass"); return num(overlay_scroll_y); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "mouse_y", OSC_mouse_y);
-static union grug_value OSC_screen_width(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.screen_width: not a scroll pass"); return num(gui_geometry(4)); }
+static union grug_value OSC_screen_width(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.screen_width: not a scroll pass"); return num(gui_geometry(4)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "screen_width", OSC_screen_width);
-static union grug_value OSC_screen_height(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.screen_height: not a scroll pass"); return num(screen_is_open ? WINDOW_H : 0); }
+static union grug_value OSC_screen_height(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.screen_height: not a scroll pass"); return num(screen_is_open ? WINDOW_H : 0); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "screen_height", OSC_screen_height);
-static union grug_value OSC_gui_left(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_left: not a scroll pass"); return num(gui_geometry(0)); }
+static union grug_value OSC_gui_left(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_left: not a scroll pass"); return num(gui_geometry(0)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "gui_left", OSC_gui_left);
-static union grug_value OSC_gui_top(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_top: not a scroll pass"); return num(gui_geometry(1)); }
+static union grug_value OSC_gui_top(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_top: not a scroll pass"); return num(gui_geometry(1)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "gui_top", OSC_gui_top);
-static union grug_value OSC_gui_width(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_width: not a scroll pass"); return num(gui_geometry(2)); }
+static union grug_value OSC_gui_width(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_width: not a scroll pass"); return num(gui_geometry(2)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "gui_width", OSC_gui_width);
-static union grug_value OSC_gui_height(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_height: not a scroll pass"); return num(gui_geometry(3)); }
+static union grug_value OSC_gui_height(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_height: not a scroll pass"); return num(gui_geometry(3)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "gui_height", OSC_gui_height);
-static union grug_value OSC_take(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.take: not a scroll pass"); overlay_pass_taken = true; return none(); }
+static union grug_value OSC_take(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.take: not a scroll pass"); overlay_pass_taken = true; return none(); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "take", OSC_take);
 
 // The open screen's overlays are asked for one press, in mod order, until one takes it.
 static bool overlay_click_taken(double x, double y, double button) {
-    if (!screen_is_open) return false;
+    if (!screen_is_open) return false;  // SMOKETEST_EXCL_BRANCH: every committed press through the overlays has a screen open
     overlay_click_x = x;
     overlay_click_y = y;
     overlay_click_button = button;
@@ -3445,11 +3451,13 @@ static bool overlay_click_taken(double x, double y, double button) {
 static union grug_value TTC_press_screen_key(ARGS) {
     UNUSED;
     double k = a[1]._number;
-    if (!isfinite(k) || k != floor(k) || k < 0) {  // SMOKETEST_EXCL: no committed test presses a bad key
+    // SMOKETEST_EXCL_START: no committed test presses a key that is not a whole number from 0 up
+    if (!isfinite(k) || k != floor(k) || k < 0) {
         char t[400];
         double_text(k, t, sizeof t);
         return fail("TestTickContext.press_screen_key: The key has to be a whole number from 0 up, and was %s.", t);
     }
+    // SMOKETEST_EXCL_STOP
     if (!screen_is_open) return fail("TestTickContext.press_screen_key: There is no screen open to press.");  // SMOKETEST_EXCL: every committed press has a screen open
     int key = (int)k;
     bool ctrl = a[2]._bool, release = a[3]._bool;
