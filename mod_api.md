@@ -13,13 +13,18 @@ export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, 
 ## BlockEntity
 export add_item(item: Item, damage: number, count: number, from_side: number, add: bool, response: AddResponse)
 export extract_item(from_side: number, remove: bool, response: ExtractResponse)
+export get_liquid(response: LiquidResponse)
+export get_liquid_amount(response: LiquidResponse)
+export get_liquid_capacity(response: LiquidResponse)
 export init(ctx: BlockEntityInitContext)
 export item_extracted(slot: number, amount: number)
 export item_inserted(slot: number, amount: number)
+export offer_liquid(liquid: string, amount: number, from_side: number, fill: bool, response: LiquidResponse)
 export on_neighbor_change()
 export output_taken(amount: number)
 export render(ctx: RenderContext)
 export render_frame(ctx: RenderFrameContext)
+export take_liquid(amount: number, take: bool, response: LiquidResponse)
 export tick()
 .add_item(item: Item, damage: number, count: number, from_side: number, add: bool) number
 .append_saved_list_record(name: string) number
@@ -37,15 +42,21 @@ export tick()
 .get_item_count_in_slot(slot: number) number
 .get_item_damage_in_slot(slot: number) number
 .get_item_in_slot(slot: number) Option[Item]
+.get_liquid() Option[string]
+.get_liquid_amount() number
+.get_liquid_capacity() number
 .get_saved_list_item(name: string, index: number) Option[Item]
 .get_saved_list_number(name: string, index: number, key: string) number
 .get_saved_list_size(name: string) number
+.get_saved_list_string(name: string, index: number) Option[string]
 .get_saved_number(name: string) number
+.get_saved_string(name: string) Option[string]
 .insert_item_into_inventory(item: Item, damage: number, amount: number, insert: bool) number
 .is_power_receiver() bool
 .is_slot_extractable(slot: number) bool
 .is_slot_insertable(slot: number) bool
 .level() Level
+.offer_liquid(liquid: string, amount: number, from_side: number, fill: bool) number
 .receive_energy(amount: number) number
 .redraw()
 .remove_saved_list_record(name: string, index: number)
@@ -54,9 +65,12 @@ export tick()
 .set_item_in_slot(slot: number, item: Item, count: number)
 .set_saved_list_item(name: string, index: number, item: Item)
 .set_saved_list_number(name: string, index: number, key: string, value: number)
+.set_saved_list_string(name: string, index: number, value: string)
 .set_saved_number(name: string, value: number)
+.set_saved_string(name: string, value: string)
 .take_crafting_result(amount: number) number
 .take_item_from_slot(slot: number, amount: number) number
+.take_liquid(amount: number, take: bool) number
 .update_recipe_output(start_slot: number)
 
 ## Item
@@ -178,6 +192,11 @@ File.open(root: resource) File
 .random_int(bound: number) number
 .set_time(ticks: number)
 
+## LiquidResponse
+.answer_amount(amount: number)
+.answer_liquid(liquid: string)
+.answer_none()
+
 ## Math
 Math.abs(value: number) number
 Math.atan2(y: number, x: number) number
@@ -283,6 +302,7 @@ Option.new() Option[$Value]
 ## RenderFrameContext
 .camera_yaw() number
 .draw_item(item: Item, damage: number, count: number, x: number, y: number, z: number)
+.draw_liquid(liquid: string, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 .draw_model(model: resource, x: number, y: number, z: number, dx: number, dy: number, dz: number)
 .partial_tick() number
 

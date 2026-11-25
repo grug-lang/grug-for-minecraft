@@ -327,6 +327,27 @@ public final class GrugRenderPass {
     }
 
     /**
+     * Records a liquid's still texture on one box for the frame pass to draw.
+     *
+     * @return null when the box was recorded, or what stopped it, which the caller reports.
+     */
+    public static String recordLiquid(
+            String liquid, double x1, double y1, double z1, double x2, double y2, double z2) {
+        if (!isFrame()) {
+            return "It can only be called while a block entity's render_frame() is drawing.";
+        }
+        GrugBox box = new GrugBox(x1, y1, z1, x2, y2, z2);
+        if (!isOrdered(box)) {
+            return "The box was not recorded. Its corners have to be the right way round: the"
+                    + " first of each pair is the near corner and must be no greater than the"
+                    + " second, so draw_liquid(..., 0, 0, 0, 1, 1, 1) and not"
+                    + " draw_liquid(..., 1, 0, 0, 0, 1, 1).";
+        }
+        FRAME_DRAWS.add(new GrugLiquidDraw(liquid, x1, y1, z1, x2, y2, z2));
+        return null;
+    }
+
+    /**
      * Whether a box's corners are the right way round, which is what makes it a box.
      *
      * <p>The first of each pair is the near corner and has to be no greater than the second.

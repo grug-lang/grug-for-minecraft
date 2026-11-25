@@ -15,6 +15,7 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugPowerNbt;
 import net.grug.minecraft.ornithe.block.GrugSavedListsNbt;
 import net.grug.minecraft.ornithe.block.GrugSavedNumbersNbt;
+import net.grug.minecraft.ornithe.block.GrugSavedStringsNbt;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
@@ -505,6 +506,7 @@ public class GrugBlockEntity extends BlockEntity
     public void writeSavedData(NbtCompound nbt) {
         GrugSavedNumbersNbt.write(this, nbt);
         GrugSavedListsNbt.write(this, nbt);
+        GrugSavedStringsNbt.write(this, nbt);
         GrugPowerNbt.write(this, nbt);
     }
 
@@ -512,6 +514,7 @@ public class GrugBlockEntity extends BlockEntity
     public void readSavedData(NbtCompound nbt) {
         GrugSavedNumbersNbt.read(this, nbt);
         GrugSavedListsNbt.read(this, nbt);
+        GrugSavedStringsNbt.read(this, nbt);
         GrugPowerNbt.read(this, nbt);
         // This is the first data a joined client's copy may be waiting for; it may draw now.
         GrugSavedDataSync.clientCopyReceived(this);
@@ -522,6 +525,7 @@ public class GrugBlockEntity extends BlockEntity
         super.readNbt(nbt);
         GrugSavedNumbersNbt.read(this, nbt);
         GrugSavedListsNbt.read(this, nbt);
+        GrugSavedStringsNbt.read(this, nbt);
         GrugPowerNbt.read(this, nbt);
         // The game sends a block entity's NBT to a joined client in its own update packet, which
         // arrives here, so the copy has its data and is not waiting for anything else.
@@ -553,6 +557,7 @@ public class GrugBlockEntity extends BlockEntity
         super.writeNbt(nbt);
         GrugSavedNumbersNbt.write(this, nbt);
         GrugSavedListsNbt.write(this, nbt);
+        GrugSavedStringsNbt.write(this, nbt);
         GrugPowerNbt.write(this, nbt);
         ensureSized();
 

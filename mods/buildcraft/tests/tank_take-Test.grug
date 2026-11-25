@@ -1,0 +1,34 @@
+# Covers the tank's empty, as TileTank.empty does in BuildCraft 2.2.14: what it gives is cut to what
+# it holds, take false only asks, and an emptied tank holds no liquid, so a different one is taken
+# afterwards.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 22
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:tank")
+    tank: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    ctx.assert(tank.take_liquid(1000, true) == 0, "An empty tank should give nothing.")
+
+    ctx.assert(tank.offer_liquid("minecraft:water", 10000, 0, true) == 10000, "A tank should take water.")
+    # take false only asks.
+    ctx.assert(tank.take_liquid(3000, false) == 3000, "A dry take should say what it would give.")
+    ctx.assert(tank.get_liquid_amount() == 10000, "A dry take should have changed nothing.")
+
+    ctx.assert(tank.take_liquid(3000, true) == 3000, "The take should give what it asked for.")
+    ctx.assert(tank.get_liquid_amount() == 7000, "The tank should have given 3000 of its 10000.")
+    ctx.assert(tank.get_liquid().unwrap() == "minecraft:water", "The tank should still hold water.")
+
+    # More than it holds gives what it holds and empties it.
+    ctx.assert(tank.take_liquid(100000, true) == 7000, "The take should be cut to what the tank holds.")
+    ctx.assert(tank.get_liquid_amount() == 0, "The tank should be empty.")
+    ctx.assert(not tank.get_liquid().has(), "An empty tank should hold no liquid.")
+    ctx.assert(tank.take_liquid(1, true) == 0, "An empty tank should give nothing.")
+
+    # An emptied tank takes a different liquid, as the reference zeroes its liquid id when it empties.
+    ctx.assert(tank.offer_liquid("minecraft:lava", 1000, 0, true) == 1000, "An emptied tank should take another liquid.")
+    ctx.assert(tank.get_liquid().unwrap() == "minecraft:lava", "The tank should now hold lava.")
+}

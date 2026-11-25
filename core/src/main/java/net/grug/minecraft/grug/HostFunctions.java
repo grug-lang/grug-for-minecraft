@@ -1474,6 +1474,57 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
+    public static long BlockEntity_get_liquid(long blockEntityId) {
+        return stringOption(
+                GrugLiquids.getLiquid(HostFunctionHelpers.resolveBlockEntity(blockEntityId)));
+    }
+
+    public static double BlockEntity_get_liquid_amount(long blockEntityId) {
+        return GrugLiquids.amount(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+    }
+
+    public static double BlockEntity_get_liquid_capacity(long blockEntityId) {
+        return GrugLiquids.capacity(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+    }
+
+    public static double BlockEntity_offer_liquid(
+            long blockEntityId, String liquid, double amount, double fromSide, boolean fill) {
+        String canonical = requireLiquid("BlockEntity.offer_liquid", liquid);
+        if (canonical == null) {
+            return 0;
+        }
+        worldChanged();
+        return GrugLiquids.offer(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                canonical,
+                amount,
+                fromSide,
+                fill);
+    }
+
+    public static double BlockEntity_take_liquid(long blockEntityId, double amount, boolean take) {
+        worldChanged();
+        return GrugLiquids.take(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), amount, take);
+    }
+
+    public static long BlockEntity_get_saved_string(long blockEntityId, String name) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!GrugSavedStrings.isHolder(blockEntity)) {
+            reportNotSavingString("get_saved_string");
+            return stringOption(null);
+        }
+        return stringOption(GrugSavedStrings.get(blockEntity, name));
+    }
+
+    public static void BlockEntity_set_saved_string(long blockEntityId, String name, String value) {
+        worldChanged();
+        if (!GrugSavedStrings.set(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), name, value)) {
+            reportNotSavingString("set_saved_string");
+        }
+    }
+
     public static double BlockEntity_get_saved_number(long blockEntityId, String name) {
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!GrugSavedNumbers.isHolder(blockEntity)) {
@@ -1547,6 +1598,32 @@ public class HostFunctions {
                 index,
                 (blockEntity, record) -> {
                     GrugSavedLists.setNumber(blockEntity, record, key, value);
+                    return null;
+                },
+                NO_RESULT);
+    }
+
+    public static long BlockEntity_get_saved_list_string(
+            long blockEntityId, String name, double index) {
+        return withSavedRecord(
+                "get_saved_list_string",
+                blockEntityId,
+                name,
+                index,
+                (blockEntity, record) -> stringOption(record.text()),
+                EMPTY_STRING_OPTION);
+    }
+
+    public static void BlockEntity_set_saved_list_string(
+            long blockEntityId, String name, double index, String value) {
+        worldChanged();
+        withSavedRecord(
+                "set_saved_list_string",
+                blockEntityId,
+                name,
+                index,
+                (blockEntity, record) -> {
+                    GrugSavedLists.setText(blockEntity, record, value);
                     return null;
                 },
                 NO_RESULT);
@@ -1786,6 +1863,30 @@ public class HostFunctions {
                 "response",
                 responseId,
                 response -> ((AddResponse) response).acceptIntoSlot(slot));
+    }
+
+    public static void LiquidResponse_answer_amount(long responseId, double amount) {
+        withEntity(
+                "LiquidResponse.answer_amount",
+                "response",
+                responseId,
+                response -> ((LiquidResponse) response).answerAmount(amount));
+    }
+
+    public static void LiquidResponse_answer_liquid(long responseId, String liquid) {
+        withEntity(
+                "LiquidResponse.answer_liquid",
+                "response",
+                responseId,
+                response -> ((LiquidResponse) response).answerLiquid(liquid));
+    }
+
+    public static void LiquidResponse_answer_none(long responseId) {
+        withEntity(
+                "LiquidResponse.answer_none",
+                "response",
+                responseId,
+                response -> ((LiquidResponse) response).answerNone());
     }
 
     public static long BlockPos_above_n(long blockPosId, double n) {
@@ -3705,6 +3806,35 @@ public class HostFunctions {
     }
 
     /**
+     * Draws a liquid's own still texture on a box, on top of the chunk geometry, for this frame.
+     *
+     * <p>The texture belongs to the game, not to the mod, so a loader looks the liquid up in its
+     * own tables; what is decided here is that the call is legal, that the name is a liquid and
+     * that the box is the right way round. See the {@code mod_api.json} description for what is
+     * drawn.
+     */
+    public static void RenderFrameContext_draw_liquid(
+            long contextId,
+            String liquid,
+            double x1,
+            double y1,
+            double z1,
+            double x2,
+            double y2,
+            double z2) {
+        if (!requireContext("RenderFrameContext.draw_liquid", contextId)) return;
+
+        String canonical = requireLiquid("RenderFrameContext.draw_liquid", liquid);
+        if (canonical == null) return;
+
+        String problem = GrugRenderPass.recordLiquid(canonical, x1, y1, z1, x2, y2, z2);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "RenderFrameContext.draw_liquid: " + problem);
+        }
+    }
+
+    /**
      * How much of the current tick has already elapsed, from 0 up to but not including 1, for this
      * frame.
      *
@@ -4317,6 +4447,37 @@ public class HostFunctions {
     }
 
     /**
+     * Text on a block entity that does not save text. Same reason as {@link #reportNotSaving}: only
+     * a grug block entity writes it into its NBT.
+     */
+    private static void reportNotSavingString(String hostFunction) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                hostFunction
+                        + ": Only a grug block entity saves text, and this block entity is not"
+                        + " one.");
+    }
+
+    /**
+     * The canonical name of the liquid {@code name} refers to, or null after reporting a name that
+     * is no liquid. Every entry that takes a liquid goes through here, so a typo in a script names
+     * the call it was made in.
+     */
+    private static String requireLiquid(String hostFunction, String name) {
+        String canonical = GrugLiquids.canonical(name);
+        if (canonical == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    hostFunction
+                            + ": "
+                            + name
+                            + " is not a liquid. A liquid is named by its still block, such as"
+                            + " minecraft:water or minecraft:lava.");
+        }
+        return canonical;
+    }
+
+    /**
      * A saved list on a block entity that does not save lists. Same reason as {@link
      * #reportNotSaving}: only a grug block entity writes them into its NBT.
      */
@@ -4394,6 +4555,8 @@ public class HostFunctions {
      */
     private static final Supplier<Long> EMPTY_ITEM_OPTION = () -> itemOption(null);
 
+    private static final Supplier<Long> EMPTY_STRING_OPTION = () -> stringOption(null);
+
     /**
      * Runs a saved-list call, answering the default after reporting a block entity that saves no
      * lists. One helper for every saved-list host function, so the report and the branch that
@@ -4431,6 +4594,10 @@ public class HostFunctions {
     }
 
     /** The item as an {@code Option[Item]}, empty when there is none. */
+    private static long stringOption(String value) {
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(value));
+    }
+
     private static long itemOption(Object item) {
         Object handle = item != null ? GrugEntities.addEntity(GrugEntityType.Item, item) : null;
         return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(handle));

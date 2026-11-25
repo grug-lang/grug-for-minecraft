@@ -9,11 +9,15 @@
 #   6 answers, and keeps the response so that on_neighbor_change can use it after the call
 #   8 gives from slot 0 and then gives the crafting result (extract_item only)
 #   7 answers the first time it is asked and errors on every later ask (add_item only)
+# liquid_mode behaves the same way for offer_liquid: 2 and 3 answer twice, 4 says nothing, 5 keeps the
+# response for on_neighbor_change, and any other mode answers the amount it was offered. It also tells
+# get_liquid to answer that it holds nothing, which is how a pipe answers.
 # What the last call was asked is saved under "seen_remove", "seen_add" and "seen_side".
 level: Level = me.level()
 
 kept_extract: Option[ExtractResponse] = Option.new()
 kept_add: Option[AddResponse] = Option.new()
+kept_liquid: Option[LiquidResponse] = Option.new()
 
 # Uses the responses the exports kept, after those calls have returned.
 export on_neighbor_change() {
@@ -22,6 +26,9 @@ export on_neighbor_change() {
     }
     if kept_add.has() {
         kept_add.unwrap().refuse()
+    }
+    if kept_liquid.has() {
+        kept_liquid.unwrap().answer_amount(1)
     }
 }
 
@@ -89,4 +96,45 @@ export add_item(item: Item, damage: number, count: number, from_side: number, ad
     } else {
         response.refuse()
     }
+}
+
+# The liquid answers the tests read: a flowing name, which the host normalises to the still liquid's,
+# an amount and a capacity, and a take that gives less than it was asked for. The response rules are
+# offer_liquid's, which is one response class's four tests for all five entries.
+export offer_liquid(liquid: string, amount: number, from_side: number, fill: bool, response: LiquidResponse) {
+    mode: number = me.get_saved_number("liquid_mode")
+    if mode == 2 {
+        response.answer_amount(1)
+        response.answer_liquid("minecraft:water")
+    } else if mode == 3 {
+        response.answer_amount(1)
+        response.answer_amount(1)
+    } else if mode == 4 {
+        # Deliberately says nothing.
+    } else if mode == 5 {
+        kept_liquid.set(response)
+        response.answer_amount(1)
+    } else {
+        response.answer_amount(amount)
+    }
+}
+
+export take_liquid(amount: number, take: bool, response: LiquidResponse) {
+    response.answer_amount(500)
+}
+
+export get_liquid(response: LiquidResponse) {
+    if me.get_saved_number("liquid_mode") == 8 {
+        response.answer_none()
+    } else {
+        response.answer_liquid("minecraft:flowing_water")
+    }
+}
+
+export get_liquid_amount(response: LiquidResponse) {
+    response.answer_amount(1234)
+}
+
+export get_liquid_capacity(response: LiquidResponse) {
+    response.answer_amount(16000)
 }

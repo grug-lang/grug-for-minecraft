@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedLists;
 import net.grug.minecraft.grug.GrugSavedNumbers;
+import net.grug.minecraft.grug.GrugSavedStrings;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -370,13 +371,20 @@ public final class GrugSavedDataSync {
     }
 
     /**
-     * Everything the frame pass reads from the block entity, as text: the numbers and lists by
-     * name, sorted so the same data always reads the same, and the energy store.
+     * Everything the frame pass reads from the block entity, as text: the numbers, the strings and
+     * the lists by name, sorted so the same data always reads the same, and the energy store.
      */
     static String snapshot(Object blockEntity) {
         StringBuilder text = new StringBuilder();
         for (Map.Entry<String, Double> entry : GrugSavedNumbers.snapshot(blockEntity).entrySet()) {
             text.append("n ")
+                    .append(entry.getKey())
+                    .append('=')
+                    .append(entry.getValue())
+                    .append(';');
+        }
+        for (Map.Entry<String, String> entry : GrugSavedStrings.snapshot(blockEntity).entrySet()) {
+            text.append("s ")
                     .append(entry.getKey())
                     .append('=')
                     .append(entry.getValue())
@@ -392,6 +400,7 @@ public final class GrugSavedDataSync {
                     text.append(number.getKey()).append('=').append(number.getValue()).append(',');
                 }
                 text.append("item ").append(record.item()).append('|');
+                text.append("text ").append(record.text()).append('|');
             }
             text.append(';');
         }

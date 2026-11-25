@@ -334,6 +334,102 @@
 					]
 				},
 				{
+					"name": "offer_liquid",
+					"description": "Called when a pipe or a script offers this block entity liquid, which is BuildCraft's ILiquidContainer.fill. The block entity decides how much it takes and answers through the response: answer_amount(n), which is 0 for a refusal. liquid is the still liquid's canonical name, such as minecraft:water or buildcraft:oil, already normalised by the host, so minecraft:flowing_water arrives as minecraft:water. amount is the millibuckets offered. from_side is the side of this block entity the liquid arrives at, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east. fill is false when the caller only wants to know how much would be taken, and true when it should be taken, which the block entity does itself: a liquid's name and amount are its own state, so the host moves nothing. A block entity that holds another liquid, or whose capacity is full, answers 0, and never answers more than it took. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err.",
+					"parameters": [
+						{
+							"name": "liquid",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "from_side",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "fill",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "response",
+							"type": {
+								"name": "LiquidResponse"
+							}
+						}
+					]
+				},
+				{
+					"name": "take_liquid",
+					"description": "Called when a pipe or a script asks this block entity for liquid, which is BuildCraft's ILiquidContainer.empty. The block entity decides how much it gives and answers through the response: answer_amount(n), which is 0 for a refusal, and never more than it holds. amount is the most millibuckets asked for, so a block entity that holds less gives what it has. take is false when the caller only wants to know how much it would get, and true when it should be given, which the block entity does itself: a liquid's name and amount are its own state, so the host moves nothing. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err.",
+					"parameters": [
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "take",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "response",
+							"type": {
+								"name": "LiquidResponse"
+							}
+						}
+					]
+				},
+				{
+					"name": "get_liquid",
+					"description": "Called to ask this block entity what liquid it holds, which is BuildCraft's ILiquidContainer.getLiquidId. Answer answer_liquid(name) with the still liquid's canonical name, or answer_none when it holds none. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err, and answering with an amount is an err too.",
+					"parameters": [
+						{
+							"name": "response",
+							"type": {
+								"name": "LiquidResponse"
+							}
+						}
+					]
+				},
+				{
+					"name": "get_liquid_amount",
+					"description": "Called to ask how much liquid this block entity holds, which is BuildCraft's ILiquidContainer.getLiquidQuantity. Answer answer_amount(n) with the millibuckets, which is 0 when it holds none. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err, and answering with a liquid is an err too.",
+					"parameters": [
+						{
+							"name": "response",
+							"type": {
+								"name": "LiquidResponse"
+							}
+						}
+					]
+				},
+				{
+					"name": "get_liquid_capacity",
+					"description": "Called to ask the most liquid this block entity can hold, which is BuildCraft's ILiquidContainer.getCapacity. Answer answer_amount(n) in millibuckets; 0 means it takes no liquid at all, which is how a pipe answers, since a pipe never gives its liquid back. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err, and answering with a liquid is an err too.",
+					"parameters": [
+						{
+							"name": "response",
+							"type": {
+								"name": "LiquidResponse"
+							}
+						}
+					]
+				},
+				{
 					"name": "render",
 					"description": "Called by the game while it builds this block's geometry, once per chunk rebuild, for a block whose init() called set_custom_render. Everything drawn through `ctx` replaces the block's model, so a machine can be a shape no model JSON describes. The result is baked into the chunk's mesh, so it is rebuilt only when the geometry is, and it cannot follow the camera or change between ticks: that is render_frame()'s job. A part that moves every tick and shares a plane with a neighbour's is drawn from render_frame() instead, with set_frame_render, since a baked vertex sits at the block's place in the world where the reference's does not. Read the neighbours in this call rather than caching the shape, because the game calls it again after every neighbouring block change. A block that declares `set_custom_render` and draws nothing reports an error.",
 					"engine_called": true,
@@ -611,6 +707,32 @@
 						}
 					]
 				},
+				"get_liquid": {
+					"description": "The liquid this block entity holds, as the still liquid's canonical name, such as minecraft:water or buildcraft:oil, or none when it holds none. It is asked through the block entity's get_liquid export, and its answer_liquid name is normalised to the still liquid's, so a flowing name never reaches a script. A block entity whose script has no get_liquid export holds no liquid, which is how a pipe answers, and answering with an amount there is an err.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "string"
+							}
+						]
+					},
+					"parameters": []
+				},
+				"get_liquid_amount": {
+					"description": "The millibuckets of liquid this block entity holds, asked through its get_liquid_amount export: 0 when it has no such export, which is how a pipe answers, since a pipe never gives its liquid back. The amount is a separate number from the name, so this and get_liquid are read together, and offer_liquid and take_liquid change it.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": []
+				},
+				"get_liquid_capacity": {
+					"description": "The most millibuckets of liquid this block entity can hold, asked through its get_liquid_capacity export: 0 when it has no such export, which is how a pipe answers. A capacity of 0 means it takes no liquid at all, so offer_liquid takes nothing.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": []
+				},
 				"get_saved_list_item": {
 					"description": "The Item a record of a saved list holds, if it holds one. A record read back whose item no longer exists holds none, the way an inventory slot does, so the script drops the record rather than the host reporting it. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
 					"return_type": {
@@ -676,10 +798,54 @@
 						}
 					]
 				},
+				"get_saved_list_string": {
+					"description": "The text a record of a saved list holds, or none when it holds none, so a record that saved no text and one that saved an empty string are told apart. The sibling of get_saved_list_item for a record that carries a name rather than an item, such as a pipe's per-side identity. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "string"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"get_saved_number": {
 					"description": "The number a block entity saved under a name with set_saved_number, or 0 when it never saved one, which is the default a fresh save answers too. Only a grug block entity saves numbers; asking any other block entity is reported.",
 					"return_type": {
 						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"get_saved_string": {
+					"description": "The text a block entity saved under a name with set_saved_string, or none when it never saved one there, so an empty string and no text are told apart. Only a grug block entity saves text; asking any other block entity is reported.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "string"
+							}
+						]
 					},
 					"parameters": [
 						{
@@ -761,6 +927,38 @@
 					"return_type": {
 						"name": "Level"
 					}
+				},
+				"offer_liquid": {
+					"description": "Offers liquid to this block entity through its offer_liquid export, which is BuildCraft's ILiquidContainer.fill. The answer is how much of amount it took: 0 on a refusal, including another liquid than the one it already holds and more than its capacity leaves room for, and -1 when the block entity has no offer_liquid export. liquid is the still liquid's canonical name, such as minecraft:water or buildcraft:oil: a flowing name is normalised to its still one first, and a name that is no liquid is reported. from_side is the side of this block entity the liquid arrives at, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east. With fill false it asks and changes nothing, answering how much it would take.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "liquid",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "from_side",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "fill",
+							"type": {
+								"name": "bool"
+							}
+						}
+					]
 				},
 				"receive_energy": {
 					"description": "Adds energy to a receiver's store, up to its max_stored, and returns how much was stored. Energy that does not fit is lost. The amount must be a whole number from 0 to 2147483647. Reported when the block entity is not a receiver.",
@@ -905,6 +1103,29 @@
 						}
 					]
 				},
+				"set_saved_list_string": {
+					"description": "Saves text in one record of a saved list, the sibling of set_saved_list_item for a record that carries a name rather than an item. The text survives the block entity's chunk being unloaded and loaded again, with the rest of the list. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"set_saved_number": {
 					"description": "Saves a number under a name in a block entity's saved data, so it survives the block entity's chunk being unloaded and loaded again, which a member variable does not: the grug entity is created again then and its member scope starts over. Read it back with get_saved_number. Only a grug block entity saves numbers; any other block entity is reported, because a number that silently failed to persist would be lost with its chunk.",
 					"parameters": [
@@ -918,6 +1139,23 @@
 							"name": "value",
 							"type": {
 								"name": "number"
+							}
+						}
+					]
+				},
+				"set_saved_string": {
+					"description": "Saves text under a name in a block entity's saved data, so it survives the block entity's chunk being unloaded and loaded again, which a member variable does not: the grug entity is created again then and its member scope starts over. Read it back with get_saved_string. Only a grug block entity saves text; any other block entity is reported, because text that silently failed to persist would be lost with its chunk.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "string"
 							}
 						}
 					]
@@ -952,6 +1190,26 @@
 							"name": "amount",
 							"type": {
 								"name": "number"
+							}
+						}
+					]
+				},
+				"take_liquid": {
+					"description": "Asks this block entity for liquid through its take_liquid export, which is BuildCraft's ILiquidContainer.empty. The answer is how much of amount it gave, which is never more than it holds: 0 on a refusal and -1 when the block entity has no take_liquid export. With take false it asks and changes nothing, answering how much it would give, so a pipe that only wants to know what a source holds does not empty it.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "take",
+							"type": {
+								"name": "bool"
 							}
 						}
 					]
@@ -2235,6 +2493,37 @@
 				}
 			}
 		},
+		"LiquidResponse": {
+			"description": "The answer to a liquid question asked of a block entity, passed to its offer_liquid, take_liquid, get_liquid, get_liquid_amount and get_liquid_capacity exports. It is only valid during that call, it is answered once, and a second answer is an err even when it repeats the first. An export that returns without answering is an err too, so a refusal is always an explicit answer: answer_amount(0) for an offer or a take that moves nothing, and answer_none for a liquid it does not hold.",
+			"methods": {
+				"answer_amount": {
+					"description": "Answers the millibuckets of liquid the export moved or would move, or holds for get_liquid_amount and get_liquid_capacity.",
+				"parameters": [
+					{
+						"name": "amount",
+						"type": {
+							"name": "number"
+						}
+					}
+				]
+				},
+				"answer_liquid": {
+					"description": "Answers the still liquid's canonical name, such as minecraft:water, for get_liquid.",
+				"parameters": [
+					{
+						"name": "liquid",
+						"type": {
+							"name": "string"
+						}
+					}
+				]
+				},
+				"answer_none": {
+					"description": "Answers that there is no liquid to name, for get_liquid.",
+					"parameters": []
+				}
+			}
+		},
 		"Math": {
 			"description": "Mathematical functions that need no instance.",
 			"static_methods": {
@@ -3225,6 +3514,53 @@
 						},
 						{
 							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"draw_liquid": {
+					"description": "Draws a liquid's own still texture on a box, for this frame: the column a tank holds or the contents a waterproof pipe carries. The texture is the game's own for that liquid, so a mod ships none: liquid is the still liquid's canonical name, such as minecraft:water or buildcraft:oil, and every loader draws the sprite the game gives that liquid. The box is measured the same way as RenderContext.draw_box, from the block's minimum corner, and its corners have to be the right way round, or the call is reported and nothing is drawn. A name that is no liquid is reported too.",
+					"parameters": [
+						{
+							"name": "liquid",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z2",
 							"type": {
 								"name": "number"
 							}

@@ -1,0 +1,24 @@
+# The liquid host entries read one block entity's answers: get_liquid normalises a flowing name to
+# the still liquid's, and an offer, a take and the amount and capacity each read their own answer.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_response_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    ctx.assert(be.get_liquid().has(), "The block entity should hold a liquid.")
+    ctx.assert(be.get_liquid().unwrap() == "minecraft:water", "A flowing name should be read as still water.")
+    ctx.assert(be.get_liquid_amount() == 1234, "The amount should be what the export answered.")
+    ctx.assert(be.get_liquid_capacity() == 16000, "The capacity should be what the export answered.")
+    ctx.assert(be.take_liquid(600, false) == 500, "A take should be what the export answered.")
+    ctx.assert(be.offer_liquid("minecraft:water", 1000, 0, false) == 1000, "An offer should be what the export answered.")
+
+    # A block entity that answers that it holds nothing, which is how a pipe answers, reads as none
+    # rather than as a liquid with no name.
+    be.set_saved_number("liquid_mode", 8)
+    ctx.assert(not be.get_liquid().has(), "A block entity that holds nothing should answer no liquid.")
+}

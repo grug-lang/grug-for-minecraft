@@ -11,8 +11,11 @@ import net.grug.minecraft.grug.GrugFrameDraw;
 import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
+import net.grug.minecraft.grug.GrugLiquidDraw;
 import net.grug.minecraft.grug.GrugModelDraw;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.BiomeColors;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
@@ -20,6 +23,8 @@ import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
@@ -84,6 +89,8 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
                 GrugBakedModel.drawInFrame(model, poseStack, buffer, packedLight);
             } else if (draw instanceof GrugItemDraw item) {
                 drawItem(blockEntity, item, poseStack, buffer, packedLight, yaw);
+            } else if (draw instanceof GrugLiquidDraw liquid) {
+                drawLiquid(blockEntity, liquid, poseStack, buffer);
             }
         }
     }
@@ -192,5 +199,124 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
                 .uv2(packedLight)
                 .normal(0.0F, 0.0F, 1.0F)
                 .endVertex();
+    }
+
+    /**
+     * Draws the liquid a frame recorded as a box, with the still liquid's own block atlas sprite,
+     * the way the reference's {@code RenderEntityBlock} draws a tank's column: every face of the
+     * box drawn, unlit, from the liquid's own texture rather than a texture the mod ships.
+     *
+     * <p>A liquid this version has no still sprite for, such as BuildCraft's oil, draws nothing
+     * rather than a box in another liquid's colours.
+     */
+    private static void drawLiquid(
+            GrugBlockEntity blockEntity,
+            GrugLiquidDraw draw,
+            PoseStack poseStack,
+            MultiBufferSource buffer) {
+        TextureAtlasSprite sprite = stillSprite(draw.liquid());
+        if (sprite == null) return;
+
+        // This version's still water is a grey sprite that the game tints with the biome's water
+        // colour, while the reference draws the already blue still texture of 1.2.5, so the tank
+        // tints water the way a water block is tinted and leaves every other liquid as it is.
+        int rgb = 0xFFFFFF;
+        if ("minecraft:water".equals(draw.liquid()) && blockEntity.getLevel() != null) {
+            rgb =
+                    BiomeColors.getAverageWaterColor(
+                            blockEntity.getLevel(), blockEntity.getBlockPos());
+        }
+
+        VertexConsumer vertices = buffer.getBuffer(RenderType.translucent());
+        float u0 = sprite.getU0();
+        float u1 = sprite.getU1();
+        float v0 = sprite.getV0();
+        float v1 = sprite.getV1();
+
+        poseStack.pushPose();
+        poseStack.translate(draw.x1(), draw.y1(), draw.z1());
+        PoseStack.Pose pose = poseStack.last();
+
+        float x1 = 0.0F;
+        float y1 = 0.0F;
+        float z1 = 0.0F;
+        float x2 = (float) (draw.x2() - draw.x1());
+        float y2 = (float) (draw.y2() - draw.y1());
+        float z2 = (float) (draw.z2() - draw.z1());
+
+        // Every face of the box is drawn, including the inward ones, because the column is seen
+        // through the tank's own glass faces and the reference's box renderer draws all six.
+        liquidVertex(vertices, pose, rgb, x1, y1, z1, u0, v0);
+        liquidVertex(vertices, pose, rgb, x1, y1, z2, u0, v1);
+        liquidVertex(vertices, pose, rgb, x2, y1, z2, u1, v1);
+        liquidVertex(vertices, pose, rgb, x2, y1, z1, u1, v0);
+
+        liquidVertex(vertices, pose, rgb, x1, y2, z1, u0, v0);
+        liquidVertex(vertices, pose, rgb, x2, y2, z1, u1, v0);
+        liquidVertex(vertices, pose, rgb, x2, y2, z2, u1, v1);
+        liquidVertex(vertices, pose, rgb, x1, y2, z2, u0, v1);
+
+        liquidVertex(vertices, pose, rgb, x1, y1, z1, u0, v0);
+        liquidVertex(vertices, pose, rgb, x2, y1, z1, u1, v0);
+        liquidVertex(vertices, pose, rgb, x2, y2, z1, u1, v1);
+        liquidVertex(vertices, pose, rgb, x1, y2, z1, u0, v1);
+
+        liquidVertex(vertices, pose, rgb, x1, y1, z2, u0, v0);
+        liquidVertex(vertices, pose, rgb, x1, y2, z2, u0, v1);
+        liquidVertex(vertices, pose, rgb, x2, y2, z2, u1, v1);
+        liquidVertex(vertices, pose, rgb, x2, y1, z2, u1, v0);
+
+        liquidVertex(vertices, pose, rgb, x1, y1, z1, u0, v0);
+        liquidVertex(vertices, pose, rgb, x1, y2, z1, u0, v1);
+        liquidVertex(vertices, pose, rgb, x1, y2, z2, u1, v1);
+        liquidVertex(vertices, pose, rgb, x1, y1, z2, u1, v0);
+
+        liquidVertex(vertices, pose, rgb, x2, y1, z1, u0, v0);
+        liquidVertex(vertices, pose, rgb, x2, y1, z2, u0, v1);
+        liquidVertex(vertices, pose, rgb, x2, y2, z2, u1, v1);
+        liquidVertex(vertices, pose, rgb, x2, y2, z1, u1, v0);
+
+        poseStack.popPose();
+    }
+
+    /**
+     * One corner of a liquid box, at the block atlas, the liquid's colour and the full brightness
+     * the reference draws a liquid at, since it turns GL lighting off around its column.
+     */
+    private static void liquidVertex(
+            VertexConsumer vertices,
+            PoseStack.Pose pose,
+            int rgb,
+            float x,
+            float y,
+            float z,
+            float u,
+            float v) {
+        vertices.vertex(pose, x, y, z)
+                .color((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, 255)
+                .uv(u, v)
+                .overlayCoords(OverlayTexture.NO_OVERLAY)
+                .uv2(LightTexture.FULL_BRIGHT)
+                .normal(0.0F, 1.0F, 0.0F)
+                .endVertex();
+    }
+
+    /**
+     * The block atlas sprite of a still liquid, or null for a liquid this version does not have.
+     * The sprite names the still frame, which is what the reference's tank column is drawn with.
+     */
+    private static TextureAtlasSprite stillSprite(String liquid) {
+        String path;
+        if ("minecraft:water".equals(liquid)) {
+            path = "block/water_still";
+        } else if ("minecraft:lava".equals(liquid)) {
+            path = "block/lava_still";
+        } else {
+            return null;
+        }
+        return Minecraft.getInstance()
+                .getModelManager()
+                .getAtlas(InventoryMenu.BLOCK_ATLAS)
+                .getSprite(new ResourceLocation("minecraft", path));
     }
 }

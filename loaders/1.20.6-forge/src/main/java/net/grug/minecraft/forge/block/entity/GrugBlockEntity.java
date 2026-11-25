@@ -13,6 +13,7 @@ import net.grug.minecraft.grug.GrugObject;
 import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedLists;
 import net.grug.minecraft.grug.GrugSavedNumbers;
+import net.grug.minecraft.grug.GrugSavedStrings;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
@@ -384,6 +385,7 @@ public class GrugBlockEntity extends BlockEntity
         super.loadAdditional(tag, registries);
         readSavedNumbers(tag);
         readSavedLists(tag, registries);
+        readSavedStrings(tag);
         GrugPower.load(this, tag.getDouble("GrugEnergy"));
         if (tag.contains("GrugInvSize")) {
             stacks = NonNullList.withSize(tag.getInt("GrugInvSize"), ItemStack.EMPTY);
@@ -405,6 +407,7 @@ public class GrugBlockEntity extends BlockEntity
         super.saveAdditional(tag, registries);
         writeSavedNumbers(tag);
         writeSavedLists(tag, registries);
+        writeSavedStrings(tag);
         tag.putDouble("GrugEnergy", GrugPower.stored(this));
         ensureSized();
         tag.putInt("GrugInvSize", stacks.size());
@@ -539,6 +542,9 @@ public class GrugBlockEntity extends BlockEntity
                     numbers.add(numberTag);
                 }
                 recordTag.put("Numbers", numbers);
+                if (record.text() != null) {
+                    recordTag.putString("Text", record.text());
+                }
                 if (record.item() != null) {
                     ItemStack stack =
                             (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0, 1);
@@ -550,6 +556,28 @@ public class GrugBlockEntity extends BlockEntity
             lists.add(list);
         }
         tag.put("GrugLists", lists);
+    }
+
+    /** The saved text, as a list of name and value pairs. */
+    private void writeSavedStrings(CompoundTag tag) {
+        ListTag list = new ListTag();
+        for (Map.Entry<String, String> entry : GrugSavedStrings.snapshot(this).entrySet()) {
+            CompoundTag string = new CompoundTag();
+            string.putString("Name", entry.getKey());
+            string.putString("Value", entry.getValue());
+            list.add(string);
+        }
+        tag.put("GrugStrings", list);
+    }
+
+    private void readSavedStrings(CompoundTag tag) {
+        Map<String, String> strings = new HashMap<>();
+        ListTag list = tag.getList("GrugStrings", Tag.TAG_COMPOUND);
+        for (int i = 0; i < list.size(); i++) {
+            CompoundTag string = list.getCompound(i);
+            strings.put(string.getString("Name"), string.getString("Value"));
+        }
+        GrugSavedStrings.replace(this, strings);
     }
 
     private void readSavedLists(CompoundTag tag, HolderLookup.Provider registries) {
@@ -575,7 +603,8 @@ public class GrugBlockEntity extends BlockEntity
                         item = GrugCore.getAdapter().getStackItem(stack);
                     }
                 }
-                records.add(new GrugSavedLists.Record(numbers, item));
+                String text = recordTag.contains("Text") ? recordTag.getString("Text") : null;
+                records.add(new GrugSavedLists.Record(numbers, item, text));
             }
             lists.put(listTag.getString("Name"), records);
         }

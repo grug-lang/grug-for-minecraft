@@ -39,20 +39,42 @@ import java.util.WeakHashMap;
  */
 public final class GrugSavedLists {
 
-    /** One record of a list: named numbers, and the item the record holds, if any. */
+    /**
+     * One record of a list: named numbers, the item the record holds, if any, and the text it
+     * holds, if any.
+     *
+     * <p>Text is one value per record rather than named like the numbers, because it is what a
+     * record with no item carries instead: a pipe's side identity is one name, and a record that
+     * wanted several could save them as a list of its own. It is kept apart from the item so a
+     * record can hold a stack and a name at once, which a travelling pipe item needs when its slot
+     * carries the identity of the pipe it came from.
+     */
     public static final class Record {
         private final Map<String, Double> numbers;
         private Object item;
+        private String text;
 
         Record() {
             this.numbers = new HashMap<>();
             this.item = null;
+            this.text = null;
         }
 
         /** A copy of a record a loader read back, or one a caller is about to store. */
         public Record(Map<String, Double> numbers, Object item) {
+            this(numbers, item, null);
+        }
+
+        /** A copy of a record that carries text too, which is what a loader reads back. */
+        public Record(Map<String, Double> numbers, Object item, String text) {
             this.numbers = new HashMap<>(numbers);
             this.item = item;
+            this.text = text;
+        }
+
+        /** The text this record holds, or null when it holds none. */
+        public String text() {
+            return text;
         }
 
         /** The numbers this record holds, for a loader to write. */
@@ -154,6 +176,17 @@ public final class GrugSavedLists {
     }
 
     /**
+     * Saves {@code text} in {@code record}, replacing the text that was there. The caller read the
+     * record with {@link #record} or added it with {@link #append} and so knows it exists.
+     */
+    public static void setText(Object blockEntity, Record record, String text) {
+        synchronized (GrugSavedLists.class) {
+            record.text = text;
+        }
+        markChanged(blockEntity);
+    }
+
+    /**
      * Tells the block entity its lists changed, after this class's monitor is released: the block
      * entity marks itself changed by calling back through GrugSavedDataSync.changed, which
      * snapshots these lists, and taking that monitor while holding this one is the other half of a
@@ -177,7 +210,7 @@ public final class GrugSavedLists {
         for (Map.Entry<String, List<Record>> entry : lists.entrySet()) {
             List<Record> records = new ArrayList<>(entry.getValue().size());
             for (Record record : entry.getValue()) {
-                records.add(new Record(record.numbers, record.item));
+                records.add(new Record(record.numbers, record.item, record.text));
             }
             copy.put(entry.getKey(), records);
         }
@@ -193,7 +226,7 @@ public final class GrugSavedLists {
         for (Map.Entry<String, List<Record>> entry : lists.entrySet()) {
             List<Record> records = new ArrayList<>(entry.getValue().size());
             for (Record record : entry.getValue()) {
-                records.add(new Record(record.numbers, record.item));
+                records.add(new Record(record.numbers, record.item, record.text));
             }
             copy.put(entry.getKey(), records);
         }

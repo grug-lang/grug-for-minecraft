@@ -1,0 +1,41 @@
+# The named text a block entity saves: set and read back, an empty string told apart from a name
+# that was never saved, a list record's own text, and both surviving the block entity's NBT, which is
+# what keeps a tank's liquid name across a chunk reload.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_init_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    ctx.assert(not be.get_saved_string("liquid").has(), "A name that was never saved should answer none.")
+    be.set_saved_string("liquid", "minecraft:water")
+    ctx.assert(be.get_saved_string("liquid").unwrap() == "minecraft:water", "Saved text should read back.")
+
+    # An empty string is saved as itself, which is why get_saved_string answers an Option rather than
+    # the empty string for "never saved".
+    be.set_saved_string("liquid", "")
+    empty: Option[string] = be.get_saved_string("liquid")
+    ctx.assert(empty.has(), "An empty string should be saved rather than forgotten.")
+    ctx.assert(empty.unwrap() == "", "The empty string should read back as itself.")
+
+    be.set_saved_string("liquid", "minecraft:lava")
+    ctx.round_trip_nbt(be)
+    ctx.assert(be.get_saved_string("liquid").unwrap() == "minecraft:lava", "The reload should keep the text.")
+
+    # A record of a saved list keeps its own text beside its numbers and its item, for the pipe that
+    # names the side each of its records belongs to.
+    index: number = be.append_saved_list_record("sides")
+    ctx.assert(index == 0, "The first record should be at index 0.")
+    ctx.assert(not be.get_saved_list_string("sides", 0).has(), "A record with no text should answer none.")
+    be.set_saved_list_string("sides", 0, "north")
+    ctx.assert(be.get_saved_list_string("sides", 0).unwrap() == "north", "A record's text should read back.")
+    be.set_saved_list_string("sides", 0, "")
+    ctx.assert(be.get_saved_list_string("sides", 0).unwrap() == "", "A record's empty text should read back as itself.")
+    be.set_saved_list_string("sides", 0, "south")
+    ctx.round_trip_nbt(be)
+    ctx.assert(be.get_saved_list_string("sides", 0).unwrap() == "south", "The reload should keep the record's text.")
+}

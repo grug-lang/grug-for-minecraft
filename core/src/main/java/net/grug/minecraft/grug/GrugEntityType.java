@@ -18,6 +18,7 @@ public enum GrugEntityType {
     ItemEntity,
     ItemStack,
     Level,
+    LiquidResponse,
     Option,
     OverlayClickContext,
     OverlayHudContext,

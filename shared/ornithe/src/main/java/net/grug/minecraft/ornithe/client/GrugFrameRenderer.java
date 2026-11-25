@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.GrugFrameDraw;
 import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
+import net.grug.minecraft.grug.GrugLiquidDraw;
 import net.grug.minecraft.grug.GrugModelDraw;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
@@ -116,6 +117,8 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
                 } else if (draw instanceof GrugItemDraw) {
                     GrugItemDraw item = (GrugItemDraw) draw;
                     drawItem(item, dx + item.x(), dy + item.y(), dz + item.z(), yaw, brightness);
+                } else if (draw instanceof GrugLiquidDraw) {
+                    drawLiquid((GrugLiquidDraw) draw, dx, dy, dz);
                 }
             }
         } finally {
@@ -255,5 +258,102 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
         }
 
         GL11.glPopMatrix();
+    }
+
+    /**
+     * Draws the liquid a frame recorded as a box, with the still liquid's own terrain sprite, the
+     * way the reference's {@code RenderEntityBlock} draws a tank's column: unlit, every face of the
+     * box drawn, from the liquid's own texture rather than a texture the mod ships.
+     *
+     * <p>A liquid this version has no still block for, such as BuildCraft's oil, draws nothing
+     * rather than a box in another liquid's colours.
+     */
+    private static void drawLiquid(GrugLiquidDraw draw, double dx, double dy, double dz) {
+        int sprite = stillSprite(draw.liquid());
+        if (sprite < 0) return;
+
+        TextureManager textures = MinecraftInstance.get().textureManager;
+        textures.bind(textures.load(TERRAIN_ATLAS));
+
+        // The sprite index is a slot in a 16-column grid, and a texture pack may scale every
+        // sprite, so the tile size comes from the bound atlas rather than being 16 pixels.
+        int atlasWidth = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
+        int atlasHeight =
+                GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
+        int tileWidth = atlasWidth / 16;
+        int tileHeight = atlasHeight / 16;
+        float u0 = (float) (sprite % 16 * tileWidth) / atlasWidth;
+        float u1 = (float) (sprite % 16 * tileWidth + tileWidth) / atlasWidth;
+        float v0 = (float) (sprite / 16 * tileHeight) / atlasHeight;
+        float v1 = (float) (sprite / 16 * tileHeight + tileHeight) / atlasHeight;
+
+        float x1 = (float) draw.x1();
+        float y1 = (float) draw.y1();
+        float z1 = (float) draw.z1();
+        float x2 = (float) draw.x2();
+        float y2 = (float) draw.y2();
+        float z2 = (float) draw.z2();
+
+        GL11.glPushMatrix();
+        GL11.glTranslatef((float) dx, (float) dy, (float) dz);
+        // The column is seen through the tank's own glass faces, so both sides of the box are
+        // drawn, as the reference's own box renderer draws every face of its box.
+        GL11.glDisable(GL11.GL_CULL_FACE);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+
+        Tesselator tesselator = Tesselator.INSTANCE;
+        tesselator.begin();
+
+        tesselator.normal(0.0F, -1.0F, 0.0F);
+        tesselator.vertex(x1, y1, z1, u0, v0);
+        tesselator.vertex(x1, y1, z2, u0, v1);
+        tesselator.vertex(x2, y1, z2, u1, v1);
+        tesselator.vertex(x2, y1, z1, u1, v0);
+
+        tesselator.normal(0.0F, 1.0F, 0.0F);
+        tesselator.vertex(x1, y2, z1, u0, v0);
+        tesselator.vertex(x2, y2, z1, u1, v0);
+        tesselator.vertex(x2, y2, z2, u1, v1);
+        tesselator.vertex(x1, y2, z2, u0, v1);
+
+        tesselator.normal(0.0F, 0.0F, -1.0F);
+        tesselator.vertex(x1, y1, z1, u0, v0);
+        tesselator.vertex(x2, y1, z1, u1, v0);
+        tesselator.vertex(x2, y2, z1, u1, v1);
+        tesselator.vertex(x1, y2, z1, u0, v1);
+
+        tesselator.normal(0.0F, 0.0F, 1.0F);
+        tesselator.vertex(x1, y1, z2, u0, v0);
+        tesselator.vertex(x1, y2, z2, u0, v1);
+        tesselator.vertex(x2, y2, z2, u1, v1);
+        tesselator.vertex(x2, y1, z2, u1, v0);
+
+        tesselator.normal(-1.0F, 0.0F, 0.0F);
+        tesselator.vertex(x1, y1, z1, u0, v0);
+        tesselator.vertex(x1, y2, z1, u0, v1);
+        tesselator.vertex(x1, y2, z2, u1, v1);
+        tesselator.vertex(x1, y1, z2, u1, v0);
+
+        tesselator.normal(1.0F, 0.0F, 0.0F);
+        tesselator.vertex(x2, y1, z1, u0, v0);
+        tesselator.vertex(x2, y1, z2, u0, v1);
+        tesselator.vertex(x2, y2, z2, u1, v1);
+        tesselator.vertex(x2, y2, z1, u1, v0);
+
+        tesselator.end();
+        GL11.glPopMatrix();
+    }
+
+    /**
+     * The terrain sprite of a still liquid, or -1 for a liquid these versions do not have. The
+     * still block is the source block, WATER and LAVA, whose sprite is the still texture; the
+     * flowing block's sprite is the animation's next frame.
+     */
+    private static int stillSprite(String liquid) {
+        if ("minecraft:water".equals(liquid)) return Block.WATER.sprite;
+        if ("minecraft:lava".equals(liquid)) return Block.LAVA.sprite;
+        return -1;
     }
 }

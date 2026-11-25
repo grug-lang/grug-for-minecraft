@@ -118,6 +118,11 @@
 					"what": "The quarry clears a flowing liquid inside its box, and puts a frame over flowing lava, where 2.2.14's builder leaves flowing lava alone and does not clear flowing water.",
 					"why": "Level.get_block names a flowing liquid minecraft:unknown on 1.2.5, so flowing water, flowing lava and every other unnamed block are the same to the builder.",
 					"tracking_issue": 1626
+				},
+				{
+					"what": "The tank has no bucket interaction: right-clicking it with a liquid bucket does not fill it, and right-clicking it with an empty bucket is not filled from it, where 2.2.14's BlockTank.b fills 1000 mB and swaps the bucket for an empty one and TankBucketHandler.fillCustomBucket empties 1000 mB into the liquid's own bucket.",
+					"why": "BlockUseContext has no way to replace the player's held stack, so a use() export can read the held item but cannot hand back the empty or filled bucket.",
+					"tracking_issue": 1768
 				}
 			]
 		}

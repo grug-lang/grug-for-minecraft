@@ -140,6 +140,7 @@ enum kind {
     K_OVERLAY_KEY,
     K_OVERLAY_SCROLL,
     K_FILE,
+    K_LIQUID_RESPONSE,
 };
 struct obj {
     enum kind kind;
@@ -1350,7 +1351,8 @@ REGISTER(NULL, "give_item_stack", hf_give_item_stack);
 // the member scope already calls me.block_pos(). The ids start far above the object table's.
 #define BE_BASE (1ull << 40)
 struct kv { char* k; double v; };
-struct record { struct kv* n; size_t nn; uint64_t item; bool has_item; };
+struct record { struct kv* n; size_t nn; uint64_t item; bool has_item; char* text; };
+struct text { char* k; char* v; };
 struct list { char* name; struct record* r; size_t nr; };
 struct slot { bool has; uint64_t item; double count, damage; };
 struct be {
@@ -1360,6 +1362,7 @@ struct be {
     void* entity;
     struct kv* nums; size_t nnums;
     struct list* lists; size_t nlists;
+    struct text* strs; size_t nstrs;
     struct slot* slots; size_t nslots;  // the inventory, sized by Block.init's set_inventory_size (a chest has 27)
     bool power; double energy, max_energy;  // set_power_receiver
     bool item_inserted;   // the script declares an item_inserted export
@@ -1378,6 +1381,11 @@ static struct files_ref {
     uint64_t be_tick;
     uint64_t be_extract_item;
     uint64_t be_add_item;
+    uint64_t be_offer_liquid;
+    uint64_t be_take_liquid;
+    uint64_t be_get_liquid;
+    uint64_t be_get_liquid_amount;
+    uint64_t be_get_liquid_capacity;
 } G;
 static char bg_missing[4096];   // a "does not implement" raised inside a block entity call
 static char last_error[4096];  // the last runtime error the handler saw, with its source line and call stack
@@ -1418,6 +1426,7 @@ static void free_list(struct list* l) {
     for (size_t i = 0; i < l->nr; i++) {
         for (size_t j = 0; j < l->r[i].nn; j++) free(l->r[i].n[j].k);
         free(l->r[i].n);
+        free(l->r[i].text);
     }
     free(l->r); free(l->name);
 }
@@ -1427,6 +1436,8 @@ static void release_be(struct be* b) {
     free(b->nums);
     for (size_t i = 0; i < b->nlists; i++) free_list(&b->lists[i]);
     free(b->lists);
+    for (size_t i = 0; i < b->nstrs; i++) { free(b->strs[i].k); free(b->strs[i].v); }
+    free(b->strs);
     free(b->slots);
     memset(b, 0, sizeof *b);
 }
@@ -1910,6 +1921,24 @@ static union grug_value AR_refuse(ARGS) { UNUSED; return AR_answer(a, "AddRespon
 static union grug_value AR_accept_into_slot(ARGS) { UNUSED; return AR_answer(a, "AddResponse.accept_into_slot", ANS_SLOT); }
 REGISTER("AddResponse", "refuse", AR_refuse);
 REGISTER("AddResponse", "accept_into_slot", AR_accept_into_slot);
+// LiquidResponse's three answers (the liquidity rules in mods/coverage/tests). r->x holds an
+// amount and r->str a liquid name; r->z is the answer's kind.
+enum { LIQ_AMOUNT = 1, LIQ_LIQUID, LIQ_NONE };
+static union grug_value Resp_liquid_answer(const union grug_value a[], const char* method, int kind) {
+    struct obj* r = get_obj(a[0]._id, K_LIQUID_RESPONSE);
+    if (!r) return fail("%s: not a LiquidResponse", method);  // SMOKETEST_EXCL: grug type-checks the argument
+    if (!begin_answer(r, method, "liquid")) return none();
+    r->z = kind;
+    if (kind == LIQ_AMOUNT) r->x = a[1]._number;
+    if (kind == LIQ_LIQUID) r->str = keep(xstrdup(a[1]._string));
+    return none();
+}
+static union grug_value LR_answer_amount(ARGS) { UNUSED; return Resp_liquid_answer(a, "LiquidResponse.answer_amount", LIQ_AMOUNT); }
+static union grug_value LR_answer_liquid(ARGS) { UNUSED; return Resp_liquid_answer(a, "LiquidResponse.answer_liquid", LIQ_LIQUID); }
+static union grug_value LR_answer_none(ARGS) { UNUSED; return Resp_liquid_answer(a, "LiquidResponse.answer_none", LIQ_NONE); }
+REGISTER("LiquidResponse", "answer_amount", LR_answer_amount);
+REGISTER("LiquidResponse", "answer_liquid", LR_answer_liquid);
+REGISTER("LiquidResponse", "answer_none", LR_answer_none);
 
 // Calls an export that takes a response. Returns false when the entity has no such export (the
 // caller answers -1), else true with the response's answer in *r (copied: the table may move) after
@@ -1930,7 +1959,7 @@ static bool ask_response(struct be* b, uint64_t fn, enum kind kind, const union 
     // it. That tick ends there, so the value the call would have answered is never read.
     *errored = false;
     if (err[0]) { *errored = true; fail("%s", err); }
-    else if (!objs[rid - 1].has) { *errored = true; fail("%s returned without answering its response, and refusing has to be said with response.refuse().", export_name); }
+    else if (!objs[rid - 1].has) { *errored = true; fail("%s returned without answering its response, and every response has to be answered before the call returns.", export_name); }
     *out = objs[rid - 1];
     return true;
 }
@@ -2212,6 +2241,90 @@ static union grug_value BE_add_item(ARGS) {
 }
 REGISTER("BlockEntity", "add_item", BE_add_item);
 
+// Liquid (tank-*-Test in mods/buildcraft, and the LiquidResponse rules in mods/coverage). A liquid is
+// the still liquid's canonical name, and the smoketest keeps none of its own: every question is
+// dispatched to the block entity's export, as the host does. -1 is the host's answer to an offer or
+// a take that has no export, and 0 the answer to an amount it cannot ask for.
+static const char* canonical_liquid(const char* name) {
+    if (!strcmp(name, "minecraft:water") || !strcmp(name, "minecraft:flowing_water")) return "minecraft:water";
+    if (!strcmp(name, "minecraft:lava") || !strcmp(name, "minecraft:flowing_lava")) return "minecraft:lava";
+    return NULL;
+}
+static union grug_value BE_offer_liquid(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.offer_liquid: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    const char* liquid = canonical_liquid(a[1]._string);
+    if (!liquid) return fail("BlockEntity.offer_liquid: %s is not a liquid. A liquid is named by its still block, such as minecraft:water or minecraft:lava.", a[1]._string);
+    union grug_value args[4] = {str(liquid), a[2], a[3], a[4]};
+    struct obj r; bool errored;
+    if (!ask_response(b, G.be_offer_liquid, K_LIQUID_RESPONSE, args, 4, &r, &errored, "offer_liquid")) return num(-1);
+    if (errored) return none();
+    if (r.z != LIQ_AMOUNT || r.x < 0) return fail("offer_liquid: The export answered with the wrong kind of answer, and this question wants an amount of 0 or more.");
+    return num(r.x);
+}
+REGISTER("BlockEntity", "offer_liquid", BE_offer_liquid);
+static union grug_value BE_take_liquid(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.take_liquid: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    union grug_value args[2] = {a[1], a[2]};
+    struct obj r; bool errored;
+    if (!ask_response(b, G.be_take_liquid, K_LIQUID_RESPONSE, args, 2, &r, &errored, "take_liquid")) return num(-1);
+    if (errored) return none();
+    if (r.z != LIQ_AMOUNT || r.x < 0) return fail("take_liquid: The export answered with the wrong kind of answer, and this question wants an amount of 0 or more.");
+    return num(r.x);
+}
+REGISTER("BlockEntity", "take_liquid", BE_take_liquid);
+static union grug_value BE_get_liquid(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_liquid: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    struct obj r; bool errored;
+    uint64_t o = new_obj(K_OPTION);
+    if (!ask_response(b, G.be_get_liquid, K_LIQUID_RESPONSE, a, 0, &r, &errored, "get_liquid")) return id(o);
+    if (errored || r.z == LIQ_NONE) return id(o);
+    const char* liquid = r.z == LIQ_LIQUID ? canonical_liquid(r.str) : NULL;
+    if (!liquid) return fail("get_liquid: The export answered with the wrong kind of answer, and this question wants a liquid name or none.");
+    objs[o - 1].has = true;
+    objs[o - 1].val = str(keep(xstrdup(liquid)));
+    return id(o);
+}
+REGISTER("BlockEntity", "get_liquid", BE_get_liquid);
+static union grug_value BE_get_liquid_amount(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_liquid_amount: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    struct obj r; bool errored;
+    if (!ask_response(b, G.be_get_liquid_amount, K_LIQUID_RESPONSE, a, 0, &r, &errored, "get_liquid_amount")) return num(0);
+    if (errored) return none();
+    if (r.z != LIQ_AMOUNT) return fail("get_liquid_amount: The export answered with the wrong kind of answer, and this question wants an amount.");
+    return num(r.x);
+}
+REGISTER("BlockEntity", "get_liquid_amount", BE_get_liquid_amount);
+static union grug_value BE_get_liquid_capacity(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_liquid_capacity: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    struct obj r; bool errored;
+    if (!ask_response(b, G.be_get_liquid_capacity, K_LIQUID_RESPONSE, a, 0, &r, &errored, "get_liquid_capacity")) return num(0);
+    if (errored) return none();
+    if (r.z != LIQ_AMOUNT) return fail("get_liquid_capacity: The export answered with the wrong kind of answer, and this question wants an amount.");
+    return num(r.x);
+}
+REGISTER("BlockEntity", "get_liquid_capacity", BE_get_liquid_capacity);
+
+// The frame pass is not modelled (RenderFrameContext.draw_item has no entry here either), so no
+// committed test can call this; the entry exists so the contract counts it and a script that calls
+// it by mistake is told what is missing rather than silently drawing nothing.
+// SMOKETEST_EXCL_START: only a render_frame can call this, and the smoketest runs no frame pass
+static union grug_value RFC_draw_liquid(ARGS) {
+    UNUSED;
+    return fail("RenderFrameContext.draw_liquid: the smoketest models no frame pass");
+}
+// SMOKETEST_EXCL_STOP
+REGISTER("RenderFrameContext", "draw_liquid", RFC_draw_liquid);
+
 static union grug_value TTC_tick_block_entity(ARGS) {
     UNUSED;
     struct be* b = be_of(a[1]._id);
@@ -2400,6 +2513,64 @@ static union grug_value BE_get_saved_list_item(ARGS) {
     return id(o);
 }
 REGISTER("BlockEntity", "get_saved_list_item", BE_get_saved_list_item);
+
+// Saved text (saved_strings-Test, tank persistence). An empty string is stored and read as itself,
+// so get_saved_string tells it from a name that was never saved, and a list record's text is its
+// own field beside its numbers and its item.
+static union grug_value BE_set_saved_string(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.set_saved_string: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves text");  // saved_strings_on_a_chest-Test
+    for (size_t i = 0; i < b->nstrs; i++) if (!strcmp(b->strs[i].k, a[1]._string)) {
+        free(b->strs[i].v);
+        b->strs[i].v = xstrdup(a[2]._string);
+        return none();
+    }
+    b->strs = xrealloc(b->strs, (b->nstrs + 1) * sizeof *b->strs);
+    b->strs[b->nstrs].k = xstrdup(a[1]._string);
+    b->strs[b->nstrs++].v = xstrdup(a[2]._string);
+    return none();
+}
+REGISTER("BlockEntity", "set_saved_string", BE_set_saved_string);
+static union grug_value BE_get_saved_string(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_saved_string: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves text");  // saved_strings_on_a_chest-Test
+    uint64_t o = new_obj(K_OPTION);
+    for (size_t i = 0; i < b->nstrs; i++) if (!strcmp(b->strs[i].k, a[1]._string)) {
+        objs[o - 1].has = true;
+        objs[o - 1].val = str(keep(xstrdup(b->strs[i].v)));
+        return id(o);
+    }
+    return id(o);
+}
+REGISTER("BlockEntity", "get_saved_string", BE_get_saved_string);
+static union grug_value BE_set_saved_list_string(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.set_saved_list_string: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // saved_strings_on_a_chest-Test
+    struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
+    if (r) { free(r->text); r->text = xstrdup(a[3]._string); }
+    return none();
+}
+REGISTER("BlockEntity", "set_saved_list_string", BE_set_saved_list_string);
+static union grug_value BE_get_saved_list_string(ARGS) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.get_saved_list_string: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!b->entity) return fail("Only a grug block entity saves lists");  // saved_strings_on_a_chest-Test
+    struct record* r = record_at(b, a[1]._string, a[2]._number, NULL);
+    uint64_t o = new_obj(K_OPTION);
+    if (r && r->text) {
+        objs[o - 1].has = true;
+        objs[o - 1].val = str(keep(xstrdup(r->text)));
+    }
+    return id(o);
+}
+REGISTER("BlockEntity", "get_saved_list_string", BE_get_saved_list_string);
 
 // round_trip_nbt (nbt_round_trip-Test, saved_lists-Test, item_stack_save-Test, power_nbt_round_trip-Test, the
 // pipe reload tests): write the block entity out and read it back. Every committed test asserts that what
@@ -4663,6 +4834,11 @@ int main(int argc, char** argv) {
     be_neighbor_fn = grug_get_on_fn_id(g_state, "BlockEntity", "on_neighbor_change");
     G.be_extract_item = grug_get_on_fn_id(g_state, "BlockEntity", "extract_item");
     G.be_add_item = grug_get_on_fn_id(g_state, "BlockEntity", "add_item");
+    G.be_offer_liquid = grug_get_on_fn_id(g_state, "BlockEntity", "offer_liquid");
+    G.be_take_liquid = grug_get_on_fn_id(g_state, "BlockEntity", "take_liquid");
+    G.be_get_liquid = grug_get_on_fn_id(g_state, "BlockEntity", "get_liquid");
+    G.be_get_liquid_amount = grug_get_on_fn_id(g_state, "BlockEntity", "get_liquid_amount");
+    G.be_get_liquid_capacity = grug_get_on_fn_id(g_state, "BlockEntity", "get_liquid_capacity");
     overlay_render_fn = grug_get_on_fn_id(g_state, "Overlay", "render");
     overlay_click_fn = grug_get_on_fn_id(g_state, "Overlay", "click");
     overlay_key_fn = grug_get_on_fn_id(g_state, "Overlay", "key");
