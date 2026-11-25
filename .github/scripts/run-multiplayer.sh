@@ -418,6 +418,15 @@ require_second_player() {
     grep -F '[GRUG CI] Kept ' "$SERVER_LOG" >&2 || true
     exit 1
   fi
+  # The marking is the cause, and this is its outcome: a player the world slew anyway is the flake
+  # itself (#1738), and no test is about a mob hurting a player the run moves and photographs. The
+  # vanilla death message is what the log carries, so the leg fails on it rather than on the marking
+  # alone, which a player slain before or after it would still satisfy.
+  if grep -qF ' was slain by ' "$SERVER_LOG"; then
+    echo "==> A player was slain during the run, so the world can take one out of a test." >&2
+    grep -F ' was slain by ' "$SERVER_LOG" >&2 || true
+    exit 1
+  fi
   # A request only ever goes to the starter's connection, so the second client receiving none is
   # what makes its answer a stranger's: it answers the first request ids on every tick, and the
   # server must ignore them while the starter's answer completes the call.

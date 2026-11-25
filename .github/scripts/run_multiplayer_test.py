@@ -632,7 +632,7 @@ class TwoClientLegFixture(unittest.TestCase):
     OVERLAY_PASSES = OVERLAY_DRAWN_TESTS
 
     def passing_server_lines(
-        self, ignored_start=True, moved_stranger=True, kept_players=True, omit=()
+        self, ignored_start=True, moved_stranger=True, kept_players=True, slain=False, omit=()
     ):
         lines = ["[GRUG CONTROL] Dev started the run"]
         if ignored_start:
@@ -652,6 +652,9 @@ class TwoClientLegFixture(unittest.TestCase):
                 "[GRUG CI] Kept Dev out of the world's damage: the run owns this leg's players,"
                 " so the world cannot take one out of a test."
             )
+        if slain:
+            # #1738: the vanilla death message a player slain anyway leaves in the server log.
+            lines.append("SecondPlayer was slain by Zombie")
         for path in self.REQUIRED_PASSES:
             if path in omit:
                 continue
@@ -851,6 +854,26 @@ class SecondPlayerTest(TwoClientLegFixture):
             "The server did not move the second player away",
             result.stderr,
         )
+
+    def test_a_run_that_slew_a_player_anyway_fails_closed(self):
+        # #1738: the marking is the cause, but the outcome is what the player model test needs. A
+        # player the world slew anyway is the flake itself, and no test is about a mob hurting a
+        # player the run moves and photographs, so a leg whose log holds the death must fail even
+        # though every marking line is there.
+        lines_file = self.tmp / "server-lines.log"
+        lines_file.write_text(self.passing_server_lines(slain=True))
+        result = self.run_script(
+            FAKE_RUN_PASSES="1",
+            FAKE_SERVER_LINES_FILE=str(lines_file),
+            GRUG_CI_RUN_TIMEOUT="60",
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "A player was slain during the run, so the world can take one out of a test.",
+            result.stderr,
+        )
+        self.assertIn("SecondPlayer was slain by Zombie", result.stderr)
 
     def test_a_run_that_kept_no_player_out_of_the_worlds_damage_fails_closed(self):
         # #1738: the leg joins its players in survival, and a zombie slew the second player about a
