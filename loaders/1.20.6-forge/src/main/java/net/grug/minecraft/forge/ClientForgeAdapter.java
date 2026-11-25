@@ -295,20 +295,19 @@ public class ClientForgeAdapter extends ForgeAdapter {
         // thread, so the client's menu is touched where it belongs either way.
         onClientThread(this::deleteCarriedItemOnClient);
         // The menu the next runner tick reads this cursor from is the integrated server's (see
-        // carriedItem), so the clear has to reach it before this call returns rather than through
-        // the queue deleteCarriedItemOnClient leaves behind. Writing it from the client thread is
-        // safe where an overlay's delete comes from, the runner's forwarded click: the runner holds
-        // the server blocked on that click until it answers, so nothing else is in the menu, and
-        // that answer orders this write before the server reads it. The same hold is what settles
-        // the tick after a press (#1094), and a dedicated server gets the same ordering from the
-        // delete packet its client sends before answering (#1094, #1196).
+        // carriedItem), so the clear has to reach it before this call returns. Writing it from the
+        // client thread is safe where an overlay's delete comes from, the runner's forwarded click:
+        // the runner holds the server blocked on that click until it answers, so nothing else is in
+        // the menu, and that answer orders this write before the server reads it. The same hold is
+        // what settles the tick after a press (#1094), and a dedicated server gets the same
+        // ordering from the delete packet its client sends before answering (#1094, #1196).
         clearIntegratedServerCarried();
     }
 
     /**
      * Clears the cursor of the integrated server's own menu, from whichever thread this runs on.
-     * The queue {@link #deleteCarriedItemOnClient} leaves covers the same menu a tick later, which
-     * is too late for a test that reads it on the next tick; see {@link #deleteCarriedItem}.
+     * This is the only clear of that menu, so nothing arrives after a cursor a later call sets
+     * (#1753); see {@link #deleteCarriedItem}.
      */
     @GrugGenerated("the no-server arm: a run deletes a cursor on an integrated server")
     private static void clearIntegratedServerCarried() {
@@ -318,21 +317,11 @@ public class ClientForgeAdapter extends ForgeAdapter {
         clearServerCarried(server, local);
     }
 
-    @GrugGenerated(
-            "the no-screen and no-server arms: a run deletes from the screen it just opened"
-                    + " on an integrated server")
+    @GrugGenerated("the no-screen arm: a run deletes from the screen it just opened")
     private void deleteCarriedItemOnClient() {
         AbstractContainerScreen<?> container = openContainerScreen();
         if (container == null) return;
         container.getMenu().setCarried(ItemStack.EMPTY);
-
-        // The screen's menu is the client's copy, so the server keeps its own carried stack until
-        // it is cleared too, which is the half JEI's delete packet does. A client of a remote
-        // server has no server to reach from here, which about.json records with the give.
-        Player local = Minecraft.getInstance().player;
-        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        if (local == null || server == null) return;
-        server.execute(() -> clearServerCarried(server, local));
     }
 
     @GrugGenerated(
