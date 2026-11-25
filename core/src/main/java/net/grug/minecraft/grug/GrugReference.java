@@ -91,6 +91,21 @@ public final class GrugReference {
     }
 
     /**
+     * Whether this run holds the game's animated textures on their first frame: a CI run, which
+     * compares a capture against a committed golden, and an update-goldens run, which accepts the
+     * capture CI will compare. A golden that contains an animated tile, a tank's water column say,
+     * would otherwise be the frame the run happened to reach, and a port's capture would differ
+     * from the reference run's even when both drew the same thing; freezing makes the pixels a
+     * property of the scene instead of of the tick the capture landed on.
+     *
+     * <p>Every loader freezes for such a run, at its own texture tick. A local run keeps the
+     * animation a player sees.
+     */
+    public static boolean isAnimationFrozen() {
+        return isCiRun() || isUpdateGoldens();
+    }
+
+    /**
      * The grug mods directory a run wants instead of the loader's own, or null to let the loader
      * choose. A reference run points this at a harness-only directory so no grug port loads
      * alongside the reference mod.

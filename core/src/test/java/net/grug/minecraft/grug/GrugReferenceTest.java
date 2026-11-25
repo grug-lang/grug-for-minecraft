@@ -98,6 +98,20 @@ class GrugReferenceTest {
     }
 
     @Test
+    void animationsAreFrozenForACiRunAndForAnUpdateGoldensRun() {
+        System.setProperty(GrugReference.CI_PROPERTY, "0");
+        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "0");
+        assertFalse(GrugReference.isAnimationFrozen());
+
+        System.setProperty(GrugReference.CI_PROPERTY, "1");
+        assertTrue(GrugReference.isAnimationFrozen());
+
+        System.setProperty(GrugReference.CI_PROPERTY, "0");
+        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "1");
+        assertTrue(GrugReference.isAnimationFrozen());
+    }
+
+    @Test
     void modsDirOverrideReturnsADirectoryThatExists(@TempDir Path directory) {
         System.setProperty(GrugReference.MODS_DIR_PROPERTY, directory.toString());
         assertEquals(directory.toFile(), GrugReference.modsDirOverride());

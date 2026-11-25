@@ -16,7 +16,8 @@
         "ParticleManagerMixin",
         "ScreenMixin",
         "GrugFillInvoker",
-        "WorldNotifyAccess"
+        "WorldNotifyAccess",
+        "TextureManagerMixin"
     ],
     "injectors": {
         "defaultRequire": 1

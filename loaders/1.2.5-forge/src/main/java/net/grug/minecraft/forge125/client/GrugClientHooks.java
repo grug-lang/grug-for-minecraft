@@ -523,6 +523,14 @@ public class GrugClientHooks implements ITickHandler {
             GrugTorchFlicker.pinVignette(minecraft.ingameGUI);
         }
 
+        // The liquid sprites the game animates would otherwise make a capture depend on how many
+        // frames the run had drawn when it landed, so each one is replaced with the pack's own
+        // still tile for as long as a capture run owns the client (see GrugFrozenTextures and
+        // #1771).
+        if (GrugReference.isAnimationFrozen()) {
+            GrugFrozenTextures.pin(minecraft.renderEngine);
+        }
+
         // The main menu has no hook to add a button through, and rebuilds its control list when the
         // window is resized, so the button is put back whenever the list lacks it (#335).
         if (minecraft.currentScreen instanceof GuiMainMenu
