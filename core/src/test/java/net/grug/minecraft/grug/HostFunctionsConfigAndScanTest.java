@@ -134,6 +134,24 @@ class HostFunctionsConfigAndScanTest {
     }
 
     @Test
+    void aStaleConfigIdIsReportedAndTheReadAnswersTheMissingValue() {
+        java.util.function.Consumer<String> saved = HostFunctions.staleIdReport;
+        List<String> reports = new ArrayList<>();
+        HostFunctions.staleIdReport = reports::add;
+        try {
+            assertFalse(HostFunctions.Config_bool(0, "flag"));
+            assertEquals(0.0, HostFunctions.Config_number(0, "count"));
+            assertEquals(0L, HostFunctions.Config_color(0, "tint"));
+        } finally {
+            HostFunctions.staleIdReport = saved;
+        }
+        assertEquals(3, reports.size(), "Each read reports the id it could not resolve.");
+        assertTrue(reports.get(0).contains("Config.bool"), reports.get(0));
+        assertTrue(reports.get(1).contains("Config.number"), reports.get(1));
+        assertTrue(reports.get(2).contains("Config.color"), reports.get(2));
+    }
+
+    @Test
     void aTestContextWithoutAModOrALevelOrAPlayerOrASaneRadiusIsRefused() {
         GrugTestState.currentTestMod = null;
         long context = GrugTestContexts.tick();
@@ -259,27 +277,37 @@ class HostFunctionsConfigAndScanTest {
     void aBindingIsDeliveredOnceAndItsDefaultsPressTheDeclaredKey() {
         // A candidate whose export id is the invalid one answers no binding, so the pass opens and
         // closes around it without a VM, which is the shape a loader's poll has without a script.
+        GrugOverlayScripts.Entities noExports =
+                new GrugOverlayScripts.Entities() {
+                    @Override
+                    public long create(long fileId, List<GrugObject> owner) {
+                        return 0;
+                    }
+
+                    @Override
+                    public void destroy(long entityHandle) {}
+
+                    @Override
+                    public long exportFnId(String entityType, String fnName) {
+                        return Grug.INVALID_GRUG_EXPORT_FN_ID;
+                    }
+                };
         GrugOverlayScripts.Script candidate =
                 new GrugOverlayScripts.Script(
-                        "coverage-Overlay",
-                        0,
+                        "coverage-Overlay", 0, Collections.emptyList(), "coverage", noExports);
+        // A second overlay file of the same mod, with a handle that is not zero: the guard's second
+        // half is then the one that refuses it, and the defaults pass already knows the mod, so one
+        // call covers both sides of each (#1749's coverage). Neither reaches a VM.
+        GrugOverlayScripts.Script second =
+                new GrugOverlayScripts.Script(
+                        "coverage-Second-Overlay",
+                        1,
                         Collections.emptyList(),
                         "coverage",
-                        new GrugOverlayScripts.Entities() {
-                            @Override
-                            public long create(long fileId, List<GrugObject> owner) {
-                                return 0;
-                            }
-
-                            @Override
-                            public void destroy(long entityHandle) {}
-
-                            @Override
-                            public long exportFnId(String entityType, String fnName) {
-                                return Grug.INVALID_GRUG_EXPORT_FN_ID;
-                            }
-                        });
-        List<GrugOverlayScripts.Script> candidates = Collections.singletonList(candidate);
+                        noExports);
+        List<GrugOverlayScripts.Script> candidates = new ArrayList<>();
+        candidates.add(candidate);
+        candidates.add(second);
 
         GrugWorldOverlay.binding(candidates, "coverage", "toggle", true, true);
         GrugWorldOverlay.binding(candidates, "coverage", "toggle", true, true);
