@@ -10,6 +10,7 @@ export tick(ctx: TestTickContext) {
             return
         }
         ctx.open_inventory(ctx.get_player())
+        ctx.assert(ctx.screen_open(), "The screen should be open before it is closed.")
         ctx.set_carried_item(item_at(0))
         ctx.close_screen()
         ctx.assert(not ctx.screen_open(), "The screen should close with a carried stack.")
