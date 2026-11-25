@@ -166,8 +166,10 @@ class GrugInventoryCallsTest {
         sent.clear();
 
         GrugInventoryCalls.dropInventory(world.adapter(), world.level, 11, 64, 10);
+        // A fraction of a slot or of an item is what a local write truncates, because every
+        // adapter's own write takes an int, so the forwarded write names the same whole numbers.
         GrugInventoryCalls.setItemInSlot(
-                world.adapter(), blockEntity, 3, item, 7, "BlockEntity.set_item_in_slot");
+                world.adapter(), blockEntity, 3.5, item, 7.5, "BlockEntity.set_item_in_slot");
 
         assertEquals(2, sent.size());
         GrugControlWire.Message drop = GrugControlWire.decode(sent.get(0));

@@ -505,10 +505,11 @@ public final class GrugControlClient {
     /**
      * Asks the server that drives this client's run to write the named item into a slot of the
      * block entity at the position (#1759), which is the write an overlay's click performed on the
-     * client's mirror. Only legal while {@link #runActiveHere}, which its caller checks.
+     * client's mirror. Only legal while {@link #runActiveHere}, which its caller checks. The slot
+     * and the count are whole numbers, which is what every adapter's own write takes.
      */
     public static void setItemInSlotOnServer(
-            double x, double y, double z, double slot, String item, double count) {
+            double x, double y, double z, int slot, String item, int count) {
         GrugControlClient client = current;
         if (!runActiveHere()) {
             throw new IllegalStateException(
