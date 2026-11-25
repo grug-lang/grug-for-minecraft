@@ -422,13 +422,13 @@ local _assert_paths(ctx: TestTickContext) {
     ctx.assert(_state_path("play.example.com", "the_nether") == "buildguide/play.example.com@minecraft.the_nether.dat", "A joined server should keep its address and dimension.")
     ctx.assert(_state_path("x", "the_end") == "buildguide/x@minecraft.the_end.dat", "The end should keep its resource location.")
     ctx.assert(_state_path("a/b<c>d:e\"f\\g|h?i*j", "overworld") == "buildguide/a.b.c.d.e.f.g.h.i.j@minecraft.overworld.dat", "Every Windows-refused character should become a dot.")
-    ctx.assert(_state_path("x", "dimension_mymod~deep/dark") == "buildguide/x@mymod.deep.dark.dat", "A modded dimension should decode to its resource location and then be sanitised.")
+    ctx.assert(_state_path("x", "dimension_mymod~deep+dark") == "buildguide/x@mymod.deep.dark.dat", "A modded dimension should decode to its resource location and then be sanitised.")
     ctx.assert(_state_path("name@with@ats", "overworld") == "buildguide/name@with@ats@minecraft.overworld.dat", "An at sign should stay, since the reference does not sanitise it.")
     ctx.assert(_state_host("") == "unknown", "An empty host should be unknown.")
     ctx.assert(_state_host("My World") == "My World", "A host should be its own text.")
     ctx.assert(_dimension_text("overworld") == "minecraft:overworld", "The overworld should print as its resource location.")
     ctx.assert(_dimension_text("the_nether") == "minecraft:the_nether", "The nether should print as its resource location.")
-    ctx.assert(_dimension_text("dimension_ns~a/b") == "ns:a/b", "A modded dimension should decode to namespace and path.")
+    ctx.assert(_dimension_text("dimension_ns~a+b") == "ns:a/b", "A modded dimension should decode to namespace and path.")
 }
 
 # A state file round-trips through the writable root byte for byte, and persistence disabled leaves it
@@ -680,8 +680,9 @@ local _state_filename(name: string, dimension: string) string {
 }
 
 # The reference has no world name on a client joined to another server but the server's address, and
-# this port's Level.name answers whichever of the two the level has, so it needs no second source. A
-# level with neither, which the reference calls unknown, is an empty name here.
+# Level.name answers whichever of the two the level has, so it needs no second source. Level.name
+# never answers an empty text, but the reference calls a level with neither unknown, so an empty name
+# keeps that fallback for a caller that has no world yet.
 local _state_host(name: string) string {
     if String.length(name) == 0 {
         return "unknown"

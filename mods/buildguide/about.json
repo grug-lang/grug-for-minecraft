@@ -72,7 +72,7 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "The state and config files live under the root File.open(r\"files\") answers, at buildguide/<world>@<dimension>.dat and config/buildguide.cfg, where the reference writes <gameDir>/buildguide/<world>@<dimension>.dat and <gameDir>/config/buildguide.cfg.",
+					"what": "The state and config files live under the root File.open(r\"files\") answers, at buildguide/<world>@<dimension>.dat and config/buildguide.cfg, where the reference writes <gameDir>/buildguide/<world>@<dimension>.dat and <gameDir>/config/buildguide.cfg. The host also refuses a name that differs only in case from an entry that is already there, so two worlds whose names differ only in case share one guide here, where the reference on a case-sensitive filesystem kept two.",
 					"why": "A mod may write only inside the directory #1757 gives it, so a guide the reference already saved at the game directory's path is not imported and a guide this port saves is not read by the reference. The file formats themselves are the reference's, byte for byte.",
 					"tracking_issue": 1757
 				},
