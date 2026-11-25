@@ -1,12 +1,12 @@
 # A character code the loader has no key for is a host error, not a key left to the screen. The four
 # loaders before 1.20.6 ask LWJGL's keyboard for the name GrugOverlay.keyNameForCode gives the code
 # and have no key for anything that is not a key code: a lowercase letter such as this 'a' is not
-# one, while space, backspace, the digits and the capital letters are. 1.20.6 hands the code to
-# GLFW instead, where it binds nothing and is left to the screen (#866). A number from 128 up is
+# one, while space, backspace, the digits and the capital letters are. 1.20.6 has no GLFW key for it
+# and types no character for it either, so it reports the same error (#1741). A number from 128 up is
 # never a character a press types, so 1.20.6 presses GLFW's own key for it: 256 is Escape, which the
-# screen acts on, where a loader before 1.20.6 has no key for that number either (#1741). On a
-# dedicated server the press is forwarded to the joined client, and the error the client raises
-# there cannot reach the server's test, so the test leaves the dedicated leg alone.
+# screen acts on, where a loader before 1.20.6 has no key for that number either. On a dedicated
+# server the press is forwarded to the joined client, and the error the client raises there cannot
+# reach the server's test, so the test leaves the dedicated leg alone.
 started: bool = false
 opened: bool = false
 waited: number = 0
@@ -46,12 +46,13 @@ export tick(ctx: TestTickContext) {
     }
 
     if me.loader_name() == "1.20.6-forge" {
-        ctx.assert(not ctx.press_screen_key(97, true, true), "A code GLFW has no key for should be left to the screen.")
         ctx.assert(not ctx.press_screen_key(256, false, true), "Escape should be left to the overlay.")
         ctx.assert(not ctx.screen_open(), "Escape should close the screen.")
         ctx.close_screen()
-        return
     }
+    # A number that names no key and types no character presses nothing on any screen, so the error
+    # is asked for last, after Escape has closed the screen on 1.20.6: the error it raises aborts the
+    # test, which expecting it turns into a pass.
     ctx.expect_error("TestTickContext.press_screen_key: The game has no key for character code 97.")
     ctx.press_screen_key(97, true, true)
 }

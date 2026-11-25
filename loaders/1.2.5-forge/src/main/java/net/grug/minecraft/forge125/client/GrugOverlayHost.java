@@ -373,6 +373,11 @@ public final class GrugOverlayHost {
      * character only. A press the game reports again while its key is held is delivered with {@code
      * OverlayKeyContext.repeat} true, so a toggle flips once per press and a text field types its
      * character again.
+     *
+     * <p>An event that types a printable character is delivered as a control chord only when
+     * control is held without alt: on Windows an AltGr press carries both bits, and the character
+     * it types is the keyboard layout's own, which a text field types instead of leaving it to the
+     * screen (#1741).
      */
     public static boolean key(
             GuiScreen screen, char character, int key, boolean ctrl, boolean repeat) {
@@ -382,13 +387,23 @@ public final class GrugOverlayHost {
         int typed = GrugOverlay.characterCode(character);
         if (code == 0 && typed == 0) return false;
 
+        boolean chord = typed > 0 ? GrugOverlay.characterEventIsChord(ctrl, isAltDown()) : ctrl;
         for (GrugOverlayScripts.Script overlay : overlays()) {
-            if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, code, typed, ctrl, repeat)) {
+            if (GrugOverlay.key(
+                    overlay.entityHandle, overlay.keyFnId, code, typed, chord, repeat)) {
                 GrugOverlay.noteTestPressTaken();
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Whether alt is held, which with control on Windows is how an AltGr press is reported, as the
+     * spurious left control it sends beside the right alt.
+     */
+    private static boolean isAltDown() {
+        return Keyboard.isKeyDown(Keyboard.KEY_LMENU) || Keyboard.isKeyDown(Keyboard.KEY_RMENU);
     }
 
     /** The key a test holds down with {@code release} false, or -1. */

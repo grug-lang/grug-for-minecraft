@@ -983,6 +983,16 @@ public class ClientForgeAdapter extends ForgeAdapter {
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
         if (refuseWithoutAClient("TestTickContext.press_screen_key")) return false;
+        // A number that names no key of its own and types no character is a press that presses
+        // nothing, which a loader before 1.20.6 reports the same way (#1741).
+        if (GrugOverlayHost.pressesNothing(key, ctrl)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.press_screen_key: The game has no key for character code "
+                            + key
+                            + ".");
+            return false;
+        }
         // The same path a real key takes: the pre event the overlay listens to, fired on the
         // client thread, and the screen's own handler only when nothing cancelled it.
         boolean[] outcome = new boolean[2];

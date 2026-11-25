@@ -263,6 +263,11 @@ public final class GrugOverlayHost {
      * so shift and the keyboard layout are already applied, and a punctuation key arrives here with
      * no key number of its own.
      *
+     * <p>An AltGr press carries the control and alt bits together on Windows and its character is
+     * the layout's own, so {@link GrugOverlay#characterEventIsChord} decides whether the event is a
+     * chord: that answer is the control flag the pass is given, so a German at sign or a French
+     * tilde is typed while a control chord is not (#1741).
+     *
      * <p>The event carries no repeat bit, so the character of a held key's repeat is delivered with
      * {@code OverlayKeyContext.repeat} false while the key press beside it carries the answer. A
      * held printable key still types its character again for every repeat.
@@ -274,7 +279,9 @@ public final class GrugOverlayHost {
         int character = GrugOverlay.characterCode(event.getCodePoint());
         if (character == 0) return;
         boolean ctrl = (event.getModifiers() & controlModifier()) != 0;
-        if (deliverKey(event.getScreen(), character, 0, ctrl, false)) {
+        boolean alt = (event.getModifiers() & altModifier()) != 0;
+        boolean chord = GrugOverlay.characterEventIsChord(ctrl, alt);
+        if (deliverKey(event.getScreen(), character, 0, chord, false)) {
             event.setCanceled(true);
         }
     }
@@ -313,7 +320,8 @@ public final class GrugOverlayHost {
      * the test presses: a letter, a digit, the space bar and backspace are pressed as their key,
      * and a number above the printable ASCII range is one of GLFW's own codes and is pressed as it
      * is (256 is Escape, which the screen acts on). A printable number that names no key is not a
-     * key at all, and {@code press_screen_key} types it instead.
+     * key at all, and {@code press_screen_key} types it instead; a number that names neither is a
+     * press that presses nothing, which {@code press_screen_key} reports as a host function error.
      */
     static int glfwKey(int overlayKey) {
         if (overlayKey == GrugOverlay.KEY_BACKSPACE) return GLFW_KEY_BACKSPACE;
@@ -322,6 +330,17 @@ public final class GrugOverlayHost {
         boolean digit = overlayKey >= '0' && overlayKey <= '9';
         if (letter || digit) return overlayKey;
         return overlayKey > 126 ? overlayKey : -1;
+    }
+
+    /**
+     * Whether a test's press of an overlay key number presses nothing at all: no key of its own and
+     * no typed character either, since control held types none. A loader before 1.20.6 has no key
+     * for such a number and reports the press as a host function error, so this loader answers the
+     * same way rather than pressing nothing silently (#1741).
+     */
+    static boolean pressesNothing(int overlayKey, boolean ctrl) {
+        return glfwKey(overlayKey) < 0
+                && (ctrl ? 0 : GrugOverlay.typedCharacterFor(overlayKey)) == 0;
     }
 
     /** The key held since its first press, or -1: a second press event for it is a key repeat. */
@@ -341,7 +360,17 @@ public final class GrugOverlayHost {
         return Minecraft.ON_OSX ? GLFW_MOD_SUPER : GLFW_MOD_CONTROL;
     }
 
+    /**
+     * The GLFW modifier bit for alt, which an AltGr press carries beside control on Windows:
+     * together they say the event is that keyboard layout's character and not a control chord
+     * (#1741).
+     */
+    static int altModifier() {
+        return GLFW_MOD_ALT;
+    }
+
     private static final int GLFW_MOD_CONTROL = 2;
+    private static final int GLFW_MOD_ALT = 4;
     private static final int GLFW_MOD_SUPER = 8;
 
     /**
