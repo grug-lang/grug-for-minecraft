@@ -1,0 +1,11 @@
+# The other axis of the same check: a position whose x the screen can use and whose y it cannot is
+# reported too, so a test cannot name a point on one axis and reason from the other. The smoketest
+# implements set_mouse_position as a no-op, so it cannot observe the report and skips the check it
+# would prove.
+export tick(ctx: TestTickContext) {
+    if me.loader_name() == "smoketest" {
+        return
+    }
+    ctx.expect_error("set_mouse_position: The position has to be finite")
+    ctx.set_mouse_position(0, Math.sqrt(-1))
+}
