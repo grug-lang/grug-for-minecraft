@@ -1176,10 +1176,18 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
      * The save's name, which a dedicated server and a singleplayer world both store. A client
      * joined to another server has no way to learn it, so its own world is named {@code MpServer}
      * and this call answers that: see {@link ModLoaderAdapter#levelName}.
+     *
+     * <p>The name is read from the world info's NBT because the server's {@code WorldInfo} has no
+     * name getter: only the client jar's class has one, so calling it would abort at run time on
+     * the dedicated server, and a call the server jar lacks would do the same on the client. The
+     * NBT entry is the one both jars write to {@code level.dat}. A world info that holds no name
+     * yet, such as a server world before its first save, answers the game's own default save name
+     * rather than throwing.
      */
     @Override
     public String levelName(Object levelObj) {
-        return ((World) levelObj).getWorldInfo().getWorldName();
+        String name = ((World) levelObj).getWorldInfo().getNBTTagCompound().getString("LevelName");
+        return name.isEmpty() ? "world" : name;
     }
 
     /** The dimension as a path segment, from the provider's own type number (#1757). */

@@ -1,7 +1,7 @@
-# A path joins its segments with a slash (#1757): a backslash is refused rather than being read as a
-# separator on one platform and as a file name on another.
+# A path is a portable file name (#1757): a backslash joins segments on Windows and is a file name
+# character here, so it is refused everywhere and a mod's path means the same on every loader.
 export tick(ctx: TestTickContext) {
     files: File = File.open(r"files")
-    ctx.expect_error("use '/' between its segments")
+    ctx.expect_error("not a portable file name")
     files.read_text("back\\slash.txt")
 }
