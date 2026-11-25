@@ -1,0 +1,46 @@
+# A joined Beta client lights a block change from that change alone, so the wide room's back-left
+# corner, which lies in the chunk beside the eye's own, keeps the sky light it had before the room's
+# ceiling and differs from the server's copy: the joined b1.7.3-stationapi client read sky 9 there
+# against the server's 0 after three resends (#1740). This version's region packet carries a
+# server's light, but stationapi's chunks keep their blocks and light in sections and the packet is
+# built from the block array they never fill, so the loader sends the sections of the changed box
+# through stationapi's own section packet instead. The read below is the section the corner is in,
+# so a dedicated server's answer is true only once that packet's light has reached the client.
+# A client-only run of a loader shares one world with its client and answers true, and the four
+# older dedicated servers resend the room through their own carriers and answer true the same way.
+# The wide room is what makes the corner cross the chunk border: at the default radius the room fits
+# in one chunk and this would not be the read #1740 measured.
+
+waited: number = 0
+x: number = 0
+y: number = 0
+z: number = 0
+
+export init(ctx: TestInitContext) {
+    # The room build can take most of a test's budget on a slow client, and the corner's light has
+    # its own deadline after it, so the budget is the mesh test's rather than the default.
+    ctx.set_max_ticks(2000)
+    origin: Vec3 = ctx.get_origin()
+    # The back-left corner of the room's ceiling: 6 blocks west and south of the eye's block, 9
+    # above the eye, which is the interior cell #1740's measurement named.
+    x = origin.x() - 6
+    y = origin.y() + 9
+    z = origin.z() - 6
+}
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.set_box_radius(6)
+        ctx.not_done()
+    } else if ctx.world_settled() {
+        # The room's own light is the settle's job, and the resend that carries the corner's section
+        # to the client is the settle's send, so the read follows a settle that has already sent it.
+        if not ctx.light_applied(x, y, z) {
+            waited = waited + 1
+            ctx.assert(waited < 400, "The joined client never took the room's light in the corner section beside the eye's own chunk.")
+            ctx.not_done()
+        }
+    } else {
+        ctx.not_done()
+    }
+}
