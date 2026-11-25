@@ -139,11 +139,11 @@ export tick(ctx: TestTickContext) {
     if state == 5 {
         # A joined client's mirror learns the new time from a packet every 20 ticks, and the scan
         # that records it runs on a frame after that, so the forward scan is waited for with room to
-        # spare. Requesting the frames is what runs it.
+        # spare. The client draws and scans on its own frames, so this wait only keeps the test
+        # alive: reading the overlay here would freeze a dedicated server once per tick.
         forward_waited = forward_waited + 1
         ctx.assert(forward_waited < 4 * rate + 120, "The forward scan should run.")
         if level.get_time() - forward_at < 4 * rate + 60 {
-            ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
@@ -171,7 +171,6 @@ export tick(ctx: TestTickContext) {
             back_at = ctx.current_tick()
         }
         if ctx.current_tick() - back_at < 100 {
-            ctx.world_overlay_drawn()
             ctx.not_done()
             return
         }
