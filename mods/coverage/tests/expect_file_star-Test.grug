@@ -1,0 +1,7 @@
+# A path is a portable file name (#1757): a star is refused on every loader, so a name means the
+# same everywhere rather than being a plain name here and a refused one on Windows.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+    ctx.expect_error("not a portable file name")
+    files.read_text("star*name.txt")
+}
