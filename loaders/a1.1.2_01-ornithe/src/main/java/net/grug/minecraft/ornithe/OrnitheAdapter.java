@@ -1736,6 +1736,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // time budget, as the two Beta loaders do. World.updateLight force-flushes once the queue
         // passes 100,000, so the loop cannot spin forever even if propagation outruns the drain.
         // See #417 and #424.
+        //
+        // The drain is about the queue and not about the mesh. An update it runs changes the field
+        // through the quiet setter, so a section it moved light in keeps the mesh it was baked with
+        // until a remesh marks it, and the field it leaves is not the one the blocks define. A test
+        // that writes blocks after the room build settled can therefore still capture light it
+        // moved; #1825 holds what that costs the a1 capture and the fix it needs here.
         while (world.doLightUpdates()) {}
         for (Object entry : ((WorldRendererAccess) worldRenderer).grug$dirtyChunks()) {
             // Only the chunks the renderer is going to rebuild count as pending, and that is the
