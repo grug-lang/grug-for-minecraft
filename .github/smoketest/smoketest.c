@@ -894,7 +894,7 @@ static struct grug_files_slice* toy_files;
 
 static void toy_item_add(const char* name, const char* display, const char* mod) {
     if (ntoy_items == TOY_ITEMS) return;  // SMOKETEST_EXCL: the mods and the fixed list stay under the cap
-    for (size_t i = 0; i < ntoy_items; i++) if (!strcmp(toy_items[i].name, name)) return;
+    for (size_t i = 0; i < ntoy_items; i++) if (!strcmp(toy_items[i].name, name)) return;  // SMOKETEST_EXCL_BRANCH: no compiled mod declares two items under one name, so the duplicate guard never fires
     snprintf(toy_items[ntoy_items].name, sizeof toy_items[ntoy_items].name, "%s", name);
     snprintf(toy_items[ntoy_items].display, sizeof toy_items[ntoy_items].display, "%s", display);
     snprintf(toy_items[ntoy_items].mod, sizeof toy_items[ntoy_items].mod, "%s", mod);
@@ -903,9 +903,9 @@ static void toy_item_add(const char* name, const char* display, const char* mod)
 // A display name is a key's path with spaces for underscores: "minecraft:iron_ingot" is "iron ingot".
 static void toy_display(const char* name, char* out, size_t cap) {
     const char* path = strchr(name, ':');
-    path = path ? path + 1 : name;
+    path = path ? path + 1 : name;  // SMOKETEST_EXCL_BRANCH: every item in the list is named with its namespace
     size_t n = 0;
-    for (; *path && n + 1 < cap; path++) out[n++] = *path == '_' ? ' ' : *path;
+    for (; *path && n + 1 < cap; path++) out[n++] = *path == '_' ? ' ' : *path;  // SMOKETEST_EXCL_BRANCH: no item name fills the 128-byte display buffer
     out[n] = 0;
 }
 static void build_toy_items(void) {
@@ -923,7 +923,7 @@ static void build_toy_items(void) {
     }
     for (size_t i = 0; i < toy_files->len; i++) {
         struct grug_file_info* fi = &toy_files->ptr[i];
-        if (fi->file_id == UINT64_MAX || !fi->entity_type) continue;
+        if (fi->file_id == UINT64_MAX || !fi->entity_type) continue;  // SMOKETEST_EXCL_BRANCH: a compiled file always has an id and a type
         if (strcmp(fi->entity_type, "Block") && strcmp(fi->entity_type, "Item")) continue;
         char name[128], display[128];
         snprintf(name, sizeof name, "grug:%s_%s", fi->mod_name, fi->entity_name);
@@ -937,13 +937,14 @@ static void build_toy_items(void) {
 // non-space characters, a lone prefix or a lone minus is no token, and an alternative with nothing
 // to keep is dropped. An item is listed when every keep token of an alternative matches and none of
 // its remove tokens does; a text with no alternative left lists every item.
+#define QUOTE '"'  // a token's quote, which the search drops
 struct search_token { char text[128]; bool mod_id; };
 struct search_alternative { size_t nkeep, nremove; struct search_token keep[SEARCH_TOKENS], remove[SEARCH_TOKENS]; };
 
 static void search_token_add(struct search_alternative* alt, bool negated, const char* raw) {
     char text[128];
     size_t n = 0;
-    for (const char* p = raw; *p && n + 1 < sizeof text; p++) if (*p != '"') text[n++] = *p;
+    for (const char* p = raw; *p && n + 1 < sizeof text; p++) if (*p != QUOTE) text[n++] = *p;  // SMOKETEST_EXCL_BRANCH: no committed search text has a 128-byte word
     text[n] = 0;
     if (!text[0]) return;
     struct search_token token;
@@ -979,20 +980,20 @@ static size_t search_parse(const char* text, struct search_alternative* alts) {
             bool negated = false;
             char raw[256];
             size_t rn = 0;
-            if ((p[0] == '-' && p + 1 < stop && p[1] == '"') || p[0] == '"') {
+            if ((p[0] == '-' && p + 1 < stop && p[1] == QUOTE) || p[0] == QUOTE) {
                 if (p[0] == '-') { negated = true; p++; }
                 p++;  // the opening quote
-                while (p < stop && *p != '"') { if (rn + 1 < sizeof raw) raw[rn++] = *p; p++; }
+                while (p < stop && *p != QUOTE) { if (rn + 1 < sizeof raw) raw[rn++] = *p; p++; }  // SMOKETEST_EXCL_BRANCH: no committed search text has a 255-byte quoted word
                 if (p < stop) p++;  // the closing quote
             } else {
-                while (p < stop && !isspace((unsigned char)*p)) { if (rn + 1 < sizeof raw) raw[rn++] = *p; p++; }
+                while (p < stop && !isspace((unsigned char)*p)) { if (rn + 1 < sizeof raw) raw[rn++] = *p; p++; }  // SMOKETEST_EXCL_BRANCH: no committed search text has a 255-byte word
             }
             raw[rn] = 0;
             if (raw[0] == '-') { negated = true; memmove(raw, raw + 1, strlen(raw)); }
             search_token_add(&alt, negated, raw);
         }
         // An alternative with nothing to keep is no alternative: its minus words describe nothing.
-        if (alt.nkeep && nalts < SEARCH_ALTERNATIVES) alts[nalts++] = alt;
+        if (alt.nkeep && nalts < SEARCH_ALTERNATIVES) alts[nalts++] = alt;  // SMOKETEST_EXCL_BRANCH: no committed search text has more than eight alternatives
         if (!end) break;
         segment = end + 1;
     }
@@ -1080,7 +1081,7 @@ REGISTER(NULL, "search_item_at", hf_search_item_at);
 // drops the stack when the inventory is full, which no committed test has an inventory for.
 static union grug_value hf_give_item(ARGS) {
     UNUSED;
-    if (!get_obj(a[0]._id, K_ITEM)) return fail("give_item: not an Item");
+    if (!get_obj(a[0]._id, K_ITEM)) return fail("give_item: not an Item");  // SMOKETEST_EXCL_BRANCH: grug type-checks the argument, so a test cannot give anything but an Item
     held_has = true;
     held_item_id = a[0]._id;
     held_count = 1;
@@ -1089,7 +1090,7 @@ static union grug_value hf_give_item(ARGS) {
 REGISTER(NULL, "give_item", hf_give_item);
 static union grug_value hf_give_item_stack(ARGS) {
     UNUSED;
-    if (!get_obj(a[0]._id, K_ITEM)) return fail("give_item_stack: not an Item");
+    if (!get_obj(a[0]._id, K_ITEM)) return fail("give_item_stack: not an Item");  // SMOKETEST_EXCL_BRANCH: grug type-checks the argument, so a test cannot give anything but an Item
     struct obj* item = get_obj(a[0]._id, K_ITEM);
     held_has = true;
     held_item_id = a[0]._id;

@@ -1,0 +1,10 @@
+# item_at must report an index above the largest one an item list can hold, rather than wrap it into
+# a negative index (#865).
+export tick(ctx: TestTickContext) {
+    if not me.overlay_supported() {
+        # This loader lists no items.
+        return
+    }
+    ctx.expect_error("item_at: The index has to be a whole number from 0 to 2147483647")
+    item_at(2147483648)
+}
