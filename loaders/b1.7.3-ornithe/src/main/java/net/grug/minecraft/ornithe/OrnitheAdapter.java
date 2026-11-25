@@ -1117,10 +1117,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     /**
      * The save's own name, which a dedicated server reads without a client's address. A client
-     * joined to another server does not know it, and reads the address it dialled instead.
+     * joined to another server does not know it, and reads the address it dialled instead. A world
+     * whose data holds no name yet answers {@code world} rather than an empty string.
      */
     static String levelNameOf(World world) {
-        return world.getData().toNbt().getString("LevelName");
+        String name = world.getData().toNbt().getString("LevelName");
+        return name.isEmpty() ? "world" : name;
     }
 
     @Override
