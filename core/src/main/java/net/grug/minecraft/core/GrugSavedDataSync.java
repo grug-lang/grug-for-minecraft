@@ -373,38 +373,74 @@ public final class GrugSavedDataSync {
     /**
      * Everything the frame pass reads from the block entity, as text: the numbers, the strings and
      * the lists by name, sorted so the same data always reads the same, and the energy store.
+     *
+     * <p>The text is only ever compared with the text of the same block entity's last send, but it
+     * has to be unambiguous all the same: a script may put any text under a saved name, or into a
+     * record's text, and two different states that join to the same text would leave the second one
+     * unsent. {@link #appendValue} therefore escapes the separators this method writes and marks
+     * the absent value, so a name, a value or a record's text cannot be read as a different field
+     * or as no value at all.
      */
     static String snapshot(Object blockEntity) {
         StringBuilder text = new StringBuilder();
         for (Map.Entry<String, Double> entry : GrugSavedNumbers.snapshot(blockEntity).entrySet()) {
-            text.append("n ")
-                    .append(entry.getKey())
-                    .append('=')
-                    .append(entry.getValue())
-                    .append(';');
+            text.append("n ");
+            appendValue(text, entry.getKey());
+            text.append('=').append(entry.getValue()).append(';');
         }
         for (Map.Entry<String, String> entry : GrugSavedStrings.snapshot(blockEntity).entrySet()) {
-            text.append("s ")
-                    .append(entry.getKey())
-                    .append('=')
-                    .append(entry.getValue())
-                    .append(';');
+            text.append("s ");
+            appendValue(text, entry.getKey());
+            text.append('=');
+            appendValue(text, entry.getValue());
+            text.append(';');
         }
         for (Map.Entry<String, List<GrugSavedLists.Record>> entry :
                 GrugSavedLists.snapshot(blockEntity).entrySet()) {
-            text.append("l ").append(entry.getKey()).append('=');
+            text.append("l ");
+            appendValue(text, entry.getKey());
+            text.append('=');
             for (GrugSavedLists.Record record : entry.getValue()) {
                 // A record's own numbers are unordered, so they are sorted before they are written.
                 for (Map.Entry<String, Double> number :
                         new TreeMap<>(record.numbers()).entrySet()) {
-                    text.append(number.getKey()).append('=').append(number.getValue()).append(',');
+                    appendValue(text, number.getKey());
+                    text.append('=').append(number.getValue()).append(',');
                 }
-                text.append("item ").append(record.item()).append('|');
-                text.append("text ").append(record.text()).append('|');
+                text.append("item ");
+                appendValue(text, record.item() == null ? null : String.valueOf(record.item()));
+                text.append('|');
+                text.append("text ");
+                appendValue(text, record.text());
+                text.append('|');
             }
             text.append(';');
         }
         text.append("e=").append(GrugPower.stored(blockEntity));
         return text.toString();
+    }
+
+    /**
+     * Appends one script-supplied value to the snapshot. A backslash escapes a backslash and each
+     * of the separators the snapshot writes, {@code ; = | ,}, and {@code \0} is the absent value:
+     * no real text can produce that sequence, because its own backslash is doubled, so a record
+     * whose text is the string {@code "null"} stays distinct from one that holds no text.
+     */
+    private static void appendValue(StringBuilder text, String value) {
+        if (value == null) {
+            text.append("\\0");
+            return;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char character = value.charAt(i);
+            if (character == '\\'
+                    || character == ';'
+                    || character == '='
+                    || character == '|'
+                    || character == ',') {
+                text.append('\\');
+            }
+            text.append(character);
+        }
     }
 }

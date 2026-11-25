@@ -758,6 +758,34 @@ class GrugSavedDataSyncTest {
     }
 
     @Test
+    void aValueHoldingTheSnapshotsSeparatorsIsDistinctFromAnotherValue() {
+        Machine one = new Machine();
+        Machine two = new Machine();
+        GrugSavedStrings.set(one, "a", "b\\c;d=e|f,g");
+        GrugSavedStrings.set(two, "a;b", "c");
+
+        assertNotEquals(
+                GrugSavedDataSync.snapshot(one),
+                GrugSavedDataSync.snapshot(two),
+                "a name and a value holding the snapshot's own separators cannot join to the same"
+                        + " text");
+    }
+
+    @Test
+    void aRecordWithNoTextIsDistinctFromOneHoldingTheWordNull() {
+        Machine none = new Machine();
+        Machine word = new Machine();
+        GrugSavedLists.append(none, "items");
+        GrugSavedLists.append(word, "items");
+        GrugSavedLists.setText(word, GrugSavedLists.record(word, "items", 0), "null");
+
+        assertNotEquals(
+                GrugSavedDataSync.snapshot(none),
+                GrugSavedDataSync.snapshot(word),
+                "no text and the literal text \"null\" are different states");
+    }
+
+    @Test
     void aJoinedClientsNewCopyWaitsForItsFirstData() {
         Machine machine = new Machine();
 

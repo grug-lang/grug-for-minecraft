@@ -1493,6 +1493,9 @@ public class HostFunctions {
         if (canonical == null) {
             return 0;
         }
+        if (!requireLiquidAmount("BlockEntity.offer_liquid", amount)) {
+            return 0;
+        }
         worldChanged();
         return GrugLiquids.offer(
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId),
@@ -1503,6 +1506,9 @@ public class HostFunctions {
     }
 
     public static double BlockEntity_take_liquid(long blockEntityId, double amount, boolean take) {
+        if (!requireLiquidAmount("BlockEntity.take_liquid", amount)) {
+            return 0;
+        }
         worldChanged();
         return GrugLiquids.take(
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId), amount, take);
@@ -4475,6 +4481,23 @@ public class HostFunctions {
                             + " minecraft:water or minecraft:lava.");
         }
         return canonical;
+    }
+
+    /**
+     * Whether {@code amount} is a finite number, after reporting one that is not. A script can
+     * compute NaN or an infinity, and both comparisons a tank makes against zero are false for NaN:
+     * the amount would reach {@code set_saved_number} as NaN and a full tank's room would be NaN,
+     * so no later offer is capped. Refused here, where the other argument checks live, rather than
+     * in the tank's script.
+     */
+    private static boolean requireLiquidAmount(String hostFunction, double amount) {
+        if (Double.isFinite(amount)) {
+            return true;
+        }
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                hostFunction + ": The amount has to be a finite number, and was " + amount + ".");
+        return false;
     }
 
     /**
