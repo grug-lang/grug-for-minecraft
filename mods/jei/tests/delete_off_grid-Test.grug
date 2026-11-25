@@ -7,8 +7,10 @@
 # message was drawn at the pointer wherever it was, on every page after the first. The capture shows
 # the second page with a stack on the cursor and the pointer in the gap between the GUI and the grid,
 # inside the delete look's own rectangle, and it carries no message. It is a golden for the same
-# reason that look is one: only a capture shows a tooltip that should not be there. The pointer is
-# parked, as a run parks it in a corner otherwise, so a dedicated server skips the test.
+# reason that look is one: only a capture shows a tooltip that should not be there. The wheel turns
+# the list back to the first page before the screen closes, because the overlay keeps the page it was
+# left on and the tests that follow read the first page. The pointer is parked, as a run parks it in
+# a corner otherwise, so a dedicated server skips the test.
 started: bool = false
 opened: bool = false
 waited: number = 0
@@ -168,6 +170,10 @@ export tick(ctx: TestTickContext) {
         return
     }
     ctx.screenshot().equals(r"screenshots/jei_delete_off_grid", _left(ctx), _top(), _right(ctx), _bottom())
+    # The list keeps the page it was left on, and the tests after this one read the first page, so
+    # the wheel turns back to it before the screen closes.
+    back: bool = ctx.scroll_screen(_cell_x(ctx, 0), _cell_y(0), 1)
+    ctx.assert(back, "The overlay should take a wheel turned back over its list.")
     ctx.clear_carried_item()
     ctx.close_screen()
 }
