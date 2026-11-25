@@ -3084,7 +3084,7 @@
 					]
 				},
 				"draw_tooltip": {
-					"description": "Draws the game's own tooltip with the text given, anchored at the position in screen pixels from the top-left of the window, which is where the reference passes the mouse. The panel and the text are the loader's own version's tooltip, drawn after everything else the overlay drew, and the text is not clipped or wrapped: it runs on past the screen's edge, so a mod cuts it to the width it has. The position has to be finite, or it is reported and the tooltip is not drawn. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Draws the game's own tooltip with the text given, anchored at the position in screen pixels from the top-left of the window, which is where the reference passes the mouse. The panel and the text are the loader's own version's tooltip, drawn after everything else the overlay drew. The text is not wrapped: a version whose own positioner would run it off the window, such as 1.20.6's, moves the whole tooltip to the other side of the anchor, and the older versions draw it past the window's edge, so a mod keeps the text short enough to fit. The position has to be finite, or it is reported and the tooltip is not drawn. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "text",
@@ -4950,7 +4950,7 @@
 					]
 				},
 				"set_mouse_position": {
-					"description": "Test only: parks the cursor at a window pixel, so a capture shows the hover a player would see where the mouse is over a slot the overlay drew. A run parks the cursor in the window's corner otherwise, so no capture depends on where the invisible cursor happens to be; this asks for a look that does, such as the reference's delete tooltip, and the point holds until the test ends. The point is in window pixels from the window's top-left, the measure a screenshot's crop takes, which the loader's own GUI scale turns into the scaled pixels OverlayRenderContext.mouse_x reports. Only a client can move its cursor, so a dedicated server reports the call, and a test that captures a hover skips itself there. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Test only: parks the cursor at a window pixel, so a capture shows the hover a player would see where the mouse is over a slot the overlay drew. A run parks the cursor in the window's corner otherwise, so no capture depends on where the invisible cursor happens to be; this asks for a look that does, such as the reference's delete tooltip, and the point holds until the test ends. The point is in window pixels from the window's top-left, the measure a screenshot's crop takes, which the loader's own GUI scale turns into the scaled pixels OverlayRenderContext.mouse_x reports. The overlay is told the point even on a version whose own pointer does not follow a warp, so the capture does not depend on the pointer. Only a client can move its cursor, so a dedicated server reports the call, and a test that captures a hover skips itself there. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "x",

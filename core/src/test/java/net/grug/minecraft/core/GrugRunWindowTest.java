@@ -2,6 +2,7 @@ package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.core.GrugRunWindow.Display;
@@ -459,6 +460,21 @@ class GrugRunWindowTest {
         window2.parkCursor();
         assertEquals(
                 calls("setCursor(300,42)", "setCursor(300,200)", "setCursor(0,0)"), display.calls);
+    }
+
+    @Test
+    void aParkedPointIsHandedToAnOverlayInItsOwnScaledPixels() {
+        GrugRunWindow.parkAt(300, 42);
+        double[] scaled = GrugRunWindow.parkedMousePosition(800, 600, 400, 300);
+        assertEquals(150.0, scaled[0]);
+        assertEquals(21.0, scaled[1]);
+        GrugRunWindow.forgetParkPoint();
+    }
+
+    @Test
+    void aRunWithNoParkedPointHandsAnOverlayNoPosition() {
+        GrugRunWindow.forgetParkPoint();
+        assertNull(GrugRunWindow.parkedMousePosition(800, 600, 400, 300));
     }
 
     @Test

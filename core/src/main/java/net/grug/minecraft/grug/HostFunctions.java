@@ -257,7 +257,9 @@ public class HostFunctions {
      * which depends on the hover, such as the reference's delete message, names the point instead;
      * the run parks there for the rest of the test. The point is in window pixels from the window's
      * top-left, the measure a screenshot's crop takes, which the loader's own GUI scale turns into
-     * the scaled pixels {@code OverlayRenderContext.mouse_x} reports.
+     * the scaled pixels {@code OverlayRenderContext.mouse_x} reports. The loader hands the point to
+     * its overlay whether or not its own pointer followed the warp, so a capture never depends on
+     * which pointer the game happened to read.
      *
      * <p>Only a client can move its cursor, so a dedicated server reports the call rather than
      * pretending the cursor moved: a test that captures a hover skips itself there.

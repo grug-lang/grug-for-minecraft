@@ -1,6 +1,7 @@
 package net.grug.minecraft.stationapi.client;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugOverlay;
@@ -90,6 +91,17 @@ public final class GrugOverlayHost {
         Minecraft minecraft = (Minecraft) FabricLoader.getInstance().getGameInstance();
         GrugFillInvoker fill = (GrugFillInvoker) screen;
         String testMod = GrugTestState.currentTestMod;
+        // A test that parked the cursor for a capture is where the overlay must see the mouse. The
+        // point is in window pixels, and the screen's scaled size turns it into the pixels an
+        // overlay gets, the same way this screen works out its own mouse.
+        double[] parked =
+                GrugRunWindow.parkedMousePosition(
+                        minecraft.displayWidth,
+                        minecraft.displayHeight,
+                        screen.width,
+                        screen.height);
+        double overlayMouseX = parked == null ? mouseX : parked[0];
+        double overlayMouseY = parked == null ? mouseY : parked[1];
         for (GrugOverlayScripts.Script overlay : overlays()) {
             GrugOverlayGeometry drawn =
                     GrugOverlay.render(
@@ -101,8 +113,8 @@ public final class GrugOverlayHost {
                             geometry.grug$guiTop(),
                             geometry.grug$guiWidth(),
                             geometry.grug$guiHeight(),
-                            mouseX,
-                            mouseY);
+                            overlayMouseX,
+                            overlayMouseY);
 
             if (!drawn.items().isEmpty()
                     || !drawn.boxes().isEmpty()

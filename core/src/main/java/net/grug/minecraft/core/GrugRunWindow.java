@@ -133,8 +133,12 @@ public final class GrugRunWindow {
      * delete message in place of the hover highlight, names the point instead. It belongs to the
      * test that asked, so the runner forgets it at both ends of a test: a later capture parks in
      * the corner again.
+     *
+     * <p>Volatile because the test's thread sets it while the render thread reads it for {@link
+     * #parkedMousePosition}, which must not keep the game's own mouse until the next happens-before
+     * edge by accident.
      */
-    private static double[] parkPoint = null;
+    private static volatile double[] parkPoint = null;
 
     public GrugRunWindow(Display display) {
         this.display = display;
@@ -326,5 +330,29 @@ public final class GrugRunWindow {
      */
     public static void forgetParkPoint() {
         parkPoint = null;
+    }
+
+    /**
+     * Test only: the position a parked point means to an overlay, in the screen's scaled pixels, or
+     * null when no test parked one.
+     *
+     * <p>A loader hands the point to its overlay instead of the game's own mouse, because a version
+     * whose pointer does not follow a warp would otherwise draw the frame a capture reads from
+     * where the cursor was rather than from where the test put it. The conversion is the game's
+     * own: a window pixel times the scaled size over the window's.
+     *
+     * @param windowWidth the window's width in pixels, the measure the point is in
+     * @param windowHeight the window's height in pixels
+     * @param scaledWidth the screen's width in scaled pixels, as a screen reports it
+     * @param scaledHeight the screen's height in scaled pixels
+     */
+    public static double[] parkedMousePosition(
+            double windowWidth, double windowHeight, double scaledWidth, double scaledHeight) {
+        double[] point = parkPoint;
+        if (point == null) return null;
+        if (windowWidth <= 0 || windowHeight <= 0) return null;
+        return new double[] {
+            point[0] * scaledWidth / windowWidth, point[1] * scaledHeight / windowHeight
+        };
     }
 }
