@@ -1033,16 +1033,10 @@ public class Grug125ClientAdapter extends Grug125Adapter {
 
     @GrugGenerated("a joined client's own light sweep, which only the multiplayer job runs")
     public void relightClientRoom(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        World world = ModLoader.getMinecraftInstance().theWorld;
         net.grug.minecraft.core.GrugRelight.sweepUntilStable(
-                new ClientSweep(
-                        ModLoader.getMinecraftInstance().theWorld,
-                        minX,
-                        minY,
-                        minZ,
-                        maxX,
-                        maxY,
-                        maxZ),
-                16);
+                new ClientSweep(world, minX, minY, minZ, maxX, maxY, maxZ), 16);
+        Grug125Adapter.markSweptSections(world, minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     /** The sweep as a class rather than a lambda, so the exclusion covers its body (#1213). */

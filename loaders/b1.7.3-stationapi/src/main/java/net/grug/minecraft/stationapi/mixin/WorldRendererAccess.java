@@ -4,6 +4,7 @@ import net.minecraft.client.render.WorldRenderer;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
+import org.spongepowered.asm.mixin.gen.Invoker;
 
 import java.util.List;
 
@@ -19,4 +20,15 @@ import java.util.List;
 public interface WorldRendererAccess {
     @Accessor("dirtyChunks")
     List<?> grug$dirtyChunks();
+
+    /**
+     * Marks every section a block box touches, and the sections beside it, for compiling again: the
+     * game's own answer to "this region changed", which grows the box by one block before it marks.
+     *
+     * <p>A loader that writes light itself calls this for the box it relit, because the rebuild a
+     * changed light needs is the renderer's and not the light engine's. See {@code
+     * StationApiAdapter#markSectionsForRebuild} and #1580.
+     */
+    @Invoker("markDirty")
+    void grug$markDirty(int minX, int minY, int minZ, int maxX, int maxY, int maxZ);
 }

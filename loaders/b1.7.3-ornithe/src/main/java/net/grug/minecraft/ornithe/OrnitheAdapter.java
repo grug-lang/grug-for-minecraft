@@ -565,6 +565,24 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     /**
+     * Brings the room's sky and block light to the one field its blocks define, and rebuilds the
+     * sections whose baked brightness that changed.
+     *
+     * <p>A quiet write queues the light of the cell it changed and nothing else, so the field a
+     * room ends with is the one the engine's cascade reached from the changes it saw in the order
+     * it saw them, and that order differs between runs and between this client and a server: the
+     * same room has held a wall one or two levels darker in one run than in the next, which is the
+     * scatter of #1580. The sweep is what makes the field a function of the blocks alone, and the
+     * rebuild is what makes the mesh a function of that field. See {@link OrnitheRoomLight}.
+     */
+    @Override
+    public void relightRoom(
+            Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        OrnitheRoomLight.settle((World) levelObj, minX, minY, minZ, maxX, maxY, maxZ);
+        OrnitheRoomLight.remesh(minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    /**
      * The name this loader spells a canonical block name with, which is what {@link #resolveBlock}
      * has to be given.
      *

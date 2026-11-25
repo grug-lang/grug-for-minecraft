@@ -1,5 +1,8 @@
 package net.grug.minecraft.core;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * The sections a loader's room relight swept, for a loader whose client cannot reproduce the light
  * of those sections (#1240).
@@ -66,5 +69,48 @@ public final class GrugRelitSections {
                 && sectionY <= maxY >> 4
                 && sectionZ >= minZ >> 4
                 && sectionZ <= maxZ >> 4;
+    }
+
+    /**
+     * The sections a relit box covers, each as its own whole box in blocks: minX, minY, minZ, maxX,
+     * maxY, maxZ, with both corners inclusive.
+     *
+     * <p>A loader that applies light itself has to rebuild the mesh of every section whose baked
+     * brightness can change, and its renderer's rebuild request is per section or per block range
+     * rather than per cell. Handing it the sections the sweep covered, rather than the swept box,
+     * is what makes the request cover the whole section: a section the box only partly covers bakes
+     * faces from cells outside the box, so the mark has to reach all of it. Each box is a whole
+     * section, and the game's own range request grows a box by one block, so a caller that passes
+     * one of these marks that section and, through the one block it reaches into each neighbour,
+     * the sections beside it.
+     *
+     * <p>Pure, so its unit test covers a box inside one section, one that spans several, negative
+     * coordinates and a box whose corners sit on section boundaries.
+     */
+    public static List<int[]> sectionBoxes(
+            int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        int fromX = minX >> 4;
+        int fromY = minY >> 4;
+        int fromZ = minZ >> 4;
+        int toX = maxX >> 4;
+        int toY = maxY >> 4;
+        int toZ = maxZ >> 4;
+        List<int[]> boxes = new ArrayList<>();
+        for (int sectionY = fromY; sectionY <= toY; sectionY++) {
+            for (int sectionZ = fromZ; sectionZ <= toZ; sectionZ++) {
+                for (int sectionX = fromX; sectionX <= toX; sectionX++) {
+                    boxes.add(
+                            new int[] {
+                                sectionX << 4,
+                                sectionY << 4,
+                                sectionZ << 4,
+                                (sectionX << 4) + 15,
+                                (sectionY << 4) + 15,
+                                (sectionZ << 4) + 15
+                            });
+                }
+            }
+        }
+        return boxes;
     }
 }
