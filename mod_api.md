@@ -32,6 +32,7 @@ export tick()
 .extract_item_into(destination: BlockEntity, destination_slot: number, from_side: number) number
 .get_crafting_result_damage() number
 .get_crafting_result_item() Option[Item]
+.get_energy_request() number
 .get_energy_stored() number
 .get_inventory_size() number
 .get_item_count_in_slot(slot: number) number
@@ -49,8 +50,11 @@ export tick()
 .is_slot_insertable(slot: number) bool
 .level() Level
 .receive_energy(amount: number) number
+.receive_energy_on(side: number, amount: number)
 .redraw()
 .remove_saved_list_record(name: string, index: number)
+.request_energy_on(side: number, amount: number)
+.set_energy_request(amount: number)
 .set_item_count_in_slot(slot: number, count: number)
 .set_item_damage_in_slot(slot: number, damage: number)
 .set_item_in_slot(slot: number, item: Item, count: number)
@@ -59,6 +63,8 @@ export tick()
 .set_saved_number(name: string, value: number)
 .take_crafting_result(amount: number) number
 .take_item_from_slot(slot: number, amount: number) number
+.take_received_energy(side: number) number
+.take_requested_energy(side: number) number
 .update_recipe_output(start_slot: number)
 
 ## Item

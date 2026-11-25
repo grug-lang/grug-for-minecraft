@@ -1,0 +1,20 @@
+# A receiver declares the energy it asks a transport to bring it, which is the reference's
+# powerRequest: 0 until the receiver declares one, a later declaration replaces the first, and the
+# number is what a conductive pipe polls before it decides which side to bring energy to.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_power_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    ctx.assert(be.get_energy_request() == 0, "A receiver that never declared one asks for nothing.")
+    be.set_energy_request(25)
+    ctx.assert(be.get_energy_request() == 25, "The request should be the one declared.")
+    be.set_energy_request(0)
+    ctx.assert(be.get_energy_request() == 0, "A machine that is not working asks for nothing again.")
+    be.set_energy_request(4)
+    ctx.assert(be.get_energy_request() == 4, "The last declaration is the one read.")
+}

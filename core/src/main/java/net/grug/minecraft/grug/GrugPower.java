@@ -1,5 +1,8 @@
 package net.grug.minecraft.grug;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -33,6 +36,35 @@ public final class GrugPower {
 
     /** The energy a receiver holds. A block entity absent from the map holds none. */
     private static final Map<Object, Double> STORES = new WeakHashMap<>();
+
+    /** How much energy a receiver asks a transport for, per block entity that asked. */
+    private static final Map<Object, Double> REQUESTS = new WeakHashMap<>();
+
+    /**
+     * One thing a neighbour handed a block entity's inbox: how much, on which side, and the world
+     * time it arrived at.
+     */
+    private static final class Mail {
+        final int side;
+        final long time;
+        final double amount;
+
+        Mail(int side, long time, double amount) {
+            this.side = side;
+            this.time = time;
+            this.amount = amount;
+        }
+    }
+
+    /**
+     * The energy and the requests that arrived in a block entity's inbox, kept apart by whether
+     * they are energy or a request. A list rather than six totals, because a delivery made during
+     * the world time a take runs in has to stay for a later one: that is what keeps the answer from
+     * depending on whether the sending neighbour ticked before or after this block entity.
+     */
+    private static final Map<Object, List<Mail>> RECEIVED = new WeakHashMap<>();
+
+    private static final Map<Object, List<Mail>> REQUESTED = new WeakHashMap<>();
 
     @GrugGenerated("utility class: never instantiated")
     private GrugPower() {}
@@ -149,6 +181,121 @@ public final class GrugPower {
             return taken;
         }
         return 0;
+    }
+
+    /**
+     * Why {@code value} is not a side, or null when it is. A side is numbered as every side in the
+     * API is: 0 down, 1 up, 2 north, 3 south, 4 west and 5 east.
+     */
+    public static String checkSide(String what, double value) {
+        if (value >= 0 && value <= 5 && value == Math.floor(value)) {
+            return null;
+        }
+        return what + " has to be a whole number from 0 to 5, and was " + value + ".";
+    }
+
+    /**
+     * Why {@code value} is not an amount of energy a transport carries, or null when it is. A
+     * transport carries fractions, because it splits what it holds between its sides, so unlike
+     * {@link #checkEnergy} this accepts them.
+     */
+    public static String checkCarriedEnergy(String what, double value) {
+        if (value >= 0 && Double.isFinite(value)) {
+            return null;
+        }
+        return what
+                + " of carried energy has to be a finite number from 0 up, and was "
+                + value
+                + ".";
+    }
+
+    /** Why this block entity has no inbox, or null when it has one. */
+    public static String checkInbox(Object blockEntity) {
+        if (!GrugSavedNumbers.isHolder(blockEntity)) {
+            return "Only a grug block entity has an energy inbox, and this block entity is not"
+                    + " one.";
+        }
+        return null;
+    }
+
+    /**
+     * Hands {@code amount} of energy into the block entity's inbox on {@code side}, stamped with
+     * the world time it arrived at. The amount is not rounded: a transport carries fractions.
+     */
+    public static void receiveOn(Object blockEntity, int side, double amount, long time) {
+        deliver(RECEIVED, blockEntity, new Mail(side, time, amount));
+    }
+
+    /** Hands {@code amount} of a request into the block entity's request inbox on {@code side}. */
+    public static void requestOn(Object blockEntity, int side, double amount, long time) {
+        deliver(REQUESTED, blockEntity, new Mail(side, time, amount));
+    }
+
+    private static void deliver(Map<Object, List<Mail>> mailbox, Object blockEntity, Mail mail) {
+        synchronized (mailbox) {
+            List<Mail> mails = mailbox.get(blockEntity);
+            if (mails == null) {
+                mails = new ArrayList<>();
+                mailbox.put(blockEntity, mails);
+            }
+            mails.add(mail);
+        }
+    }
+
+    /**
+     * Takes everything that arrived on {@code side} before {@code now}, adds it up and empties
+     * those entries. What arrived during {@code now} stays for a later call, so the answer does not
+     * depend on the order the game ticked the sender and the receiver.
+     */
+    public static double takeReceived(Object blockEntity, int side, long now) {
+        return take(RECEIVED, blockEntity, side, now);
+    }
+
+    /** Takes what arrived in the request inbox on {@code side} before {@code now}. */
+    public static double takeRequested(Object blockEntity, int side, long now) {
+        return take(REQUESTED, blockEntity, side, now);
+    }
+
+    private static double take(
+            Map<Object, List<Mail>> mailbox, Object blockEntity, int side, long now) {
+        synchronized (mailbox) {
+            List<Mail> mails = mailbox.get(blockEntity);
+            if (mails == null) {
+                return 0;
+            }
+            double total = 0;
+            Iterator<Mail> iterator = mails.iterator();
+            while (iterator.hasNext()) {
+                Mail mail = iterator.next();
+                if (mail.side == side && mail.time < now) {
+                    total += mail.amount;
+                    iterator.remove();
+                }
+            }
+            if (mails.isEmpty()) {
+                mailbox.remove(blockEntity);
+            }
+            return total;
+        }
+    }
+
+    /**
+     * Declares how much energy this receiver asks a transport for, which is the reference's {@code
+     * IPowerReceptor.powerRequest}. A transport reads it with {@link #request} and asks nothing of
+     * a receiver that never declared one, because a machine that is not working wants nothing.
+     */
+    public static void declareRequest(Object blockEntity, double amount) {
+        synchronized (REQUESTS) {
+            REQUESTS.put(blockEntity, amount);
+        }
+    }
+
+    /** The energy the receiver asks a transport for, which is 0 until it declares one. */
+    public static double request(Object blockEntity) {
+        synchronized (REQUESTS) {
+            Double request = REQUESTS.get(blockEntity);
+            return request != null ? request : 0.0;
+        }
     }
 
     /** Sets the store and has the block entity marked changed. */

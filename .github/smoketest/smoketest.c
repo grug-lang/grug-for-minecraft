@@ -1052,6 +1052,11 @@ struct kv { char* k; double v; };
 struct record { struct kv* n; size_t nn; uint64_t item; bool has_item; };
 struct list { char* name; struct record* r; size_t nr; };
 struct slot { bool has; uint64_t item; double count, damage; };
+// One thing a neighbour handed a block entity's inbox: how much, on which side, and the world time it
+// arrived at. A delivery is kept rather than applied at once, which is the reference's
+// PipeTransportPower.step: what arrives during the world time a take runs in stays for a later take,
+// so the answer does not depend on whether the sender ticked before or after the receiver.
+struct mail { int side; double time; double amount; };
 struct be {
     bool live;
     bool doomed;  // replaced or removed while one of its calls was running; freed when the call returns
@@ -1061,6 +1066,9 @@ struct be {
     struct list* lists; size_t nlists;
     struct slot* slots; size_t nslots;  // the inventory, sized by Block.init's set_inventory_size (a chest has 27)
     bool power; double energy, max_energy, min_received, max_received;  // set_power_receiver
+    double energy_request;  // set_energy_request, unsaved like the reference's powerRequest
+    struct mail* recv; size_t nrecv, caprecv;  // energy handed in by a neighbour, per side and world time
+    struct mail* req; size_t nreq, capreq;     // requests for energy handed in, per side and world time
     bool item_inserted;   // the script declares an item_inserted export
     bool item_extracted;  // the script declares an item_extracted export, which no host call here runs yet
     bool output_taken;    // the script declares an output_taken export, which a take of the cached result runs
@@ -1127,6 +1135,8 @@ static void release_be(struct be* b) {
     for (size_t i = 0; i < b->nlists; i++) free_list(&b->lists[i]);
     free(b->lists);
     free(b->slots);
+    free(b->recv);
+    free(b->req);
     memset(b, 0, sizeof *b);
 }
 // Dropping a block entity whose script is running (a tick that replaces its own block) must not
@@ -1467,6 +1477,112 @@ static union grug_value BE_extract_energy(ARGS) {
     return num(took);
 }
 REGISTER("BlockEntity", "extract_energy", BE_extract_energy);
+
+// The energy and the requests a neighbour hands a block entity's inbox (receive_energy_on-Test,
+// request_energy_on-Test, and the conductive pipe tests). Only a grug block entity has one: a chest
+// and the other vanilla block entities are a `struct be` here too, but with no script and so no
+// entity, which is what tells them apart.
+static const char* const inbox_not_grug = "only a grug block entity has an energy inbox, and this block entity is not one";
+static struct be* inbox_of(uint64_t h, const char* who) {
+    struct be* b = be_of(h);
+    if (!b || !b->entity) { fail("%s: %s", who, inbox_not_grug); return NULL; }
+    return b;
+}
+// A side has to be a whole number from 0 to 5, as BuildCraft's Orientations numbers them.
+static bool inbox_side(const union grug_value a[], char* text, size_t cap, const char* who) {
+    double side = a[1]._number;
+    if (is_whole(side) && side >= 0 && side <= 5) return true;
+    double_text(side, text, cap);
+    fail("%s: the side has to be a whole number from 0 to 5, and was %s", who, text);
+    return false;
+}
+static void mailbox_post(struct mail** mails, size_t* n, size_t* cap, int side, double amount) {
+    if (*n == *cap) { *cap = *cap ? *cap * 2 : 4; *mails = xrealloc(*mails, *cap * sizeof **mails); }
+    (*mails)[*n].side = side;
+    (*mails)[*n].time = (double)cur_tick + time_offset;
+    (*mails)[*n].amount = amount;
+    (*n)++;
+}
+// Takes what arrived on a side before the current world time and keeps the rest, which is the whole
+// of the time rule the inbox exists for.
+static double mailbox_take(struct mail* mails, size_t* n, int side) {
+    double now = (double)cur_tick + time_offset, total = 0;
+    size_t kept = 0;
+    for (size_t i = 0; i < *n; i++) {
+        if (mails[i].side == side && mails[i].time < now) total += mails[i].amount;
+        else mails[kept++] = mails[i];
+    }
+    *n = kept;
+    return total;
+}
+static union grug_value BE_receive_energy_on(ARGS) {
+    UNUSED;
+    char text[40];
+    struct be* b = inbox_of(a[0]._id, "BlockEntity.receive_energy_on");
+    if (!b) return none();
+    if (!inbox_side(a, text, sizeof text, "BlockEntity.receive_energy_on")) return none();
+    double amount = a[2]._number;
+    if (!isfinite(amount) || amount < 0) {
+        double_text(amount, text, sizeof text);
+        return fail("BlockEntity.receive_energy_on: the amount of carried energy has to be a finite number from 0 up, and was %s", text);
+    }
+    mailbox_post(&b->recv, &b->nrecv, &b->caprecv, (int)a[1]._number, amount);
+    return none();
+}
+REGISTER("BlockEntity", "receive_energy_on", BE_receive_energy_on);
+static union grug_value BE_take_received_energy(ARGS) {
+    UNUSED;
+    char text[40];
+    struct be* b = inbox_of(a[0]._id, "BlockEntity.take_received_energy");
+    if (!b) return none();
+    if (!inbox_side(a, text, sizeof text, "BlockEntity.take_received_energy")) return none();
+    return num(mailbox_take(b->recv, &b->nrecv, (int)a[1]._number));
+}
+REGISTER("BlockEntity", "take_received_energy", BE_take_received_energy);
+static union grug_value BE_request_energy_on(ARGS) {
+    UNUSED;
+    char text[40];
+    struct be* b = inbox_of(a[0]._id, "BlockEntity.request_energy_on");
+    if (!b) return none();
+    if (!inbox_side(a, text, sizeof text, "BlockEntity.request_energy_on")) return none();
+    double amount = a[2]._number;
+    if (!is_whole(amount) || amount < 0 || amount > 2147483647.0) {
+        double_text(amount, text, sizeof text);
+        return fail("BlockEntity.request_energy_on: the amount of energy has to be a whole number from 0 to 2147483647, and was %s", text);
+    }
+    mailbox_post(&b->req, &b->nreq, &b->capreq, (int)a[1]._number, amount);
+    return none();
+}
+REGISTER("BlockEntity", "request_energy_on", BE_request_energy_on);
+static union grug_value BE_take_requested_energy(ARGS) {
+    UNUSED;
+    char text[40];
+    struct be* b = inbox_of(a[0]._id, "BlockEntity.take_requested_energy");
+    if (!b) return none();
+    if (!inbox_side(a, text, sizeof text, "BlockEntity.take_requested_energy")) return none();
+    return num(mailbox_take(b->req, &b->nreq, (int)a[1]._number));
+}
+REGISTER("BlockEntity", "take_requested_energy", BE_take_requested_energy);
+static union grug_value BE_set_energy_request(ARGS) {
+    UNUSED;
+    char text[40];
+    struct be* b = receiver_of(a[0]._id, "BlockEntity.set_energy_request");
+    if (!b) return none();
+    double amount = a[1]._number;
+    if (!is_whole(amount) || amount < 0 || amount > 2147483647.0) {
+        double_text(amount, text, sizeof text);
+        return fail("BlockEntity.set_energy_request: the amount of energy has to be a whole number from 0 to 2147483647, and was %s", text);
+    }
+    b->energy_request = amount;
+    return none();
+}
+REGISTER("BlockEntity", "set_energy_request", BE_set_energy_request);
+static union grug_value BE_get_energy_request(ARGS) {
+    UNUSED;
+    struct be* b = receiver_of(a[0]._id, "BlockEntity.get_energy_request");
+    return b ? num(b->energy_request) : none();
+}
+REGISTER("BlockEntity", "get_energy_request", BE_get_energy_request);
 
 // Inventory slots. A write to a slot that does not exist is an error naming "slot" (set_item_out_of_range-Test);
 // a read of one answers empty (inventory_ops-Test).

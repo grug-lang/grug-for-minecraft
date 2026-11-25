@@ -1618,6 +1618,99 @@ public class HostFunctions {
         return GrugPower.extract(blockEntity, max);
     }
 
+    public static void BlockEntity_receive_energy_on(
+            long blockEntityId, double side, double amount) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkInbox(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkSide("The side", side);
+        }
+        if (problem == null) {
+            problem = GrugPower.checkCarriedEnergy("The amount", amount);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "receive_energy_on: " + problem);
+            return;
+        }
+        GrugPower.receiveOn(blockEntity, (int) side, amount, energyInboxTime(blockEntity));
+    }
+
+    public static double BlockEntity_take_received_energy(long blockEntityId, double side) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkInbox(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkSide("The side", side);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "take_received_energy: " + problem);
+            return 0;
+        }
+        return GrugPower.takeReceived(blockEntity, (int) side, energyInboxTime(blockEntity));
+    }
+
+    public static void BlockEntity_request_energy_on(
+            long blockEntityId, double side, double amount) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkInbox(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkSide("The side", side);
+        }
+        if (problem == null) {
+            problem = GrugPower.checkEnergy("The amount", amount);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "request_energy_on: " + problem);
+            return;
+        }
+        GrugPower.requestOn(blockEntity, (int) side, amount, energyInboxTime(blockEntity));
+    }
+
+    public static double BlockEntity_take_requested_energy(long blockEntityId, double side) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkInbox(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkSide("The side", side);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "take_requested_energy: " + problem);
+            return 0;
+        }
+        return GrugPower.takeRequested(blockEntity, (int) side, energyInboxTime(blockEntity));
+    }
+
+    public static void BlockEntity_set_energy_request(long blockEntityId, double amount) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkIsReceiver(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkEnergy("The amount", amount);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "set_energy_request: " + problem);
+            return;
+        }
+        GrugPower.declareRequest(blockEntity, amount);
+    }
+
+    public static double BlockEntity_get_energy_request(long blockEntityId) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkIsReceiver(blockEntity);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "get_energy_request: " + problem);
+            return 0;
+        }
+        return GrugPower.request(blockEntity);
+    }
+
+    /**
+     * The world time a delivery into a block entity's inbox is stamped with, which is its own
+     * level's clock: a delivery crossed no world boundary, and the reference stamps it with the
+     * same clock it reads when it rotates its transport's arrays.
+     */
+    private static long energyInboxTime(Object blockEntity) {
+        Object level = GrugCore.getAdapter().getBlockEntityLevel(blockEntity);
+        return GrugCore.getAdapter().getWorldTime(level);
+    }
+
     public static void BlockEntity_redraw(long blockEntityId) {
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!GrugSavedNumbers.isHolder(blockEntity)) {

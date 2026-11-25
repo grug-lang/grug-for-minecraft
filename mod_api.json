@@ -552,6 +552,13 @@
 						]
 					}
 				},
+				"get_energy_request": {
+					"description": "The energy this receiver asks a transport to bring it, which is the reference's IPowerReceptor.powerRequest: a stone or golden conductive pipe polls each of its neighbours that is not a pipe and brings it this much when it is above 0, splitting what it holds between the sides that asked. A receiver that is not working asks for nothing, so its own tick declares 0 with set_energy_request. The number is not saved, so it reads 0 until the receiver's tick declares it again after a chunk load. Reported when the block entity is not an energy receiver.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": []
+				},
 				"get_energy_stored": {
 					"description": "The energy a receiver holds right now. Reported when the block entity is not a receiver.",
 					"return_type": {
@@ -790,6 +797,23 @@
 						}
 					]
 				},
+				"receive_energy_on": {
+					"description": "Hands energy into a block entity's inbox on the side of this block entity that the sender is on, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east, stamped with the world time it arrived at, for the receiver to take with take_received_energy. A conductive pipe hands each side of its neighbours what it distributes this way, and energy that arrives in the same world time as the receiver's own tick is not taken by that tick: the reference's PipeTransportPower.step moves only what it was handed from its next arrays into the ones it distributes on when the world time moves on, which is what stops the answer depending on whether the game ticked the sender or the receiver first. The amount is not rounded, because a transport splits what it carries between its sides and hands each side a fraction, and it has to be a finite number from 0 up. Reported when the block entity is not a grug block entity, since only a grug block entity has an inbox, and when the side is not a whole number from 0 to 5.",
+					"parameters": [
+						{
+							"name": "side",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"redraw": {
 					"description": "Has the game build a block's geometry again, so a render function that draws from state the world does not know changed, such as a saved number, draws the new state. The game already rebuilds a block's geometry when a neighbouring block changes, so this is only for state the block entity keeps itself. A rebuild costs a chunk's worth of work, so call it when what render draws changes, not every tick. On a version whose client keeps its own copy of the block entity, this also sends that copy the block entity's saved numbers, since they are what the client's render function reads. Only a grug block entity has a render function; any other block entity is reported."
 				},
@@ -804,6 +828,34 @@
 						},
 						{
 							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"request_energy_on": {
+					"description": "Hands a request for energy into a block entity's inbox on the side of this block entity that the sender is on, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east, stamped with the world time it arrived at, for the receiver to take with take_requested_energy. A conductive pipe forwards the requests its other sides carry to its pipe neighbours this way, so that each pipe asks its own neighbours for no more than it needs. A request that arrives in the same world time as the receiver's own tick is not taken by that tick, for the reason receive_energy_on gives. The amount is a count of energy, so it has to be a whole number from 0 to 2147483647. Reported when the block entity is not a grug block entity, and when the side is not a whole number from 0 to 5.",
+					"parameters": [
+						{
+							"name": "side",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_energy_request": {
+					"description": "Declares how much energy this receiver asks a transport to bring it, which is what get_energy_request reads and what a conductive pipe polls, replacing an earlier declaration. A machine declares its own maximum received while it works and 0 while it does not, as TileMachine.powerRequest answers isActive() ? maxEnergyReceived : 0. The number is not saved, because the receiver's tick declares it again. Reported when the block entity is not an energy receiver, and when the amount is not a whole number from 0 to 2147483647.",
+					"parameters": [
+						{
+							"name": "amount",
 							"type": {
 								"name": "number"
 							}
@@ -964,6 +1016,34 @@
 						},
 						{
 							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"take_received_energy": {
+					"description": "Takes everything handed into the inbox on the side of this block entity that the sender is on, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east before the current world time, adds it up, empties those entries and returns the sum. Energy handed in during the current world time stays for a later take, so a block entity that ticks before the neighbour that hands it energy still takes that energy on its next tick. The energy is returned rather than added to a store: a receiver decides itself whether to keep it, a conductive pipe splitting what it took between its other sides and a machine adding it with receive_energy. Returns 0 when nothing was handed in. Reported when the block entity is not a grug block entity, and when the side is not a whole number from 0 to 5.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "side",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"take_requested_energy": {
+					"description": "Takes the requests for energy handed into the inbox on the side of this block entity that the sender is on, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east before the current world time, adds them up, empties those entries and returns the sum, which is the reference's powerQuery for that side. Requests handed in during the current world time stay for a later take, for the reason take_received_energy gives. Returns 0 when nothing was handed in. Reported when the block entity is not a grug block entity, and when the side is not a whole number from 0 to 5.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "side",
 							"type": {
 								"name": "number"
 							}

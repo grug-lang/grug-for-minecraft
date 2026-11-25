@@ -1,0 +1,29 @@
+# A request for energy travels an inbox of its own, so a delivery on a side is not read as a request
+# on that side, and requests add up per side the way deliveries do.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+    original: number = level.get_time()
+
+    level.place_block(x, y, z, "grug:coverage_power_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    level.set_time(original + 100)
+    be.request_energy_on(0, 4)
+    be.request_energy_on(0, 6)
+    be.request_energy_on(1, 2)
+    be.receive_energy_on(0, 3)
+    ctx.assert(be.take_requested_energy(0) == 0, "A request handed in this world time stays for a later take.")
+    ctx.assert(be.take_received_energy(0) == 0, "So does the energy handed in beside it.")
+
+    level.set_time(original + 101)
+    ctx.assert(be.take_received_energy(0) == 3, "The energy on side 0 is taken on its own.")
+    ctx.assert(be.take_requested_energy(0) == 10, "Both requests on side 0 add up, and the energy is not among them.")
+    ctx.assert(be.take_requested_energy(1) == 2, "Side 1 keeps its own request.")
+    ctx.assert(be.take_requested_energy(2) == 0, "A side nothing asked on asks for nothing.")
+    ctx.assert(be.take_requested_energy(0) == 0, "A take empties the requests it read.")
+    level.set_time(original)
+}
