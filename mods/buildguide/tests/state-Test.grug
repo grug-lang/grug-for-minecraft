@@ -355,6 +355,18 @@ local _assert_bad_number(ctx: TestTickContext) {
     out_loaded: string = _state_load(out_of_range, 1, 2, 3)
     ctx.assert(_split_count(out_loaded, _newline()) == 4, "An out of range iShapeNew should drop the set it cannot construct.")
     ctx.assert(_state_field(out_loaded, "iShapeNew", "?") == "99", "A stopped load should keep iShapeNew as it read it.")
+    # A file cut off in the middle of its last line is the truncated one about.json's #1816 deviation
+    # is about: the entries before the cut load, the cut value is not read, and no clamp runs, where
+    # the reference lets the parse failure escape getState().
+    truncated: string = String.concat(_line("enabled=true"), String.concat(_line("depthTest=false"), String.concat(_line("iShapeSet=7"), "shapeSet=index=3;shapeCubeSize=")))
+    truncated_loaded: string = _state_load(truncated, 1, 2, 3)
+    ctx.assert(_state_field(truncated_loaded, "enabled", "?") == "true", "A truncated file should load the entries before the cut.")
+    ctx.assert(_state_field(truncated_loaded, "depthTest", "?") == "false", "Every entry before the cut should load.")
+    ctx.assert(_state_field(truncated_loaded, "iShapeSet", "?") == "7", "A truncated load should not clamp iShapeSet.")
+    trunc_line: string = _line_at(truncated_loaded, 2)
+    trunc_set: string = String.substring(trunc_line, 9, String.length(trunc_line))
+    ctx.assert(_set_int(trunc_set, "index", -1) == 3, "The cut set should keep the index it read, unclamped.")
+    ctx.assert(_set_field_value(trunc_set, "shapeCubeSize") == "0.6", "The cut value should keep its default.")
 }
 
 # The config file the reference writes when it has none: a translated comment, then key = value.
@@ -537,7 +549,9 @@ local _state_init(state: string, x: number, y: number, z: number) string {
 
 # State.loadPersistence: one line per entry, the five known keys, and a hard stop where a number the
 # reference parses with Integer, Float or Double is not one. The clamps after the loop run only when
-# the whole file was read, as they do in the reference.
+# the whole file was read, as they do in the reference. The reference lets the NumberFormatException
+# escape getState(), while this keeps the partial state and returns, which is about.json's #1816
+# deviation.
 local _state_load(text: string, x: number, y: number, z: number) string {
     load_failed = false
     enabled: string = "false"
@@ -753,7 +767,9 @@ local _config_default_values() string {
     return "true,false,false"
 }
 
-# Config.write: a "# " comment line, then "key = value", for each of the three in order.
+# Config.write: a "# " comment line, then "key = value", for each of the three in order. The comment
+# is the en_us sentence, where the reference writes the client's language through Translatable, which
+# is about.json's #1817 deviation.
 local _config_text(values: string) string {
     async: string = _piece(values, ",", 0)
     random: string = _piece(values, ",", 1)
