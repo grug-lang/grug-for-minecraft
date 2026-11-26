@@ -479,7 +479,7 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
   proves what the language and API accept, but it is not a caller: a new entry, or a change to one,
   comes with the grug mod code and test that use it (a new ported `mods/mekanism/` machine,
   say), and the coverage test is the second proof rather than the reason.
-- A class or script type that exists only to carry one mod's own logic is never added: the file at
+- A host class or grug entity type that exists only to carry one mod's own logic is never added: the file at
   the scope that would create it carries that logic itself, and only its state goes into host
   storage. An economy is a mod's server-scoped file holding its rows, not an `Economy` grug entity
   that a server entity spawns. An entry exists when the host must own or version a concept for every
