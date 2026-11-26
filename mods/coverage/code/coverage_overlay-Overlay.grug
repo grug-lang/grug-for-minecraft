@@ -41,6 +41,14 @@ origin_z: number = 0
 # and each press after it flips. See #1255.
 binding_on: bool = false
 
+# Whether the world pass checks the answers about the local player's feet, which overlay_player-Test
+# turns on with world key N (78). The camera sits at the player's eyes, a little above the feet and in
+# the same column, so a line across the feet is drawn only while the three answers describe a player
+# the test moved to a quarter and three quarters into two blocks: a rounded value, a swapped axis, a
+# fraction from the wrong block or a y taken from the camera all leave the line undrawn. See
+# OverlayWorldContext.player_x.
+feet_on: bool = false
+
 # The serial of the last screen the overlay drew on, and whether the key Ctrl+Z has not yet been answered
 # on it, which lets a test tell a new screen from the same one (OverlayRenderContext.screen_serial,
 # #865).
@@ -309,6 +317,26 @@ export render_world(ctx: OverlayWorldContext) {
         z: number = ctx.camera_z() + 4
         ctx.draw_line(x - 1, y - 1, z, x + 1, y + 1, z, mark)
     }
+    # A line across the local player's feet while overlay_player-Test has them armed. The three
+    # answers are called even when the check fails, which is what the coverage gate counts. The test
+    # stands the player three quarters into one block on x and a quarter into one on z, below the
+    # camera's eyes in the same column, so the line is drawn only while each answer is that exact
+    # fraction: a rounded answer is at a block edge, a y copied from the camera sits at the eyes, and
+    # an x or z taken from the other axis carries the other axis's fraction (OverlayWorldContext.
+    # player_x).
+    if feet_on {
+        feet_x: number = ctx.player_x()
+        feet_y: number = ctx.player_y()
+        feet_z: number = ctx.player_z()
+        camera_x: number = ctx.camera_x()
+        camera_y: number = ctx.camera_y()
+        camera_z: number = ctx.camera_z()
+        frac_x: number = feet_x - Math.floor(feet_x)
+        frac_z: number = feet_z - Math.floor(feet_z)
+        if Math.abs(frac_x - 0.75) < 0.01 and Math.abs(frac_z - 0.25) < 0.01 and feet_y < camera_y - 1 and feet_y > camera_y - 2 and Math.abs(feet_x - camera_x) < 0.05 and Math.abs(feet_z - camera_z) < 0.05 {
+            ctx.draw_line(feet_x - 0.25, feet_y + 0.05, feet_z, feet_x + 0.25, feet_y + 0.05, feet_z, Color.rgb(0, 255, 0))
+        }
+    }
 }
 
 # The world key J (74) flips the cross, and Control and J only ever turns it off, so a test can tell
@@ -334,6 +362,12 @@ export world_key(ctx: OverlayWorldKeyContext) {
     if ctx.key() == 87 {
         inventory_calls_on = true
         inventory_writes = 0
+        return
+    }
+    # N arms the feet check overlay_player-Test reads, and a second press disarms it so no later
+    # test's frame draws the line.
+    if ctx.key() == 78 {
+        feet_on = not feet_on
         return
     }
     if ctx.key() == 74 {

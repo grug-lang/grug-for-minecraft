@@ -1,0 +1,152 @@
+# Covers the world overlay's player position answers, OverlayWorldContext.player_x, player_y and
+# player_z. The test stands the player three quarters into one block on x and a quarter into another
+# on z, which is a position whose floor differs from it on both axes, then presses world key N: the
+# coverage overlay's render_world draws a line across the feet only while all three answers name that
+# exact fraction, below the camera's eyes in the same column. A rounded answer sits on a block edge,
+# a y taken from the camera sits at the eyes, and an axis taken from the other one carries its
+# fraction, so each of those leaves the frame undrawn and the wait fails. The second press disarms
+# the check, because an overlay is one entity for the whole run. A loader with no world overlay hooks
+# returns before the move.
+started: bool = false
+settled_ticks: number = 0
+waited: number = 0
+laid: bool = false
+moved: bool = false
+arrived: bool = false
+chased: number = 0
+step: number = 0
+drawn_waited: number = 0
+cleared_at: number = 0
+target_x: number = 0
+target_y: number = 0
+target_z: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(600)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.world_overlay_supported() {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    waited = waited + 1
+    ctx.assert(waited < 500, "The player position test should finish.")
+
+    if not ctx.world_settled() {
+        settled_ticks = 0
+        ctx.not_done()
+        return
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+        return
+    }
+
+    if not laid {
+        # The origin is the camera plus three on y alone, and the feet are 1.62 blocks under the eye,
+        # so this keeps the feet's height and moves a fraction into two neighbouring blocks. The pad
+        # holds the player at that height while the client ticks, as set_player_position-Test's stone
+        # does.
+        origin: Vec3 = ctx.get_origin()
+        target_x = Math.floor(origin.x()) + 1.75
+        target_y = origin.y() - 4.62
+        target_z = Math.floor(origin.z()) + 0.25
+        _pad(ctx.get_client_level(), target_x, target_z, target_y)
+        laid = true
+        ctx.not_done()
+        return
+    }
+
+    if not moved {
+        # The client's own copy has to hold the pad before the player is moved onto it, or a client
+        # tick applies gravity and the feet leave the height the test named.
+        level: Level = ctx.get_client_level()
+        if level.is_air(Math.floor(target_x), Math.floor(target_y) - 1, Math.floor(target_z)) {
+            ctx.not_done()
+            return
+        }
+        moved = true
+        ctx.set_player_position(target_x, target_y, target_z)
+        ctx.not_done()
+        return
+    }
+
+    if not arrived {
+        feet: Vec3 = ctx.get_player().position()
+        if not (_near(feet.x(), target_x) and _near(feet.z(), target_z)) {
+            chased = chased + 1
+            ctx.assert(chased < 200, "The player should stand where the test moved them.")
+            ctx.set_player_position(target_x, target_y, target_z)
+            ctx.not_done()
+            return
+        }
+        ctx.assert(feet.x() != Math.floor(feet.x()), "The harness should stand the player a fraction into a block.")
+        ctx.assert(feet.z() != Math.floor(feet.z()), "The harness should stand the player a fraction into a block.")
+        arrived = true
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        step = 1
+        # N is not any other overlay's key, so the only mark the next frame can set is this one.
+        ctx.press_world_key(78, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # A press clears the drawn mark, and the client draws fewer frames than it runs ticks at the
+        # game's maximum speed, so the frame is waited for rather than read on the next tick.
+        if not ctx.world_overlay_drawn() {
+            drawn_waited = drawn_waited + 1
+            ctx.assert(drawn_waited < 300, "The player position answers should draw the feet line.")
+            ctx.not_done()
+            return
+        }
+        step = 2
+        ctx.press_world_key(78, false)
+        cleared_at = ctx.current_tick()
+        ctx.not_done()
+        return
+    }
+
+    if ctx.current_tick() - cleared_at < 12 {
+        # Asking also asks the client for a frame, which a test that never captures does not get
+        # otherwise.
+        ctx.world_overlay_drawn()
+        ctx.not_done()
+        return
+    }
+    ctx.assert(not ctx.world_overlay_drawn(), "The second press should stop the feet line.")
+}
+
+# Three by three blocks whose top is the feet level, under a position the test moves the player to,
+# so the player stands on their own level there instead of falling to the room's torch floor.
+local _pad(level: Level, x: number, z: number, feet_y: number) {
+    px: number = Math.floor(x)
+    pz: number = Math.floor(z)
+    py: number = Math.floor(feet_y) - 1
+    dx: number = -1
+    while dx <= 1 {
+        dz: number = -1
+        while dz <= 1 {
+            level.place_block(px + dx, py, pz + dz, "minecraft:stone")
+            dz = dz + 1
+        }
+        dx = dx + 1
+    }
+}
+
+# A block in 1024, the tolerance set_player_position-Test uses: the older loaders carry the position
+# as a float, so a coordinate near 70 expands when it is read back as a double.
+local _near(a: number, b: number) bool {
+    return a > b - 0.0009765625 and a < b + 0.0009765625
+}

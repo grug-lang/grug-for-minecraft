@@ -4368,6 +4368,21 @@ public class HostFunctions {
         return GrugWorldOverlay.cameraZ();
     }
 
+    public static double OverlayWorldContext_player_x(long contextId) {
+        if (!requireWorldContext("OverlayWorldContext.player_x", contextId)) return 0.0;
+        return GrugWorldOverlay.playerX();
+    }
+
+    public static double OverlayWorldContext_player_y(long contextId) {
+        if (!requireWorldContext("OverlayWorldContext.player_y", contextId)) return 0.0;
+        return GrugWorldOverlay.playerY();
+    }
+
+    public static double OverlayWorldContext_player_z(long contextId) {
+        if (!requireWorldContext("OverlayWorldContext.player_z", contextId)) return 0.0;
+        return GrugWorldOverlay.playerZ();
+    }
+
     /** The running pass's mod, which owns the configuration a context hands out. */
     private static long addConfig(String method, String callerMod) {
         if (callerMod == null) {
