@@ -633,17 +633,24 @@ use.
   the map's counts and decisions and names the file, so the table itself has one home.
 - **The porting subagent**, spawned only once the map file exists, ports an entire mod from this
   brief, filled in: `(Port <mod> <version> completely: read AGENTS.md and the map at <path>, and
-  work in <worktree> on branch <branch> from origin/main; port only the map's live rows. Work in two
-  phases. Phase one is the grug code and the graphics, but no capture test, with the mod_api.json
+  work in <worktree> on branch <branch> from origin/main; port only the map's live rows. Work in
+  two phases. Phase one is the grug code and the graphics, but no capture test, with the mod_api.json
   entry and the smoketest.c implementation each new host function needs and its logic tests,
-  iterated at -O0, until every test of the mod prints PASS or FAIL and none is STUBBED; pushing the
-  branch costs no CI, so push it for backup, but open no pull request yet. Phase two is the Java
-  side, HostFunctions, each loader's adapter and the mods/coverage/ tests, with each loader built
-  locally; then one pull request whose body carries the inventory, and one CI run.)`
+  iterated at -O0, until the mod compiles and every test it has prints PASS or FAIL and none is
+  STUBBED; a mod with nothing a logic test can observe (a client-only overlay with no world effect,
+  say) is still proved by the smoketest compiling it and answering each entry it calls, and a
+  scratch driver for that stays outside the tree. No Java, no loader and no mods/coverage/ test in
+  phase one; pushing the branch costs no CI, so push it for backup, but open no pull request yet.
+  Phase two starts with the Java host functions and the loader the reference itself ships (the
+  map's runtime loader), built locally with run-loader.sh until that build is green, because it is
+  the first point the port meets the host a player uses; then the mods/coverage/ tests, then one
+  pull request whose body carries the inventory, and one CI run.)`
   The two phases are what keep a whole-mod port off GitHub's CI until the end: only a pull request
   or a push to `main` starts a workflow, so a branch push is free, and nothing in phase one needs
   Java, because `mod_api.json` is what grug compiles against and the smoketest implements the entry
-  in C, and a `STUBBED` line is a test the host skipped rather than one that passed.
+  in C, and a `STUBBED` line is a test the host skipped rather than one that passed. A host gap the
+  port meets is a `mod_api.json` addition with the code and test that call it, not a reason to drop
+  a feature or to work around it in grug.
 - The one exception is precision: a reference's Java `float` becomes a grug `number`, a 64-bit
   double. Do not emulate float32 rounding, and derive tick counts from float64 arithmetic. A mod's
   configs are the defaults the reference ships with.
