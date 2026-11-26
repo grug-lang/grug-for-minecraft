@@ -300,6 +300,9 @@ Option.new() Option[$Value]
 .get_level() Level
 .get_spawn_squares(radius: number) SpawnSquares
 .partial_tick() number
+.player_x() number
+.player_y() number
+.player_z() number
 
 ## OverlayWorldKeyContext
 .ctrl() bool

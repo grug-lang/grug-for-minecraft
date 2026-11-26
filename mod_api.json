@@ -3465,6 +3465,24 @@
 					"return_type": {
 						"name": "number"
 					}
+				},
+				"player_x": {
+					"description": "The x of the local player's feet this frame, in blocks, not interpolated between ticks: where the player stands, which is what a mod places something against when it must not follow the camera's smoothing. It is not the camera's position, which is the player's eyes and is interpolated by camera_x. In a world frame it is the client's own player.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"player_y": {
+					"description": "The y of the local player's feet this frame, in blocks, not interpolated, as player_x is.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"player_z": {
+					"description": "The z of the local player's feet this frame, in blocks, not interpolated, as player_x is.",
+					"return_type": {
+						"name": "number"
+					}
 				}
 			}
 		},

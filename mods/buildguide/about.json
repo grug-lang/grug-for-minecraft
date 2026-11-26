@@ -11,6 +11,23 @@
 	"loaders": [
 		"1.20.6-forge"
 	],
+	"keys": [
+		{
+			"id": "toggle_enable",
+			"name": "Toggle Build Guide",
+			"default_key": "G"
+		},
+		{
+			"id": "set_origin",
+			"name": "Set Shape Origin",
+			"default_key": "O"
+		},
+		{
+			"id": "set_global_origin",
+			"name": "Set All Shape Origins",
+			"default_key": "P"
+		}
+	],
 	"licenses": [
 		{
 			"name": "Creative Commons Attribution-NonCommercial 3.0 Unported",
@@ -62,14 +79,9 @@
 			},
 			"deviations": [
 				{
-					"what": "The fifteen shape generators and their properties are ported and tested as pure logic; nothing is drawn yet, and the library sits in tests/shapes-Test.grug because a grug local function is visible only inside its own file, so code/ could not reach a test.",
-					"why": "Stage 1 lands the shapes with the host functions they need, so the rendering API can be designed against a real mod in stage 3, which moves the library into the overlay.",
-					"tracking_issue": 1752
-				},
-				{
-					"what": "The per-world state and the config are a library in tests/state-Test.grug with no runtime caller yet: nothing loads a state on first access or saves it when a screen closes until the overlay exists.",
-					"why": "A grug local function is visible only inside its own file and the host cannot call it, so stage 2 proves both files byte for byte as tests, and stage 3 moves the library into the overlay that reads and writes them.",
-					"tracking_issue": 1752
+					"what": "The five screens and their widget kinds are not implemented, so neither is the B key that opens the main screen, and the state is never saved: the reference writes the state file when a screen closes.",
+					"why": "A mod cannot open a screen or draw a widget of its own yet, which is what #1760 gives it. The overlay draws the world and reads the three key binds, and the state and config codecs are in place for the screens to use once they exist, so the world draw is complete while the editing surface is not.",
+					"tracking_issue": 1760
 				},
 				{
 					"what": "The state and config files live under the root File.open(r\"files\") answers, at buildguide/<world>@<dimension>.dat and config/buildguide.cfg, where the reference writes <gameDir>/buildguide/<world>@<dimension>.dat and <gameDir>/config/buildguide.cfg. The host also refuses a name that differs only in case from an entry that is already there, so two worlds whose names differ only in case share one guide here, where the reference on a case-sensitive filesystem kept two.",
@@ -78,7 +90,7 @@
 				},
 				{
 					"what": "A state file whose number does not parse stops the load where it is and keeps what it already applied, where the reference lets the NumberFormatException escape getState() and the client fails the tick. Nothing clamps after a stopped load, so a truncated file can hold an iShapeSet past its shape sets.",
-					"why": "grug has no exception to raise, and turning a stopped load into a fresh state belongs to the overlay stage 3 adds. The partial load is exactly what the reference applies before it throws, pinned by _assert_bad_number in tests/state-Test.grug.",
+					"why": "grug has no exception to raise, and turning a stopped load into a fresh state is the overlay's to decide. The partial load is exactly what the reference applies before it throws.",
 					"tracking_issue": 1816
 				},
 				{
@@ -87,13 +99,28 @@
 					"tracking_issue": 1817
 				},
 				{
-					"what": "The five screens, their widgets and the four key binds are not implemented.",
-					"why": "A mod cannot open a screen or draw a filled rectangle yet, and designing that API against more than this port is stage 3 of #1752.",
+					"what": "A catenary whose Newton solve does not converge draws no cells: the reference either reports an invalid value or never leaves its loop, and the port answers no cells at once in both cases.",
+					"why": "grug cannot raise an error to the player yet. A solve whose values leave the finite range makes the reference throw, and a solve whose Newton step changes nothing (dx 1419, dz 0, an added length of 1) repeats that step until the shape is cancelled. The port ends the solve when a step is non-finite or changes nothing, which bounds both arms, and its cell loops keep the reference's own bounds rather than a cap of this port's own.",
 					"tracking_issue": 1752
 				},
 				{
-					"what": "A catenary whose Newton solve does not converge draws no cells: the reference either reports an invalid value or never leaves its loop, and the port answers no cells at once in both cases.",
-					"why": "grug cannot raise an error to the player yet. A solve whose values leave the finite range makes the reference throw, and a solve whose Newton step changes nothing (dx 1419, dz 0, an added length of 1) repeats that step until the shape is cancelled. The port ends the solve when a step is non-finite or changes nothing, which bounds both arms, and its cell loops keep the reference's own bounds rather than a cap of this port's own.",
+					"what": "The state's depthTest flag is read from the file and written back, but every cube is drawn depth-tested against the world: the reference turns the depth test off for the whole guide when the flag is false, so a guide behind a hill becomes visible.",
+					"why": "The world overlay's draw_triangle has one depth mode, the one that hides geometry behind blocks, and a per-draw or per-overlay depth-test switch is not part of it yet.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "A shape is generated in render_world on the frame that draws it, where the reference generates it on a cached thread pool and keeps drawing the old buffer until the new one is ready. A large shape therefore stalls its frame here and appears complete at once, instead of appearing a few frames late.",
+					"why": "grug has no thread to hand generation to, so a shape's update cannot run beside the frame. The asyncEnabled config option is read and written byte for byte but changes nothing yet.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "The reference binds toggleEnable, setOrigin and setGlobalOrigin to GLFW_KEY_UNKNOWN, so they are unbound until the player sets them in Controls, and binds openBuildGuide to B. The port declares G, O and P as the defaults of toggle_enable, set_origin and set_global_origin, and has no binding for B.",
+					"why": "A key has to have a one-character default in about.json, since the game's Controls screen cannot show an unbound mod binding, and the three ids are named after what they do rather than after the reference's key names.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "The port keeps one state in memory and reloads that world@dimension's file when the key changes, where the reference keeps a state per key for the whole session, so revisiting a world there keeps the edits made in it.",
+					"why": "Since this port never saves a state yet, the edits made in one world are lost when the overlay moves to another; a per-key store arrives with the save that makes them worth keeping.",
 					"tracking_issue": 1752
 				}
 			]

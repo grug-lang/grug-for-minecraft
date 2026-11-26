@@ -3448,6 +3448,12 @@ static union grug_value OverlayWorldContext_camera_y(ARGS) { UNUSED; return pass
 REGISTER("OverlayWorldContext", "camera_y", OverlayWorldContext_camera_y);
 static union grug_value OverlayWorldContext_camera_z(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.camera_z", "render_world") ? num(camera_z) : none(); }
 REGISTER("OverlayWorldContext", "camera_z", OverlayWorldContext_camera_z);
+static union grug_value OverlayWorldContext_player_x(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.player_x", "render_world") ? num(player_x) : none(); }
+REGISTER("OverlayWorldContext", "player_x", OverlayWorldContext_player_x);
+static union grug_value OverlayWorldContext_player_y(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.player_y", "render_world") ? num(player_y) : none(); }
+REGISTER("OverlayWorldContext", "player_y", OverlayWorldContext_player_y);
+static union grug_value OverlayWorldContext_player_z(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.player_z", "render_world") ? num(player_z) : none(); }
+REGISTER("OverlayWorldContext", "player_z", OverlayWorldContext_player_z);
 static union grug_value OverlayWorldContext_partial_tick(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.partial_tick", "render_world") ? num(0) : none(); }
 REGISTER("OverlayWorldContext", "partial_tick", OverlayWorldContext_partial_tick);
 // The one client level the toy world has.
