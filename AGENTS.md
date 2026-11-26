@@ -471,14 +471,20 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
   Removals, replacements, test-only helpers and tooling fixes need no more than that.
 - The goal is to port every Java mod to grug for every Minecraft version ever released, starting
   from Alpha 1.1.2_01, and for every mod loader ever released, so design an entry for the ports
-  known to need it, not only the one at hand; one that no committed mod calls yet goes in an issue
-  instead. Porting is therefore most of the work and most pull requests will change only `mods/`, so
+  known to need it, not only the one at hand; one that no committed mod's code calls yet goes in an
+  issue instead. Porting is therefore most of the work and most pull requests will change only `mods/`, so
   a saving counts for each pull request it will affect and is not discounted by how few have that
   shape today.
-- An API addition lands with the port feature that needs it, not with a test alone. `mods/coverage/`
-  proves what the language and API accept, but it is not a caller: a new entry, or a change to one,
-  comes with the grug mod code and test that use it (a new ported `mods/mekanism/` machine,
-  say), and the coverage test is the second proof rather than the reason.
+- An API addition lands with the port feature that needs it, not with a test alone. The caller is
+  code the mod runs in the game, under its `code/` directory: a test file is not a caller, even when
+  the game run executes it and even when it sits in the mod's own `tests/`, because otherwise any
+  mod could justify an entry by testing it. A port that has no runtime code yet lands no host
+  entries either; entries land with the stage that gives them a caller. A host entry that exists for
+  tests themselves, such as a `TestTickContext` method or a `Screenshot` call, is the exception and
+  lands with the test that needs it. `mods/coverage/` proves what the language and API accept, but
+  it is not a caller: a new entry, or a change to one, comes with the grug mod code and test that
+  use it (a new ported `mods/mekanism/` machine, say), and the coverage test is the second proof
+  rather than the reason.
 - A host class or grug entity type that exists only to carry one mod's own logic is never added:
   the file at the scope that would create it carries that logic itself, and only its state goes into
   host storage. An economy is rows in the mod-scoped store, with the code that reads them in the
