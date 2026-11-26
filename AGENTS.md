@@ -634,7 +634,7 @@ use.
 - **The porting subagent**, spawned only once the map file exists, ports an entire mod from this
   brief, filled in: `(Port <mod> <version> completely: read AGENTS.md and the map at <path>, and
   work in <worktree> on branch <branch> from origin/main; port only the map's live rows. Work in
-  three phases. Phase one is the grug code, the mod_api.json entry and the smoketest.c
+  four phases. Phase one is the grug code, the mod_api.json entry and the smoketest.c
   implementation each new host function needs, and every logic test the mod can have, iterated at
   -O0 until the mod compiles and each test prints PASS or FAIL and none is STUBBED; a mod with
   nothing a logic test can observe (a client-only overlay with no world effect, say) has no logic
@@ -643,10 +643,14 @@ use.
   phase one; pushing the branch costs no CI, so push it for backup, but open no pull request yet.
   Phase two is the Java host functions and the loader the reference itself ships (the map's runtime
   loader), built locally with run-loader.sh until that build is green, because it is the first
-  point the port meets the host a player uses; then the mods/coverage/ tests. Phase three is the
-  capture tests and their goldens, which wait until the logic tests pass on every loader the mod
-  runs on, because a golden that pins a shape the behaviour already gets wrong is worse than none;
-  then one pull request whose body carries the inventory, and one CI run.)`
+  point the port meets the host a player uses; then the mods/coverage/ tests, and the mod's logic
+  tests passing there. Phase three is the same for every other loader the port supports: that
+  loader's adapter implements the entries the mod calls, the mod loads and its logic tests pass
+  there, and about.json's loaders set grows to cover them, with a reason recorded for any loader
+  left out. Phase four is the capture tests and their goldens, one per loader the mod runs on,
+  which wait until phase three's logic tests pass on all of them, because a golden that pins a
+  shape the behaviour already gets wrong is worse than none; then one pull request whose body
+  carries the inventory, and one CI run.)`
   The phases are what keep a whole-mod port off GitHub's CI until the end: only a pull request or a
   push to `main` starts a workflow, so a branch push is free, and nothing in phase one needs Java,
   because `mod_api.json` is what grug compiles against and the smoketest implements the entry in C,
