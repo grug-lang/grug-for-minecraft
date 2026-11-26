@@ -84,8 +84,8 @@
 					"tracking_issue": 1760
 				},
 				{
-					"what": "The state and config files live under the root File.open(r\"files\") answers, at buildguide/<world>@<dimension>.dat and config/buildguide.cfg, where the reference writes <gameDir>/buildguide/<world>@<dimension>.dat and <gameDir>/config/buildguide.cfg. The host also refuses a name that differs only in case from an entry that is already there, so two worlds whose names differ only in case share one guide here, where the reference on a case-sensitive filesystem kept two.",
-					"why": "A mod may write only inside the directory #1757 gives it, so a guide the reference already saved at the game directory's path is not imported and a guide this port saves is not read by the reference. The file formats themselves are the reference's, byte for byte.",
+					"what": "The state and config files live under the root File.open(r\"files\") answers, at buildguide/<world>@<dimension>.dat and config/buildguide.cfg, where the reference writes <gameDir>/buildguide/<world>@<dimension>.dat and <gameDir>/config/buildguide.cfg. The host also refuses a name that differs only in case from an entry that is already there, so two worlds whose names differ only in case share one guide here, where the reference on a case-sensitive filesystem kept two. The config file is written at the first world frame, where the reference writes it at client start from BuildGuide.registerClient, so a player who never enters a world has no config file here.",
+					"why": "A mod may write only inside the directory #1757 gives it, so a guide the reference already saved at the game directory's path is not imported and a guide this port saves is not read by the reference. The file formats themselves are the reference's, byte for byte. An overlay script has no client-start hook to run earlier, and the config only matters once a world is drawing.",
 					"tracking_issue": 1757
 				},
 				{
@@ -121,6 +121,11 @@
 				{
 					"what": "The port keeps one state in memory and reloads that world@dimension's file when the key changes, where the reference keeps a state per key for the whole session, so revisiting a world there keeps the edits made in it.",
 					"why": "Since this port never saves a state yet, the edits made in one world are lost when the overlay moves to another; a per-key store arrives with the save that makes them worth keeping.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "A shapeCubeSize or originCubeSize of NaN in a state file is drawn as an almost full cube of 1.0 - 1e-3, where the reference leaves it NaN and the GPU then draws nothing for that set's cubes.",
+					"why": "ShapeSet.getShapeCubeSize answers Math.min(size, 1.0 - 1e-3), which stays NaN, and every vertex of a NaN cube is NaN. The world overlay refuses a non-finite coordinate with a host error, so drawing it exactly would report an error on every frame; a gap between the port and the reference only on a hand-edited file is the smaller cost until the overlay can carry a set that draws nothing.",
 					"tracking_issue": 1752
 				}
 			]

@@ -29,6 +29,12 @@ state: string = ""
 state_key: string = ""
 state_loaded: bool = false
 
+# State.initialised: whether initCheck has run for the state in `state`. It runs on the toggle key,
+# not on the load, so a fresh world has no set until the player first presses G, and that set starts
+# at the player's feet at that moment. A rebuilt state is a new State in the reference, so this is
+# cleared wherever `state` is replaced by a build from the world's key.
+state_initialised: bool = false
+
 # The three config values in file order, as "async,random,persistence". Read once per session from
 # the file the reference keeps, and never through the host Config entity, because that one writes
 # <gameDir>/config/grug/<mod>.yml and the reference's other mods and players read
@@ -63,7 +69,7 @@ export render_world(ctx: OverlayWorldContext) {
         _ensure_config(files)
         _ensure_state(files, level, name, dimension, key, ctx.player_x(), ctx.player_y(), ctx.player_z())
     }
-    _apply_pending(ctx.player_x(), ctx.player_y(), ctx.player_z())
+    _apply_pending(level, ctx.player_x(), ctx.player_y(), ctx.player_z())
     if not _state_enabled() {
         return
     }
@@ -1338,9 +1344,10 @@ local _value_enum(v: string, index: number, names: string) number {
     return 0
 }
 
-# A set's colour, as Shape.doUpdate hands it to the buffer: (int) (255 * component), which truncates.
-# A component outside 0..1 is clamped, which is what the reference's fixed-point GL upload does with
-# it; a loader would otherwise report a colour the file wrote as an err on every frame.
+# A set's colour, as Shape.doUpdate hands it to the buffer: (int) (255 * component), which truncates
+# and turns NaN into 0, and then the byte write of a COLOR/UBYTE vertex element, which keeps the low
+# eight bits. So a component outside 0..1 wraps modulo 256 as it does in the reference's own
+# BufferVertexConsumer, and a hand-edited file with 2.5 draws channel 125, not 255.
 
 local _colour(text: string) Color {
     return Color.rgba(_colour_channel(text, 0), _colour_channel(text, 1), _colour_channel(text, 2), _colour_channel(text, 3))
@@ -1348,18 +1355,17 @@ local _colour(text: string) Color {
 
 local _colour_channel(text: string, index: number) number {
     whole: number = _trunc(255 * _value_float(text, index))
-    if whole < 0 {
-        return 0
+    wrapped: number = Math.remainder(whole, 256)
+    if wrapped < 0 {
+        wrapped = wrapped + 256
     }
-    if whole > 255 {
-        return 255
-    }
-    return whole
+    return wrapped
 }
 
-# ShapeSet.getShapeCubeSize and getOriginCubeSize: Math.min(size, 1.0 - cubeSizeEpsilon). A NaN size
-# is not above the clamp, and drawing it would report the frame's triangles, so it takes the clamp
-# here where the reference's GL call would simply draw nothing.
+# A set's cube size, as ShapeSet.getShapeCubeSize and getOriginCubeSize answer it: the file's value,
+# with Math.min's cap. A file value of NaN stays NaN in the reference, and every vertex of that cube
+# is then NaN, so the GPU draws nothing; draw_triangle refuses a non-finite coordinate with a host
+# error on every frame, so the port draws the cap instead, which about.json records (#1752).
 
 local _cube_size(set: string, key: string, fallback: number) number {
     parsed: Option[number] = String.to_number(_set_field_value(set, key))
@@ -1414,16 +1420,18 @@ local _ensure_state(files: File, level: Level, name: string, dimension: string, 
     if state_loaded and state_key == key {
         return
     }
-    state = _state_open(files, level, name, dimension, _config_persistence(config_values), x, y, z)
+    state = _state_open(files, name, dimension, _config_persistence(config_values), x, y, z)
     state_key = key
     state_loaded = true
+    state_initialised = false
 }
 
-# The state for a world: loaded from its file on the first access when persistence is enabled, then
-# given a set if it has none. The player's position is where a set created here starts its origin,
-# which is what ShapeSet.resetOrigin does when pushNewShapeSet runs during a load.
+# The state for a world: loaded from its file on the first access when persistence is enabled. The
+# set a fresh state gets, and the origin a set without one gets, wait for initCheck, which the toggle
+# key runs, so nothing here takes the player's position except the load's own defaults for a set the
+# file left an origin out of.
 
-local _state_open(files: File, level: Level, name: string, dimension: string, persistence: bool, x: number, y: number, z: number) string {
+local _state_open(files: File, name: string, dimension: string, persistence: bool, x: number, y: number, z: number) string {
     loaded: string = _state_new()
     if persistence {
         text: Option[string] = files.read_text(_state_path(name, dimension))
@@ -1431,47 +1439,12 @@ local _state_open(files: File, level: Level, name: string, dimension: string, pe
             loaded = _state_load(text.unwrap(), x, y, z)
         }
     }
-    return _state_init(loaded, level, _config_random(config_values), x, y, z)
+    return loaded
 }
 
-# State.initCheck: one set when there is none, and an origin for a set that has none. Every set the
-# reference creates goes through pushNewShapeSet, which resets the origin, so the second rule is a
-# safety net there and here; it stays because initCheck has it. A new set gets random colours when
-# the config asks for them, drawn from the level's own random because grug has no unseeded generator
-# of its own to hand; every draw is uniform the same way the reference's `new Random()` draws are.
-
-local _state_init(text: string, level: Level, random: bool, x: number, y: number, z: number) string {
-    enabled: string = _state_field(text, "enabled", "false")
-    depth: string = _state_field(text, "depthTest", "true")
-    i_set: string = _state_field(text, "iShapeSet", "0")
-    i_new: string = _state_field(text, "iShapeNew", "1")
-    sets: string = ""
-    count: number = 0
-    lines: number = _split_count(text, _newline())
-    i: number = 0
-    while i < lines {
-        line: string = _line_at(text, i)
-        if _has_prefix(line, "shapeSet=") {
-            set: string = String.substring(line, 9, String.length(line))
-            if not _set_has_origin(set) {
-                set = _set_with_field(set, "origin", _origin_text(x, y, z))
-            }
-            sets = String.concat(sets, _line(String.concat("shapeSet=", set)))
-            count = count + 1
-        }
-        i = i + 1
-    }
-    if count == 0 {
-        index: number = _clamp(_int_or(i_new, 1), 0, _shape_count() - 1)
-        set: string = _set_new(index, x, y, z)
-        if random {
-            set = _set_with_field(set, "shapeColour", _random_colour(level, "0.5"))
-            set = _set_with_field(set, "originColour", _random_colour(level, "0.5"))
-        }
-        sets = _line(String.concat("shapeSet=", set))
-    }
-    return _state_text(enabled, depth, sets, i_set, i_new)
-}
+# The clamps after State.loadPersistence's loop live in _state_load, where the reference has them,
+# and run only when the whole file was read: a load that stopped keeps the values it applied, as
+# #1816 records.
 
 # State.loadPersistence: one line per entry, the five known keys, and a hard stop where a number is
 # not one. The clamps after the loop run only when the whole file was read, as they do in the
@@ -1529,22 +1502,6 @@ local _state_new() string {
     return _state_text("false", "true", "", "0", "1")
 }
 
-# A scalar line's value, or the fallback when the line is not there.
-
-local _state_field(text: string, key: string, fallback: string) string {
-    prefix: string = String.concat(key, "=")
-    lines: number = _split_count(text, _newline())
-    i: number = 0
-    while i < lines {
-        line: string = _line_at(text, i)
-        if _has_prefix(line, prefix) {
-            return String.substring(line, String.length(prefix), String.length(line))
-        }
-        i = i + 1
-    }
-    return fallback
-}
-
 # A whole number the file holds, or the value to keep and the hard stop, which is what a
 # NumberFormatException does here.
 
@@ -1600,11 +1557,33 @@ local _state_set_count() number {
 
 local _state_current_set() string {
     wanted: number = _clamp(_int_or(_state_field(state, "iShapeSet", ""), 0), 0, _state_set_count() - 1)
-    lines: number = _split_count(state, _newline())
+    return _state_set_at(state, wanted)
+}
+
+# A scalar line's value, or the fallback when the line is not there.
+
+local _state_field(text: string, key: string, fallback: string) string {
+    prefix: string = String.concat(key, "=")
+    lines: number = _split_count(text, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(text, i)
+        if _has_prefix(line, prefix) {
+            return String.substring(line, String.length(prefix), String.length(line))
+        }
+        i = i + 1
+    }
+    return fallback
+}
+
+# The shapeSet line a given sequence number holds, or an empty text when there are fewer sets.
+
+local _state_set_at(text: string, wanted: number) string {
+    lines: number = _split_count(text, _newline())
     found: number = 0
     i: number = 0
     while i < lines {
-        line: string = _line_at(state, i)
+        line: string = _line_at(text, i)
         if _has_prefix(line, "shapeSet=") {
             if found == wanted {
                 return String.substring(line, 9, String.length(line))
@@ -1781,19 +1760,6 @@ local _config_parse(text: string, current: string) string {
 
 local _config_persistence(values: string) bool {
     return _piece(values, ",", 2) == "true"
-}
-
-# The random-colour switch, which the second value holds.
-
-local _config_random(values: string) bool {
-    return _piece(values, ",", 1) == "true"
-}
-
-# A new set's colour from the level's random, three draws and the alpha the set already has, in the
-# text Float.toString gives a float, which is String.from_float.
-
-local _random_colour(level: Level, alpha: string) string {
-    return String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.from_float(level.random_float()), String.concat(",", alpha))))
 }
 
 # ---------------------------------------------------------------- a shape set
@@ -2463,18 +2429,21 @@ local _index_from(text: string, needle: string, from: number) number {
 # ---------------------------------------------------------------- the three keys
 
 # The presses a binding counted, applied where the reference's own input handler runs. A toggle
-# press flips enabled once, and initCheck's work is already done by _state_init, so an even count
-# leaves the flag as it was; a set-origin press puts the current set's origin on the player's feet;
-# a set-global-origin press moves every set by the player's movement since the current set's origin.
+# press runs initCheck and then flips enabled once, so an even count leaves the flag as it was; a
+# set-origin press puts the current set's origin on the player's feet; a set-global-origin press
+# moves every set by the player's movement since the current set's origin.
 # A press that repeats while its key is held is the reference's own `isDown` poll, which repeats
 # every client tick; a binding handler fires once per press, so a held key toggles once here. The
 # reference's three keys are unbound by default and this port's defaults are a deviation that
 # about.json records (#1752).
 
-local _apply_pending(x: number, y: number, z: number) {
+local _apply_pending(level: Level, x: number, y: number, z: number) {
     if pending_toggle > 0 {
         flips: number = pending_toggle
         pending_toggle = 0
+        # ShapeSet.updateAllShapes runs after pushNewShapeSet, but a set is generated inside the
+        # frame here, so the first draw already sees the new set's shapes.
+        _state_check(level, x, y, z)
         flip: bool = false
         while flips > 0 {
             flip = not flip
@@ -2505,6 +2474,80 @@ local _apply_pending(x: number, y: number, z: number) {
             state = _state_shift_origins(state, dx, dy, dz)
         }
     }
+}
+
+# State.initCheck: one set when there is none, and an origin for a set that has none. The reference
+# runs it once per State, from the toggle key and from a screen's constructor; the screen is stage 2,
+# so the toggle is the only caller here. A new set goes through pushNewShapeSet, which starts at
+# iShapeNew, takes its origin from the player and gets random colours when the config asks for them;
+# the colours come from the level's own random because grug has no unseeded generator to hand, and
+# every draw is uniform the same way the reference's `new Random()` draws are. The text form always
+# carries an origin, as the reference's loaded ShapeSet does, so the second rule is the same safety
+# net here that it is there.
+
+local _state_check(level: Level, x: number, y: number, z: number) {
+    if state_initialised {
+        return
+    }
+    if _state_set_count() == 0 {
+        _state_push_set(level, x, y, z)
+    }
+    count: number = _state_set_count()
+    i: number = 0
+    while i < count {
+        set: string = _state_set_at(state, i)
+        if not _set_has_origin(set) {
+            state = _state_with_set(state, i, _set_with_field(set, "origin", _origin_text(x, y, z)))
+        }
+        i = i + 1
+    }
+    state_initialised = true
+}
+
+# State.pushNewShapeSet: the shape iShapeNew names, the player's feet as its origin, and the random
+# colours the config asks for.
+
+local _state_push_set(level: Level, x: number, y: number, z: number) {
+    index: number = _clamp(_int_or(_state_field(state, "iShapeNew", "1"), 1), 0, _shape_count() - 1)
+    set: string = _set_new(index, x, y, z)
+    if _config_random(config_values) {
+        set = _set_with_field(set, "shapeColour", _random_colour(level, "0.5"))
+        set = _set_with_field(set, "originColour", _random_colour(level, "0.5"))
+    }
+    state = _state_append_set(state, set)
+}
+
+# The state text with one shapeSet line added after the set lines it has, which is where the
+# reference's list puts it.
+
+local _state_append_set(text: string, set: string) string {
+    out: string = ""
+    inserted: bool = false
+    lines: number = _split_count(text, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(text, i)
+        if not inserted and _has_prefix(line, "iShapeSet=") {
+            out = String.concat(out, _line(String.concat("shapeSet=", set)))
+            inserted = true
+        }
+        out = String.concat(out, _line(line))
+        i = i + 1
+    }
+    return out
+}
+
+# The random-colour switch, which the second value holds.
+
+local _config_random(values: string) bool {
+    return _piece(values, ",", 1) == "true"
+}
+
+# A new set's colour from the level's random, three draws and the alpha the set already has, in the
+# text Float.toString gives a float, which is String.from_float.
+
+local _random_colour(level: Level, alpha: string) string {
+    return String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.from_float(level.random_float()), String.concat(",", alpha))))
 }
 
 local _state_with_field(text: string, key: string, value: string) string {
