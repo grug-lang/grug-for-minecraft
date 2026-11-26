@@ -479,11 +479,13 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
   proves what the language and API accept, but it is not a caller: a new entry, or a change to one,
   comes with the grug mod code and test that use it (a new ported `mods/mekanism/` machine,
   say), and the coverage test is the second proof rather than the reason.
-- A host class or grug entity type that exists only to carry one mod's own logic is never added: the file at
-  the scope that would create it carries that logic itself, and only its state goes into host
-  storage. An economy is a mod's server-scoped file holding its rows, not an `Economy` grug entity
-  that a server entity spawns. An entry exists when the host must own or version a concept for every
-  mod, as `Config` does.
+- A host class or grug entity type that exists only to carry one mod's own logic is never added:
+  the file at the scope that would create it carries that logic itself, and only its state goes into
+  host storage. An economy is rows in the mod-scoped store, with the code that reads them in the
+  file that owns their scope, not an `Economy` grug entity that a server entity spawns. An entry
+  exists when the host must own or version a concept for every mod, as `Config` does; the root file
+  `code/main-Server.grug` and the store are the two such entries #1836 settles, and the mods
+  planned for porting, which are the ports to design an entry for, are listed in #1212.
 - Compare every new or changed `mod_api.json` entry with its Forge and Fabric equivalents, and say
   in the pull request how it compares. They are a reference, not a design to copy.
 - A host function added for a port is free of the reference's bugs: `mod_api.json` serves every mod.
