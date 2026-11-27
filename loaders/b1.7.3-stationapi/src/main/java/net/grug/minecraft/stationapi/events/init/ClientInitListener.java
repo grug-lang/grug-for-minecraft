@@ -1,5 +1,6 @@
 package net.grug.minecraft.stationapi.events.init;
 
+import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.grug.GrugMetadata;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.GrugClientHooks;
@@ -28,6 +29,8 @@ import net.modificationstation.stationapi.api.util.Identifier;
 
 import org.lwjgl.input.Keyboard;
 
+import java.io.File;
+
 public class ClientInitListener {
 
     public static KeyBinding runTestsKey;
@@ -36,17 +39,27 @@ public class ClientInitListener {
     @EventListener
     public void registerKeyBindings(KeyBindingRegisterEvent event) {
         GrugOverlayHost.init(InitListener.overlayFiles, InitListener.overlayMods);
+        // StationAPI posts this from the game options constructor, just before the options file is
+        // read, so a rebind saved under a label an older build registered is moved to the stable
+        // name before the game looks for it.
+        java.util.List<GrugMetadata.DeclaredKey> declaredKeys = GrugMetadata.declaredKeys();
+        GrugMetadata.migrateSavedKeys(
+                new File(FabricLoader.getInstance().getGameDir().toFile(), "options.txt"),
+                declaredKeys);
         runTestsKey = new KeyBinding("key.grug.run_tests", Keyboard.KEY_R);
         event.keyBindings.add(runTestsKey);
         forceResolutionKey = new KeyBinding("key.grug.force_test_resolution", Keyboard.KEY_M);
         event.keyBindings.add(forceResolutionKey);
-        for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
-            KeyBinding binding = new KeyBinding(declared.label(), declared.key().code());
+        for (GrugMetadata.DeclaredKey declared : declaredKeys) {
+            KeyBinding binding = new KeyBinding(declared.savedName(), declared.key().code());
             event.keyBindings.add(binding);
             GrugClientHooks.declaredBindings()
                     .add(
                             new GrugClientHooks.DeclaredBinding(
-                                    declared.mod(), declared.key().id(), binding));
+                                    declared.mod(),
+                                    declared.key().id(),
+                                    declared.label(),
+                                    binding));
         }
     }
 

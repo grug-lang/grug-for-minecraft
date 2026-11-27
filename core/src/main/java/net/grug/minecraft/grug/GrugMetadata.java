@@ -90,12 +90,25 @@ public final class GrugMetadata {
 
         /**
          * The name the Controls screen shows, which is the mod's own unless another declared
-         * binding already uses it. The loaders without a separate label identify a binding by this
-         * one string, so a repeated name would keep both bindings' saved keys in one entry (#1749's
-         * review).
+         * binding already uses it, the way a repeated name carried its mod and id before the stable
+         * saved name (#1749's review).
          */
         public String label() {
             return label;
+        }
+
+        /**
+         * The name the game saves this binding's key under, which names the declaring mod and the
+         * mod's own binding id, both unique across mods, so the assignment stays with the binding
+         * when a label it used to be saved under moves to a mod that loads earlier.
+         *
+         * <p>The loaders that kept a label apart from the saved name register the binding under
+         * this name and show {@link #label()} instead; a rebind is read back by this name, so only
+         * this one has to be stable. A file from a build that saved the label is migrated by {@link
+         * GrugMetadata#migrateSavedKeys}.
+         */
+        public String savedName() {
+            return GrugMetadata.savedName(mod, key.id());
         }
 
         /**
@@ -332,6 +345,100 @@ public final class GrugMetadata {
             declaredKey.label = label;
         }
         return declared;
+    }
+
+    /**
+     * The name the game saves the binding {@code mod} declares as {@code id} under. A loader that
+     * keeps the label for display registers the binding under this name.
+     */
+    public static String savedName(String mod, String id) {
+        return "key.grug." + mod + "." + id;
+    }
+
+    /**
+     * Rewrites the saved key lines of an options file from the label an older build registered a
+     * binding under to the stable name {@link DeclaredKey#savedName()} it is saved under now.
+     *
+     * <p>The game writes one {@code key_<name>:<code>} line per binding and reads a rebound key
+     * back by that name, so a name that moves between mods moves the player's rebind with it. A
+     * binding's old saved name was its label, and the stable name is what replaces it, so a line is
+     * rewritten in place; when the stable name is already in the file the old line is dropped, so
+     * the assignment stays with its stable line whatever order the two were written in.
+     *
+     * <p>An old label came from the mods installed when it was assigned, so a label that a newly
+     * installed mod with an earlier load order has taken cannot be attributed to the mod that owned
+     * it: no file records that. A rebind saved by an older build is therefore converted on the
+     * first start that finds it, and from the first save under the stable name the assignment
+     * cannot move again.
+     *
+     * <p>A line this cannot parse is left as it is, and so is every line that is not a declared
+     * binding's old name. The answer is the same text when nothing matched.
+     */
+    public static String migrateSavedKeys(String options, List<DeclaredKey> declared) {
+        Map<String, String> renamed = new HashMap<>();
+        for (DeclaredKey declaredKey : declared) {
+            String oldName = "key_" + declaredKey.label();
+            String newName = "key_" + declaredKey.savedName();
+            if (!oldName.equals(newName)) renamed.put(oldName, newName);
+        }
+        if (renamed.isEmpty()) return options;
+        String[] lines = options.split("\n", -1);
+        Set<String> present = new HashSet<>();
+        for (String line : lines) {
+            String name = optionName(line);
+            if (name != null) present.add(name);
+        }
+        StringBuilder migrated = new StringBuilder(options.length());
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            String ending = "";
+            if (line.endsWith("\r")) {
+                line = line.substring(0, line.length() - 1);
+                ending = "\r";
+            }
+            int colon = line.indexOf(':');
+            String target = colon > 0 ? renamed.get(line.substring(0, colon)) : null;
+            // A line whose value the game already has under the stable name is dropped, and any
+            // other old line is renamed in place, so the order of the file's lines holds.
+            if (target != null) {
+                if (present.contains(target)) continue;
+                line = target + line.substring(colon);
+            }
+            migrated.append(line).append(ending);
+            if (i < lines.length - 1) migrated.append('\n');
+        }
+        return migrated.toString();
+    }
+
+    /**
+     * Rewrites the game's options file when it holds a key line saved under an old label, and
+     * leaves it untouched when the migration changes nothing.
+     *
+     * <p>The game reads the file itself after this, so a file that is missing, like the first start
+     * before the game has saved one, or that cannot be read or written is left as it is: the rebind
+     * then stays under its old label, which is what the game would read without the migration, and
+     * an options file is not a reason to stop the game.
+     */
+    public static void migrateSavedKeys(File optionsFile, List<DeclaredKey> declared) {
+        if (declared.isEmpty()) return;
+        try {
+            // The game writes this file through a FileWriter, which uses the platform's charset, so
+            // reading and writing it the same way leaves every other line's bytes as they were.
+            String options = new String(Files.readAllBytes(optionsFile.toPath()));
+            String migrated = migrateSavedKeys(options, declared);
+            if (!migrated.equals(options)) {
+                Files.write(optionsFile.toPath(), migrated.getBytes());
+            }
+        } catch (IOException | RuntimeException e) {
+            // See the javadoc.
+        }
+    }
+
+    /** The option name of one options-file line, or null when it holds no name. */
+    private static String optionName(String line) {
+        String body = line.endsWith("\r") ? line.substring(0, line.length() - 1) : line;
+        int colon = body.indexOf(':');
+        return colon > 0 ? body.substring(0, colon) : null;
     }
 
     /** Reads one {@code about.json}, or answers an empty metadata when it cannot be read. */

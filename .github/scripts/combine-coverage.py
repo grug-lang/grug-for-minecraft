@@ -161,6 +161,10 @@ EXCLUDED_CLASSES = {
     "GrugMixin",
     "GuiMixin",
     "GameGuiMixin",
+    # Shows a declared binding's label where the game would print its saved name (#1849). A
+    # mixin, so unmeasurable for the reason above; the labels it reads are looked up in
+    # GrugClientHooks, which is excluded with the rest of the loader's wiring.
+    "GameOptionsMixin",
     "InGameHudMixin",
     "LiquidBlockRendererMixin",
     "ModelBlockRendererMixin",

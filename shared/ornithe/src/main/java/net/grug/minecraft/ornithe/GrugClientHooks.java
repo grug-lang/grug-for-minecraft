@@ -27,6 +27,7 @@ import java.awt.Dimension;
 import java.awt.Frame;
 import java.awt.Insets;
 import java.awt.Window;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,12 +51,19 @@ public class GrugClientHooks {
     public static final class DeclaredBinding {
         public final String mod;
         public final String id;
+        public final String label;
         public final KeyBinding binding;
 
-        DeclaredBinding(String mod, String id, KeyBinding binding) {
+        DeclaredBinding(String mod, String id, String label, KeyBinding binding) {
             this.mod = mod;
             this.id = id;
+            this.label = label;
             this.binding = binding;
+        }
+
+        /** The name the game saves this binding's key under. */
+        public String savedName() {
+            return GrugMetadata.savedName(mod, id);
         }
     }
 
@@ -64,6 +72,18 @@ public class GrugClientHooks {
     /** The declared bindings this loader registered, one per binding a mounted mod declares. */
     public static List<DeclaredBinding> declaredBindings() {
         return declaredBindings;
+    }
+
+    /**
+     * The label a mounted mod declared for the binding the game saves under {@code savedName}, or
+     * null when no declared binding uses that name. The version's Controls screen shows the label
+     * instead of the saved name, which this version would otherwise print as it is.
+     */
+    public static String declaredLabel(String savedName) {
+        for (DeclaredBinding declared : declaredBindings) {
+            if (declared.savedName().equals(savedName)) return declared.label;
+        }
+        return null;
     }
 
     private final Minecraft minecraft;
@@ -295,18 +315,28 @@ public class GrugClientHooks {
     public static void registerKeybinds() {
         KeybindEvents.REGISTER_KEYBINDS.register(
                 () -> {
+                    // OSL fires this from the game options constructor, just before the options
+                    // file is read, so a rebind saved under a label an older build registered is
+                    // moved to the stable name before the game looks for it.
+                    List<GrugMetadata.DeclaredKey> declaredKeys = GrugMetadata.declaredKeys();
+                    GrugMetadata.migrateSavedKeys(
+                            new File(GrugCore.getAdapter().getGameDirectory(), "options.txt"),
+                            declaredKeys);
                     runTestsKey =
                             KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_R, "Grug");
                     forceResolutionKey =
                             KeybindRegistry.register(
                                     "key.grug.force_test_resolution", Keyboard.KEY_M, "Grug");
-                    for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
+                    for (GrugMetadata.DeclaredKey declared : declaredKeys) {
                         declaredBindings.add(
                                 new DeclaredBinding(
                                         declared.mod(),
                                         declared.key().id(),
+                                        declared.label(),
                                         KeybindRegistry.register(
-                                                declared.label(), declared.key().code(), "Grug")));
+                                                declared.savedName(),
+                                                declared.key().code(),
+                                                "Grug")));
                     }
                 });
     }

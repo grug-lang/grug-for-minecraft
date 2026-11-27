@@ -36,6 +36,7 @@ import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 
+import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -668,11 +669,13 @@ public final class GrugOverlayHost {
     private static final class DeclaredBinding {
         final String mod;
         final String id;
+        final String label;
         final KeyBinding binding;
 
-        DeclaredBinding(String mod, String id, KeyBinding binding) {
+        DeclaredBinding(String mod, String id, String label, KeyBinding binding) {
             this.mod = mod;
             this.id = id;
+            this.label = label;
             this.binding = binding;
         }
     }
@@ -682,15 +685,18 @@ public final class GrugOverlayHost {
      * key list, so its press reaches {@link KeyBinding#isPressed()}; the class initializes after
      * every mod is mounted, so its member scope is known here.
      */
+    private static final List<GrugMetadata.DeclaredKey> declaredKeys = GrugMetadata.declaredKeys();
+
     private static final List<DeclaredBinding> declaredBindings = new ArrayList<>();
 
     static {
-        for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
+        for (GrugMetadata.DeclaredKey declared : declaredKeys) {
             declaredBindings.add(
                     new DeclaredBinding(
                             declared.mod(),
                             declared.key().id(),
-                            new KeyBinding(declared.label(), declared.key().code())));
+                            declared.label(),
+                            new KeyBinding(declared.savedName(), declared.key().code())));
         }
     }
 
@@ -701,6 +707,12 @@ public final class GrugOverlayHost {
      * rows from and saves a rebind into, then reads the options file again so a key saved for one
      * of them is applied and the game's press lookup includes it. The vanilla array is built when
      * the game starts, after the mods load, so this waits for it and runs once.
+     *
+     * <p>The bindings are named by {@link GrugMetadata.DeclaredKey#savedName()}, which the Controls
+     * screen would show as that name, so each is given its label as a translation before the screen
+     * asks for it. The options file is migrated before it is read again: a rebind saved under the
+     * label an older build registered is moved to the stable name here, which is the start-up that
+     * first registers these bindings.
      */
     private static void installDeclaredKeys(Minecraft minecraft) {
         if (declaredKeysInstalled || minecraft.gameSettings == null) return;
@@ -709,8 +721,10 @@ public final class GrugOverlayHost {
         for (KeyBinding binding : minecraft.gameSettings.keyBindings) all.add(binding);
         for (DeclaredBinding declared : declaredBindings) {
             if (!all.contains(declared.binding)) all.add(declared.binding);
+            ModLoader.addLocalization(declared.binding.keyDescription, declared.label);
         }
         minecraft.gameSettings.keyBindings = all.toArray(new KeyBinding[all.size()]);
+        GrugMetadata.migrateSavedKeys(new File(minecraft.mcDataDir, "options.txt"), declaredKeys);
         // GameSettings read the file when it was made, before these bindings were in its array, so
         // a rebind saved for one was skipped and the press lookup was rebuilt without it.
         minecraft.gameSettings.loadOptions();

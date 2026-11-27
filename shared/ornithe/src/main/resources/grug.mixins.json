@@ -9,6 +9,7 @@
     ],
     "client": [
         "GameGuiMixin",
+        "GameOptionsMixin",
         "MinecraftMixin",
         "TitleScreenMixin",
         "GameRendererMixin",
