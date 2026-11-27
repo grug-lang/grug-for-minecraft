@@ -163,6 +163,15 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     }
 
     /**
+     * A dedicated server has no screen to show, so a mod's {@code Screen.new()} is refused here
+     * rather than reaching the client-only host the base adapter makes.
+     */
+    @Override
+    public boolean ownedScreensSupported() {
+        return false;
+    }
+
+    /**
      * The first player who joined.
      *
      * <p>A server has no local player, so a test that wants one to build fixtures around and to
