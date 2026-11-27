@@ -1,0 +1,117 @@
+# Covers the a1 frame hook's settle path for #1825: light a test's own write queued has to be
+# settled to the box the room build recorded before the frame that the capture reads is compiled.
+# The a1 client's frame hook drains the light queue a test's writes fill. Draining applies the
+# queued updates in the order the queue holds them, and this engine's cascade is history dependent,
+# so the same blocks can end with two different fields, which is the scatter #1580 fixed for the
+# room's own build. The hook now settles the recorded box whenever a test's write queued light.
+# The test takes every torch out of the sealed room and asserts the room's block light is 0. A
+# room whose only light sources were those torches defines 0 everywhere, so the assertion is about
+# the field the port must end with and not a golden or a comparison.
+# This is not the regression test for the capture difference: on this engine the drain's own
+# cascade already takes every level back in this room, so it reads 0 with and without the settle.
+# It exists to cover the settle path under the coverage gate, and the regression evidence is the
+# repeated capture dispatch the pull request names. The hook is the a1 client's, so the test runs
+# there and nowhere else. See #1580 and #1814 for the room's build.
+
+# The room's radius. Wider than the default room, so the build a test asks for is a real rebuild
+# that records the box the frame hook settles again.
+radius: number = 6
+
+# How far the test has got: 0 takes the torches out, 1 reads the field the frame hook leaves.
+step: number = 0
+
+# Whether the room has been asked for, which only the first tick does.
+asked: bool = false
+
+# How many ticks this step has waited for the world to settle.
+waited: number = 0
+
+# The room's centre block, read once from the origin, so the writes stay anchored to it.
+px: number = 0
+py: number = 0
+pz: number = 0
+
+# The weighted sum of the room's block light before and after the torches were taken out, which has
+# to have fallen, or the test never made a change worth checking.
+before: number = 0
+after: number = 0
+
+export init(ctx: TestInitContext) {
+    # Two settles beside the build.
+    ctx.set_max_ticks(400)
+}
+
+export tick(ctx: TestTickContext) {
+    if me.loader_name() != "a1.1.2_01-ornithe" or me.on_dedicated_server() {
+        return
+    }
+    if not asked {
+        asked = true
+        ctx.set_box_radius(radius)
+        ctx.not_done()
+        return
+    }
+
+    waited = waited + 1
+    ctx.assert(waited < 300, "The room should settle after its build and after the torches are taken out.")
+    if not ctx.world_settled() {
+        ctx.not_done()
+        return
+    }
+    if step == 0 {
+        origin: Vec3 = ctx.get_origin()
+        px = Math.floor(origin.x())
+        # The origin is the camera lifted three blocks, and this version's player y is the eye, so
+        # the feet are 4.62 below the origin and the room is anchored at the block below them.
+        py = Math.floor(origin.y() - 4.62)
+        pz = Math.floor(origin.z())
+        before = _light_sum(ctx.get_client_level(), px, py, pz)
+        ctx.assert(before > 0, "The room's torches have to light it before they are taken out.")
+        _write_torches(ctx, px, py, pz, "minecraft:stone")
+        step = 1
+        ctx.not_done()
+        return
+    }
+    after = _light_sum(ctx.get_client_level(), px, py, pz)
+    print3("weighted block light of the room after the torches were taken out", after, waited)
+    ctx.assert(after == 0, "A sealed room with no light source in it defines a block light of 0 everywhere, so the field the writes left has to be 0. A larger sum is light the removed torches propagated that the frame hook's settle did not take back. See #1825.")
+}
+
+# Writes stone into every floor tile's torch cell, which takes that tile's torch out, skipping the
+# player's own column that the build leaves clear.
+local _write_torches(ctx: TestTickContext, cx: number, cy: number, cz: number, block: string) {
+    level: Level = ctx.get_client_level()
+    x: number = cx - radius
+    while x <= cx + radius {
+        z: number = cz - radius
+        while z <= cz + radius {
+            if x != cx or z != cz {
+                # The torch floor is four blocks below the feet and the torch sits on it.
+                level.place_block(x, cy - 3, z, block)
+            }
+            z = z + 1
+        }
+        x = x + 1
+    }
+}
+
+# The room's block light, weighted by the cell so that a level moved from one cell to another is a
+# different sum rather than a cancelled one.
+local _light_sum(level: Level, cx: number, cy: number, cz: number) number {
+    total: number = 0
+    x: number = cx - radius + 1
+    while x <= cx + radius - 1 {
+        z: number = cz - radius + 1
+        while z <= cz + radius - 1 {
+            y: number = cy - 2
+            while y <= cy + 2 * radius {
+                weight: number = (x - cx) * 3 + (y - cy) * 5 + (z - cz) * 7 + 100
+                total = total + level.get_block_light(x, y, z) * weight
+                y = y + 1
+            }
+            z = z + 1
+        }
+        x = x + 1
+    }
+    return total
+}

@@ -56,6 +56,21 @@ public final class GrugRelitSections {
     }
 
     /**
+     * The box the last room relight swept, as {@code {minX, minY, minZ, maxX, maxY, maxZ}} in
+     * blocks, or an empty array before any room has been relit.
+     *
+     * <p>A loader whose frame hook drains light a test queued after its room was built settles this
+     * box again, so that the field it leaves is the one the blocks define, and marks its sections
+     * for compiling again. See {@code OrnitheAdapter#frameHadPendingWork} and #1825.
+     */
+    public synchronized int[] lastBox() {
+        if (!recorded) {
+            return new int[0];
+        }
+        return new int[] {minX, minY, minZ, maxX, maxY, maxZ};
+    }
+
+    /**
      * Whether the section this position falls in is one the last sweep touched, or false where no
      * room has been relit yet.
      */

@@ -6,6 +6,7 @@
     "client": [
         "ItemInHandRendererAccess",
         "SoundEngineAccess",
+        "WorldLightAccess",
         "WorldRendererAccess"
     ],
     "injectors": {
