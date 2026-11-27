@@ -2,10 +2,13 @@ package net.grug.minecraft.ornithe.mixin;
 
 import net.grug.minecraft.core.GrugConnectAddress;
 import net.grug.minecraft.core.GrugMissingClientMod;
+import net.grug.minecraft.grug.GrugOwnedScreen;
+import net.grug.minecraft.grug.GrugOwnedScreens;
 import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
 import net.grug.minecraft.ornithe.client.GrugOverlayHost;
+import net.grug.minecraft.ornithe.client.GrugOwnedScreenHost;
 import net.grug.minecraft.ornithe.control.GrugControlBetaClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.TickTimer;
@@ -78,11 +81,41 @@ public abstract class MinecraftMixin implements GrugClientAccess {
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
+        // A screen the game took away reports itself on the next tick, so a screen_closed that
+        // opens another screen runs after the game finished replacing that one.
+        GrugOwnedScreenHost.flushRemoved();
         net.grug.minecraft.ornithe.OrnitheAdapter.holdPlayerForTest(
                 ((Minecraft) (Object) this).player);
         grug$hooks.tick();
         GrugControlBetaClient.onClientTick((Minecraft) (Object) this, grug$hooks);
         GrugOverlayHost.pollWorldKeys((Minecraft) (Object) this);
+    }
+
+    /**
+     * Ends an open mod screen before the world it draws over is replaced, so its {@code
+     * screen_closed} runs while the old world is still readable, and takes the host away with it so
+     * a closed screen neither draws over the new world nor takes input meant for it.
+     *
+     * <p>The hook is on the three-argument overload, which the two shorter ones call, so one world
+     * change ends a screen once rather than three times.
+     */
+    @Inject(
+            method =
+                    "setWorld(Lnet/minecraft/world/World;Ljava/lang/String;"
+                            + "Lnet/minecraft/entity/mob/player/PlayerEntity;)V",
+            at = @At("HEAD"))
+    private void grug$worldChanged(CallbackInfo ci) {
+        GrugOwnedScreen open = GrugOwnedScreens.openScreen();
+        GrugOwnedScreens.worldUnloaded();
+        // This version's setWorld leaves the open screen in place, so the host whose model just
+        // closed is taken away here as well. A world change the game itself ends with openScreen
+        // has already removed it, which leaves nothing for this check to take.
+        if (open == null) return;
+        Minecraft minecraft = (Minecraft) (Object) this;
+        if (minecraft.screen instanceof GrugOwnedScreenHost
+                && ((GrugOwnedScreenHost) minecraft.screen).model() == open) {
+            minecraft.openScreen(null);
+        }
     }
 
     /**
