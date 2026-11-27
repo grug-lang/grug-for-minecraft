@@ -986,6 +986,19 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: whether this loader can show a screen a mod owns, which is how a test tells a
+     * loader whose screen host has landed from one that answers {@code Screen.open} with an err. A
+     * loader without one has no screen to draw, so a test that needs a mod screen skips there
+     * rather than failing for a feature the loader does not have yet.
+     *
+     * <p>The screen belongs to a client, so a test that needs one also skips on a dedicated server.
+     * See {@link ModLoaderAdapter#ownedScreensSupported}.
+     */
+    public static boolean Test_owned_screens_supported(long testId) {
+        return GrugCore.getAdapter().ownedScreensSupported();
+    }
+
+    /**
      * Test only: whether a frame has drawn the running test's own overlay on the eligible screen
      * that is open now, which a test waits for before it clicks. The mark is cleared when an
      * eligible screen opens, so a test waits for a frame of its own screen rather than for one

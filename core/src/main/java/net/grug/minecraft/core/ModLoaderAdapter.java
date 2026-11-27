@@ -1449,7 +1449,7 @@ public interface ModLoaderAdapter {
      * {@code Screen.open()} refuse on the loaders that cannot. A loader that implements {@link
      * #showOwnedScreen} and {@link #hideOwnedScreen} answers true.
      */
-    @GrugGenerated("default only: only 1.20.6 draws mod-owned screens, so the others keep this")
+    @GrugGenerated("default only: the dedicated server has no client to show a screen on")
     default boolean ownedScreensSupported() {
         return false;
     }
