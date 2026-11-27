@@ -1,0 +1,8 @@
+# Fixture block for coverage: its use export replaces the player's used item with cobblestone, the
+# call a liquid container makes when the bucket it used up becomes an empty or a filled one. A test
+# reads the hand back to tell a stack that shrank from one that was replaced, and the click it kept
+# to tell a call from a decline. It declares nothing through init(), whose setters the smoketest
+# stubs, so the smoke run of its test is a real pass rather than a report that skipped their effect.
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
+    ctx.replace_held_item(item(resource_location("minecraft:cobblestone")))
+}
