@@ -27,6 +27,42 @@ public abstract class GrugResponse {
     }
 
     /**
+     * Whether the call this response was passed to is still running, which a getter that neither
+     * answers nor changes the answer checks before it reads anything.
+     *
+     * @param method the grug method being called, for the err message
+     * @return whether the caller may read the response
+     */
+    protected final boolean checkOpen(String method) {
+        if (open) return true;
+        reportClosed(method);
+        return false;
+    }
+
+    private void reportClosed(String method) {
+        report(
+                method
+                        + ": the response is only valid during the "
+                        + exportName
+                        + " call it was passed to, and that call has returned.");
+    }
+
+    /**
+     * Reports a broken rule of this response as an err of the call it was passed to.
+     *
+     * <p>The default hands the message to {@link Grug#hostFunctionErrorHappened}, which fails the
+     * grug call the response belongs to while one is running and otherwise records it against the
+     * running test. A response the host asks for on its own, with no call of the test's around it,
+     * overrides this so its defect is contained the way the mod's own err is: see {@link
+     * GrugListRowResponse}.
+     *
+     * @param message what the export did wrong, naming the grug method it called
+     */
+    protected void report(String message) {
+        Grug.hostFunctionErrorHappened(Grug.statePtr, message);
+    }
+
+    /**
      * Claims the one answer this response allows.
      *
      * @param method the grug method being called, for the err message
@@ -34,17 +70,11 @@ public abstract class GrugResponse {
      */
     protected final boolean beginAnswer(String method) {
         if (!open) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    method
-                            + ": the response is only valid during the "
-                            + exportName
-                            + " call it was passed to, and that call has returned.");
+            reportClosed(method);
             return false;
         }
         if (answered) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
+            report(
                     method
                             + ": "
                             + exportName
@@ -69,8 +99,7 @@ public abstract class GrugResponse {
     public final boolean finish() {
         open = false;
         if (!answered) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
+            report(
                     exportName
                             + " returned without answering its response, and every response has"
                             + " to be answered before the call returns.");

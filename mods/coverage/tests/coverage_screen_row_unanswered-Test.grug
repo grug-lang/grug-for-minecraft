@@ -1,0 +1,135 @@
+# An export that returns without answering a row response is an err (#1760), and it is raised by the
+# host that called it rather than by the export. The overlay's unanswered mode returns with no
+# set_text, so every visible row it is asked for is reported, and the list draws none of them: the
+# row has no text where a normal answer draws one, which the crop compares with the normal mode's own
+# first row.
+# The screen host exists only on 1.20.6 so far, and the answer the row reported is the record of the
+# side whose screen asked it, so the gate goes when every loader has a host (#1760). The same test
+# ends early on the dedicated server, whose joined client owns the screen while the record read here
+# belongs to the server.
+started: bool = false
+step: number = 0
+waited: number = 0
+normal: Option[Screenshot] = Option.new()
+unanswered: Option[Screenshot] = Option.new()
+
+# Settling, opening the screen once or three times and waiting for its frames passes the
+# default 200 ticks.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if me.loader_name() != "1.20.6-forge" or me.on_dedicated_server() {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # C is the overlay's normal mode, which answers every row "first".
+        ctx.press_world_key(67, false)
+        waited = 0
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        ctx.press_world_key(72, false)
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        normal.set(_shot(ctx))
+        ctx.close_screen()
+        waited = 0
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Closing the screen should leave no screen open.")
+            ctx.not_done()
+            return
+        }
+        # G makes screen_list_row return without answering.
+        ctx.press_world_key(71, false)
+        waited = 0
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        ctx.press_world_key(72, false)
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen in the unanswered mode.")
+            ctx.not_done()
+            return
+        }
+        unanswered.set(_shot(ctx))
+        waited = 0
+        step = 6
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        reported: string = ctx.list_row_error()
+        if String.length(reported) == 0 {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A row export that answered nothing should report that it returned without answering.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(String.index_of(reported, "returned without answering") >= 0, "A row export that answered nothing should report that it returned without answering.")
+        ctx.assert(unanswered.unwrap().change_from(normal.unwrap()) >= 1, "A row that was never answered should not draw the text a normal answer draws.")
+        ctx.close_screen()
+    }
+}
+
+# The first row's text, from the list's left padding to past the end of "first", and from the text's
+# first pixel to its last. The list is 140 scaled pixels wide at the screen's right edge, and its row
+# height is 10, so this crop holds no other row and no scrollbar.
+local _shot(ctx: TestTickContext) Screenshot {
+    width: number = ctx.screen_width()
+    scale: number = Math.floor(1280 / width + 0.5)
+    return ctx.screenshot().capture((width - 145) * scale, 131 * scale, (width - 100) * scale, 140 * scale)
+}

@@ -13,6 +13,14 @@ import java.util.List;
  * draw, and an overlay that is not hovering anything draws no highlight.
  */
 public final class GrugOverlayGeometry {
+    /** Nothing drawn, which a screen that is not open answers with. */
+    public static final GrugOverlayGeometry EMPTY =
+            new GrugOverlayGeometry(
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    Collections.emptyList());
+
     private final List<GrugScreenItemDraw> items;
     private final List<GrugScreenBox> boxes;
     private final List<GrugScreenText> texts;

@@ -294,17 +294,15 @@ class HostFunctionsConfigAndScanTest {
                 };
         GrugOverlayScripts.Script candidate =
                 new GrugOverlayScripts.Script(
-                        "coverage-Overlay", 0, Collections.emptyList(), "coverage", noExports);
+                        "coverage-Overlay", 0, Collections.emptyList(), "coverage");
+        candidate.lookUpExports(noExports);
         // A second overlay file of the same mod, with a handle that is not zero: the guard's second
         // half is then the one that refuses it, and the defaults pass already knows the mod, so one
         // call covers both sides of each (#1749's coverage). Neither reaches a VM.
         GrugOverlayScripts.Script second =
                 new GrugOverlayScripts.Script(
-                        "coverage-Second-Overlay",
-                        1,
-                        Collections.emptyList(),
-                        "coverage",
-                        noExports);
+                        "coverage-Second-Overlay", 1, Collections.emptyList(), "coverage");
+        second.lookUpExports(noExports);
         List<GrugOverlayScripts.Script> candidates = new ArrayList<>();
         candidates.add(candidate);
         candidates.add(second);

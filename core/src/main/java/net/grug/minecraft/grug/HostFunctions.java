@@ -914,6 +914,20 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: the err the most recent {@code screen_list_row} export reported, or the empty
+     * string when the row it was asked for broke no rule.
+     *
+     * <p>The host asks for a row from the screen's frame pass, between two of the test's ticks, so
+     * an export that leaves its response unanswered or answers it twice reports with no call of the
+     * test's own to fail and {@code expect_error} cannot match it. The answer is the record {@link
+     * GrugListRowResponse} keeps instead; see #1760.
+     */
+    public static String TestTickContext_list_row_error(long contextId) {
+        if (!requireTickContext("TestTickContext.list_row_error", contextId)) return "";
+        return GrugListRowResponse.lastDefect();
+    }
+
+    /**
      * Test only: whether this loader ever asked an overlay's exports, which is how a test tells a
      * loader that draws overlays on the inventory and container screens from one that does not. The
      * answer stays false on a loader with no overlay, so a test that needs the overlay to have
@@ -4032,6 +4046,15 @@ public class HostFunctions {
         return GrugOverlay.mouseY();
     }
 
+    /**
+     * The width the game's own font draws {@code text} at, which a screen centres or right-aligns
+     * its labels with. It measures rather than draws, so it is legal in any frame of the pass.
+     */
+    public static double OverlayRenderContext_text_width(long contextId, String text) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.text_width", contextId)) return 0.0;
+        return GrugCore.getAdapter().textWidth(text == null ? "" : text);
+    }
+
     @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
     public static void OverlayRenderContext_draw_item(
             long contextId, long itemId, double x, double y) {
@@ -4799,6 +4822,454 @@ public class HostFunctions {
     public static void OverlayClickContext_close_screen(long contextId) {
         if (!requireOverlayClickContext("OverlayClickContext.close_screen", contextId)) return;
         GrugScreenCalls.closeScreen(GrugCore.getAdapter());
+    }
+
+    // --- A screen a mod owns ------------------------------------------------------------------
+
+    /**
+     * Creates a screen for the overlay script whose member scope is running, which is what {@code
+     * Screen.new()} answers.
+     *
+     * <p>A screen belongs to the script that made it: its widgets are rooted in that script's owner
+     * list and its exports are that file's {@code screen_*} functions. A call from a block entity's
+     * or a test's member scope has no overlay script to belong to, so it is refused rather than
+     * written into another file's owner list.
+     */
+    public static long Screen_new() {
+        GrugOwnedScreens.Created created = GrugOwnedScreens.newScreen(GrugCore.getAdapter());
+        if (created.problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, created.problem);
+            return 0;
+        }
+        return created.screen.entityId();
+    }
+
+    public static void Screen_open(long screenId) {
+        GrugOwnedScreen screen = screenOrReport("Screen.open", screenId);
+        if (screen == null) return;
+        String problem = GrugOwnedScreens.open(GrugCore.getAdapter(), screen);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
+        }
+    }
+
+    public static void Screen_close(long screenId) {
+        GrugOwnedScreen screen = screenOrReport("Screen.close", screenId);
+        if (screen == null) return;
+        String problem = GrugOwnedScreens.close(GrugCore.getAdapter(), screen);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
+        }
+    }
+
+    public static long Screen_add_button(
+            long screenId,
+            String name,
+            String text,
+            double x,
+            double y,
+            double width,
+            double height) {
+        GrugOwnedScreen screen = screenOrReport("Screen.add_button", screenId);
+        if (screen == null || !requireRectangle("Screen.add_button", x, y, width, height)) {
+            return 0;
+        }
+        return declaredWidget(
+                "Screen.add_button", screen.declareButton(name, text, x, y, width, height));
+    }
+
+    public static long Screen_add_checkbox(
+            long screenId,
+            String name,
+            String text,
+            boolean checked,
+            double x,
+            double y,
+            double width,
+            double height) {
+        GrugOwnedScreen screen = screenOrReport("Screen.add_checkbox", screenId);
+        if (screen == null || !requireRectangle("Screen.add_checkbox", x, y, width, height)) {
+            return 0;
+        }
+        return declaredWidget(
+                "Screen.add_checkbox",
+                screen.declareCheckbox(name, text, checked, x, y, width, height));
+    }
+
+    public static long Screen_add_list(
+            long screenId,
+            String name,
+            double x,
+            double y,
+            double width,
+            double height,
+            double rowHeight) {
+        GrugOwnedScreen screen = screenOrReport("Screen.add_list", screenId);
+        if (screen == null
+                || !requireRectangle("Screen.add_list", x, y, width, height)
+                || !requireRowHeight("Screen.add_list", rowHeight)) {
+            return 0;
+        }
+        return declaredWidget(
+                "Screen.add_list", screen.declareList(name, x, y, width, height, rowHeight));
+    }
+
+    public static long Screen_add_slider(
+            long screenId,
+            String name,
+            String text,
+            double min,
+            double max,
+            double value,
+            double x,
+            double y,
+            double width,
+            double height) {
+        GrugOwnedScreen screen = screenOrReport("Screen.add_slider", screenId);
+        if (screen == null || !requireRectangle("Screen.add_slider", x, y, width, height)) {
+            return 0;
+        }
+        return declaredWidget(
+                "Screen.add_slider",
+                screen.declareSlider(name, text, min, max, value, x, y, width, height));
+    }
+
+    public static long Screen_add_text_field(
+            long screenId,
+            String name,
+            String text,
+            double x,
+            double y,
+            double width,
+            double height) {
+        GrugOwnedScreen screen = screenOrReport("Screen.add_text_field", screenId);
+        if (screen == null || !requireRectangle("Screen.add_text_field", x, y, width, height)) {
+            return 0;
+        }
+        return declaredWidget(
+                "Screen.add_text_field", screen.declareTextField(name, text, x, y, width, height));
+    }
+
+    public static double ScreenInitContext_screen_width(long contextId) {
+        GrugScreenInitContext context =
+                requireScreenInitContext("ScreenInitContext.screen_width", contextId);
+        return context == null ? 0.0 : context.width();
+    }
+
+    public static double ScreenInitContext_screen_height(long contextId) {
+        GrugScreenInitContext context =
+                requireScreenInitContext("ScreenInitContext.screen_height", contextId);
+        return context == null ? 0.0 : context.height();
+    }
+
+    public static long ScreenWidgetContext_widget(long contextId) {
+        GrugScreenWidgetContext context =
+                requireScreenWidgetContext("ScreenWidgetContext.widget", contextId);
+        return context == null ? 0 : context.widget().entityId();
+    }
+
+    public static boolean Widget_checked(long widgetId) {
+        GrugWidget widget = widgetOrReport("Widget.checked", widgetId, GrugWidgetKind.CHECKBOX);
+        return widget != null && widget.checked();
+    }
+
+    public static void Widget_select(long widgetId, double index) {
+        GrugWidget widget = widgetOrReport("Widget.select", widgetId, GrugWidgetKind.LIST);
+        if (widget == null) return;
+        String problem = wholeNumberProblem(index, "index");
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Widget.select: " + problem);
+            return;
+        }
+        if (widget.rows() == 0) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Widget.select: This list has no rows, so there is no row to select.");
+            return;
+        }
+        if (!widget.select((int) index)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Widget.select: This list has "
+                            + widget.rows()
+                            + " rows, so there is no row "
+                            + (int) index
+                            + ".");
+        }
+    }
+
+    public static double Widget_selected(long widgetId) {
+        GrugWidget widget = widgetOrReport("Widget.selected", widgetId, GrugWidgetKind.LIST);
+        return widget == null ? -1.0 : widget.selected();
+    }
+
+    public static void Widget_set_active(long widgetId, boolean active) {
+        GrugWidget widget = widgetOrReport("Widget.set_active", widgetId);
+        if (widget != null) widget.setActive(active);
+    }
+
+    public static void Widget_set_checked(long widgetId, boolean checked) {
+        GrugWidget widget = widgetOrReport("Widget.set_checked", widgetId, GrugWidgetKind.CHECKBOX);
+        if (widget != null) widget.setChecked(checked);
+    }
+
+    public static void Widget_set_position(long widgetId, double x, double y) {
+        GrugWidget widget = widgetOrReport("Widget.set_position", widgetId);
+        if (widget == null || !requirePoint("Widget.set_position", x, y)) return;
+        widget.setPosition(x, y);
+    }
+
+    public static void Widget_set_rows(long widgetId, double count) {
+        GrugWidget widget = widgetOrReport("Widget.set_rows", widgetId, GrugWidgetKind.LIST);
+        if (widget == null) return;
+        String problem = wholeNumberProblem(count, "count");
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Widget.set_rows: " + problem);
+            return;
+        }
+        widget.applyRows((int) count);
+    }
+
+    public static void Widget_set_text(long widgetId, String text) {
+        GrugWidget widget = textWidgetOrReport("Widget.set_text", widgetId);
+        if (widget != null) widget.setText(text);
+    }
+
+    public static void Widget_set_text_colour(long widgetId, long colourId) {
+        GrugWidget widget =
+                widgetOrReport("Widget.set_text_colour", widgetId, GrugWidgetKind.TEXT_FIELD);
+        if (widget == null) return;
+        Integer rgb =
+                withEntity(
+                        "Widget.set_text_colour",
+                        "color",
+                        colourId,
+                        object -> ((Color) object).getRGB(),
+                        null);
+        if (rgb != null) widget.setTextColour(rgb);
+    }
+
+    public static void Widget_set_value(long widgetId, double value) {
+        GrugWidget widget = widgetOrReport("Widget.set_value", widgetId, GrugWidgetKind.SLIDER);
+        if (widget != null) widget.setValue(value);
+    }
+
+    public static void Widget_set_visible(long widgetId, boolean visible) {
+        GrugWidget widget = widgetOrReport("Widget.set_visible", widgetId);
+        if (widget != null) widget.setVisible(visible);
+    }
+
+    public static String Widget_text(long widgetId) {
+        GrugWidget widget = textWidgetOrReport("Widget.text", widgetId);
+        return widget == null ? "" : widget.text();
+    }
+
+    public static double Widget_value(long widgetId) {
+        GrugWidget widget = widgetOrReport("Widget.value", widgetId, GrugWidgetKind.SLIDER);
+        return widget == null ? 0.0 : widget.value();
+    }
+
+    public static double ListRowResponse_index(long responseId) {
+        GrugListRowResponse response = listRowResponseOrReport("ListRowResponse.index", responseId);
+        return response == null ? 0.0 : response.index();
+    }
+
+    public static void ListRowResponse_set_text(long responseId, String text) {
+        GrugListRowResponse response =
+                listRowResponseOrReport("ListRowResponse.set_text", responseId);
+        if (response != null) response.setText(text);
+    }
+
+    public static void ListRowResponse_set_text_colour(long responseId, long colourId) {
+        GrugListRowResponse response =
+                listRowResponseOrReport("ListRowResponse.set_text_colour", responseId);
+        if (response == null) return;
+        Integer rgb =
+                withEntity(
+                        "ListRowResponse.set_text_colour",
+                        "color",
+                        colourId,
+                        object -> ((Color) object).getRGB(),
+                        null);
+        if (rgb != null) response.setTextColour(rgb);
+    }
+
+    public static long ListRowResponse_widget(long responseId) {
+        GrugListRowResponse response =
+                listRowResponseOrReport("ListRowResponse.widget", responseId);
+        if (response == null) return 0;
+        GrugWidget widget = response.widget();
+        return widget == null ? 0 : widget.entityId();
+    }
+
+    /** The screen {@code screenId} names, or null after reporting an id that no longer resolves. */
+    private static GrugOwnedScreen screenOrReport(String method, long screenId) {
+        return withEntity(method, "screen", screenId, object -> (GrugOwnedScreen) object, null);
+    }
+
+    /** Answers a declaration's widget id, or reports why it was refused. */
+    private static long declaredWidget(String method, GrugOwnedScreen.Declared answer) {
+        if (answer.problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, method + ": " + answer.problem);
+            return 0;
+        }
+        return answer.widget.entityId();
+    }
+
+    /**
+     * The widget {@code widgetId} names, or null after reporting an id that no longer resolves,
+     * which is what a handle saved from a screen whose open time ended holds.
+     *
+     * <p>Such an id is dropped by the screen's own end rather than collected, so it is reported as
+     * what it is: a widget of a screen that closed, not an object the collector took while the
+     * script still held it.
+     */
+    private static GrugWidget widgetOrReport(String method, long widgetId) {
+        String dropped = GrugOwnedScreens.droppedWidgetName(widgetId);
+        if (dropped != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": The widget \""
+                            + dropped
+                            + "\" id "
+                            + widgetId
+                            + " no longer resolves, because the screen it was declared on was"
+                            + " closed and its widgets were dropped.");
+            return null;
+        }
+        return withEntity(method, "widget", widgetId, object -> (GrugWidget) object, null);
+    }
+
+    /**
+     * The widget {@code widgetId} names when it has {@code kind}, or null after reporting an id
+     * that no longer resolves or a widget of another kind.
+     */
+    private static GrugWidget widgetOrReport(String method, long widgetId, GrugWidgetKind kind) {
+        GrugWidget widget = widgetOrReport(method, widgetId);
+        if (widget == null) return null;
+        if (!widget.is(kind)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": This widget is a "
+                            + widget.kind().description()
+                            + ", and this call is only for a "
+                            + kind.description()
+                            + ".");
+            return null;
+        }
+        return widget;
+    }
+
+    /** The widget whose text a call reads or writes, refusing a list, which has none of its own. */
+    private static GrugWidget textWidgetOrReport(String method, long widgetId) {
+        GrugWidget widget = widgetOrReport(method, widgetId);
+        if (widget == null) return null;
+        if (widget.is(GrugWidgetKind.LIST)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": This widget is a list, and a list has no text of its own: its rows"
+                            + " are answered through screen_list_row.");
+            return null;
+        }
+        return widget;
+    }
+
+    /**
+     * Whether the corner and the size are all finite, after reporting one that is not. A script can
+     * compute NaN or an infinity, and a widget placed at one would never be drawn where the mod
+     * meant, so it is refused where the call is made rather than silently misdrawn.
+     */
+    private static boolean requireRectangle(
+            String method, double x, double y, double width, double height) {
+        if (Double.isFinite(x)
+                && Double.isFinite(y)
+                && Double.isFinite(width)
+                && Double.isFinite(height)) {
+            return true;
+        }
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                method
+                        + ": The position and the size have to be finite numbers, and x, y, width"
+                        + " and height were "
+                        + x
+                        + ", "
+                        + y
+                        + ", "
+                        + width
+                        + " and "
+                        + height
+                        + ".");
+        return false;
+    }
+
+    /** The same rule for a widget moved without changing its size. */
+    private static boolean requirePoint(String method, double x, double y) {
+        if (Double.isFinite(x) && Double.isFinite(y)) return true;
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                method
+                        + ": The position has to be a finite number in both directions, and x and y"
+                        + " were "
+                        + x
+                        + " and "
+                        + y
+                        + ".");
+        return false;
+    }
+
+    /** Whether a list's row height is usable, after reporting one that is not. */
+    private static boolean requireRowHeight(String method, double rowHeight) {
+        if (Double.isFinite(rowHeight) && rowHeight > 0.0) return true;
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                method
+                        + ": The row height has to be a positive finite number, and was "
+                        + rowHeight
+                        + ".");
+        return false;
+    }
+
+    /** Why {@code value} is not a whole number a list can count or index, or null when it is. */
+    private static String wholeNumberProblem(double value, String what) {
+        if (value < 0 || value > Integer.MAX_VALUE || value != Math.floor(value)) {
+            return "The "
+                    + what
+                    + " has to be a whole number from 0 to "
+                    + Integer.MAX_VALUE
+                    + ", and was "
+                    + value
+                    + ".";
+        }
+        return null;
+    }
+
+    private static GrugScreenInitContext requireScreenInitContext(String method, long contextId) {
+        if (!requireContext(method, "screen_init", contextId, GrugOwnedScreens.initContext())) {
+            return null;
+        }
+        return GrugOwnedScreens.initContext();
+    }
+
+    private static GrugScreenWidgetContext requireScreenWidgetContext(
+            String method, long contextId) {
+        if (!requireContext(
+                method, "screen_widget_changed", contextId, GrugOwnedScreens.widgetContext())) {
+            return null;
+        }
+        return GrugOwnedScreens.widgetContext();
+    }
+
+    private static GrugListRowResponse listRowResponseOrReport(String method, long responseId) {
+        return withEntity(
+                method,
+                "list row response",
+                responseId,
+                object -> (GrugListRowResponse) object,
+                null);
     }
 
     /**
