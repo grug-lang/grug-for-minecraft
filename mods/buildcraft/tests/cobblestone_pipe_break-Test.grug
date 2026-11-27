@@ -70,7 +70,6 @@ local _hold(pipe: BlockEntity, held: Item, damage: number, count: number) {
     pipe.set_saved_list_number("traveling", index, "z", center.z())
     pipe.set_saved_list_number("traveling", index, "speed", 0.01)
     pipe.set_saved_list_number("traveling", index, "direction", 5)
-    pipe.set_saved_list_number("traveling", index, "steps", 0)
     pipe.set_saved_list_number("traveling", index, "to_center", 0)
     pipe.set_saved_list_number("traveling", index, "count", count)
     pipe.set_saved_list_number("traveling", index, "damage", damage)

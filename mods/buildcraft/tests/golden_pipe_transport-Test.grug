@@ -44,7 +44,6 @@ local _record_at_centre(pipe: BlockEntity) {
     pipe.set_saved_list_number("traveling", index, "z", center.z())
     pipe.set_saved_list_number("traveling", index, "speed", 0.01)
     pipe.set_saved_list_number("traveling", index, "direction", 5)
-    pipe.set_saved_list_number("traveling", index, "steps", 0)
     pipe.set_saved_list_number("traveling", index, "to_center", 1)
     pipe.set_saved_list_number("traveling", index, "count", 1)
     pipe.set_saved_list_number("traveling", index, "damage", 0)

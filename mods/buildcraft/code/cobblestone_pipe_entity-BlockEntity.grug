@@ -121,7 +121,6 @@ local _move_item(index: number) bool {
     px: number = me.get_saved_list_number("traveling", index, "x") + _dir_x(direction) * speed
     py: number = me.get_saved_list_number("traveling", index, "y") + _dir_y(direction) * speed
     pz: number = me.get_saved_list_number("traveling", index, "z") + _dir_z(direction) * speed
-    steps: number = me.get_saved_list_number("traveling", index, "steps") + 1
 
     if me.get_saved_list_number("traveling", index, "to_center") == 1 {
         # PipeTransportItems.middleReached: every axis is within speed * 1.01 of the centre. An item
@@ -138,21 +137,21 @@ local _move_item(index: number) bool {
                 _drop_moving(x, y - 0.25, z, direction, item, count, damage, speed)
                 return false
             }
-            _save(index, x, y - 0.25, z, speed, next, 0, 0, count, damage)
+            _save(index, x, y - 0.25, z, speed, next, 0, count, damage)
             return true
         }
-        _save(index, px, py, pz, speed, direction, steps, 1, count, damage)
+        _save(index, px, py, pz, speed, direction, 1, count, damage)
         return true
     }
 
     if _end_reached(px, py, pz) {
         # The reference sets the position before it looks at the tile, so the item is handed on, or
         # dropped, from where this last move put it.
-        _save(index, px, py, pz, speed, direction, steps, 0, count, damage)
+        _save(index, px, py, pz, speed, direction, 0, count, damage)
         _leave(index, direction, item, count, damage, speed)
         return false
     }
-    _save(index, px, py, pz, speed, direction, steps, 0, count, damage)
+    _save(index, px, py, pz, speed, direction, 0, count, damage)
     return true
 }
 
@@ -289,17 +288,29 @@ local _drop_moving(px: number, py: number, pz: number, direction: number, item: 
     dropped.entity().spawn(level)
 }
 
-# Writes the whole record but its item, which does not change while the item travels.
-local _save(index: number, px: number, py: number, pz: number, speed: number, direction: number, steps: number, to_center: number, count: number, damage: number) {
-    me.set_saved_list_number("traveling", index, "x", px)
-    me.set_saved_list_number("traveling", index, "y", py)
-    me.set_saved_list_number("traveling", index, "z", pz)
-    me.set_saved_list_number("traveling", index, "speed", speed)
-    me.set_saved_list_number("traveling", index, "direction", direction)
-    me.set_saved_list_number("traveling", index, "steps", steps)
-    me.set_saved_list_number("traveling", index, "to_center", to_center)
-    me.set_saved_list_number("traveling", index, "count", count)
-    me.set_saved_list_number("traveling", index, "damage", damage)
+# Writes the whole record but its item, which does not change while the item travels. A number the
+# record already holds is not written again: every saved number marks the block entity changed, and
+# that change sends a client joined to the server the pipe's whole saved data, which dirties the
+# chunk the pipe stands in and keeps the client from ever settling. A record standing still, as a
+# corner full of items does, therefore writes nothing at all.
+local _save(index: number, px: number, py: number, pz: number, speed: number, direction: number, to_center: number, count: number, damage: number) {
+    _save_number(index, "x", px)
+    _save_number(index, "y", py)
+    _save_number(index, "z", pz)
+    _save_number(index, "speed", speed)
+    _save_number(index, "direction", direction)
+    _save_number(index, "to_center", to_center)
+    _save_number(index, "count", count)
+    _save_number(index, "damage", damage)
+}
+
+# Saves one number of a travelling record unless the record already holds it. A number that was
+# never written reads back as 0, so a caller saving 0 writes nothing and the record reads the same.
+local _save_number(index: number, key: string, value: number) {
+    if me.get_saved_list_number("traveling", index, key) == value {
+        return
+    }
+    me.set_saved_list_number("traveling", index, key, value)
 }
 
 # Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe, 2 for a cobblestone pipe,
@@ -391,7 +402,6 @@ local _enter_pipe(nx: number, ny: number, nz: number, direction: number, px: num
     neighbor.set_saved_list_number("traveling", index, "z", pz)
     neighbor.set_saved_list_number("traveling", index, "speed", entering)
     neighbor.set_saved_list_number("traveling", index, "direction", direction)
-    neighbor.set_saved_list_number("traveling", index, "steps", 0)
     neighbor.set_saved_list_number("traveling", index, "to_center", 1)
     neighbor.set_saved_list_number("traveling", index, "count", count)
     neighbor.set_saved_list_number("traveling", index, "damage", damage)
