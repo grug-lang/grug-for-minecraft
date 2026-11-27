@@ -67,27 +67,44 @@ public final class GrugOverlayScripts {
         /** The clean name of the file this entity was made from, which a reload matches on. */
         final String name;
 
-        public final long entityHandle;
+        /**
+         * The entity's handle, filled in once the file's member scope has run: a script made here
+         * is bound before it exists, so a screen the member scope creates can belong to it.
+         */
+        public long entityHandle;
+
         final List<GrugObject> owner;
-        public final long renderFnId;
-        public final long clickFnId;
-        public final long keyFnId;
-        public final long scrollFnId;
-        public final long hudFnId;
-        public final long worldFnId;
-        public final long worldKeyFnId;
-        public final long worldBindingFnId;
+        public long renderFnId;
+        public long clickFnId;
+        public long keyFnId;
+        public long scrollFnId;
+        public long hudFnId;
+        public long worldFnId;
+        public long worldKeyFnId;
+        public long worldBindingFnId;
+        public long screenInitFnId;
+        public long screenRenderFnId;
+        public long screenClickFnId;
+        public long screenKeyFnId;
+        public long screenScrollFnId;
+        public long screenWidgetChangedFnId;
+        public long screenListRowFnId;
+        public long screenClosedFnId;
         public final String mod;
 
-        Script(
-                String name,
-                long entityHandle,
-                List<GrugObject> owner,
-                String mod,
-                Entities entities) {
+        Script(String name, long entityHandle, List<GrugObject> owner, String mod) {
             this.name = name;
             this.entityHandle = entityHandle;
             this.owner = owner;
+            this.mod = mod;
+        }
+
+        /**
+         * Looks the file's exports up on the entity that was just made. It runs only once the
+         * member scope returned a handle, so a file whose entity could not be made is asked
+         * nothing, and a screen it made before failing is dropped without a lookup it cannot use.
+         */
+        void lookUpExports(Entities entities) {
             this.renderFnId = entities.exportFnId("Overlay", "render");
             this.clickFnId = entities.exportFnId("Overlay", "click");
             this.keyFnId = entities.exportFnId("Overlay", "key");
@@ -96,7 +113,14 @@ public final class GrugOverlayScripts {
             this.worldFnId = entities.exportFnId("Overlay", "render_world");
             this.worldKeyFnId = entities.exportFnId("Overlay", "world_key");
             this.worldBindingFnId = entities.exportFnId("Overlay", "world_binding");
-            this.mod = mod;
+            this.screenInitFnId = entities.exportFnId("Overlay", "screen_init");
+            this.screenRenderFnId = entities.exportFnId("Overlay", "screen_render");
+            this.screenClickFnId = entities.exportFnId("Overlay", "screen_click");
+            this.screenKeyFnId = entities.exportFnId("Overlay", "screen_key");
+            this.screenScrollFnId = entities.exportFnId("Overlay", "screen_scroll");
+            this.screenWidgetChangedFnId = entities.exportFnId("Overlay", "screen_widget_changed");
+            this.screenListRowFnId = entities.exportFnId("Overlay", "screen_list_row");
+            this.screenClosedFnId = entities.exportFnId("Overlay", "screen_closed");
         }
     }
 
@@ -239,9 +263,22 @@ public final class GrugOverlayScripts {
     /** Makes one overlay's entity and puts its script where the clean-name order puts it. */
     private static void addScript(String name, long fileId) {
         List<GrugObject> owner = new ArrayList<>();
-        long handle = entities.create(fileId, owner);
-        if (handle == 0) return;
-        Script script = new Script(name, handle, owner, mods.getOrDefault(name, ""), entities);
+        Script script = new Script(name, 0, owner, mods.getOrDefault(name, ""));
+        GrugOwnedScreens.beginScriptCreation(script);
+        long handle;
+        try {
+            handle = entities.create(fileId, owner);
+        } finally {
+            GrugOwnedScreens.endScriptCreation();
+        }
+        if (handle == 0) {
+            // The member scope may have made screens before it failed; the entity that would have
+            // called their exports does not exist, so they are dropped without asking.
+            GrugOwnedScreens.scriptDropped(script);
+            return;
+        }
+        script.entityHandle = handle;
+        script.lookUpExports(entities);
         int at = 0;
         while (at < scripts.size() && scripts.get(at).name.compareTo(name) < 0) at++;
         scripts.add(at, script);
@@ -252,6 +289,7 @@ public final class GrugOverlayScripts {
         for (Iterator<Script> iterator = scripts.iterator(); iterator.hasNext(); ) {
             Script script = iterator.next();
             if (!script.name.equals(name)) continue;
+            GrugOwnedScreens.scriptDropped(script);
             entities.destroy(script.entityHandle);
             script.owner.clear();
             iterator.remove();
@@ -269,6 +307,7 @@ public final class GrugOverlayScripts {
     /** Forgets every script and file a unit test set up, and points the class back at the state. */
     static void resetForTest() {
         for (Script script : scripts) {
+            GrugOwnedScreens.scriptDropped(script);
             entities.destroy(script.entityHandle);
             script.owner.clear();
         }
@@ -278,5 +317,6 @@ public final class GrugOverlayScripts {
         scripts.clear();
         pending.clear();
         created = false;
+        GrugOwnedScreens.resetForTest();
     }
 }

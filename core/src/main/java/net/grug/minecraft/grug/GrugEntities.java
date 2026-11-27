@@ -82,13 +82,26 @@ public final class GrugEntities {
     }
 
     public static long addEntity(GrugEntityType type, Object object) {
+        return addEntity(type, object, fnEntities);
+    }
+
+    /**
+     * {@link #addEntity} with the new entity rooted in {@code roots} rather than in {@link
+     * #fnEntities}.
+     *
+     * <p>A screen and its widgets outlive the call that declares them: {@code screen_init} runs
+     * inside a per-call root list, which is dropped when the export returns, so rooting there would
+     * let the collector take a widget the mod still holds the id of. The overlay script's own list
+     * is the root that lives as long as the screen. See #1836.
+     */
+    public static long addEntity(GrugEntityType type, Object object, List<GrugObject> roots) {
         GrugObject grugObject = new GrugObject(type, object);
         int index = nextEntityIndices.get(type);
         nextEntityIndices.put(type, index + 1);
         long id = hostEntityId(type, index);
 
         entityData.put(id, grugObject);
-        root(fnEntities, grugObject);
+        root(roots, grugObject);
         return id;
     }
 
@@ -120,9 +133,20 @@ public final class GrugEntities {
      * removing its id is what makes a saved context stale rather than a context from a later pass.
      */
     public static void removeEntity(long id) {
+        removeEntity(id, fnEntities);
+    }
+
+    /**
+     * {@link #removeEntity} with the entity unrooted from {@code roots} rather than from {@link
+     * #fnEntities}, for an entity that was rooted somewhere else to outlive the call that made it.
+     *
+     * <p>A screen's widgets are rooted in its overlay script's owner list, so ending an open time
+     * drops them from that list. See #1836.
+     */
+    public static void removeEntity(long id, List<GrugObject> roots) {
         GrugObject object = entityData.remove(id);
         if (object != null) {
-            unroot(fnEntities, object);
+            unroot(roots, object);
         }
     }
 

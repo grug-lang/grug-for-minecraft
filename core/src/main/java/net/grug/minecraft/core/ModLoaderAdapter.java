@@ -6,6 +6,7 @@ import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugMobCap;
 import net.grug.minecraft.grug.GrugOverlay;
+import net.grug.minecraft.grug.GrugOwnedScreen;
 import net.grug.minecraft.grug.GrugWorldOverlay;
 import net.grug.minecraft.grug.Vec3;
 
@@ -1441,6 +1442,56 @@ public interface ModLoaderAdapter {
                 Grug.statePtr,
                 "TestTickContext.gui_height: This loader cannot measure a screen yet.");
         return 0.0;
+    }
+
+    /**
+     * Whether this loader can show a screen a mod owns, which is what {@code Screen.new()} and
+     * {@code Screen.open()} refuse on the loaders that cannot. A loader that implements {@link
+     * #showOwnedScreen} and {@link #hideOwnedScreen} answers true.
+     */
+    @GrugGenerated("default only: only 1.20.6 draws mod-owned screens, so the others keep this")
+    default boolean ownedScreensSupported() {
+        return false;
+    }
+
+    /**
+     * The width, in GUI-scaled pixels, that the game's own font draws {@code text} at, which is
+     * what {@code OverlayRenderContext.text_width} measures. A loader whose screen cannot measure
+     * text yet keeps the default, which reports the call rather than returning a width no font has.
+     */
+    @GrugGenerated("default only: the 1.20.6 client measures text")
+    default double textWidth(String text) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "OverlayRenderContext.text_width: This loader cannot measure text yet.");
+        return 0.0;
+    }
+
+    /**
+     * Shows {@code screen} as this client's screen, laying its widgets out and asking its {@code
+     * screen_init} once the screen has a size.
+     *
+     * <p>Core has already decided that the screen may open and closed whatever screen was open
+     * before, so this only has to hand the screen to the game. A loader without mod-owned screens
+     * keeps the default, which reports the call.
+     */
+    @GrugGenerated("default only: only 1.20.6 draws mod-owned screens")
+    default void showOwnedScreen(GrugOwnedScreen screen) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Screen.open: This loader cannot show a mod's own screen yet.");
+    }
+
+    /**
+     * Takes a mod's screen away, after core ended its open time and its script heard {@code
+     * screen_closed}.
+     *
+     * <p>The loader must not ask the screen anything more: replacing the game's screen with null,
+     * or with whatever it showed before, is all that is left to do.
+     */
+    @GrugGenerated("default only: only 1.20.6 draws mod-owned screens")
+    default void hideOwnedScreen(GrugOwnedScreen screen) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Screen.close: This loader cannot close a mod's own screen yet.");
     }
 
     /**

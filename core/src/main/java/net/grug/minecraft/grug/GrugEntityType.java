@@ -37,7 +37,12 @@ public enum GrugEntityType {
     SpawnSquares,
     TestInitContext,
     TestTickContext,
-    Vec3;
+    Vec3,
+    Screen,
+    Widget,
+    ScreenInitContext,
+    ScreenWidgetContext,
+    ListRowResponse;
 
     private static final GrugEntityType[] values = GrugEntityType.values();
 
