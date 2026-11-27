@@ -193,7 +193,10 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 10 {
-        ctx.assert(second.unwrap().change_from(normal.unwrap()) >= 1, "A row answered only \"second\" should change the row, so the crop above proves it sees the row's text.")
+        # The comparison is about what the row draws, which a host that paints nothing cannot show.
+        if me.screenshots_supported() {
+            ctx.assert(second.unwrap().change_from(normal.unwrap()) >= 1, "A row answered only \"second\" should change the row, so the crop above proves it sees the row's text.")
+        }
         ctx.close_screen()
     }
 }

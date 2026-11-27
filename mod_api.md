@@ -104,6 +104,7 @@ export tick(ctx: TestTickContext)
 .owned_screens_supported() bool
 .placed_supported() bool
 .registers_mod_recipes() bool
+.screenshots_supported() bool
 .world_overlay_supported() bool
 
 # Classes

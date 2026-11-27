@@ -137,7 +137,10 @@ export tick(ctx: TestTickContext) {
             return
         }
         ctx.assert(String.index_of(reported, "returned without answering") >= 0, "A row export that answered nothing should report that it returned without answering.")
-        ctx.assert(unanswered.unwrap().change_from(normal.unwrap()) >= 1, "A row that was never answered should not draw the text a normal answer draws.")
+        # The comparison is about what the row draws, which a host that paints nothing cannot show.
+        if me.screenshots_supported() {
+            ctx.assert(unanswered.unwrap().change_from(normal.unwrap()) >= 1, "A row that was never answered should not draw the text a normal answer draws.")
+        }
         ctx.close_screen()
     }
 }

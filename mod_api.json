@@ -1515,6 +1515,12 @@
 						"name": "bool"
 					}
 				},
+				"screenshots_supported": {
+					"description": "Test only: whether this host draws frames a test can capture and compare. Every loader does; the logic smoketest paints nothing, so all of its captures are blank and two of them never differ, and a test asks this before it asserts that a capture changed rather than failing for a host that draws nothing.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"world_overlay_supported": {
 					"description": "Whether this loader asks an overlay's world_key, render_hud and render_world exports at all, which a test asks before it presses a key and waits for a draw: a loader that does not returns early there instead of waiting for a frame that is never drawn. It is a property of the loader, answered from the start of a run.",
 					"return_type": {
