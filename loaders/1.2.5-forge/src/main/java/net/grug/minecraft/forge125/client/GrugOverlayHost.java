@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.GrugMetadata;
 import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugOverlayScripts;
+import net.grug.minecraft.grug.GrugOwnedScreens;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugScreenText;
@@ -114,6 +115,8 @@ public final class GrugOverlayHost {
             key.set(null, (Predicate<Object>) GrugOverlayHost::handleKeyEvent);
             Field open = GuiScreen.class.getField("grugScreenOpenHook");
             open.set(null, (Consumer<Object>) GrugOverlayHost::screenOpened);
+            Field world = Minecraft.class.getField("grugWorldChangeHook");
+            world.set(null, (Consumer<Object>) GrugOverlayHost::worldChanging);
             EntityRenderer.class
                     .getField("grugWorldHook")
                     .set(null, (DoubleConsumer) GrugOverlayHost::drawWorld);
@@ -173,55 +176,66 @@ public final class GrugOverlayHost {
                 }
             }
 
-            // The item draw scales its model by ten and shades it with the game's fixed-function
-            // lights, so a normalizing capability the frame left on renders each icon's left face
-            // about 1.9 times brighter. The game's slime renderer turns GL_NORMALIZE on and never
-            // turns it off again, so a slime rendered earlier in the session decides it. That is
-            // what made the JEI item list capture flake (#1137). Pin both capabilities off for the
-            // icons and put back what the frame had, so this draw is the same whatever ran before.
-            // The frame's state goes back in a finally, so a draw that throws cannot leave either
-            // capability, or the lighting, off for the rest of the session (#1144). The lighting is
-            // turned on inside the try that turns it off, so a throw from turning it on is put back
-            // the same way.
-            boolean normalized = GL11.glIsEnabled(GL11.GL_NORMALIZE);
-            boolean rescaled = GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
-            GL11.glDisable(GL11.GL_NORMALIZE);
-            GL11.glDisable(GL12.GL_RESCALE_NORMAL);
+            drawGeometry(minecraft, geometry);
+        }
+    }
+
+    /**
+     * Draws what one render pass recorded: the item icons, texts, highlight boxes and tooltips, in
+     * the order it drew them. An overlay's pass and a mod screen's {@code screen_render} both land
+     * here, so the two draws look the same and the tooltip stays over everything else.
+     */
+    public static void drawGeometry(Minecraft minecraft, GrugOverlayGeometry geometry) {
+        // The item draw scales its model by ten and shades it with the game's fixed-function
+        // lights, so a normalizing capability the frame left on renders each icon's left face
+        // about 1.9 times brighter. The game's slime renderer turns GL_NORMALIZE on and never
+        // turns it off again, so a slime rendered earlier in the session decides it. That is
+        // what made the JEI item list capture flake (#1137). Pin both capabilities off for the
+        // icons and put back what the frame had, so this draw is the same whatever ran before.
+        // The frame's state goes back in a finally, so a draw that throws cannot leave either
+        // capability, or the lighting, off for the rest of the session (#1144). The lighting is
+        // turned on inside the try that turns it off, so a throw from turning it on is put back
+        // the same way.
+        boolean normalized = GL11.glIsEnabled(GL11.GL_NORMALIZE);
+        boolean rescaled = GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
+        GL11.glDisable(GL11.GL_NORMALIZE);
+        GL11.glDisable(GL12.GL_RESCALE_NORMAL);
+        try {
             try {
+                // Inside the try whose finally turns it off, so a throw from turning it on is
+                // put back too rather than leaving the GUI lighting off for the session.
+                RenderHelper.enableGUIStandardItemLighting();
+                GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+                // The item draw nests its own level, which a throw would otherwise leave at
+                // 200 for the rest of the session.
+                if (renderItem == null) {
+                    renderItem = new RenderItem();
+                }
+                renderItem.zLevel = 200.0F;
                 try {
-                    // Inside the try whose finally turns it off, so a throw from turning it on is
-                    // put back too rather than leaving the GUI lighting off for the session.
-                    RenderHelper.enableGUIStandardItemLighting();
-                    GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
-                    // The item draw nests its own level, which a throw would otherwise leave at
-                    // 200 for the rest of the session.
-                    renderItem.zLevel = 200.0F;
-                    try {
-                        for (GrugScreenItemDraw item : geometry.items()) {
-                            renderItem.renderItemIntoGUI(
-                                    minecraft.fontRenderer,
-                                    minecraft.renderEngine,
-                                    new ItemStack((Item) item.item()),
-                                    (int) item.x(),
-                                    (int) item.y());
-                        }
-                    } finally {
-                        renderItem.zLevel = 0.0F;
+                    for (GrugScreenItemDraw item : geometry.items()) {
+                        renderItem.renderItemIntoGUI(
+                                minecraft.fontRenderer,
+                                minecraft.renderEngine,
+                                new ItemStack((Item) item.item()),
+                                (int) item.x(),
+                                (int) item.y());
                     }
                 } finally {
-                    RenderHelper.disableStandardItemLighting();
+                    renderItem.zLevel = 0.0F;
                 }
             } finally {
-                if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
-                if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
+                RenderHelper.disableStandardItemLighting();
             }
-            drawTexts(minecraft, geometry.texts());
-            for (GrugScreenBox box : geometry.boxes()) {
-                Gui.drawRect(
-                        (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);
-            }
-            drawTooltips(minecraft, geometry.tooltips());
+        } finally {
+            if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
+            if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
         }
+        drawTexts(minecraft, geometry.texts());
+        for (GrugScreenBox box : geometry.boxes()) {
+            Gui.drawRect((int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);
+        }
+        drawTooltips(minecraft, geometry.tooltips());
     }
 
     /**
@@ -343,6 +357,19 @@ public final class GrugOverlayHost {
     }
 
     /**
+     * Ends a mod screen's open time before the world it draws over goes away, so its {@code
+     * screen_closed} runs while the world still exists. The patched {@code Minecraft.changeWorld}
+     * calls this with the world the client is moving to, and the patched {@code exitToMainMenu}
+     * with null before it drops the world. Only leaving the world for good ends the screen: a
+     * dimension change hands the client another world and keeps the screen open, as the reference
+     * does, because the player is still in a world to build in.
+     */
+    public static void worldChanging(Object world) {
+        if (world != null) return;
+        GrugOwnedScreens.worldUnloaded();
+    }
+
+    /**
      * Routes one real mouse event through the overlays before the screen sees it.
      *
      * <p>The patched {@code GuiScreen.handleInput} calls this after {@code Mouse.next()} has
@@ -355,6 +382,18 @@ public final class GrugOverlayHost {
     public static boolean handleMouseEvent(Object screenObj) {
         GuiScreen screen = (GuiScreen) screenObj;
         Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (screen instanceof GrugOwnedScreenHost) {
+            // A mod screen has no overlay over it: its own screen_click, screen_scroll and widgets
+            // are what the mouse reaches. This version's screen has no wheel path at all, so the
+            // wheel is taken here; a press or a release falls through to the screen's own handler,
+            // which is where its mouseClicked and mouseMovedOrUp run.
+            if (minecraft == null) return false;
+            int wheel = Mouse.getEventDWheel();
+            if (wheel == 0) return false;
+            int x = Mouse.getEventX() * screen.width / minecraft.displayWidth;
+            int y = screen.height - Mouse.getEventY() * screen.height / minecraft.displayHeight - 1;
+            return ((GrugOwnedScreenHost) screen).scroll(x, y, wheel / WHEEL_NOTCH);
+        }
         GuiContainer container = eligible(screen);
         if (container == null || minecraft == null) return false;
 
@@ -549,8 +588,39 @@ public final class GrugOverlayHost {
         boolean repeat = charCode == testHeld;
         testHeld = release ? -1 : charCode;
         GrugOverlay.beginTestPress();
-        key(screen, (char) typed, key, ctrl, shift, repeat);
+        if (screen instanceof GrugOwnedScreenHost) {
+            // A mod screen's own key path: the focused field, then screen_key, then Escape. The
+            // flags come from the test rather than from LWJGL's state, which a synthetic press
+            // cannot write.
+            ((GrugOwnedScreenHost) screen).pressKey((char) typed, key, ctrl, shift, repeat);
+        } else {
+            key(screen, (char) typed, key, ctrl, shift, repeat);
+        }
         return GrugOverlay.testPressTaken();
+    }
+
+    /**
+     * Asks a mod screen's {@code screen_key} for one key or typed character and answers whether it
+     * took it, recording the answer for {@code TestTickContext.press_screen_key}. The key and
+     * character are decoded from this version's own numbering, the same way a real press is.
+     */
+    static boolean pressScreenKey(
+            GrugOwnedScreenHost host,
+            char character,
+            int key,
+            boolean ctrl,
+            boolean shift,
+            boolean repeat) {
+        int code = GrugOverlay.keyCodeForName(Keyboard.getKeyName(key));
+        if (code < 0) code = 0;
+        int typed = GrugOverlay.characterCode(character);
+        if (code == 0 && typed == 0) return false;
+        boolean chord = typed > 0 ? GrugOverlay.characterEventIsChord(ctrl, isAltDown()) : ctrl;
+        if (GrugOwnedScreens.keyScreen(host.model(), code, typed, chord, shift, repeat)) {
+            GrugOverlay.noteTestPressTaken();
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -566,9 +636,18 @@ public final class GrugOverlayHost {
      * asked, which is the order a real press on that screen has too.
      */
     public static boolean clickThroughScreen(GuiScreen screen, int x, int y, int button) {
-        if (!(screen instanceof GuiContainer)) return false;
         GrugOverlay.beginTestPress();
-        appendMouseEvent(screen, x, y, button, true, 0);
+        if (screen instanceof GrugOwnedScreenHost) {
+            // The press and its release go into the game's own queue: the patched loop asks the
+            // mouse hook, which leaves both to the screen, and the screen's mouseClicked reports
+            // what it did. A release is what ends a slider drag, and a test's press is independent
+            // of the one before it.
+            appendMouseEvent(screen, x, y, button, true, 0);
+            appendMouseEvent(screen, x, y, button, false, 0);
+        } else {
+            if (!(screen instanceof GuiContainer)) return false;
+            appendMouseEvent(screen, x, y, button, true, 0);
+        }
         screen.handleInput();
         return GrugOverlay.testPressTaken();
     }
@@ -578,7 +657,7 @@ public final class GrugOverlayHost {
      * input loop, the same patched loop a real wheel goes through.
      */
     public static boolean scrollThroughScreen(GuiScreen screen, int x, int y, double delta) {
-        if (eligible(screen) == null) return false;
+        if (eligible(screen) == null && !(screen instanceof GrugOwnedScreenHost)) return false;
         GrugOverlay.beginTestPress();
         appendMouseEvent(screen, x, y, -1, false, (int) Math.round(delta * WHEEL_NOTCH));
         screen.handleInput();

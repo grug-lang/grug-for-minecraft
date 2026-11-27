@@ -16,9 +16,11 @@ import net.grug.minecraft.forge125.client.GlBridge;
 import net.grug.minecraft.forge125.client.GrugClientHooks;
 import net.grug.minecraft.forge125.client.GrugEmptyScreen;
 import net.grug.minecraft.forge125.client.GrugOverlayHost;
+import net.grug.minecraft.forge125.client.GrugOwnedScreenHost;
 import net.grug.minecraft.forge125.client.GrugScreen;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugOwnedScreen;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
@@ -125,6 +127,42 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     @Override
     public Object getLevel() {
         return ModLoader.getMinecraftInstance().theWorld;
+    }
+
+    /**
+     * The width the client's own font draws the text at, which the screen API measures labels with.
+     * The font is the client's, so a dedicated server never asks this: it forwards a render pass to
+     * the joined client.
+     */
+    @Override
+    public double textWidth(String text) {
+        return ModLoader.getMinecraftInstance().fontRenderer.getStringWidth(text);
+    }
+
+    /**
+     * Mod-owned screens are the screen subclass this loader adds, so a {@code Screen.new()} and
+     * {@code Screen.open()} are legal here.
+     */
+    @Override
+    public boolean ownedScreensSupported() {
+        return true;
+    }
+
+    @Override
+    public void showOwnedScreen(GrugOwnedScreen screen) {
+        ModLoader.getMinecraftInstance().displayGuiScreen(new GrugOwnedScreenHost(screen));
+    }
+
+    @Override
+    public void hideOwnedScreen(GrugOwnedScreen screen) {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        // Only the screen this loader made for this mod screen is taken away: another screen the
+        // player opened over it is theirs to keep. The empty screen is what this loader shows
+        // where another version shows null, so the headless client does not get its menu.
+        if (minecraft.currentScreen instanceof GrugOwnedScreenHost
+                && ((GrugOwnedScreenHost) minecraft.currentScreen).model() == screen) {
+            minecraft.displayGuiScreen(new GrugEmptyScreen());
+        }
     }
 
     @Override
@@ -709,6 +747,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiWidthForTest() {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        if (screen instanceof GrugOwnedScreenHost) return screen.width;
         if (!(screen instanceof GuiContainer)) return 0.0;
         return GrugGuiAccess.xSize((GuiContainer) screen);
     }
@@ -725,6 +764,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiHeightForTest() {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        if (screen instanceof GrugOwnedScreenHost) return screen.height;
         if (!(screen instanceof GuiContainer)) return 0.0;
         return GrugGuiAccess.ySize((GuiContainer) screen);
     }
