@@ -29,6 +29,9 @@ kept_row: Option[ListRowResponse] = Option.new()
 
 # The mode keys are world keys because a screen export cannot be reached from a test directly. H
 # opens the screen, which is only legal while no screen is open, so a test closes between openings.
+# G is also Build Guide's toggle_enable default, so the unanswered test's press proves that a test
+# press reaches only the running test's mod: another mod's state left changed by it would show up in
+# a later test's world or capture (#1873).
 export world_key(ctx: OverlayWorldKeyContext) {
     key: number = ctx.key()
     if key == 67 {

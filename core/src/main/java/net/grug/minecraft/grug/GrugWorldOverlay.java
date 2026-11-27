@@ -574,10 +574,15 @@ public final class GrugWorldOverlay {
      * {@code code}. A loader with no way to register a binding polls raw keys and calls this, which
      * is how its default key still works; a loader that registers the binding polls {@link
      * #binding} instead, so a rebound key is the one that fires.
+     *
+     * <p>{@code onlyMod} limits the press to that mod's bindings, and {@code null} is every mod,
+     * which is what a real key press does.
      */
-    public static void bindingDefaultsFor(List<GrugOverlayScripts.Script> scripts, int code) {
+    public static void bindingDefaultsFor(
+            List<GrugOverlayScripts.Script> scripts, String onlyMod, int code) {
         List<String> mods = new ArrayList<>();
         for (GrugOverlayScripts.Script script : scripts) {
+            if (onlyMod != null && !onlyMod.equals(script.mod)) continue;
             if (!mods.contains(script.mod)) mods.add(script.mod);
         }
         for (String mod : mods) {
@@ -588,6 +593,27 @@ public final class GrugWorldOverlay {
                 binding(modScripts, mod, key.id(), false, true);
             }
         }
+    }
+
+    /** {@link #bindingDefaultsFor(List, String, int)} for a real press, which every mod sees. */
+    public static void bindingDefaultsFor(List<GrugOverlayScripts.Script> scripts, int code) {
+        bindingDefaultsFor(scripts, null, code);
+    }
+
+    /**
+     * Test only: delivers one press of {@code code} to {@code mod} alone, both to its {@code
+     * world_key()} exports and to its own bindings whose declared default key is {@code code}. A
+     * real press reaches every mod, but a test press drives the mod under test: another mod that
+     * happens to bind the same key would otherwise change its own state in a test that never meant
+     * to touch it, and that change would show up in a later test's world or capture (#1873).
+     */
+    public static void pressForTest(
+            List<GrugOverlayScripts.Script> scripts, String mod, double code, boolean ctrl) {
+        for (GrugOverlayScripts.Script overlay : scripts) {
+            if (mod != null && !mod.equals(overlay.mod)) continue;
+            key(overlay.entityHandle, overlay.worldKeyFnId, code, ctrl);
+        }
+        bindingDefaultsFor(GrugOverlayScripts.bindingScripts(), mod, (int) code);
     }
 
     private static boolean callAnswering(long entityHandle, long fnId) {

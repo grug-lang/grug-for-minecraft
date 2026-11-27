@@ -4,10 +4,13 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.ModLoaderAdapter;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The screens the overlay scripts created, which one of them is open, and the export calls that
@@ -213,8 +216,24 @@ public final class GrugOwnedScreens {
         }
         // A screen_closed may open another screen, so the loop closes whatever is open until
         // nothing is, which is also what reopening the screen that is already open does: its
-        // screen_closed runs before this one's screen_init.
+        // screen_closed runs before this one's screen_init. A handler that reopens the screen it
+        // was just told was closed would keep this loop here forever, so each screen is closed at
+        // most once in this pass: the screen asked for here wins, and one its own handler reopened
+        // is ended without a second screen_closed, which would reopen it again.
+        Set<GrugOwnedScreen> closed = Collections.newSetFromMap(new IdentityHashMap<>());
         while (openScreen != null) {
+            GrugOwnedScreen closing = openScreen;
+            if (closed.contains(closing)) {
+                // Its own screen_closed opened it again after this pass had ended its open time,
+                // so asking it a second time would reopen it once more. The screen being opened
+                // here still wins, and this one ends without another screen_closed.
+                openScreen = null;
+                closing.setOpen(false);
+                closing.dropWidgets();
+                adapter.hideOwnedScreen(closing);
+                continue;
+            }
+            closed.add(closing);
             closeOpen(adapter);
         }
         screen.setOpen(true);
@@ -266,15 +285,37 @@ public final class GrugOwnedScreens {
      * reads.
      */
     public static void gameRemoved(GrugOwnedScreen screen) {
+        gameRemoved(screen, screen.generation());
+    }
+
+    /**
+     * Ends a screen the game took away, unless that removal belongs to an open time that already
+     * ended: a host the game removed because the mod's {@code screen_closed} reopened the same
+     * screen is the old host, and ending the newer open time would leave the player with a screen
+     * that answers nothing (#1871's review).
+     */
+    public static void gameRemoved(GrugOwnedScreen screen, long generation) {
         GrugEntities.runLocked(
                 () -> {
                     if (screen != openScreen) return;
+                    if (screen.generation() != generation) return;
                     endOpenTime(screen);
                 });
     }
 
     /** Screens the game took away, waiting for a loader's next client tick to end them. */
-    private static final List<GrugOwnedScreen> gameRemovals = new ArrayList<>();
+    private static final List<Removal> gameRemovals = new ArrayList<>();
+
+    /** One noted removal and the open time it belongs to. */
+    private static final class Removal {
+        final GrugOwnedScreen screen;
+        final long generation;
+
+        Removal(GrugOwnedScreen screen, long generation) {
+            this.screen = screen;
+            this.generation = generation;
+        }
+    }
 
     /**
      * Notes that the game took {@code screen} away on its own, for {@link #runGameRemovals} to end
@@ -283,22 +324,27 @@ public final class GrugOwnedScreens {
      * screen_closed} before the game finished putting the replacement screen in place, so a handler
      * that opens a screen would have that screen dropped by the game's outer assignment.
      */
-    public static void noteGameRemoved(GrugOwnedScreen screen) {
+    public static void noteGameRemoved(GrugOwnedScreen screen, long generation) {
         synchronized (gameRemovals) {
-            gameRemovals.add(screen);
+            gameRemovals.add(new Removal(screen, generation));
         }
+    }
+
+    /** Notes a removal for the open time the screen is running now. */
+    public static void noteGameRemoved(GrugOwnedScreen screen) {
+        noteGameRemoved(screen, screen.generation());
     }
 
     /** Ends every screen the game took away since the last call; a loader calls this each tick. */
     public static void runGameRemovals() {
-        List<GrugOwnedScreen> ready;
+        List<Removal> ready;
         synchronized (gameRemovals) {
             if (gameRemovals.isEmpty()) return;
             ready = new ArrayList<>(gameRemovals);
             gameRemovals.clear();
         }
-        for (GrugOwnedScreen screen : ready) {
-            gameRemoved(screen);
+        for (Removal removal : ready) {
+            gameRemoved(removal.screen, removal.generation);
         }
     }
 
@@ -348,9 +394,11 @@ public final class GrugOwnedScreens {
             GrugScreenInitContext enclosingContext = initContext;
             GrugScreenInitContext context = new GrugScreenInitContext(screen, width, height);
             initContext = context;
+            boolean asked = false;
             try {
                 long fnId = screen.script().screenInitFnId;
                 if (canAsk(screen.script(), fnId)) {
+                    asked = true;
                     calls.callContext(
                             screen.script().entityHandle,
                             fnId,
@@ -359,7 +407,7 @@ public final class GrugOwnedScreens {
                 }
             } finally {
                 initContext = enclosingContext;
-                screen.endInit();
+                screen.endInit(asked);
             }
         } finally {
             GrugStateLock.unlock();
@@ -467,26 +515,41 @@ public final class GrugOwnedScreens {
      */
     public static void prepareFrame(GrugOwnedScreen screen) {
         if (screen != openScreen) return;
+        long generation = screen.generation();
         GrugStateLock.lock();
         try {
             GrugEntities.clearRoots(frameRowRoots);
-            GrugListRowResponse.clearLastDefect();
             for (GrugWidget widget : screen.widgets()) {
                 widget.clearFrameRows();
             }
+            boolean askedFirst = false;
             for (GrugWidget widget : screen.widgets()) {
                 if (!widget.is(GrugWidgetKind.LIST) || !widget.visible()) continue;
-                int rows = widget.rows();
-                if (rows <= 0) continue;
-                int first = GrugListMath.firstVisible(widget.scroll(), rows, widget.rowHeight());
-                int last =
-                        GrugListMath.lastVisible(
-                                widget.scroll(), rows, widget.rowHeight(), widget.height());
-                for (int index = first; index <= last; index++) {
+                int first =
+                        GrugListMath.firstVisible(
+                                widget.scroll(), widget.rows(), widget.rowHeight());
+                for (int index = first; index < widget.rows(); index++) {
+                    int last =
+                            GrugListMath.lastVisible(
+                                    widget.scroll(),
+                                    widget.rows(),
+                                    widget.rowHeight(),
+                                    widget.height());
+                    if (index > last) break;
+                    // A row answered before this one may have dropped and re-declared its list,
+                    // so the widget asked next is the one the model holds now, and one that is
+                    // gone ends the pass.
+                    if (screen.widget(widget.name()) != widget) break;
+                    if (!askedFirst) {
+                        // A frame that asks no row keeps the defect the last frame that did
+                        // reported, as TestTickContext.list_row_error documents.
+                        GrugListRowResponse.clearLastDefect();
+                        askedFirst = true;
+                    }
                     askRow(screen, widget, index);
-                    // screen_list_row may close the screen, which is the last call it hears, so
-                    // the rows after it are not asked: the list it was answering for is gone.
-                    if (openScreen != screen) return;
+                    // screen_list_row may close or reopen the screen, which ends this pass: the
+                    // rows after it would answer for widgets the new open time dropped.
+                    if (openScreen != screen || screen.generation() != generation) return;
                 }
             }
         } finally {
@@ -541,14 +604,19 @@ public final class GrugOwnedScreens {
     }
 
     /**
-     * The first visible list under the point, in declaration order, or null when there is none.
+     * The visible list under the point that the frame draws last, which is the one on top, or null
+     * when there is none. This is the list a wheel movement goes to and the one that answers for
+     * it, and the loader's screen asks this rather than the game's own hit test, which skips a
+     * widget that is not active.
      *
      * <p>A list that is visible answers even when it is not active: the wheel over it is absorbed
      * there and does not reach a list behind it, and {@link #scrollList} then refuses to move it,
      * which is what {@code Widget.set_active} means by a list that is not active not scrolling.
      */
     public static GrugWidget listAt(GrugOwnedScreen screen, double x, double y) {
-        for (GrugWidget widget : screen.widgets()) {
+        List<GrugWidget> widgets = screen.widgets();
+        for (int index = widgets.size() - 1; index >= 0; index--) {
+            GrugWidget widget = widgets.get(index);
             if (!widget.is(GrugWidgetKind.LIST) || !widget.visible()) continue;
             if (widget.contains(x, y)) return widget;
         }
@@ -616,15 +684,18 @@ public final class GrugOwnedScreens {
 
     // --- The widgets an ended open time dropped -----------------------------------------------
 
-    /** Records that a widget was dropped because its screen's open time ended. */
+    /**
+     * Records that a widget was dropped because its open time ended or its init declared it no
+     * more.
+     */
     static void widgetDropped(long widgetId, String name) {
         droppedWidgets.put(widgetId, name);
     }
 
     /**
-     * The name of the widget an ended open time dropped and no screen declares now, or null when
-     * the id names no such widget. It is what lets a call on a saved handle say its screen closed,
-     * which is true, rather than that the object was collected, which is not.
+     * The name of a widget a screen no longer has and no screen declares now, or null when the id
+     * names no such widget. It is what lets a call on a saved handle say its screen ended, or its
+     * {@code screen_init} dropped it, rather than that the object was collected, which is not.
      */
     static String droppedWidgetName(long widgetId) {
         return droppedWidgets.get(widgetId);

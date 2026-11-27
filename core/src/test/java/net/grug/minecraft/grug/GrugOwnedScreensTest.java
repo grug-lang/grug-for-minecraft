@@ -333,6 +333,22 @@ class GrugOwnedScreensTest {
     }
 
     @Test
+    void aClosedHandlerThatReopensTheScreenDoesNotKeepOpenInALoop() {
+        GrugOwnedScreen first = openScreen();
+        recorder.onClosed = () -> GrugOwnedScreens.open(loader.adapter(), first);
+        GrugOwnedScreen second = createScreen();
+
+        assertNull(GrugOwnedScreens.open(loader.adapter(), second));
+
+        // The handler opened first again every time it heard screen_closed. The screen asked for
+        // wins, and first heard the close once rather than once per pass of a loop that never ends.
+        assertFalse(first.open());
+        assertTrue(second.open());
+        assertSame(second, GrugOwnedScreens.openScreen());
+        assertEquals(1, recorder.count(script.screenClosedFnId));
+    }
+
+    @Test
     void aClosedHandlerThatOpensTheSameScreenAgainLeavesItOpen() {
         GrugOwnedScreen screen = openScreen();
         recorder.onClosed =
@@ -397,6 +413,28 @@ class GrugOwnedScreensTest {
 
         GrugOwnedScreens.runGameRemovals();
         assertEquals(1, recorder.count(script.screenClosedFnId), "a drained removal runs once");
+    }
+
+    @Test
+    void aRemovalNotedForAnOpenTimeThatEndedDoesNotEndTheReopenedOne() {
+        GrugOwnedScreen screen = openScreen();
+        long old = screen.generation();
+        // The host the game replaced carries the open time it was made for, and screen_closed
+        // reopened the same screen before the loader drained the removal.
+        recorder.onClosed =
+                () -> {
+                    recorder.onClosed = null;
+                    assertNull(GrugOwnedScreens.open(loader.adapter(), screen));
+                };
+        assertNull(GrugOwnedScreens.close(loader.adapter(), screen));
+        assertTrue(screen.open());
+        assertEquals(old + 1, screen.generation());
+
+        GrugOwnedScreens.noteGameRemoved(screen, old);
+        GrugOwnedScreens.runGameRemovals();
+
+        assertTrue(screen.open(), "the replaced host's removal is not the newer open time");
+        assertSame(screen, GrugOwnedScreens.openScreen());
     }
 
     @Test
@@ -700,7 +738,7 @@ class GrugOwnedScreensTest {
     }
 
     @Test
-    void theListUnderThePointIsTheVisibleOne() {
+    void theListUnderThePointIsTheOneTheFrameDrawsLast() {
         GrugOwnedScreen screen = openScreen();
         GrugWidget[] lists = new GrugWidget[2];
         recorder.onInit =
@@ -711,9 +749,12 @@ class GrugOwnedScreensTest {
                 };
         init(screen, 320, 240);
 
+        // The last declared list is the one drawn on top, so it is the one the wheel reaches.
+        assertSame(lists[1], GrugOwnedScreens.listAt(screen, 5, 5));
+        lists[1].setVisible(false);
         assertSame(lists[0], GrugOwnedScreens.listAt(screen, 5, 5));
         lists[0].setVisible(false);
-        assertSame(lists[1], GrugOwnedScreens.listAt(screen, 5, 5));
+        assertNull(GrugOwnedScreens.listAt(screen, 5, 5));
         assertNull(GrugOwnedScreens.listAt(screen, 500, 500));
     }
 
@@ -902,6 +943,48 @@ class GrugOwnedScreensTest {
         recorder.asked.clear();
         GrugOwnedScreens.prepareFrame(screen);
         assertTrue(recorder.asked.isEmpty());
+    }
+
+    @Test
+    void aFrameThatAsksNoRowKeepsTheDefectTheLastFrameThatDidReported() {
+        GrugOwnedScreen screen = openScreen();
+        GrugWidget[] list = new GrugWidget[1];
+        recorder.onInit =
+                () -> {
+                    list[0] = screen.declareList("list", 0, 0, 100, 30, 10).widget;
+                    list[0].applyRows(1);
+                };
+        init(screen, 320, 240);
+        GrugTestState.testRunActive = true;
+        GrugOwnedScreens.prepareFrame(screen);
+        String reported = GrugListRowResponse.lastDefect();
+        assertFalse(reported.isEmpty(), "the unanswered row is a defect");
+
+        list[0].setVisible(false);
+        GrugOwnedScreens.prepareFrame(screen);
+        assertEquals(
+                reported,
+                GrugListRowResponse.lastDefect(),
+                "a frame that asks for no row keeps the answer of the last frame that did");
+    }
+
+    @Test
+    void aResizeDropsTheWidgetsTheNewInitDidNotDeclare() {
+        GrugOwnedScreen screen = openScreen();
+        recorder.onInit =
+                () -> {
+                    screen.declareButton("wide", "x", 0, 0, 10, 10);
+                    screen.declareButton("narrow", "y", 0, 0, 10, 10);
+                };
+        init(screen, 320, 240);
+        assertNotNull(screen.widget("narrow"));
+
+        recorder.onInit = () -> screen.declareButton("wide", "x", 0, 0, 10, 10);
+        init(screen, 200, 240);
+
+        assertNotNull(screen.widget("wide"));
+        assertNull(screen.widget("narrow"), "the narrower layout declared it no longer");
+        assertEquals(1, screen.widgets().size());
     }
 
     @Test

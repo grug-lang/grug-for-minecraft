@@ -158,9 +158,18 @@ public final class GrugWidget {
         return textRevision;
     }
 
-    /** The rows {@code screen_list_row} answered for the frame that is being drawn. */
+    /**
+     * The rows {@code screen_list_row} answered for the frame that is being drawn, leaving out an
+     * answer for an index the list no longer has: a row export may shrink the list after an earlier
+     * row of the same frame was answered, and drawing the dropped row would show a row the mod says
+     * is gone.
+     */
     public List<Row> frameRows() {
-        return frameRows;
+        List<Row> within = new ArrayList<>(frameRows.size());
+        for (Row row : frameRows) {
+            if (row.index() < rows) within.add(row);
+        }
+        return within;
     }
 
     /** The message a slider draws: its text and its value rounded to tenths. */
