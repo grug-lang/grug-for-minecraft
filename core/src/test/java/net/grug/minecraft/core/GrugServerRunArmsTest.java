@@ -30,12 +30,6 @@ class GrugServerRunArmsTest {
     }
 
     @Test
-    void aMovedHeightIsRoundedOnlyOnceARunHoldsOne() {
-        assertEquals(70.5, GrugServerRunArms.movedHeld(64.0, 70.5000000004), 0.0);
-        assertEquals(0.0, GrugServerRunArms.movedHeld(0.0, 70.5), 0.0);
-    }
-
-    @Test
     void aHeightIsRoundedToAMillionth() {
         assertEquals(71.0, GrugServerRunArms.roundedHeight(70.9999999), 0.0);
     }
@@ -46,24 +40,56 @@ class GrugServerRunArmsTest {
 
         // Well under the held height: the height wins even though the floor is also above them.
         GrugServerRunArms.hold(
-                "p", 70.0, 60.0, 0.25, 65.0, p -> held.add("height"), (p, f) -> held.add("floor"));
+                "p",
+                true,
+                70.0,
+                60.0,
+                0.25,
+                65.0,
+                p -> held.add("height"),
+                (p, f) -> held.add("floor"));
         // Within the tolerance of the held height, but under the floor, which the arm is handed.
         GrugServerRunArms.hold(
                 "p",
+                true,
                 70.0,
                 69.9,
                 0.25,
                 70.5,
                 p -> held.add("height"),
                 (p, f) -> held.add("floor " + f));
+        // A held height of 0 is a real height, so the height arm runs when the feet fall under it.
+        GrugServerRunArms.hold(
+                "p",
+                true,
+                0.0,
+                -0.5,
+                0.25,
+                -1.0,
+                p -> held.add("height at 0"),
+                (p, f) -> held.add("floor"));
         // No held height yet, under the floor.
         GrugServerRunArms.hold(
-                "p", 0.0, 60.0, 0.25, 65.0, p -> held.add("height"), (p, f) -> held.add("floor"));
+                "p",
+                false,
+                0.0,
+                60.0,
+                0.25,
+                65.0,
+                p -> held.add("height"),
+                (p, f) -> held.add("floor"));
         // On the floor, at the held height.
         GrugServerRunArms.hold(
-                "p", 70.0, 70.0, 0.25, 70.0, p -> held.add("height"), (p, f) -> held.add("floor"));
+                "p",
+                true,
+                70.0,
+                70.0,
+                0.25,
+                70.0,
+                p -> held.add("height"),
+                (p, f) -> held.add("floor"));
 
-        assertEquals(List.of("height", "floor 70.5", "floor"), held);
+        assertEquals(List.of("height", "floor 70.5", "height at 0", "floor"), held);
     }
 
     @Test
