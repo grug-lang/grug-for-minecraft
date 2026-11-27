@@ -166,7 +166,6 @@ local _hold(pipe_entity: BlockEntity, held: Item, dx: number) {
     pipe_entity.set_saved_list_number("traveling", index, "z", center.z())
     pipe_entity.set_saved_list_number("traveling", index, "speed", 0.0)
     pipe_entity.set_saved_list_number("traveling", index, "direction", 3)
-    pipe_entity.set_saved_list_number("traveling", index, "steps", -1000000)
     pipe_entity.set_saved_list_number("traveling", index, "to_center", 1)
     pipe_entity.set_saved_list_number("traveling", index, "count", 1)
     pipe_entity.set_saved_list_number("traveling", index, "damage", 0)

@@ -48,7 +48,6 @@ local _record(pipe: BlockEntity, px: number, py: number, pz: number, speed: numb
     pipe.set_saved_list_number("traveling", index, "z", pz)
     pipe.set_saved_list_number("traveling", index, "speed", speed)
     pipe.set_saved_list_number("traveling", index, "direction", 5)
-    pipe.set_saved_list_number("traveling", index, "steps", 50)
     pipe.set_saved_list_number("traveling", index, "to_center", 0)
     pipe.set_saved_list_number("traveling", index, "count", 1)
     pipe.set_saved_list_number("traveling", index, "damage", 0)
