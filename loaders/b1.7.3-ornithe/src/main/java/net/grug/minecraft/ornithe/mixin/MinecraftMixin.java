@@ -83,7 +83,7 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     private void grug$onClientTick(CallbackInfo ci) {
         // A screen the game took away reports itself on the next tick, so a screen_closed that
         // opens another screen runs after the game finished replacing that one.
-        GrugOwnedScreenHost.flushRemoved();
+        GrugOwnedScreens.runGameRemovals();
         net.grug.minecraft.ornithe.OrnitheAdapter.holdPlayerForTest(
                 ((Minecraft) (Object) this).player);
         grug$hooks.tick();

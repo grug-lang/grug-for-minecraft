@@ -102,9 +102,6 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
      */
     private static final int TEXT_FIELD_MAX_LENGTH = 1024;
 
-    /** The screens the game took away, whose {@code screen_closed} waits for the next tick. */
-    private static final List<GrugOwnedScreen> removed = new ArrayList<>();
-
     private final GrugOwnedScreen screen;
 
     /** The vanilla button for each button or slider widget, in declaration order. */
@@ -282,6 +279,13 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             GrugOverlay.noteTestPressTaken();
             return;
         }
+        // The mod may have shown, hidden or moved a widget during that call, and the mirrors are a
+        // frame behind. A press is routed by a mirror's own visibility, bounds and active flag, so
+        // the mirrors are brought up to date first: otherwise a list the mod just hid still takes
+        // the press meant for the widget it revealed underneath, which a player pressing twice
+        // within one frame reaches and a test pressing on two ticks does too, because the runner
+        // runs many ticks per frame.
+        syncWidgets();
         for (GrugWidget widget : screen.widgets()) {
             if (!widget.visible() || !widget.active()) continue;
             if (!widget.contains(x, y)) continue;
@@ -357,29 +361,25 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
     }
 
     /**
-     * Delivers one press: a focused field gets it, otherwise {@code screen_key} is asked and a
-     * press it does not take closes the screen when it is Escape. A real press and a test's
-     * synthetic one both land here, so the two see the same order. Answers whether the press was
-     * used up, which is always true because Escape is the screen's own close.
+     * Delivers one press. Escape is always asked of {@code screen_key}, whatever has the keyboard,
+     * because the game closes the screen with it and a mod that runs its own close from that export
+     * would otherwise never hear of the close. Any other key goes to a focused field, and the mod
+     * is not asked while a field has the keyboard. A press no field and no export took falls to the
+     * screen, where Escape closes it. Answers whether the press was used up, which is always true
+     * because Escape is the screen's own close.
      */
     boolean pressKey(char character, int key) {
+        if (key == Keyboard.KEY_ESCAPE) {
+            if (GrugOverlayHost.pressOwnedScreenKey(this, character, key)) return true;
+            closeScreen();
+            return true;
+        }
         Field focused = focusedField();
         if (focused != null) {
-            // The API says screen_key is not asked while a field has the keyboard, and Escape is
-            // the screen's own close on this version rather than a character the field edits.
-            if (key == Keyboard.KEY_ESCAPE) {
-                closeScreen();
-                return true;
-            }
             if (focused.edit(character, key)) reportFieldText(focused);
             return true;
         }
-        if (GrugOverlayHost.pressOwnedScreenKey(this, character, key)) {
-            return true;
-        }
-        if (key == Keyboard.KEY_ESCAPE) {
-            closeScreen();
-        }
+        GrugOverlayHost.pressOwnedScreenKey(this, character, key);
         return true;
     }
 
@@ -467,24 +467,13 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
     public void removed() {
         super.removed();
         // The game takes the screen away for Escape, for a screen it put in its place, and for the
-        // world being left, and each of those is the same end for the mod. The report waits for the
-        // next tick, so a screen_closed that opens another screen does so after the game finished
-        // replacing this one rather than inside it.
-        synchronized (removed) {
-            removed.add(screen);
-        }
-    }
-
-    /** Reports the screens the game took away since the last tick, on the client thread. */
-    public static void flushRemoved() {
-        List<GrugOwnedScreen> pending;
-        synchronized (removed) {
-            if (removed.isEmpty()) return;
-            pending = new ArrayList<>(removed);
-            removed.clear();
-        }
-        for (GrugOwnedScreen screen : pending) {
-            GrugOwnedScreens.gameRemoved(screen);
+        // world being left, and each of those is the same end for the mod. A screen the mod closed
+        // itself is already ended, so only one that is still open is noted, and the end waits for
+        // the next client tick: this version calls this inside `openScreen` before it assigns the
+        // replacement, so a screen_closed that opens another screen would have it dropped. Core
+        // keeps the note and `runGameRemovals` ends it from the tick.
+        if (GrugOwnedScreens.openScreen() == screen) {
+            GrugOwnedScreens.noteGameRemoved(screen);
         }
     }
 
