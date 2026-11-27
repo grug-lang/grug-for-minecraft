@@ -1,0 +1,171 @@
+# Slice 1 of #1752's screens: the B binding opens the current tab's screen over the world, its
+# initCheck gives a fresh state its first set, the Configuration tab opens from the chrome, its
+# persistence checkbox writes the config file, and Escape closes the screen through screen_closed,
+# which saves the state. The config is put back the way the run found it, so a later test or run
+# starts from the same persistence value. A dedicated server has no mod screen, so the leg ends
+# before it opens one.
+started: bool = false
+opened: bool = false
+waited: number = 0
+tabbed: bool = false
+persisted: bool = false
+closed: bool = false
+saved: bool = false
+reopened: bool = false
+restored: bool = false
+was_persistent: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        if not me.world_overlay_supported() or me.on_dedicated_server() {
+            started = true
+            return
+        }
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        started = true
+        # The persistence value the config file holds before the test, which the checkbox's two
+        # clicks have to move away from and back to.
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The mod should have written its config file before the first test tick.")
+        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if not opened {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The B binding should open the Shape screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape screen should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        opened = true
+        ctx.not_done()
+        return
+    }
+
+    if not tabbed {
+        # The Configuration tab is the fourth chrome button, at x 380 to 500 and y 30 to 50 in
+        # GUI-scaled pixels, as the reference lays the four tabs out.
+        ctx.click_screen(440, 40, 0)
+        tabbed = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not persisted {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Configuration screen should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        # The persistence checkbox is the third of ConfigurationScreen's boxes, at (255, 160) with
+        # the game's own checkbox size, so a press inside its box ticks it.
+        ctx.click_screen(262, 168, 0)
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The persistence checkbox should leave the config file readable.")
+        expected: string = "persistenceEnabled = true"
+        if was_persistent {
+            expected = "persistenceEnabled = false"
+        }
+        ctx.assert(String.index_of(config.unwrap(), expected) >= 0, "Ticking the persistence checkbox should write its new value to the config file.")
+        persisted = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not closed {
+        # Escape is the screen's own close, which reaches BaseScreen.onScreenClosed through
+        # screen_closed. The host's own Escape handling would close the screen without the save.
+        ctx.press_screen_key(256, false, false, true)
+        closed = true
+        ctx.not_done()
+        return
+    }
+
+    if ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "Escape should close the screen.")
+        ctx.not_done()
+        return
+    }
+
+    if not saved {
+        # The close saved the state, and initCheck put the one set a fresh state gets into it, so
+        # the file the world's name and dimension name holds a shapeSet line with no refused-shape
+        # marker. The directory is listed rather than its file named, so the test does not repeat
+        # the reference's sanitising of the world's name.
+        files: File = File.open(r"files")
+        count: number = files.entry_count("buildguide")
+        ctx.assert(count > 0, "The close should save a state file.")
+        found: bool = false
+        i: number = 0
+        while i < count {
+            name: string = files.entry_name("buildguide", i)
+            text: Option[string] = files.read_text(String.concat("buildguide/", name))
+            if text.has() {
+                state: string = text.unwrap()
+                if String.index_of(state, "shapeSet=") >= 0 {
+                    found = true
+                    ctx.assert(String.index_of(state, "enabled=") == 0, "The saved state should start with the enabled line.")
+                    ctx.assert(String.index_of(state, "!") < 0, "A saved state should not carry the refused-shape marker.")
+                }
+            }
+            i = i + 1
+        }
+        ctx.assert(found, "The saved state should hold the set initCheck made.")
+        saved = true
+        waited = 0
+        # The Configuration tab is still the current one, so the binding reopens it and its
+        # checkbox turns persistence back off, which is the value the run found.
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if not reopened {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The B binding should reopen the Configuration screen.")
+            ctx.not_done()
+            return
+        }
+        reopened = true
+        ctx.not_done()
+        return
+    }
+
+    if not restored {
+        ctx.click_screen(262, 168, 0)
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The second click should leave the config file readable.")
+        expected: string = "persistenceEnabled = false"
+        if was_persistent {
+            expected = "persistenceEnabled = true"
+        }
+        ctx.assert(String.index_of(config.unwrap(), expected) >= 0, "Unticking the persistence checkbox should put the value the run found back.")
+        restored = true
+        ctx.not_done()
+        return
+    }
+
+    # One client serves the whole run, so a screen a test opened outlives it.
+    ctx.close_screen()
+}

@@ -1,13 +1,13 @@
-# Build Guide 0.4.9's behaviour without its screens (#1752 stage 1): the fifteen shape generators,
-# the per-world state file, the three config options and the world drawing of every visible set with
-# its origin cube, for 1.20.6-forge, the loader the reference itself ships.
+# Build Guide 0.4.9's behaviour for 1.20.6-forge, the loader the reference itself ships: the fifteen
+# shape generators, the per-world state file, the three config options, the world drawing of every
+# visible set with its origin cube, and the five screens with their widgets (#1752).
 # The reference is one client-side shape projector: a set is an origin, a shape class with its own
 # properties, a colour for the shape and one for the origin, and two cube sizes. There is no build
 # capture, no schematic and no server side, and the only persisted data is the set list and the
 # config, so nothing here reads or writes a world.
-# The screens, their widgets, the B key and every graphics capture are stage 2, and so is saving a
-# state on screen close: this file loads a state and draws it, and never writes one back. What it
-# does write is the config file, because the reference writes that one as soon as it is missing.
+# A screen is one of the reference's five, opened by its B key or a tab button and laid out again on
+# every open and resize, and its close saves the whole state when persistence is on. Its graphics
+# captures are the last stage (#1752), and so is the reference job's comparison.
 # Everything lives in this file because a grug local function is visible only inside the file that
 # defines it, and the host cannot call one: the generators, the state text codec and the drawing are
 # one chain, and a second file could not reach the first.
@@ -54,23 +54,88 @@ pending_global_origin: number = 0
 # loadPersistence and read by every loop that would otherwise carry on after it.
 load_failed: bool = false
 
+# The five screens: the reference's BaseScreen and its four tabs, and the dropdown that the Shape and
+# Shape list tabs open over themselves. A screen is created at member scope, opened with `open`, and
+# asked to declare its widgets in `screen_init` on every open and after every resize; the host asks
+# the `screen_*` exports only while one of them is open.
+shape_screen: Screen = Screen.new()
+visualisation_screen: Screen = Screen.new()
+shapelist_screen: Screen = Screen.new()
+configuration_screen: Screen = Screen.new()
+dropdown_screen: Screen = Screen.new()
+
+# State.currentScreen: the tab a screen shows and the B key opens. The dropdown is not a tab, so it
+# keeps its parent's name in `tab_screen` and remembers its parent in `dropdown_parent` while open.
+# `active_screen` is the screen that is open, and empty while none is, which is what tells the world
+# frame whether to count the shapes a screen will show.
+tab_screen: string = "shape"
+active_screen: string = ""
+dropdown_parent: string = "shape"
+
+# The chrome's six widgets, which every screen declares for itself in _chrome_init. Only the open
+# screen's widgets exist, so one handle per widget serves all five screens.
+w_enabled: Option[Widget] = Option.new()
+w_close: Option[Widget] = Option.new()
+w_tab_shape: Option[Widget] = Option.new()
+w_tab_visualisation: Option[Widget] = Option.new()
+w_tab_shapelist: Option[Widget] = Option.new()
+w_tab_configuration: Option[Widget] = Option.new()
+
+# ConfigurationScreen's six widgets: three checkboxes and their Default buttons.
+c_async: Option[Widget] = Option.new()
+c_async_default: Option[Widget] = Option.new()
+c_random: Option[Widget] = Option.new()
+c_random_default: Option[Widget] = Option.new()
+c_persistence: Option[Widget] = Option.new()
+c_persistence_default: Option[Widget] = Option.new()
+
+# The world facts of the last world frame: a screen's initCheck needs the level and the player's feet,
+# and a close saves the state under the world and dimension the player is in. render_world runs every
+# frame, with or without a screen, so these are current whenever a screen opens.
+world_level: Option[Level] = Option.new()
+world_name: string = ""
+world_dimension: string = ""
+world_x: number = 0
+world_y: number = 0
+world_z: number = 0
+
+# BaseScreen.render's two block counts, from the last world frame: a shape is generated while it is
+# drawn or counted, so a frame with a screen open counts every set with the draw suppressed, and the
+# current shape's count is its set's whether or not the set is visible, as the reference's is.
+block_shape: number = 0
+block_total: number = 0
+cell_count: number = 0
+cell_counting: bool = false
+
 # Draws every shape set the way AbstractRenderHandler.render and AbstractLegacyRenderHandler do:
 # only while the mod is enabled, there is a set, and the current set has an origin; then each set
 # whose own state allows it, with its origin cube.
 # A world frame is also where a queued key press is applied, because the state has to be loaded
-# first and a binding handler has no feet to read.
+# first and a binding handler has no feet to read, and where the screen's block counts are taken.
 
 export render_world(ctx: OverlayWorldContext) {
     level: Level = ctx.get_level()
     name: string = level.name()
     dimension: string = level.dimension()
     key: string = _state_key(name, dimension)
+    x: number = ctx.player_x()
+    y: number = ctx.player_y()
+    z: number = ctx.player_z()
+    world_level.set(level)
+    world_name = name
+    world_dimension = dimension
+    world_x = x
+    world_y = y
+    world_z = z
     if not config_loaded or not state_loaded or state_key != key {
         files: File = File.open(r"files")
         _ensure_config(files)
-        _ensure_state(files, level, name, dimension, key, ctx.player_x(), ctx.player_y(), ctx.player_z())
+        _ensure_state(files, level, name, dimension, key, x, y, z)
     }
-    _apply_pending(level, ctx.player_x(), ctx.player_y(), ctx.player_z())
+    _apply_pending(level, x, y, z)
+    if active_screen != "" {
+        _count_all(ctx)
+    }
     if not _state_enabled() {
         return
     }
@@ -83,11 +148,13 @@ export render_world(ctx: OverlayWorldContext) {
     _draw_all(ctx)
 }
 
-# The three declared bindings, which the player rebinds in the Controls menu under the reference's
-# own names. The reference leaves all three unbound by default, so this port's defaults are a
-# deviation that about.json records. A binding fires once per press, so a count of presses is a
-# count of applications; applying the same count again in one frame is what a player who pressed
-# twice before a frame would get from the reference too.
+# The four declared bindings, which the player rebinds in the Controls menu under the reference's
+# own names. The reference leaves the three state keys unbound by default, so this port's defaults
+# are a deviation that about.json records, and its open key is B in both. A binding fires once per
+# press, so a count of presses is a count of applications; applying the same count again in one
+# frame is what a player who pressed twice before a frame would get from the reference too.
+# The open key creates the screen of the tab State.currentScreen names and shows it, as
+# AbstractInputHandler.onKeyInput does.
 
 export world_binding(ctx: OverlayWorldBindingContext) {
     if ctx.id() == "toggle_enable" {
@@ -100,7 +167,94 @@ export world_binding(ctx: OverlayWorldBindingContext) {
     }
     if ctx.id() == "set_global_origin" {
         pending_global_origin = pending_global_origin + 1
+        return
     }
+    if ctx.id() == "open_screen" {
+        _open_tab(tab_screen)
+    }
+}
+
+# The five screens of #1752's second stage. Every one of them starts with BaseScreen's chrome and
+# State.initCheck, which the reference runs from the screen's own constructor as well as from the
+# toggle key, and the dropdown is the second screen over its parent rather than a widget inside it.
+
+export screen_init(ctx: ScreenInitContext) {
+    width: number = ctx.screen_width()
+    if state_loaded and world_level.has() {
+        _state_check(world_level.unwrap(), world_x, world_y, world_z)
+    }
+    if active_screen == "configuration" {
+        _configuration_init(width)
+        return
+    }
+    if active_screen == "visualisation" {
+        _chrome_init(visualisation_screen, width, "visualisation", _state_enabled())
+        return
+    }
+    if active_screen == "shapelist" {
+        _chrome_init(shapelist_screen, width, "shapelist", _state_enabled())
+        return
+    }
+    if active_screen == "dropdown" {
+        _chrome_init(dropdown_screen, width, dropdown_parent, _state_enabled())
+        return
+    }
+    _chrome_init(shape_screen, width, "shape", _state_enabled())
+}
+
+export screen_render(ctx: OverlayRenderContext) {
+    width: number = ctx.screen_width()
+    if active_screen == "configuration" {
+        _configuration_render(ctx, width)
+        return
+    }
+    _chrome_render(ctx, width)
+}
+
+# The reference has no screen-level click or wheel handling: every press goes to the widget under the
+# mouse, and a list takes its own row click and its own wheel. Nothing here takes either, so the
+# widget under it keeps it.
+
+export screen_click(ctx: OverlayClickContext) {
+    return
+}
+
+# The reference's Escape is the host screen's own close, which reaches BaseScreen.onScreenClosed
+# through Screen.keyPressed and saves. Taking it and closing runs the same path, and this export is
+# not asked while a text field has focus, so the first Escape still leaves the field.
+
+export screen_key(ctx: OverlayKeyContext) {
+    key: number = ctx.key()
+    if key == 256 {
+        ctx.take()
+        _close_active()
+    }
+}
+
+export screen_scroll(ctx: OverlayScrollContext) {
+    return
+}
+
+# One export for every widget the open screen declared, because a changed widget holds the value its
+# use left. A value the mod writes itself is silent, so an init or a state refresh cannot re-enter.
+
+export screen_widget_changed(ctx: ScreenWidgetContext) {
+    widget: Widget = ctx.widget()
+    if active_screen == "configuration" {
+        _configuration_changed(widget)
+        return
+    }
+    _chrome_changed(widget)
+}
+
+# BaseScreen.onScreenClosed saves the whole state when persistence is on. The reference checks its
+# shouldUpdatePersistence flag as well, which a shape chosen on the Shape tab does not set; this port
+# saves on every close, which about.json records.
+# Escape reaches this through a mod screen's close, and so does a tab press, because opening a screen
+# over an open one asks the open one to close first.
+
+export screen_closed() {
+    _state_save()
 }
 
 # Every shape set line of the state, in the order the file listed them.
@@ -120,8 +274,8 @@ local _draw_all(ctx: OverlayWorldContext) {
 # One set, as Shape.doUpdate fills its buffer: the cells of the shape its index names, then the origin
 # cube, both in the set's own colours and cube sizes. ShapeSet.getShape creates the index's shape at
 # its defaults when the set holds none, and the reference draws that, so a set whose file named
-# another class still shows both; here the default is drawn without being written into the set,
-# because stage 1 never saves.
+# another class still shows both; here the default is drawn without being written into the set, and
+# only a property change or the Shape tab's dropdown writes one.
 # A set in error keeps its shape and its text, and is simply not drawn, which is what the reference's
 # `ready && !error` check does.
 
@@ -1147,9 +1301,14 @@ local _emit_torus(ctx: OverlayWorldContext, v: string, ox: number, oy: number, o
 }
 
 # One cell of a shape, at the set's origin: Shape.addShapeCube centres a cube of the set's size on the
-# block the cell names.
+# block the cell names. A frame that counts instead of drawing increments the count here, which is
+# Shape.addShapeCube's ++nBlocks, and draws nothing.
 
 local _shape_cube(ctx: OverlayWorldContext, ox: number, oy: number, oz: number, x: number, y: number, z: number, size: number, colour: Color) {
+    if cell_counting {
+        cell_count = cell_count + 1
+        return
+    }
     half: number = 0.5 - size / 2
     _cube(ctx, ox + x + half, oy + y + half, oz + z + half, size, colour)
 }
@@ -1638,10 +1797,6 @@ local _state_set_at(text: string, wanted: number) string {
 }
 
 # The state with one scalar line replaced, or appended in the reference's order when it is not there.
-
-# The state with set number `wanted` replaced, every other line kept.
-
-# State.shiftOrigins: every set moved by the same delta, which is what the set-global-origin key does.
 
 # The file a state for this world lives at, inside the writable root (#1757).
 
@@ -2509,8 +2664,8 @@ local _apply_pending(level: Level, x: number, y: number, z: number) {
 }
 
 # State.initCheck: one set when there is none, and an origin for a set that has none. The reference
-# runs it once per State, from the toggle key and from a screen's constructor; the screen is stage 2,
-# so the toggle is the only caller here. A new set goes through pushNewShapeSet, which starts at
+# runs it once per State, from the toggle key and from a screen's own init. A new set goes through
+# pushNewShapeSet, which starts at
 # iShapeNew, takes its origin from the player and gets random colours when the config asks for them;
 # the colours come from the level's own random because grug has no unseeded generator to hand, and
 # every draw is uniform the same way the reference's `new Random()` draws are. The text form always
@@ -2640,4 +2795,361 @@ local _state_shift_origins(text: string, dx: number, dy: number, dz: number) str
         i = i + 1
     }
     return out
+}
+
+# ---------------------------------------------------------------- the screen helpers
+# A local function is defined after the first call to it, so this section runs outwards from the
+# exports above. The properties and lists of the other tabs join it as they are ported.
+
+# ConfigurationScreen's six widgets: a checkbox writes its config value and the file at once, which
+# is Config.write, and a Default button puts its option back to the default and writes again, which
+# is the reference's setChecked (whose change fires the checkbox's own handler) plus write. A box
+# this port ticks is silent, so the value and the file are written here by hand.
+
+local _configuration_changed(widget: Widget) {
+    if _chrome_changed(widget) {
+        return
+    }
+    async_box: Widget = c_async.unwrap()
+    if equals(widget, async_box) {
+        config_values = _config_with(config_values, 0, _bool_text(widget.checked()))
+        _config_write()
+        return
+    }
+    async_default: Widget = c_async_default.unwrap()
+    if equals(widget, async_default) {
+        _config_set_default(0, async_box)
+        return
+    }
+    random_box: Widget = c_random.unwrap()
+    if equals(widget, random_box) {
+        config_values = _config_with(config_values, 1, _bool_text(widget.checked()))
+        _config_write()
+        return
+    }
+    random_default: Widget = c_random_default.unwrap()
+    if equals(widget, random_default) {
+        _config_set_default(1, random_box)
+        return
+    }
+    persistence_box: Widget = c_persistence.unwrap()
+    if equals(widget, persistence_box) {
+        config_values = _config_with(config_values, 2, _bool_text(widget.checked()))
+        _config_write()
+        return
+    }
+    persistence_default: Widget = c_persistence_default.unwrap()
+    if equals(widget, persistence_default) {
+        _config_set_default(2, persistence_box)
+    }
+}
+
+# BaseScreen's six shared widgets, in the reference's own add order. The enable checkbox writes the
+# state's enabled flag, which setEnabled marks for persistence, and a tab press opens that tab's
+# screen, which closes this one first.
+
+local _chrome_changed(widget: Widget) bool {
+    enabled: Widget = w_enabled.unwrap()
+    if equals(widget, enabled) {
+        state = _state_with_field(state, "enabled", _bool_text(widget.checked()))
+        return true
+    }
+    close_button: Widget = w_close.unwrap()
+    if equals(widget, close_button) {
+        _close_active()
+        return true
+    }
+    tab_shape: Widget = w_tab_shape.unwrap()
+    if equals(widget, tab_shape) {
+        _open_tab("shape")
+        return true
+    }
+    tab_visualisation: Widget = w_tab_visualisation.unwrap()
+    if equals(widget, tab_visualisation) {
+        _open_tab("visualisation")
+        return true
+    }
+    tab_shapelist: Widget = w_tab_shapelist.unwrap()
+    if equals(widget, tab_shapelist) {
+        _open_tab("shapelist")
+        return true
+    }
+    tab_configuration: Widget = w_tab_configuration.unwrap()
+    if equals(widget, tab_configuration) {
+        _open_tab("configuration")
+        return true
+    }
+    return false
+}
+
+# BaseScreen.onScreenClosed, reached by the close button, Escape, and a tab press that opens a screen
+# over this one. The dropdown's close button returns to its parent screen instead of leaving the tab.
+
+local _close_active() {
+    if active_screen == "visualisation" {
+        active_screen = ""
+        visualisation_screen.close()
+        return
+    }
+    if active_screen == "shapelist" {
+        active_screen = ""
+        shapelist_screen.close()
+        return
+    }
+    if active_screen == "configuration" {
+        active_screen = ""
+        configuration_screen.close()
+        return
+    }
+    if active_screen == "dropdown" {
+        parent: string = dropdown_parent
+        active_screen = ""
+        dropdown_screen.close()
+        _open_tab(parent)
+        return
+    }
+    active_screen = ""
+    shape_screen.close()
+}
+
+# State.createNewScreen and AbstractScreenHandler.showScreen: the tab becomes the current one and its
+# screen opens. Opening over the open screen asks that one to close first, whose save is the tab
+# switch's save. A tab the state has no set for still opens; its widgets are the chrome's alone.
+
+local _open_tab(name: string) {
+    tab_screen = name
+    active_screen = name
+    if name == "visualisation" {
+        visualisation_screen.open()
+        return
+    }
+    if name == "shapelist" {
+        shapelist_screen.open()
+        return
+    }
+    if name == "configuration" {
+        configuration_screen.open()
+        return
+    }
+    shape_screen.open()
+}
+
+# ConfigurationScreen.init after super.init: the three checkboxes at x 255 and their 50-wide Default
+# buttons at x 280, on y 60, 110 and 160, in Config's own order. The reference declares two more
+# widgets for the debug timings setting, under a misspelled field it never assigns; addWidget ignores
+# the null, so no widget exists for it here either.
+
+local _configuration_init(width: number) {
+    _chrome_init(configuration_screen, width, "configuration", _state_enabled())
+    async_box: Widget = configuration_screen.add_checkbox("async", "", _config_on(config_values, 0), 255, 60, 20, 20)
+    c_async.set(async_box)
+    async_default: Widget = configuration_screen.add_button("async_default", "Default", 280, 60, 50, 20)
+    c_async_default.set(async_default)
+    random_box: Widget = configuration_screen.add_checkbox("random", "", _config_on(config_values, 1), 255, 110, 20, 20)
+    c_random.set(random_box)
+    random_default: Widget = configuration_screen.add_button("random_default", "Default", 280, 110, 50, 20)
+    c_random_default.set(random_default)
+    persistence_box: Widget = configuration_screen.add_checkbox("persistence", "", _config_on(config_values, 2), 255, 160, 20, 20)
+    c_persistence.set(persistence_box)
+    persistence_default: Widget = configuration_screen.add_button("persistence_default", "Default", 280, 160, 50, 20)
+    c_persistence_default.set(persistence_default)
+}
+
+# BaseScreen.init: the enable checkbox at (5, 5), the close button at (width - 25, 5) labelled X, and
+# the four tabs at y 30, each 120 wide from x 5, 130, 255 and 380. The tab of the screen this opens
+# over is inactive, which is the reference's `currentScreen != ActiveScreen.X` argument, and the
+# dropdown passes its parent's tab. The checkbox keeps the game's own size whatever it is asked for.
+
+local _chrome_init(screen: Screen, width: number, current: string, enabled: bool) {
+    box: Widget = screen.add_checkbox("enabled", "", enabled, 5, 5, 20, 20)
+    w_enabled.set(box)
+    close_button: Widget = screen.add_button("close", "X", width - 25, 5, 20, 20)
+    w_close.set(close_button)
+    tab_shape: Widget = screen.add_button("tab_shape", "Shape", 5, 30, 120, 20)
+    tab_shape.set_active(current != "shape")
+    w_tab_shape.set(tab_shape)
+    tab_visualisation: Widget = screen.add_button("tab_visualisation", "Visualization", 130, 30, 120, 20)
+    tab_visualisation.set_active(current != "visualisation")
+    w_tab_visualisation.set(tab_visualisation)
+    tab_shapelist: Widget = screen.add_button("tab_shapelist", "Shape list", 255, 30, 120, 20)
+    tab_shapelist.set_active(current != "shapelist")
+    w_tab_shapelist.set(tab_shapelist)
+    tab_configuration: Widget = screen.add_button("tab_configuration", "Configuration", 380, 30, 120, 20)
+    tab_configuration.set_active(current != "configuration")
+    w_tab_configuration.set(tab_configuration)
+}
+
+# ConfigurationScreen.render after super.render: each option's title underlined at x 10 and its
+# comment below it, at the reference's own rows (65/84, 115/135, 165/185).
+
+local _configuration_render(ctx: OverlayRenderContext, width: number) {
+    _chrome_render(ctx, width)
+    white: Color = Color.rgb(255, 255, 255)
+    ctx.draw_text("§nAsynchronous shape generation", 10, 65, white)
+    ctx.draw_text("Enable asynchronous (multithreaded) shape generation.", 10, 84, white)
+    ctx.draw_text("§nShape list random colors", 10, 115, white)
+    ctx.draw_text("Enable random colors for new shapes added to the shape list by default.", 10, 135, white)
+    ctx.draw_text("§nShape persistence", 10, 165, white)
+    ctx.draw_text("Allow shapes to be saved to a file so they can be restored after restarting the client.", 10, 185, white)
+}
+
+# BaseScreen.render's six texts: the title centred at the window's middle, Enable at x 30, and the two
+# block headers and their counts centred left and right of the title. The reference computes each
+# centre with Java's integer division, so every half is floored before it is subtracted.
+
+local _chrome_render(ctx: OverlayRenderContext, width: number) {
+    white: Color = Color.rgb(255, 255, 255)
+    mid: number = Math.floor(width / 2)
+    title: string = "Build Guide"
+    title_width: number = ctx.text_width(title)
+    ctx.draw_text(title, mid - Math.floor(title_width / 2), 10, white)
+    ctx.draw_text("Enable", 30, 10, white)
+    shape_title: string = "Number of blocks (shape)"
+    total_title: string = "Number of blocks (total)"
+    shape_width: number = ctx.text_width(shape_title)
+    total_width: number = ctx.text_width(total_title)
+    titles: number = shape_width
+    if total_width > titles {
+        titles = total_width
+    }
+    left: number = mid - Math.floor(title_width / 2) - Math.floor(titles / 2) - 20
+    right: number = mid + Math.floor(title_width / 2) + Math.floor(titles / 2) + 20
+    shape_count: string = _count_text(block_shape)
+    total_count: string = _count_text(block_total)
+    ctx.draw_text(shape_title, left - Math.floor(shape_width / 2), 5, white)
+    ctx.draw_text(shape_count, left - Math.floor(ctx.text_width(shape_count) / 2), 20, white)
+    ctx.draw_text(total_title, right - Math.floor(total_width / 2), 5, white)
+    ctx.draw_text(total_count, right - Math.floor(ctx.text_width(total_count) / 2), 20, white)
+}
+
+# The count as the reference prints it: the number, then how many whole stacks of 64 it is and what
+# is left over, which is Java's `n + " (" + (n / 64) + " x 64 + " + (n % 64) + ")"` for an int.
+
+local _count_text(n: number) string {
+    stacks: number = Math.floor(n / 64)
+    rest: number = n - stacks * 64
+    return String.concat(String.from_number(n), String.concat(" (", String.concat(String.from_number(stacks), String.concat(" x 64 + ", String.concat(String.from_number(rest), ")")))))
+}
+
+# The config text with one of its three values replaced, in "async,random,persistence" order.
+
+local _config_with(values: string, index: number, value: string) string {
+    first: string = _piece(values, ",", 0)
+    second: string = _piece(values, ",", 1)
+    third: string = _piece(values, ",", 2)
+    if index == 0 {
+        return String.concat(String.concat(value, ","), String.concat(second, String.concat(",", third)))
+    }
+    if index == 1 {
+        return String.concat(String.concat(first, ","), String.concat(value, String.concat(",", third)))
+    }
+    return String.concat(String.concat(first, ","), String.concat(second, String.concat(",", value)))
+}
+
+# One of the three checkboxes' tick, from the config text.
+
+local _config_on(values: string, index: number) bool {
+    return _piece(values, ",", index) == "true"
+}
+
+# A bool as the persistence and config text writes it.
+
+local _bool_text(value: bool) string {
+    if value {
+        return "true"
+    }
+    return "false"
+}
+
+# Config.write: the whole file, comments and values, at the path Config's constructor reads.
+
+local _config_write() {
+    files: File = File.open(r"files")
+    files.write_text("config/buildguide.cfg", _config_text(config_values))
+}
+
+# A Default button's value: Config declares asynchronous generation on and the other two off, and
+# getDefault answers the value the option was constructed with.
+
+local _config_set_default(index: number, box: Widget) {
+    value: bool = _config_default_on(index)
+    box.set_checked(value)
+    config_values = _config_with(config_values, index, _bool_text(value))
+    _config_write()
+}
+
+local _config_default_on(index: number) bool {
+    return index == 0
+}
+
+# BaseScreen.render's two counts, taken on the world frame that draws under a screen. The reference
+# generates a shape whether or not it is drawn, and sums only the visible sets for the total, so this
+# pass generates every set with the draw suppressed: a shape under a screen is generated once for the
+# count and once for the draw. The current shape's count is its set's whether or not the set is
+# visible. An errored shape is skipped, as it is when drawn, where the reference would show the cells
+# it managed to emit before its exception.
+
+local _count_all(ctx: OverlayWorldContext) {
+    block_shape = 0
+    block_total = 0
+    count: number = _state_set_count()
+    current: number = 0
+    if count > 0 {
+        current = _clamp(_int_or(_state_field(state, "iShapeSet", ""), 0), 0, count - 1)
+    }
+    cell_counting = true
+    found: number = 0
+    lines: number = _split_count(state, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(state, i)
+        if _has_prefix(line, "shapeSet=") {
+            set: string = String.substring(line, 9, String.length(line))
+            before: number = cell_count
+            _count_set(ctx, set)
+            cells: number = cell_count - before
+            if _set_field_value(set, "visible") == "true" {
+                block_total = block_total + cells
+            }
+            if found == current {
+                block_shape = block_shape + cells
+            }
+            found = found + 1
+        }
+        i = i + 1
+    }
+    cell_counting = false
+}
+
+# One set's cells, generated with the same defaults ShapeSet.getShape would, and counted by
+# _shape_cube. The origin cube is not a cell, so it is not drawn here.
+
+local _count_set(ctx: OverlayWorldContext, set: string) {
+    id: number = _set_int(set, "index", 0)
+    if id < 0 or id >= _shape_count() {
+        return
+    }
+    if _set_shape_error(set, id) {
+        return
+    }
+    values: string = _set_shape_values(set, id)
+    if String.length(values) == 0 {
+        values = _shape_defaults(id)
+    }
+    _emit_shape(ctx, id, values, 0, 0, 0, 1, _colour("1.0,1.0,1.0,1.0"))
+}
+
+# State.savePersistence, written on every screen close while persistence is on and the state has
+# loaded. The persistence text has no `!` after a refused shape's class name, which is this text's own
+# marker for it, so every `!` is dropped.
+
+local _state_save() {
+    if not state_loaded {
+        return
+    }
+    if not _config_persistence(config_values) {
+        return
+    }
+    files: File = File.open(r"files")
+    files.write_text(_state_path(world_name, world_dimension), _replace_all(state, "!", ""))
 }
