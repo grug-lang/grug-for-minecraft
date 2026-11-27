@@ -270,8 +270,11 @@ public final class GrugOwnedScreenHost extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // A focused text field gets the key, and the mod is not asked at all while it has it.
-        if (this.getFocused() instanceof EditBox) {
+        // A focused text field gets the key, and the mod is not asked at all while it has it,
+        // except for Escape: the game closes the screen with it, so a mod that runs its screen's
+        // own close from screen_key would otherwise never hear of the close and keep whatever
+        // that close clears (#1871's review).
+        if (this.getFocused() instanceof EditBox && keyCode != GrugOverlay.KEY_ESCAPE) {
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
         int key = GrugOverlayHost.overlayKey(keyCode);
@@ -324,14 +327,12 @@ public final class GrugOwnedScreenHost extends Screen {
     public void removed() {
         super.removed();
         // The game takes the screen away for Escape, for a screen it put in its place, and for the
-        // world being left, and each of those is the same end for the mod. The report waits for the
-        // next tick, so a screen_closed that opens another screen does so after the game finished
-        // replacing this one rather than inside it.
-        Minecraft minecraft = this.minecraft;
-        if (minecraft == null) {
-            GrugOwnedScreens.gameRemoved(screen);
-        } else {
-            minecraft.execute(() -> GrugOwnedScreens.gameRemoved(screen));
+        // world being left, and each of those is the same end for the mod. A screen the mod closed
+        // itself is already ended, so only one that is still open is noted, and the end waits for
+        // the next client tick: the game's own call runs inside `setScreen` before it assigns the
+        // replacement, so a screen_closed that opens another screen would have it dropped.
+        if (GrugOwnedScreens.openScreen() == screen) {
+            GrugOwnedScreens.noteGameRemoved(screen);
         }
     }
 

@@ -71,6 +71,16 @@ export screen_render(ctx: OverlayRenderContext) {
     }
 }
 
+# Escape reaches this export even while the screen's text field has focus, because the game closes
+# the screen with Escape and a mod whose screen close saves its state would otherwise never hear of
+# it. The export takes Escape and leaves the screen open, which is how the test observes that it was
+# asked rather than the game's own close.
+export screen_key(ctx: OverlayKeyContext) {
+    if ctx.key() == 256 {
+        ctx.take()
+    }
+}
+
 # Answers each visible row in the mode the test set. The first answer is the row's text; a second
 # answer is an err and does not replace it, which is why the row the list draws stays the first
 # text whatever mode asked it.

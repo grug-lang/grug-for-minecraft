@@ -371,8 +371,9 @@ export screen_click(ctx: OverlayClickContext) {
 }
 
 # The reference's Escape is the host screen's own close, which reaches BaseScreen.onScreenClosed
-# through Screen.keyPressed and saves. Taking it and closing runs the same path, and this export is
-# not asked while a text field has focus, so the first Escape still leaves the field.
+# through Screen.keyPressed and saves. Taking it and closing runs the same path. A text field that
+# has focus does not swallow it: the game closes the screen on Escape wherever focus is, so the host
+# asks this export for Escape too, and a close that skipped the save would lose it.
 
 export screen_key(ctx: OverlayKeyContext) {
     key: number = ctx.key()

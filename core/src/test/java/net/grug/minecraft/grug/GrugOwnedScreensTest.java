@@ -384,6 +384,41 @@ class GrugOwnedScreensTest {
     }
 
     @Test
+    void aRemovalTheGameNotedWaitsForTheLoadersNextTick() {
+        GrugOwnedScreen screen = openScreen();
+        GrugOwnedScreens.noteGameRemoved(screen);
+        assertTrue(screen.open(), "the end waits for the loader's next tick");
+        assertEquals(0, recorder.count(script.screenClosedFnId));
+
+        GrugOwnedScreens.runGameRemovals();
+        assertFalse(screen.open());
+        assertNull(GrugOwnedScreens.openScreen());
+        assertEquals(1, recorder.count(script.screenClosedFnId));
+
+        GrugOwnedScreens.runGameRemovals();
+        assertEquals(1, recorder.count(script.screenClosedFnId), "a drained removal runs once");
+    }
+
+    @Test
+    void aDrainedRemovalLetsItsClosedHandlerOpenAnotherScreen() {
+        GrugOwnedScreen first = openScreen();
+        GrugOwnedScreen second = createScreen();
+        recorder.onClosed =
+                () -> {
+                    recorder.onClosed = null;
+                    GrugOwnedScreens.open(loader.adapter(), second);
+                };
+
+        GrugOwnedScreens.noteGameRemoved(first);
+        GrugOwnedScreens.runGameRemovals();
+
+        assertFalse(first.open());
+        assertTrue(second.open());
+        assertSame(second, GrugOwnedScreens.openScreen());
+        assertEquals(1, recorder.count(script.screenClosedFnId));
+    }
+
+    @Test
     void leavingTheWorldClosesTheOpenScreen() {
         GrugOwnedScreen screen = openScreen();
         GrugOwnedScreens.worldUnloaded();

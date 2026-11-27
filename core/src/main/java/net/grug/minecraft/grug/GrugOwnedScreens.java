@@ -273,6 +273,35 @@ public final class GrugOwnedScreens {
                 });
     }
 
+    /** Screens the game took away, waiting for a loader's next client tick to end them. */
+    private static final List<GrugOwnedScreen> gameRemovals = new ArrayList<>();
+
+    /**
+     * Notes that the game took {@code screen} away on its own, for {@link #runGameRemovals} to end
+     * on the loader's next client tick. A loader notes the removal from the game's own call and
+     * drains them at the start of its tick: running the end inside the game's call would ask {@code
+     * screen_closed} before the game finished putting the replacement screen in place, so a handler
+     * that opens a screen would have that screen dropped by the game's outer assignment.
+     */
+    public static void noteGameRemoved(GrugOwnedScreen screen) {
+        synchronized (gameRemovals) {
+            gameRemovals.add(screen);
+        }
+    }
+
+    /** Ends every screen the game took away since the last call; a loader calls this each tick. */
+    public static void runGameRemovals() {
+        List<GrugOwnedScreen> ready;
+        synchronized (gameRemovals) {
+            if (gameRemovals.isEmpty()) return;
+            ready = new ArrayList<>(gameRemovals);
+            gameRemovals.clear();
+        }
+        for (GrugOwnedScreen screen : ready) {
+            gameRemoved(screen);
+        }
+    }
+
     /**
      * The world went away while a screen was open, so the screen goes with it. A loader calls this
      * before the game tears the screen down, so the mod hears {@code screen_closed} while the world
@@ -615,6 +644,9 @@ public final class GrugOwnedScreens {
      */
     static void resetForTest() {
         screens.clear();
+        synchronized (gameRemovals) {
+            gameRemovals.clear();
+        }
         openScreen = null;
         initContext = null;
         widgetContext = null;
