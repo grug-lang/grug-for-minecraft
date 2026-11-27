@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe.server;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugHeldFeet;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugRunOrigin;
@@ -77,10 +78,12 @@ public final class GrugServerRun {
     private static final GrugStarterPlacement STARTER_PLACEMENT = new GrugStarterPlacement();
 
     /**
-     * The feet height the run started at, which the hold puts the player back on. It is {@code y}
-     * itself, because this server keeps the feet in the player's position (#1190).
+     * The feet height the run holds the test player at, and the height a snap saved: the height it
+     * started at, which the hold puts the player back on. It is {@code y} itself, because this
+     * server keeps the feet in the player's position (#1190). Saving and restoring it keeps a
+     * test's move from dragging the next test's player to the moved height (#1847).
      */
-    private static double holdY = 0;
+    private static final GrugHeldFeet HELD = new GrugHeldFeet();
 
     /**
      * The x and z the test commanded last (the snap or a set_player_position), or NaN before any.
@@ -273,7 +276,7 @@ public final class GrugServerRun {
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
                 runner = new GrugTestRunner();
-                holdY = ((PlayerEntity) testPlayer).y;
+                HELD.hold(((PlayerEntity) testPlayer).y);
             } else {
                 failJoinTimeoutIfDue();
                 reportWaiting(players);
@@ -447,17 +450,17 @@ public final class GrugServerRun {
             return;
         }
         double feet = player.y;
-        if (!GrugPlayerFloor.offHeldPose(holdX, holdY, holdZ, player.x, feet, player.z)) {
+        if (!GrugPlayerFloor.offHeldPose(holdX, HELD.feetY(), holdZ, player.x, feet, player.z)) {
             return;
         }
         player.velocityX = 0.0;
         player.velocityZ = 0.0;
         moveTo(
                 player,
-                holdY,
+                HELD.feetY(),
                 Double.isNaN(holdX) ? player.x : holdX,
                 Double.isNaN(holdZ) ? player.z : holdZ);
-        START_LOG.record(System.out, holdY, feet, System.currentTimeMillis());
+        START_LOG.record(System.out, HELD.feetY(), feet, System.currentTimeMillis());
     }
 
     /**
@@ -466,7 +469,7 @@ public final class GrugServerRun {
      */
     public static void moveToFeet(PlayerEntity player, double x, double feetY, double z) {
         holdX = x;
-        holdY = feetY;
+        HELD.moveTo(feetY);
         holdZ = z;
         moveTo(player, feetY, x, z);
     }
@@ -535,6 +538,9 @@ public final class GrugServerRun {
     }
 
     private static void snapPlayer(PlayerEntity player) {
+        // The height the run holds is saved with the player, so a test's move can be put back
+        // before the next test's room is built (#1847).
+        HELD.saveForTest();
         SNAP.save(player, player.x, player.y, player.z, player.yaw, player.pitch);
         holdX = SNAP.snappedX();
         holdZ = SNAP.snappedZ();
@@ -558,6 +564,9 @@ public final class GrugServerRun {
      */
     public static void restoreTestPlayer(PlayerEntity player) {
         GrugLinkArms.runIf(SNAP.claimRestore(player), () -> restorePlayer(player));
+        // A save with no player to put back, such as one whose owner left, still puts the held
+        // height back, so the next test's room is built around the height this test inherited.
+        HELD.restoreAfterTest();
     }
 
     private static void restorePlayer(PlayerEntity player) {

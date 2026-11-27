@@ -4,7 +4,6 @@ import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -81,11 +80,13 @@ public final class GrugForge125Arms {
     }
 
     /**
-     * The feet height the hold keeps the player at, 0 before the run has started. {@code
-     * feetBelowPosition} is asked only once it has: a player does not exist before that.
+     * Whether the start-height hold moves the player this tick: the floor hold did not move them,
+     * and their feet are a tolerance under the height the run holds. A held height of 0 is a height
+     * like any other, so it is not read as "nothing held yet" (#1847).
      */
-    public static double heldFeet(double holdY, DoubleSupplier feetBelowPosition) {
-        return holdY == 0 ? 0 : holdY - feetBelowPosition.getAsDouble();
+    public static boolean holdsStartHeight(
+            boolean movedByFloor, double feetY, double heldFeetY, double tolerance) {
+        return !movedByFloor && feetY < heldFeetY - tolerance;
     }
 
     /**
@@ -190,11 +191,6 @@ public final class GrugForge125Arms {
     /** Whether the first holds and then the second does, which is asked only after the first. */
     public static boolean allOf(boolean first, BooleanSupplier second) {
         return first && second.getAsBoolean();
-    }
-
-    /** Whether the run holds a player's height, which is 0 before it has started. */
-    public static boolean holds(double heldFeet) {
-        return heldFeet != 0;
     }
 
     /** True when there is no starter, else what {@code ask} answers, asked only for a starter. */

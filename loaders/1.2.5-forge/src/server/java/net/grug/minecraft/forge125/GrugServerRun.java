@@ -6,6 +6,7 @@ import cpw.mods.fml.server.FMLServerHandler;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugForge125Arms;
+import net.grug.minecraft.core.GrugHeldFeet;
 import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugRunOrigin;
@@ -72,7 +73,14 @@ public final class GrugServerRun implements ITickHandler {
     /** Remembers the starter placed at the start above, so each new starter is placed once. */
     private static final GrugStarterPlacement STARTER_PLACEMENT = new GrugStarterPlacement();
 
-    private static double holdY = 0;
+    /**
+     * The feet height the run holds the test player at, and whether it holds one yet: the height
+     * they stood at when the run began, rounded to a millionth. Whether a height is held is its own
+     * flag, so a held 0 is a real height, and a snap saves the height it found so a test's move can
+     * be put back (#1847).
+     */
+    private static final GrugHeldFeet HELD = new GrugHeldFeet();
+
     private static int healedHealth = 0;
     private static EntityPlayerMP testPlayer = null;
     private static final double HOLD_TOLERANCE = 0.25;
@@ -255,6 +263,7 @@ public final class GrugServerRun implements ITickHandler {
      * the move the floor hold uses so the joined client's camera follows (#1040).
      */
     public static void moveToFeet(EntityPlayerMP player, double x, double feetY, double z) {
+        HELD.moveTo(feetY);
         GrugLinkArms.deliver(
                 player,
                 found ->
@@ -329,6 +338,10 @@ public final class GrugServerRun implements ITickHandler {
         GrugLinkArms.deliver(
                 player,
                 found -> {
+                    // The height the run holds is saved with the player, so a test that moves the
+                    // player and changes the held height leaves nothing behind for the next test's
+                    // room build (#1847).
+                    HELD.saveForTest();
                     SNAP.save(
                             found,
                             found.posX,
@@ -367,6 +380,9 @@ public final class GrugServerRun implements ITickHandler {
                             SNAP.savedPitch());
                     SNAP.clear();
                 });
+        // A save with no player to put back, such as one whose owner left, still puts the held
+        // height back, so the next test's room is built around the height this test inherited.
+        HELD.restoreAfterTest();
     }
 
     /**
@@ -429,18 +445,33 @@ public final class GrugServerRun implements ITickHandler {
                     + " at, which the client's own collision prevents and a test cannot make it do"
                     + " (#1136)")
     private static void holdAtStartHeight(EntityPlayerMP player) {
-        if (heldOnFloorThisTick || player.posY >= holdY - HOLD_TOLERANCE) {
+        double feet = player.boundingBox.minY;
+        if (!GrugForge125Arms.holdsStartHeight(
+                heldOnFloorThisTick, feet, HELD.feetY(), HOLD_TOLERANCE)) {
             return;
         }
         player.playerNetServerHandler.teleportTo(
-                player.posX, holdY, player.posZ, player.rotationYaw, player.rotationPitch);
+                player.posX,
+                player.posY + (HELD.feetY() - feet),
+                player.posZ,
+                player.rotationYaw,
+                player.rotationPitch);
         player.motionY = 0;
     }
 
-    /** The feet height the hold keeps the test player at, 0 before the run has started. */
+    /** The feet height the hold keeps the test player at, 0 before the run holds one. */
     static double heldFeetY() {
-        return GrugForge125Arms.heldFeet(
-                holdY, () -> testPlayer.posY - testPlayer.boundingBox.minY);
+        return HELD.feetY();
+    }
+
+    /** The feet a room is built around: the held height, or {@code feetY} before one is held. */
+    static double buildAnchor(double feetY) {
+        return HELD.buildAnchor(feetY);
+    }
+
+    /** Whether the run holds a feet height yet, which it does even when that height is 0. */
+    static boolean holdsFeetHeight() {
+        return HELD.isHeld();
     }
 
     private static void tick() {
@@ -528,7 +559,7 @@ public final class GrugServerRun implements ITickHandler {
                         + (System.currentTimeMillis() - waitStartMillis)
                         + " ms. Firing tests!");
         testPlayer = starter;
-        holdY = testPlayer.posY;
+        HELD.hold(testPlayer.boundingBox.minY);
         runner = new GrugTestRunner();
         return true;
     }
