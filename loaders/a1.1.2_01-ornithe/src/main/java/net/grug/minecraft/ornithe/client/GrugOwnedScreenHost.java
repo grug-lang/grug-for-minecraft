@@ -888,7 +888,11 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             this.editable = widget.active();
         }
 
-        /** Takes a value the mod set outside {@code screen_init}, keeping the caret in the text. */
+        /**
+         * Takes a value the mod set outside {@code screen_init}, moving the caret to the end of it
+         * and dropping the selection, which is what {@code Widget.set_text} promises and what this
+         * version's own setter does.
+         */
         void syncFrom(GrugWidget widget) {
             editable = widget.active();
             if (widget.textRevision() == revision) return;
@@ -896,7 +900,7 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             String value = widget.text() == null ? "" : widget.text();
             if (value.equals(text)) return;
             text = value;
-            caret = Math.min(caret, text.length());
+            caret = text.length();
             anchor = caret;
         }
 
