@@ -30,6 +30,13 @@ state: string = ""
 state_key: string = ""
 state_loaded: bool = false
 
+# What the last close wrote and whether it wrote at all, so a close that changed nothing writes
+# nothing. This is BaseScreen.shouldUpdatePersistence, which the reference sets on every mutation and
+# clears after a save: the saved text is the whole of what a mutation can change, so comparing it
+# answers the same question without a flag at each of the reference's mutation sites.
+persistence_text: string = ""
+persistence_written: bool = false
+
 # State.initialised: whether initCheck has run for the state in `state`. It runs on the toggle key,
 # not on the load, so a fresh world has no set until the player first presses G, and that set starts
 # at the player's feet at that moment. A rebuilt state is a new State in the reference, so this is
@@ -419,9 +426,12 @@ export screen_list_row(ctx: ListRowResponse) {
     }
 }
 
-# BaseScreen.onScreenClosed saves the whole state when persistence is on. The reference checks its
-# shouldUpdatePersistence flag as well, which a shape chosen on the Shape tab does not set; this port
-# saves on every close, which about.json records.
+# BaseScreen.onScreenClosed saves the whole state when persistence is on and something changed since
+# the last save, and then clears its shouldUpdatePersistence flag. The port has no flag: the state
+# text is the whole of what is saved, so a text equal to the one last written is a close with nothing
+# to save. The one difference is a rewrite of identical bytes, which the reference makes when its
+# flag was set by a mutation that is not persisted, such as adding a shape's properties; no byte of
+# the file moves either way.
 # Escape reaches this through a mod screen's close, and so does a tab press, because opening a screen
 # over an open one asks the open one to close first.
 
@@ -1792,6 +1802,10 @@ local _ensure_state(files: File, level: Level, name: string, dimension: string, 
     state_key = key
     state_loaded = true
     state_initialised = false
+    # A new key is a new State in the reference, and its load leaves persistence to be written once,
+    # so the next close writes this world's text even when it matches nothing the port saved.
+    persistence_text = ""
+    persistence_written = false
     # A press counted before this key change belongs to the state that was showing, not to this
     # one, and the reference has no way to carry it across a world or dimension switch (#1846).
     pending_toggle = 0
@@ -3667,8 +3681,14 @@ local _state_save() {
     if not _config_persistence(config_values) {
         return
     }
+    text: string = _replace_all(state, "!", "")
+    if persistence_written and text == persistence_text {
+        return
+    }
     files: File = File.open(r"files")
-    files.write_text(_state_path(world_name, world_dimension), _replace_all(state, "!", ""))
+    files.write_text(_state_path(world_name, world_dimension), text)
+    persistence_text = text
+    persistence_written = true
 }
 
 # ShapelistScreen's seventeen widgets and the list of sets beside them. The three origin fields show
