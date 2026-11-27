@@ -266,10 +266,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         GrugForge125Arms.ifPresent(
                 serverPlayer(),
                 player -> {
-                    // The interface's contract is that a null item clears the cursor, which a grug
-                    // call never sends today (#1850).
-                    player.inventory.setItemStack(
-                            itemObj == null ? null : new ItemStack((Item) itemObj));
+                    // A grug call's Item argument is never null, so there is no null arm.
+                    player.inventory.setItemStack(new ItemStack((Item) itemObj));
                     // The cursor is not a slot this server's container sends, so the click's own
                     // slot update would leave the client's copy stale: window -1 slot -1 is the
                     // cursor, which is what the game's own updateHeldItem sends when a click

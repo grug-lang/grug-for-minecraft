@@ -1028,7 +1028,13 @@ class ServerClassSetTest(unittest.TestCase):
             }
         )
         client_dir, server_dir, moved, stayed = combine.server_class_set(
-            jar, client, {"net/Both", "net/Same"}, self.root / "work"
+            jar,
+            client,
+            {"net/Both", "net/Same"},
+            {"net/Both", "net/Same"},
+            {"net/Both", "net/ServerOnly"},
+            set(),
+            self.root / "work",
         )
         self.assertEqual(moved, ["net/ServerOnly", "net/ServerOnly$Nested"])
         self.assertEqual(stayed, {"net/Both"})
@@ -1044,6 +1050,60 @@ class ServerClassSetTest(unittest.TestCase):
         self.assertEqual(client_files, ["net/Both.class", "net/ClientOnly.class", "net/Same.class"])
         self.assertEqual((client_dir / "net/Both.class").read_bytes(), b"client bytes")
 
+    def test_a_unit_test_does_not_claim_a_class_the_dedicated_server_owns(self):
+        client = self.client_tree({"net/Cursor": b"client bytes", "net/Touched": b"client bytes"})
+        jar = self.layer_jar({"net/Cursor": b"server bytes", "net/Touched": b"server bytes"})
+        # test.exec names both classes and the client game ran neither, but only Cursor is one of
+        # the dedicated server's own: the server's data is the measurement to count.
+        client_dir, server_dir, moved, stayed = combine.server_class_set(
+            jar,
+            client,
+            {"net/Cursor", "net/Touched"},
+            set(),
+            {"net/Cursor", "net/Touched"},
+            {"Cursor"},
+            self.root / "work",
+        )
+        self.assertEqual(moved, ["net/Cursor"])
+        self.assertEqual(stayed, {"net/Touched"})
+        self.assertFalse((client_dir / "net/Cursor.class").exists())
+        self.assertEqual((server_dir / "net/Cursor.class").read_bytes(), b"server bytes")
+        self.assertTrue((client_dir / "net/Touched.class").is_file())
+
+    def test_a_unit_test_keeps_a_class_neither_the_client_nor_the_server_owns(self):
+        client = self.client_tree({"net/Touched": b"client bytes"})
+        jar = self.layer_jar({"net/Touched": b"server bytes"})
+        # The dedicated server ran the class but it is not one of its own, so the unit test's data
+        # on the client's bytes is what counts and the class stays the client's.
+        client_dir, _server_dir, moved, stayed = combine.server_class_set(
+            jar,
+            client,
+            {"net/Touched"},
+            set(),
+            {"net/Touched"},
+            set(),
+            self.root / "work",
+        )
+        self.assertEqual(moved, [])
+        self.assertEqual(stayed, {"net/Touched"})
+        self.assertTrue((client_dir / "net/Touched.class").is_file())
+
+    def test_a_class_the_client_game_ran_stays_the_clients_even_when_the_server_owns_it(self):
+        client = self.client_tree({"net/Both": b"client bytes"})
+        jar = self.layer_jar({"net/Both": b"server bytes"})
+        client_dir, _server_dir, moved, stayed = combine.server_class_set(
+            jar,
+            client,
+            {"net/Both"},
+            {"net/Both"},
+            {"net/Both"},
+            {"Both"},
+            self.root / "work",
+        )
+        self.assertEqual(moved, [])
+        self.assertEqual(stayed, {"net/Both"})
+        self.assertTrue((client_dir / "net/Both.class").is_file())
+
 
 class OrnitheServerSetMainTest(unittest.TestCase):
     """main() reports an Ornithe runner twice when its layer jar and server exec are there: the
@@ -1054,25 +1114,33 @@ class OrnitheServerSetMainTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             artifacts = root / "artifacts"
+            adapter = "net/grug/minecraft/ornithe/ServerOrnitheAdapter"
             for runner in ("core", "a1.1.2_01-ornithe"):
                 (artifacts / f"coverage-exec-{runner}").mkdir(parents=True)
                 (artifacts / f"coverage-classes-{runner}").mkdir(parents=True)
             client_exec = artifacts / "coverage-exec-a1.1.2_01-ornithe" / "000-boot.exec"
             client_exec.write_bytes(exec_bytes("net/Both"))
+            # The loader's JUnit run loads the dedicated server's own adapter with the client's dev
+            # bytes, which the client game never does, so its data must not claim the class: the
+            # server's own report is the measurement that counts (#1850).
+            (artifacts / "coverage-exec-a1.1.2_01-ornithe" / "test.exec").write_bytes(
+                exec_bytes(adapter)
+            )
             (artifacts / "coverage-exec-core" / "000-boot.exec").write_bytes(b"")
             (artifacts / "coverage-classes-core" / "C.class").write_bytes(b"")
             classes = artifacts / "coverage-classes-a1.1.2_01-ornithe"
             (classes / "net").mkdir()
             (classes / "net" / "Both.class").write_bytes(b"client")
-            (classes / "net" / "ServerOnly.class").write_bytes(b"client")
+            (classes / "net" / "grug" / "minecraft" / "ornithe").mkdir(parents=True)
+            (classes / adapter).with_suffix(".class").write_bytes(b"client")
             server = artifacts / "server-exec-a1.1.2_01-ornithe"
             server.mkdir()
-            (server / "000-boot.exec").write_bytes(exec_bytes("net/Both", "net/ServerOnly"))
+            (server / "000-boot.exec").write_bytes(exec_bytes("net/Both", adapter))
             layer = artifacts / "layer-a1.1.2_01-ornithe"
             layer.mkdir()
             with zipfile.ZipFile(layer / "grug-a1.1.2_01-ornithe.jar", "w") as archive:
                 archive.writestr("net/Both.class", b"server")
-                archive.writestr("net/ServerOnly.class", b"server")
+                archive.writestr(adapter + ".class", b"server")
 
             calls = []
 
@@ -1111,15 +1179,16 @@ class OrnitheServerSetMainTest(unittest.TestCase):
 
             by_name = {name: (files, names) for name, files, names in calls}
             self.assertEqual(by_name["a1.1.2_01-ornithe.csv"][0], ["Both.class"])
-            # The client set's report never sees the server's data for the class it keeps with the
-            # client's bytes, which is what JaCoCo warns about.
+            # The client set's report has no adapter class to match, so the server's data for it is
+            # dropped there; the server set is where it is counted.
             self.assertEqual(
-                by_name["a1.1.2_01-ornithe.csv"][1], [{"net/Both"}, {"net/ServerOnly"}]
+                by_name["a1.1.2_01-ornithe.csv"][1],
+                [{"net/Both"}, {adapter}, {adapter}],
             )
-            self.assertEqual(by_name["a1.1.2_01-ornithe-server.csv"][0], ["ServerOnly.class"])
             self.assertEqual(
-                by_name["a1.1.2_01-ornithe-server.csv"][1], [{"net/Both", "net/ServerOnly"}]
+                by_name["a1.1.2_01-ornithe-server.csv"][0], ["ServerOrnitheAdapter.class"]
             )
+            self.assertEqual(by_name["a1.1.2_01-ornithe-server.csv"][1], [{"net/Both", adapter}])
             self.assertIn("1 class(es) only the dedicated server ran", out.getvalue())
             self.assertTrue((root / "output" / "a1.1.2_01-ornithe-server.csv").is_file())
 
