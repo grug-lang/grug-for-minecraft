@@ -144,7 +144,7 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "A new set's random colours come from the level's own random, where the reference draws them from a new Random, so adding a set here shifts the game's random sequence.",
+					"what": "A new set's random colours and the Visualization tab's two Set random buttons come from the level's own random, where the reference draws each from a new Random, so either here shifts the game's random sequence and the two screens' draws differ from the reference's.",
 					"why": "mod_api.json has no entry for a random stream a mod owns, and the level's is the one entry grug offers; a general seeded random is the entry that would let a mod own one, and the colours either source produces are as arbitrary.",
 					"tracking_issue": 1752
 				}
