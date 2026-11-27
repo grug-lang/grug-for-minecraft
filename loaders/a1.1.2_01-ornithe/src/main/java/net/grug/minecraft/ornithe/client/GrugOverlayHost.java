@@ -609,11 +609,14 @@ public final class GrugOverlayHost {
         }
     }
 
-    /** Test only: delivers one press of the key whose character code is {@code code}. */
+    /**
+     * Test only: delivers one press of the key whose character code is {@code code} to the running
+     * test's mod alone, so a key another mod binds by default cannot change that mod's state
+     * (#1873).
+     */
     public static void pressWorldKey(int code, boolean ctrl) {
         GrugWorldOverlay.clearDrawn();
-        deliverWorldKey(code, ctrl);
-        GrugWorldOverlay.bindingDefaultsFor(GrugOverlayScripts.bindingScripts(), code);
+        GrugWorldOverlay.pressForTest(overlays(), GrugTestState.currentTestMod, code, ctrl);
     }
 
     /** Whether an overlay may draw on this screen, and the geometry it draws through. */

@@ -75,6 +75,13 @@ public final class GrugOwnedScreenHost extends Screen {
     private final GrugOwnedScreen screen;
     private final Map<GrugWidget, AbstractWidget> mirrors = new LinkedHashMap<>();
 
+    /**
+     * The screen's open time when this host was made. The game removes a host it replaces, which
+     * happens when the mod's own {@code screen_closed} reopened the screen, and that removal must
+     * not end the open time that came after it (#1871's review).
+     */
+    private final long generation;
+
     /** Whether the game's widgets are being copied from the model, so their handlers stay quiet. */
     private boolean syncing;
 
@@ -84,6 +91,7 @@ public final class GrugOwnedScreenHost extends Screen {
     public GrugOwnedScreenHost(GrugOwnedScreen screen) {
         super(Component.literal("Grug screen"));
         this.screen = screen;
+        this.generation = screen.generation();
     }
 
     /** The model this screen shows, which is what {@code hideOwnedScreen} compares against. */
@@ -231,6 +239,10 @@ public final class GrugOwnedScreenHost extends Screen {
         // The rows are asked before anything is drawn, because the lists draw the answers this
         // frame.
         GrugOwnedScreens.prepareFrame(screen);
+        // A row export may have moved, shown or hidden a widget while it answered, and the game's
+        // copies are a frame behind: syncing again here draws and hit-tests the widgets the mod
+        // laid out for this frame (#1871's review).
+        syncMirrors();
         super.render(graphics, mouseX, mouseY, partialTick);
         // screen_render is asked after the background and the widgets, so a mod draws its labels
         // and titles on top of them.
@@ -247,6 +259,9 @@ public final class GrugOwnedScreenHost extends Screen {
         if (GrugOwnedScreens.clickScreen(
                 screen, width, height, mouseX, mouseY, button, Screen.hasShiftDown())) {
             GrugOverlay.noteTestPressTaken();
+            // A press the mod took may have moved or hidden a widget, and the next press is
+            // routed by the game's copies.
+            syncMirrors();
             return true;
         }
         // The mod may have shown, hidden or moved a widget during that call, and the game's copies
@@ -270,6 +285,15 @@ public final class GrugOwnedScreenHost extends Screen {
         // The mod sees the wheel before the list under it, and take() keeps the list still.
         if (GrugOwnedScreens.scrollScreen(screen, width, height, mouseX, mouseY, scrollY)) {
             GrugOverlay.noteTestPressTaken();
+            return true;
+        }
+        // The list under the wheel answers for it even when it is not active, so the wheel never
+        // reaches a list the frame draws behind it: an inactive list is absorbed and does not
+        // move. The game's own hit test skips a widget that is not active, so the list is found
+        // here instead of through super.
+        GrugWidget list = GrugOwnedScreens.listAt(screen, mouseX, mouseY);
+        if (list != null) {
+            GrugOwnedScreens.scrollList(screen, list, scrollY);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
@@ -337,9 +361,11 @@ public final class GrugOwnedScreenHost extends Screen {
         // world being left, and each of those is the same end for the mod. A screen the mod closed
         // itself is already ended, so only one that is still open is noted, and the end waits for
         // the next client tick: the game's own call runs inside `setScreen` before it assigns the
-        // replacement, so a screen_closed that opens another screen would have it dropped.
-        if (GrugOwnedScreens.openScreen() == screen) {
-            GrugOwnedScreens.noteGameRemoved(screen);
+        // replacement, so a screen_closed that opens another screen would have it dropped. A host
+        // the game replaced because screen_closed reopened the same screen carries the open time
+        // that already ended, so its removal is not noted and the newer open time survives.
+        if (GrugOwnedScreens.openScreen() == screen && screen.generation() == generation) {
+            GrugOwnedScreens.noteGameRemoved(screen, generation);
         }
     }
 

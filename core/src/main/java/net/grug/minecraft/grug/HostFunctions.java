@@ -4787,9 +4787,11 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: delivers one press of a letter or digit key to the overlays' world_key export, the
-     * way the game delivers a real one while no screen is open. The key is the number
-     * OverlayWorldKeyContext.key answers.
+     * Test only: delivers one press of a letter or digit key to the running test's mod, the way the
+     * game delivers a real one while no screen is open: the mod's {@code world_key} export is
+     * asked, and its own bindings whose declared default key is {@code key}. No other mod is asked,
+     * so a key another mod binds by default cannot change that mod's state in a test that never
+     * meant to touch it (#1873). The key is the number OverlayWorldKeyContext.key answers.
      */
     @GrugGenerated("asks the adapter to press a key in the game's world: a unit test has no game")
     public static void TestTickContext_press_world_key(long contextId, double key, boolean ctrl) {
@@ -5178,8 +5180,8 @@ public class HostFunctions {
                             + dropped
                             + "\" id "
                             + widgetId
-                            + " no longer resolves, because the screen it was declared on was"
-                            + " closed and its widgets were dropped.");
+                            + " no longer resolves, because its screen closed or a later"
+                            + " screen_init declared the widget no longer.");
             return null;
         }
         return withEntity(method, "widget", widgetId, object -> (GrugWidget) object, null);

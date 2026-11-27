@@ -2,6 +2,7 @@ package net.grug.minecraft.grug;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +52,14 @@ public final class GrugOwnedScreen {
 
     private boolean open;
 
+    /**
+     * How many open times this screen has started. A loader's screen host records it when it is
+     * made, so a host the game removed after the mod reopened the screen can tell that its removal
+     * is stale: the game's removal of the previous host must not end the open time that came after
+     * it (#1871's review).
+     */
+    private long generation;
+
     GrugOwnedScreen(GrugOverlayScripts.Script script) {
         this.script = script;
         this.roots = script.owner;
@@ -70,7 +79,17 @@ public final class GrugOwnedScreen {
         return open;
     }
 
+    /**
+     * Which open time this is, from 1 up. A loader's host keeps the value it was made with and
+     * hands it back with the removal the game reported, so a host replaced by a reopened screen
+     * does not end the newer open time.
+     */
+    public long generation() {
+        return generation;
+    }
+
     void setOpen(boolean nowOpen) {
+        if (nowOpen && !open) generation++;
         open = nowOpen;
     }
 
@@ -88,7 +107,25 @@ public final class GrugOwnedScreen {
         declaredThisInit.clear();
     }
 
-    void endInit() {
+    /**
+     * Ends one {@code screen_init}: the widgets a screen has are the ones that call declared, so a
+     * widget it did not declare this time is taken off the screen and its handle stops resolving.
+     * That is what makes a narrower layout after a resize drop the widgets it no longer shows. A
+     * call that could not be asked at all keeps the widgets declared before it, because nothing
+     * said they were gone.
+     */
+    void endInit(boolean asked) {
+        if (asked) {
+            Iterator<Map.Entry<String, GrugWidget>> iterator = widgets.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, GrugWidget> entry = iterator.next();
+                if (declaredThisInit.contains(entry.getKey())) continue;
+                GrugWidget widget = entry.getValue();
+                GrugOwnedScreens.widgetDropped(widget.entityId, widget.name());
+                GrugEntities.removeEntity(widget.entityId, roots);
+                iterator.remove();
+            }
+        }
         declaredThisInit.clear();
     }
 

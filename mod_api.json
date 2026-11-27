@@ -5445,7 +5445,7 @@
 					]
 				},
 				"press_world_key": {
-					"description": "Presses a letter or digit key in the world, through the path a real press takes while no screen is open, so an overlay's world_key export is asked. The key is the number OverlayWorldKeyContext.key answers. It clears what world_overlay_drawn answers, so a test waits for a frame drawn after the press. The key has to be the upper case character code of a letter or a digit, or it is reported and not pressed. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Presses a letter or digit key in the world, through the path a real press takes while no screen is open, so only the running test's mod is asked: its world_key export, and its own bindings whose declared default key is the same one. No other mod is asked, so a key another mod binds by default cannot change its state. The key is the number OverlayWorldKeyContext.key answers. It clears what world_overlay_drawn answers, so a test waits for a frame drawn after the press. The key has to be the upper case character code of a letter or a digit, or it is reported and not pressed. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "key",
