@@ -536,10 +536,6 @@ public final class GrugOwnedScreens {
                                     widget.rowHeight(),
                                     widget.height());
                     if (index > last) break;
-                    // A row answered before this one may have dropped and re-declared its list,
-                    // so the widget asked next is the one the model holds now, and one that is
-                    // gone ends the pass.
-                    if (screen.widget(widget.name()) != widget) break;
                     if (!askedFirst) {
                         // A frame that asks no row keeps the defect the last frame that did
                         // reported, as TestTickContext.list_row_error documents.

@@ -955,15 +955,7 @@ public class ClientForgeAdapter extends ForgeAdapter {
 
     @Override
     public void hideOwnedScreen(GrugOwnedScreen screen) {
-        onClientThread(
-                () -> {
-                    // Only the screen this loader made for this mod screen is taken away: another
-                    // screen the player opened over it is theirs to keep.
-                    Screen current = Minecraft.getInstance().screen;
-                    if (current instanceof GrugOwnedScreenHost host && host.model() == screen) {
-                        Minecraft.getInstance().setScreen(null);
-                    }
-                });
+        onClientThread(() -> GrugOwnedScreenHost.hideIfShowing(screen));
     }
 
     @Override

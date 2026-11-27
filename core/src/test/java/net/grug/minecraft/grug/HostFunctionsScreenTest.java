@@ -302,6 +302,14 @@ class HostFunctionsScreenTest {
         assertTrue(reported().contains("no longer resolves"));
         assertEquals(0, HostFunctions.Screen_add_button(id, "b", "l", 0, 0, 1, 1));
         assertTrue(reported().contains("no longer resolves"));
+        assertEquals(0, HostFunctions.Screen_add_checkbox(id, "c", "l", false, 0, 0, 1, 1));
+        assertTrue(reported().contains("no longer resolves"));
+        assertEquals(0, HostFunctions.Screen_add_list(id, "d", 0, 0, 1, 1, 10));
+        assertTrue(reported().contains("no longer resolves"));
+        assertEquals(0, HostFunctions.Screen_add_slider(id, "e", "l", 0, 10, 0, 0, 0, 1, 1));
+        assertTrue(reported().contains("no longer resolves"));
+        assertEquals(0, HostFunctions.Screen_add_text_field(id, "f", "l", 0, 0, 1, 1));
+        assertTrue(reported().contains("no longer resolves"));
     }
 
     @Test
@@ -384,6 +392,23 @@ class HostFunctionsScreenTest {
 
         assertEquals(-1.0, HostFunctions.Widget_selected(ids[0]));
         assertTrue(reported().contains("button"));
+    }
+
+    @Test
+    void aCheckboxAnswersWhetherItIsChecked() {
+        long[] id = new long[1];
+        recorder.onInit =
+                () ->
+                        id[0] =
+                                HostFunctions.Screen_add_checkbox(
+                                        screen.entityId(), "box", "on", false, 0, 0, 10, 10);
+        init();
+
+        assertFalse(
+                HostFunctions.Widget_checked(id[0]), "a checkbox declared unchecked answers false");
+        assertNull(reported());
+        HostFunctions.Widget_set_checked(id[0], true);
+        assertTrue(HostFunctions.Widget_checked(id[0]));
     }
 
     @Test
@@ -612,5 +637,195 @@ class HostFunctionsScreenTest {
         GrugOwnedScreens.prepareFrame(screen);
         assertEquals(List.of(0, 1), asked);
         assertNull(reported());
+    }
+
+    // --- A stale id, a bad number and a context that is not the open screen's -------------------
+
+    @Test
+    void aStaleIdIsAnErrForEveryWidgetCall() {
+        long stale = 424242;
+        HostFunctions.Widget_select(stale, 0);
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.Widget_set_active(stale, false);
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.Widget_set_checked(stale, false);
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.Widget_set_position(stale, 0, 0);
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.Widget_set_rows(stale, 1);
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.Widget_set_text(stale, "x");
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.Widget_set_text_colour(stale, 0);
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.Widget_set_value(stale, 1);
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.Widget_set_visible(stale, true);
+        assertTrue(reported().contains("no longer resolves"));
+        assertEquals("", HostFunctions.Widget_text(stale));
+        assertTrue(reported().contains("no longer resolves"));
+        assertEquals(0.0, HostFunctions.Widget_value(stale));
+        assertTrue(reported().contains("no longer resolves"));
+        assertEquals(-1.0, HostFunctions.Widget_selected(stale));
+        assertTrue(reported().contains("no longer resolves"));
+        assertFalse(HostFunctions.Widget_checked(stale));
+        assertTrue(reported().contains("no longer resolves"));
+    }
+
+    @Test
+    void aStaleScreenIdIsAnErrForOpenAndCloseAlike() {
+        HostFunctions.Screen_close(424242);
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.Screen_open(424242);
+        assertTrue(reported().contains("no longer resolves"));
+    }
+
+    @Test
+    void everyDeclarationRefusesARectangleWhoseCornerOrSizeIsNotFinite() {
+        recorder.onInit =
+                () -> {
+                    // Each call passes a finite value in the other three places, so the four
+                    // conditions of the rectangle rule are each the one that refuses.
+                    assertRefused(
+                            HostFunctions.Screen_add_checkbox(
+                                    screen.entityId(), "a", "x", false, Double.NaN, 0, 1, 1));
+                    assertRefused(
+                            HostFunctions.Screen_add_checkbox(
+                                    screen.entityId(), "b", "x", false, 0, Double.NaN, 1, 1));
+                    assertRefused(
+                            HostFunctions.Screen_add_checkbox(
+                                    screen.entityId(), "c", "x", false, 0, 0, Double.NaN, 1));
+                    assertRefused(
+                            HostFunctions.Screen_add_checkbox(
+                                    screen.entityId(), "d", "x", false, 0, 0, 1, Double.NaN));
+                    assertRefused(
+                            HostFunctions.Screen_add_list(
+                                    screen.entityId(), "e", Double.NaN, 0, 1, 1, 10));
+                    assertRefused(
+                            HostFunctions.Screen_add_list(
+                                    screen.entityId(), "f", 0, Double.NaN, 1, 1, 10));
+                    assertRefused(
+                            HostFunctions.Screen_add_list(
+                                    screen.entityId(), "g", 0, 0, Double.NaN, 1, 10));
+                    assertRefused(
+                            HostFunctions.Screen_add_list(
+                                    screen.entityId(), "h", 0, 0, 1, Double.NaN, 10));
+                    assertRefused(
+                            HostFunctions.Screen_add_slider(
+                                    screen.entityId(), "i", "x", 0, 0, 0, Double.NaN, 0, 1, 1));
+                    assertRefused(
+                            HostFunctions.Screen_add_slider(
+                                    screen.entityId(), "j", "x", 0, 0, 0, 0, Double.NaN, 1, 1));
+                    assertRefused(
+                            HostFunctions.Screen_add_slider(
+                                    screen.entityId(), "k", "x", 0, 0, 0, 0, 0, Double.NaN, 1));
+                    assertRefused(
+                            HostFunctions.Screen_add_slider(
+                                    screen.entityId(), "l", "x", 0, 0, 0, 0, 0, 1, Double.NaN));
+                    assertRefused(
+                            HostFunctions.Screen_add_text_field(
+                                    screen.entityId(), "m", "x", Double.NaN, 0, 1, 1));
+                    assertRefused(
+                            HostFunctions.Screen_add_text_field(
+                                    screen.entityId(), "n", "x", 0, Double.NaN, 1, 1));
+                    assertRefused(
+                            HostFunctions.Screen_add_text_field(
+                                    screen.entityId(), "o", "x", 0, 0, Double.NaN, 1));
+                    assertRefused(
+                            HostFunctions.Screen_add_text_field(
+                                    screen.entityId(), "p", "x", 0, 0, 1, Double.NaN));
+                };
+        init();
+    }
+
+    private void assertRefused(long id) {
+        assertEquals(0, id, "a rectangle that is not finite declares no widget");
+        assertTrue(reported().contains("finite"));
+    }
+
+    @Test
+    void aPointThatIsNotFiniteIsRefusedInEitherDirection() {
+        long[] id = new long[1];
+        recorder.onInit = () -> id[0] = button("button");
+        init();
+        HostFunctions.Widget_set_position(id[0], 0, Double.NaN);
+        assertTrue(reported().contains("finite"));
+        HostFunctions.Widget_set_position(id[0], 5, 5);
+        assertNull(reported());
+    }
+
+    @Test
+    void aContextThatIsNotTheOpenScreensIsRefused() {
+        assertEquals(0.0, HostFunctions.ScreenInitContext_screen_width(424242));
+        assertNotNull(refused());
+        assertEquals(0.0, HostFunctions.ScreenInitContext_screen_height(424242));
+        assertNotNull(refused());
+        assertEquals(0, HostFunctions.ScreenWidgetContext_widget(424242));
+        assertNotNull(refused());
+    }
+
+    @Test
+    void aColourThatIsNotAColourLeavesTheColourAlone() {
+        long[] ids = new long[2];
+        recorder.onInit =
+                () -> {
+                    ids[0] =
+                            HostFunctions.Screen_add_text_field(
+                                    screen.entityId(), "field", "abc", 0, 0, 30, 12);
+                    ids[1] = list("list");
+                    HostFunctions.Widget_set_rows(ids[1], 1);
+                };
+        init();
+        HostFunctions.Widget_set_text_colour(ids[0], 424242);
+        assertTrue(reported().contains("no longer resolves"));
+        assertEquals(0xE0E0E0, screen.widget("field").textColour());
+    }
+
+    @Test
+    void aRowResponseThatIsGoneIsAnErrForEveryCall() {
+        long stale = 424242;
+        HostFunctions.ListRowResponse_set_text(stale, "x");
+        assertTrue(reported().contains("no longer resolves"));
+        HostFunctions.ListRowResponse_set_text_colour(stale, 424242);
+        assertTrue(reported().contains("no longer resolves"));
+        assertEquals(0, HostFunctions.ListRowResponse_widget(stale));
+        assertTrue(reported().contains("no longer resolves"));
+        assertEquals(0.0, HostFunctions.ListRowResponse_index(stale));
+        assertTrue(reported().contains("no longer resolves"));
+    }
+
+    @Test
+    void aRowResponseColourThatIsNotAColourLeavesTheColourAlone() {
+        long[] listId = new long[1];
+        recorder.onInit =
+                () -> {
+                    listId[0] = list("list");
+                    HostFunctions.Widget_set_rows(listId[0], 1);
+                };
+        init();
+        recorder.onRow =
+                () -> {
+                    long response = recorder.lastArgumentId;
+                    HostFunctions.ListRowResponse_set_text(response, "row");
+                    // A colour id that is not a colour leaves the row's own text and colour alone,
+                    // and the row still counts as answered by its text.
+                    HostFunctions.ListRowResponse_set_text_colour(response, 424242);
+                    assertTrue(reported().contains("no longer resolves"));
+                };
+        GrugOwnedScreens.prepareFrame(screen);
+        assertEquals(1, screen.widget("list").frameRows().size());
+        assertEquals("row", screen.widget("list").frameRows().get(0).text());
+        assertEquals(-1, screen.widget("list").frameRows().get(0).rgb());
+    }
+
+    @Test
+    void aWholeNumberTooLargeForAnIndexIsAnErr() {
+        long[] id = new long[1];
+        recorder.onInit = () -> id[0] = list("list");
+        init();
+        HostFunctions.Widget_set_rows(id[0], 2147483648.0);
+        assertTrue(reported().contains("whole number"));
+        HostFunctions.Widget_select(id[0], 2147483648.0);
+        assertTrue(reported().contains("whole number"));
     }
 }

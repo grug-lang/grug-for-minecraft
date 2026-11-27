@@ -64,6 +64,10 @@ class HostFunctionsOverlayContextTest {
                             if (method.getName().equals("carriedItem")) {
                                 return carriedItem;
                             }
+                            if (method.getName().equals("textWidth")) {
+                                String text = (String) args[0];
+                                return text.isEmpty() ? 0.0 : text.length() * 6.0;
+                            }
                             if (method.isDefault()) {
                                 return InvocationHandler.invokeDefault(proxy, method, args);
                             }
@@ -158,6 +162,20 @@ class HostFunctionsOverlayContextTest {
         assertEquals(1, geometry.boxes().size());
         assertEquals(318, geometry.boxes().get(0).x1());
         assertEquals(18, geometry.boxes().get(0).y2());
+    }
+
+    @Test
+    void aRenderContextMeasuresTextWithTheGameFontAndANullTextIsTheEmptyString() {
+        openRender();
+        long context = renderContext();
+
+        assertEquals(18.0, HostFunctions.OverlayRenderContext_text_width(context, "abc"));
+        assertEquals(
+                0.0,
+                HostFunctions.OverlayRenderContext_text_width(context, null),
+                "a null text is measured as the empty string rather than crashing the font");
+        assertTrue(drain().isEmpty(), "A legal measurement reports nothing.");
+        GrugOverlay.closeRender();
     }
 
     @Test
@@ -306,14 +324,16 @@ class HostFunctionsOverlayContextTest {
         HostFunctions.OverlayRenderContext_draw_tooltip(context, "late", 0, 0);
         HostFunctions.OverlayRenderContext_carried_item(context);
         HostFunctions.OverlayRenderContext_screen_serial(context);
+        HostFunctions.OverlayRenderContext_text_width(context, "late");
 
         List<String> reports = drain();
-        assertEquals(13, reports.size(), "Every method names its own refusal.");
+        assertEquals(14, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("OverlayRenderContext.screen_width"), reports.get(0));
         assertTrue(reports.get(9).contains("OverlayRenderContext.draw_box"), reports.get(9));
         assertTrue(reports.get(10).contains("OverlayRenderContext.draw_tooltip"), reports.get(10));
         assertTrue(reports.get(11).contains("OverlayRenderContext.carried_item"), reports.get(11));
         assertTrue(reports.get(12).contains("OverlayRenderContext.screen_serial"), reports.get(12));
+        assertTrue(reports.get(13).contains("OverlayRenderContext.text_width"), reports.get(13));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }
