@@ -114,7 +114,7 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "A shape is generated in render_world on the frame that draws it, where the reference hands generation to a cached thread pool. Shape.update sets ready to false and closes the buffer, and the render handler draws nothing for a set whose shape is not ready, so the reference's guide disappears for the few frames a generation takes; this port stalls that one frame and shows the finished shape at once, so the shape list's generation spinner never shows and its row text is the completed white, never the green a completion starts at.",
+					"what": "A shape is generated in render_world on the frame that draws it, where the reference hands generation to a cached thread pool. Shape.update sets ready to false and closes the buffer, and the render handler draws nothing for a set whose shape is not ready, so the reference's guide disappears for the few frames a generation takes; this port stalls that one frame and shows the finished shape at once, so the shape list's generation spinner never shows and its row text is the completed white, never the green a completion starts at, and the Shape tab's heading under Shape is that same white without the spinner the reference appends to it.",
 					"why": "grug has no thread to hand generation to, so a shape's update cannot run beside the frame. The asyncEnabled config option is read and written byte for byte but changes nothing yet.",
 					"tracking_issue": 1752
 				},
