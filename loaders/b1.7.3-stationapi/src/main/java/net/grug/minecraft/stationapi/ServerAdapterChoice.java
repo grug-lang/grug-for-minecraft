@@ -20,6 +20,6 @@ public final class ServerAdapterChoice {
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER) {
             return new ServerStationApiAdapter();
         }
-        return new StationApiAdapter();
+        return new ClientStationApiAdapter();
     }
 }
