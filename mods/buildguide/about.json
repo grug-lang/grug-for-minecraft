@@ -9,6 +9,7 @@
 		"url": "https://github.com/grug-lang/grug-for-minecraft"
 	},
 	"loaders": [
+		"1.2.5-forge",
 		"1.20.6-forge"
 	],
 	"keys": [
