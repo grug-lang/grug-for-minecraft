@@ -47,6 +47,13 @@ hostile_id: string = "PigZombie"
 passive_id: string = "Pig"
 water_id: string = "Squid"
 
+export init(ctx: TestInitContext) {
+    # The fill waits for the world's own counts and caps to hold, which took 140 ticks on the 1.20.6
+    # dedicated leg, and the count still has to hold for 60 more after it, so the default 200 is
+    # short of that. 600 leaves room for a slower world while a test that waits forever still fails.
+    ctx.set_max_ticks(600)
+}
+
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
