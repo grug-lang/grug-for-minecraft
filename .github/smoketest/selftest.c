@@ -272,16 +272,19 @@ static void test_argument_checks(void) {
 }
 
 // Position arguments are narrowed as the Java host narrows them: (int) Math.floor(x), so a huge
-// finite coordinate saturates at the int ends rather than being refused (#1849). Every expected number
-// is that expression printed by the local JDK:
+// finite coordinate saturates at the int ends rather than being refused past 1e15, and a non-finite
+// one is NaN to 0 or the infinities at the int ends (#1849). Every expected number is that expression
+// printed by the local JDK:
 //   2147483647.0 and 2147483647.9 and 2147483648.0 and 1e15 -> 2147483647
 //   -2147483648.0 and -2147483648.9 and -2147483649.0 and -1e15 -> -2147483648
 //   3.9 -> 3, -3.1 -> -4
+//   NaN -> 0, Infinity -> 2147483647, -Infinity -> -2147483648
 static void test_pos_arg(void) {
     struct { double v; long want; } cases[] = {
         {2147483647.0, 2147483647L}, {2147483647.9, 2147483647L}, {2147483648.0, 2147483647L},
         {1e15, 2147483647L}, {-2147483648.0, -2147483648L}, {-2147483648.9, -2147483648L},
         {-2147483649.0, -2147483648L}, {-1e15, -2147483648L}, {3.9, 3L}, {-3.1, -4L},
+        {NAN, 0L}, {INFINITY, 2147483647L}, {-INFINITY, -2147483648L},
     };
     for (size_t i = 0; i < sizeof cases / sizeof *cases; i++) {
         union grug_value a[4];
@@ -290,7 +293,7 @@ static void test_pos_arg(void) {
         a[1] = num(cases[i].v);
         a[2] = num(0);
         a[3] = num(0);
-        CHECK(pos_arg(a, out, "selftest"), "a finite %g is accepted", cases[i].v);
+        pos_arg(a, out);
         CHECK(out[0] == cases[i].want, "%g narrows to %ld, got %ld", cases[i].v, cases[i].want, out[0]);
     }
 }
