@@ -10,7 +10,10 @@
 # column, as decline_use_places-Test's fixture does. A row of tanks further away is never clicked,
 # because the server drops a use packet from out of reach and the wait then only times out.
 # On 1.20.6 a click reaches the block by a packet, so each step waits for the tank and the hand it
-# asked for rather than counting ticks (#688).
+# asked for rather than counting ticks (#688). Each step gets its own wait budget, reset when its
+# predecessor's condition held, so a click that lands late cannot eat the next step's budget. At the
+# end of step 2's budget the failure is named from the state it reached, so a lost click says which
+# of the tank, the hand or both did not change.
 step: number = 0
 waited: number = 0
 
@@ -39,6 +42,7 @@ export tick(ctx: TestTickContext) {
             _wait(ctx)
             return
         }
+        waited = 0
         ctx.assert(tank.get_liquid().unwrap() == "minecraft:water", "A water bucket should fill the tank with water.")
         ctx.set_held_item(player, _lava_bucket())
         ctx.use_block(level, x + 2, y, z)
@@ -48,11 +52,16 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 2 {
+        if waited == 199 {
+            _fail_step_two(ctx, level, x, y, z, player)
+            return
+        }
         tank: BlockEntity = _tank(level, x + 2, y, z)
         if tank.get_liquid_amount() != 1000 or not _held(player, _bucket()) {
             _wait(ctx)
             return
         }
+        waited = 0
         ctx.assert(tank.get_liquid().unwrap() == "minecraft:lava", "A lava bucket should fill the tank with lava.")
         # An empty bucket on a tank holding the whole 1000 mB becomes that liquid's bucket.
         ctx.set_held_item(player, _bucket())
@@ -68,6 +77,7 @@ export tick(ctx: TestTickContext) {
             _wait(ctx)
             return
         }
+        waited = 0
         ctx.assert(not tank.get_liquid().has(), "An emptied tank should hold no liquid.")
         ctx.set_held_item(player, _bucket())
         ctx.use_block(level, x, y, z)
@@ -82,6 +92,7 @@ export tick(ctx: TestTickContext) {
             _wait(ctx)
             return
         }
+        waited = 0
         # A tank holding under 1000 mB keeps what it has, so its empty bucket stays empty. The water
         # tank is filled and loses one, then an empty bucket asks it for 1000 and gets nothing.
         ctx.set_held_item(player, _water_bucket())
@@ -97,6 +108,7 @@ export tick(ctx: TestTickContext) {
             _wait(ctx)
             return
         }
+        waited = 0
         ctx.assert(tank.take_liquid(1, true) == 1, "The water tank should give one of its 1000 mB.")
         ctx.set_held_item(player, _bucket())
         ctx.use_block(level, x, y, z)
@@ -113,6 +125,7 @@ export tick(ctx: TestTickContext) {
             _wait(ctx)
             return
         }
+        waited = 0
         ctx.assert(_tank(level, x, y, z).get_liquid_amount() == 999, "A tank holding under 1000 mB should keep what it has and its bucket should stay empty.")
         # A water bucket on a tank holding the whole 1000 mB of another liquid consumes the click and
         # leaves the bucket, as BlockTank.b answers true for every bucket in its table.
@@ -129,6 +142,7 @@ export tick(ctx: TestTickContext) {
             _wait(ctx)
             return
         }
+        waited = 0
         ctx.set_held_item(player, _water_bucket())
         ctx.use_block(level, x + 2, y, z)
         step = 8
@@ -142,6 +156,7 @@ export tick(ctx: TestTickContext) {
             _wait(ctx)
             return
         }
+        waited = 0
         ctx.assert(tank.get_liquid_amount() == 1000, "A bucket of another liquid should not fill a tank that holds one.")
         ctx.assert(tank.get_liquid().unwrap() == "minecraft:lava", "The refused bucket should leave the tank's liquid alone.")
         # A held block is declined, so it is placed against the tank as it would be without the export.
@@ -191,4 +206,26 @@ local _wait(ctx: TestTickContext) {
     waited = waited + 1
     ctx.assert(waited < 200, "The click should reach the tank and change the tank and the hand.")
     ctx.not_done()
+}
+
+# Step 2's budget end: says which of the tank, the hand or both the lava bucket click left alone, so a
+# lost click names its own cause instead of the generic budget message. Most specific state first.
+local _fail_step_two(ctx: TestTickContext, level: Level, x: number, y: number, z: number, player: Player) {
+    if level.get_block(x + 2, y, z) != "grug:tank" {
+        ctx.assert(false, "The second tank is not in the world.")
+        return
+    }
+    tank: BlockEntity = _tank(level, x + 2, y, z)
+    held: Option[Item] = player.get_held_item()
+    if tank.get_liquid_amount() == 0 and _held(player, _lava_bucket()) {
+        ctx.assert(false, "The click left the second tank empty and the hand still holds the lava bucket.")
+    } else if tank.get_liquid_amount() == 0 and _held(player, _bucket()) {
+        ctx.assert(false, "The click left the second tank empty and the hand holds an empty bucket.")
+    } else if tank.get_liquid_amount() == 0 and not held.has() {
+        ctx.assert(false, "The click left the second tank empty and the hand empty.")
+    } else if tank.get_liquid_amount() == 1000 and not _held(player, _bucket()) {
+        ctx.assert(false, "The second tank filled but the hand did not become a bucket.")
+    } else {
+        ctx.assert(false, "The second tank holds neither 0 nor 1000 mB after the lava bucket click.")
+    }
 }
