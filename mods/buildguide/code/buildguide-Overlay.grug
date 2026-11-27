@@ -111,6 +111,27 @@ v_origin_cube: Option[Widget] = Option.new()
 v_set_cube: Option[Widget] = Option.new()
 v_default_cube: Option[Widget] = Option.new()
 
+# ShapelistScreen's seventeen widgets: Add, the visible checkbox, Delete, the global-origin button,
+# the three origin rows of a decrease button, a text field, a Set button and an increase button, and
+# the shape list. The list's rows are the state's sets, in file order.
+s_add: Option[Widget] = Option.new()
+s_visible: Option[Widget] = Option.new()
+s_delete: Option[Widget] = Option.new()
+s_global: Option[Widget] = Option.new()
+s_x_dec: Option[Widget] = Option.new()
+s_x_field: Option[Widget] = Option.new()
+s_x_set: Option[Widget] = Option.new()
+s_x_inc: Option[Widget] = Option.new()
+s_y_dec: Option[Widget] = Option.new()
+s_y_field: Option[Widget] = Option.new()
+s_y_set: Option[Widget] = Option.new()
+s_y_inc: Option[Widget] = Option.new()
+s_z_dec: Option[Widget] = Option.new()
+s_z_field: Option[Widget] = Option.new()
+s_z_set: Option[Widget] = Option.new()
+s_z_inc: Option[Widget] = Option.new()
+s_list: Option[Widget] = Option.new()
+
 # The world facts of the last world frame: a screen's initCheck needs the level and the player's feet,
 # and a close saves the state under the world and dimension the player is in. render_world runs every
 # frame, with or without a screen, so these are current whenever a screen opens.
@@ -214,7 +235,7 @@ export screen_init(ctx: ScreenInitContext) {
         return
     }
     if active_screen == "shapelist" {
-        _chrome_init(shapelist_screen, width, "shapelist", _state_enabled())
+        _shapelist_init(width, ctx.screen_height())
         return
     }
     if active_screen == "dropdown" {
@@ -232,6 +253,10 @@ export screen_render(ctx: OverlayRenderContext) {
     }
     if active_screen == "visualisation" {
         _visualisation_render(ctx, width)
+        return
+    }
+    if active_screen == "shapelist" {
+        _shapelist_render(ctx, width)
         return
     }
     _chrome_render(ctx, width)
@@ -274,7 +299,21 @@ export screen_widget_changed(ctx: ScreenWidgetContext) {
         _visualisation_changed(widget)
         return
     }
+    if active_screen == "shapelist" {
+        _shapelist_changed(widget)
+        return
+    }
     _chrome_changed(widget)
+}
+
+# What each row of the shape list shows: the set's shape name, struck through while the set is
+# invisible and red while the shape is in error. Every visible row is asked once per frame, so the
+# text follows the state without the port touching the list after a change.
+
+export screen_list_row(ctx: ListRowResponse) {
+    if active_screen == "shapelist" {
+        _shapelist_row(ctx)
+    }
 }
 
 # BaseScreen.onScreenClosed saves the whole state when persistence is on. The reference checks its
@@ -3532,4 +3571,446 @@ local _state_save() {
     }
     files: File = File.open(r"files")
     files.write_text(_state_path(world_name, world_dimension), _replace_all(state, "!", ""))
+}
+
+# ShapelistScreen's seventeen widgets and the list of sets beside them. The three origin fields show
+# the current set's origin, refreshed with the visible box whenever a row is selected, which is what
+# the reference's list update closure does; a change the player makes to one field is left alone by
+# the shift buttons that touch another. The twelve buttons that act on a set are inactive while the
+# state holds none, which is checkActive, and Add re-checks it so the first set enables them.
+
+local _shapelist_init(width: number, height: number) {
+    _chrome_init(shapelist_screen, width, "shapelist", _state_enabled())
+    add: Widget = shapelist_screen.add_button("add", "Add", 5, 90, 160, 20)
+    s_add.set(add)
+    visible: Widget = shapelist_screen.add_checkbox("visible", "", true, 5, 135, 20, 20)
+    s_visible.set(visible)
+    delete: Widget = shapelist_screen.add_button("delete", "Delete", 5, 155, 160, 20)
+    s_delete.set(delete)
+    global_origin: Widget = shapelist_screen.add_button("global_origin", "Set global origin", 5, 200, 160, 20)
+    s_global.set(global_origin)
+    x_dec: Widget = shapelist_screen.add_button("x_dec", "-", 25, 220, 20, 20)
+    s_x_dec.set(x_dec)
+    x_field: Widget = shapelist_screen.add_text_field("x_field", "", 45, 220, 70, 20)
+    s_x_field.set(x_field)
+    x_set: Widget = shapelist_screen.add_button("x_set", "Set", 115, 220, 30, 20)
+    s_x_set.set(x_set)
+    x_inc: Widget = shapelist_screen.add_button("x_inc", "+", 145, 220, 20, 20)
+    s_x_inc.set(x_inc)
+    y_dec: Widget = shapelist_screen.add_button("y_dec", "-", 25, 240, 20, 20)
+    s_y_dec.set(y_dec)
+    y_field: Widget = shapelist_screen.add_text_field("y_field", "", 45, 240, 70, 20)
+    s_y_field.set(y_field)
+    y_set: Widget = shapelist_screen.add_button("y_set", "Set", 115, 240, 30, 20)
+    s_y_set.set(y_set)
+    y_inc: Widget = shapelist_screen.add_button("y_inc", "+", 145, 240, 20, 20)
+    s_y_inc.set(y_inc)
+    z_dec: Widget = shapelist_screen.add_button("z_dec", "-", 25, 260, 20, 20)
+    s_z_dec.set(z_dec)
+    z_field: Widget = shapelist_screen.add_text_field("z_field", "", 45, 260, 70, 20)
+    s_z_field.set(z_field)
+    z_set: Widget = shapelist_screen.add_button("z_set", "Set", 115, 260, 30, 20)
+    s_z_set.set(z_set)
+    z_inc: Widget = shapelist_screen.add_button("z_inc", "+", 145, 260, 20, 20)
+    s_z_inc.set(z_inc)
+    list: Widget = shapelist_screen.add_list("shapes", 180, 70, 145, height - 70, 20)
+    s_list.set(list)
+    _shapelist_active()
+    _shapelist_rows()
+    _shapelist_fields()
+}
+
+# ShapelistScreen.render after super.render: the two add-shape texts over the dropdown's place, the
+# selected-shape heading with the visible label, the global-origin heading with its three axis
+# labels, and the shapes heading over the list. A label is dark grey while the state has no set.
+
+local _shapelist_render(ctx: OverlayRenderContext, width: number) {
+    _chrome_render(ctx, width)
+    white: Color = Color.rgb(255, 255, 255)
+    dim: Color = Color.rgb(68, 68, 68)
+    active: bool = _state_set_count() > 0
+    _draw_centred(ctx, "§nAdd new shape", 85, 55, white)
+    _draw_centred(ctx, _shape_name(_new_shape_index()), 85, 75, white)
+    _draw_centred(ctx, "§nSelected shape", 85, 120, white)
+    label: Color = dim
+    if active {
+        label = white
+    }
+    ctx.draw_text("Visible", 30, 140, label)
+    _draw_centred(ctx, "§nGlobal origin", 85, 185, white)
+    ctx.draw_text("X", 10, 225, label)
+    ctx.draw_text("Y", 10, 245, label)
+    ctx.draw_text("Z", 10, 265, label)
+    _draw_centred(ctx, "§nShapes", 250, 55, white)
+}
+
+# Every widget of the tab. A row click moves the state's current set and refreshes the fields, which
+# is the reference's setSelected; Add appends a set, selects it and enables the buttons; Delete
+# removes the selected set and selects the row below it, else the one above; the shift buttons move
+# every set and rewrite the field they moved; a Set button parses its field and turns it red when it
+# cannot.
+
+local _shapelist_changed(widget: Widget) {
+    if _chrome_changed(widget) {
+        return
+    }
+    list: Widget = s_list.unwrap()
+    if equals(widget, list) {
+        index: number = widget.selected()
+        if index >= 0 {
+            state = _state_with_field(state, "iShapeSet", String.from_number(index))
+            _shapelist_fields()
+        }
+        return
+    }
+    if equals(widget, s_add.unwrap()) {
+        _shapelist_add()
+        return
+    }
+    if equals(widget, s_visible.unwrap()) {
+        _shapelist_set_visible(widget.checked())
+        return
+    }
+    if equals(widget, s_delete.unwrap()) {
+        _shapelist_delete()
+        return
+    }
+    if equals(widget, s_global.unwrap()) {
+        _shapelist_global()
+        return
+    }
+    if equals(widget, s_x_dec.unwrap()) {
+        _shapelist_shift(-1, 0, 0)
+        return
+    }
+    if equals(widget, s_x_inc.unwrap()) {
+        _shapelist_shift(1, 0, 0)
+        return
+    }
+    if equals(widget, s_y_dec.unwrap()) {
+        _shapelist_shift(0, -1, 0)
+        return
+    }
+    if equals(widget, s_y_inc.unwrap()) {
+        _shapelist_shift(0, 1, 0)
+        return
+    }
+    if equals(widget, s_z_dec.unwrap()) {
+        _shapelist_shift(0, 0, -1)
+        return
+    }
+    if equals(widget, s_z_inc.unwrap()) {
+        _shapelist_shift(0, 0, 1)
+        return
+    }
+    if equals(widget, s_x_set.unwrap()) {
+        _shapelist_set_axis(0, s_x_field.unwrap())
+        return
+    }
+    if equals(widget, s_y_set.unwrap()) {
+        _shapelist_set_axis(1, s_y_field.unwrap())
+        return
+    }
+    if equals(widget, s_z_set.unwrap()) {
+        _shapelist_set_axis(2, s_z_field.unwrap())
+    }
+}
+
+# One row of the shape list: the set at the row's place, drawn with its shape's name and colour.
+
+local _shapelist_row(ctx: ListRowResponse) {
+    list: Widget = s_list.unwrap()
+    if not equals(ctx.widget(), list) {
+        return
+    }
+    set: string = _state_set_at(state, ctx.index())
+    ctx.set_text(_shape_row_text(set))
+    ctx.set_text_colour(_shape_row_colour(set))
+}
+
+# ShapelistScreen's Add: pushNewShapeSet builds the new set at iShapeNew with the player's feet as its
+# origin, and addEntry appends its row and selects it, which makes it the current set.
+
+local _shapelist_add() {
+    if not world_level.has() {
+        return
+    }
+    count: number = _state_set_count()
+    _state_push_set(world_level.unwrap(), world_x, world_y, world_z)
+    state = _state_with_field(state, "iShapeSet", String.from_number(count))
+    list: Widget = s_list.unwrap()
+    list.set_rows(count + 1)
+    list.select(count)
+    _shapelist_active()
+    _shapelist_fields()
+}
+
+# ShapelistScreen's Delete: remove the current set and the selected row, then select the row that was
+# below it, or the one above when it was last, which is removeEntry's own choice. With no set left
+# the selection is dropped and iShapeSet keeps the value the reference leaves it at.
+
+local _shapelist_delete() {
+    count: number = _state_set_count()
+    if count == 0 {
+        return
+    }
+    index: number = _state_index()
+    state = _state_remove_set(state, index)
+    remaining: number = count - 1
+    list: Widget = s_list.unwrap()
+    list.set_rows(remaining)
+    if remaining > 0 {
+        next: number = index
+        if next >= remaining {
+            next = remaining - 1
+        }
+        list.select(next)
+        state = _state_with_field(state, "iShapeSet", String.from_number(next))
+    }
+    _shapelist_active()
+    _shapelist_fields()
+}
+
+# ShapeSet.shiftOrigin of every set, then the field of each axis that moved written from the current
+# set's new origin. The other fields keep whatever the player typed, as the reference leaves them.
+
+local _shapelist_shift(dx: number, dy: number, dz: number) {
+    if _state_set_count() == 0 {
+        return
+    }
+    state = _state_shift_origins(state, dx, dy, dz)
+    set: string = _state_current_set()
+    if dx != 0 {
+        _shapelist_put(s_x_field.unwrap(), String.from_number(_origin_piece(set, 0)))
+    }
+    if dy != 0 {
+        _shapelist_put(s_y_field.unwrap(), String.from_number(_origin_piece(set, 1)))
+    }
+    if dz != 0 {
+        _shapelist_put(s_z_field.unwrap(), String.from_number(_origin_piece(set, 2)))
+    }
+}
+
+# A Set button: Integer.parseInt on its field, then the difference to the current set's origin shifted
+# across every set. A field that does not parse turns red and the origins stay, which is the
+# reference's catch.
+
+local _shapelist_set_axis(axis: number, field: Widget) {
+    if _state_set_count() == 0 {
+        return
+    }
+    parsed: Option[number] = String.to_integer(field.text())
+    if not parsed.has() {
+        field.set_text_colour(Color.rgb(255, 0, 0))
+        return
+    }
+    current: string = _state_current_set()
+    delta: number = parsed.unwrap() - _origin_piece(current, axis)
+    if axis == 0 {
+        state = _state_shift_origins(state, delta, 0, 0)
+    } else if axis == 1 {
+        state = _state_shift_origins(state, 0, delta, 0)
+    } else {
+        state = _state_shift_origins(state, 0, 0, delta)
+    }
+    field.set_text_colour(Color.rgb(255, 255, 255))
+}
+
+# Set global origin: move every set by the distance from the current set's origin to the player's
+# feet. The reference asks only while a set exists, which is also when the button is active.
+
+local _shapelist_global() {
+    if _state_set_count() == 0 {
+        return
+    }
+    set: string = _state_current_set()
+    state = _state_shift_origins(state, world_x - _origin_piece(set, 0), world_y - _origin_piece(set, 1), world_z - _origin_piece(set, 2))
+    _shapelist_fields()
+}
+
+# The visible box writes the current set's flag, and nothing else, which is setShapeVisibility.
+
+local _shapelist_set_visible(checked: bool) {
+    if _state_set_count() == 0 {
+        return
+    }
+    set: string = _state_current_set()
+    state = _state_with_set(state, _state_index(), _set_with_field(set, "visible", _bool_text(checked)))
+}
+
+# The three fields, in white, from the current set's origin, and the visible box from its flag. With
+# no set the fields hold "-" and the box keeps what it had, as the reference's update closure does.
+
+local _shapelist_fields() {
+    set: string = _state_current_set()
+    if String.length(set) == 0 {
+        _shapelist_put(s_x_field.unwrap(), "-")
+        _shapelist_put(s_y_field.unwrap(), "-")
+        _shapelist_put(s_z_field.unwrap(), "-")
+        return
+    }
+    _shapelist_put(s_x_field.unwrap(), String.from_number(_origin_piece(set, 0)))
+    _shapelist_put(s_y_field.unwrap(), String.from_number(_origin_piece(set, 1)))
+    _shapelist_put(s_z_field.unwrap(), String.from_number(_origin_piece(set, 2)))
+    s_visible.unwrap().set_checked(_set_field_value(set, "visible") == "true")
+}
+
+# One text field's text and its normal colour, together, because every write of an origin is white.
+
+local _shapelist_put(field: Widget, text: string) {
+    field.set_text(text)
+    field.set_text_colour(Color.rgb(255, 255, 255))
+}
+
+# checkActive: with no set, the visible box, Delete, the global origin and the nine +/-/Set buttons
+# are inactive; with one, all are active. Add is never gated, which is what lets an empty state get
+# its first set.
+
+local _shapelist_active() {
+    active: bool = _state_set_count() > 0
+    s_visible.unwrap().set_active(active)
+    s_delete.unwrap().set_active(active)
+    s_global.unwrap().set_active(active)
+    s_x_dec.unwrap().set_active(active)
+    s_x_set.unwrap().set_active(active)
+    s_x_inc.unwrap().set_active(active)
+    s_y_dec.unwrap().set_active(active)
+    s_y_set.unwrap().set_active(active)
+    s_y_inc.unwrap().set_active(active)
+    s_z_dec.unwrap().set_active(active)
+    s_z_set.unwrap().set_active(active)
+    s_z_inc.unwrap().set_active(active)
+}
+
+# The list's row count is the state's set count, and its selection is the state's current set, which
+# a fresh init puts back after a close.
+
+local _shapelist_rows() {
+    count: number = _state_set_count()
+    list: Widget = s_list.unwrap()
+    list.set_rows(count)
+    if count > 0 {
+        list.select(_state_index())
+    }
+}
+
+# State.getShapeSetIndex as a usable index: iShapeSet, clamped into the sets that are there. An empty
+# state has no set to name, and every caller checks its count before reading this.
+
+local _state_index() number {
+    count: number = _state_set_count()
+    if count == 0 {
+        return 0
+    }
+    return _clamp(_int_or(_state_field(state, "iShapeSet", "0"), 0), 0, count - 1)
+}
+
+# The state text without the shapeSet line at the given sequence number.
+
+local _state_remove_set(text: string, wanted: number) string {
+    out: string = ""
+    found: number = 0
+    lines: number = _split_count(text, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(text, i)
+        if _has_prefix(line, "shapeSet=") {
+            if found != wanted {
+                out = String.concat(out, _line(line))
+            }
+            found = found + 1
+        } else {
+            out = String.concat(out, _line(line))
+        }
+        i = i + 1
+    }
+    return out
+}
+
+# State.getIShapeNew, clamped into the registry, which is the name the add-shape text shows.
+
+local _new_shape_index() number {
+    return _clamp(_int_or(_state_field(state, "iShapeNew", "1"), 1), 0, _shape_count() - 1)
+}
+
+# The English name of a registry entry, as ShapeRegistry's translation key resolves it. An index past
+# the registry answers the no-shape name, which the reference draws for a set that has no shape.
+
+local _shape_name(id: number) string {
+    if id == 0 {
+        return "Catenary"
+    }
+    if id == 1 {
+        return "Circle"
+    }
+    if id == 2 {
+        return "Cone"
+    }
+    if id == 3 {
+        return "Cuboid"
+    }
+    if id == 4 {
+        return "Ellipse"
+    }
+    if id == 5 {
+        return "Ellipsoid"
+    }
+    if id == 6 {
+        return "Grid"
+    }
+    if id == 7 {
+        return "Helix"
+    }
+    if id == 8 {
+        return "Line"
+    }
+    if id == 9 {
+        return "Parabola"
+    }
+    if id == 10 {
+        return "Paraboloid"
+    }
+    if id == 11 {
+        return "Polygon"
+    }
+    if id == 12 {
+        return "Polygonal pyramid"
+    }
+    if id == 13 {
+        return "Sphere"
+    }
+    if id == 14 {
+        return "Torus"
+    }
+    return "None"
+}
+
+# getFormattedShapeName: a set's shape name, struck through while the set is invisible. Not visible
+# is read from the field because the state is the only copy of the set the list has.
+
+local _shape_row_text(set: string) string {
+    if String.length(set) == 0 {
+        return "None"
+    }
+    id: number = _set_int(set, "index", 0)
+    if id < 0 or id >= _shape_count() {
+        return "None"
+    }
+    name: string = _shape_name(id)
+    if _set_field_value(set, "visible") != "true" {
+        return String.concat("§m", name)
+    }
+    return name
+}
+
+# getShapeProgressColour: red for a shape that failed, else its completed colour. A setted shape is
+# generated on the frame that draws it, so it is always complete on this port and white; the green to
+# white second after a generation and the spinner while it runs are the reference's asynchronous
+# generation, which about.json records.
+local _shape_row_colour(set: string) Color {
+    id: number = _set_int(set, "index", 0)
+    if String.length(set) > 0 and id >= 0 and id < _shape_count() and _set_shape_error(set, id) {
+        return Color.rgb(255, 0, 0)
+    }
+    return Color.rgb(255, 255, 255)
 }

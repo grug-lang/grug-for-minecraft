@@ -114,7 +114,7 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "A shape is generated in render_world on the frame that draws it, where the reference hands generation to a cached thread pool. Shape.update sets ready to false and closes the buffer, and the render handler draws nothing for a set whose shape is not ready, so the reference's guide disappears for the few frames a generation takes; this port stalls that one frame and shows the finished shape at once.",
+					"what": "A shape is generated in render_world on the frame that draws it, where the reference hands generation to a cached thread pool. Shape.update sets ready to false and closes the buffer, and the render handler draws nothing for a set whose shape is not ready, so the reference's guide disappears for the few frames a generation takes; this port stalls that one frame and shows the finished shape at once, so the shape list's generation spinner never shows and its row text is the completed white, never the green a completion starts at.",
 					"why": "grug has no thread to hand generation to, so a shape's update cannot run beside the frame. The asyncEnabled config option is read and written byte for byte but changes nothing yet.",
 					"tracking_issue": 1752
 				},
@@ -146,6 +146,11 @@
 				{
 					"what": "A new set's random colours and the Visualization tab's two Set random buttons come from the level's own random, where the reference draws each from a new Random, so either here shifts the game's random sequence and the two screens' draws differ from the reference's.",
 					"why": "mod_api.json has no entry for a random stream a mod owns, and the level's is the one entry grug offers; a general seeded random is the entry that would let a mod own one, and the colours either source produces are as arbitrary.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "The Shape list tab's visible checkbox shows the current set's own flag when the tab opens, where the reference hardcodes it ticked and only corrects it when a row is selected, so a set saved invisible reads as visible until the player touches the list.",
+					"why": "A checkbox the port declares is given the value the state holds, because the screen is laid out from the state on every open; reproducing the stale box would need the port to declare a value it knows to be wrong and to correct it only from a selection callback, and the state it would then show is one the player has no way to believe.",
 					"tracking_issue": 1752
 				}
 			]
