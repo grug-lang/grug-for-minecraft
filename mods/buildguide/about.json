@@ -26,6 +26,11 @@
 			"id": "set_global_origin",
 			"name": "Set All Shape Origins",
 			"default_key": "P"
+		},
+		{
+			"id": "open_screen",
+			"name": "Open Build Guide",
+			"default_key": "B"
 		}
 	],
 	"licenses": [
@@ -79,12 +84,7 @@
 			},
 			"deviations": [
 				{
-					"what": "The five screens and their widget kinds are not implemented, so neither is the B key that opens the main screen, and the state is never saved: the reference writes the state file when a screen closes.",
-					"why": "A mod cannot open a screen or draw a widget of its own yet, which is what #1760 gives it. The overlay draws the world and reads the three key binds, and the state and config codecs are in place for the screens to use once they exist, so the world draw is complete while the editing surface is not.",
-					"tracking_issue": 1760
-				},
-				{
-					"what": "The state and config files live under the root File.open(r\"files\") answers, at buildguide/<world>@<dimension>.dat and config/buildguide.cfg, where the reference writes <gameDir>/buildguide/<world>@<dimension>.dat and <gameDir>/config/buildguide.cfg. The host also refuses a name that differs only in case from an entry that is already there, so two worlds whose names differ only in case share one guide here, where the reference on a case-sensitive filesystem kept two. The config file is written at the first world frame, where the reference writes it at client start from BuildGuide.registerClient, so a player who never enters a world has no config file here.",
+					"what": "The state and config files live under the root File.open(r\"files\") answers, at buildguide/<world>@<dimension>.dat and config/buildguide.cfg, where the reference writes <gameDir>/buildguide/<world>@<dimension>.dat and <gameDir>/config/buildguide.cfg. The host refuses a path that names an existing entry only by a different case, so two worlds whose names differ only in case cannot both keep a guide here: with persistence on, the second world's read is refused and the overlay reports that every frame and draws nothing, where the reference on a case-sensitive filesystem kept two files; with persistence off, the second world starts fresh each visit. The config file is written at the first world frame, where the reference writes it at client start from BuildGuide.registerClient, so a player who never enters a world has no config file here.",
 					"why": "A mod may write only inside the directory #1757 gives it, so a guide the reference already saved at the game directory's path is not imported and a guide this port saves is not read by the reference. The file formats themselves are the reference's, byte for byte. An overlay script has no client-start hook to run earlier, and the config only matters once a world is drawing.",
 					"tracking_issue": 1757
 				},
@@ -94,13 +94,18 @@
 					"tracking_issue": 1816
 				},
 				{
-					"what": "The three config comments are the en_us sentences as fixed text, where the reference writes the client's language through Translatable, so a non-English client's rewritten config is not the reference's bytes.",
-					"why": "mod_api.json has no entry for a translated string, so a translated comment needs a general host function that a port of any translated mod would use.",
+					"what": "Every string the mod shows is the en_us sentence as fixed text: the three config comments and the titles, labels and button texts of its five screens, where the reference resolves them through Translatable in the client's language. A non-English client therefore reads English here, and its rewritten config is not the reference's bytes.",
+					"why": "mod_api.json has no entry for a translated string, so a translated string needs a general host function that a port of any translated mod would use.",
 					"tracking_issue": 1817
 				},
 				{
 					"what": "A catenary whose Newton solve does not converge draws no cells: the reference either reports an invalid value or never leaves its loop, and the port answers no cells at once in both cases.",
-					"why": "grug cannot raise an error to the player yet. A solve whose values leave the finite range makes the reference throw, and a solve whose Newton step changes nothing (dx 1419, dz 0, an added length of 1) repeats that step until the shape is cancelled. The port ends the solve when a step is non-finite or changes nothing, which bounds both arms, and its cell loops keep the reference's own bounds rather than a cap of this port's own.",
+					"why": "grug cannot raise an error to the player yet. A solve whose values leave the finite range makes the reference throw, and a solve whose Newton step changes nothing (dx 1419, dz 0, an added length of 1) repeats that step until the shape is cancelled. The port ends the solve when a step is non-finite or changes nothing, which bounds both arms.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "A circle or an ellipse whose radius is too large for a double to step past (a hand-edited 1e20, or an infinity) draws no cells: a cell loop stops when its counter does not change, where the reference casts the bounds to int, walks the whole int range there and draws nothing until it finishes.",
+					"why": "The reference's loop is int-bounded, so it ends after a long stall of its generation thread. A double bound has no such end, and a render frame cannot freeze the client, so the port stops at once. A radius that size is reachable only through a hand-edited file, and no cell matches the ring either way.",
 					"tracking_issue": 1752
 				},
 				{
@@ -109,23 +114,38 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "A shape is generated in render_world on the frame that draws it, where the reference generates it on a cached thread pool and keeps drawing the old buffer until the new one is ready. A large shape therefore stalls its frame here and appears complete at once, instead of appearing a few frames late.",
+					"what": "A shape is generated in render_world on the frame that draws it, where the reference hands generation to a cached thread pool. Shape.update sets ready to false and closes the buffer, and the render handler draws nothing for a set whose shape is not ready, so the reference's guide disappears for the few frames a generation takes; this port stalls that one frame and shows the finished shape at once.",
 					"why": "grug has no thread to hand generation to, so a shape's update cannot run beside the frame. The asyncEnabled config option is read and written byte for byte but changes nothing yet.",
 					"tracking_issue": 1752
 				},
 				{
-					"what": "The reference binds toggleEnable, setOrigin and setGlobalOrigin to GLFW_KEY_UNKNOWN, so they are unbound until the player sets them in Controls, and binds openBuildGuide to B. The port declares G, O and P as the defaults of toggle_enable, set_origin and set_global_origin, and has no binding for B.",
+					"what": "The reference binds toggleEnable, setOrigin and setGlobalOrigin to GLFW_KEY_UNKNOWN, so they are unbound until the player sets them in Controls, and binds openBuildGuide to B. The port declares G, O and P as the defaults of toggle_enable, set_origin and set_global_origin, and declares open_screen with B, the id named after what it does where the reference's is openBuildGuide.",
 					"why": "A key has to have a one-character default in about.json, since the game's Controls screen cannot show an unbound mod binding, and the three ids are named after what they do rather than after the reference's key names.",
 					"tracking_issue": 1752
 				},
 				{
-					"what": "The port keeps one state in memory and reloads that world@dimension's file when the key changes, where the reference keeps a state per key for the whole session, so revisiting a world there keeps the edits made in it.",
-					"why": "Since this port never saves a state yet, the edits made in one world are lost when the overlay moves to another; a per-key store arrives with the save that makes them worth keeping.",
+					"what": "The port keeps one state in memory and reloads that world@dimension's file when the key changes, where the reference keeps a state per key for the whole session, so revisiting a world there keeps an edit that no screen close saved.",
+					"why": "Saving on a screen close restores what a player changed through the screens, which is what persistence is for, but an edit made with the world keys, or any edit with persistence off, is gone once the overlay moves to another world here. One state keeps the overlay small, and a per-key store is a map the file format does not need.",
 					"tracking_issue": 1752
 				},
 				{
-					"what": "A shapeCubeSize or originCubeSize of NaN in a state file is drawn as an almost full cube of 1.0 - 1e-3, where the reference leaves it NaN and the GPU then draws nothing for that set's cubes.",
-					"why": "ShapeSet.getShapeCubeSize answers Math.min(size, 1.0 - 1e-3), which stays NaN, and every vertex of a NaN cube is NaN. The world overlay refuses a non-finite coordinate with a host error, so drawing it exactly would report an error on every frame; a gap between the port and the reference only on a hand-edited file is the smaller cost until the overlay can carry a set that draws nothing.",
+					"what": "A state whose load stopped before the reference's clamps, as #1816 records, can hold an iShapeSet or an iShapeNew past the end. The port clamps both into range when it reads the current set and when it starts the next set, where the reference's getShapeSet and its first toggle press would throw an index error on such a value.",
+					"why": "grug has no exception to raise, and a stopped load has to leave the overlay drawing something rather than ending the client's tick. The clamp is the same Math.max and Math.min the reference runs after a whole load, so a file it reads in full loads identically.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "A shapeCubeSize or originCubeSize of NaN or -Infinity in a state file is drawn as an almost full cube of 1.0 - 1e-3, where the reference leaves it NaN or -Infinity and the GPU then draws nothing for that cube.",
+					"why": "ShapeSet.getShapeCubeSize answers Math.min(size, 1.0 - 1e-3), which leaves NaN and -Infinity as they are, and every vertex of such a cube is non-finite. The world overlay refuses a non-finite coordinate with a host error, so drawing it exactly would report an error on every frame; a gap between the port and the reference only on a hand-edited file is the smaller cost until the overlay can carry a cube that draws nothing.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "A config file the host refuses to write (an unwritable files directory) reports a host function error on the first world frame, and the values the overlay read stay in use; the reference catches the IOException, prints it and keeps the values it had.",
+					"why": "File.write_text reports a refused write as a host function error rather than as a value a grug script can catch. The error happens once, because the config is marked loaded before the write, so it does not block a frame after the first.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "A new set's random colours come from the level's own random, where the reference draws them from a new Random, so adding a set here shifts the game's random sequence.",
+					"why": "mod_api.json has no entry for a random stream a mod owns, and the level's is the one entry grug offers; a general seeded random is the entry that would let a mod own one, and the colours either source produces are as arbitrary.",
 					"tracking_issue": 1752
 				}
 			]
