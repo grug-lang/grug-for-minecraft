@@ -1324,6 +1324,12 @@ public abstract class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setHeldItemCount(Object playerObj, int count) {
+        // The hand holds the stack, because replace_held_item reads its count before shrinking it.
+        serverSideOf((Player) playerObj).getMainHandItem().setCount(count);
+    }
+
+    @Override
     public void clearInventoryOf(Object playerObj) {
         net.minecraft.world.entity.player.Inventory inventory =
                 serverSideOf((Player) playerObj).getInventory();

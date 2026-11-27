@@ -1,0 +1,108 @@
+# Covers BlockUseContext.replace_held_item through a fixture block's use export, which replaces the
+# used item with cobblestone: a stack of several loses one and keeps its item, and the last item, or
+# an empty hand, is replaced by one of the named item. The fixture replaces with cobblestone, so a
+# stack of cobblestone shrinking from 64 to 63 is the only way to see the shrink, and a diamond
+# becoming cobblestone is the replacement. The fixture keeps the click, so the held block is never
+# placed against it, which is how a click that declined would show. On 1.20.6 a click reaches the
+# block by a packet, so every step waits for the hand it asked for rather than counting ticks (#688):
+# the runner's budget ends a click that never arrives.
+step: number = 0
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    player: Player = ctx.get_player()
+    cobblestone: Item = item(resource_location("minecraft:cobblestone"))
+    diamond: Item = item(resource_location("minecraft:diamond"))
+
+    if step == 0 {
+        level.place_block(x, y, z, "grug:coverage_replace_held_item")
+        ctx.clear_held_item(player)
+        give_item_stack(cobblestone)
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        if ctx.get_held_count(player) != 64 {
+            _wait(ctx)
+            return
+        }
+        ctx.use_block(level, x, y, z)
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if ctx.get_held_count(player) != 63 {
+            _wait(ctx)
+            return
+        }
+        held: Option[Item] = player.get_held_item()
+        ctx.assert(held.has(), "A shrunken stack should still hold an item.")
+        ctx.assert(equals(held.unwrap(), cobblestone), "A shrunken stack should keep its own item.")
+        ctx.set_held_item(player, diamond)
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        held: Option[Item] = player.get_held_item()
+        if not held.has() or not equals(held.unwrap(), diamond) {
+            _wait(ctx)
+            return
+        }
+        ctx.use_block(level, x, y, z)
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        held: Option[Item] = player.get_held_item()
+        if not held.has() or not equals(held.unwrap(), cobblestone) {
+            _wait(ctx)
+            return
+        }
+        ctx.assert(ctx.get_held_count(player) == 1, "The last item should be replaced by one of the named item.")
+        ctx.clear_held_item(player)
+        step = 5
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        if player.get_held_item().has() {
+            _wait(ctx)
+            return
+        }
+        ctx.use_block(level, x, y, z)
+        step = 6
+        ctx.not_done()
+        return
+    }
+
+    held: Option[Item] = player.get_held_item()
+    if not held.has() or not equals(held.unwrap(), cobblestone) {
+        _wait(ctx)
+        return
+    }
+    ctx.assert(ctx.get_held_count(player) == 1, "An empty hand should be given one of the named item.")
+    ctx.assert(level.get_block(x, y - 1, z) != "minecraft:cobblestone", "A click the fixture kept should not place the held block.")
+    ctx.clear_held_item(player)
+}
+
+# A step that has not seen the hand it waits for yet keeps the test alive, up to the budget a click
+# that never arrives ends.
+local _wait(ctx: TestTickContext) {
+    waited = waited + 1
+    ctx.assert(waited < 200, "The click should reach the block and change the hand.")
+    ctx.not_done()
+}

@@ -126,6 +126,7 @@ export tick(ctx: TestTickContext)
 
 ## BlockUseContext
 .decline_use()
+.replace_held_item(item: Item)
 
 ## Color
 Color.rgb(r: number, g: number, b: number) Color

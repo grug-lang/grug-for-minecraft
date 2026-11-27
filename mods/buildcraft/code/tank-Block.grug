@@ -19,3 +19,73 @@ export init(ctx: BlockInitContext) {
 export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
     ctx.add_collision_box(0.125, 0.0, 0.125, 0.875, 1.0, 0.875)
 }
+
+# BlockTank.b fills the tank from a liquid bucket by 1000 mB and swaps the bucket for an empty one.
+# TankBucketHandler.fillCustomBucket is the other direction, through the game's bucket item: an
+# empty bucket asks the tank for 1000 mB and becomes the bucket of the liquid it took.
+# The reference maps a bucket to its liquid in BuildCraftCore's API.liquids, which registers water
+# and lava only, since the port has no oil. A fill the tank refuses (a full tank, or one holding
+# another liquid) still consumes the click, as BlockTank.b returns true for every bucket in that
+# table, and keeps the bucket in the hand. Every other held item is declined, as BlockTank.b
+# returns false for it, so the item is used or placed against the tank as usual.
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
+    held: Option[Item] = player.get_held_item()
+    if not held.has() {
+        ctx.decline_use()
+        return
+    }
+    held_item: Item = held.unwrap()
+    if equals(held_item, item(resource_location("minecraft:water_bucket"))) {
+        _fill_from_bucket(ctx, world, x, y, z, "minecraft:water")
+        return
+    }
+    if equals(held_item, item(resource_location("minecraft:lava_bucket"))) {
+        _fill_from_bucket(ctx, world, x, y, z, "minecraft:lava")
+        return
+    }
+    if equals(held_item, item(resource_location("minecraft:bucket"))) {
+        _empty_into_bucket(ctx, world, x, y, z)
+        return
+    }
+    ctx.decline_use()
+}
+
+# TileTank.fill through BlockTank.b, at Orientations.Unknown (6): a clicked bucket arrives at no
+# side of the tank. What the tank took decides whether the bucket was used, so a refused fill leaves
+# the hand alone.
+local _fill_from_bucket(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, liquid: string) {
+    tank_opt: Option[BlockEntity] = world.get_block_entity(x, y, z)
+    if not tank_opt.has() {
+        return
+    }
+    if tank_opt.unwrap().offer_liquid(liquid, 1000, 6, true) != 0 {
+        ctx.replace_held_item(item(resource_location("minecraft:bucket")))
+    }
+}
+
+# TankBucketHandler.fillCustomBucket: only a tank holding the whole 1000 mB fills the bucket, and
+# the liquid has to be one the port has a bucket for, which its water and lava table both are.
+local _empty_into_bucket(ctx: BlockUseContext, world: Level, x: number, y: number, z: number) {
+    tank_opt: Option[BlockEntity] = world.get_block_entity(x, y, z)
+    if not tank_opt.has() {
+        return
+    }
+    tank: BlockEntity = tank_opt.unwrap()
+    if tank.take_liquid(1000, false) < 1000 {
+        return
+    }
+    liquid_opt: Option[string] = tank.get_liquid()
+    if not liquid_opt.has() {
+        return
+    }
+    liquid: string = liquid_opt.unwrap()
+    if liquid == "minecraft:water" {
+        tank.take_liquid(1000, true)
+        ctx.replace_held_item(item(resource_location("minecraft:water_bucket")))
+        return
+    }
+    if liquid == "minecraft:lava" {
+        tank.take_liquid(1000, true)
+        ctx.replace_held_item(item(resource_location("minecraft:lava_bucket")))
+    }
+}

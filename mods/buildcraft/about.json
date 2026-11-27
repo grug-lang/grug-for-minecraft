@@ -120,11 +120,6 @@
 					"tracking_issue": 1626
 				},
 				{
-					"what": "The tank has no bucket interaction: right-clicking it with a liquid bucket does not fill it, and right-clicking it with an empty bucket is not filled from it, where 2.2.14's BlockTank.b fills 1000 mB and swaps the bucket for an empty one and TankBucketHandler.fillCustomBucket empties 1000 mB into the liquid's own bucket.",
-					"why": "BlockUseContext has no way to replace the player's held stack, so a use() export can read the held item but cannot hand back the empty or filled bucket.",
-					"tracking_issue": 1768
-				},
-				{
 					"what": "A column of tanks is a set of separate tanks: a full one answers 0 to an offer instead of passing the rest to the tank above it, and a nearly empty one answers only what it holds instead of drawing from the tank below, where 2.2.14's TileTank walks the column in fill/actualFill and empty/actualEmtpy. The block texture does drop the bottom rim where a tank stands on another, as BlockTank.d does.",
 					"why": "The reference's fill enters the column through ILiquidContainer on the one tile a pipe targets, and that tile then walks the column itself; a grug export is called by the host rather than by another block entity, so the tank's offer_liquid cannot hand the rest of an offer to the tank above it.",
 					"tracking_issue": 1788

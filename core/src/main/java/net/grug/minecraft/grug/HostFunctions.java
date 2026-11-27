@@ -101,6 +101,50 @@ public class HostFunctions {
         GrugBlockUse.decline();
     }
 
+    /**
+     * Puts {@code item} in the hand of the player who made the click, taking the one the block used
+     * up off the stack the player held.
+     *
+     * <p>The rule is the issue's: a stack of several loses one and keeps its item, and the last one
+     * is what the item replaces. That is what a liquid container needs, since the bucket it used up
+     * is one of however many the player carries.
+     */
+    public static void BlockUseContext_replace_held_item(long contextId, long itemId) {
+        if (!requireContext(
+                "BlockUseContext.replace_held_item", "use", contextId, GrugBlockUse.context())) {
+            return;
+        }
+        worldChanged();
+        Object player = GrugBlockUse.context().player();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "BlockUseContext.replace_held_item: The click's player no longer resolves, so"
+                            + " no hand was changed.");
+            return;
+        }
+        withEntity(
+                "BlockUseContext.replace_held_item",
+                "item",
+                itemId,
+                item -> {
+                    if (item == null) {
+                        Grug.hostFunctionErrorHappened(
+                                Grug.statePtr,
+                                "BlockUseContext.replace_held_item: No item has that name, so the"
+                                        + " player's hand is unchanged.");
+                        return;
+                    }
+                    ModLoaderAdapter adapter = GrugCore.getAdapter();
+                    double held = adapter.getHeldCount(player);
+                    if (held >= 2) {
+                        adapter.setHeldItemCount(player, (int) held - 1);
+                    } else {
+                        adapter.setHeldItem(player, item);
+                    }
+                });
+    }
+
     public static void ShapeContext_add_collision_box(
             long contextId, double x1, double y1, double z1, double x2, double y2, double z2) {
         addShapeBox("ShapeContext.add_collision_box", contextId, x1, y1, z1, x2, y2, z2, true);

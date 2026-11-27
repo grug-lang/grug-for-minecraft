@@ -9,13 +9,22 @@ package net.grug.minecraft.grug;
  */
 public final class GrugBlockUse {
     /**
-     * The context the open {@code use()} call was passed, which is what the context's method checks
-     * before it acts. A new one is made for every call and cleared when it returns, so a context
+     * The context the open {@code use()} call was passed, which is what the context's methods check
+     * before they act. A new one is made for every call and cleared when it returns, so a context
      * saved in a member variable and used in a later click is refused.
      */
     public static final class Context {
+        private final Object player;
+
         @GrugGenerated("marker: only a use call makes one")
-        private Context() {}
+        private Context(Object player) {
+            this.player = player;
+        }
+
+        /** The player the click was made by, whose hand the context may change. */
+        Object player() {
+            return player;
+        }
     }
 
     private static boolean declined = false;
@@ -28,9 +37,9 @@ public final class GrugBlockUse {
         return context;
     }
 
-    /** Opens the context of one {@code use()} call. */
-    static Context openContext() {
-        context = new Context();
+    /** Opens the context of one {@code use()} call, which is whose hand the click may change. */
+    static Context openContext(Object player) {
+        context = new Context(player);
         return context;
     }
 
@@ -48,7 +57,12 @@ public final class GrugBlockUse {
     public static boolean use(
             long blockHandle, long worldId, double x, double y, double z, long playerId) {
         declined = false;
-        long contextHandle = GrugEntities.addEntity(GrugEntityType.BlockUseContext, openContext());
+        // The loaders add the player the click was made by just before the call, so the id roots
+        // the object the context answers a held-item change with.
+        GrugObject playerObject = GrugEntities.entityData.get(playerId);
+        Object player = playerObject == null ? null : playerObject.object;
+        long contextHandle =
+                GrugEntities.addEntity(GrugEntityType.BlockUseContext, openContext(player));
         try {
             boolean handled =
                     ExportFns.Block_use(blockHandle, contextHandle, worldId, x, y, z, playerId);

@@ -1591,6 +1591,17 @@
 			"methods": {
 				"decline_use": {
 					"description": "Called by a block's use export to say the block did not handle the click, so the game treats it as if the block had no use export: the held item is used or placed as usual. Without it, a block that exports use consumes every right click on it. Only legal on the context use() was passed, while that call is running: a context saved for later is refused."
+				},
+				"replace_held_item": {
+					"description": "Takes the item the block used up off the player's held stack, replacing the last one with the named item. A stack of several loses one and keeps its item; a stack of one, or an empty hand, is replaced by one of the named item. An item name no item has changes nothing and reports the call. Only legal on the context use() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
 				}
 			}
 		},

@@ -1292,6 +1292,12 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setHeldItemCount(Object playerObj, int count) {
+        // The hand holds the stack, because replace_held_item reads its count before shrinking it.
+        ((EntityPlayer) playerObj).inventory.getCurrentItem().stackSize = count;
+    }
+
+    @Override
     public void clearInventoryOf(Object playerObj) {
         net.minecraft.src.InventoryPlayer inventory = ((EntityPlayer) playerObj).inventory;
         for (int slot = 0; slot < inventory.getSizeInventory(); slot++) {

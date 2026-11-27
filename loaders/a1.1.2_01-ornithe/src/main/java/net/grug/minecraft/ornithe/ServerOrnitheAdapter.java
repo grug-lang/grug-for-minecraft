@@ -1149,6 +1149,13 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         sendInventoryToPlayer((PlayerEntity) playerObj);
     }
 
+    /** Leaving the stack one shorter is a change the joined client has to be told as well. */
+    @Override
+    public void setHeldItemCount(Object playerObj, int count) {
+        super.setHeldItemCount(playerObj, count);
+        sendInventoryToPlayer((PlayerEntity) playerObj);
+    }
+
     /** Sends the main inventory of {@code player} to its joined client, when it has one. */
     private static void sendInventoryToPlayer(PlayerEntity player) {
         // The connection writes the packet later on its own thread, so it gets its own array.
