@@ -27,6 +27,7 @@ import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugLevelKey;
 import net.grug.minecraft.grug.GrugMobCap;
+import net.grug.minecraft.grug.GrugOwnedScreen;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
@@ -37,6 +38,7 @@ import net.grug.minecraft.stationapi.block.GrugBoxRenderer;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.grug.minecraft.stationapi.client.GrugClientPlayer;
 import net.grug.minecraft.stationapi.client.GrugOverlayHost;
+import net.grug.minecraft.stationapi.client.GrugOwnedScreenHost;
 import net.grug.minecraft.stationapi.client.GrugScreenGeometry;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.grug.minecraft.stationapi.grug.DummyCraftingInventory;
@@ -1986,6 +1988,54 @@ public class StationApiAdapter implements ModLoaderAdapter {
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         return isScreenOpenForTest() ? GrugTestScreens.identityOf(mc.currentScreen) : 0;
+    }
+
+    /**
+     * The width the client's own font draws {@code text} at, which is what {@code
+     * OverlayRenderContext.text_width} measures. A mod's screen centres its title with it, so a
+     * loader without it cannot draw a screen the way the mod laid it out.
+     */
+    @Override
+    public double textWidth(String text) {
+        if (refuseWithoutAClient("OverlayRenderContext.text_width")) return 0.0;
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        return mc.textRenderer.getWidth(text);
+    }
+
+    /**
+     * Mod-owned screens are the screen subclass this loader adds, so a {@code Screen.new()} and
+     * {@code Screen.open()} are legal here. A dedicated server answers false and has nothing to
+     * show.
+     */
+    @Override
+    public boolean ownedScreensSupported() {
+        return true;
+    }
+
+    @Override
+    public void showOwnedScreen(GrugOwnedScreen screen) {
+        // A test ticks on this client's own thread, so the screen is up, with its screen_init
+        // asked, by the time this returns.
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        mc.setScreen(new GrugOwnedScreenHost(screen));
+    }
+
+    @Override
+    public void hideOwnedScreen(GrugOwnedScreen screen) {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        // Only the screen this loader made for this mod screen is taken away: another screen the
+        // player opened over it is theirs to keep. This version shows the world again where
+        // another version shows an empty screen.
+        if (mc.currentScreen instanceof GrugOwnedScreenHost
+                && ((GrugOwnedScreenHost) mc.currentScreen).model() == screen) {
+            mc.setScreen(null);
+        }
     }
 
     @Override
