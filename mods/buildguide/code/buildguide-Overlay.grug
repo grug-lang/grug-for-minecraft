@@ -17,9 +17,10 @@
 # and stage 1's shape test walked them once per cell, which is O(n^2) over a shape; this file keeps
 # the reference's iteration order and its duplicates in one pass, so a shape costs what the
 # reference's own generation costs and no more.
-# The reference generates asynchronously, so a set can be drawn a few frames after its properties
-# changed, and a capture can catch it mid-generation: this port generates inside the frame, so a
-# set is always ready. about.json records that as a deviation.
+# The reference generates asynchronously: Shape.update sets ready to false and closes the buffer
+# until the new one is ready, so the guide disappears for a few frames while a shape changes. This
+# port generates inside the frame that draws it, so that frame stalls and the finished shape appears
+# at once. about.json records that as a deviation.
 
 # The state of the world this client is in, as one string in the reference's own file format, plus a
 # `!` after the class name of a shape whose properties did not parse, which is how the reference's
@@ -63,7 +64,7 @@ export render_world(ctx: OverlayWorldContext) {
     level: Level = ctx.get_level()
     name: string = level.name()
     dimension: string = level.dimension()
-    key: string = _state_path(name, dimension)
+    key: string = _state_key(name, dimension)
     if not config_loaded or not state_loaded or state_key != key {
         files: File = File.open(r"files")
         _ensure_config(files)
@@ -327,9 +328,20 @@ local _emit_circle(ctx: OverlayWorldContext, v: string, ox: number, oy: number, 
                     z = z + 1
                 }
             }
+            previous_y: number = y
             y = y + 1
+            # A radius the double cannot step past (1e20, or an infinity from a hand-edited file)
+            # would loop forever here; the reference casts to int, so its loop ends on an int
+            # overflow after a stall of its own. This stops at once instead (#1846).
+            if y == previous_y {
+                break
+            }
         }
+        previous_x: number = x
         x = x + 1
+        if x == previous_x {
+            break
+        }
     }
 }
 
@@ -588,9 +600,18 @@ local _emit_ellipse(ctx: OverlayWorldContext, v: string, ox: number, oy: number,
                     s = s + 1
                 }
             }
+            previous_b: number = b
             b = b + 1
+            # See the circle's guard: a bound the double cannot step past stops here (#1846).
+            if b == previous_b {
+                break
+            }
         }
+        previous_a: number = a
         a = a + 1
+        if a == previous_a {
+            break
+        }
     }
 }
 
@@ -1363,15 +1384,19 @@ local _colour_channel(text: string, index: number) number {
 }
 
 # A set's cube size, as ShapeSet.getShapeCubeSize and getOriginCubeSize answer it: the file's value,
-# with Math.min's cap. A file value of NaN stays NaN in the reference, and every vertex of that cube
-# is then NaN, so the GPU draws nothing; draw_triangle refuses a non-finite coordinate with a host
-# error on every frame, so the port draws the cap instead, which about.json records (#1752).
+# with Math.min's cap. A file value of NaN or an infinity stays as it is in the reference: every
+# vertex of that cube is then non-finite or unbounded, so the GPU draws nothing or a broken cube;
+# draw_triangle refuses a non-finite coordinate with a host error on every frame, so the port draws
+# the cap instead, which about.json records (#1752, #1846).
 
 local _cube_size(set: string, key: string, fallback: number) number {
     parsed: Option[number] = String.to_number(_set_field_value(set, key))
     size: number = fallback
     if parsed.has() {
         size = parsed.unwrap()
+    }
+    if not _finite(size) {
+        return 1.0 - 0.001
     }
     if not (size <= 1.0 - 0.001) {
         return 1.0 - 0.001
@@ -1403,13 +1428,25 @@ local _cube_size(set: string, key: string, fallback: number) number {
 # String.from_float and String.from_double, which is Java 19 and later's own text on every JDK.
 
 # Reads the config once and keeps its three values as "async,random,persistence".
+# Config's constructor writes the default file when there is none, else loads it and rewrites it whole
+# when a key is missing, keeping the values the file held. Config.load catches the IOException a
+# refused write raises and keeps what it parsed, so the values are assigned and the flag is set
+# before the write: a write the host refuses ends this call once, instead of aborting every frame
+# (#1846).
 
 local _ensure_config(files: File) {
     if config_loaded {
         return
     }
-    config_values = _config_open_at(files, "config/buildguide.cfg")
+    text: Option[string] = files.read_text("config/buildguide.cfg")
+    config_values = _config_default_values()
+    if text.has() {
+        config_values = _config_parse(text.unwrap(), config_values)
+    }
     config_loaded = true
+    if not text.has() or _config_missing(text.unwrap()) {
+        files.write_text("config/buildguide.cfg", _config_text(config_values))
+    }
 }
 
 # Creates, and loads when persistence is on, the state of the world and dimension this frame is in.
@@ -1424,6 +1461,11 @@ local _ensure_state(files: File, level: Level, name: string, dimension: string, 
     state_key = key
     state_loaded = true
     state_initialised = false
+    # A press counted before this key change belongs to the state that was showing, not to this
+    # one, and the reference has no way to carry it across a world or dimension switch (#1846).
+    pending_toggle = 0
+    pending_origin = 0
+    pending_global_origin = 0
 }
 
 # The state for a world: loaded from its file on the first access when persistence is enabled. The
@@ -1607,12 +1649,19 @@ local _state_path(name: string, dimension: string) string {
     return String.concat("buildguide/", _state_filename(name, dimension))
 }
 
+# The key the state is kept in memory under: the raw world and dimension, as the reference's
+# stateStore is keyed, so two names that sanitise alike keep two states here (#1846). They still
+# share one file, as they do in the reference.
+
+local _state_key(name: string, dimension: string) string {
+    return String.concat(String.concat(_state_host(name), "@"), _dimension_text(dimension))
+}
+
 # AbstractStateManager.getPersistenceFile: the world and the dimension joined by an at sign, every
 # character a Windows file name refuses replaced by a dot, then ".dat".
 
 local _state_filename(name: string, dimension: string) string {
-    key: string = String.concat(String.concat(_state_host(name), "@"), _dimension_text(dimension))
-    return String.concat(_sanitise(key), ".dat")
+    return String.concat(_sanitise(_state_key(name, dimension)), ".dat")
 }
 
 # The reference falls back to the server's address and then to "unknown"; Level.name answers the
@@ -1668,23 +1717,6 @@ local _sanitise(text: string) string {
 }
 
 # ---------------------------------------------------------------- the config
-
-# Config's constructor: write the default file when there is none, else load it and rewrite it whole
-# when a key is missing, keeping the values the file held.
-
-local _config_open_at(files: File, path: string) string {
-    text: Option[string] = files.read_text(path)
-    if not text.has() {
-        values: string = _config_default_values()
-        files.write_text(path, _config_text(values))
-        return values
-    }
-    values: string = _config_parse(text.unwrap(), _config_default_values())
-    if _config_missing(text.unwrap()) {
-        files.write_text(path, _config_text(values))
-    }
-    return values
-}
 
 # The three values in file order: async shape generation, random colours for a new set, persistence.
 
@@ -2544,7 +2576,9 @@ local _config_random(values: string) bool {
 }
 
 # A new set's colour from the level's random, three draws and the alpha the set already has, in the
-# text Float.toString gives a float, which is String.from_float.
+# text Float.toString gives a float, which is String.from_float. The reference makes a new Random and
+# draws from it, so its draws do not touch the level's sequence; this port's do, which about.json
+# records (#1846).
 
 local _random_colour(level: Level, alpha: string) string {
     return String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.from_float(level.random_float()), String.concat(",", alpha))))

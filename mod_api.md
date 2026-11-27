@@ -86,6 +86,24 @@ export scroll(ctx: OverlayScrollContext)
 export world_binding(ctx: OverlayWorldBindingContext)
 export world_key(ctx: OverlayWorldKeyContext)
 
+## Screen
+export click(ctx: OverlayClickContext)
+export closed()
+export init(ctx: ScreenInitContext)
+export key(ctx: OverlayKeyContext)
+export list_row(ctx: ListRowResponse)
+export render(ctx: OverlayRenderContext)
+export scroll(ctx: OverlayScrollContext)
+export widget_changed(ctx: ScreenWidgetContext)
+.add_button(name: string, text: string, x: number, y: number, width: number, height: number) Widget
+.add_checkbox(name: string, text: string, checked: bool, x: number, y: number, width: number, height: number) Widget
+.add_list(name: string, x: number, y: number, width: number, height: number, row_height: number) Widget
+.add_slider(name: string, text: string, min: number, max: number, value: number, x: number, y: number, width: number, height: number) Widget
+.add_text_field(name: string, text: string, x: number, y: number, width: number, height: number) Widget
+.close()
+.open()
+Screen.new() Screen
+
 ## Test
 export init(ctx: TestInitContext)
 export tick(ctx: TestTickContext)
@@ -203,6 +221,12 @@ File.open(root: resource) File
 .answer_liquid(liquid: string)
 .answer_none()
 
+## ListRowResponse
+.index() number
+.set_text(text: string)
+.set_text_colour(color: Color)
+.widget() Widget
+
 ## Math
 Math.abs(value: number) number
 Math.atan2(y: number, x: number) number
@@ -273,6 +297,8 @@ Option.new() Option[$Value]
 .screen_height() number
 .screen_serial() number
 .screen_width() number
+.text_width(text: string) number
+.time_millis() number
 
 ## OverlayScrollContext
 .delta() number
@@ -322,6 +348,13 @@ Option.new() Option[$Value]
 .draw_liquid(liquid: string, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 .draw_model(model: resource, x: number, y: number, z: number, dx: number, dy: number, dz: number)
 .partial_tick() number
+
+## ScreenInitContext
+.screen_height() number
+.screen_width() number
+
+## ScreenWidgetContext
+.widget() Widget
 
 ## Screenshot
 .capture(x1: number, y1: number, x2: number, y2: number) Screenshot
@@ -434,6 +467,21 @@ String.trim(text: string) string
 .z() number
 Vec3.new(x: number, y: number, z: number) Vec3
 Vec3.zero() Vec3
+
+## Widget
+.checked() bool
+.select(index: number)
+.selected() number
+.set_active(active: bool)
+.set_checked(checked: bool)
+.set_position(x: number, y: number)
+.set_rows(count: number)
+.set_text(text: string)
+.set_text_colour(color: Color)
+.set_value(value: number)
+.set_visible(visible: bool)
+.text() string
+.value() number
 
 # Host functions
 
