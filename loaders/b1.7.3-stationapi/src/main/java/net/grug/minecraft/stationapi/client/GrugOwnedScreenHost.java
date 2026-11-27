@@ -122,8 +122,16 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
     /** The next id for a button in the screen's control list, which only has to be unique here. */
     private int nextButtonId = 0;
 
+    /**
+     * The screen's open time when this host was made. The game removes a host it replaces, which
+     * happens when the mod's own `screen_closed` reopened the screen, and that removal must not end
+     * the open time that came after it (#1871's review).
+     */
+    private final long generation;
+
     public GrugOwnedScreenHost(GrugOwnedScreen screen) {
         this.screen = screen;
+        this.generation = screen.generation();
     }
 
     /** The model this screen shows, which is what {@code hideOwnedScreen} compares against. */
@@ -245,6 +253,10 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
         // The rows are asked before anything is drawn, because the lists draw the answers this
         // frame.
         GrugOwnedScreens.prepareFrame(screen);
+        // A row export may have moved, shown or hidden a widget while it answered, and the game's
+        // copies are a frame behind: syncing again here draws and hit-tests the widgets the mod
+        // laid out for this frame (#1871's review).
+        syncWidgets();
         renderBackground();
         for (GrugWidget widget : screen.widgets()) {
             if (!widget.visible()) continue;
@@ -395,7 +407,10 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
         }
         GrugWidget list = GrugOwnedScreens.listAt(screen, x, y);
         if (list != null) {
+            // A list that is not active does not move, but the wheel over it is still absorbed
+            // there and does not reach the hotbar or a list behind it.
             GrugOwnedScreens.scrollList(screen, list, delta);
+            return true;
         }
         return false;
     }
@@ -473,8 +488,8 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
         // the next client tick: this version calls this inside `setScreen` before it assigns the
         // replacement, so a screen_closed that opens another screen would have it dropped. Core
         // keeps the note and `runGameRemovals` ends it from the tick.
-        if (GrugOwnedScreens.openScreen() == screen) {
-            GrugOwnedScreens.noteGameRemoved(screen);
+        if (GrugOwnedScreens.openScreen() == screen && screen.generation() == generation) {
+            GrugOwnedScreens.noteGameRemoved(screen, generation);
         }
     }
 
