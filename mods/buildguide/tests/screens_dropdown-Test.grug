@@ -295,8 +295,10 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 19 {
-        # Choosing a row closed the dropdown inside the same screen, so the Shape tab is still open.
-        # Escape closes it and saves; a field that kept the focus would need another press.
+        # Choosing a row closed the dropdown inside the same screen, so the Shape tab is still open:
+        # the fallback never replaces the screen the way a second screen would.
+        ctx.assert(ctx.screen_open(), "A row should close the list and leave its parent screen open.")
+        # Escape closes the screen and saves; a field that kept the focus would need another press.
         if ctx.screen_open() {
             presses = presses + 1
             ctx.assert(presses < 5, "Escape should close the Shape screen after the row.")
