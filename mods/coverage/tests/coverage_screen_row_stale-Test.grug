@@ -67,6 +67,16 @@ export tick(ctx: TestTickContext) {
         }
         # The frame barrier: this capture waits for a frame drawn after the ask, and that frame is
         # the one whose screen_list_row answered and whose screen_render used the answer after.
+        # A capture reads the last frame the client drew, so on a loader that does not wait for a
+        # frame after the ask it can be the one from before the screen opened: waiting for a drawn
+        # frame makes the crop the screen's own. The runner can pass 10 ticks per frame, so the open
+        # and the capture would otherwise share one.
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The coverage screen should draw a frame before it is captured.")
+            ctx.not_done()
+            return
+        }
         _shot(ctx)
         waited = 0
         step = 3
