@@ -3457,9 +3457,16 @@ static bool color_problem(double r, double g, double b, double a, char* out, siz
     return true;
 }
 // SMOKETEST_EXCL_STOP
+// Color.getRGB: each channel is Java's (int) cast of the grug number, so a fraction is dropped and a
+// value out of range saturates, where a raw C cast of the same double is undefined behaviour. The
+// three ints are then packed with Java's 32-bit wrap, so the low 24 bits are the color.
+static int32_t color_bits(double r, double g, double b) {
+    uint32_t ur = (uint32_t) java_int(r), ug = (uint32_t) java_int(g), ub = (uint32_t) java_int(b);
+    return (int32_t) ((ur << 16) | (ug << 8) | ub);
+}
 // The color object carries its 24-bit rgb in x, which is what Widget.set_text_colour and
 // ListRowResponse.set_text_colour read, as the host reads Color.getRGB.
-static union grug_value Color_rgb(ARGS) { UNUSED; uint64_t o = new_obj(K_COLOR); objs[o - 1].x = (double) (((int) a[0]._number << 16) | ((int) a[1]._number << 8) | (int) a[2]._number); return id(o); }
+static union grug_value Color_rgb(ARGS) { UNUSED; uint64_t o = new_obj(K_COLOR); objs[o - 1].x = (double) color_bits(a[0]._number, a[1]._number, a[2]._number); return id(o); }
 REGISTER("Color", "rgb", Color_rgb);
 // SMOKETEST_EXCL_START: the only committed caller, overlay_triangles-Test, stops earlier at an overlay call the smoketest lacks
 static union grug_value Color_rgba(ARGS) {
@@ -3467,7 +3474,7 @@ static union grug_value Color_rgba(ARGS) {
     char msg[2048];
     if (color_problem(a[0]._number, a[1]._number, a[2]._number, a[3]._number, msg, sizeof msg)) return fail("Color.rgba: %s", msg);
     uint64_t o = new_obj(K_COLOR);
-    objs[o - 1].x = (double) (((int) a[0]._number << 16) | ((int) a[1]._number << 8) | (int) a[2]._number);
+    objs[o - 1].x = (double) color_bits(a[0]._number, a[1]._number, a[2]._number);
     return id(o);
 }
 // SMOKETEST_EXCL_STOP
@@ -4780,23 +4787,27 @@ static double list_scroll_by(double scroll, double delta, int rows, double row_h
 }
 static int list_first_visible(double scroll, int rows, double row_height) {
     if (rows <= 0 || !(row_height > 0.0)) return 0;
-    double first = floor(scroll / row_height);
-    if (first < 0.0) return 0;
-    return first > rows ? rows : (int) first;
+    // Java's (int) cast saturates, where a raw C cast of a huge or NaN scroll is undefined.
+    int first = java_int(floor(scroll / row_height));
+    if (first < 0) return 0;
+    return first < rows ? first : rows;
 }
 static int list_last_visible(double scroll, int rows, double row_height, double height) {
     int first = list_first_visible(scroll, rows, row_height);
     if (rows <= 0 || !(row_height > 0.0) || !(height > 0.0)) return first - 1;
-    int last = (int) ceil((scroll + height) / row_height) - 1;
+    // A viewport past the list's end answers rows - 1 anyway, so the saturating cast is only taken
+    // when the end is inside the rows and cannot take the subtraction past INT_MIN first.
+    double end = ceil((scroll + height) / row_height);
+    int last = end > (double) rows ? rows : java_int(end) - 1;
     if (last < first - 1) last = first - 1;
     return last > rows - 1 ? rows - 1 : last;
 }
 static int list_row_at(double y, double height, double scroll, int rows, double row_height) {
     if (rows <= 0 || !(row_height > 0.0) || !(height > 0.0)) return -1;
     if (!(y >= 0.0) || y >= height) return -1;
-    double index = floor((scroll + y) / row_height);
-    if (index < 0.0 || index >= rows) return -1;
-    return (int) index;
+    int index = java_int(floor((scroll + y) / row_height));
+    if (index < 0 || index >= rows) return -1;
+    return index;
 }
 static int list_selection_after_rows_change(int selected, int rows) {
     if (selected < 0) return -1;
@@ -5322,7 +5333,10 @@ static bool mod_screen_click(double x, double y, double button) {
             return false;
         case WK_LIST: {
             int row = list_row_at(y - w->y, w->height, w->scroll, w->rows, w->row_height);
-            if (row >= 0 && row != w->selected) {
+            // A click on the row that is already selected is still a click the mod hears: the
+            // reference's row callback runs on every click, so it can close a dropdown and re-apply
+            // the row's value even when the selection did not move.
+            if (row >= 0) {
                 w->selected = row;
                 ask_widget_changed(s, handle);
             }
@@ -5388,23 +5402,22 @@ static bool mod_screen_scroll(double x, double y, double delta) {
         if (overlay_pass_taken) return true;
     }
     if (open_owned_screen != s || !s->open) return false;
+    // The list under the point takes the wheel, even when it is not active: an inactive list does
+    // not scroll (its set_active says so) and the movement does not fall through to a list behind
+    // it, which is what the game's own list does, since its isMouseOver checks only the bounds.
     for (size_t i = 0; i < s->nwidgets; i++) {
         struct owned_widget* w = s->widgets[i];
-        if (w->kind != WK_LIST || !w->visible || !w->active || !widget_contains(w, x, y)) continue;
-        w->scroll = list_scroll_by(w->scroll, delta, w->rows, w->row_height, w->height);
+        if (w->kind != WK_LIST || !w->visible || !widget_contains(w, x, y)) continue;
+        if (w->active) w->scroll = list_scroll_by(w->scroll, delta, w->rows, w->row_height, w->height);
         return false;
     }
     return false;
 }
 
 // One frame: screen_list_row for every visible row of every visible list, then screen_render. The
-// list numbers are copied before any export runs, so a screen that closes inside a row's answer
-// cannot free the widget the frame is reading.
-struct frame_list {
-    uint64_t widget_handle;
-    int rows;
-    double row_height, scroll, height;
-};
+// widget list is copied first, because asking a row can add a widget or close the screen, but each
+// list's numbers are read when the frame reaches it, as the host reads them, so a row answer that
+// changes a list the frame has not reached yet is seen by this frame.
 static void ask_row(struct owned_screen* s, uint64_t widget_handle, int index) {
     uint64_t rid = new_obj(K_LIST_ROW_RESPONSE);
     struct obj* r = &objs[rid - 1];
@@ -5423,24 +5436,35 @@ static void ask_row(struct owned_screen* s, uint64_t widget_handle, int index) {
 static void mod_screen_render(void) {
     struct owned_screen* s = open_owned_screen;
     if (!s || !s->open) return;
-    struct frame_list* lists = NULL;
-    size_t nlists = 0, caplists = 0;
+    struct owned_widget** widgets = NULL;
+    size_t nwidgets = 0, capwidgets = 0;
     for (size_t i = 0; i < s->nwidgets; i++) {
-        struct owned_widget* w = s->widgets[i];
-        if (w->kind != WK_LIST || !w->visible || w->rows <= 0) continue;
-        if (nlists == caplists) {
-            caplists = caplists ? caplists * 2 : 8;
-            lists = xrealloc(lists, caplists * sizeof *lists);
+        if (nwidgets == capwidgets) {
+            capwidgets = capwidgets ? capwidgets * 2 : 8;
+            widgets = xrealloc(widgets, capwidgets * sizeof *widgets);
         }
-        lists[nlists++] = (struct frame_list){w->handle, w->rows, w->row_height, w->scroll, w->height};
+        widgets[nwidgets++] = s->widgets[i];
     }
     if (screen_list_row_fn != UINT64_MAX)
-        for (size_t i = 0; i < nlists; i++) {
-            int first = list_first_visible(lists[i].scroll, lists[i].rows, lists[i].row_height);
-            int last = list_last_visible(lists[i].scroll, lists[i].rows, lists[i].row_height, lists[i].height);
-            for (int row = first; row <= last; row++) ask_row(s, lists[i].widget_handle, row);
+        for (size_t i = 0; i < nwidgets; i++) {
+            struct owned_widget* w = widgets[i];
+            if (w->kind != WK_LIST || !w->visible || w->rows <= 0) continue;
+            int rows = w->rows;
+            double row_height = w->row_height, scroll = w->scroll, height = w->height;
+            uint64_t handle = w->handle;
+            int first = list_first_visible(scroll, rows, row_height);
+            int last = list_last_visible(scroll, rows, row_height, height);
+            for (int row = first; row <= last; row++) {
+                ask_row(s, handle, row);
+                // A row answer may close the screen, which frees the widgets this frame copies, so
+                // nothing is read again before this check.
+                if (open_owned_screen != s || !s->open) {
+                    free(widgets);
+                    return;
+                }
+            }
         }
-    free(lists);
+    free(widgets);
     if (open_owned_screen != s || !s->open) return;
     if (screen_render_fn != UINT64_MAX) {
         uint64_t c = new_obj(K_OVERLAY_RENDER);

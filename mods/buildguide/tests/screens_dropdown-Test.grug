@@ -160,8 +160,8 @@ export tick(ctx: TestTickContext) {
             return
         }
         waited = 0
-        # The row picked below is one that is not the current new-set shape, whose click a list
-        # could treat as no change at all.
+        # The row picked below is one that is not the current new-set shape, so the value the row
+        # writes is one this test can tell apart from the value it replaced.
         state: string = _saved_state(ctx)
         if _field(state, "iShapeNew") == "0" {
             pick = 2
@@ -298,29 +298,73 @@ export tick(ctx: TestTickContext) {
         # Choosing a row closed the dropdown inside the same screen, so the Shape tab is still open:
         # the fallback never replaces the screen the way a second screen would.
         ctx.assert(ctx.screen_open(), "A row should close the list and leave its parent screen open.")
-        # Escape closes the screen and saves; a field that kept the focus would need another press.
-        if ctx.screen_open() {
-            presses = presses + 1
-            ctx.assert(presses < 5, "Escape should close the Shape screen after the row.")
-            ctx.press_screen_key(256, false, false, true)
-            ctx.not_done()
-            return
-        }
-        presses = 0
-        state: string = _saved_state(ctx)
-        ctx.assert(_index_field(state) == 1, "The Shape tab's dropdown should write the current set's index.")
-        ctx.assert(_shape_values(state, "ShapeCircle") == "X,3.0,1,false", "A shape the set has not built should start at its defaults.")
-        ctx.assert(_shape_values(state, pick_class) == _defaults(pick), "The shape the set held before the pick should keep its values.")
-        if was_persistent {
-            return
-        }
+        # The row just clicked is the list's selected row now, and a click on the row that is
+        # already selected is still a click the mod hears: the reference's row callback runs on
+        # every click, so it closes the dropdown again. The V reopens the list for that second
+        # click, and the parent's Add is at (5, 90) once it closes.
+        ctx.click_screen(155, 80, 0)
         step = 20
-        ctx.press_world_key(66, false)
         ctx.not_done()
         return
     }
 
     if step == 20 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab's dropdown should draw for the second row click.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # Row 1, Circle, at the list's (5, 90) and 20-pixel rows, which is the row the click in
+        # step 18 selected.
+        ctx.click_screen(85, 120, 0)
+        step = 21
+        ctx.not_done()
+        return
+    }
+
+    if step == 21 {
+        ctx.assert(ctx.screen_open(), "Clicking the selected row should close the list and leave the screen open.")
+        # With the list closed, (85, 100) is the parent's Add, which appends a set of the shape this
+        # tab shows. A list that stayed open would take that click as its row 0 instead, choose
+        # Catenary, and append nothing.
+        ctx.click_screen(85, 100, 0)
+        step = 22
+        ctx.not_done()
+        return
+    }
+
+    if step == 22 {
+        # Escape closes the screen and saves; a field that kept the focus would need another press.
+        presses = presses + 1
+        ctx.assert(presses < 5, "Escape should close the Shape screen after the second row click.")
+        ctx.press_screen_key(256, false, false, true)
+        ctx.not_done()
+        return
+    }
+
+    if step == 23 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the Shape screen after the second row click.")
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_index_field(state) == 1, "The second click on the selected row should keep the current set's shape, and its closed list should let the parent's Add run.")
+        ctx.assert(_shape_values(state, "ShapeCircle") == "X,3.0,1,false", "Add should append the set at the shape the list left selected.")
+        if was_persistent {
+            return
+        }
+        step = 24
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 24 {
         # The run found persistence off, so the Configuration tab's box is ticked back off.
         if not ctx.screen_open() {
             waited = waited + 1
@@ -339,12 +383,12 @@ export tick(ctx: TestTickContext) {
             tab_x = width - 10
         }
         ctx.click_screen(tab_x, 40, 0)
-        step = 21
+        step = 25
         ctx.not_done()
         return
     }
 
-    if step == 21 {
+    if step == 25 {
         if not ctx.overlay_drawn() {
             waited = waited + 1
             ctx.assert(waited < 200, "The Configuration tab should draw for the restore.")
@@ -353,23 +397,23 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.click_screen(262, 168, 0)
-        step = 22
+        step = 26
         ctx.not_done()
         return
     }
 
-    if step == 22 {
+    if step == 26 {
         files: File = File.open(r"files")
         config: Option[string] = files.read_text("config/buildguide.cfg")
         ctx.assert(config.has(), "Unticking persistence should leave the config file readable.")
         ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "Unticking persistence should put the run's value back.")
         ctx.press_screen_key(256, false, false, true)
-        step = 23
+        step = 27
         ctx.not_done()
         return
     }
 
-    if step == 23 {
+    if step == 27 {
         if ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "Escape should close the Configuration screen.")
