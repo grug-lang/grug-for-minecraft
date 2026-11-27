@@ -16,7 +16,7 @@ pick_class: string = "ShapeCatenary"
 
 export tick(ctx: TestTickContext) {
     if step == 0 {
-        if not me.world_overlay_supported() or me.on_dedicated_server() {
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
             return
         }
         if not ctx.world_settled() {

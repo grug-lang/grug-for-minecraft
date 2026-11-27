@@ -5,8 +5,8 @@
 # measured 0, so a text_width that answered nothing leaves the screen open and fails the test. The
 # close is also the one path a mod's own Escape runs, so it proves that closing a screen takes its
 # host away.
-# The screen host exists on 1.20.6 and 1.2.5 so far, and the test ends early on the dedicated
-# server, whose joined client owns the screen.
+# A loader without a screen host answers an err to Screen.open, so the test returns early there.
+# It ends early on the dedicated server too, whose joined client owns the screen.
 started: bool = false
 step: number = 0
 waited: number = 0
@@ -14,7 +14,7 @@ waited: number = 0
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
-        if (me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge") or me.on_dedicated_server() {
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
             return
         }
         ctx.not_done()

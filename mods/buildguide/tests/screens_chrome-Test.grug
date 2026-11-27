@@ -17,7 +17,7 @@ was_persistent: bool = false
 
 export tick(ctx: TestTickContext) {
     if not started {
-        if not me.world_overlay_supported() or me.on_dedicated_server() {
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
             started = true
             return
         }

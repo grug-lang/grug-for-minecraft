@@ -101,6 +101,7 @@ export tick(ctx: TestTickContext)
 .loader_name() string
 .on_dedicated_server() bool
 .overlay_supported() bool
+.owned_screens_supported() bool
 .placed_supported() bool
 .registers_mod_recipes() bool
 .world_overlay_supported() bool

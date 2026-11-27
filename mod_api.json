@@ -1497,6 +1497,12 @@
 						"name": "bool"
 					}
 				},
+				"owned_screens_supported": {
+					"description": "Whether this loader can show a screen a mod owns at all, which a test asks before it opens one: a loader that cannot answers an err to Screen.open, so a test that needs a mod screen returns early there instead of waiting for a screen that never opens. It is a property of the loader, answered from the start of a run, and the loaders gain it as each one's screen host lands (#1760). On a dedicated server the screen belongs to the joined client, so a test skips there as it does for the other screen tests.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"placed_supported": {
 					"description": "Whether this loader calls a block's placed export when a player places it, which a test asks before it places a block with the held item: a loader that does not returns early there instead of waiting for a call that never comes. It is a property of the loader, answered from the start of a run.",
 					"return_type": {

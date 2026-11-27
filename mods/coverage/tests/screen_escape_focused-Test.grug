@@ -1,9 +1,9 @@
 # Escape reaches a mod screen's screen_key even while one of the screen's text fields has focus: the
 # game closes the screen with Escape, so a screen whose own close saves its state would otherwise
 # lose the close to the field. The overlay takes Escape without closing, so the screen staying open
-# is what proves the export was asked; the game's own close would have closed it. The screen host
-# exists only on 1.20.6 so far, so the other loaders end before they open a screen, and the test ends
-# early on the dedicated server, whose joined client owns the screen.
+# is what proves the export was asked; the game's own close would have closed it. A loader without a
+# screen host answers an err to Screen.open, so the test returns early there, and it ends early on the
+# dedicated server, whose joined client owns the screen.
 started: bool = false
 step: number = 0
 waited: number = 0
@@ -11,7 +11,7 @@ waited: number = 0
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
-        if (me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge") or me.on_dedicated_server() {
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
             return
         }
         ctx.not_done()
