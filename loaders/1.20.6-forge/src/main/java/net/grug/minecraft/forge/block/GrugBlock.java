@@ -197,6 +197,16 @@ public class GrugBlock extends Block implements EntityBlock {
     @Override
     protected InteractionResult useWithoutItem(
             BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        // Only the server's level counts, because the client calls this too as a prediction of the
+        // click it is about to send, and a script's hand change reaches the server's player through
+        // setHeldItem, which maps to the server's copy: the prediction would replace the server's
+        // hand before the server ran the same click, so the server would see the bucket after the
+        // swap instead of before it. SUCCESS on the client keeps the client from using the held
+        // item too; the server still runs the item's use when the block declines, and a placement
+        // it makes reaches the client from the server. The same rule as placed above.
+        if (level.isClientSide()) {
+            return InteractionResult.SUCCESS;
+        }
         long blockHandle = Grug.createEntity(this.blockFileId);
         if (blockHandle != 0) {
             long worldId = GrugEntities.addEntity(GrugEntityType.Level, level);
