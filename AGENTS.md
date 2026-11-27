@@ -94,7 +94,10 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   its acceptance points, the rules of this file that apply, the exact steps, that the change's own
   unit tests and grug compile pass before the first dispatch, that Minecraft runs only in CI
   (except the debugger exception under "Where Minecraft runs"), and how to report.
-  A dispatch whose new tests fail is a local failure found late, not a measurement.
+  A dispatch whose new tests fail is a local failure found late, not a measurement. A new grug test
+  that only the game can run is tried with one `-f mods=<mod>` dispatch of its branch before the pull
+  request opens, because the local checks above cannot reach it and #1768 spent six pull request runs
+  on one such test before its green head.
   Every subagent runs at its default thinking level, as the review
   subagent below does: the orchestrator sets no reasoning-effort override, whatever the task. A
   measurement arm's brief says its instrumentation must not land or must be excluded from the
@@ -236,7 +239,10 @@ CI. Light jobs stay local: Gradle builds,
   and the weekly release send the first.
   `build.yml` has no input that selects one job, so a diagnostic that needs a single leg is a
   throwaway branch whose `build.yml` sets `if: false` on the other jobs and lists one loader in the
-  `multiplayer` matrix: that costs three jobs instead of the whole pipeline.
+  `multiplayer` matrix: that costs three jobs instead of the whole pipeline. A measurement whose
+  question names one loader uses the same branch with `-f repeats=`, because the repeat needs that
+  loader's jobs and not the other four's: the three 10-repeat #1580 a1 probes each ran 54 jobs and
+  about 180 runner minutes, where three jobs a session would have answered the same question.
 - A release takes its jar from a dispatch of `build.yml` on main, not from the push that merged the
   commit, so `release.yml` requires that dispatch and refuses a jar without the Windows native. A
   docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what
