@@ -356,14 +356,21 @@ public final class GrugMetadata {
     }
 
     /**
-     * Rewrites the saved key lines of an options file from the label an older build registered a
-     * binding under to the stable name {@link DeclaredKey#savedName()} it is saved under now.
+     * Appends a line under the stable name {@link DeclaredKey#savedName()} for a binding whose
+     * options file holds only the line an older build saved under its label.
      *
      * <p>The game writes one {@code key_<name>:<code>} line per binding and reads a rebound key
      * back by that name, so a name that moves between mods moves the player's rebind with it. A
-     * binding's old saved name was its label, and the stable name is what replaces it, so a line is
-     * rewritten in place; when the stable name is already in the file the old line is dropped, so
-     * the assignment stays with its stable line whatever order the two were written in.
+     * binding's old saved name was its label, and the stable name is what replaces it, but the old
+     * line is not this migration's to rewrite: Alpha saves its own bindings under plain names such
+     * as {@code key_Forward}, and another Java mod's binding can be saved under any name, so a
+     * declared label that equals one of those names would take over that binding's line if this
+     * renamed it in place, and that binding would revert to its default on the first start after
+     * the update. The old line is therefore left byte for byte as it was, and a {@code key_<stable
+     * name>:<the old line's value>} line is appended after every existing line, later than the old
+     * one, so the game reads the stable line last; the game drops the now unknown old line at its
+     * next save. A stable line that is already in the file means there is nothing to append and
+     * nothing else changes.
      *
      * <p>An old label came from the mods installed when it was assigned, so a label that a newly
      * installed mod with an earlier load order has taken cannot be attributed to the mod that owned
@@ -388,25 +395,30 @@ public final class GrugMetadata {
             String name = optionName(line);
             if (name != null) present.add(name);
         }
-        StringBuilder migrated = new StringBuilder(options.length());
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-            String ending = "";
-            if (line.endsWith("\r")) {
-                line = line.substring(0, line.length() - 1);
-                ending = "\r";
+        List<String> appended = new ArrayList<>();
+        for (String line : lines) {
+            // A trailing '\r' is part of the line's ending, so a value never carries it.
+            String body = line.endsWith("\r") ? line.substring(0, line.length() - 1) : line;
+            int colon = body.indexOf(':');
+            String target = colon > 0 ? renamed.get(body.substring(0, colon)) : null;
+            // The old line is never renamed or dropped, because it may belong to the game or to
+            // another mod; the stable line is a new one beside it (see the javadoc). Marking the
+            // target present keeps a repeated declaration from appending it twice.
+            if (target != null && !present.contains(target)) {
+                appended.add(target + body.substring(colon));
+                present.add(target);
             }
-            int colon = line.indexOf(':');
-            String target = colon > 0 ? renamed.get(line.substring(0, colon)) : null;
-            // A line whose value the game already has under the stable name is dropped, and any
-            // other old line is renamed in place, so the order of the file's lines holds.
-            if (target != null) {
-                if (present.contains(target)) continue;
-                line = target + line.substring(colon);
-            }
-            migrated.append(line).append(ending);
-            if (i < lines.length - 1) migrated.append('\n');
         }
+        if (appended.isEmpty()) return options;
+        String ending = options.contains("\r\n") ? "\r\n" : "\n";
+        StringBuilder migrated = new StringBuilder(options.length() + 64);
+        migrated.append(options);
+        if (!options.endsWith("\n")) migrated.append(ending);
+        for (int i = 0; i < appended.size(); i++) {
+            if (i > 0) migrated.append(ending);
+            migrated.append(appended.get(i));
+        }
+        if (options.endsWith("\n")) migrated.append(ending);
         return migrated.toString();
     }
 

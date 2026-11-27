@@ -711,8 +711,8 @@ public final class GrugOverlayHost {
      * <p>The bindings are named by {@link GrugMetadata.DeclaredKey#savedName()}, which the Controls
      * screen would show as that name, so each is given its label as a translation before the screen
      * asks for it. The options file is migrated before it is read again: a rebind saved under the
-     * label an older build registered is moved to the stable name here, which is the start-up that
-     * first registers these bindings.
+     * label an older build registered gets a stable line here, which is the start-up that first
+     * registers these bindings.
      */
     private static void installDeclaredKeys(Minecraft minecraft) {
         if (declaredKeysInstalled || minecraft.gameSettings == null) return;
