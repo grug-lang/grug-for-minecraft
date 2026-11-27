@@ -44,7 +44,14 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.assert(tank.get_liquid().unwrap() == "minecraft:water", "A water bucket should fill the tank with water.")
+        # Before the second click, prove the world and the hand it will read: the first tank keeps
+        # its 1000 mB, the second tank stands there still empty, and set_held_item took the lava
+        # bucket. A lost second click then names which of these the click actually saw.
+        ctx.assert(tank.get_liquid_amount() == 1000, "The first tank should still hold its 1000 mB before the second click.")
+        ctx.assert(level.get_block(x + 2, y, z) == "grug:tank", "The second tank should stand in the world before its click.")
+        ctx.assert(_tank(level, x + 2, y, z).get_liquid_amount() == 0, "The second tank should be empty before its click.")
         ctx.set_held_item(player, _lava_bucket())
+        ctx.assert(_held(player, _lava_bucket()), "Step 1 should have the lava bucket in hand before the second click.")
         ctx.use_block(level, x + 2, y, z)
         step = 2
         ctx.not_done()
