@@ -6,6 +6,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import net.grug.minecraft.core.GrugCaptureWait;
 import net.grug.minecraft.core.GrugItemList;
 import net.grug.minecraft.core.GrugLightSync;
+import net.grug.minecraft.core.GrugLinkArms;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
@@ -1280,10 +1281,16 @@ public class ClientForgeAdapter extends ForgeAdapter {
             return;
         }
         // Sampled after the frame was drawn and before the next client tick, so the values are the
-        // ones this frame's GUI pass read. See #1132.
-        if (!RENDER_SETTLE.captureable(capture.framesWhenAsked, savingIndicatorShown())) {
-            return;
-        }
+        // ones this frame's GUI pass read. See #1132. The wait arm is met only when the ask lands
+        // between this frame's own sample and its end, which is where the test's thread happens to
+        // tick, so the decision is handed to the tested helper rather than carried here (#1864).
+        GrugLinkArms.runIf(
+                RENDER_SETTLE.captureable(capture.framesWhenAsked, savingIndicatorShown()),
+                () -> serveCapture(capture));
+    }
+
+    /** Takes the capture this frame may serve, and wakes the thread waiting for it. */
+    private static void serveCapture(PendingCapture capture) {
         capture.image = capture(capture.x1, capture.y1, capture.x2, capture.y2);
         // Cleared before the countdown, so that a frame which ends before the asking thread has
         // taken its image cannot serve the same request twice and replace what it returns.
