@@ -66,6 +66,14 @@ public final class GrugSavedNumbers {
     /**
      * Saves {@code value} under {@code name}.
      *
+     * <p>Nothing is marked when the number saved under that name is already {@code value}, because
+     * a script may save the same value every tick, and a machine's tick is not a change to the
+     * saved data. The comparison is {@link Double#equals}, which is the equality of the numbers the
+     * canonical text in {@link net.grug.minecraft.core.GrugSavedDataSync} writes with {@code
+     * Double.toString}: {@code 0.0} and {@code -0.0} differ and every NaN equals every other. A
+     * name that was never written reads back as 0, so saving 0 into it marks nothing and reads back
+     * the same.
+     *
      * @return false when the block entity is not a {@link Holder}, which the caller reports;
      *     nothing is saved then
      */
@@ -73,18 +81,23 @@ public final class GrugSavedNumbers {
         if (!isHolder(blockEntity)) {
             return false;
         }
+        boolean changed;
         synchronized (GrugSavedNumbers.class) {
             Map<String, Double> numbers = NUMBERS.get(blockEntity);
             if (numbers == null) {
                 numbers = new HashMap<>();
                 NUMBERS.put(blockEntity, numbers);
             }
+            Double stored = numbers.get(name);
+            changed = !(stored != null ? stored : Double.valueOf(0.0)).equals(value);
             numbers.put(name, value);
         }
         // Outside this class's monitor: the block entity marks itself changed by calling back
         // through GrugSavedDataSync.changed, which snapshots these numbers, and taking that monitor
         // while holding this one is the other half of a lock order the sender can invert.
-        ((Holder) blockEntity).markSavedNumbersChanged();
+        if (changed) {
+            ((Holder) blockEntity).markSavedNumbersChanged();
+        }
         return true;
     }
 

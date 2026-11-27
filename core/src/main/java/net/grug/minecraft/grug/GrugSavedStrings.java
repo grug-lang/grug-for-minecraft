@@ -63,6 +63,11 @@ public final class GrugSavedStrings {
     /**
      * Saves {@code value} under {@code name}.
      *
+     * <p>Nothing is marked when the text saved under that name is already {@code value}, because a
+     * script may save the same text every tick, and a machine's tick is not a change to the saved
+     * data. A name that was never written reads back as null, so saving null into it marks nothing,
+     * and so does saving the null the map already holds.
+     *
      * @return false when the block entity is not a {@link Holder}, which the caller reports;
      *     nothing is saved then
      */
@@ -70,11 +75,18 @@ public final class GrugSavedStrings {
         if (!isHolder(blockEntity)) {
             return false;
         }
+        boolean changed;
         synchronized (GrugSavedStrings.class) {
-            STRINGS.computeIfAbsent(blockEntity, unused -> new HashMap<>()).put(name, value);
+            Map<String, String> strings =
+                    STRINGS.computeIfAbsent(blockEntity, unused -> new HashMap<>());
+            String stored = strings.get(name);
+            changed = value == null ? stored != null : !value.equals(stored);
+            strings.put(name, value);
         }
         // Outside this class's monitor, for the reason GrugSavedNumbers.set gives.
-        ((Holder) blockEntity).markSavedNumbersChanged();
+        if (changed) {
+            ((Holder) blockEntity).markSavedNumbersChanged();
+        }
         return true;
     }
 
