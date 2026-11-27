@@ -467,8 +467,8 @@ public final class GrugOverlayHost {
     private static final class DeclaredKeyMapping extends KeyMapping {
         private final String label;
 
-        DeclaredKeyMapping(String mod, String id, String label, int code) {
-            super("key.grug." + mod + "." + id, code, "key.categories.grug");
+        DeclaredKeyMapping(String name, String label, int code) {
+            super(name, code, "key.categories.grug");
             this.label = label;
         }
 
@@ -487,10 +487,7 @@ public final class GrugOverlayHost {
         for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
             KeyMapping mapping =
                     new DeclaredKeyMapping(
-                            declared.mod(),
-                            declared.key().id(),
-                            declared.label(),
-                            declared.key().code());
+                            declared.savedName(), declared.label(), declared.key().code());
             event.register(mapping);
             declaredBindings.add(new DeclaredBinding(declared.mod(), declared.key().id(), mapping));
         }

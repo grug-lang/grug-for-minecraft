@@ -245,8 +245,168 @@ class GrugMetadataTest {
         assertEquals(
                 "Toggle (beta.toggle)",
                 declared.get(1).label(),
-                "A repeated name carries its mod and id, because the loaders that save a binding "
-                        + "under its label would otherwise keep both under one saved key.");
+                "A repeated name carries its mod and id, so both Controls rows read apart.");
+        assertEquals(
+                "key.grug.alpha.toggle",
+                declared.get(0).savedName(),
+                "The saved name names the declaring mod and key, not the deduplicated label.");
+        assertEquals("key.grug.beta.toggle", declared.get(1).savedName());
+    }
+
+    @Test
+    void anOldLabelsSavedRebindMigratesToTheDeclaringModAndKeyId() throws Exception {
+        File beta = mods.resolve("beta").toFile();
+        File alpha = mods.resolve("alpha").toFile();
+        assertTrue(beta.mkdirs());
+        assertTrue(alpha.mkdirs());
+        Files.write(
+                new File(beta, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        Files.write(
+                new File(alpha, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"L\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+
+        java.util.List<GrugMetadata.DeclaredKey> declared = GrugMetadata.declaredKeys();
+        String saved =
+                "music:1.0\n"
+                        + "key_Toggle:30\n"
+                        + "key_Toggle (beta.toggle):31\n"
+                        + "key_Sprint:32\n";
+        String migrated = GrugMetadata.migrateSavedKeys(saved, declared);
+        assertEquals(
+                "music:1.0\n"
+                        + "key_key.grug.alpha.toggle:30\n"
+                        + "key_key.grug.beta.toggle:31\n"
+                        + "key_Sprint:32\n",
+                migrated,
+                "Each old label, plain or carrying its mod and id, moves to its own stable name, "
+                        + "and a line that is not a declared binding is left alone.");
+        assertEquals(
+                migrated,
+                GrugMetadata.migrateSavedKeys(migrated, declared),
+                "A second start finds no old label and writes the same text.");
+    }
+
+    @Test
+    void anOldLabelLineDoesNotOverrideAStableSavedLine() throws Exception {
+        File mod = mods.resolve("only").toFile();
+        assertTrue(mod.mkdirs());
+        Files.write(
+                new File(mod, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+
+        java.util.List<GrugMetadata.DeclaredKey> declared = GrugMetadata.declaredKeys();
+        String saved = "key_Toggle:30\r\nkey_key.grug.only.toggle:40\r\n";
+        assertEquals(
+                "key_key.grug.only.toggle:40\r\n",
+                GrugMetadata.migrateSavedKeys(saved, declared),
+                "The stable line is the one the game reads last, so the old line is dropped and "
+                        + "the file's line endings are kept.");
+    }
+
+    @Test
+    void anOptionsFileOnDiskMigratesOnce() throws Exception {
+        File mod = mods.resolve("only").toFile();
+        assertTrue(mod.mkdirs());
+        Files.write(
+                new File(mod, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+        File options = mods.resolve("options.txt").toFile();
+        Files.write(
+                options.toPath(), "music:1.0\nkey_Toggle:30\n".getBytes(StandardCharsets.UTF_8));
+
+        GrugMetadata.migrateSavedKeys(options, GrugMetadata.declaredKeys());
+
+        assertEquals(
+                "music:1.0\nkey_key.grug.only.toggle:30\n",
+                new String(Files.readAllBytes(options.toPath()), StandardCharsets.UTF_8));
+
+        assertTrue(options.setLastModified(1000L));
+        GrugMetadata.migrateSavedKeys(options, GrugMetadata.declaredKeys());
+        assertEquals(
+                1000L,
+                options.lastModified(),
+                "A start that finds no old label does not write the file.");
+    }
+
+    @Test
+    void aMissingOptionsFileIsLeftForTheGameToCreate() throws Exception {
+        File mod = mods.resolve("only").toFile();
+        assertTrue(mod.mkdirs());
+        Files.write(
+                new File(mod, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+        File options = mods.resolve("options.txt").toFile();
+
+        GrugMetadata.migrateSavedKeys(options, GrugMetadata.declaredKeys());
+
+        assertFalse(
+                options.exists(),
+                "The first start has no options file yet, so the migration has nothing to do and "
+                        + "does not create one.");
+        assertEquals(
+                "key_Toggle:30\n",
+                GrugMetadata.migrateSavedKeys("key_Toggle:30\n", java.util.Collections.emptyList()),
+                "No declared binding means no label to migrate.");
+
+        File noBindings = mods.resolve("options.txt").toFile();
+        Files.write(noBindings.toPath(), "key_Toggle:30\n".getBytes(StandardCharsets.UTF_8));
+        GrugMetadata.migrateSavedKeys(
+                noBindings, java.util.Collections.<GrugMetadata.DeclaredKey>emptyList());
+        assertEquals(
+                "key_Toggle:30\n",
+                new String(Files.readAllBytes(noBindings.toPath()), StandardCharsets.UTF_8),
+                "An options file is not touched when no mod declares a binding.");
+    }
+
+    @Test
+    void aLabelThatIsAlreadyTheStableSavedNameIsLeftAlone() throws Exception {
+        File mod = mods.resolve("odd").toFile();
+        assertTrue(mod.mkdirs());
+        Files.write(
+                new File(mod, "about.json").toPath(),
+                ("{\"keys\": [{\"id\": \"toggle\", \"name\": \"key.grug.odd.toggle\","
+                                + " \"default_key\": \"K\"}]}")
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+
+        java.util.List<GrugMetadata.DeclaredKey> declared = GrugMetadata.declaredKeys();
+        assertEquals("key.grug.odd.toggle", declared.get(0).label());
+        assertEquals(
+                "key_key.grug.odd.toggle:30\n",
+                GrugMetadata.migrateSavedKeys("key_key.grug.odd.toggle:30\n", declared),
+                "A label that is already the stable name is not a line to rewrite.");
+    }
+
+    @Test
+    void aPathThatCannotBeReadAsAnOptionsFileLeavesTheGameItsOwnRead() throws Exception {
+        File mod = mods.resolve("only").toFile();
+        assertTrue(mod.mkdirs());
+        Files.write(
+                new File(mod, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+        // A directory where the options file should be cannot be read, and the migration must not
+        // stop the game over it: the game reports the file itself.
+        File options = mods.resolve("options.txt").toFile();
+        assertTrue(options.mkdirs());
+        assertTrue(new File(options, "kept").createNewFile());
+
+        GrugMetadata.migrateSavedKeys(options, GrugMetadata.declaredKeys());
+
+        assertTrue(
+                new File(options, "kept").isFile(),
+                "A path that is not a file is left exactly as it was.");
     }
 
     @Test

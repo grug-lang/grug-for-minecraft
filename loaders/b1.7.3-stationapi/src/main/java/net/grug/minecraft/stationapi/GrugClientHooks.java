@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugMetadata;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugReference;
@@ -54,12 +55,19 @@ public class GrugClientHooks {
     public static final class DeclaredBinding {
         public final String mod;
         public final String id;
+        public final String label;
         public final KeyBinding binding;
 
-        public DeclaredBinding(String mod, String id, KeyBinding binding) {
+        public DeclaredBinding(String mod, String id, String label, KeyBinding binding) {
             this.mod = mod;
             this.id = id;
+            this.label = label;
             this.binding = binding;
+        }
+
+        /** The name the game saves this binding's key under. */
+        public String savedName() {
+            return GrugMetadata.savedName(mod, id);
         }
     }
 
@@ -68,6 +76,18 @@ public class GrugClientHooks {
     /** The declared bindings this loader registered, one per binding a mounted mod declares. */
     public static List<DeclaredBinding> declaredBindings() {
         return declaredBindings;
+    }
+
+    /**
+     * The label a mounted mod declared for the binding the game saves under {@code savedName}, or
+     * null when no declared binding uses that name. The Controls screen shows the label instead of
+     * the saved name, which this version would otherwise print as it is.
+     */
+    public static String declaredLabel(String savedName) {
+        for (DeclaredBinding declared : declaredBindings) {
+            if (declared.savedName().equals(savedName)) return declared.label;
+        }
+        return null;
     }
 
     private final Minecraft minecraft;
