@@ -1,8 +1,13 @@
 # The Shape tab of #1752's screens: the shape row adds a set so the tab starts from a known shape,
 # then its origin row shifts that set and its Set button takes the field beside it, and its property
-# panel steps a float, wraps an enum, toggles a checkbox and refuses a field it cannot parse. Last,
-# its Radius field takes a typed 1e20 and the screen's next frame still draws, because a cell loop
-# that cannot step past a huge radius stops instead of stalling.
+# panel steps a float, wraps an enum, toggles a checkbox and refuses a field it cannot parse, and
+# its Radius field takes a typed 1e20 and the screen's next frame still draws, because the shape's
+# box is too large to generate and draws no cells rather than stalling the frame. Next, the M and I
+# boundaries are typed and stepped into, and the saved line proves neither was stored where a load
+# would refuse it. Last, the overlay is turned on and each shape takes an oversize value in turn
+# (a Circle and a Torus of radius 10000, a Sphere of 1e20 and a Circle of Infinity); the world mark
+# after each proves the frame counted and drew its origin cube, so no case stalls or reports an
+# error, and the saved line proves the value survives a reload.
 # Every proof is read back from the saved state, because the widgets and their positions are the
 # host's and no test entry reads their pixels; a click a hidden or missing widget ignored therefore
 # shows up as a value the state did not take.
@@ -15,6 +20,13 @@ waited: number = 0
 presses: number = 0
 was_persistent: bool = false
 start_origin_x: number = 0
+start_count: number = 0
+
+export init(ctx: TestInitContext) {
+    # The tab switch and the four oversize shapes add enough one-click ticks that the default 200 is
+    # a tight bound on the game's slower legs; the waits themselves are condition-bounded.
+    ctx.set_max_ticks(400)
+}
 
 export tick(ctx: TestTickContext) {
     if step == 0 {
@@ -25,10 +37,6 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        files: File = File.open(r"files")
-        config: Option[string] = files.read_text("config/buildguide.cfg")
-        ctx.assert(config.has(), "The mod should have written its config file before the first test tick.")
-        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         step = 1
         ctx.press_world_key(66, false)
         ctx.not_done()
@@ -47,6 +55,13 @@ export tick(ctx: TestTickContext) {
             return
         }
         waited = 0
+        # The mod writes its config in its first world frame. The game runs that frame before this
+        # test's first tick, and the smoketest runs it after the tick that pressed the key, so the
+        # file is read at the first screen frame, when both have written it.
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The mod should have written its config file by the first screen frame.")
+        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         # The Configuration tab is the fourth chrome button; the window is narrow enough at the CI
         # client's scale that its last pixels are cut off, so its visible part is clicked.
         width: number = ctx.screen_width()
@@ -160,7 +175,7 @@ export tick(ctx: TestTickContext) {
         # inside it. It appends the circle and selects it, which is what makes the rest of the test
         # independent of the sets an earlier test left behind.
         ctx.click_screen(85, 100, 0)
-        step = 10
+        step = 11
         ctx.not_done()
         return
     }
@@ -183,6 +198,7 @@ export tick(ctx: TestTickContext) {
         state: string = _saved_state(ctx)
         ctx.assert(_current_index(state) >= 0, "Add should leave the appended set current.")
         ctx.assert(_shape_values(state, "ShapeCircle") == "X,3.0,1,false", "The appended set should hold the new-set circle at its defaults.")
+        ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapeCircle") == "X,3.0,1,false", "The saved circle should read back the way the loader splits the line.")
         start_origin_x = _origin_x(state)
         step = 13
         ctx.press_world_key(66, false)
@@ -285,6 +301,7 @@ export tick(ctx: TestTickContext) {
         presses = 0
         state: string = _saved_state(ctx)
         ctx.assert(_shape_values(state, "ShapeCircle") == "Y,4.0,1,true", "The panel should write the enum, the float step and the checkbox it was driven with.")
+        ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapeCircle") == "Y,4.0,1,true", "The driven circle should read back the way the loader splits the line.")
         ctx.assert(_origin_x(state) == (start_origin_x + 1) * 10, "The origin row's + should shift the set and its Set should take the typed field.")
         # The huge radius runs while persistence is still on, so the closings it does write the
         # state it reads; the restore to the run's own persistence comes after it, at step 48.
@@ -426,9 +443,9 @@ export tick(ctx: TestTickContext) {
 
     if step == 46 {
         # Opening the screen clears the drawn mark, and this screen's world frame counts every set's
-        # cells, so a cell loop that cannot step past 1e20 stalls the frame that would set the mark
-        # and this test never gets past it. Reaching step 47 is the proof that a frame with the
-        # huge radius ran.
+        # cells before it draws, so a frame that walked a 1e20 box would time out or stall before the
+        # mark was set. Reaching step 47 is the proof that the box guard skipped the cells and the
+        # frame finished.
         if not ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "The binding should reopen the screen that holds the huge radius.")
@@ -456,6 +473,742 @@ export tick(ctx: TestTickContext) {
             return
         }
         waited = 0
+        # The two property bounds: Polygon's M refuses 3 and Grid's I refuses 1, so a typed or
+        # decremented boundary is not stored where the loader would refuse it on the next load.
+        step = 60
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 60 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the property bounds.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(65, 40, 0)
+        step = 61
+        ctx.not_done()
+        return
+    }
+
+    if step == 61 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw for the property bounds.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The shape row's V is at (145, 70), 20 by 20.
+        ctx.click_screen(155, 80, 0)
+        step = 62
+        ctx.not_done()
+        return
+    }
+
+    if step == 62 {
+        # The list holds the fifteen shapes and is 150 high at this scale, so scrolling to its end
+        # shows row 11, Polygon, at y 160 to 180; a click in its middle is (85, 170).
+        ctx.scroll_screen(85, 100, -8)
+        step = 63
+        ctx.not_done()
+        return
+    }
+
+    if step == 63 {
+        ctx.click_screen(85, 170, 0)
+        step = 64
+        ctx.not_done()
+        return
+    }
+
+    if step == 64 {
+        # Polygon's M is row 0, and its default 3 is already refused by the class: the + writes the
+        # 4 the rest of this case holds, and the - below must not step it back to 3.
+        ctx.click_screen(380, 80, 0)
+        step = 65
+        ctx.not_done()
+        return
+    }
+
+    if step == 65 {
+        ctx.click_screen(280, 80, 0)
+        step = 66
+        ctx.not_done()
+        return
+    }
+
+    if step == 66 {
+        # The M field is at (290, 70), 50 wide: Home and one Delete clear the 4 the + wrote, and a
+        # typed 3 is refused, so the field keeps 3 but the set keeps 4.
+        ctx.click_screen(315, 80, 0)
+        step = 67
+        ctx.not_done()
+        return
+    }
+
+    if step == 67 {
+        ctx.press_screen_key(268, false, false, true)
+        step = 68
+        ctx.not_done()
+        return
+    }
+
+    if step == 68 {
+        ctx.press_screen_key(261, false, false, true)
+        step = 69
+        ctx.not_done()
+        return
+    }
+
+    if step == 69 {
+        ctx.press_screen_key(51, false, false, true)
+        step = 70
+        ctx.not_done()
+        return
+    }
+
+    if step == 70 {
+        # The M row's Set button is at (340, 70), 30 wide.
+        ctx.click_screen(355, 80, 0)
+        step = 71
+        ctx.not_done()
+        return
+    }
+
+    if step == 71 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 72
+        ctx.not_done()
+        return
+    }
+
+    if step == 72 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the Polygon bound.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapePolygon") == "4,3.0,X,ROT0,1,false", "The M - and the typed 3 should both be refused, leaving the 4 the set was stepped to.")
+        step = 73
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 73 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the Grid bound.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(65, 40, 0)
+        step = 74
+        ctx.not_done()
+        return
+    }
+
+    if step == 74 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw for the Grid bound.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(155, 80, 0)
+        step = 75
+        ctx.not_done()
+        return
+    }
+
+    if step == 75 {
+        # The list scrolls back to the top, where row 6, Grid, is visible at y 210 to 230.
+        ctx.scroll_screen(85, 100, 8)
+        step = 76
+        ctx.not_done()
+        return
+    }
+
+    if step == 76 {
+        ctx.click_screen(85, 220, 0)
+        step = 77
+        ctx.not_done()
+        return
+    }
+
+    if step == 77 {
+        # Grid's X steps is row 0, an I whose default 3 is valid: the - steps it to 2, a second -
+        # would land on 1 and is refused, and a typed 1 is refused too.
+        ctx.click_screen(280, 80, 0)
+        step = 78
+        ctx.not_done()
+        return
+    }
+
+    if step == 78 {
+        ctx.click_screen(280, 80, 0)
+        step = 79
+        ctx.not_done()
+        return
+    }
+
+    if step == 79 {
+        ctx.click_screen(315, 80, 0)
+        step = 80
+        ctx.not_done()
+        return
+    }
+
+    if step == 80 {
+        ctx.press_screen_key(268, false, false, true)
+        step = 81
+        ctx.not_done()
+        return
+    }
+
+    if step == 81 {
+        ctx.press_screen_key(261, false, false, true)
+        step = 82
+        ctx.not_done()
+        return
+    }
+
+    if step == 82 {
+        ctx.press_screen_key(49, false, false, true)
+        step = 83
+        ctx.not_done()
+        return
+    }
+
+    if step == 83 {
+        ctx.click_screen(355, 80, 0)
+        step = 84
+        ctx.not_done()
+        return
+    }
+
+    if step == 84 {
+        # Grid's Y steps is row 1, an I whose default 1 is refused: a typed 2 makes the whole saved
+        # Grid a shape the loader accepts, so the saved shapes are not in error.
+        ctx.click_screen(315, 100, 0)
+        step = 85
+        ctx.not_done()
+        return
+    }
+
+    if step == 85 {
+        ctx.press_screen_key(268, false, false, true)
+        step = 86
+        ctx.not_done()
+        return
+    }
+
+    if step == 86 {
+        ctx.press_screen_key(261, false, false, true)
+        step = 87
+        ctx.not_done()
+        return
+    }
+
+    if step == 87 {
+        ctx.press_screen_key(50, false, false, true)
+        step = 88
+        ctx.not_done()
+        return
+    }
+
+    if step == 88 {
+        ctx.click_screen(355, 100, 0)
+        step = 89
+        ctx.not_done()
+        return
+    }
+
+    if step == 89 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 90
+        ctx.not_done()
+        return
+    }
+
+    if step == 90 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the Grid bound.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapeGrid") == "2,2,3,3,3,3", "The second I - and the typed 1 should both be refused, leaving the 2 the first - stepped to.")
+        # A tab press opens the new tab's screen, and core asks the outgoing screen's close export
+        # from inside that open, after the mod already named the tab it is switching to. The close
+        # must save and leave the new tab alone: a close that cleared the active screen would route
+        # the new tab's widgets to the Shape tab's handler, so its Add would append nothing.
+        start_count = _set_count(state)
+        step = 91
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 91 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the tab switch.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The Shape list tab is the third chrome button, at x 255 to 375 and y 30 to 50.
+        ctx.click_screen(265, 40, 0)
+        step = 92
+        ctx.not_done()
+        return
+    }
+
+    if step == 92 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw after the switch.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # Add is at (5, 90), 160 wide and 20 high.
+        ctx.click_screen(85, 100, 0)
+        step = 93
+        ctx.not_done()
+        return
+    }
+
+    if step == 93 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 94
+        ctx.not_done()
+        return
+    }
+
+    if step == 94 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape list screen after the tab switch.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        saved: string = _saved_state(ctx)
+        ctx.assert(_set_count(saved) == start_count + 1, "The Shape list tab should take Add after a tab switch, appending one set.")
+        # A shape whose cell box cannot be walked in one call fails its own frame before anything
+        # is drawn, so it must draw no cells rather than stall; a non-finite bound must emit no cell
+        # at all where the old ring test let one through. Each case puts one such value on the set
+        # and then waits for a world frame: the set's origin cube is drawn after its shape, so a
+        # frame that reaches the end sets the world mark, while a loop that cannot finish stops the
+        # export before it and leaves the mark clear.
+        step = 95
+        ctx.press_world_key(71, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 95 {
+        # The overlay is turned on for this group, so every check below can wait for the world mark
+        # that a frame reaching its end sets. This frame already counts and draws the 1e20 Circle an
+        # earlier step left in its set, so it is the first proof that the guard lets a frame finish.
+        if not ctx.world_overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A frame with the 1e20 Circle should draw after the overlay is enabled.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 96
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 96 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the huge circle.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(65, 40, 0)
+        step = 97
+        ctx.not_done()
+        return
+    }
+
+    if step == 97 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw for the huge circle.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(155, 80, 0)
+        ctx.scroll_screen(85, 100, 8)
+        step = 98
+        ctx.not_done()
+        return
+    }
+
+    if step == 98 {
+        # Row 1, Circle, at the list's (5, 90) and 20-pixel rows.
+        ctx.click_screen(85, 120, 0)
+        step = 99
+        ctx.not_done()
+        return
+    }
+
+    if step == 99 {
+        # A Circle radius of 10000 scans 20001 by 20001 positions, which is more than one frame's
+        # budget and under no cannot-advance guard.
+        _type_property(ctx, 1, "10000")
+        step = 100
+        ctx.not_done()
+        return
+    }
+
+    if step == 100 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 101
+        ctx.not_done()
+        return
+    }
+
+    if step == 101 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the 10000 radius.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapeCircle") == "X,10000.0,1,false", "A Circle radius of 10000 should be kept, and the set should still load with it.")
+        # H is one of the mod's state keys here, so it clears the world mark; the frame after it
+        # draws the set's origin cube after its shape.
+        step = 102
+        ctx.press_world_key(72, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 102 {
+        if not ctx.world_overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A frame with a Circle radius of 10000 should still draw.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 103
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 103 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the huge sphere.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(65, 40, 0)
+        step = 104
+        ctx.not_done()
+        return
+    }
+
+    if step == 104 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw for the huge sphere.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(155, 80, 0)
+        ctx.scroll_screen(85, 100, -8)
+        step = 105
+        ctx.not_done()
+        return
+    }
+
+    if step == 105 {
+        # With the list scrolled to its end, row 13, Sphere, is at y 200 to 220.
+        ctx.click_screen(85, 210, 0)
+        step = 106
+        ctx.not_done()
+        return
+    }
+
+    if step == 106 {
+        # Sphere's Radius is row 0; its box is 2e20+1 cubed positions, and the loop has no
+        # cannot-advance guard.
+        _type_property(ctx, 0, "1e20")
+        step = 107
+        ctx.not_done()
+        return
+    }
+
+    if step == 107 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 108
+        ctx.not_done()
+        return
+    }
+
+    if step == 108 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the huge sphere.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapeSphere") == "1.0E20,NO,false", "A Sphere radius of 1e20 should be kept, and the set should still load with it.")
+        step = 109
+        ctx.press_world_key(72, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 109 {
+        if not ctx.world_overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A frame with a Sphere radius of 1e20 should still draw.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 110
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 110 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the huge torus.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(65, 40, 0)
+        step = 111
+        ctx.not_done()
+        return
+    }
+
+    if step == 111 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw for the huge torus.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(155, 80, 0)
+        ctx.scroll_screen(85, 100, -8)
+        step = 112
+        ctx.not_done()
+        return
+    }
+
+    if step == 112 {
+        # With the list scrolled to its end, row 14, Torus, is at y 220 to 240.
+        ctx.click_screen(85, 230, 0)
+        step = 113
+        ctx.not_done()
+        return
+    }
+
+    if step == 113 {
+        # Torus's outer radius is row 1; a 10000 there scans 20007 squared rings.
+        _type_property(ctx, 1, "10000")
+        step = 114
+        ctx.not_done()
+        return
+    }
+
+    if step == 114 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 115
+        ctx.not_done()
+        return
+    }
+
+    if step == 115 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the huge torus.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapeTorus") == "X,10000.0,3.0,false,false", "A Torus outer radius of 10000 should be kept, and the set should still load with it.")
+        step = 116
+        ctx.press_world_key(72, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 116 {
+        if not ctx.world_overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A frame with a Torus radius of 10000 should still draw.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 117
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 117 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the infinite circle.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(65, 40, 0)
+        step = 118
+        ctx.not_done()
+        return
+    }
+
+    if step == 118 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw for the infinite circle.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(155, 80, 0)
+        ctx.scroll_screen(85, 100, 8)
+        step = 119
+        ctx.not_done()
+        return
+    }
+
+    if step == 119 {
+        ctx.click_screen(85, 120, 0)
+        step = 120
+        ctx.not_done()
+        return
+    }
+
+    if step == 120 {
+        # An infinite radius passes PositiveFloat's "above 0" check and the ring test's bounds are
+        # infinite too, so the old loop emitted one cell at -Infinity before the cannot-advance
+        # break; the drawn triangle was refused and the frame recorded a host function error.
+        _type_property(ctx, 1, "Infinity")
+        step = 121
+        ctx.not_done()
+        return
+    }
+
+    if step == 121 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 122
+        ctx.not_done()
+        return
+    }
+
+    if step == 122 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the infinite radius.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapeCircle") == "X,Infinity,1,false", "An infinite Circle radius should be kept, and the set should still load with it.")
+        step = 123
+        ctx.press_world_key(72, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 123 {
+        if not ctx.world_overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A frame with an infinite Circle radius should draw its origin and no cell.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 124
+        ctx.press_world_key(71, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 124 {
+        # The overlay was on only for this group, so the state goes back to the way the test found
+        # it and a test that runs after this one sees the overlay off.
         if was_persistent {
             return
         }
@@ -612,26 +1365,111 @@ local _origin_piece(set: string, index: number) number {
 }
 
 # The value text of the current set's entry for one shape class, which is the part between its "="
-# and the following ";". A class the set holds no entry for answers an empty text.
+# and the following ";". A class the set holds no entry for answers an empty text. The saved line has
+# no separator between the set's own fields and its shapes, so the whole line is searched.
 
 local _shape_values(state: string, class_name: string) string {
     set: string = _set_line(state, _current_index(state))
-    bar: number = String.index_of(set, "|")
-    if bar < 0 {
-        return ""
-    }
-    shapes: string = String.substring(set, bar + 1, String.length(set))
     needle: string = String.concat(class_name, "=")
-    at: number = String.index_of(shapes, needle)
+    at: number = String.index_of(set, needle)
     if at < 0 {
         return ""
     }
-    rest: string = String.substring(shapes, at + String.length(needle), String.length(shapes))
+    rest: string = String.substring(set, at + String.length(needle), String.length(set))
     end: number = String.index_of(rest, ";")
     if end < 0 {
         return rest
     }
     return String.substring(rest, 0, end)
+}
+
+# The value text the loader reads back for one shape class from a shapeSet line, which is what a
+# reload gives the shape: ShapeSet.restorePersistence splits the line's value on ";" and matches an
+# entry's whole key against the class name. The writer drops this port's "|" separator before saving,
+# so the first entry's key is the class itself; only this parse proves the value survives a load,
+# where _shape_values finds the class inside any key. The key is the reference's fully qualified
+# class name, which ShapeSet.toPersistence writes and restorePersistence matches.
+
+local _reloaded_shape_values(set: string, class_name: string) string {
+    at: number = String.index_of(set, "shapeSet=")
+    if at < 0 {
+        return ""
+    }
+    rest: string = String.substring(set, at + 9, String.length(set))
+    piece: string = rest
+    while String.length(piece) > 0 {
+        semi: number = String.index_of(piece, ";")
+        entry: string = piece
+        if semi >= 0 {
+            entry = String.substring(piece, 0, semi)
+            piece = String.substring(piece, semi + 1, String.length(piece))
+        } else {
+            piece = ""
+        }
+        eq: number = String.index_of(entry, "=")
+        if eq > 0 and String.substring(entry, 0, eq) == class_name {
+            return String.substring(entry, eq + 1, String.length(entry))
+        }
+    }
+    return ""
+}
+
+# How many shapeSet lines the state holds, which is how many sets it saves.
+
+local _set_count(state: string) number {
+    count: number = 0
+    while String.length(_set_line(state, count)) > 0 {
+        count = count + 1
+    }
+    return count
+}
+
+# Clears a property row's field and types a value into it, then presses that row's Set. Home and
+# twenty Deletes empty the field whatever it held, because a Delete at the end of the text does
+# nothing; the field is at (290, 70 + row * 20), 50 wide, and its Set button at (340, 70 + row * 20).
+
+local _type_property(ctx: TestTickContext, row: number, text: string) {
+    ctx.click_screen(315, 80 + row * 20, 0)
+    ctx.press_screen_key(268, false, false, true)
+    pressed: number = 0
+    while pressed < 20 {
+        ctx.press_screen_key(261, false, false, true)
+        pressed = pressed + 1
+    }
+    _type_keys(ctx, text)
+    ctx.click_screen(355, 80 + row * 20, 0)
+}
+
+# Types a text one key at a time, the way a player at the keyboard does: a letter is its key with
+# shift for a capital, and a digit or a lower-case letter is the key that types it.
+
+local _type_keys(ctx: TestTickContext, text: string) {
+    i: number = 0
+    while i < String.length(text) {
+        character: string = String.substring(text, i, i + 1)
+        upper: number = String.index_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ", character)
+        if upper >= 0 {
+            ctx.press_screen_key(65 + upper, false, true, true)
+        } else {
+            ctx.press_screen_key(_key_code(character), false, false, true)
+        }
+        i = i + 1
+    }
+}
+
+# The key code of a typed character: a digit is its ASCII code, and a lower-case letter is the code
+# of its capital.
+
+local _key_code(character: string) number {
+    digit: number = String.index_of("0123456789", character)
+    if digit >= 0 {
+        return 48 + digit
+    }
+    lower: number = String.index_of("abcdefghijklmnopqrstuvwxyz", character)
+    if lower >= 0 {
+        return 65 + lower
+    }
+    return 0
 }
 
 # The shapeSet line at a sequence number, or an empty text when there are fewer sets.

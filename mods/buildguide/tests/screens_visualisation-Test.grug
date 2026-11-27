@@ -20,10 +20,6 @@ export tick(ctx: TestTickContext) {
         }
         # The persistence value the config file holds before the test. Every save below needs it on,
         # because a reference screen close only writes the state when persistence is enabled.
-        files: File = File.open(r"files")
-        config: Option[string] = files.read_text("config/buildguide.cfg")
-        ctx.assert(config.has(), "The mod should have written its config file before the first test tick.")
-        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         step = 1
         ctx.press_world_key(66, false)
         ctx.not_done()
@@ -42,6 +38,13 @@ export tick(ctx: TestTickContext) {
             return
         }
         waited = 0
+        # The mod writes its config in its first world frame. The game runs that frame before this
+        # test's first tick, and the smoketest runs it after the tick that pressed the key, so the
+        # file is read at the first screen frame, when both have written it.
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The mod should have written its config file by the first screen frame.")
+        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         # The Configuration tab is the fourth chrome button, at x 380 to 500 and y 30 to 50. The CI
         # window is 426 scaled pixels wide at the client's own scale, so the tab is cut off there and
         # its visible part is clicked.

@@ -108,8 +108,8 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "A circle or an ellipse whose radius is too large for a double to step past (a hand-edited 1e20, or an infinity) draws no cells: a cell loop stops when its counter does not change, where the reference casts the bounds to int, walks the whole int range there and draws nothing until it finishes.",
-					"why": "The reference's loop is int-bounded, so it ends after a long stall of its generation thread. A double bound has no such end, and a render frame cannot freeze the client, so the port stops at once. A radius that size is reachable only through a hand-edited file, and no cell matches the ring either way.",
+					"what": "A circle, an ellipse, a sphere or a torus whose cell box is too large to generate in the frame that draws it draws no cells: a box over 250000 positions (a radius of 10000, which the property field accepts as the reference's does) or a bound that is not finite (a hand-edited 1e20, or an infinity) makes the port answer no cells at once, where the reference casts the bounds to int and walks them on a generation thread.",
+					"why": "The reference generates on a cached thread, so a huge shape stalls only that thread while the client keeps drawing. This port generates in render_world, where a grug call over 100 ms is a runtime error, so it cannot scan a box that size in one frame. A box over 250000 positions, or one with a non-finite bound, therefore draws nothing at all.",
 					"tracking_issue": 1752
 				},
 				{
