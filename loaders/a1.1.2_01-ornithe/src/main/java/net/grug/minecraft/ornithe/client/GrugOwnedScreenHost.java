@@ -12,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.render.Window;
+import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -143,6 +144,19 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
     /** The model this screen shows, which is what {@code hideOwnedScreen} compares against. */
     public GrugOwnedScreen model() {
         return screen;
+    }
+
+    /**
+     * Takes the game's screen away when it is this model's host, which is what a screen close asks
+     * for. A screen the player opened over the host is theirs to keep, so it stays: this loader
+     * shows the world again where another version shows an empty screen.
+     */
+    public static void hideIfShowing(GrugOwnedScreen model) {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (minecraft.screen instanceof GrugOwnedScreenHost
+                && ((GrugOwnedScreenHost) minecraft.screen).model() == model) {
+            minecraft.openScreen(null);
+        }
     }
 
     @Override
