@@ -355,6 +355,19 @@ public final class GrugOwnedScreens {
                 mouseY);
     }
 
+    /**
+     * Notes that a frame of {@code screen} drew, so a test of the mod that owns it can see the
+     * screen it opened is up, as {@code TestTickContext.overlay_drawn} answers for a container
+     * screen's overlay. A screen belongs to the mod whose script made it, and another mod's screen
+     * drawing says nothing about the test running now, so only the owning mod's frame sets the
+     * mark.
+     */
+    public static void noteScreenFrame(GrugOwnedScreen screen) {
+        if (screen.script().mod.equals(GrugTestState.currentTestMod)) {
+            GrugOverlay.noteDrawn();
+        }
+    }
+
     /** Asks the screen's {@code screen_click} for one press and answers whether it took it. */
     public static boolean clickScreen(
             GrugOwnedScreen screen,

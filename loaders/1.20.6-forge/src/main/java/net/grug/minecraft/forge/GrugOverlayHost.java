@@ -13,6 +13,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 
 import net.grug.minecraft.core.GrugHeldKeys;
 import net.grug.minecraft.core.GrugRunWindow;
+import net.grug.minecraft.forge.gui.GrugOwnedScreenHost;
 import net.grug.minecraft.forge.gui.GrugScreen;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugMetadata;
@@ -198,6 +199,13 @@ public final class GrugOverlayHost {
      */
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
+        // A mod-owned screen is a frame surface a test of that mod waits on too, so its mark
+        // starts clear like a container screen's. The screen is drawn by its own host rather than
+        // through this class's overlay pass.
+        if (event.getScreen() instanceof GrugOwnedScreenHost) {
+            GrugOverlay.screenOpened();
+            return;
+        }
         if (eligible(event.getScreen()) == null) return;
         heldKeys.clear();
         GrugOverlay.screenOpened();
