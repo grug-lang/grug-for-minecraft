@@ -2,17 +2,21 @@
 # under it current, the shift buttons move every set, and Delete removes the current one and selects
 # the row below it. A set hidden by the visible box reads back hidden when the tab opens, because
 # building the list selects the current row and runs the reference's update closure, so one click
-# makes it visible again. Every proof is read back from the saved state, because the list, the fields
-# and the checkbox are the host's widgets and no test entry reads their pixels. A typed origin field
-# cannot be driven headlessly either, so this test proves the shift buttons, which write the same
-# origins the Set buttons write.
+# makes it visible again. Set global origin is pressed from a position the player was moved to with a
+# fraction in it, and every set's saved origin is read back as the whole blocks the next load parses.
+# Every proof is read back from the saved state, because the list, the fields and the checkbox are the
+# host's widgets and no test entry reads their pixels. A typed origin field cannot be driven headlessly
+# either, so this test proves the shift buttons, which write the same origins the Set buttons write.
 # Persistence is turned on for the saves and put back as the run found it, so a later test sees the
 # config it would have seen.
 step: number = 0
 waited: number = 0
 was_persistent: bool = false
 start_count: number = 0
-start_origin_x: number = 0
+before_shift: string = ""
+moved_x: number = 0
+moved_y: number = 0
+moved_z: number = 0
 
 export tick(ctx: TestTickContext) {
     if step == 0 {
@@ -23,10 +27,6 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        files: File = File.open(r"files")
-        config: Option[string] = files.read_text("config/buildguide.cfg")
-        ctx.assert(config.has(), "The mod should have written its config file before the first test tick.")
-        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         step = 1
         ctx.press_world_key(66, false)
         ctx.not_done()
@@ -45,6 +45,13 @@ export tick(ctx: TestTickContext) {
             return
         }
         waited = 0
+        # The mod writes its config in its first world frame. The game runs that frame before this
+        # test's first tick, and the smoketest runs it after the tick that pressed the key, so the
+        # file is read at the first screen frame, when both have written it.
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The mod should have written its config file by the first screen frame.")
+        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         # The Configuration tab is the fourth chrome button; the window is narrow enough at the CI
         # client's scale that its last pixels are cut off, so its visible part is clicked.
         width: number = ctx.screen_width()
@@ -107,7 +114,6 @@ export tick(ctx: TestTickContext) {
         state: string = _saved_state(ctx)
         start_count = _set_count(state)
         ctx.assert(start_count > 0, "A first screen open creates the state's first set.")
-        start_origin_x = _origin_x(state)
         step = 6
         ctx.press_world_key(66, false)
         ctx.not_done()
@@ -223,6 +229,7 @@ export tick(ctx: TestTickContext) {
         waited = 0
         state: string = _saved_state(ctx)
         ctx.assert(_field(state, "iShapeSet") == "0", "A click on the first row should make its set the current one.")
+        before_shift = state
         step = 14
         ctx.press_world_key(66, false)
         ctx.not_done()
@@ -278,8 +285,8 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         state: string = _saved_state(ctx)
-        ctx.assert(_origin_x(state) == start_origin_x + 1, "The X row's + should move the current set one block along X.")
-        ctx.assert(_every_origin_x(state, start_origin_x + 1), "The shift should move every set by the same block, not only the current one.")
+        ctx.assert(_origin_x(state) == _origin_x(before_shift) + 1, "The X row's + should move the current set one block along X.")
+        ctx.assert(_every_origin_shifted(state, before_shift, 1), String.concat("The shift should move every set by the same block, not only the current one. Before: ", String.concat(_origins_text(before_shift), String.concat(" after: ", _origins_text(state)))))
         step = 18
         ctx.press_world_key(66, false)
         ctx.not_done()
@@ -337,6 +344,83 @@ export tick(ctx: TestTickContext) {
         state: string = _saved_state(ctx)
         ctx.assert(_set_count(state) == start_count, "Delete should remove the current set and leave the rest.")
         ctx.assert(_field(state, "iShapeSet") == "0", "After removing row 0 of two, the row that moved up should be current.")
+        # The global origin is pressed from a position with a fraction in it, so the player is moved
+        # off the block centre the runner snapped it to, and the saved origin is read back as the
+        # whole blocks the next load parses.
+        player: Player = ctx.get_player()
+        feet: Vec3 = player.position()
+        moved_x = feet.x() + 0.75
+        moved_y = feet.y()
+        moved_z = feet.z() + 0.25
+        ctx.set_player_position(moved_x, moved_y, moved_z)
+        step = 40
+        ctx.not_done()
+        return
+    }
+
+    if step == 40 {
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        ctx.press_world_key(66, false)
+        step = 41
+        ctx.not_done()
+        return
+    }
+
+    if step == 41 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen at the moved position.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(265, 40, 0)
+        step = 42
+        ctx.not_done()
+        return
+    }
+
+    if step == 42 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw for the global origin.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # Set global origin is at (5, 200), 160 wide and 20 high.
+        ctx.click_screen(85, 210, 0)
+        step = 43
+        ctx.not_done()
+        return
+    }
+
+    if step == 43 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 44
+        ctx.not_done()
+        return
+    }
+
+    if step == 44 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after the global origin.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        state: string = _saved_state(ctx)
+        wanted: string = String.concat(String.concat(String.from_number(Math.floor(moved_x)), ","), String.concat(String.concat(String.from_number(Math.floor(moved_y)), ","), String.from_number(Math.floor(moved_z))))
+        ctx.assert(_current_origin_text(state) == wanted, String.concat("Set global origin at a fractional position should store the current set at the floored block, not a fraction the next load refuses. Wanted: ", String.concat(wanted, String.concat(" got: ", _current_origin_text(state)))))
+        ctx.assert(_every_origin_whole(state), String.concat("Every origin should be whole blocks the load parses, and one is not: ", _origins_text(state)))
         # The visible box case runs while persistence is still on, so the closings it does write
         # the state it reads; the restore to the run's own persistence comes after it, at step 22.
         step = 30
@@ -586,6 +670,53 @@ local _origin_x(state: string) number {
     return _origin_piece(_set_line(state, 0), 0)
 }
 
+# The current set's origin field as the file holds it, named by the state's iShapeSet.
+
+local _current_origin_text(state: string) string {
+    parsed: Option[number] = String.to_integer(_field(state, "iShapeSet"))
+    if not parsed.has() {
+        return ""
+    }
+    return _origin_text(_set_line(state, parsed.unwrap()))
+}
+
+# Whether every set's origin field is three whole numbers, which is what the load parses: a fraction
+# or an exponent would make Integer.parseInt refuse the set and replace it with its defaults.
+
+local _every_origin_whole(state: string) bool {
+    count: number = _set_count(state)
+    if count == 0 {
+        return false
+    }
+    i: number = 0
+    while i < count {
+        origin: string = _origin_text(_set_line(state, i))
+        if String.length(origin) == 0 {
+            return false
+        }
+        if String.index_of(origin, ".") >= 0 or String.index_of(origin, "e") >= 0 or String.index_of(origin, "E") >= 0 {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+# A set's origin field as the file holds it, which is the whole blocks the load parses.
+
+local _origin_text(set: string) string {
+    at: number = String.index_of(set, "origin=")
+    if at < 0 {
+        return ""
+    }
+    rest: string = String.substring(set, at + 7, String.length(set))
+    end: number = String.index_of(rest, ";")
+    if end < 0 {
+        return rest
+    }
+    return String.substring(rest, 0, end)
+}
+
 # A set's visible field, from its ;visible=...; entry, or an empty text when it has none.
 
 local _set_visible(state: string, index: number) string {
@@ -603,21 +734,35 @@ local _set_visible(state: string, index: number) string {
     return String.substring(rest, 0, end)
 }
 
-# Whether every set's origin X is the value given, which proves the shift reached all of them.
+# Whether every set's origin X is the one the same set had before the shift plus the same amount,
+# which proves the shift reached all of them and moved each by one block.
 
-local _every_origin_x(state: string, wanted: number) bool {
+local _every_origin_shifted(state: string, before: string, delta: number) bool {
     count: number = _set_count(state)
-    if count == 0 {
+    if count == 0 or count != _set_count(before) {
         return false
     }
     i: number = 0
     while i < count {
-        if _origin_piece(_set_line(state, i), 0) != wanted {
+        if _origin_piece(_set_line(state, i), 0) != _origin_piece(_set_line(before, i), 0) + delta {
             return false
         }
         i = i + 1
     }
     return true
+}
+
+# Every set's origin field, for an assertion's message when the shift did not reach them.
+
+local _origins_text(state: string) string {
+    out: string = ""
+    count: number = _set_count(state)
+    i: number = 0
+    while i < count {
+        out = String.concat(String.concat(out, "["), String.concat(_origin_text(_set_line(state, i)), "]"))
+        i = i + 1
+    }
+    return out
 }
 
 # The shapeSet line at a sequence number, or an empty text when there are fewer sets.

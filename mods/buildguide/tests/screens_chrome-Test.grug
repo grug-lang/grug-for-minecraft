@@ -1,14 +1,16 @@
 # Slice 1 of #1752's screens: the B binding opens the current tab's screen over the world, its
 # initCheck gives a fresh state its first set, the Configuration tab opens from the chrome, its
 # persistence checkbox writes the config file, and Escape closes the screen through screen_closed,
-# which saves the state. The config is put back the way the run found it, so a later test or run
-# starts from the same persistence value. A dedicated server has no mod screen, so the leg ends
-# before it opens one.
+# which saves the state into this world's own file. The box is left ticked before the close, because
+# a close with persistence off writes nothing, and the config is put back the way the run found it,
+# so a later test or run starts from the same persistence value. A dedicated server has no mod
+# screen, so the leg ends before it opens one.
 started: bool = false
 opened: bool = false
 waited: number = 0
 tabbed: bool = false
 persisted: bool = false
+enabled: bool = false
 closed: bool = false
 saved: bool = false
 reopened: bool = false
@@ -28,10 +30,6 @@ export tick(ctx: TestTickContext) {
         started = true
         # The persistence value the config file holds before the test, which the checkbox's two
         # clicks have to move away from and back to.
-        files: File = File.open(r"files")
-        config: Option[string] = files.read_text("config/buildguide.cfg")
-        ctx.assert(config.has(), "The mod should have written its config file before the first test tick.")
-        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         ctx.press_world_key(66, false)
         ctx.not_done()
         return
@@ -52,6 +50,13 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         opened = true
+        # The mod writes its config in its first world frame. The game runs that frame before this
+        # test's first tick, and the smoketest runs it after the tick that pressed the key, so the
+        # file is read at the first screen frame, when both have written it.
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The mod should have written its config file by the first screen frame.")
+        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         ctx.not_done()
         return
     }
@@ -98,6 +103,26 @@ export tick(ctx: TestTickContext) {
         return
     }
 
+    if not enabled {
+        # The click above flipped the value the run found, so a run that had persistence on now has
+        # it off, and screen_closed saves nothing while it is off. The box is ticked back on before
+        # the close, which is what makes the save the check below reads this run's.
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The persistence checkbox should leave the config file readable.")
+        if String.index_of(config.unwrap(), "persistenceEnabled = true") < 0 {
+            ctx.click_screen(262, 168, 0)
+        }
+        files = File.open(r"files")
+        config = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "Turning persistence back on should leave the config file readable.")
+        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0, "The close has to run with persistence on, so it saves this run's state.")
+        enabled = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
     if not closed {
         # Escape is the screen's own close, which reaches BaseScreen.onScreenClosed through
         # screen_closed, and the screen takes it even with a text field focused.
@@ -119,29 +144,20 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        # The close saved the state, and initCheck put the one set a fresh state gets into it, so
-        # the file the world's name and dimension name holds a shapeSet line with no refused-shape
-        # marker. The directory is listed rather than its file named, so the test does not repeat
-        # the reference's sanitising of the world's name.
+        # The close saved the state, and initCheck put the one set a fresh state gets into it. The
+        # check reads this world's own file, whose name the loader's sanitiser builds from the world
+        # and its dimension, so a file an earlier run left for another world cannot satisfy it.
+        level: Level = ctx.get_client_level()
+        path: string = _state_file(level.name(), level.dimension())
         files: File = File.open(r"files")
-        count: number = files.entry_count("buildguide")
-        ctx.assert(count > 0, "The close should save a state file.")
-        found: bool = false
-        i: number = 0
-        while i < count {
-            name: string = files.entry_name("buildguide", i)
-            text: Option[string] = files.read_text(String.concat("buildguide/", name))
-            if text.has() {
-                state: string = text.unwrap()
-                if String.index_of(state, "shapeSet=") >= 0 {
-                    found = true
-                    ctx.assert(String.index_of(state, "enabled=") == 0, "The saved state should start with the enabled line.")
-                    ctx.assert(String.index_of(state, "!") < 0, "A saved state should not carry the refused-shape marker.")
-                }
-            }
-            i = i + 1
+        text: Option[string] = files.read_text(path)
+        ctx.assert(text.has(), "The close should save this world's state file.")
+        if text.has() {
+            state: string = text.unwrap()
+            ctx.assert(String.index_of(state, "shapeSet=") >= 0, "The saved state should hold the set initCheck made.")
+            ctx.assert(String.index_of(state, "enabled=") == 0, "The saved state should start with the enabled line.")
+            ctx.assert(String.index_of(state, "!") < 0, "A saved state should not carry the refused-shape marker.")
         }
-        ctx.assert(found, "The saved state should hold the set initCheck made.")
         saved = true
         waited = 0
         # The Configuration tab is still the current one, so the binding reopens it and its
@@ -164,15 +180,19 @@ export tick(ctx: TestTickContext) {
     }
 
     if not restored {
-        ctx.click_screen(262, 168, 0)
+        # The save ran with persistence on, so a run that found it off is the one that needs the box
+        # ticked again; a run that found it on is already where it started.
+        if not was_persistent {
+            ctx.click_screen(262, 168, 0)
+        }
         files: File = File.open(r"files")
         config: Option[string] = files.read_text("config/buildguide.cfg")
-        ctx.assert(config.has(), "The second click should leave the config file readable.")
+        ctx.assert(config.has(), "The restore should leave the config file readable.")
         expected: string = "persistenceEnabled = false"
         if was_persistent {
             expected = "persistenceEnabled = true"
         }
-        ctx.assert(String.index_of(config.unwrap(), expected) >= 0, "Unticking the persistence checkbox should put the value the run found back.")
+        ctx.assert(String.index_of(config.unwrap(), expected) >= 0, "The restore should put the persistence value the run found back.")
         restored = true
         ctx.not_done()
         return
@@ -180,4 +200,76 @@ export tick(ctx: TestTickContext) {
 
     # One client serves the whole run, so a screen a test opened outlives it.
     ctx.close_screen()
+}
+
+# AbstractStateManager.getPersistenceFile in this test's own words: the world and the dimension
+# joined by an at sign, every character a Windows file name refuses replaced by a dot, then ".dat".
+# The reference falls back to "unknown" for a world with no name, as the mod does, and a dimension
+# is written as the resource location the reference's location().toString() gives.
+
+local _state_file(name: string, dimension: string) string {
+    host: string = name
+    if String.length(host) == 0 {
+        host = "unknown"
+    }
+    key: string = String.concat(String.concat(host, "@"), _dimension_text(dimension))
+    return String.concat("buildguide/", String.concat(_sanitise(key), ".dat"))
+}
+
+local _dimension_text(dimension: string) string {
+    if dimension == "overworld" {
+        return "minecraft:overworld"
+    }
+    if dimension == "the_nether" {
+        return "minecraft:the_nether"
+    }
+    if dimension == "the_end" {
+        return "minecraft:the_end"
+    }
+    if _has_prefix(dimension, "dimension_") {
+        key: string = String.substring(dimension, 10, String.length(dimension))
+        tilde: number = String.index_of(key, "~")
+        if tilde > 0 {
+            namespace: string = String.substring(key, 0, tilde)
+            path: string = String.substring(key, tilde + 1, String.length(key))
+            return String.concat(String.concat(namespace, ":"), _replace_all(path, "+", "/"))
+        }
+    }
+    return dimension
+}
+
+# AbstractStateManager's sanitiser: each of / < > : " \ | ? * becomes a dot.
+
+local _sanitise(text: string) string {
+    out: string = text
+    out = _replace_all(out, "/", ".")
+    out = _replace_all(out, "<", ".")
+    out = _replace_all(out, ">", ".")
+    out = _replace_all(out, ":", ".")
+    out = _replace_all(out, "\"", ".")
+    out = _replace_all(out, "\\", ".")
+    out = _replace_all(out, "|", ".")
+    out = _replace_all(out, "?", ".")
+    out = _replace_all(out, "*", ".")
+    return out
+}
+
+local _has_prefix(text: string, prefix: string) bool {
+    return String.length(text) >= String.length(prefix) and String.substring(text, 0, String.length(prefix)) == prefix
+}
+
+local _replace_all(text: string, needle: string, replacement: string) string {
+    if String.length(needle) == 0 {
+        return text
+    }
+    out: string = ""
+    rest: string = text
+    at: number = String.index_of(rest, needle)
+    while at >= 0 {
+        out = String.concat(out, String.substring(rest, 0, at))
+        out = String.concat(out, replacement)
+        rest = String.substring(rest, at + String.length(needle), String.length(rest))
+        at = String.index_of(rest, needle)
+    }
+    return String.concat(out, rest)
 }

@@ -77,6 +77,10 @@ configuration_screen: Screen = Screen.new()
 tab_screen: string = "shape"
 active_screen: string = ""
 dropdown_open: bool = false
+# True while _open_tab is replacing one screen with another. The new screen's open closes the old
+# one, and the old one's screen_closed runs inside that close, after active_screen already names the
+# new tab; this keeps that close from clearing it.
+switching_tab: bool = false
 
 # The chrome's six widgets, which every screen declares for itself in _chrome_init. Only the open
 # screen's widgets exist, so one handle per widget serves all four screens.
@@ -252,6 +256,12 @@ block_shape: number = 0
 block_total: number = 0
 cell_count: number = 0
 cell_counting: bool = false
+# The most positions one shape's cell loop may scan in the frame that generates it. The reference
+# generates on a cached thread and lets a huge shape stall there, while this port generates in
+# render_world, where a grug call over 100 ms is a runtime error, so a box past this draws no cells
+# and about.json records the deviation. The number is about a quarter of that budget for the loop's
+# arithmetic: a circle of radius 249 scans 499 by 499, and a sphere of radius 30 scans 61 cubed.
+max_shape_positions: number = 250000
 
 # Draws every shape set the way AbstractRenderHandler.render and AbstractLegacyRenderHandler do:
 # only while the mod is enabled, there is a set, and the current set has an origin; then each set
@@ -438,6 +448,14 @@ export screen_list_row(ctx: ListRowResponse) {
 
 export screen_closed() {
     _state_save()
+    # A screen the game removed, or one the player closed, is no longer the screen whose counts
+    # render_world takes, so the next frame must stop counting; a tab switch's close already named
+    # the new tab and is left alone.
+    if switching_tab {
+        return
+    }
+    active_screen = ""
+    dropdown_open = false
 }
 
 # Every shape set line of the state, in the order the file listed them.
@@ -646,6 +664,9 @@ local _emit_circle(ctx: OverlayWorldContext, v: string, ox: number, oy: number, 
     if depth <= 0 {
         z_start = depth + 1
         z_end = 1
+    }
+    if not _box_fits(upper - lower + 1, upper - lower + 1, z_end - z_start) {
+        return
     }
     x: number = lower
     while x <= upper {
@@ -886,6 +907,9 @@ local _emit_ellipse(ctx: OverlayWorldContext, v: string, ox: number, oy: number,
     if depth <= 0 {
         s_start = depth + 1
         s_end = 1
+    }
+    if not _box_fits(a_upper - a_lower + 1, b_upper - b_lower + 1, s_end - s_start) {
+        return
     }
     a: number = a_lower
     while a <= a_upper {
@@ -1420,6 +1444,9 @@ local _emit_sphere(ctx: OverlayWorldContext, v: string, ox: number, oy: number, 
     y_upper: number = Math.ceil(y_end)
     z_lower: number = Math.floor(z_start)
     z_upper: number = Math.ceil(z_end)
+    if not _box_fits(x_upper - x_lower + 1, y_upper - y_lower + 1, z_upper - z_lower + 1) {
+        return
+    }
     x: number = x_lower
     while x <= x_upper {
         y: number = y_lower
@@ -1456,6 +1483,9 @@ local _emit_torus(ctx: OverlayWorldContext, v: string, ox: number, oy: number, o
     a_upper: number = Math.ceil(outer_radius + inner_radius + 1 + outer_offset)
     c_lower: number = Math.floor(-inner_radius + inner_offset)
     c_upper: number = Math.ceil(inner_radius + 1 + inner_offset)
+    if not _box_fits(a_upper - a_lower, a_upper - a_lower, c_upper - c_lower) {
+        return
+    }
     a: number = a_lower
     while a < a_upper {
         b: number = a_lower
@@ -1634,6 +1664,20 @@ local _trunc(value: number) number {
 
 local _finite(value: number) bool {
     return Math.abs(value) - Math.abs(value) == 0
+}
+
+# Whether a cell loop of the given three spans scans at most max_shape_positions positions. A span
+# that is not finite (an infinity from a hand-edited file, or a subtraction of two infinities) or
+# not positive draws nothing, which is where about.json records the deviation.
+local _box_fits(x_span: number, y_span: number, z_span: number) bool {
+    if not _finite(x_span) or not _finite(y_span) or not _finite(z_span) {
+        return false
+    }
+    if not (x_span > 0) or not (y_span > 0) or not (z_span > 0) {
+        return false
+    }
+    # Each factor is compared before it is multiplied, so no product can reach an infinity.
+    return x_span <= max_shape_positions and y_span <= max_shape_positions / x_span and z_span <= max_shape_positions / x_span / y_span
 }
 
 local _rot_xx(rotation: number) number {
@@ -3099,21 +3143,26 @@ local _close_active() {
 
 local _open_tab(name: string) {
     tab_screen = name
+    switching_tab = true
     active_screen = name
     dropdown_open = false
     if name == "visualisation" {
         visualisation_screen.open()
+        switching_tab = false
         return
     }
     if name == "shapelist" {
         shapelist_screen.open()
+        switching_tab = false
         return
     }
     if name == "configuration" {
         configuration_screen.open()
+        switching_tab = false
         return
     }
     shape_screen.open()
+    switching_tab = false
 }
 
 # ConfigurationScreen.init after super.init: the three checkboxes at x 255 and their 50-wide Default
@@ -3673,7 +3722,10 @@ local _count_set(ctx: OverlayWorldContext, set: string) {
 
 # State.savePersistence, written on every screen close while persistence is on and the state has
 # loaded. The persistence text has no `!` after a refused shape's class name, which is this text's own
-# marker for it, so every `!` is dropped.
+# marker for it, so every `!` is dropped. The `|` between a set's own fields and its shapes is this
+# text's separator and not the reference's, whose restore splits every entry on `;` alone, so it is
+# dropped too: with it, the first shape's key is `|ShapeCircle`, which no class matches, and every
+# saved shape value is lost on the next load.
 
 local _state_save() {
     if not state_loaded {
@@ -3682,7 +3734,7 @@ local _state_save() {
     if not _config_persistence(config_values) {
         return
     }
-    text: string = _replace_all(state, "!", "")
+    text: string = _replace_all(_replace_all(state, "!", ""), "|", "")
     if persistence_written and text == persistence_text {
         return
     }
@@ -3971,7 +4023,9 @@ local _shapelist_global() {
         return
     }
     set: string = _state_current_set()
-    state = _state_shift_origins(state, world_x - _origin_piece(set, 0), world_y - _origin_piece(set, 1), world_z - _origin_piece(set, 2))
+    # The feet are fractional, and the origin is whole blocks the load parses with Integer.parseInt,
+    # so the distance is taken from the floor, as _apply_pending's global origin and _origin_text do.
+    state = _state_shift_origins(state, Math.floor(world_x) - _origin_piece(set, 0), Math.floor(world_y) - _origin_piece(set, 1), Math.floor(world_z) - _origin_piece(set, 2))
     _shapelist_fields()
 }
 
@@ -4759,10 +4813,11 @@ local _prop_inc(row: number) {
     _prop_show_text(row, stepped)
 }
 
-# One step of a property's value, or "" where the class refuses it. Integer.parseInt versus
-# Float.parseFloat, the zero skip a nonzero value has, and the minimums: MinimumInt and PositiveInt
-# refuse a decrement at their minimum, MinimumFloat refuses below its minimum and allows it when
-# the class was built inclusive, and PositiveFloat allows only above 0.
+# One step of a property's value, or "" where the class refuses it. The step is refused when the value
+# it would land on is one the class's setValueFromString refuses, so a player cannot step a shape into
+# a value a reload would replace with the defaults: a MinimumInt of 4 keeps its 4 rather than stepping
+# to the 3 that loads in error, and a MinimumFloat of 3.0 keeps its 3.0 rather than stepping to 2.0.
+# The zero skip a nonzero value has stays, because the reference's own buttons step past zero.
 
 local _prop_stepped(kind: string, text: string, delta: number) string {
     letter: string = String.substring(kind, 0, 1)
@@ -4771,108 +4826,86 @@ local _prop_stepped(kind: string, text: string, delta: number) string {
         if not parsed.has() {
             return ""
         }
-        value: number = parsed.unwrap()
-        if delta < 0 {
-            if letter == "I" and not (value > 1) {
-                return ""
-            }
-            if letter == "M" and not (value > 3) {
-                return ""
-            }
-            value = value - 1
-            if letter == "N" and value == 0 {
+        value: number = parsed.unwrap() + delta
+        if letter == "N" and value == 0 {
+            if delta < 0 {
                 value = -1
-            }
-        } else {
-            value = value + 1
-            if letter == "N" and value == 0 {
+            } else {
                 value = 1
             }
         }
-        return String.from_number(value)
+        return _kind_value(kind, String.from_number(value))
     }
     parsed_float: Option[number] = String.to_float(text)
     if not parsed_float.has() {
         return ""
     }
-    value_float: number = parsed_float.unwrap()
-    if delta < 0 {
-        if letter == "p" and not (value_float - 1 > 0) {
-            return ""
-        }
-        if letter == "m" and not (value_float - 1 >= 2) {
-            return ""
-        }
-        if letter == "l" and not (value_float - 1 >= 1) {
-            return ""
-        }
-        value_float = value_float - 1
-        if letter == "n" and value_float == 0 {
-            value_float = -1
-        }
-    } else {
-        value_float = value_float + 1
-        if letter == "n" and value_float == 0 {
-            value_float = 1
+    value_float: number = parsed_float.unwrap() + delta
+    if letter == "n" and value_float == 0 {
+        if delta < 0 {
+            value_float = -1.0
+        } else {
+            value_float = 1.0
         }
     }
-    return String.from_float(value_float)
+    return _kind_value(kind, String.from_float(value_float))
 }
 
-# A property's Set button: the class's own acceptance rule, its red field on a refusal, and the zero
-# skip a nonzero value has, where the field is rewritten with the value it kept.
+# A property's Set button: the class's own acceptance rule from _kind_value, its red field on a
+# refusal, and the zero skip a nonzero value has, where the field is rewritten with the value it kept.
+# The rule is the loader's, so a typed boundary the class's setValueFromString refuses turns the field
+# red instead of storing a value the next load would replace with the defaults.
 
 local _prop_set(row: number) {
     kind: string = _prop_kind(row)
-    letter: string = String.substring(kind, 0, 1)
     field: Widget = _prop_widget(row, 1)
-    if letter == "i" or letter == "I" or letter == "N" or letter == "M" {
-        parsed: Option[number] = String.to_integer(field.text())
-        if not parsed.has() {
-            field.set_text_colour(Color.rgb(255, 0, 0))
-            return
-        }
-        value: number = parsed.unwrap()
-        if letter == "I" and value < 1 {
-            field.set_text_colour(Color.rgb(255, 0, 0))
-            return
-        }
-        if letter == "M" and value < 3 {
-            field.set_text_colour(Color.rgb(255, 0, 0))
-            return
-        }
-        if letter == "N" and value == 0 {
-            value = 1
-            field.set_text("1")
-        }
-        _prop_store(row, String.from_number(value))
-        field.set_text_colour(Color.rgb(255, 255, 255))
-        return
-    }
-    parsed_float: Option[number] = String.to_float(field.text())
-    if not parsed_float.has() {
+    accepted: string = _prop_accepted(kind, field.text())
+    if String.length(accepted) == 0 {
         field.set_text_colour(Color.rgb(255, 0, 0))
         return
     }
-    value_float: number = parsed_float.unwrap()
-    if letter == "p" and not (value_float > 0) {
-        field.set_text_colour(Color.rgb(255, 0, 0))
-        return
+    if _prop_zero_typed(kind, field.text()) {
+        field.set_text(accepted)
     }
-    if letter == "m" and value_float < 2 {
-        field.set_text_colour(Color.rgb(255, 0, 0))
-        return
-    }
-    if letter == "l" and value_float < 1 {
-        field.set_text_colour(Color.rgb(255, 0, 0))
-        return
-    }
-    if letter == "n" and value_float == 0 {
-        value_float = 1
-        field.set_text("1.0")
-    }
-    _prop_store(row, String.from_float(value_float))
+    _prop_store(row, accepted)
     field.set_text_colour(Color.rgb(255, 255, 255))
+}
+
+# The class's own text for a typed value, or "" where it refuses it. A nonzero class's Set button
+# writes 1 for a typed zero rather than refusing it, which is what the reference's button does.
+
+local _prop_accepted(kind: string, raw: string) string {
+    canonical: string = _kind_value(kind, raw)
+    if String.length(canonical) > 0 {
+        return canonical
+    }
+    if _prop_zero_typed(kind, raw) {
+        if String.substring(kind, 0, 1) == "N" {
+            return "1"
+        }
+        return "1.0"
+    }
+    return ""
+}
+
+# Whether the text is a zero typed into a nonzero class's field, which its Set button rewrites to 1.
+
+local _prop_zero_typed(kind: string, raw: string) bool {
+    letter: string = String.substring(kind, 0, 1)
+    if letter == "N" {
+        parsed: Option[number] = String.to_integer(raw)
+        if parsed.has() {
+            return parsed.unwrap() == 0
+        }
+        return false
+    }
+    if letter == "n" {
+        parsed_float: Option[number] = String.to_float(raw)
+        if parsed_float.has() {
+            return parsed_float.unwrap() == 0
+        }
+    }
+    return false
 }
 
 local _prop_bool(row: number, checked: bool) {

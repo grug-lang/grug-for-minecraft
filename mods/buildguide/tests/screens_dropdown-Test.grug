@@ -23,10 +23,6 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        files: File = File.open(r"files")
-        config: Option[string] = files.read_text("config/buildguide.cfg")
-        ctx.assert(config.has(), "The mod should have written its config file before the first test tick.")
-        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         step = 1
         ctx.press_world_key(66, false)
         ctx.not_done()
@@ -45,6 +41,13 @@ export tick(ctx: TestTickContext) {
             return
         }
         waited = 0
+        # The mod writes its config in its first world frame. The game runs that frame before this
+        # test's first tick, and the smoketest runs it after the tick that pressed the key, so the
+        # file is read at the first screen frame, when both have written it.
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The mod should have written its config file by the first screen frame.")
+        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
         # The Configuration tab is the fourth chrome button; the window is narrow enough at the CI
         # client's scale that its last pixels are cut off, so its visible part is clicked.
         width: number = ctx.screen_width()
@@ -491,21 +494,18 @@ local _index_field(state: string) number {
 }
 
 # The value text of the current set's entry for one shape class, which is the part between its "="
-# and the following ";". A class the set holds no entry for answers an empty text.
+# and the following ";". A class the set holds no entry for answers an empty text. The writer strips
+# this port's "|" separator before saving, so the entry is looked for in the whole set line, which is
+# also what the loader's own restore does with it.
 
 local _shape_values(state: string, class_name: string) string {
     set: string = _set_line(state, _current_index(state))
-    bar: number = String.index_of(set, "|")
-    if bar < 0 {
-        return ""
-    }
-    shapes: string = String.substring(set, bar + 1, String.length(set))
     needle: string = String.concat(class_name, "=")
-    at: number = String.index_of(shapes, needle)
+    at: number = String.index_of(set, needle)
     if at < 0 {
         return ""
     }
-    rest: string = String.substring(shapes, at + String.length(needle), String.length(shapes))
+    rest: string = String.substring(set, at + String.length(needle), String.length(set))
     end: number = String.index_of(rest, ";")
     if end < 0 {
         return rest
