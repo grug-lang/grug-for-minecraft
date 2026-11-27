@@ -100,6 +100,34 @@ class GrugSendBufferTest {
     }
 
     @Test
+    void aWaitThatEndsWithTheBacklogUpKeepsTheBudgetSpentUntilItDrops() {
+        GrugSendBuffer buffer = ciRun();
+        Steps steps = new Steps();
+
+        for (int tick = 0; tick < GrugSendBuffer.MAX_PAUSE_TICKS; tick++) {
+            assertEquals(0, buffer.advance(() -> OVER_THE_MARK, 1, steps), "tick " + tick);
+        }
+        // The budget is spent and the client is still behind, so the world advances on every
+        // call instead of starting another full pause. Starting one per call is the stall this
+        // class exists to prevent: one tick per 601 calls never catches a client up.
+        for (int advance = 0; advance < 5; advance++) {
+            assertEquals(1, buffer.advance(() -> OVER_THE_MARK, 1, steps), "advance " + advance);
+        }
+        assertEquals(5, steps.ran);
+
+        // Below the mark the next pause starts with its full budget again.
+        assertEquals(1, buffer.advance(() -> GrugSendBuffer.LOW_WATER_BYTES, 1, steps));
+        assertEquals(6, steps.ran);
+        for (int tick = 0; tick < GrugSendBuffer.MAX_PAUSE_TICKS; tick++) {
+            assertEquals(
+                    0,
+                    buffer.advance(() -> OVER_THE_MARK, 1, steps),
+                    "tick " + tick + " of the next pause");
+        }
+        assertEquals(6, steps.ran, "The backlog that dropped below the mark ended the stall.");
+    }
+
+    @Test
     void aFinishedWaitGivesTheNextOneItsFullBudget() {
         GrugSendBuffer buffer = ciRun();
         AtomicInteger queued = new AtomicInteger(OVER_THE_MARK);

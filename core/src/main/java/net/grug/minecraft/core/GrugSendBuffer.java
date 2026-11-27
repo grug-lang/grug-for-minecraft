@@ -57,6 +57,12 @@ public final class GrugSendBuffer {
     /** How many world ticks this pause has taken so far, reset once it ends. */
     private int pausedTicks;
 
+    /**
+     * Whether the end of the spent budget has been reported for the backlog the world is behind on,
+     * so the line is printed once rather than on every tick that runs on.
+     */
+    private boolean ranOnReported;
+
     /** A buffer that paces when {@code env} says the run is CI's, and never otherwise. */
     public GrugSendBuffer(Function<String, String> env) {
         this.armed = "true".equals(env.apply("GRUG_CI"));
@@ -122,16 +128,27 @@ public final class GrugSendBuffer {
                         + " bytes.");
     }
 
+    /**
+     * Says that a wait ended and the world ran on, once per wait, and starts a fresh budget only
+     * once the backlog has dropped below {@link #LOW_WATER_BYTES}.
+     *
+     * <p>Reset on every tick that ran on instead, a client that stayed behind got its budget back
+     * at once, so it advanced one tick per {@link #MAX_PAUSE_TICKS} calls and never caught up.
+     * Waiting through the budget and then running until the backlog clears is what lets it.
+     */
     private void reportRanOn(int queuedBytes) {
-        if (pausedTicks == 0) {
-            return;
+        if (pausedTicks != 0 && !ranOnReported) {
+            System.out.println(
+                    "[GRUG CI] The world ran on after "
+                            + pausedTicks
+                            + " ticks of waiting, with the joined client's connection holding "
+                            + queuedBytes
+                            + " bytes.");
+            ranOnReported = true;
         }
-        System.out.println(
-                "[GRUG CI] The world ran on after "
-                        + pausedTicks
-                        + " ticks of waiting, with the joined client's connection holding "
-                        + queuedBytes
-                        + " bytes.");
-        pausedTicks = 0;
+        if (queuedBytes <= LOW_WATER_BYTES) {
+            pausedTicks = 0;
+            ranOnReported = false;
+        }
     }
 }

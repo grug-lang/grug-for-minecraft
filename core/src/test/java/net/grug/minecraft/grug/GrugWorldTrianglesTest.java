@@ -21,13 +21,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Covers {@code Color.rgba}, the world pass's translucent triangles and {@code
- * TestTickContext.set_player_position}: what each accepts, what it refuses and what it records.
+ * Covers {@code Color.rgba}, the world pass's translucent triangles, {@code
+ * TestTickContext.set_player_position} and {@code TestTickContext.break_block}: what each accepts,
+ * what it refuses and what it records.
  */
 class GrugWorldTrianglesTest {
     private Object savedAdapter;
     private boolean savedTrianglesSupported;
     private final List<double[]> moves = new ArrayList<>();
+    private final List<double[]> breaks = new ArrayList<>();
     private boolean chunkLoaded = true;
 
     @BeforeEach
@@ -36,6 +38,7 @@ class GrugWorldTrianglesTest {
         field.setAccessible(true);
         savedAdapter = field.get(null);
         moves.clear();
+        breaks.clear();
         chunkLoaded = true;
         savedTrianglesSupported = GrugWorldOverlay.trianglesSupported();
         setTrianglesSupported(false);
@@ -51,6 +54,15 @@ class GrugWorldTrianglesTest {
                                             (double) args[0], (double) args[1], (double) args[2]
                                         });
                                 return chunkLoaded;
+                            }
+                            if (method.getName().equals("breakBlockForTest")) {
+                                breaks.add(
+                                        new double[] {
+                                            Math.floor((double) args[1]),
+                                            Math.floor((double) args[2]),
+                                            Math.floor((double) args[3])
+                                        });
+                                return null;
                             }
                             if (method.isDefault()) {
                                 return InvocationHandler.invokeDefault(proxy, method, args);
@@ -197,5 +209,30 @@ class GrugWorldTrianglesTest {
         HostFunctions.TestTickContext_set_player_position(context, 1, 64, Double.POSITIVE_INFINITY);
         assertEquals(3, drain().size());
         assertEquals(2, moves.size(), "A position that is not finite never reaches the loader.");
+    }
+
+    @Test
+    void theBlockAtTheFlooredPositionIsBrokenAndANonFiniteOneIsRefused() {
+        long context = GrugTestContexts.tick();
+        long level = GrugEntities.addEntity(GrugEntityType.Level, new Object());
+
+        // A finite fraction floors to the block below it, as every loader has always done.
+        HostFunctions.TestTickContext_break_block(context, level, 1.9, 64.2, -2.7);
+        assertTrue(drain().isEmpty());
+        assertEquals(1, breaks.size());
+        assertEquals(1, breaks.get(0)[0]);
+        assertEquals(64, breaks.get(0)[1]);
+        assertEquals(-3, breaks.get(0)[2]);
+
+        HostFunctions.TestTickContext_break_block(context, level, Double.NaN, 64, 0);
+        HostFunctions.TestTickContext_break_block(context, level, 1, Double.NaN, 0);
+        HostFunctions.TestTickContext_break_block(context, level, 1, 64, Double.POSITIVE_INFINITY);
+        List<String> reports = drain();
+        assertEquals(3, reports.size());
+        for (String report : reports) {
+            assertTrue(report.contains("TestTickContext.break_block"), report);
+            assertTrue(report.contains("has to be finite"), report);
+        }
+        assertEquals(1, breaks.size(), "A position that is not finite never reaches the loader.");
     }
 }

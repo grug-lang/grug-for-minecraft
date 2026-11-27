@@ -1212,9 +1212,28 @@ public class HostFunctions {
                 level -> GrugCore.getAdapter().useBlockForTest(level, x, y, z));
     }
 
+    /**
+     * Breaks the block at a position, dropping what it yields, at the block the coordinates floor
+     * to. A position that is not finite names no block at all: the games floor NaN to 0, 0, 0, so a
+     * call with one would break an unrelated fixture. It is refused with the same error a position
+     * that is not finite gets anywhere else, and a finite fraction still floors to the block below
+     * it, as the loader always has.
+     */
     public static void TestTickContext_break_block(
             long contextId, long levelId, double x, double y, double z) {
         if (!requireTickContext("TestTickContext.break_block", contextId)) return;
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.break_block: The position has to be finite, and was "
+                            + x
+                            + ", "
+                            + y
+                            + ", "
+                            + z
+                            + ".");
+            return;
+        }
         worldChanged();
         withEntity(
                 "TestTickContext.break_block",

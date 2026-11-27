@@ -43,6 +43,9 @@ class GrugRunWindowTest {
         double cursorY = 200;
         final List<String> calls = new ArrayList<>();
 
+        /** What another thread does while the cursor position is being read, or null. */
+        Runnable onCursorPos;
+
         @Override
         public int width() {
             return width;
@@ -73,6 +76,9 @@ class GrugRunWindowTest {
 
         @Override
         public double[] cursorPos() {
+            if (onCursorPos != null) {
+                onCursorPos.run();
+            }
             return new double[] {cursorX, cursorY};
         }
 
@@ -424,6 +430,22 @@ class GrugRunWindowTest {
         // the corner that is a no-op move, but the call still lands.
         window.endRun();
         assertEquals(calls("setCursor(0,0)"), display.calls);
+    }
+
+    @Test
+    void aParkPointForgottenWhileTheCallRunsStillParksThere() {
+        // A test's teardown forgets the point on the integrated server thread, which can happen
+        // while the render thread is inside parkCursor. Reading the field once keeps the call
+        // consistent; reading it again after the forget parked the wrong place, or threw.
+        FakeDisplay display = new FakeDisplay();
+        GrugRunWindow window = new GrugRunWindow(display);
+        GrugRunWindow.parkAt(300, 42);
+        display.onCursorPos = GrugRunWindow::forgetParkPoint;
+
+        window.parkCursor();
+
+        assertEquals(calls("setCursor(300,42)"), display.calls);
+        GrugRunWindow.forgetParkPoint();
     }
 
     @Test
