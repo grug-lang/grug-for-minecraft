@@ -89,6 +89,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * A dedicated server has no screen to show, so a mod's {@code Screen.new()} is refused here
+     * rather than reaching the client-only host the base adapter makes.
+     */
+    @Override
+    public boolean ownedScreensSupported() {
+        return false;
+    }
+
+    /**
      * The menu this server has open for each player, which is the container a joined client's
      * clicks land in (#1098). Alpha has no menu class of its own, and its server keeps no cursor,
      * so {@link GrugAlphaMenu} holds both sides of the slot table and this map is what a click

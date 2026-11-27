@@ -7,6 +7,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugOverlayScripts;
+import net.grug.minecraft.grug.GrugOwnedScreens;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugScreenText;
@@ -85,12 +86,7 @@ public final class GrugOverlayHost {
         // that ran before this frame from one that ran after it (#1391).
         GrugOverlay.noteFrame(screen);
 
-        if (renderItem == null) {
-            renderItem = new ItemRenderer();
-        }
-
         Minecraft minecraft = MinecraftInstance.get();
-        GrugFillInvoker fill = (GrugFillInvoker) screen;
         String testMod = GrugTestState.currentTestMod;
         // A test that parked the cursor for a capture is where the overlay must see the mouse. The
         // point is in window pixels, and the screen's scaled size turns it into the pixels an
@@ -133,37 +129,62 @@ public final class GrugOverlayHost {
             // capability, or the lighting, off for the rest of the session (#1144). The lighting is
             // turned on inside the try that turns it off, so a throw from turning it on is put back
             // the same way.
-            boolean normalized = GL11.glIsEnabled(GL11.GL_NORMALIZE);
-            boolean rescaled = GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
-            GL11.glDisable(GL11.GL_NORMALIZE);
-            GL11.glDisable(GL12.GL_RESCALE_NORMAL);
+            drawGeometry(screen, minecraft, drawn);
+        }
+    }
+
+    /**
+     * Draws what one render pass recorded: the item icons, texts, highlight boxes and tooltips, in
+     * the order it drew them. An overlay's pass on a container screen and a mod-owned screen's
+     * {@code screen_render} both land here, so the two draws look the same and a tooltip stays over
+     * everything else.
+     */
+    public static void drawGeometry(
+            Screen screen, Minecraft minecraft, GrugOverlayGeometry geometry) {
+        if (renderItem == null) {
+            renderItem = new ItemRenderer();
+        }
+        GrugFillInvoker fill = (GrugFillInvoker) screen;
+        // The item draw scales its model by ten and shades it with the game's fixed-function
+        // lights, so a normalizing capability the frame left on renders each icon's left face
+        // about 1.9 times brighter. The game's slime renderer turns GL_NORMALIZE on and never
+        // turns it off again, so a slime rendered earlier in the session decides it. That is
+        // what made the JEI item list capture flake (#1137). Pin both capabilities off for the
+        // icons and put back what the frame had, so this draw is the same whatever ran before.
+        // The frame's state goes back in a finally, so a draw that throws cannot leave either
+        // capability, or the lighting, off for the rest of the session (#1144). The lighting is
+        // turned on inside the try that turns it off, so a throw from turning it on is put back
+        // the same way.
+        boolean normalized = GL11.glIsEnabled(GL11.GL_NORMALIZE);
+        boolean rescaled = GL11.glIsEnabled(GL12.GL_RESCALE_NORMAL);
+        GL11.glDisable(GL11.GL_NORMALIZE);
+        GL11.glDisable(GL12.GL_RESCALE_NORMAL);
+        try {
             try {
-                try {
-                    // Inside the try whose finally turns it off, so a throw from turning it on is
-                    // put back too rather than leaving the GUI lighting off for the session.
-                    Lighting.turnOn();
-                    for (GrugScreenItemDraw item : drawn.items()) {
-                        renderItem.renderGuiItem(
-                                minecraft.textRenderer,
-                                minecraft.textureManager,
-                                new ItemStack((Item) item.item()),
-                                (int) item.x(),
-                                (int) item.y());
-                    }
-                } finally {
-                    Lighting.turnOff();
+                // Inside the try whose finally turns it off, so a throw from turning it on is
+                // put back too rather than leaving the GUI lighting off for the session.
+                Lighting.turnOn();
+                for (GrugScreenItemDraw item : geometry.items()) {
+                    renderItem.renderGuiItem(
+                            minecraft.textRenderer,
+                            minecraft.textureManager,
+                            new ItemStack((Item) item.item()),
+                            (int) item.x(),
+                            (int) item.y());
                 }
             } finally {
-                if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
-                if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
+                Lighting.turnOff();
             }
-            drawTexts(minecraft, drawn.texts());
-            for (GrugScreenBox box : drawn.boxes()) {
-                fill.grug$fill(
-                        (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), 0x80FFFFFF);
-            }
-            drawTooltips(minecraft, fill, drawn.tooltips());
+        } finally {
+            if (normalized) GL11.glEnable(GL11.GL_NORMALIZE);
+            if (rescaled) GL11.glEnable(GL12.GL_RESCALE_NORMAL);
         }
+        drawTexts(minecraft, geometry.texts());
+        for (GrugScreenBox box : geometry.boxes()) {
+            fill.grug$fill(
+                    (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), 0x80FFFFFF);
+        }
+        drawTooltips(minecraft, fill, geometry.tooltips());
     }
 
     /**
@@ -304,6 +325,16 @@ public final class GrugOverlayHost {
     }
 
     /** Whether control is held, or whether the test press being delivered says it is. */
+    static boolean controlHeld() {
+        return isControlDown();
+    }
+
+    /** Whether shift is held, or whether the test press being delivered says it is. */
+    static boolean shiftHeld() {
+        return isShiftDown();
+    }
+
+    /** Whether control is held, or whether the test press being delivered says it is. */
     private static boolean isControlDown() {
         if (testPress) return testCtrl;
         return Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
@@ -383,6 +414,52 @@ public final class GrugOverlayHost {
      */
     public static int keyIndex(int code) {
         return Keyboard.getKeyIndex(GrugOverlay.keyNameForCode(code));
+    }
+
+    /**
+     * Asks the mod's {@code screen_key} for one press on a screen a mod owns, and answers whether
+     * it took the press, recording the answer for {@code TestTickContext.press_screen_key}.
+     *
+     * <p>The key and the typed character are the same numbers {@link #key} hands an overlay, and a
+     * press that names no key of its own and types no character is declined here, so the screen's
+     * own handler can give the press up rather than reading it as one.
+     */
+    static boolean pressOwnedScreenKey(GrugOwnedScreenHost host, char character, int key) {
+        int code = GrugOverlay.keyCodeForName(Keyboard.getKeyName(key));
+        if (code < 0) code = 0;
+        int typed = GrugOverlay.characterCode(character);
+        if (code == 0 && typed == 0) return false;
+        boolean ctrl = isControlDown();
+        boolean shift = isShiftDown();
+        boolean repeat = isRepeat();
+        boolean chord = typed > 0 ? GrugOverlay.characterEventIsChord(ctrl, isAltDown()) : ctrl;
+        if (GrugOwnedScreens.keyScreen(host.model(), code, typed, chord, shift, repeat)) {
+            GrugOverlay.noteTestPressTaken();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Hands one wheel movement to the screen a mod owns and answers whether the screen's mouse
+     * handler must stop instead of reading the event as a button.
+     *
+     * <p>The movement is the one the event carries, or the one a test is holding, in which case the
+     * test's position goes with it, because LWJGL's current event then belongs to whatever ran
+     * before the test. This is the same order a container screen's wheel takes: the screen's own
+     * scroll path, which asks {@code screen_scroll} and then the list under the point.
+     */
+    static boolean wheelOverOwnedScreen(
+            GrugOwnedScreenHost host, int displayWidth, int displayHeight) {
+        double delta = testScroll ? testDelta : Mouse.getEventDWheel() / WHEEL_NOTCH;
+        if (delta == 0.0 && !testScroll) return false;
+        int x = testScroll ? testX : Mouse.getEventX() * host.width / displayWidth;
+        int y =
+                testScroll
+                        ? testY
+                        : host.height - Mouse.getEventY() * host.height / displayHeight - 1;
+        host.scrollAt(x, y, delta);
+        return true;
     }
 
     /** LWJGL 2's wheel delta for one notch, which turns the delta into the API's notches. */
