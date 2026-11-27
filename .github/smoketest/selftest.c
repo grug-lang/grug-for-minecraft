@@ -271,6 +271,45 @@ static void test_argument_checks(void) {
     CHECK(particle_problem("heart", ok6, m, sizeof m) && !strcmp(m, "There is no particle called \"heart\". The particles are reddust."), "%s", m);
 }
 
+// Position arguments are narrowed as the Java host narrows them: (int) Math.floor(x), so a huge
+// finite coordinate saturates at the int ends rather than being refused (#1849). Every expected number
+// is that expression printed by the local JDK:
+//   2147483647.0 and 2147483647.9 and 2147483648.0 and 1e15 -> 2147483647
+//   -2147483648.0 and -2147483648.9 and -2147483649.0 and -1e15 -> -2147483648
+//   3.9 -> 3, -3.1 -> -4
+static void test_pos_arg(void) {
+    struct { double v; long want; } cases[] = {
+        {2147483647.0, 2147483647L}, {2147483647.9, 2147483647L}, {2147483648.0, 2147483647L},
+        {1e15, 2147483647L}, {-2147483648.0, -2147483648L}, {-2147483648.9, -2147483648L},
+        {-2147483649.0, -2147483648L}, {-1e15, -2147483648L}, {3.9, 3L}, {-3.1, -4L},
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof *cases; i++) {
+        union grug_value a[4];
+        long out[3];
+        a[0] = none();
+        a[1] = num(cases[i].v);
+        a[2] = num(0);
+        a[3] = num(0);
+        CHECK(pos_arg(a, out, "selftest"), "a finite %g is accepted", cases[i].v);
+        CHECK(out[0] == cases[i].want, "%g narrows to %ld, got %ld", cases[i].v, cases[i].want, out[0]);
+    }
+}
+
+// A far emitter gives no light. The Manhattan distance is 64-bit now, and the Java host narrows a
+// position to int, so the farthest two blocks can be is INT_MAX - INT_MIN = 4294967295, which does not
+// fit an int: (int) 4294967295L is -1 on the JDK, so the old code gave a torch that far away 14 - (-1)
+// = 15. A light is 0 at or past the emission radius.
+static void test_toy_light(void) {
+    clear_world();
+    set_block(0, 64, 0, "minecraft:torch");
+    CHECK(toy_block_light(0, 64, 3) == 11, "a torch three blocks away gives 11");
+    CHECK(toy_block_light(0, 64, 14) == 0, "a space at the emission radius gives no light");
+    clear_world();
+    set_block(2147483647L, 64, 0, "minecraft:torch");
+    CHECK(toy_block_light(-2147483648L, 64, 0) == 0, "a torch 2^32 - 1 blocks away gives no light");
+    clear_world();
+}
+
 static void test_nbt_helpers(void) {
     char m[256];
     // Messages and verdicts mirror GrugBlockEntityNbt.parsePath and checkValue.
@@ -333,6 +372,8 @@ int main(void) {
     test_use_face();
     test_double_text();
     test_float_text();
+    test_pos_arg();
+    test_toy_light();
     test_nbt_helpers();
     test_file_charge();
     test_argument_checks();
