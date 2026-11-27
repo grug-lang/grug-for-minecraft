@@ -319,6 +319,10 @@ CI. Light jobs stay local: Gradle builds,
 
 ### A red main or a flake
 
+Every flake is fixed immediately, whether it reddens `main` or a pull request. A rerun tells it from
+a real failure and the occurrence is recorded, but the rerun is never the fix, and a known flake is
+not left in the tree to be rerun again.
+
 - A red `main` is not a stop sign. It comes from one merge, so it is attributed to that pull
   request: rerun the failed jobs once to tell a flake from a real failure, then fix forward or
   revert, and do not pause the work in flight. Keeping `main` green still matters, because a red
@@ -377,12 +381,16 @@ with `NoClassDefFoundError` (#1246).
 - Print diagnostics before `ALL N TESTS PASSED`: `run-loader.sh` stops reading the log there.
 - Accepted goldens come from GitHub's runners, never a local run: a world capture differs slightly.
   A failing job uploads its capture (`gh run download <run-id> --name loader-<loader>-screenshots`).
-  The suite fails fast, so when many goldens change, push the commit to a throwaway branch whose
-  loader jobs run `update-goldens` and upload `mods/*/screenshots`, and dispatch it once.
-  `update-goldens` writes every unmatched capture under the running loader's name. Look at every
-  PNG before committing it, and count them: a loader the test runs on with no PNG of its own fails
-  every later run of that leg (#1797), so the list must hold one per loader, not only the ones the
-  dispatch happened to reach.
+  A CI run also refuses to bootstrap an empty reference directory, and the suite fails fast at the
+  first mismatch, so a set of new or changed goldens is one dispatch, not one rerun each:
+  `gh workflow run build.yml --ref <branch> -f update-goldens=true`. That input sets
+  `GRUG_UPDATE_GOLDENS=1` on every loader job, dedicated leg and installed run, and an unmatched
+  capture there is accepted under the running loader's own name instead of failing, so the run
+  continues and writes the whole set. Each job uploads what it accepted as
+  `loader-<loader>-goldens`, red or not; merge the loaders' `mods/*/screenshots` trees. It replaces a
+  loader's existing reference when the rendering moved too, so review every PNG, and count them: a
+  loader the test runs on with no PNG of its own fails every later run of that leg (#1797), so the
+  list must hold one per loader, not only the ones the dispatch reached.
 - Coverage stays at 100% on `core`, and comes from `mods/coverage/` alone: cover a host function
   with a grug test there first, then a Java test, and `@GrugGenerated` only as a last resort.
   The gate counts only the unit tests, each game run's boot and `mods/coverage/`'s tests, so
