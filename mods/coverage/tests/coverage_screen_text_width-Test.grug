@@ -1,9 +1,10 @@
 # OverlayRenderContext.text_width answers the width the game's own font draws a text at, and a mod
 # screen's own close through Screen.close takes the host away. The overlay's screen_render measures
-# its title and the empty text every frame, and the screen closes from screen_key only when the
-# title measured wider than 0 and the empty text measured 0, so a text_width that answered nothing
-# leaves the screen open and fails the test. The close is also the one path a mod's own Escape runs,
-# so it proves that closing a screen takes its host away.
+# its title and the empty text every frame. Once the screen is up, Z asks its screen_key to arm the
+# close, and Escape then closes it only when the title measured wider than 0 and the empty text
+# measured 0, so a text_width that answered nothing leaves the screen open and fails the test. The
+# close is also the one path a mod's own Escape runs, so it proves that closing a screen takes its
+# host away.
 # The screen host exists only on 1.20.6 so far, and the test ends early on the dedicated server,
 # whose joined client owns the screen.
 started: bool = false
@@ -34,8 +35,9 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        # Z makes the overlay close its screen from screen_key.
-        ctx.press_world_key(90, false)
+        # C puts the list back in its ordinary answering mode, which this screen shares with the
+        # tests that run after this one.
+        ctx.press_world_key(67, false)
         step = 1
         waited = 0
         ctx.not_done()
@@ -59,16 +61,25 @@ export tick(ctx: TestTickContext) {
             return
         }
         # The frame barrier: the frame that draws the screen is the one whose screen_render measured
-        # the two texts, and Escape is pressed only after it.
+        # the two texts, and the arming key is pressed only after it.
         if not ctx.overlay_drawn() {
             waited = waited + 1
-            ctx.assert(waited < 200, "The screen should draw a frame before Escape.")
+            ctx.assert(waited < 200, "The screen should draw a frame before it is asked to close.")
             ctx.not_done()
             return
         }
+        took: bool = ctx.press_screen_key(90, false, false, true)
+        ctx.assert(took, "Z should reach screen_key, which arms the close.")
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
         took: bool = ctx.press_screen_key(256, false, false, true)
         ctx.assert(took, "Escape should reach screen_key.")
-        step = 3
+        step = 4
         waited = 0
         ctx.not_done()
         return
