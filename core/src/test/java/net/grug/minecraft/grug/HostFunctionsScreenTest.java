@@ -578,7 +578,7 @@ class HostFunctionsScreenTest {
         String report = reported();
         assertTrue(report.contains("no longer resolves"), report);
         assertTrue(report.contains("\"button\""), report);
-        assertTrue(report.contains("screen it was declared on was closed"), report);
+        assertTrue(report.contains("its screen closed"), report);
         assertFalse(report.contains("collected"), report);
     }
 
