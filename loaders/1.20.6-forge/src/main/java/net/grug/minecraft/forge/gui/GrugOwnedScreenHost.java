@@ -224,6 +224,9 @@ public final class GrugOwnedScreenHost extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // This is the frame a test of the screen's mod waits on, and its start is where the
+        // screen-open clearing has to show, so the first-frame record compares the two.
+        GrugOverlay.noteFrame(this);
         syncMirrors();
         // The rows are asked before anything is drawn, because the lists draw the answers this
         // frame.
@@ -234,6 +237,7 @@ public final class GrugOwnedScreenHost extends Screen {
         GrugOverlayGeometry geometry =
                 GrugOwnedScreens.renderScreen(screen, width, height, mouseX, mouseY);
         GrugOverlayHost.drawGeometry(graphics, geometry);
+        GrugOwnedScreens.noteScreenFrame(screen);
     }
 
     @Override
