@@ -76,6 +76,12 @@ ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 # server loads as its mod, so its class bytes are the ones the server's exec data was recorded
 # against (the client run's staged classes are the dev build's, with other names).
 LAYER = "layer-"
+
+# This loader's JUnit run writes its exec data under this name in build/jacoco, beside the game
+# run's numbered segments. The gate counts it, but it is not the client run: a class a unit test
+# loads was never initialised by the client game, so it cannot decide that a dedicated-server class
+# is the client set's copy (#1850, see server_class_set).
+UNIT_TEST_EXEC = "test.exec"
 # The jar the dedicated-server leg itself ran, uploaded beside its exec data so a later run that
 # carries the data over analyses it against the very bytes it was recorded on (#1674).
 SERVER_LAYER = "server-layer-"
@@ -378,6 +384,32 @@ def exec_blocks(data: bytes):
         yield kind, name, data[start:position]
 
 
+def base_name(name: str) -> str:
+    """The simple class name an internal name names, without its package or nested classes."""
+    return name.rsplit("/", 1)[-1].split("$", 1)[0]
+
+
+def only_the_unit_test_ran_it(
+    name: str,
+    client_run_names: set[str],
+    server_names: set[str],
+    server_only_names: set[str],
+) -> bool:
+    """Whether a dedicated-server class is named only by a unit test, so the server set owns it.
+
+    The client game never runs such a class, so a unit test that loads it covers a few lines of the
+    client's dev copy and leaves the rest reading as missed, while the layer jar's copy, which the
+    dedicated server's exec data was recorded against, is measured whole (#1850). A class the client
+    game ran, or one the server's exec data never names, is not this case: the client-side data is
+    then the only measurement there is.
+    """
+    return (
+        base_name(name) in server_only_names
+        and name in server_names
+        and name not in client_run_names
+    )
+
+
 def exec_class_names(paths: list[Path]) -> set[str]:
     """The names of the classes the exec files hold data for."""
     names: set[str] = set()
@@ -513,19 +545,37 @@ def carried_unmatched(unmatched: list[str], carried: list[Path]) -> list[str]:
 
 
 def server_class_set(
-    layer_jar: Path, client_classes: Path, client_names: set[str], work: Path
+    layer_jar: Path,
+    client_classes: Path,
+    client_names: set[str],
+    client_run_names: set[str],
+    server_names: set[str],
+    server_only_names: set[str],
+    work: Path,
 ) -> tuple[Path, Path, list[str], set[str]]:
     """Split an Ornithe runner's classes into the client's set and the dedicated server's own.
 
     The dedicated server runs the layer jar, whose bytes differ from the client run's dev classes
     for every class that names a renamed Minecraft type, and JaCoCo analyses exec data only against
-    the bytes it was recorded on. A class whose bytes differ and which the client run never
-    initialised (client_names holds the ones it did) can only have the server's exec data, so it is
-    analysed from the layer jar's copy alone and left out of the client set: no class is counted in
-    two reports, which sum_csvs would add up as two sets of misses (#169, #1027). A class both runs
-    ran with other bytes stays the client's copy, as it always was, since counting it from both
-    needs a line-level union of two sets of bytes. Returns the client set, the server set, the
-    sorted names of the classes that moved and the names of the differing ones that stayed.
+    the bytes it was recorded on. A class whose bytes differ and which the client game run never
+    initialised (client_run_names holds the ones it did) can only have the server's exec data, so
+    it is analysed from the layer jar's copy alone and left out of the client set: no class is
+    counted in two reports, which sum_csvs would add up as two sets of misses (#169, #1027). A class
+    both runs ran with other bytes stays the client's copy, as it always was, since counting it from
+    both needs a line-level union of two sets of bytes.
+
+    client_names also holds the classes a unit test loaded under the client's dev bytes, which is
+    why client_run_names is separate. The gate counts that unit-test data, so a class it loads stays
+    the client's copy, except one of the dedicated server's own classes (server_only_names, the
+    reviewed SERVER_ONLY list): the client game never runs such a class, so a unit test that touches
+    it measures only the lines it happens to call, and the layer jar's copy, which the server's exec
+    data was recorded against, is the one to count. Letting the unit test keep it failed the gate
+    for a class the dedicated server covers completely (#1850). The class still stays the client's
+    when the client game ran it, or when the server's exec data never names it, because then the
+    client-side data is the only measurement there is.
+
+    Returns the client set, the server set, the sorted names of the classes that moved and the names
+    of the differing ones that stayed.
     """
     shutil.rmtree(work, ignore_errors=True)
     layer_dir = work / "layer"
@@ -548,7 +598,9 @@ def server_class_set(
         counterpart = client_classes / relative
         if counterpart.is_file() and counterpart.read_bytes() == path.read_bytes():
             continue
-        if name in client_names:
+        if name in client_names and not only_the_unit_test_ran_it(
+            name, client_run_names, server_names, server_only_names
+        ):
             stayed.add(name)
             continue
         moved.append(name)
@@ -1365,12 +1417,23 @@ def main() -> int:
             work = args.output.parent / "class-sets" / runner
             server_only = set(info["server_exec"])
             server_dropped = set(info.get("server_dropped", []))
-            client_names = exec_class_names(
-                [p for p in execs if p not in server_only]
-                + [p for p in dropped if p not in server_dropped]
+            client_execs = [p for p in execs if p not in server_only]
+            client_dropped = [p for p in dropped if p not in server_dropped]
+            client_names = exec_class_names([*client_execs, *client_dropped])
+            # The unit test is not the client run: a class it loads must not claim a
+            # dedicated-server class for the client set (#1850).
+            client_run_names = exec_class_names(
+                [p for p in client_execs if p.name != UNIT_TEST_EXEC] + client_dropped
             )
+            server_names = exec_class_names(sorted(server_only))
             classes, server_classes, moved, stayed = server_class_set(
-                layer_jar, classes, client_names, work
+                layer_jar,
+                classes,
+                client_names,
+                client_run_names,
+                server_names,
+                set(SERVER_ONLY.get(runner, [])),
+                work,
             )
             if not moved:
                 # An empty set has nothing to report, and its exec data would only be ignored.

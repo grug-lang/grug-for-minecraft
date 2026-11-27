@@ -660,9 +660,10 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     private static void setCarriedOn(AbstractContainerMenu menu, Object itemObj) {
-        // The interface's contract is that a null item clears the cursor, which a grug call never
-        // sends today; the empty arm keeps a caller that does from failing (#1850).
-        menu.setCarried(itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
+        // A grug Item is never null, so there is no empty arm: deleteCarriedItem clears the cursor.
+        menu.setCarried(
+                new ItemStack(
+                        (Item) Objects.requireNonNull(itemObj, "set_carried_item: no item"), 1));
         // The cursor is not a slot the container's own update carries, so the client's screen would
         // keep whatever it had while this server's menu carries the item the click applies. The
         // game syncs it as window -1 slot -1, which is what broadcastChanges sends once the carried
