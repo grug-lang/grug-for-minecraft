@@ -22,11 +22,11 @@ public class ClientStationApiAdapter extends StationApiAdapter {
     /**
      * The width the client's own font draws {@code text} at, which is what {@code
      * OverlayRenderContext.text_width} measures. A mod's screen centres its title with it, so a
-     * loader without it cannot draw a screen the way the mod laid it out.
+     * loader without it cannot draw a screen the way the mod laid it out. No refusal arm is needed
+     * here: this class is loaded only in a client process, where the font always exists.
      */
     @Override
     public double textWidth(String text) {
-        if (refuseWithoutAClient("OverlayRenderContext.text_width")) return 0.0;
         return game().textRenderer.getWidth(text);
     }
 
