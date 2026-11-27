@@ -4022,16 +4022,6 @@ public class HostFunctions {
         return GrugCore.getAdapter().textWidth(text == null ? "" : text);
     }
 
-    /**
-     * The wall clock's milliseconds, which a screen animates a fade or a spinner with. The game's
-     * own clock is not it: the reference reads {@code System.currentTimeMillis}, and a screen's
-     * progress indicator moves with the wall clock even while the world is paused.
-     */
-    public static double OverlayRenderContext_time_millis(long contextId) {
-        if (!requireOverlayRenderContext("OverlayRenderContext.time_millis", contextId)) return 0.0;
-        return System.currentTimeMillis();
-    }
-
     @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
     public static void OverlayRenderContext_draw_item(
             long contextId, long itemId, double x, double y) {

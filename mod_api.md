@@ -288,7 +288,6 @@ Option.new() Option[$Value]
 .screen_serial() number
 .screen_width() number
 .text_width(text: string) number
-.time_millis() number
 
 ## OverlayScrollContext
 .delta() number
