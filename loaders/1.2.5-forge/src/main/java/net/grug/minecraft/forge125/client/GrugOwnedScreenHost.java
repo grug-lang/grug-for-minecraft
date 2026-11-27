@@ -18,6 +18,7 @@ import net.minecraft.src.ModLoader;
 import net.minecraft.src.ScaledResolution;
 
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.GL11;
 
 import java.util.LinkedHashMap;
@@ -43,9 +44,9 @@ import java.util.Map;
  * otherwise never hear of the close.
  *
  * <p>The screen never pauses the game: a mod builds in the world it draws over. A screen the game
- * takes away, on Escape or because another screen replaced it, tells core in {@link #removed()}, on
- * the next client tick, so a {@code screen_closed} that opens another screen runs after the game
- * finished putting the new screen in place.
+ * takes away, on Escape or because another screen replaced it, tells core in {@link
+ * #onGuiClosed()}, on the next client tick, so a {@code screen_closed} that opens another screen
+ * runs after the game finished putting the new screen in place.
  */
 public final class GrugOwnedScreenHost extends GuiScreen {
 
@@ -135,15 +136,24 @@ public final class GrugOwnedScreenHost extends GuiScreen {
 
     /**
      * Takes the game's screen away when it is this model's host, which is what a screen close asks
-     * for. A screen the player opened over the host is theirs to keep, so it stays: this loader
-     * shows its empty screen where another version shows the world again.
+     * for. A screen the player opened over the host is theirs to keep, so it stays.
      */
     public static void hideIfShowing(GrugOwnedScreen model) {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         if (minecraft.currentScreen instanceof GrugOwnedScreenHost
                 && ((GrugOwnedScreenHost) minecraft.currentScreen).model() == model) {
-            minecraft.displayGuiScreen(new GrugEmptyScreen());
+            showWorld(minecraft);
         }
+    }
+
+    /**
+     * Puts the world back after a mod screen. On an active window that is the game's own null
+     * screen, which grabs the mouse and gives the player movement and clicks back; the empty screen
+     * is only for an inactive one, where this version's renderer opens the in-game menu half a
+     * second after the screen becomes null (see {@link GrugEmptyScreen}).
+     */
+    private static void showWorld(Minecraft minecraft) {
+        minecraft.displayGuiScreen(Display.isActive() ? null : new GrugEmptyScreen());
     }
 
     @Override
@@ -446,7 +456,7 @@ public final class GrugOwnedScreenHost extends GuiScreen {
     /** Closes this screen the way {@code close_screen} does on this loader. */
     private void closeScreen() {
         if (mc.currentScreen == this) {
-            mc.displayGuiScreen(new GrugEmptyScreen());
+            showWorld(mc);
         }
     }
 
