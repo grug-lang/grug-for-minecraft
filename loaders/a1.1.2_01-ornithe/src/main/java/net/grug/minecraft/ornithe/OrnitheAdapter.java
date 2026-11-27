@@ -691,6 +691,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setHeldItemCount(Object playerObj, int count) {
+        // The hand holds the stack, because replace_held_item reads its count before shrinking it.
+        ((PlayerEntity) playerObj).inventory.getSelectedItem().size = count;
+    }
+
+    @Override
     public void clearInventoryOf(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
         Inventory inventory = player.inventory;

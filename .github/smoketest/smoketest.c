@@ -2949,6 +2949,24 @@ static union grug_value BUC_decline_use(ARGS) {
     return none();
 }
 REGISTER("BlockUseContext", "decline_use", BUC_decline_use);
+// replace_held_item (replace_held_item-Test, tank_bucket-Test): takes the item the block used up off
+// the hand. A stack of several loses one and keeps its item; the last one, or an empty hand, becomes
+// one of the named item. The toy world has one player with one hand and no second copy to sync, so
+// this is the whole answer every loader gives. An item keeps its entity id, as an Item is interned by
+// name here, so the hand a test reads back is the item the mod named.
+static union grug_value BUC_replace_held_item(ARGS) {
+    UNUSED;
+    struct obj* c = get_obj(a[0]._id, K_USE_CTX);
+    if (!c) return fail("BlockUseContext.replace_held_item: not a BlockUseContext");  // SMOKETEST_EXCL: no committed test
+    if (!get_obj(a[1]._id, K_ITEM)) return fail("BlockUseContext.replace_held_item: not an Item");  // SMOKETEST_EXCL: grug type-checks the argument
+    if (inv[0].has && inv[0].count >= 2) {
+        inv[0].count -= 1;
+    } else {
+        inv[0].has = true; inv[0].item = a[1]._id; inv[0].count = 1;
+    }
+    return none();
+}
+REGISTER("BlockUseContext", "replace_held_item", BUC_replace_held_item);
 // The face a ray from the eye to the block's centre enters, as GrugUseBlockFace.face numbers it: 0 down, 1 up,
 // 2 north (-z), 3 south (+z), 4 west (-x), 5 east (+x). The axis of the largest distance decides, and a tie
 // goes to y, then x, then z. selftest.c compares it with the six faces and the ties of the core's rule.

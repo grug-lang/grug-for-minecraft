@@ -371,22 +371,33 @@ public interface ModLoaderAdapter {
     Object getHeldItem(Object playerObj);
 
     /**
-     * Test only: puts one of the item in the player's selected hotbar slot, or empties it for a
-     * null item.
+     * Puts one of the item in the player's selected hotbar slot, or empties it for a null item. A
+     * test reaches it through {@code TestTickContext.set_held_item}, and a block's {@code use()}
+     * through {@code BlockUseContext.replace_held_item} when the stack it used up was the last one.
      */
     void setHeldItem(Object playerObj, Object itemObj);
 
     /**
-     * Test only: how many items the player's main hand holds. A loader that cannot answer keeps the
-     * default, which reports the call rather than pretending the hand holds one item.
+     * How many items the player's main hand holds, which a block's {@code use()} reads to tell a
+     * stack of several from the last one. A loader that cannot answer keeps the default, which
+     * reports the call rather than pretending the hand holds one item.
      */
-    @GrugGenerated("test only: only the 1.20.6 adapter has an overlay test that counts a stack")
+    @GrugGenerated("the default arm: every loader implements the count for replace_held_item")
     default double getHeldCount(Object playerObj) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr,
-                "TestTickContext.get_held_count: This loader cannot count the held stack yet.");
+                "BlockUseContext.replace_held_item and TestTickContext.get_held_count: This loader"
+                        + " cannot count the held stack yet.");
         return 0.0;
     }
+
+    /**
+     * Leaves the player's main hand holding {@code count} of the item it already holds. The stack
+     * is there: a block's {@code use()} reaches this only for a hand {@link #getHeldCount} said
+     * holds several, and a loader whose {@link #setHeldItem} syncs the inventory has to sync this
+     * the same way, or a client that was not told shows the old count.
+     */
+    void setHeldItemCount(Object playerObj, int count);
 
     boolean hasNeighborSignal(Object levelObj, double x, double y, double z);
 
