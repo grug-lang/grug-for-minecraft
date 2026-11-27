@@ -2,7 +2,6 @@ package net.grug.minecraft.ornithe;
 
 import net.grug.minecraft.grug.GrugOwnedScreen;
 import net.grug.minecraft.ornithe.client.GrugOwnedScreenHost;
-import net.minecraft.client.Minecraft;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 
 /**
@@ -47,13 +46,9 @@ public class ClientOrnitheAdapter extends OrnitheAdapter {
 
     @Override
     public void hideOwnedScreen(GrugOwnedScreen screen) {
-        Minecraft minecraft = MinecraftInstance.get();
-        // Only the screen this loader made for this mod screen is taken away: another screen the
-        // player opened over it is theirs to keep. This version shows the world again where
-        // another version shows an empty screen.
-        if (minecraft.screen instanceof GrugOwnedScreenHost
-                && ((GrugOwnedScreenHost) minecraft.screen).model() == screen) {
-            minecraft.openScreen(null);
-        }
+        // The host decides whether it is still the screen the game shows: only the screen this
+        // loader made for this mod screen is taken away, because another screen the player opened
+        // over it is theirs to keep.
+        GrugOwnedScreenHost.hideIfShowing(screen);
     }
 }
