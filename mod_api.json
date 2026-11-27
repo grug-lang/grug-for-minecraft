@@ -156,7 +156,7 @@
 				},
 				{
 					"name": "use",
-					"description": "Called when a player right-clicks the block.",
+					"description": "Called on the server when a player right-clicks the block. The client's prediction of the click does not call it, so one click runs the export once and a hand changed through `replace_held_item` is the server's. When the export declines, the server still runs the held item's own use, and a block that use places reaches the client from the server.",
 					"parameters": [
 						{
 							"name": "ctx",

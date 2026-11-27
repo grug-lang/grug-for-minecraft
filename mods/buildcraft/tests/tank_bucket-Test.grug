@@ -13,7 +13,9 @@
 # asked for rather than counting ticks (#688). Each step gets its own wait budget, reset when its
 # predecessor's condition held, so a click that lands late cannot eat the next step's budget. At the
 # end of step 2's budget the failure is named from the state it reached, so a lost click says which
-# of the tank, the hand or both did not change.
+# of the tank, the hand or both did not change. No step sets the hand and clicks twice in one tick:
+# 1.20.6 sends both clicks as packets the server handles after the tick, by which time both
+# set_held_item calls have run, so both clicks would use the later bucket.
 step: number = 0
 waited: number = 0
 
@@ -117,33 +119,52 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.assert(tank.take_liquid(1, true) == 1, "The water tank should give one of its 1000 mB.")
+        # The empty bucket gets a step of its own: 1.20.6 sends both clicks of one tick as packets
+        # the server handles after the tick, so a hand set between two clicks in one tick would
+        # reach the server twice before either click ran, and both would use the later bucket.
         ctx.set_held_item(player, _bucket())
         ctx.use_block(level, x, y, z)
-        ctx.set_held_item(player, _water_bucket())
-        ctx.use_block(level, x + 4, y, z)
         step = 6
         ctx.not_done()
         return
     }
 
     if step == 6 {
-        dry: BlockEntity = _tank(level, x + 4, y, z)
-        if dry.get_liquid_amount() != 1000 or not _held(player, _bucket()) {
+        tank: BlockEntity = _tank(level, x, y, z)
+        if tank.get_liquid_amount() != 999 or not _held(player, _bucket()) {
             _wait(ctx)
             return
         }
         waited = 0
-        ctx.assert(_tank(level, x, y, z).get_liquid_amount() == 999, "A tank holding under 1000 mB should keep what it has and its bucket should stay empty.")
-        # A water bucket on a tank holding the whole 1000 mB of another liquid consumes the click and
-        # leaves the bucket, as BlockTank.b answers true for every bucket in its table.
-        ctx.set_held_item(player, _lava_bucket())
-        ctx.use_block(level, x + 2, y, z)
+        ctx.assert(tank.get_liquid_amount() == 999, "The empty bucket click should leave the water tank's 999 mB alone.")
+        ctx.assert(_held(player, _bucket()), "The refused empty bucket click should leave the empty bucket in hand.")
+        ctx.set_held_item(player, _water_bucket())
+        ctx.use_block(level, x + 4, y, z)
         step = 7
         ctx.not_done()
         return
     }
 
     if step == 7 {
+        dry: BlockEntity = _tank(level, x + 4, y, z)
+        if dry.get_liquid_amount() != 1000 or not _held(player, _bucket()) {
+            _wait(ctx)
+            return
+        }
+        waited = 0
+        ctx.assert(dry.get_liquid_amount() == 1000, "The water bucket click should fill the dry tank with 1000 mB.")
+        ctx.assert(_held(player, _bucket()), "The water bucket click should leave an empty bucket in hand.")
+        ctx.assert(_tank(level, x, y, z).get_liquid_amount() == 999, "A tank holding under 1000 mB should keep what it has and its bucket should stay empty.")
+        # A water bucket on a tank holding the whole 1000 mB of another liquid consumes the click and
+        # leaves the bucket, as BlockTank.b answers true for every bucket in its table.
+        ctx.set_held_item(player, _lava_bucket())
+        ctx.use_block(level, x + 2, y, z)
+        step = 8
+        ctx.not_done()
+        return
+    }
+
+    if step == 8 {
         tank: BlockEntity = _tank(level, x + 2, y, z)
         if tank.get_liquid_amount() != 1000 or not _held(player, _bucket()) {
             _wait(ctx)
@@ -152,12 +173,12 @@ export tick(ctx: TestTickContext) {
         waited = 0
         ctx.set_held_item(player, _water_bucket())
         ctx.use_block(level, x + 2, y, z)
-        step = 8
+        step = 9
         ctx.not_done()
         return
     }
 
-    if step == 8 {
+    if step == 9 {
         tank: BlockEntity = _tank(level, x + 2, y, z)
         if not _held(player, _water_bucket()) {
             _wait(ctx)
@@ -169,7 +190,7 @@ export tick(ctx: TestTickContext) {
         # A held block is declined, so it is placed against the tank as it would be without the export.
         ctx.set_held_item(player, item(resource_location("minecraft:cobblestone")))
         ctx.use_block(level, x, y, z)
-        step = 9
+        step = 10
         ctx.not_done()
         return
     }
